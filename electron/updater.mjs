@@ -13,6 +13,7 @@ import {
 import { canInstallElevated, installPackageElevated } from "./elevated-install.mjs";
 import { releaseSingleInstanceLock } from "./single-instance.mjs";
 import { openBlankTerminal } from "./terminal-launch.mjs";
+import { STARTUPBOT_UPDATES_ENABLED } from "./updater-config.mjs";
 import { UPDATE_TEXT } from "./update-errors.mjs";
 import { createUpdaterCoordinator } from "./updater-coordinator.mjs";
 import { createQuietInstall, installFailed, launchAfter, LOOK_EVERY_MS, updateSeen } from "./update-when-quiet.mjs";
@@ -20,7 +21,6 @@ import { createQuietInstall, installFailed, launchAfter, LOOK_EVERY_MS, updateSe
 export { quietSignals } from "./update-when-quiet-main.mjs";
 
 const require = createRequire(import.meta.url);
-const STARTUPBOT_UPDATES_ENABLED = false;
 
 let autoUpdater = null;
 let win = null;

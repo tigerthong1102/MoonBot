@@ -98,6 +98,7 @@ function mainRule() {
 
 async function load(pageAllowed, serverPage = undefined, confirmRestart = undefined) {
   vi.resetModules();
+  vi.doMock("./updater-config.mjs", () => ({ STARTUPBOT_UPDATES_ENABLED: true }));
   fixture.handlers.clear();
   const autoUpdater = new EventEmitter();
   autoUpdater.checkForUpdates = vi.fn(async () => {
@@ -127,6 +128,7 @@ beforeEach(() => {
   vi.useFakeTimers();
 });
 afterEach(() => {
+  vi.doUnmock("./updater-config.mjs");
   vi.clearAllTimers();
   vi.useRealTimers();
   rmSync(fixture.home, { recursive: true, force: true });
@@ -459,4 +461,20 @@ it("a server's page the window shows may ask for the app's own update: it learns
   expect(await ask(other.event)).toBe("installing");
   expect(confirmRestart).toHaveBeenLastCalledWith("2.0.0", OTHER);
   expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+});
+
+
+it("keeps packaged updates disabled in the shipped configuration", async () => {
+  vi.resetModules();
+  vi.doUnmock("./updater-config.mjs");
+  fixture.handlers.clear();
+  const updater = await import("./updater.mjs");
+  const autoUpdater = new EventEmitter();
+  autoUpdater.checkForUpdates = vi.fn();
+  fixture.autoUpdater = autoUpdater;
+  updater.registerUpdaterIpc({ pageAllowed: () => true });
+  updater.startUpdater();
+  const state = await fixture.handlers.get("update:get-state")(page(LOCAL).event);
+  expect(state).toMatchObject({ status: "error", messageCode: "unavailable" });
+  expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
 });

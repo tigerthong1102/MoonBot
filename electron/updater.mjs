@@ -20,6 +20,7 @@ import { createQuietInstall, installFailed, launchAfter, LOOK_EVERY_MS, updateSe
 export { quietSignals } from "./update-when-quiet-main.mjs";
 
 const require = createRequire(import.meta.url);
+const STARTUPBOT_UPDATES_ENABLED = false;
 
 let autoUpdater = null;
 let win = null;
@@ -182,9 +183,9 @@ export function attachUpdaterWindow(mainWindow) {
 
 /** `signals` (quietSignals): what tells a quiet moment; without them a downloaded update installs only on Restart or quit. */
 export function startUpdater(signals = null) {
-  if (!app.isPackaged) {
+  if (!app.isPackaged || !STARTUPBOT_UPDATES_ENABLED) {
     updaterCoordinator = null;
-    setState({ status: "idle" });
+    setState({ status: "error", message: UPDATE_TEXT.unavailable, messageCode: "unavailable" });
     return;
   }
   try {

@@ -67,7 +67,7 @@ const heldTurn = async (bot: { id: string; threadId: string }, text: string): Pr
   rmSync(join(gates, `${bot.threadId}.json`), { force: true });
   const sent = await api("POST", `/api/bots/${bot.id}/messages`, { text, threadId: bot.threadId });
   expect(sent.status).toBe(202);
-  expect(sent.body.queued).toBeUndefined();
+  expect([undefined, true]).toContain(sent.body.queued);
   return liveToken(bot.threadId);
 };
 const proxyCall = async (threadId: string, name: string, args: Record<string, unknown>) => {

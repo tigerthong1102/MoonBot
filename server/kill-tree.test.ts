@@ -25,6 +25,7 @@ function processState(pid: number): string {
 }
 
 function alive(pid: number): boolean {
+  if (process.platform === "linux" && /\) [ZX] /.test(processState(pid))) return false;
   try {
     process.kill(pid, 0);
     return true;

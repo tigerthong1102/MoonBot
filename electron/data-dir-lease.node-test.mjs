@@ -13,6 +13,7 @@ import {
   clearRecordsFromOtherMachines,
   inMacSyncedFolder,
   macMountIsLocal,
+  windowsCreationMatchesLease,
 } from "./data-dir-lease.mjs";
 
 const MODULE_URL = new URL("./data-dir-lease.mjs", import.meta.url).href;
@@ -938,6 +939,12 @@ test("a Windows zombie is still dead when tasklist cannot answer and the process
   const lease = acquireDataDirLease(dataDir);
   assert.equal(lease.ownerPid, process.pid);
   assert.equal(lease.release(), true);
+});
+
+test("a process created in the lease's millisecond stays a possible owner", () => {
+  assert.equal(windowsCreationMatchesLease(1000, 1000), true);
+  assert.equal(windowsCreationMatchesLease(999, 1000), true);
+  assert.equal(windowsCreationMatchesLease(1001, 1000), false);
 });
 
 test("a Windows owner this account cannot signal but that still runs keeps blocking startup", async (t) => {

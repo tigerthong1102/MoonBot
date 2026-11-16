@@ -124,7 +124,7 @@ describe("default VPS command runner", () => {
     const master = realSpawn(process.execPath, ["-e", idle], { detached: true, stdio: "ignore" });
     const masterClosed = new Promise<void>((resolve) => master.once("close", () => resolve()));
     let helper = 0;
-    const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+    const alive = (pid: number) => { if (process.platform === "linux" && /\) [ZX] /.test(processState(pid))) return false; try { process.kill(pid, 0); return true; } catch { return false; } };
     const result = defaultRunner(["info"], { timeoutMs: failure === "timeout" ? 1_000 : 20_000 });
     const rejected = expect(result).rejects.toThrow(failure === "timeout" ? "command timed out" : "stdin failed");
     try {

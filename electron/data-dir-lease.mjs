@@ -438,6 +438,10 @@ function cimHasPid(pid) {
 }
 
 /** Pids are reused within a boot: a process that started at another moment, or after the lease, is not its owner. */
+export function windowsCreationMatchesLease(created, recorded) {
+  return created <= recorded;
+}
+
 function ownerIdentityMatches(owner) {
   if (process.platform === "linux") {
     if (!Number.isSafeInteger(owner.start) || typeof owner.ns !== "string" || owner.ns !== pidNamespace()) return true;
@@ -447,7 +451,7 @@ function ownerIdentityMatches(owner) {
   if (process.platform !== "win32") return true;
   const created = processCreationTimeMs(owner.pid);
   if (created === null) return true;
-  return created < owner.createdAt;
+  return windowsCreationMatchesLease(created, owner.createdAt);
 }
 
 function unlinkExact(path, message) {

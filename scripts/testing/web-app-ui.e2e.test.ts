@@ -98,6 +98,8 @@ async function connect(url: string) {
     const parsed = await request("Page.getAppManifest");
     expect(parsed.url).toBe(`${url}/manifest.webmanifest`);
     expect(parsed.errors).toEqual([]);
+    expect(JSON.parse(parsed.data)).toMatchObject({ name: "StartupBot", short_name: "StartupBot" });
+    expect(await evaluate("document.title")).toBe("StartupBot");
     const installability = await request("Page.getInstallabilityErrors");
     expect(installability.installabilityErrors).toEqual([]);
     await expect.poll(() => evaluate("document.querySelector('textarea[aria-label^=\"Message\"]') !== null"), { timeout: 20_000 }).toBe(true);

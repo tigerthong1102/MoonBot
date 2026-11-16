@@ -49,27 +49,18 @@ jobs:
           # the renderer is served by the server itself (OMB_STATIC_DIR)
           docker exec omb curl -sf http://127.0.0.1:8799/ | grep -qi "<html" || { docker logs omb; echo "UI not served"; exit 1; }
           docker logs omb | tail -5
-      - name: Prove the image finds its enterprise layer
-        # The image ships dist-server/ alone, so the bundled layer sits inside
-        # the server root (server/enterprise.ts looks there after the sibling
-        # folder). A key that is not genuine proves the layer loaded and
-        # checked it; a missing layer would report "no enterprise layer exists"
-        # and a licensed self-hoster would silently run the open-source edition.
+      - name: Prove the image is OSS without an enterprise layer
         run: |
           set -euo pipefail
-          docker run -d --name omb-ent -e OMB_LICENSE_KEY=omb1.not.real openmausbot:ci
+          docker run -d --name omb-oss -e OMB_LICENSE_KEY=omb1.not.real openmausbot:ci
           for i in $(seq 1 40); do
-            if docker exec omb-ent curl -sf http://127.0.0.1:8799/api/health | grep -q openmausbot; then break; fi
+            if docker exec omb-oss curl -sf http://127.0.0.1:8799/api/health | grep -q openmausbot; then break; fi
             sleep 2
-            if [ "$i" = "40" ]; then docker logs omb-ent; echo "server never became healthy"; exit 1; fi
+            if [ "$i" = "40" ]; then docker logs omb-oss; echo "server never became healthy"; exit 1; fi
           done
-          edition=$(docker exec omb-ent curl -sf http://127.0.0.1:8799/api/edition)
-          echo "$edition"
-          if grep -q 'no enterprise layer exists' <<<"$edition"; then echo "the image cannot find its enterprise layer"; exit 1; fi
-          grep -q '"edition":"oss"' <<<"$edition"
-          grep -q 'enterprise layer disabled: OMB_LICENSE_KEY signature does not match' <<<"$edition"
-          docker exec omb-ent test -f /app/dist-server/enterprise/LICENSE
-          docker rm -f omb-ent >/dev/null
+          docker exec omb-oss sh -c 'test ! -e /app/enterprise && test ! -e /app/dist-server/enterprise'
+          docker exec omb-oss curl -sf http://127.0.0.1:8799/api/edition | jq -e '.edition == "oss" and .features == [] and (.notice | contains("no enterprise layer exists"))'
+          docker rm -f omb-oss >/dev/null
       - name: Prove the non-root user can browse with the baked-in Chrome
         run: |
           set -euo pipefail
@@ -117,8 +108,7 @@ jobs:
         run: |
           set -euo pipefail
           docker rm -f omb >/dev/null
-          docker tag openmausbot:ci ghcr.io/milind-soni/openmausbot:latest
-          printf 'DOMAIN=localhost\nENGINES=\n' > deploy/.env
+          printf 'DOMAIN=localhost\nENGINES=\nOMB_IMAGE=openmausbot:ci\n' > deploy/.env
           docker compose -f deploy/docker-compose.yml up -d --no-build
           for i in $(seq 1 45); do
             curl -sk -o /dev/null --max-time 2 https://localhost/.well-known/openmausbot/environment && break

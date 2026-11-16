@@ -14,13 +14,17 @@ replacement or documented permission. Preserve attribution without implying
 endorsement. Third-party binaries, fonts, browser and bundled CUA components
 retain their own terms; complete dependency and SBOM review is pending.
 
-No native mobile source with a verified commercial redistribution grant was
-identified in this checkout. Upstream describes companion apps but does not
-establish source access or a license in the checked documentation. Do not copy
-mobile implementation or branded assets without verification. An independent
-client should implement the documented interoperable protocol, use original
-assets, platform secure storage and fail-closed authorization, with separate
-license review and tests.
+Native source is absent from main, but upstream release branches contain it:
+[`android-release/v1.5.0`](https://github.com/milind-soni/OpenMausBot/tree/android-release/v1.5.0/android)
+(`16ad4080f20fcd2fb310e27d527ce0f6a36e3724`) and
+[`ios-release/build13`](https://github.com/milind-soni/OpenMausBot/tree/ios-release/build13/ios)
+(`37a9d185d825641750b865114497c0ddab43e6dd`). Their root licensing files
+state Apache 2.0 outside `enterprise/`, subject to third-party terms and
+trademark exclusions. This is preliminary evidence for code reuse, not a
+completed dependency, asset or provenance review. The branches contain branded
+assets and Enterprise trees; none has been copied into StartupBot. Review the
+specific files, notices, dependencies and compatibility before selective reuse.
+An independent implementation of the documented protocol remains an option.
 
 Upstream cloud, relay, identity, analytics and download endpoints are not a
 permission to operate against their services. Inventory and replace or disable

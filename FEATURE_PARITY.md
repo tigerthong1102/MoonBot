@@ -18,7 +18,7 @@ integration branch unless stated otherwise.
 | Enterprise hosted adapter | Removed from working tree | Hosted configuration fails closed without the adapter. Enterprise-specific tests require the unavailable layer. |
 | Desktop auto-update and release | Temporarily disabled | No independent signed release feed has been qualified. Do not enable until release and update integrity are verified. |
 | Windows/macOS/Linux installers | Existing packaging retained; rebranding incomplete | Builder identity, icons, data isolation and actual clean installs need work. Do not distribute upstream-branded artifacts as StartupBot. |
-| iOS/Android native | Missing from this checkout | Source/license and platform builds are unverified; no native client or store readiness is claimed. |
+| iOS/Android native | Missing from this checkout | Upstream release branches contain native source; root Apache terms are preliminary evidence, while dependency and asset review and platform builds remain outstanding. No native client or store readiness is claimed. |
 
 A local agent requires its host to remain awake and online. A phone is a remote
 client, not an always-on backend. No paid service has been provisioned.

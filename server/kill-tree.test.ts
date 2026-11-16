@@ -19,6 +19,11 @@ function reportedPid(stdout: Readable): Promise<number> {
   });
 }
 
+function processState(pid: number): string {
+  if (process.platform !== "linux") return "process state unavailable";
+  try { return readFileSync(`/proc/${pid}/stat`, "utf8"); } catch { return "process state unavailable"; }
+}
+
 function alive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -143,7 +148,7 @@ describe("killCliTree", () => {
       if (exitFirst) await rootClosed;
       expect(alive(helper)).toBe(true);
       await expect(killCliTree(parent, 80)).resolves.toBe(true);
-      expect(alive(helper)).toBe(false);
+      expect(alive(helper), processState(helper)).toBe(false);
       expect(parent.exitCode !== null || parent.signalCode !== null).toBe(true);
     } finally {
       await killCliTree(parent, 0);

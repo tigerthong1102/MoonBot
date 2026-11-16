@@ -7,7 +7,7 @@
 | Linux | NO-GO | Package identity, asset rights, independent update destination and install smoke require verification. |
 | iOS | NO-GO | Upstream release-branch source found; dependency/asset review incomplete; no simulator build, signing or TestFlight artifact. |
 | Android | NO-GO | Upstream release-branch source found; dependency/asset review incomplete; no Android SDK build, APK, AAB or emulator evidence. |
-| Website | NO-GO | No verified StartupBot download artifacts, hosted preview or approved privacy/terms. |
+| Website | NO-GO | Local bilingual preview only; visual QA, verified downloads, deployment and approved privacy/terms remain outstanding. |
 | Phone protocol | NOT QUALIFIED | Isolated protocol tests do not establish the four cross-device combinations. |
 
 Release and updater remain disabled. A future pipeline must build on isolated

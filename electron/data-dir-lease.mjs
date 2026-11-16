@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir, hostname, uptime } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
 
 const LEASE_NAME = "openmausbot-server.lease";
 const DELEGATED_CHILD_DIR = ".openmausbot-server-child";
@@ -215,7 +215,7 @@ const MAC_SYNCED_FOLDERS = [["Library", "Mobile Documents"], ["Library", "CloudS
 export function inMacSyncedFolder(path, home) {
   const lower = path.toLowerCase();
   return MAC_SYNCED_FOLDERS.some((parts) => {
-    const root = join(home, ...parts).toLowerCase();
+    const root = posix.join(home, ...parts).toLowerCase();
     return lower === root || lower.startsWith(`${root}/`);
   });
 }
@@ -417,7 +417,7 @@ function windowsProcessListed(pid) {
 /** tasklist ships with every Windows and lists every running process, whatever account or session owns it. */
 function tasklistHasPid(pid) {
   try {
-    const output = windowsOutput("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], 5_000);
+    const output = commandOutput("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], 5_000);
     return output.split(/\r?\n/).some((line) => line.startsWith('"'));
   } catch {
     return null;
@@ -427,7 +427,7 @@ function tasklistHasPid(pid) {
 function cimHasPid(pid) {
   const powershell = join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   try {
-    const output = windowsOutput(powershell, [
+    const output = commandOutput(powershell, [
       "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
       `if (Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}' -ErrorAction Stop) { '1' }`,
     ], 15_000);

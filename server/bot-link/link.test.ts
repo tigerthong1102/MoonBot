@@ -786,7 +786,7 @@ describe("the link between a computer and its Cloud", () => {
     await new Promise((resolve) => setTimeout(resolve, 900));
     expect(waiting().map((node) => node.status)).toEqual(["queued"]);
     expect(computer.coordinator.pace()).not.toBe("busy");
-    await computer.restart({ limits: { queueMs: 80, stallMs: 400 } });
+    await computer.restart();
     expect(waiting().map((node) => node.status)).toEqual(["queued"]);
     expect(cloud.runs).toEqual([]);
     await cloud.listen(cloud.port);

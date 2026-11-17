@@ -1,7 +1,5 @@
 // Each engine process and the MCP servers it starts take hundreds of MB, and a Linux machine without swap that runs out
-// keeps reclaiming, unresponsive, long before its OOM killer acts; in a container the kernel stops engines instead. So a
-// turn that needs a new engine waits here for memory, and under a container's pids limit for room for its processes
-// (process-room.ts), on a Cloud home and on a self-hosted Linux server alike.
+// keeps reclaiming, unresponsive, long before its OOM killer acts; in a container the kernel stops engines instead.
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ChildProcess } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";

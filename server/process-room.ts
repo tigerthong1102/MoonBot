@@ -29,7 +29,6 @@ export interface ProcessCounts {
 
 export interface ProcessBudgetOptions {
   read?: () => { max: number | "max" | null; current: number | null };
-  /** Only tasks owned by the reserved sessions may reduce their reservations. */
   browserTasks?: (sessions: readonly string[]) => number | null;
   now?: () => number;
   log?: (line: string) => void;

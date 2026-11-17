@@ -64,6 +64,37 @@ describe("a browser on a self-hosted server's own machine", () => {
     }
   }, 60_000);
 
+  it("a late authenticated response cannot replace a fresh pairing cookie", async () => {
+    const fixture = await launchVerificationServer({ OMB_DEV_TRUST_LOCAL_BROWSER: "0" });
+    const url = fixture.info.url;
+    const pair = async () => {
+      const opened = await fetch(`${url}/api/auth/pairing`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      expect(opened.status).toBe(200);
+      const { code } = await opened.json() as { code: string };
+      const result = await raw(url, "/api/auth/pair", { ...fromPage(url), "content-type": "application/json" }, "POST", JSON.stringify({ code, cookie: true }));
+      expect(result.status).toBe(200);
+      return { cookie: String(result.headers["set-cookie"]).split(";", 1)[0]!, session: JSON.parse(result.body).session };
+    };
+    try {
+      const old = await pair();
+      const late = await raw(url, "/api/auth/session", { ...fromPage(url), cookie: old.cookie });
+      expect(late.status).toBe(200);
+      const fresh = await pair();
+      let cookie = fresh.cookie;
+      const lateCookies = late.headers["set-cookie"];
+      for (const line of typeof lateCookies === "string" ? [lateCookies] : lateCookies ?? []) cookie = line.split(";", 1)[0]!;
+      expect((await fetch(`${url}/api/auth/sessions/${old.session.id}`, { method: "DELETE" })).status).toBe(200);
+      const current = await raw(url, "/api/auth/session", { ...fromPage(url), cookie });
+      expect(current.status).toBe(200);
+      expect(JSON.parse(current.body)).toMatchObject({ kind: "session", id: fresh.session.id });
+      expect(late.headers["set-cookie"]).toBeUndefined();
+      expect((await raw(url, "/api/auth/session", { ...fromPage(url), cookie: old.cookie })).status).toBe(401);
+      expect((await raw(url, "/api/bots", { ...otherPage, cookie })).status).toBe(403);
+      expect((await fetch(`${url}/api/auth/sessions/${fresh.session.id}`, { method: "DELETE" })).status).toBe(200);
+      expect((await raw(url, "/api/auth/session", { ...fromPage(url), cookie })).status).toBe(401);
+    } finally { await fixture.close(); }
+  }, 60_000);
+
   it("is trusted as before by a development server, which asked for it", async () => {
     const fixture = await launchVerificationServer();
     try {

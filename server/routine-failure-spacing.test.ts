@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FAILURE_FIRST_SPACING_MS, FAILURE_SPACING_MS, failedRuns, failureSpacing, failureSpacingAlert, failureSpacingLimits, runSpacing } from "./routine-failure-spacing.ts";
 import { sessionHolds, startPrompt } from "./routine-recovery.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 import { RoutineManager, type RoutineManagerOptions, type RoutineRun } from "./routines.ts";
 
 const MINUTE = 60_000, HOUR = 60 * MINUTE;
@@ -14,8 +15,10 @@ const OVERLOADED = "Claude is overloaded right now (HTTP 529). Wait a minute, th
 const NO_START = "Maus's cloud desktop didn't start. Change where this routine runs.";
 const SPAWN_REFUSED = "spawn /usr/local/bin/claude EAGAIN";
 const dirs: string[] = [];
+const managers: RoutineManager[] = [];
 
 afterEach(() => {
+  for (const manager of managers.splice(0)) manager.close();
   vi.unstubAllEnvs();
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
@@ -91,10 +94,11 @@ function harness(start?: RoutineManagerOptions["startTurn"], schedule: Parameter
     onRunFailed: (_run, alert) => alerts.push(alert),
   };
   const manager = new RoutineManager(options);
+  managers.push(manager);
   manager.create({ name: "Sync the CRM", prompt: "Read new leads from the CRM and file them", botId: "maus-1", schedule });
   const working = () => manager.listRuns().filter((run) => run.status === "running");
   return {
-    manager, started, alerts,
+    manager, started, alerts, file: options.file!,
     passTo: async (to: number, settle: (run: RoutineRun) => void) => {
       while (now < to) {
         now += MINUTE;
@@ -139,7 +143,9 @@ describe("a routine every 5 minutes whose tool server is dead", () => {
     await h.passTo(START + 24 * HOUR, h.fail(DEAD_TOOL));
     console.log(`turns started in 24 hours with a dead tool server and no spacing: ${h.started.length}`);
     expect(h.started).toHaveLength(24 * 12);
-  });
+    const persisted = JSON.parse(readFileSync(h.file, "utf8")) as { runs: RoutineRun[] };
+    expect(persisted.runs.map((run) => run.id).sort()).toEqual(h.rows().map((run) => run.id).sort());
+  }, hostTimeout(30_000));
 });
 
 describe("a routine every minute by cron whose tool server is dead", () => {

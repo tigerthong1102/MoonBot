@@ -9,7 +9,7 @@ const GATE = join(dirname(fileURLToPath(import.meta.url)), "mcp-gate.ts");
 
 const SERVER = `
 const { writeFileSync } = require("node:fs");
-writeFileSync(process.env.PID_FILE, String(process.pid));
+if (process.env.SETUP_DELAY_MS) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.SETUP_DELAY_MS));
 process.stdin.resume();
 if (process.env.IGNORES_TERM === "1") process.on("SIGTERM", () => {});
 if (process.env.FLUSH_FILE) process.once("SIGTERM", () => setTimeout(() => {
@@ -17,6 +17,7 @@ if (process.env.FLUSH_FILE) process.once("SIGTERM", () => setTimeout(() => {
 }, Number(process.env.FLUSH_MS ?? 100)));
 if (process.env.WITH_CHILD === "1") require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 60000)"], { stdio: "ignore" });
 setInterval(() => {}, 60_000);
+writeFileSync(process.env.PID_FILE, String(process.pid));
 `;
 
 const alive = (pid: number): boolean => {
@@ -86,7 +87,7 @@ describe.skipIf(process.platform === "win32")("mcp-gate and the processes it sta
 
   it.each(["SIGTERM", "SIGINT"] as const)("lets a direct MCP server flush shutdown data after %s", async (signal) => {
     const flushed = join(scratch, "flushed.txt");
-    await start({ FLUSH_FILE: flushed, FLUSH_MS: "100" }, true);
+    await start({ FLUSH_FILE: flushed, FLUSH_MS: "100", SETUP_DELAY_MS: "300" }, true);
     gate!.kill(signal);
     expect(await until(exited, 5_000)).toBe(true);
     expect(existsSync(flushed)).toBe(true);

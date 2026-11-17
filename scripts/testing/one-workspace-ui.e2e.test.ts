@@ -230,7 +230,8 @@ const PAIR_FORM = "Boolean(document.querySelector('form input') && /pairing code
 
   it("chat links and the Settings key open on My Cloud's page", async () => {
     await onCloudPage();
-    expect(world.openLink(`openmausbot://bot/${nova}`)).toBe(true);
+    expect(world.openLink("https://outside.example.test/bot/invalid")).toBe(false);
+    expect(world.openLink(`startupbot://bot/${nova}`)).toBe(true);
     await until(() => page<string | null>("document.querySelector('textarea[aria-label^=\"Message\"]')?.getAttribute('aria-label') ?? null"), (label) => label === "Message Nova", 20_000, "Nova's chat");
     expect(new URL(world.window.url).origin).toBe(world.cloudOrigin);
     await world.window.screenshot(join(shots, "6-chat-link.png"));
@@ -335,7 +336,8 @@ const PAIR_FORM = "Boolean(document.querySelector('form input') && /pairing code
     expect(after.filter((entry) => !known.includes(entry.id)).length, "a new session, made in the background").toBe(1);
     // The window's older sessions end (the fixture's own owner session stays): the page keeps working on the new one.
     for (const entry of after) if (known.includes(entry.id) && !entry.label.startsWith("OpenMausBot app (Cloud)")) await fx.onCloud("DELETE", `/api/auth/sessions/${entry.id}`);
-    expect(await page("fetch('/api/auth/session').then((response) => response.json()).then((session) => session.kind)")).toBe("session");
+    const renewed = await page("fetch('/api/auth/session').then(async response => ({status: response.status, body: await response.json()}))");
+    expect(renewed).toMatchObject({ status: 200, body: { kind: "session" } });
     expect(await page("window.__samePage === true"), "the page never moved").toBe(true);
     expect(new URL(world.window.url).origin).toBe(world.teamOrigin);
     expect((await world.cloudCookies()).length).toBe(before);

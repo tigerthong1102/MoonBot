@@ -38,7 +38,6 @@ type Read = {
   fromMemory: Set<string>;
 };
 const cache = new Map<string, Read>();
-// Pending usage must count toward caps before its ledger append completes.
 const unwritten = new Map<string, Map<string, Entry>>();
 
 const positive = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0);

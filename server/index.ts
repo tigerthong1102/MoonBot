@@ -12648,14 +12648,6 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       loopbackTrust: LOOPBACK.trust,
       cliOwnerToken, trustLocalBrowser: LOOPBACK.localBrowsers, restricted: (session, m, p, u) => linkSessionRefusal(session, m, p) ?? (CLOUD_TEAM ? moveInRefusal(session, m, p, u) : null), scopeRefusal: (m, p) => liveScopeRefusal(cfg, m, p),
     });
-    // The session term slides on use, so re-issue the cookie on every cookie request; handlers that clear it later overwrite this header.
-    if (gate.auth?.kind === "session" && gate.auth.via === "cookie") {
-      const presented = parseCookies(req.headers.cookie).get(SESSION_COOKIE);
-      if (presented) {
-        const secure = HOSTED_WORKSPACE || requestOrigin(req)?.startsWith("https://") === true;
-        res.setHeader("set-cookie", serializeSessionCookie(SESSION_COOKIE, presented, { secure, maxAgeSeconds: cookieMaxAgeSeconds(gate.auth.session) }));
-      }
-    }
     // Public reachability probe: a stranger learns only the app name; pid and the static flag stay behind the gate.
     if (method === "GET" && path === "/api/health" && !gate.auth) {
       return json(res, 200, { app: "openmausbot" });

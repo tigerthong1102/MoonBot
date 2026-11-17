@@ -398,7 +398,9 @@ function harness(get: () => { world: HomeWorld; shots: string }) {
         await click("[data-rail-remove-ask]");
         await click("[data-rail-remove-confirm]");
         await onCloud();
+        await until(async () => world.registry!.get(entry.id), (value) => value === null, 30_000, "the active workspace removal to finish");
       } else expect(await world.profiles!.remove(entry.id)).toEqual({ outcome: "removed" });
+      expect(existsSync(profileDir(fx.desktopDataDir, entry.id)), `${entry.id}: ${JSON.stringify(readdirSync(profilesDir(fx.desktopDataDir), { recursive: true }).slice(0, 40))}`).toBe(false);
     }
     await until(() => tiles(), (seen) => seen.length === 1 && seen[0]!.id === cloudEntry, 30_000, "My Cloud alone on the rail");
     expect(world.running()).toBe(fx.desktopDataDir);

@@ -10,6 +10,8 @@ import { attachmentNamesOf, linkedPath, threadLinks } from "./cloud-send-rows.ts
 import { DATA_DIR } from "./config.ts";
 import { deleteThread, threadHeads } from "./message-db.ts";
 import { Store, type Message } from "./store.ts";
+import { batchSaves } from "./save-batch.ts";
+import { buildTask } from "./task-record.ts";
 
 const BOTS = 100, TASKS = 20, ROWS = 12;
 
@@ -32,27 +34,40 @@ function bigWorkspace() {
   const store = new Store(() => ({ instanceId: "fixture", model: "fixture-model" }));
   const threads: string[] = [];
   let at = 1_000, attachment = 0;
-  for (let b = 0; b < BOTS; b++) {
-    const bot = store.createBot({ name: `Bot ${b}` }, { seedMessages: false });
-    const conversations = [bot.threadId, ...Array.from({ length: TASKS - 1 }, (_, i) => store.createTask(bot.id, `Task ${i}`, false)!.threadId)];
-    for (const threadId of conversations) {
-      const rows: Message[] = [];
-      for (let r = 0; r < ROWS; r++) {
-        const id = `${threadId}-m${r}`;
-        const named = r % 4 === 0 ? { attachments: [{ path: `${DATA_DIR}/attachments/${String(attachment++).padStart(8, "0")}-big.png`, name: "shot.png", mimeType: "image/png" }] } : {};
-        const legacy = b === 7 && r > 0;
-        rows.push({ id, at: at++, role: r % 2 ? "bot" : "user", kind: "text", text: `line ${r}`, ...(legacy ? {} : { parentId: r ? `${threadId}-m${r - 1}` : null }), ...named } as Message);
+  batchSaves(() => {
+    for (let b = 0; b < BOTS; b++) {
+      const bot = store.createBot({ name: `Bot ${b}` }, { seedMessages: false });
+      const tasks = Array.from({ length: TASKS - 1 }, (_, i) => buildTask(bot, `Task ${i}`));
+      store.patchBot(bot.id, { tasks: [...tasks].reverse().concat(bot.tasks ?? []) });
+      const conversations = [bot.threadId, ...tasks.map((task) => task.threadId)];
+      for (const threadId of conversations) {
+        const rows: Message[] = [];
+        for (let r = 0; r < ROWS; r++) {
+          const id = `${threadId}-m${r}`;
+          const named = r % 4 === 0 ? { attachments: [{ path: `${DATA_DIR}/attachments/${String(attachment++).padStart(8, "0")}-big.png`, name: "shot.png", mimeType: "image/png" }] } : {};
+          const legacy = b === 7 && r > 0;
+          rows.push({ id, at: at++, role: r % 2 ? "bot" : "user", kind: "text", text: `line ${r}`, ...(legacy ? {} : { parentId: r ? `${threadId}-m${r - 1}` : null }), ...named } as Message);
+        }
+        store.importTranscript(threadId, rows, rows.at(-1)!.id);
+        threads.push(threadId);
       }
-      store.importTranscript(threadId, rows, rows.at(-1)!.id);
-      threads.push(threadId);
     }
-  }
+  });
   return { store, threads };
 }
 
 describe("a move's check of a big workspace", () => {
   let base: Store, threads: string[];
   beforeAll(() => { ({ store: base, threads } = bigWorkspace()); }, 120_000);
+
+  it("persists all 100 bots and 2000 conversations before the read checks", () => {
+    const loaded = new Store(() => ({ instanceId: "fixture", model: "fixture-model" }));
+    expect(loaded.bots).toHaveLength(BOTS);
+    expect(loaded.bots.flatMap((bot) => bot.tasks ?? []).map((task) => task.threadId).sort()).toEqual([...threads].sort());
+    const heads = threadHeads();
+    expect(heads.size).toBe(BOTS * TASKS);
+    expect([...heads.values()].every((head) => head.rows === ROWS)).toBe(true);
+  });
 
   it("lists the attachments only from rows that name one, as reading every row does", () => {
     const full = new Set<string>();

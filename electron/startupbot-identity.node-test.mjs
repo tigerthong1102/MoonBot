@@ -20,7 +20,13 @@ test("the unconfigured cloud client cannot contact an upstream service", async (
 test("maps only StartupBot deep links to the existing protocol handlers", () => {
   assert.equal(internalDeepLink("startupbot://team/abc"), "openmausbot://team/abc");
   assert.equal(internalDeepLink("https://startupbot.ai"), "https://startupbot.ai");
-  assert.equal(internalDeepLink("STARTUPBOT://team/abc"), "STARTUPBOT://team/abc");
+  assert.equal(internalDeepLink("STARTUPBOT://team/abc"), "openmausbot://team/abc");
+  for (const scheme of ["startupbot", "StartupBot", "STARTUPBOT"]) {
+    assert.equal(internalDeepLink(`${scheme}://bot/AbC?code=FiXtUrE#ToKeN`), "openmausbot://bot/AbC?code=FiXtUrE#ToKeN");
+  }
+  assert.equal(internalDeepLink("startupbot.ai://bot/abc"), "startupbot.ai://bot/abc");
+  assert.equal(internalDeepLink("openmausbot://bot/AbC"), "openmausbot://bot/AbC");
+  assert.equal(internalDeepLink(null), null);
 });
 
 test("only parsed chat links are queued and delivered", () => {

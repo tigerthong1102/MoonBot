@@ -12,7 +12,7 @@ export function startupBotDataDir(home, override) {
 }
 
 export function internalDeepLink(value) {
-  return typeof value === "string" && value.startsWith("startupbot://") ? `openmausbot://${value.slice("startupbot://".length)}` : value;
+  return typeof value === "string" && value.toLowerCase().startsWith("startupbot://") ? `openmausbot://${value.slice("startupbot://".length)}` : value;
 }
 
 export function queueIncomingChatLink(rawLink, { parse, store, reveal, deliver }) {

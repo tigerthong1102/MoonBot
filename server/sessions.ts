@@ -38,8 +38,9 @@ export const SESSION_RENEW_WHEN_LEFT_MS = SESSION_TTL_MS / 2;
 /** A team session the roster check keeps alive was used within this long. */
 const TEAM_ACTIVE_MS = 60 * 60_000;
 
-export function cookieMaxAgeSeconds(session: { expiresAt: number }, now = Date.now()): number {
-  return Math.max(1, Math.floor((session.expiresAt - now) / 1000));
+export function cookieMaxAgeSeconds(session: { expiresAt: number; createdAt?: number; token?: true }, now = Date.now()): number {
+  const expiresAt = session.token || session.createdAt === undefined ? session.expiresAt : session.createdAt + SESSION_MAX_AGE_MS;
+  return Math.max(1, Math.floor((expiresAt - now) / 1000));
 }
 export const STREAM_TICKET_TTL_MS = 5 * 60_000;
 type Lockout = { readonly failures: number; readonly windowMs: number; readonly lockMs: number };

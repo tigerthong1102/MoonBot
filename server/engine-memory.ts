@@ -338,7 +338,6 @@ export class EngineMemory {
     const pid = child.pid, engine: Engine = { child, threads: new Set([threadId]), startedAt: this.now(), stopping: false };
     this.engines.set(pid, engine);
     this.oomKills ??= this.read()?.oomKills ?? null;
-    // A spawn that worked after one was refused in the same turn: the turn goes on, and its end is its own.
     if (this.starved.get(threadId)?.why === "refused") this.starved.delete(threadId);
     // An engine that keeps a session (Claude's stream, ACP, Codex's app-server) writes to its stdout first thing. Read from
     // the pipe's byte count: no listener is added to it.
@@ -430,7 +429,6 @@ export class EngineMemory {
    * for, which start again by themselves rather than as the AI's failure. */
   private async starveEngine(engine: Engine, code: ShortageCode): Promise<void> {
     if (engine.stopping || engine.child.exitCode !== null || engine.child.signalCode !== null) return;
-    // Not a refused spawn: no limit is learned from it, and no count of refusals goes up.
     for (const threadId of this.working(engine)) if (!this.starved.has(threadId)) this.starved.set(threadId, { code, why: "silent" });
     this.noteRoomStopped(engine);
     this.starvedEver += 1;
@@ -620,7 +618,6 @@ export class EngineMemory {
     const heldBrowsers = new Set<string>();
     for (const [threadId, admitted] of this.reserved) {
       if (at - admitted.at >= RESERVE_MS) { this.reserved.delete(threadId); continue; }
-      // An engine's processes are all there within seconds of its start, long before its memory settles.
       const up = admitted.start === "process" && live.some(([, engine]) => engine.threads.has(threadId) && at - engine.startedAt >= TASKS_SETTLED_MS);
       if (at - admitted.at < TASKS_RESERVE_MS && !up) {
         heldTasks += admitted.start === "session" ? SESSION_TASKS : ENGINE_TASKS;
@@ -703,8 +700,6 @@ export class EngineMemory {
     const at = this.now();
     if (this.ordered?.at === at && this.ordered.generation === this.generation) return this.ordered.list;
     const holding: Waiter[] = [], first: Waiter[] = [], rest: Waiter[] = [];
-    // A turn that already has its place under a limit on turns, and now waits for its engine's room, goes ahead of the
-    // turns still waiting for a place: behind them it would hold its place for good, and they would wait on it.
     for (const waiter of this.queue) (this.active.has(waiter.threadId) ? holding : this.personsOwn(waiter.threadId) || at - waiter.since >= BOT_TURN_GIVES_WAY_MS ? first : rest).push(waiter);
     this.ordered = { at, generation: this.generation, list: [...holding, ...first, ...rest] };
     return this.ordered.list;

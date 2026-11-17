@@ -57,7 +57,6 @@ export function parseConfigArgs(argv: string[], env: NodeJS.ProcessEnv = process
   const words = argv.filter((arg) => arg !== "--json" && arg !== "--help" && arg !== "-h" && arg !== "--dry-run");
   const command = words[0];
   if (command !== "backups" && command !== "restore") {
-    // A request for the help is answered with the help, whatever else it says.
     if (help) return { command: "help", dataDir, name: undefined, json, help, dryRun };
     return fail(command ? `unknown command "${command}"; say "backups" or "restore"` : "say what to do: \"backups\" or \"restore\"");
   }
@@ -71,7 +70,6 @@ export function parseConfigArgs(argv: string[], env: NodeJS.ProcessEnv = process
     } else if (command === "restore" && name === undefined && !arg.startsWith("-")) name = arg;
     else return fail(`unknown argument "${arg}"; see openmausbot config --help`);
   }
-  // The help comes before the name is asked for: "config restore --help" is a question, not a request.
   if (command === "restore" && name === undefined && !help) return fail("restore needs the name of a copy, or \"latest\"; run openmausbot config backups to see them");
   return { command, dataDir, name, json, help, dryRun };
 }

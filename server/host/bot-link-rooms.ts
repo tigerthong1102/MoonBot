@@ -115,7 +115,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
 
   function words(group: GroupRecord, threadId: string, member: BotRecord, after: string | undefined, upTo?: string): { text: string; through?: string } {
     const whole = deps.window(threadId, member.id);
-    // The same turn asked for again ends where it ended the first time: what was said later belongs to the next turn.
     const end = upTo === undefined ? -1 : whole.order.indexOf(upTo);
     const order = end >= 0 ? whole.order.slice(0, end + 1) : whole.order, within = new Set(order);
     const window = { order, readable: whole.readable.filter((id) => within.has(id)), lines: whole.lines.filter((line) => within.has(line.id)) };
@@ -132,7 +131,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
       lines.unshift(line);
       size += line.length;
     }
-    // Said plainly, so the member does not take what it reads for all that was said.
     const left = readable - lines.length;
     if (left > 0) lines.unshift(`(${left} earlier ${left === 1 ? "line" : "lines"} said in the room since then ${left === 1 ? "was" : "were"} left out here: only the latest are sent.)`);
     const person = deps.personName(threadId) ?? "The person";
@@ -170,7 +168,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
 
     memberTurn(group: GroupRecord, threadId: string, member: BotRecord, hop: number): boolean {
       const address = parseLinked(member.id);
-      // It stays a member while it cannot be reached, and takes no turn: the room says why.
       if (member.home?.gone || !deps.on() || !address || !deps.linked(address.peer)) {
         note(threadId, member.id, member.home?.gone === "missing" ? "server.rooms.linkedMissing" : "server.rooms.linkedGone");
         return true;
@@ -181,12 +178,9 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
       const waiting = coordinator.active().find((node) => node.botId === member.id && node.threadId === thread && node.status === "queued");
       const online = deps.online(address.peer);
       if (waiting) {
-        // What is said now joins the turn that waits, and that turn is as near to the person as its nearest line: a line
-        // the person writes into a turn that an answer's mention began is followed by its own mentions again.
         const turn = kept.turns[waiting.id];
         if (!turn || hop < turn.hop) { kept.turns[waiting.id] = { ...turn, seat: thread, hop: Math.min(hop, turn?.hop ?? hop), at: turn?.at ?? now() }; save(); }
       } else {
-        // The room asks, not a bot: the root's own name is the room's, in the link's address space so that no turn is ever run for it here.
         const root = roomRoot(hop), seatHere = { groupId: group.id, threadId, botId: `link-room-${group.id}` };
         const path = store.activePath(threadId);
         const latest = path.findLast((message) => message.kind === "text" && Boolean(message.text))?.text ?? "";
@@ -209,7 +203,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
         }
       }
       if (!online) deps.wanted();
-      // Said once for each wait: a second message written while the place is away adds no second line.
       if (!online && !waiting) note(threadId, member.id, "server.rooms.linkedAway", { ok: true });
       return true;
     },
@@ -243,7 +236,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
       if (!at || at.linked !== child.botId) return false;
       const turn = kept.turns[child.id];
       if (turn) {
-        // A turn that did not end with an answer was not heard: the next one starts where this one started.
         if (child.status !== "completed" && turn.composed && turn.through && kept.seats[turn.seat]?.through === turn.through) {
           if (turn.after) kept.seats[turn.seat] = { through: turn.after, at: now() }; else delete kept.seats[turn.seat];
         }
@@ -256,7 +248,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
       const from = { botId: at.linked, name: nameOf(at.linked, name), color: member?.color ?? kept.members[at.linked]?.color ?? "blue" };
       const said = child.status === "completed" ? redactSecretsInText(child.result.trim()) : "";
       if (said) {
-        // Posted under the assignment's id, so a report made twice (a restart between the two) leaves one line.
         const lines = store.activePath(at.threadId).length;
         store.appendMessage(at.threadId, { role: "bot", kind: "text", text: said, from }, { kind: "bot-link.room-reply", key: child.id });
         if (store.activePath(at.threadId).length === lines) return true;

@@ -111,8 +111,6 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   const store: Pick<Store, "bots" | "bot" | "botByThread"> = { get bots() { return deps.store().bots; }, bot: (id: string) => deps.store().bot(id),
     botByThread: (threadId: string) => deps.store().botByThread(threadId) };
 
-  // Where turns wait for room (a self-hosted server under its pids limit), a new browser also waits for room for its
-  // processes. `runs` is read only when a browser call asks, after usedBrowserSessions exists.
   const processRoom = deps.engineMemory?.selfHosted?.() ? processBudget.browserRoom((session) => browserRunning(session, usedBrowserSessions.get(session)), browserProcessPid) : null;
   // Only a bot waiting for a slot closes a browser a running turn holds; the idle sweep below never does.
   const browserRoom = new BrowserRoom({
@@ -124,7 +122,6 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   const agentBrowserRuntime = new BrowserRuntime({
     closeBrowser: (session, spec) => closeBrowserSession(spec.command, browserRuntimeEnv({ ...spec.env, AGENT_BROWSER_SESSION: session })),
     applyViewport: (spec, size) => setBrowserViewport(spec.command, spec.env, size),
-    // A browser a person's view started counts toward the limit too. It is not refused, so a bot's next new one waits.
     launch: {
       starting: (session, spec) => { if (processRoom && !attachesToChrome(spec.env ?? {})) processBudget.reserveBrowser(session); },
       ready: (spec) => chromeLauncher.ready(spec),
@@ -204,8 +201,6 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   // person's own, outside the egress gate too; on My Cloud a call that can't reach it now says why instead.
   const browserRuntime = new RuntimeRouter(agentBrowserRuntime, chromeEngine, {
     refusal: (_session, spec, params) => (attachesToChrome(spec.env) ? null : browserEgress.callRefusal(params)),
-    // The opt-in engine's browsers wait for the server's room here; agent-browser's wait in browserRoom above. The
-    // person's own Chrome runs outside this server, and a close frees room.
     room: (session, spec, params) => (!processRoom || attachesToChrome(spec.env) || (params as { name?: unknown } | null)?.name === "agent_browser_close"
       ? Promise.resolve(null) : processRoom.enter(session)),
     // After beforeDispatch's claim the holder is this call's own turn, so the verdict is the caller's, not the last
@@ -262,8 +257,6 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     held: (session) => !turnResources.free(`browser:${session}`),
     closeIdle: (session) => browserRuntime.closeIfIdle(session, idleMs(), usedBrowserSessions.get(session)),
   });
-  // A browser that has ended keeps no loopback listener: its gate opens again with it, on the same port where it can, and
-  // the session's launch settings are worked out again then.
   const releaseGates = () => releaseEndedGates({ sessions: () => browserEgress.sessions(), release: async (session) => { usedBrowserSessions.delete(session); await browserEgress.release(session); },
     env: (session) => { const spec = usedBrowserSessions.get(session); return spec && !chromeTarget(session, spec) ? spec.env : null; },
     running: (session) => browserRunning(session, usedBrowserSessions.get(session)),

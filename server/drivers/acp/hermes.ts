@@ -292,7 +292,6 @@ export async function fetchHermesAcpModels(
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
-      // Hermes' own children (its MCP servers) go too: spawnCli started it in a group of its own.
       void killCliTree(child, 1_000);
       resolve(out);
     };

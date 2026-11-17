@@ -42,7 +42,6 @@ export function createJobSlots(limit: number): JobSlots {
         const at = waiting.indexOf(entry);
         if (at >= 0) waiting.splice(at, 1);
       };
-      // Handed a slot by a finished job: `running` already counts it.
       const entry = { interactive, start: () => { unwait(); resolve(); } };
       const leave = () => {
         unwait();

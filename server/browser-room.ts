@@ -104,7 +104,6 @@ export class BrowserRoom {
           if (await this.#closeOneSpare(others)) continue;
           return refused;
         }
-        // Another session may have taken the last place while the server's room was asked.
         if (this.#open.has(session)) { rollback?.(); return null; }
         if (this.#open.size >= Math.max(1, this.#options.max())) { rollback?.(); continue; }
         this.#open.add(session);
@@ -124,7 +123,6 @@ export class BrowserRoom {
     const spare = others.flatMap((other) => { const idle = this.#options.spare(other); return idle === null ? [] : [{ other, idle }]; })
       .sort((a, b) => b.idle - a.idle);
     for (const { other } of spare) {
-      // Asked again just before closing: an earlier close's wait may have let a call or a person in.
       if (!this.#open.has(other) || this.#options.spare(other) === null) continue;
       if (await this.#options.close(other).catch(() => false)) {
         this.left(other);

@@ -214,7 +214,6 @@ export function fetchDeepSeekCatalog(
       try {
         child.stdin?.end();
       } catch {}
-      // dsh's own children (its MCP servers) go too: spawnCli started it in a group of its own.
       void killCliTree(child, 1_000);
       if ("catalog" in outcome) resolve(outcome.catalog);
       else reject(outcome.error);

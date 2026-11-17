@@ -37,7 +37,6 @@ export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExi
     return;
   }
   const members = pid ? processGroupMembers(pid) : new Map<number, string>();
-  // No pid (it never started) or no group of its own: the child alone.
   if (!pid || !groupSignal(pid, "SIGTERM")) {
     try { child.kill("SIGTERM"); } catch {}
     return;

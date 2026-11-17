@@ -24,8 +24,6 @@ export function timeBlocking<T>(kind: BlockingKind, run: () => T): T {
   }
 }
 
-// When the request a person's message came in on arrived: a turn's queue clock starts there, not after the work the
-// server did before storing the message. Set at the top of the request handler for the rest of that request.
 const arrival = new AsyncLocalStorage<number>();
 export const markRequestArrival = (at = Date.now()): void => arrival.enterWith(at);
 /** The current request's arrival, if it came within `withinMs` of `at`. */

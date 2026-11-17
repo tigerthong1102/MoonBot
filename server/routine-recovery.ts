@@ -89,7 +89,6 @@ const FIRST_START: Record<RoutineRetryCause, string> = {
  * stop someone pressed or typed, a refusal, a spent cap, and a fault a second start would meet again (no process could
  * start, a full disk, a tool server that is down). Routine runs and teammate threads both judge by this. */
 export function classifyRoutineFailure(failure: string, facts: RoutineFailureFacts = {}): RoutineFailureClass {
-  // The server had no room to start the run's engine: the run waits and starts again, as for a busy bot.
   if (facts.cause === "busy" || outOfProcesses(failure)) return { kind: "busy" };
   if (facts.cause === "stalled" || facts.cause === "cap") return { kind: "final" };
   if (facts.stopReason && NOT_RETRIED_STOPS.has(facts.stopReason)) return { kind: "final" };
@@ -218,8 +217,6 @@ export function recoverRun(run: RoutineRun, failure: string, facts: RoutineFailu
     if (noRoom && run.roomWaited) return failed(again);
     if (noRoom) run.roomWaited = true;
     run.deferredAt ??= now;
-    // A run of checked items waits as long as its bot is busy with the person, which is not a failure; a server with no room
-    // to start it is held to the same hour as any other run.
     if (now - run.deferredAt >= ROUTINE_BUSY_WAIT_MS && (run.checkKey === undefined || noRoom)) return failed(codedLine("error", "routines.server.stillBusy", { minutes: ROUTINE_BUSY_WAIT_MS / 60_000, failure }));
     run.status = "queued";
     run.retryAt = now + ROUTINE_BUSY_RECHECK_MS;

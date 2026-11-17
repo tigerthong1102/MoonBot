@@ -255,7 +255,6 @@ export function createTurnTimings(options: TurnTimingsOptions = {}) {
       }
       const waiting = pending.get(threadId);
       if (!PERSON_MESSAGE(message) || (waiting && message.at - waiting.at <= PENDING_TTL_MS)) return;
-      // The wait starts when the request carrying the message arrived: work the server did before storing it is part of it.
       remember(pending, threadId, { at: Math.min(message.at, arrivedAt ?? message.at), behind: live.has(threadId) }, PENDING_CAP);
     },
     /**

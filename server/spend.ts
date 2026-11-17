@@ -53,7 +53,6 @@ export function assertWithinBudget(
   if (!state?.exceeded) return;
   throw Object.assign(
     new Error(`${SPEND_LIMIT_REFUSAL} of $${usd(state.monthlyUsd)} — an admin can raise it under Settings → Spending`),
-    // When the month rolls over and work may start again: a Bot API caller is told it as Retry-After.
     { status: 409, code: "spend_cap", resetsAt: periodEnd("month", now) },
   );
 }

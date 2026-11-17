@@ -55,8 +55,6 @@ export function createBotLinkHost(deps: BotLinkHostDeps) {
         home: { place: peer, placeName: place.name, botId: bot.id, kind }, ...(bot.title ? { title: bot.title } : {}), ...(bot.description ? { description: bot.description } : {}),
         ...(bot.mascotBody ? { mascotBody: bot.mascotBody } : {}), ...(bot.mascotFaceColor ? { mascotFaceColor: bot.mascotFaceColor } : {}) } as unknown as BotRecord);
     }
-    // A far member of a room here that cannot be reached now (the link is off, its place is unlinked, or its place no
-    // longer has it) stays a member: it is found by its address, named as it was last known, and takes no turn.
     rooms.sync();
     for (const { id, gone, name, color, place, placeName, botId, kind, title, mascotBody, mascotFaceColor } of rooms.absent()) {
       next.set(id, { id, name, color: color ?? "blue", threadId: "", tasks: [], resumeCursors: {}, modelSelection: { instanceId: "", model: "" },
@@ -137,7 +135,6 @@ export function createBotLinkHost(deps: BotLinkHostDeps) {
     link, routes, rooms,
     /** Once the server is up. Off: nothing. On, on the computer: it starts asking the Cloud. */
     start(): void {
-      // Off: nothing, unless a room here still has a member from another place, which is then found and shown as away.
       if (!link.on()) { if (rooms.any()) { syncStandIns(); watchRooms(); } return; }
       syncStandIns();
       watch();

@@ -43,7 +43,6 @@ export class ThreadCache {
     this.sweep(now);
     const entry = this.entries.get(threadId);
     if (!entry) return undefined;
-    // Last in the map is the most recently used.
     entry.usedAt = now;
     this.entries.delete(threadId);
     this.entries.set(threadId, entry);

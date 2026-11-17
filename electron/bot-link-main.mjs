@@ -125,7 +125,6 @@ export function createBotLinkMain({ wanted, pref, localRequest, fetch: fetchImpl
       // A link that ended while its Cloud slept or could not be reached: this computer's server tells that Cloud now.
       if (mine.origin && !mine.asleep && Array.isArray(state.ended) && state.ended.includes(mine.origin)) await local("PUT", { cloud: "awake", origin: mine.origin }).catch(() => {});
       if (wanted() && !mine.signedOut && (justOn || !mine.asleep)) await tryPair(justOn);
-      // Off, with nothing linked and nothing left to tell a Cloud: the timer has no more to do until something changes.
       else idle = off && !(Array.isArray(state.ended) && state.ended.length);
       return;
     }

@@ -55,7 +55,6 @@ export function createSettingNudges(deps: { dataDir: string; store: Pick<Store, 
       const messages = deps.store.messagesFor(threadId);
       const last = messages.at(-1);
       const before = threads[threadId];
-      // Another model since the last turn (Switch model on the row, or a change in chat): what failed before is past.
       const state: ThreadState = before?.model === turn.model ? before : { ...before, model: turn.model, ...(before && last ? { from: last.id } : {}) };
       if (state !== before) { threads[threadId] = state; save(); }
       if (!turn.tools || !last) return "";

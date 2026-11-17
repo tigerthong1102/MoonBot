@@ -227,7 +227,6 @@ export function recordEngine(child: ChildProcess, start: string | null): void {
   const file = join(run.dir, `${pid}.json`);
   try { writeFileSync(file, JSON.stringify({ pid, start, at: Date.now() }), { mode: 0o600 }); } catch { return; }
   child.once("exit", () => {
-    // Its group can outlive it (an MCP server it started); then the record stays for the next start's sweep.
     try { process.kill(-pid, 0); } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ESRCH") forget(file);
     }

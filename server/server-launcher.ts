@@ -27,7 +27,6 @@ export function superviseServer(start: () => ChildProcess, options: { signals?: 
     let child: ChildProcess, stopping = false, waiting: ReturnType<typeof setTimeout> | undefined;
     const policy = restartPolicy(now);
     const finish = (code: number) => { signals.off("SIGTERM", onTerm); signals.off("SIGINT", onInt); done(code); };
-    // Stopped while waiting to start again after a crash: there is no server to pass the signal to.
     const pass = (signal: NodeJS.Signals) => () => { stopping = true; if (waiting) { clearTimeout(waiting); waiting = undefined; finish(0); } else child.kill(signal); };
     const onTerm = pass("SIGTERM"), onInt = pass("SIGINT");
     const run = () => {
@@ -56,7 +55,6 @@ function isEntry(): boolean {
 }
 
 if (isEntry()) {
-  // First, before anything this run would do twice: as process 1, hand that place to the image's tini.
   const init = containerInit();
   if (init.line) console.warn(init.line);
   if (init.exec) execUnderInit(init.exec);

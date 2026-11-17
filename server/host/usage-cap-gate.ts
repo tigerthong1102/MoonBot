@@ -100,7 +100,6 @@ export function createUsageCapGate(deps: {
       mkdirSync(join(deps.dataDir, "usage"), { recursive: true, mode: 0o700 });
       writeFileAtomic(file, JSON.stringify(marks), { mode: 0o600 });
     } catch {
-      // The marks stay in memory: a notice is repeated after a restart rather than lost.
     }
   };
 
@@ -154,7 +153,6 @@ export function createUsageCapGate(deps: {
       const state = blocking(botId, false);
       if (!state) return null;
       const params = { why: NAME[`${state.scope}:${state.period}`].part, amount: capAmount(state.unit, state.limit), resets: capResets(state.resetsAt) };
-      // One row per routine, cap and period: two routines under one cap never share (or misfile) a row.
       return {
         behind: `cap:${routineId}:${state.id}:${state.periodKey}`.replace(/[^\w:-]/g, "-").slice(0, 160), resetsAt: state.resetsAt,
         words: (count) => count === 1 ? codedLine("error", "routines.server.capSkippedOne", params) : codedLine("error", "routines.server.capSkippedMany", { count, ...params }),

@@ -8,7 +8,6 @@ import { closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, 
 import { join } from "node:path";
 
 import { redactSecretsInText } from "../../redact.ts";
-// The usage-limit wait (OMB_ACP_LIMIT_QUIET_MS) lives with the failure words, so reading a failure loads no ACP driver.
 import { limitQuietMs, usageLimitWait } from "../engine-errors.ts";
 
 // Prompt silence guard (0 disables). Healthy agents go quiet for minutes: Qwen Code 0.24 sends

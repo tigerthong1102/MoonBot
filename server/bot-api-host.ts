@@ -339,7 +339,6 @@ export function createBotApiHost(deps: BotApiHostDeps) {
         const wasOwner = manager.actsAsOwner(botId);
         const minted = manager.enable(botId, minter(auth));
         deps.record?.(auth, { category: "bot-api", action: "bot-api.new-key", target });
-        // A new key starts without the mark: say so in Activity, as switching it off by hand would.
         if (wasOwner) deps.record?.(auth, { category: "bot-api", action: "bot-api.acts-as-owner.off", target });
         return answer(res, 200, { key: minted.key, ...view(botId, auth) });
       }

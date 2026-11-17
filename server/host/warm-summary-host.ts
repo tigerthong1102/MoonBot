@@ -146,8 +146,6 @@ export function createWarmSummaryHost(deps: WarmSummaryHostDeps) {
       }
       return null;
     },
-    // Each summary is an engine process (a fork, or the one-shot summary call): a few at once across bots, and one a turn
-    // now waits on starts at once. One that had to wait looks again: the cache may have gone cold, or a turn begun, meanwhile.
     run: (target, plan, control) => {
       let waited = false;
       return (deps.slots ?? backgroundTextSlots).run(async () => {

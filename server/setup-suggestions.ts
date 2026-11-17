@@ -257,7 +257,6 @@ export function createSetupSuggestions(deps: SetupSuggestionsDeps) {
       if (!worthAsking(basis, { known: named })) return { choices: null, outcome: "nothing to go on" };
       const prompt = setupSuggestionPrompt({ ...basis, apps: named });
       const remaining = Math.max(1, SETUP_SUGGESTIONS_DEADLINE_MS - (Date.now() - started));
-      // Waiting for a free slot (other bots' background calls) does not count: the deadline is the writing's own.
       let paused = false;
       const reply = await Promise.race([writer.generateText(prompt, { signal, timeoutMs: remaining,
         waiting: () => { paused = true; clearTimeout(timer); },

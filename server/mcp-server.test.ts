@@ -606,6 +606,17 @@ describe("waiting on a conversation's job", () => {
       .toMatchObject({ status: "failed", state: "failed", target: { busy: true } });
   });
 
+  it("keeps the legacy partial-reply outcome while pinning the ended job ahead of a later retry", async () => {
+    const partial = server({ fleet: bot(), tail: [
+      { id: "user", at: 1, role: "user", kind: "text", text: "Work" },
+      { id: "answer", at: 2, role: "bot", kind: "text", text: "Partial result" },
+      { id: "error", at: 3, role: "bot", kind: "activity", tool: { name: "error: provider failed", ok: false } },
+      { id: "retry", at: 4, role: "user", kind: "text", text: "Automatic retry" },
+    ], jobs: [{ state: "failed", version: "v1", now: 3, roots: ["original"], nodes: [{ id: "original", status: "failed", outcome: "provider_error", finishedAt: 3 }] }] });
+    expect(await handleToolCall("wait_for_conversation", { target_type: "bot", target_id: "bot-1", timeout_seconds: 1 }, partial.fetcher))
+      .toMatchObject({ status: "settled", state: "failed" });
+  });
+
   it.each([
     ["failed", "cancelled", "stopped", "original"],
     ["failed", "failed", "stopped", "original"],

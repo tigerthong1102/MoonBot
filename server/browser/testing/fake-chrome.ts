@@ -268,7 +268,7 @@ export class FakeChrome implements CdpTransport {
     const entry = this.#sessions.get(sessionId);
     const page = entry ? this.pages.get(entry.targetId) : undefined;
     if (!entry || !page) throw new Error("No session with given id");
-    const viewport = this.viewport;
+    const viewport = page.emulated ?? this.viewport;
     switch (method) {
       case "Page.getFrameTree":
         return { frameTree: { frame: { id: page.targetId, url: page.url, loaderId: page.loaderId } } };

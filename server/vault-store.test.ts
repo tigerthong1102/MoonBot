@@ -246,6 +246,19 @@ describe("a Team Cloud member's own secrets", () => {
     expect(reopened.secretValues()).toContain(`sk_test_fake-${ADA}`);
   });
 
+  it.each([0, 1, -1])("prefers the reader's private secret over a team secret regardless of timestamp ordering (%s)", (offset) => {
+    let now = 10;
+    const store = new VaultStore({ dataDir: dir, now: () => now });
+    const team = store.saveSecret({ name: "Stripe secret key", value: "fake-team", source: "settings", bots: ["pepper"] });
+    now += offset;
+    const mine = own(store);
+    expect(store.usableSecret("Stripe secret key", "pepper", "ref", { person: ADA, team: true })?.id).toBe(mine.id);
+    for (const reader of [{ person: BEN, team: true }, TEAM_READER]) {
+      expect(store.usableSecret("Stripe secret key", "pepper", "ref", reader)?.id).toBe(team.id);
+    }
+    expect(store.usableSecret("Stripe secret key", "pepper", "file", { person: ADA, team: true })?.id).toBe(team.id);
+  });
+
   it("reach only turns and views of that person: not another member's, not the team's, not an admin's list", () => {
     const store = new VaultStore({ dataDir: dir });
     const team = store.saveSecret({ name: "Notion key", value: "fake-notion", source: "settings", bots: "all" });

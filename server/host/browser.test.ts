@@ -105,16 +105,18 @@ describe("the bots' browser host and the engine memory guard", () => {
 describe("the bots' browser host with browserEngine.engine set to chrome", () => {
   it.each(["tool", "unused", "all", "crash", "startup-failure"])("releases the Chrome process reservation on %s before its startup grace expires", async (kind) => {
     const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, log: () => {} });
-    const room = vi.spyOn(processBudget, "browserRoom").mockImplementation((runs) => budget.browserRoom(runs));
+    const room = vi.spyOn(processBudget, "browserRoom").mockImplementation((runs, pid) => budget.browserRoom(runs, pid));
     const reserve = vi.spyOn(processBudget, "reserveBrowser").mockImplementation((session) => budget.reserveBrowser(session));
     const release = vi.spyOn(processBudget, "releaseBrowser").mockImplementation((session) => budget.releaseBrowser(session));
     const backend = new FakeBackend();
-    const open = vi.spyOn(LocalBackend.prototype, "open").mockImplementation((request) => backend.open(request));
+    const open = vi.spyOn(LocalBackend.prototype, "open").mockImplementation(async (request) => ({ ...await backend.open(request), pid: 2_000_000_001 }));
     const { host } = setup("chrome", { server: true, selfHosted: true });
     try {
       const browser = (await host.browserIntegration("scout", undefined, turn))!;
       if (kind === "startup-failure") open.mockRejectedValueOnce(new Error("fixture startup failed"));
       const result = await host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_status", arguments: {} });
+      expect(room.mock.calls[0]![1]?.(browser.session)).toBe(kind === "startup-failure" ? null : 2_000_000_001);
+      expect(room.mock.calls[0]![1]?.("unrelated-browser")).toBeNull();
       if (kind === "startup-failure") expect(result).toHaveProperty("isError", true);
       else {
         expect(result).not.toHaveProperty("isError", true);

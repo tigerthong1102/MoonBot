@@ -113,7 +113,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
 
   // Where turns wait for room (a self-hosted server under its pids limit), a new browser also waits for room for its
   // processes. `runs` is read only when a browser call asks, after usedBrowserSessions exists.
-  const processRoom = deps.engineMemory?.selfHosted?.() ? processBudget.browserRoom((session) => browserRunning(session, usedBrowserSessions.get(session))) : null;
+  const processRoom = deps.engineMemory?.selfHosted?.() ? processBudget.browserRoom((session) => browserRunning(session, usedBrowserSessions.get(session)), browserProcessPid) : null;
   // Only a bot waiting for a slot closes a browser a running turn holds; the idle sweep below never does.
   const browserRoom = new BrowserRoom({
     max: deps.browsersAtOnce ?? (() => defaultBrowserRoomSize()),
@@ -466,6 +466,11 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     }
     if (browserEngineKind(cfg) !== "chrome") void chromeEngine.service.closeAll().catch(() => undefined);
     chromeEngine.start({ inUse: browserEngineKind(cfg) === "chrome", prepare: builtInBrowserEnabled(cfg) });
+  }
+  function browserProcessPid(session: string): number | null {
+    if (!chromeTarget(session, usedBrowserSessions.get(session))) return null;
+    const run = chromeEngine.service.profiles().find((profile) => profile.session === session)?.run;
+    return run?.browser.connected ? run.opened.pid : null;
   }
   function browserRunning(session: string, spec: Spec | undefined): boolean {
     if (chromeTarget(session, spec)) return chromeEngine.service.runs(session);

@@ -290,6 +290,8 @@ export class CdpPage implements ActionContext, WaitContext {
     if (!size) {
       this.#emulated = null;
       await this.session.send("Emulation.clearDeviceMetricsOverride");
+      // Chrome 156 can acknowledge cleared metrics before the renderer has updated its viewport.
+      await valueInWorld(this.frames, this.frames.mainFrameId, "document.visibilityState === 'hidden' ? null : new Promise(resolve => requestAnimationFrame(() => resolve(null)))", { awaitPromise: true });
       return;
     }
     const ratio = await this.devicePixelRatio().catch(() => 1);

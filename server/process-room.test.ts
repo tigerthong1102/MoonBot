@@ -6,7 +6,7 @@ import { engineFailureKind } from "./drivers/engine-errors.ts";
 import { classifyError } from "./drivers/retry.ts";
 import { EngineMemory, FIRST_FRAME_MS, readHostMemory, withEngineMemory, type HostMemory } from "./engine-memory.ts";
 import { containerLimited, readCgroupMemory, readPids, readProcessLimits } from "./process-limits.ts";
-import { BROWSER_NO_ROOM, BROWSER_TASKS, ENGINE_TASKS, gateHost, linuxTreeUse, margin, ProcessBudget, turnsSetting, turnsUnder, type TreeUse } from "./process-room.ts";
+import { BROWSER_NO_ROOM, BROWSER_TASKS, browserTasksNow, ENGINE_TASKS, gateHost, linuxTreeUse, margin, ProcessBudget, turnsSetting, turnsUnder, type TreeUse } from "./process-room.ts";
 import { outOfProcesses, shortageCode } from "./process-shortage.ts";
 import { describeSpawnFailure, linuxGroupOnlyExited } from "./procs.ts";
 import { classifyRoutineFailure, recoverRun, ROUTINE_BUSY_WAIT_MS } from "./routine-recovery.ts";
@@ -810,6 +810,39 @@ describe("browsers under the pids limit", () => {
     const budget = new ProcessBudget({ read: () => ({ max: 1024, current: current.value }), browserTasks: () => measured.value, log: () => {}, pollMs: 100 });
     return { budget, room: budget.browserRoom((session) => running.has(session)) };
   }
+
+  it("does not let an unrelated running browser offset a new browser's startup reservation", async () => {
+    vi.useFakeTimers();
+    const budget = new ProcessBudget({ read: () => ({ max: 500, current: 200 }), browserTasks: () => 170, log: () => {}, pollMs: 100 });
+    const browsers = budget.browserRoom(() => false);
+    expect(await browsers.enter("first")).toBeNull();
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+    const second = browsers.enter("second");
+    await vi.advanceTimersByTimeAsync(21_000);
+    expect(await second).toBe(BROWSER_NO_ROOM);
+  });
+
+  it("deducts only the process trees of reserved sessions, never another browser", () => {
+    const row = (pid: number, ppid: number, threads: number) => ({ pid, ppid, threads, name: "chrome", cpuMs: 0, rssBytes: 0, start: "1" });
+    const rows = [row(10, 1, 80), row(11, 10, 90), row(20, 1, 170), row(21, 20, 5)];
+    expect(browserTasksNow(["ours"], { rows, pid: () => 10, sessionOf: () => null })).toBe(170);
+    expect(browserTasksNow(["ours"], { rows, sessionOf: (pid) => pid === 10 ? "ours" : "another" })).toBe(170);
+    expect(browserTasksNow(["starting"], { rows, sessionOf: () => "another" })).toBe(0);
+    expect(browserTasksNow(["ours"], { rows, pid: () => 99, sessionOf: () => null })).toBe(0);
+    expect(browserTasksNow(["ours"], { rows: [] })).toBeNull();
+  });
+
+  it("does not carry measured tasks across a replacement reservation at the same clock time", () => {
+    let measured = 170;
+    const budget = new ProcessBudget({ read: () => ({ max: 500, current: 200 }), browserTasks: () => measured, now: () => 0, log: () => {} });
+    budget.browserRoom(() => true);
+    budget.reserveBrowser("ours");
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(false);
+    budget.releaseBrowser("ours");
+    measured = 0;
+    budget.reserveBrowser("ours");
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+  });
 
   it("opens one only where its processes fit, waits a while for room, then says why it cannot", async () => {
     vi.useFakeTimers();

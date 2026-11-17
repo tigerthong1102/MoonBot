@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { batchSaves } from "../save-batch.ts";
 import { INCIDENT_WINDOW_MS, incidentText } from "../incidents.ts";
 import { failureShape } from "../routine-outcomes.ts";
 import { RoutineManager, type RoutineRun } from "../routines.ts";
@@ -82,13 +83,14 @@ function world(botCount: number, failure: (at: number) => string, refuseStart = 
   for (const bot of bots.slice(1)) manager.create({ name: `Sync for ${bot.name}`, prompt: "Read new leads from the CRM and file them", botId: bot.id, schedule: { type: "interval", everyMinutes: 5, anchorAt: START } });
   const running = () => manager.listRuns().filter((run: RoutineRun) => run.status === "running");
   return {
+    allRuns: () => manager.listRuns(), persistedRuns: () => JSON.parse(readFileSync(join(dir, "routines.json"), "utf8")).runs as RoutineRun[],
     routineTurns, chiefTurns, lines, notified, report: notices.reportIncident, bot: (id: string) => store.bot(id), task: (botId: string, title: string) => store.createTask(botId, title),
     /** A scheduler pass every minute up to `to`; each turn the pass before left running fails. */
     async passTo(to: number) {
       while (now < to) {
         now += MINUTE;
         vi.setSystemTime(now);
-        for (const run of running()) manager.failThread(run.threadId!, failure(now));
+        batchSaves(() => { for (const run of running()) manager.failThread(run.threadId!, failure(now)); });
         await manager.tick();
       }
     },
@@ -163,6 +165,8 @@ describe("twenty bots under one Chief whose routines all fail at once", () => {
       await w.passTo(START + INCIDENT_WINDOW_MS - MINUTE);
       console.log(`Chief turns in the first hour with 20 failing routines: ${w.chiefTurns.length}`);
       expect(w.chiefTurns).toHaveLength(6);
+      const states = (runs: RoutineRun[]) => runs.map(({ id, status }) => ({ id, status })).sort((a, b) => a.id.localeCompare(b.id));
+      expect(states(w.persistedRuns())).toEqual(states(w.allRuns()));
       const folded = [...w.lines.values()].flat().filter((row) => (row.tool as { name?: string } | undefined)?.name?.startsWith("Clive is asked about only so many"));
       expect(folded).toHaveLength(1);
       expect((folded[0]!.tool as { name: string }).name).toMatch(/^Clive is asked about only so many problems an hour, so \d+ more this hour were not sent to it\. From: Bot \d+ · Sync for Bot \d+/);

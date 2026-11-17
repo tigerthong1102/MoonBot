@@ -106,8 +106,8 @@ async function fixture(test: (f: any) => Promise<void>, options: { env?: NodeJS.
     save();
     const thread = chief.activeTaskId;
     const send = async (text: string, threadId = thread) => { save(); return api(`/api/bots/${chief.id}/messages`, { text, threadId }); };
-    const wait = async (threadId = thread, status: "settled" | "failed" = "settled") =>
-      expect((await cli("wait", "--bot", chief.id, "--task", threadId, "--timeout", "40")).status).toBe(status);
+    const wait = async (threadId = thread) =>
+      expect((await cli("wait", "--bot", chief.id, "--task", threadId, "--timeout", "40")).status).toBe("settled");
     const turns = (botId = chief.id) => jsonl(`${planPath}.evidence.jsonl`).filter((turn: any) => turn.botId === botId);
     const prompt = (turn: any) => String(turn?.prompt?.message?.content ?? "");
     const messages = async (threadId = thread) => (await api(`/api/threads/${threadId}/messages`)).messages;
@@ -301,7 +301,7 @@ it("offers the results again when the return turn fails before the provider acts
   f.plan[f.lead.id] = { reply: "UNACCEPTED_RESULT" };
   f.plan[f.chief.id] = f.delegate("build", [f.lead], "Build the export", { failResumed: true });
   await f.send("Please have Engineering build the export.");
-  await f.wait(undefined, "failed");
+  await f.wait();
   expect(f.root().status).toBe("failed");
 
   f.plan[f.chief.id] = { reply: "Here is what Engineering found" };

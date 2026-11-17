@@ -43,8 +43,8 @@ export interface ProcessCounts {
 
 export interface ProcessBudgetOptions {
   read?: () => { max: number | "max" | null; current: number | null };
-  /** The threads every browser process runs now, counted against the limit already; null where they can't be read. */
-  browserTasks?: () => number | null;
+  /** Only tasks owned by the reserved sessions may reduce their reservations. */
+  browserTasks?: (sessions: readonly string[]) => number | null;
   now?: () => number;
   log?: (line: string) => void;
   pollMs?: number;
@@ -61,16 +61,17 @@ export class ProcessBudget {
   private forceKilled = 0;
   private lateReaped = 0;
   private refused: (() => void) | null = null;
-  private readonly browserTasks: () => number | null;
+  private readonly browserTasks: (sessions: readonly string[]) => number | null;
   private readonly pollMs: number;
   /** Browsers let in (browserRoom), by session, and when. */
   private readonly browsers = new Map<string, { since: number }>();
   private browserRuns: ((session: string) => boolean) | null = null;
-  private seenBrowsers: { at: number; tasks: number | null } | null = null;
+  private browserPid: ((session: string) => number | null) | null = null;
+  private seenBrowsers: { at: number; tasks: number | null; reservations: ReadonlyMap<string, { since: number }> } | null = null;
 
   constructor(options: ProcessBudgetOptions = {}) {
     this.read = options.read ?? (() => readPids());
-    this.browserTasks = options.browserTasks ?? (() => browserTasksNow());
+    this.browserTasks = options.browserTasks ?? ((sessions) => browserTasksNow(sessions, { pid: (session) => this.browserPid?.(session) ?? null }));
     this.now = options.now ?? Date.now;
     this.log = options.log ?? ((line) => console.warn(`processes: ${line}`));
     this.pollMs = options.pollMs ?? 1_000;
@@ -104,16 +105,22 @@ export class ProcessBudget {
   private browsersHeld(): number {
     const at = this.now();
     for (const [session, { since }] of this.browsers) if (at - since >= BROWSER_START_MS && this.browserRuns?.(session) === false) this.browsers.delete(session);
-    if (!this.browsers.size) return 0;
-    if (!this.seenBrowsers || at - this.seenBrowsers.at >= 1_000 || at < this.seenBrowsers.at) this.seenBrowsers = { at, tasks: this.browserTasks() };
-    const running = [...this.browsers.keys()].filter((session) => this.browserRuns?.(session) === true).length;
-    const starting = this.browsers.size - running;
-    return starting * BROWSER_TASKS + Math.max(0, running * BROWSER_TASKS - (this.seenBrowsers.tasks ?? 0));
+    const reservations = new Map([...this.browsers].filter(([session]) => this.browserRuns?.(session) === true));
+    const starting = (this.browsers.size - reservations.size) * BROWSER_TASKS;
+    if (!reservations.size) return starting;
+    const cached = this.seenBrowsers;
+    const same = cached?.reservations.size === reservations.size && [...reservations].every(([session, reservation]) => cached.reservations.get(session) === reservation);
+    if (!same || !cached || at - cached.at >= 1_000 || at < cached.at) {
+      this.seenBrowsers = { at, tasks: this.browserTasks([...reservations.keys()]), reservations };
+    }
+    return starting + Math.max(0, reservations.size * BROWSER_TASKS - (this.seenBrowsers?.tasks ?? 0));
   }
 
   /** The gate a bot's browser passes before it opens: `runs` says whether a session's browser is running now. */
-  browserRoom(runs: (session: string) => boolean): { enter(session: string, admitted?: (rollback: () => void) => void): Promise<string | null> } {
+  browserRoom(runs: (session: string) => boolean, pid?: (session: string) => number | null): { enter(session: string, admitted?: (rollback: () => void) => void): Promise<string | null> } {
     this.browserRuns = runs;
+    this.browserPid = pid ?? null;
+    this.seenBrowsers = null;
     return { enter: (session, admitted) => this.enterBrowser(session, this.now() + BROWSER_WAIT_MS, admitted) };
   }
 
@@ -170,10 +177,35 @@ export class ProcessBudget {
 
 export const processBudget = new ProcessBudget();
 
-/** The threads of every browser process (Chromium, Firefox, agent-browser) /proc shows; null where none can be read. */
-export function browserTasksNow(rows: readonly ProcessRow[] = linuxProcessList().rows): number | null {
+function agentBrowserSession(pid: number): string | null {
+  try {
+    const entries = readFileSync(`/proc/${pid}/environ`, "utf8").split("\0");
+    if (!entries.includes("AGENT_BROWSER_DAEMON=1")) return null;
+    return entries.find((entry) => entry.startsWith("AGENT_BROWSER_SESSION="))?.slice("AGENT_BROWSER_SESSION=".length) ?? null;
+  } catch { return null; }
+}
+
+export function browserTasksNow(sessions: readonly string[], {
+  pid = () => null, rows = linuxProcessList().rows, sessionOf = agentBrowserSession,
+}: { pid?: (session: string) => number | null; rows?: readonly ProcessRow[]; sessionOf?: (pid: number) => string | null } = {}): number | null {
   if (!rows.length) return null;
-  return rows.reduce((sum, row) => sum + (nameBucket(row.name) === "browser" || row.name === "agent-browser" ? row.threads ?? 1 : 0), 0);
+  const reserved = new Set(sessions), roots = new Set<number>();
+  for (const session of sessions) { const root = pid(session); if (root !== null && Number.isSafeInteger(root) && root > 1) roots.add(root); }
+  const byPid = new Map(rows.map((row) => [row.pid, row])), below = new Map<number, number[]>();
+  for (const row of rows) {
+    below.set(row.ppid, [...below.get(row.ppid) ?? [], row.pid]);
+    if ((nameBucket(row.name) === "browser" || row.name === "agent-browser") && reserved.has(sessionOf(row.pid) ?? "")) roots.add(row.pid);
+  }
+  const seen = new Set<number>(), pending = [...roots];
+  let tasks = 0;
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    const row = byPid.get(next);
+    if (!row || seen.has(next)) continue;
+    seen.add(next);
+    tasks += row.threads ?? 1;
+    pending.push(...below.get(next) ?? []);
+  }
+  return tasks;
 }
 
 /** What one engine's process tree is doing: CPU used so far (its own, its descendants', and its exited children's) and how
@@ -214,9 +246,6 @@ export function turnsSetting(value: string | undefined): TurnsSetting {
 
 export type GateHost = "cloud" | "server" | null;
 
-/** Where turns wait for room. A Cloud home, as before. A self-hosted Linux server in a container that was given a memory
- * or pids limit, which is where a turn too many ends in a killed engine or a refused spawn. Any self-hosted server whose
- * operator set OMB_TURNS_MAX_RUNNING to a number or "auto". Never the desktop app's own server. */
 export function gateHost(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform, limited: () => boolean = containerLimited): GateHost {
   if ((env.OMB_CLOUD_ROLE === "home" || env.OMB_CLOUD_ROLE === "team") && platform === "linux") return "cloud";
   if (env.OMB_DESKTOP_PARENT === "1") return null;

@@ -1,7 +1,3 @@
-// People watching and driving a bot's browser. Every viewer gets its own CDP session on the tab in front, with its own
-// screencast sized to it, and the page fills the panel: in fill mode it takes the shape of the latest viewer's panel at
-// a desktop's width, 1280x800 with nobody watching. Frames come at the screen's real device scale, so they stay sharp.
-//
 // Adapted from pingdotgg/t3code@00cdceb1 apps/server/src/preview/ServerBrowser.ts (attachViewer,
 // dispatchViewerInput, releaseViewerInput, applySetting, withScreencastsPaused), MIT License, Copyright (c) 2026 T3
 // Tools Inc. (full text in third_party/t3-code/LICENSE); modified: the CDP driver instead of Playwright, a real window
@@ -188,7 +184,6 @@ export class Viewer {
     return this.#session;
   }
 
-  /** Follows the tab in front: a new session and screencast for it, the old ones let go. */
   bind(tab: Tab | null): Promise<void> {
     this.#binding = this.#binding.then(() => this.#bind(tab), () => this.#bind(tab));
     return this.#binding;
@@ -247,7 +242,6 @@ export class Viewer {
     return this.#params;
   }
 
-  /** Stops the screencast while a scaled capture renders: it would show up in it. */
   pause(): Promise<void> {
     this.#paused++;
     const session = this.#session;
@@ -340,23 +334,28 @@ export class Viewer {
     await this.pushStill();
   }
 
-  /** A picture of the page as it is now, at this viewer's size; a scaled one pauses every viewer of the tab. */
   async pushStill(): Promise<void> {
     const tab = this.tab;
     const session = this.#session;
     if (!tab || !session || session.detached || this.#hidden || this.closed) return;
     try {
-      const metrics = await session.send<{ cssVisualViewport: { pageX: number; pageY: number; clientWidth: number; clientHeight: number; scale?: number } }>("Page.getLayoutMetrics");
-      const view = metrics.cssVisualViewport;
-      const ratio = (await tab.page.devicePixelRatio()) * (tab.page.emulated?.zoom ?? 1);
-      const scale = Math.min(1, this.options.maxWidth / Math.max(1, view.clientWidth * ratio), this.options.maxHeight / Math.max(1, view.clientHeight * ratio));
-      // A scaled capture on any session but the one that emulates a zoom resets the page's device scale factor (Chrome 155).
-      const capture = () => (scale < 1 ? tab.page.session : session).send<{ data: string }>("Page.captureScreenshot", {
-        format: "jpeg",
-        quality: this.options.quality,
-        ...(scale < 1 ? { clip: { x: view.pageX, y: view.pageY, width: view.clientWidth, height: view.clientHeight, scale } } : {}),
+      const captured = await this.#hub.withViewport(async () => {
+        if (this.closed || session !== this.#session) return null;
+        const metrics = await session.send<{ cssVisualViewport: { pageX: number; pageY: number; clientWidth: number; clientHeight: number; scale?: number } }>("Page.getLayoutMetrics");
+        const view = metrics.cssVisualViewport;
+        const ratio = (await tab.page.devicePixelRatio()) * (tab.page.emulated?.zoom ?? 1);
+        const scale = Math.min(1, this.options.maxWidth / Math.max(1, view.clientWidth * ratio), this.options.maxHeight / Math.max(1, view.clientHeight * ratio));
+        // A scaled capture on any session but the one that emulates a zoom resets the page's device scale factor (Chrome 155).
+        const capture = () => (scale < 1 ? tab.page.session : session).send<{ data: string }>("Page.captureScreenshot", {
+          format: "jpeg",
+          quality: this.options.quality,
+          ...(scale < 1 ? { clip: { x: view.pageX, y: view.pageY, width: view.clientWidth, height: view.clientHeight, scale } } : {}),
+        });
+        const { data } = await (scale < 1 ? this.#hub.pauseScreencasts(tab, capture) : capture());
+        return { data, view };
       });
-      const { data } = scale < 1 ? await this.#hub.paused(tab, capture) : await capture();
+      if (!captured) return;
+      const { data, view } = captured;
       if (this.closed || session !== this.#session) return;
       this.push({
         type: "frame",
@@ -368,7 +367,6 @@ export class Viewer {
     } catch {}
   }
 
-  /** keyUp and mouseUp for everything this viewer still holds, on the session it pressed them on. */
   async releaseInput(): Promise<boolean> {
     const session = this.#session;
     let clean = true;
@@ -405,7 +403,6 @@ export class Viewer {
   /** Who holds the browser, as this viewer's control message tells it. */
   controlState(): Extract<ViewerOutput, { type: "control" }> { return this.#hub.controlFor(this); }
 
-  /** Everything a viewer that just started listening needs: who controls, the size, the tabs, and a picture. */
   async refresh(): Promise<void> {
     this.push(this.#hub.statusFor());
     this.push(this.#hub.controlFor(this));
@@ -754,18 +751,19 @@ export class ViewerHub {
     };
   }
 
-  /**
-   * Scaled captures repaint every screencast of the tab, so those pause until it is done. Chrome draws one by changing
-   * the page's emulation and then restoring what it found when it began (155), which would undo a zoom or a narrow page
-   * applied meanwhile: captures and size changes take turns.
-   */
+  /** Chrome 155 temporarily changes emulation for a scaled capture, then restores its initial state.
+   * A concurrent viewport or zoom update can be overwritten by that restore. */
   paused<T>(tab: Tab, work: () => Promise<T>): Promise<T> {
-    const turn = this.#applying.then(() => this.#pausing(tab, work), () => this.#pausing(tab, work));
+    return this.withViewport(() => this.pauseScreencasts(tab, work));
+  }
+
+  withViewport<T>(work: () => Promise<T>): Promise<T> {
+    const turn = this.#applying.then(work, work);
     this.#applying = turn.then(() => undefined, () => undefined);
     return turn;
   }
 
-  async #pausing<T>(tab: Tab, work: () => Promise<T>): Promise<T> {
+  async pauseScreencasts<T>(tab: Tab, work: () => Promise<T>): Promise<T> {
     const watching = [...this.viewers].filter((viewer) => viewer.tab === tab);
     this.#capturing.set(tab, (this.#capturing.get(tab) ?? 0) + 1);
     await Promise.all(watching.map((viewer) => viewer.pause()));

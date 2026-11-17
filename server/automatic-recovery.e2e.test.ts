@@ -299,7 +299,7 @@ it.each([
     if (ownBackups) await api("PATCH", `/api/bots/${bot.id}`, { fallback: [{ instanceId: "secondary", model: primary.model }, backup] });
     await control("send", "--bot", bot.id, "--task", threadId, "--text", "DO_NOT_REPLAY_THIS_9S");
     expect((await control("wait", "--bot", bot.id, "--task", threadId, "--timeout", "30")).status)
-      .toBe("failed");
+      .toBe(options.afterOutput ? "settled" : "failed");
     expect(backupPrompts()).toHaveLength(0);
     expect(calls().filter((call) => call.method.endsWith(".error"))).toHaveLength(1);
     const state = (await api("GET", "/api/bots")).bots.find((entry: any) => entry.id === bot.id);

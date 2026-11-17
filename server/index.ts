@@ -695,11 +695,10 @@ const CLOUD_SECRETS = BOOT_CLOUD_SECRETS;
 const CLOUD_ENV: NodeJS.ProcessEnv = { ...process.env, ...CLOUD_SECRETS };
 const CLOUD_HOME = cloudHomeConfiguration(CLOUD_ENV);
 const CLOUD_TEAM = CLOUD_HOME?.team ?? null, CLOUD_PERSONAL = CLOUD_HOME !== null && CLOUD_TEAM === null, TEAM_LABEL = CLOUD_TEAM ? { label: CLOUD_TEAM.name } : {};
-/** The language set on this server, else (on a Team Cloud) the team's default from the Admin. threadLanguage: the one a line in a conversation is written in, its one person's, else the place's (server/server-lines.ts). */
 const appLanguage = (): string | undefined => cfg.language ?? CLOUD_TEAM?.language; const personLanguages = createPersonLanguages({ dataDir: DATA_DIR, configured: appLanguage, privateTo: (threadId) => teamHost.privateTo(threadId) }); const threadLanguage = personLanguages.forThread; setConversationLanguage(threadLanguage);
 if (CLOUD_HOME) { repairMovedWorkspacePaths(DATA_DIR); acceptLegacyOrigins(CLOUD_HOME.legacyOrigins); }
 if (CLOUD_PERSONAL) sessions.requireAdmin(userError("serverError.cloud.personal"));
-const lendingEnabled = () => sharedComputersEnabled(cfg) || CLOUD_HOME !== null || ownHome.here(); const ownerLends = () => ownerLendingEnabled(cfg) && ownHome.takesMove(); const botLending = () => lendingEnabled() || (ownerLends() && sharedComputers.anyLent()); // ownerLends: a server only its one owner signs in to (own-home.ts) takes that owner's computer by default, never anyone else's (routes/shared-computers.ts); the desktop asks its person first, and the public description stays as it was.
+const lendingEnabled = () => sharedComputersEnabled(cfg) || CLOUD_HOME !== null || ownHome.here(); const ownerLends = () => ownerLendingEnabled(cfg) && ownHome.takesMove(); const botLending = () => lendingEnabled() || (ownerLends() && sharedComputers.anyLent());
 const CLOUD_HOME_LENDER = "cloud-home";
 /** Owner-written routines and owner-started runs: the only routine turns that may use a lent Mac. */
 const cloudRoutineAuthors = CLOUD_HOME ? createCloudRoutineAuthors(join(DATA_DIR, "lending-routines.json")) : null;
@@ -2771,7 +2770,7 @@ function checkedMemberIds(value: unknown): { ok: true; memberIds: string[] } | {
   if (invalidIndex !== -1) {
     return { ok: false, error: `unknown channel member: ${String(value[invalidIndex])}` };
   }
-  const memberIds = [...new Set(value as string[])].filter((id) => store.bot(id)); // An address of another place that no record here answers to (server/host/bot-link-rooms.ts) is left out, not refused.
+  const memberIds = [...new Set(value as string[])].filter((id) => store.bot(id));
   if (!memberIds.length) return { ok: false, error: "a channel needs at least one bot" };
   if (memberIds.every((id) => store.bot(id)?.hidden)) {
     return {
@@ -2803,7 +2802,7 @@ const outsideLineage = createOutsideLineage({
   writer: (routineId) => cloudRoutineAuthors?.writer(routineId), starters: (threadId) => cloudThreadStarters(threadId), guestOpened: cloudGuestOpened, ownerPerson: cloudOwnerPerson,
   node: (id) => coordinator.node(id), active: () => coordinator.active(), language: (threadId) => threadLanguage(threadId),
 });
-const { outsideDrivenThread, cloudGuestDriven, cloudGuestDrivenHandoff, outsideWorkStaysHere, confinedWhy, guestEngineRefusal } = outsideLineage; const botApiManager = new BotApiManager(), /** One person's server (own-home.ts: no members, at most one admin and by address), read live; a personal Cloud is its owner's. */ botApiAsOwnerAvailable = () => sharedWorkspaceFullAccessEnabled() || (!HOSTED_WORKSPACE && !CLOUD_TEAM && oneOwner({ managed: false, shared: sharedMembership(), admins: signInAllowList().admins })); /** Fenced unless its key acts as the owner now (bot-api-host.ts). */ function botApiThread(id: string): boolean { const owner = store.botByThread(id), task = owner && store.taskByThread(owner.id, id); return Boolean(owner && task?.botApi && !(task.botApiAsOwner && botApiManager.actsAsOwner(owner.id) && botApiAsOwnerAvailable())); }
+const { outsideDrivenThread, cloudGuestDriven, cloudGuestDrivenHandoff, outsideWorkStaysHere, confinedWhy, guestEngineRefusal } = outsideLineage; const botApiManager = new BotApiManager(), /** Only the owner may delegate their authority; shared and hosted workspaces require explicit policy. */ botApiAsOwnerAvailable = () => sharedWorkspaceFullAccessEnabled() || (!HOSTED_WORKSPACE && !CLOUD_TEAM && oneOwner({ managed: false, shared: sharedMembership(), admins: signInAllowList().admins })); /** Fenced unless its key acts as the owner now. */ function botApiThread(id: string): boolean { const owner = store.botByThread(id), task = owner && store.taskByThread(owner.id, id); return Boolean(owner && task?.botApi && !(task.botApiAsOwner && botApiManager.actsAsOwner(owner.id) && botApiAsOwnerAvailable())); }
 const { messagePage, messageWindow } = messagePages(store);
 const replyVoiceNotes = createReplyVoiceNotes({ store, config: () => cfg, voiceReady: tts.voiceReady, speak: tts.speak, save: saveAudio, remove: deleteAttachment, redact: redactSecretsInText, language: threadLanguage });
 const { cloudLendingTurn, cloudLendingRefusalNotice, cloudLendingRefusalForBot, cloudLendingRefusal, cloudThreadStarters, cloudBotOpened, cloudLendingView, cloudReportFromOthers, handsOnLending, handedInUnproven, cloudOwnTurnRefusal, roomTurnStarted, roomTurnEnded, roomRun } = createCloudLendingTurns({
@@ -3522,7 +3521,7 @@ type GroupTurnOperation = {
   queuedQueueIds?: string[];
   line?: RoomRoundLine;
   /** The person's room line this run answers (its member turns, mentions included, act for whoever wrote it), or the handed-on work it does. */
-  requestMessageId?: string; handedFor?: HandedRun; /** Whether a person's own line started this run, or the work handed on to it traces to one (usage-caps.ts). */ personStarted?: boolean; /** A coordinated run that already started carries on: no usage cap refuses it. */ continuesRun?: boolean;
+  requestMessageId?: string; handedFor?: HandedRun; /** Whether a person's own line started this run, or the work handed on to it traces to one. */ personStarted?: boolean; /** A coordinated run that already started carries on: no usage cap refuses it. */ continuesRun?: boolean;
   goalRun?: LiveGoalRun; /** What the person pointed at in a member's page; taken once by the page's bot (takeRoomPick). */ pick?: RoomPick;
 };
 

@@ -339,7 +339,7 @@ const appConfigSchema = z.object({
       monthlyUsd: z.number().min(0).max(1_000_000).optional(),
       warnAtPercent: z.number().int().min(1).max(100).optional(),
     })
-    .optional(), /** Caps on a day's and a month's usage, for the server and for each bot; none by default (usage-caps.ts). */ usageCaps: usageCapsSchema.optional(),
+    .optional(), /** Caps on a day's and a month's usage, for the server and for each bot; none by default. */ usageCaps: usageCapsSchema.optional(),
   /** Operator sell prices per million tokens by model id, `driver/model` or `default`; read only with the `billing` entitlement. */
   billing: z
     .object({

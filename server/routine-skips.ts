@@ -27,12 +27,6 @@ export function blockingRun(runs: readonly RoutineRun[], routineId: string): { r
   return { run, why: run.status === "queued" ? "routines.server.part.notStarted" : "routines.server.part.stillRunning" };
 }
 
-/** Counts the occurrence at `scheduledFor` on its cause's row, which `make` adds the first time, and with it the
- * `earlier` occurrences that came due before it while nothing could look (routine-catch-up.ts). `tell` is true once per
- * waiting run, for the first occurrence skipped after it had waited a notice window: the owner is told then, and the row
- * shows as not yet seen. Any other skip is on a row already seen: a run that is still working when the next one comes
- * due, or a spacing the owner was told about when it began, asks nothing more of them. A cause
- * that is not one of the `why` parts (a reached usage cap) gives its row's line itself, as `words`. */
 export function recordSkip(runs: readonly RoutineRun[], make: () => RoutineRun, cause: { behind: string; waitingSince?: number } & ({ why: SkipWhy } | { words: (count: number) => RoutineLine }), scheduledFor: number, now: number,
   earlier?: { count: number; scheduledFor: number }): { row: RoutineRun; added: boolean; tell: boolean } {
   const found = runs.findLast((run) => run.status === "missed" && run.skipped?.behind === cause.behind);

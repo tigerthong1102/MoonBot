@@ -86,9 +86,6 @@ export function unseenMessages(
     .map((m) => (position.get(m.id)! < newestReceived ? { ...m, earlier: true } : m));
 }
 
-/** Every `keep` message and every `User` line goes in whole and is never deferred: a teammate result or a person's
- * instruction the model cannot see is the failure this prevents. The rest go newest first within the soft budget, at
- * least one per turn. Returns the ids placed. */
 export function renderUnseen(unseen: readonly UnseenMessage[]): { block: string; placed: string[] } {
   if (unseen.length === 0) return { block: "", placed: [] };
   const optional = unseen.filter((m) => !m.keep && m.role !== "user").reverse();

@@ -52,6 +52,24 @@ describe.skipIf(!posix)("a child in a group of its own", () => {
     await expect(result).rejects.toMatchObject({ killed: true });
   });
 
+  it("kills a TERM-resistant descendant with independent stdio after its command leader exits", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omb-independent-descendant-"));
+    folders.push(dir);
+    const pidFile = join(dir, "descendant.pid");
+    const descendant = `process.on("SIGTERM", () => {}); require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setInterval(() => {}, 1000);`;
+    const command = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}], { stdio: "ignore" }); setInterval(() => {}, 1000);`;
+    const done = execFileInGroupAsync(process.execPath, ["-e", command], { timeout: 500 });
+    const pid = await childOf(pidFile);
+    try {
+      await expect(done).rejects.toMatchObject({ killed: true });
+      await vi.waitFor(() => expect(alive(pid)).toBe(false));
+    } finally { try { process.kill(pid, "SIGKILL"); } catch {} }
+  });
+
+  it("preserves a command spawn error through the group supervisor", async () => {
+    await expect(execFileInGroupAsync("/not/a/real/executable", [])).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("does not retain output beyond maxBuffer while termination is pending", async () => {
     const script = 'process.on("SIGTERM", () => {}); setInterval(() => process.stdout.write("x".repeat(65536)), 1)';
     await expect(execFileInGroupAsync(process.execPath, ["-e", script], { maxBuffer: 1024 })).rejects.toMatchObject({

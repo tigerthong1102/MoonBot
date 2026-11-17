@@ -2,6 +2,9 @@
 // helpers, docker's CLI plugins, ffmpeg's workers, ssh's ProxyCommand. Signalling the child alone orphans them. Windows has
 // no process groups: taskkill /T walks the tree there.
 import { execFile, spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { GROUP_SUPERVISOR } from "./group-exec-supervisor.ts";
+
+const supervisedGroups = new WeakSet<ChildProcess>();
 
 /** Spawn options: a group of its own on POSIX; no console window on Windows. */
 export const OWN_GROUP = { windowsHide: true, detached: process.platform !== "win32" } as const;
@@ -17,6 +20,13 @@ function groupSignal(pid: number, signal: NodeJS.Signals): boolean {
 
 /** Stop a child and the processes it started, without signaling a reused process-group ID after closure. */
 export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExitedLeader = false): void {
+  if (supervisedGroups.has(child)) {
+    if (child.exitCode === null && child.signalCode == null) {
+      if (child.connected) child.send({ stop: graceMs }, () => {});
+      else child.kill("SIGTERM");
+    }
+    return;
+  }
   const pid = child.pid;
   const exited = child.exitCode !== null || child.signalCode != null;
   const streamsClosed = [child.stdout, child.stderr].every(stream => !stream || stream.closed || stream.destroyed);
@@ -68,7 +78,18 @@ export function execFileInGroup(
     signal?.removeEventListener("abort", stop);
     callback(error ? Object.assign(error, { cmd, stdout, stderr, ...(stopped ? { killed: true } : {}) }) : null, stdout, stderr);
   };
-  const child = spawn(file, args, { ...rest, ...OWN_GROUP, stdio: ["pipe", "pipe", "pipe"] });
+  const child = process.platform === "win32"
+    ? spawn(file, args, { ...rest, ...OWN_GROUP, stdio: ["pipe", "pipe", "pipe"] })
+    : spawn(process.execPath, ["-e", GROUP_SUPERVISOR, rest.env?.ELECTRON_RUN_AS_NODE ?? (rest.env ? "unset" : process.env.ELECTRON_RUN_AS_NODE ?? "unset"), file, ...args], {
+      ...rest, ...OWN_GROUP, env: { ...(rest.env ?? process.env), ELECTRON_RUN_AS_NODE: "1" }, stdio: ["pipe", "pipe", "pipe", "ipc"],
+    });
+  if (process.platform !== "win32") {
+    supervisedGroups.add(child);
+    child.on("message", (message: unknown) => {
+      const error = (message as { spawnError?: { message: string; code?: string } } | null)?.spawnError;
+      if (error) child.emit("error", Object.assign(new Error(error.message), error));
+    });
+  }
   let retainedBytes = 0;
   const take = (which: "stdout" | "stderr") => (chunk: string) => {
     const bytes = Buffer.from(chunk);

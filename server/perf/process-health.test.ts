@@ -51,7 +51,6 @@ describe("the process-room record", () => {
       turns: () => ({ running: 2, queued: 3, longestWaitMs: 41_400, most: 7, queuedEver: 9, starvedEver: 1 }),
       counts: () => ({ limit: 512, spawnFailed: { EAGAIN: 4, EMFILE: 0, ENFILE: 0, ENOMEM: 1, ENOENT: 2, other: 0 }, forceKilled: 3, lateReaped: 5 }) });
     health.sample(list, buckets);
-    // agent-browser's daemon is no browser by name: it counts with the commands the server started, and its Chrome as the browser.
     const now = { procs: 15, threads: 126, zombies: 2, fds: 61, pidsUsed: 126, engines: { claudeAgent: 1, codex: 1 }, browser: 2, mcp: 3, shell: 3, other: 4 };
     expect(health.report()).toEqual({
       pid1: "init", reaper: "yes", serverIsPid1: false,
@@ -60,7 +59,6 @@ describe("the process-room record", () => {
       turns: { running: 2, queued: 3, longestWaitS: 41, most: 7 },
       since: { queued: 9, starved: 1, spawnFailed: { EAGAIN: 4, EMFILE: 0, ENFILE: 0, ENOMEM: 1, ENOENT: 2, other: 0 }, forceKilled: 3, lateReaped: 5 },
     });
-    // A quieter minute later: now falls, the most stays.
     health.sample(list.slice(0, 3), classifyProcesses(list.slice(0, 3), SERVER, true));
     expect(health.report().now).toMatchObject({ procs: 3, threads: 19, zombies: 0, browser: 0, engines: {} });
     expect(health.report().peak).toEqual(now);
@@ -92,7 +90,6 @@ describe("the process-room record", () => {
     const calm = createProcessHealth({ platform: "linux", limits: () => limits({ pidsCurrent: 100 }), memoryLimitBytes: () => null, fds: () => 30, turns: () => quiet, counts: () => none,
       warn: () => { throw new Error("nothing to say"); } });
     calm.sample(rows(), classifyProcesses(rows(), SERVER, true));
-    // Memory: once past 80% of the container's limit, and never where no limit is set.
     const memory: Array<[string, string]> = [];
     let used = 3_000 * 1024 * 1024;
     const tight = createProcessHealth({ platform: "linux", limits: () => limits({ pidsCurrent: 100 }), memoryLimitBytes: () => 4096 * 1024 * 1024, memoryUsedBytes: () => used,
@@ -111,7 +108,6 @@ describe("the process-room record", () => {
       row(101, 100, "https://intranet.acme.test/q?token=abc"), row(102, 100, "tallyspoon"), row(103, SERVER, "lookup_customer"),
       row(104, 1, "summarize the merger plan", 1, "Z"), row(105, SERVER, "ada@example.test"),
     ];
-    // An engine kind that is no fixed word (a custom engine named by a person) reads as "unknown".
     const engines = new Map([[100, "Tallyspoon"], [103, "acme-internal"], [105, "hunter2-password"]]);
     const health = createProcessHealth({ platform: "linux", limits: () => limits(), memoryLimitBytes: () => 2048 * MB, memoryUsedBytes: () => null, peaks: () => ({ pids: 90, memoryBytes: null }), fds: () => 12, turns: () => quiet, counts: () => none });
     health.sample(named, classifyProcesses(named, SERVER, true, engines));
@@ -120,7 +116,6 @@ describe("the process-room record", () => {
     const sources: PerfSources = { hour: createTurnTimings({}).window(), day: createTurnTimings({}).day(), live: [], limits: null, process: null, processes: report };
     const texts = [JSON.stringify(report), JSON.stringify(perfHealth(sources)), perfLines(sources, [], "Latest turns:").join("\n"), processHealthLines(report).join("\n"), health.startLine()];
     for (const text of texts) expect(leaks(text)).toEqual([]);
-    // Every string in the record is one of these words, or an engine kind from the server's own list.
     const strings: string[] = [];
     JSON.stringify(report, (_key, value) => { if (typeof value === "string") strings.push(value); if (value && typeof value === "object" && !Array.isArray(value)) strings.push(...Object.keys(value)); return value; });
     const fixed = new Set(["init", "node", "other", "unknown", "yes", "no", "max", "none", "unlimited", "pid1", "reaper", "serverIsPid1", "limits", "pids", "memMB", "nproc", "shmMB", "gate", "now", "peak", "kernelPeak",

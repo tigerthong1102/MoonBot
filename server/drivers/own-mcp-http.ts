@@ -38,8 +38,6 @@ export function claudeOwnHttpMount(server: unknown): Record<string, unknown> | n
   return http ? { type: "http", url: http.url, headers: http.headers, ...(mount.alwaysLoad === true ? { alwaysLoad: true } : {}) } : null;
 }
 
-/** Turns every one of OpenMausBot's own proxies in a Claude --mcp-config into its HTTP form, when the setting is on;
- * true when any was. */
 export function claudeOwnMcpOverHttp(servers: Record<string, unknown>, enabled: boolean = ownMcpHttpEnabled()): boolean {
   if (!enabled) return false;
   let converted = false;

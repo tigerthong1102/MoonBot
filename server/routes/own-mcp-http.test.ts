@@ -140,7 +140,6 @@ describe("a long tool call, and the stdio proxy's limits", () => {
         const text = await streamed.text();
         expect(text).toContain(": keepalive");
         expect(await read({ headers: streamed.headers, text: async () => text })).toEqual({ jsonrpc: "2.0", id: 7, result: { content: [{ type: "text", text: "ran slower" }] } });
-        // Without server-sent events the answer is one JSON body, sent when the call ends: too late for this client.
         await expect(undiciFetch(`${base}${OWN_MCP_HTTP_PATH}browser`, { method: "POST", dispatcher: impatient,
           headers: { ...capability, accept: "application/json" }, body: JSON.stringify(slower) })).rejects.toMatchObject({ cause: { code: "UND_ERR_HEADERS_TIMEOUT" } });
       });
@@ -159,7 +158,6 @@ describe("a long tool call, and the stdio proxy's limits", () => {
       const batch = [7, 8, 9].map((id) => ({ ...slow, id }));
       const answered = await read(await post("browser", batch)) as Array<{ id: number; result: { isError?: boolean; content: Array<{ text: string }> } }>;
       expect(answered.map((reply) => [reply.id, reply.result.content[0]!.text])).toEqual([[7, "ran slow"], [8, "ran slow"], [9, "Too many pending browser requests."]]);
-      // Another capability, another bot's turn, has its own.
       const first = post("browser", [{ ...slow, id: 1 }, { ...slow, id: 2 }]);
       await new Promise((resolve) => setTimeout(resolve, 100));
       const other = await read(await post("browser", { ...slow, id: 3 }, { authorization: "Bearer another-turn" })) as { result: { content: Array<{ text: string }> } };

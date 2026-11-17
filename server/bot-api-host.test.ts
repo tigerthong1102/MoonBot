@@ -458,13 +458,11 @@ describe("a key that acts as the owner", () => {
     const key = (await h.app("POST", "/api/bots/b1/bot-api", { enabled: true })).body.key as string;
     expect((await h.app("GET", "/api/bots/b1/bot-api")).body).toMatchObject({ actsAsOwner: false, mayActAsOwner: true });
 
-    // Before it is turned on, a call is fenced as always.
     const fenced = await h.call("b1", key, { message: "Before" });
     const fencedThread = fenced.body.thread as string;
     expect(h.fake.bots.get("b1")!.tasks[0]).toMatchObject({ approvalMode: "ask", botApi: true, outside: true });
     expect(h.fake.bots.get("b1")!.tasks[0]!.botApiAsOwner).toBeUndefined();
 
-    // Only the owner turns it on, and only where the server allows it.
     expect((await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: true }, false)).status).toBe(403);
     allowed = false;
     expect((await h.app("GET", "/api/bots/b1/bot-api")).body).toMatchObject({ actsAsOwner: false, mayActAsOwner: false });
@@ -474,7 +472,6 @@ describe("a key that acts as the owner", () => {
     expect([on.status, on.body.actsAsOwner]).toEqual([200, true]);
     expect(JSON.stringify(on.body)).not.toContain(key);
 
-    // A new thread runs at the bot's own level with its saved allowances, is not outside, and its words are the owner's request.
     const owned = await h.call("b1", key, { message: "Tidy the build folder" });
     expect(owned.status).toBe(200);
     const ownedThread = owned.body.thread as string;
@@ -489,12 +486,10 @@ describe("a key that acts as the owner", () => {
     expect(turn.prompt).not.toContain("[UNTRUSTED BOT API MESSAGE]");
     expect(h.manager.listAttempts("b1").at(-1)).toMatchObject({ outcome: "accepted", asOwner: true });
 
-    // A thread keeps what it was opened as: the fenced one stays fenced.
     expect((await h.call("b1", key, { message: "Again", thread: fencedThread })).status).toBe(200);
     expect(h.turns.at(-1)!.prompt).toContain("[UNTRUSTED BOT API MESSAGE]");
     expect(h.turns.at(-1)!.opts.userMessage.apiAsOwner).toBeUndefined();
 
-    // Once the server no longer allows it, the key acts as nobody: it can't go on in the owner's thread, and new threads are fenced.
     allowed = false;
     expect((await h.app("GET", "/api/bots/b1/bot-api")).body.actsAsOwner).toBe(false);
     expect((await h.call("b1", key, undefined, { method: "GET", query: `?thread=${ownedThread}` })).status).toBe(403);
@@ -506,7 +501,6 @@ describe("a key that acts as the owner", () => {
     expect(h.fake.bots.get("b1")!.tasks.at(-1)).toMatchObject({ approvalMode: "ask", outside: true });
     allowed = true;
 
-    // A new key starts without it, and switching it off is recorded too: by hand, by a new key, or by switching the API off.
     const rotated = await h.app("POST", "/api/bots/b1/bot-api/new-key");
     expect(rotated.body.actsAsOwner).toBe(false);
     expect((await h.call("b1", rotated.body.key, undefined, { method: "GET", query: `?thread=${ownedThread}` })).status).toBe(403);
@@ -514,7 +508,6 @@ describe("a key that acts as the owner", () => {
     expect((await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: false })).body.actsAsOwner).toBe(false);
     await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: true });
     expect((await h.app("POST", "/api/bots/b1/bot-api", { enabled: false })).body.actsAsOwner).toBe(false);
-    // A key that never had the mark: a new key and switching off add no such row.
     await h.app("POST", "/api/bots/b1/bot-api", { enabled: true });
     await h.app("POST", "/api/bots/b1/bot-api/new-key");
     await h.app("POST", "/api/bots/b1/bot-api", { enabled: false });
@@ -541,7 +534,6 @@ describe("a key that acts as the owner", () => {
     await h.app("POST", "/api/bots/b1/bot-api", { enabled: true });
     expect((await h.app("GET", "/api/bots/b1/bot-api")).body).toMatchObject({ actsAsOwner: false, mayActAsOwner: false });
     expect((await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: true })).status).toBe(403);
-    // Even a key marked by hand in its file acts as nobody here.
     h.manager.setActsAsOwner("b1", true);
     const key = (await h.app("POST", "/api/bots/b1/bot-api/new-key")).body.key as string;
     h.manager.setActsAsOwner("b1", true);

@@ -35,8 +35,6 @@ export interface RoutineFailureFacts {
   partial?: boolean;
 }
 
-/** On a failed run that only the owner's AI account could have let through: it spent nothing, so it does not count
- * towards spacing its routine out. */
 export interface RoutineOwnerMark { ownerCause?: RoutineOwnerCause }
 
 export type RoutineFailureClass =
@@ -167,15 +165,11 @@ export function retryNote(cause: RoutineRetryCause): string {
     "check what it did (files, messages sent, anything started) so nothing is done twice; then finish the routine.]";
 }
 
-/** The second start's whole message when the first start's is already in the conversation: the routine's instructions,
- * attachments and previous-run excerpt are read from there and not sent, and paid for, a second time. */
 export function continueNote(cause: RoutineRetryCause): string {
   return `[OpenMausBot: this run's first start ${FIRST_START[cause]} before it finished. The routine's instructions are in the message above ` +
     "and are not repeated here. Check what the first start already did (files, messages sent, anything started) so nothing is done twice; then finish the routine.]";
 }
 
-/** Whether the conversation a second start continues still holds the first start's message (`prompt`) for its engine:
- * a session it resumes does, and a replayed one only while that message and all after it fit the replay's budget. */
 export function sessionHolds(input: { resumes: boolean; messages: ReadonlyArray<{ role: string; text?: string }>; prompt: string; budgetBytes: number; maxMessages?: number }): boolean {
   const at = input.messages.findLastIndex((message) => message.role === "user" && message.text === input.prompt);
   if (at < 0) return false;
@@ -185,14 +179,10 @@ export function sessionHolds(input: { resumes: boolean; messages: ReadonlyArray<
   return selected.transcript.some((entry) => entry.id === String(at) && entry.text === input.prompt);
 }
 
-/** A second start whose engine session will not hold the first start's message: one moved to a backup AI or waiting out a
- * usage limit, or a routine that calls a /command, which is only expanded where it is sent. */
 const startsAfresh = (run: Pick<RoutineRun, "retried" | "attentionCode">, prompt: string): boolean =>
   run.retried === "usage_limit" || run.attentionCode === "routines.server.backupSignedOut" || run.attentionCode === "routines.server.backupAi"
   || /(?:^|\s)\/[A-Za-z][\w:-]*/.test(prompt);
 
-/** What a run's start sends: `first`, what its first start sent, alone; for the one second start, the short note when the
- * engine resumes a session that already holds `first` (`said`), else `first` again with the note. */
 export function startPrompt(run: Pick<RoutineRun, "retried" | "attentionCode">, prompt: string, first: string, said: (first: string) => boolean): string {
   if (!run.retried) return first;
   return !startsAfresh(run, prompt) && said(first) ? continueNote(run.retried) : `${first}\n\n${retryNote(run.retried)}`;

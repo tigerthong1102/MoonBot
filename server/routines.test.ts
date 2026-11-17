@@ -4147,7 +4147,6 @@ describe("a reached usage cap", () => {
     expect(h.manager.listRoutines()[0]!.skippedRuns ?? 0).toBe(0);
     expect([h.started, h.failed, h.taskTitles]).toEqual([[], [], []]);
 
-    // A webhook's run that was already queued is let go with the line, quietly; one started by hand runs.
     h.manager.enqueueWebhook({ webhookId: "hook", webhookName: "New lead", prompt: "Handle it", botId: "maus-1", runOn: "maus", deliveryId: "d1", receivedAt: start + 3 * HOUR });
     await h.manager.tick();
     expect(h.manager.listRuns().find((run) => run.webhookId === "hook")).toMatchObject({ status: "cancelled", error: "Not started: the cap is reached" });
@@ -4157,7 +4156,6 @@ describe("a reached usage cap", () => {
     expect(h.started).toHaveLength(1);
     h.manager.handleRuntimeEvent({ eventId: "done", provider: "fake", threadId: h.started[0]!.threadId, createdAt: new Date().toISOString(), type: "turn.completed", ok: true });
 
-    // The next day is a new period: its row would be a new one, and with the cap lifted the schedule simply runs.
     capped = false;
     h.setNow(start + 4 * HOUR);
     await h.manager.tick();
@@ -4217,7 +4215,6 @@ describe("a reached usage cap", () => {
     expect(h.manager.listRuns().map((run) => [run.status, run.skipped?.count])).toEqual([["missed", 1]]);
     expect(h.started).toEqual([]);
 
-    // Later the same day it is still waiting; at the rollover the cap counts from zero and the run goes.
     h.at(start + 3 * HOUR);
     await h.manager.tick();
     expect(h.started).toEqual([]);

@@ -180,7 +180,6 @@ it("keeps a file secret and a ref secret out of every record, and the bot uses e
   const refText = (await tools.call("request_credential", { label: "Notion key", reason: "For Notion's MCP server.", delivery: "ref" })).text;
   const ref = /secret-ref:[0-9a-f]{32}/u.exec(refText)?.[0];
   expect(ref, refText).toBeDefined();
-  // The person agreed to StartupBot's tools only: a file needs a new card.
   const asFile = await tools.call("request_credential", { label: "Notion key", reason: "For a script.", delivery: "file" });
   expect(asFile.text).toContain("not as a file for your commands (not a file request), so this card asks for it again");
   expect((await cards()).at(-1).secret).toMatchObject({ label: "Notion key", delivery: "file" });

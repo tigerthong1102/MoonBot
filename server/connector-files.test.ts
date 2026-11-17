@@ -62,7 +62,6 @@ describe("connected-app file arguments", () => {
       md5: createHash("md5").update(report).digest("hex"),
     }]);
     expect(puts).toEqual([{ url: "https://storage.composio.dev/upload/1", bytes: report.byteLength, mimetype: "application/pdf" }]);
-    // The bot's own frame is left as it was.
     expect(frame.params.arguments.tools[0]!.arguments.file_to_upload).toBe("C:\\Users\\sam\\Documents\\report.pdf");
   });
 
@@ -106,7 +105,6 @@ describe("connected-app file arguments", () => {
   });
 
   it("sends a path that is not one of the bot's files as it is, with no refusal and no upload", async () => {
-    // Dropbox and Drive paths, a web path: only a file the bot may send is uploaded.
     const frame = multi(
       { tool_slug: "DROPBOX_UPLOAD_FILE", arguments: { file: "/Apps/report.pdf" } },
       { tool_slug: "WEBFLOW_UPLOAD_ASSET", arguments: { image: "/images/logo.png" } },
@@ -270,7 +268,6 @@ describe("which files a bot may send", () => {
     await expect(openBotFile(put(join(data, "config.json")), inHome)).rejects.toThrow(sensitive);
     await expect(openBotFile(put(join(desktop, "Local State")), inHome)).rejects.toThrow(sensitive);
     await expect(openBotFile(put(join(home, "Documents", "report.pdf")), inHome)).resolves.toMatchObject({ name: "report.pdf" });
-    // The bot's own workspace sits inside the app's data folder, and is its to send from, but not a hidden folder in it.
     const workspace = join(data, "workspaces", "bot");
     const own = scope({ roots: [workspace], refuse: [data, desktop], home });
     await expect(openBotFile(put(join(workspace, "out", "chart.pdf")), own)).resolves.toMatchObject({ name: "chart.pdf" });

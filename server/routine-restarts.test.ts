@@ -1,5 +1,3 @@
-// A headless server that crashes and starts again in a loop: what its routines start, counted in turns (each is at least
-// one request to the AI).
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -96,7 +94,6 @@ describe("a headless server's startup routines", () => {
     const held = startupDecision(undefined, `at:${START}`, START + STARTUP_ROUTINE_GAP_MS - 1);
     expect(held.run === false && held.behind("r1")).toBe(`startup:${START}:r1`);
     expect(startupDecision(undefined, `at:${START}`, START + STARTUP_ROUTINE_GAP_MS)).toEqual({ run: true, marker: `at:${START + STARTUP_ROUTINE_GAP_MS}` });
-    // A clock set back runs them rather than holding them for good.
     expect(startupDecision(undefined, `at:${START}`, START - HOUR)).toMatchObject({ run: true });
     expect(startupRoutineGapMs({ OMB_STARTUP_ROUTINE_GAP_MS: "60000" })).toBe(MINUTE);
     expect(startupRoutineGapMs({ OMB_STARTUP_ROUTINE_GAP_MS: "30m" })).toBe(STARTUP_ROUTINE_GAP_MS);

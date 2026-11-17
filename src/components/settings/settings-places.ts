@@ -13,8 +13,6 @@ const JUMPS: Record<NonNullable<SettingsIndexEntry["jump"]>, string> = {
 /** Pages shown under the place's own name, the account's or the app's, rather than a label of their own. */
 const IDENTITY_PAGE: Partial<Record<SettingsPage["id"], string>> = { overview: "(the place's own name, at the top)" };
 
-/** Where a page or row shows when it is not on every place: on this computer's own page in the desktop app, on another
- * place's page there, or in a browser; else the one kind of place that has it. */
 const SEEN = { here: {}, elsewhere: { here: false }, browser: { desktop: false, here: false, home: false, cloud: true } } satisfies Record<string, Partial<SettingsContext>>;
 const SEEN_ON: Record<string, string> = {
   here: "the desktop app, on this computer's own page", "here,elsewhere": "the desktop app", "elsewhere,browser": "a Cloud's or server's own page", browser: "MausBot in a browser",

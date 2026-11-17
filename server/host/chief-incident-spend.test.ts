@@ -72,7 +72,6 @@ function world(botCount: number, failure: (at: number) => string, refuseStart = 
       if (refuseStart) throw new Error(failure(now));
     },
     promptSaid: (threadId, prompt) => store.messagesFor(threadId).some((line) => line.role === "user" && line.text === prompt),
-    // As the host wires it: a failure the owner was already told of (alert null) reaches neither them nor a Chief.
     onRunFailed: (run, alert) => {
       const bot = store.bot(run.botId);
       if (!bot || alert === null) return;

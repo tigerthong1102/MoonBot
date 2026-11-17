@@ -6,8 +6,6 @@ type StandIn = { name: string; home?: { place: string; placeName: string; botId:
 const READS = new Set(["GET", "HEAD", "OPTIONS"]);
 const decoded = (value: string): string => { try { return decodeURIComponent(value); } catch { return value; } };
 
-/** The stand-in a request that changes something names in its path or its query, if any. With no stand-in on this place
- * (the link is off) this looks at nothing. The link's own routes are not bot routes and are left to the link. */
 export function standInNamed(standIns: ReadonlyMap<string, StandIn>, method: string, url: URL): StandIn | null {
   if (standIns.size === 0 || READS.has(method)) return null;
   const path = url.pathname;

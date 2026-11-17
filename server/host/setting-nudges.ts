@@ -19,8 +19,6 @@ export interface NudgeTurn {
   model: string;
 }
 
-/** Per conversation: the model the last turn ran on and the row from which failures count on it; the row the note went
- * out after, if it did. */
 interface ThreadState {
   model: string;
   from?: string;

@@ -237,8 +237,6 @@ export function capStates(saved: UsageCapsConfig | undefined, dataDir: string, n
   return [...statesOf("server", undefined, caps.server, totals.server, now), ...bots.flatMap(([id, limits]) => statesOf("bot", id, limits, totals.bots.get(id), now))];
 }
 
-/** The reached cap that keeps this work from starting, or null. A person's own message is stopped only by `everything`.
- * Of several reached caps, the one that resets last: the work cannot start before it does. */
 export function reachedCap(saved: UsageCapsConfig | undefined, dataDir: string, work: { botId?: string; personWaiting: boolean }, now = new Date(), env: NodeJS.ProcessEnv = process.env): CapState | null {
   if (work.personWaiting && effectiveCaps(saved, env).stops !== "everything") return null;
   const reached = capStates(saved, dataDir, now, env, work.botId ?? "").filter((state) => state.reached);
@@ -268,8 +266,6 @@ export function personWaiting(turn: Parameters<typeof directTurnKind>[0] & { ori
   return thread.automation === undefined || thread.automation === "manual";
 }
 
-/** A room turn: a person is waiting unless the run is known to have been started by something else (a webhook's or
- * the API's line, work handed on from outside), or it is a routine's own run that nobody started by hand. */
 export function personWaitingInRoom(run: { personStarted?: boolean } | undefined, routineTrigger: string | undefined): boolean {
   return run?.personStarted !== false && (routineTrigger === undefined || routineTrigger === "manual");
 }

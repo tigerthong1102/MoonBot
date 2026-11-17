@@ -74,7 +74,6 @@ describe("OpenMausBot data-directory lease", () => {
     });
     expect(boot === null || (typeof boot === "string" && boot.length > 0)).toBe(true);
     expect(process.platform === "linux" ? /^[1-9]\d*$/.test(ns) && Number.isSafeInteger(start) : ns === null && start === null).toBe(true);
-    // machine: a hashed id that survives a restart and a hostname change, null where unreadable.
     expect(machine === null || /^[0-9a-f]{32}$/.test(machine)).toBe(true);
     expect(Object.keys(stored).sort()).toEqual(
       ["boot", "createdAt", "host", "machine", "ns", "pid", "start", "token", "uptime", "version"],

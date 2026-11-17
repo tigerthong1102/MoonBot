@@ -8,8 +8,6 @@ const DOCS = 'docs/self-hosting.md, "Running on a container platform"';
 const NO_INIT = `nothing collects the processes bots leave behind, so they pile up until the container's process limit and bots fail to start ("spawn EAGAIN"). Start the container with an init (docker run --init, or tini as its entrypoint): ${DOCS}.`;
 
 export interface ContainerInit {
-  /** Replace this process with the image's tini running this same launcher (execve's file, argv and environment), so
-   * tini is process 1 for the life of the container; null when something else already collects exited processes. */
   exec: { file: string; args: string[]; env: NodeJS.ProcessEnv } | null;
   /** Said once at start, when this process found itself the container's process 1. */
   line: string | null;

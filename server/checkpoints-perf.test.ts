@@ -44,7 +44,6 @@ vi.mock("node:child_process", async (importOriginal) => {
   return { ...actual, execFile };
 });
 
-// Checkpoints start git in a process group of their own; here every git run goes through the execFile above instead.
 vi.mock("./group-exec.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./group-exec.ts")>();
   const { execFile } = await import("node:child_process");

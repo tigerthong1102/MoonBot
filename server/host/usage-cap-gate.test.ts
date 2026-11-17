@@ -95,7 +95,6 @@ describe("the usage cap gate", () => {
     expect(log).toHaveLength(2);
     expect(log[1]).toBe("usage cap reached: server:day:usd $10.10 of $10.00; unattended work waits until 2026-09-16T00:00:00.000Z");
 
-    // A restart does not repeat the notice; the next day's cap is a new one.
     expect(JSON.parse(readFileSync(join(dataDir, "usage", "cap-notices.json"), "utf8"))).toEqual({ "server:day:usd": { period: "2026-09-15", limit: 10, warn: true, reached: true } });
     const restarted = gate();
     restarted.booked("a");
@@ -135,7 +134,6 @@ describe("the usage cap gate", () => {
     const open = gate();
     const skip = open.routineSkip("a", "r1")!;
     const resets = capResets(Date.parse("2026-09-16T00:00:00Z"));
-    // Each routine under the cap keeps its own row: the routine's id is part of the row's cause.
     expect([skip.behind, skip.resetsAt]).toEqual(["cap:r1:server:day:tokens:2026-09-15", Date.parse("2026-09-16T00:00:00Z")]);
     expect(open.routineSkip("b", "r2")!.behind).toBe("cap:r2:server:day:tokens:2026-09-15");
     expect(skip.words(1)).toEqual({ text: `Skipped: the daily usage cap for all bots (1,000 tokens) is reached. Runs start again after ${resets}`,

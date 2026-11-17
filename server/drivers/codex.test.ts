@@ -2000,7 +2000,6 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     await new Promise<void>((resolve) => harness.listen(0, "127.0.0.1", resolve));
     try {
       process.env.FAKE_CODEX_MCP_START = "1";
-      // Codex given a proxy for HTTP must reach this server's loopback URL around it.
       await create({ environment: { NO_PROXY: "corp.internal" } });
       const dump = join(scratch, "agents-http.json");
       process.env.FAKE_CODEX_DUMP = dump;

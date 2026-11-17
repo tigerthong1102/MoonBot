@@ -288,7 +288,6 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
             environment: { FAKE_ACP_MODE: "delegate-peer" },
             config: { cli: FAKE_CLI, fullAuto: true },
           },
-          // the same asker with every RPC request recorded, so a test can count the sessions it built
           askerResume: {
             driver: "grokAgent",
             environment: { FAKE_ACP_MODE: "delegate-peer", FAKE_ACP_RPC_APPEND_FILE: join(home, "asker-resume-rpc.jsonl") },
@@ -639,8 +638,6 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
         return delegated && woke && !askerBot.busy;
       }, 30_000, "the hand-off never settled");
 
-      // The result's landing marks the thread externally updated; a strict-resume driver keeps the live session and is
-      // handed only the unseen lines, so the wake prompt rides the same session rather than session/new again.
       const sessions = readFileSync(join(home, "asker-resume-rpc.jsonl"), "utf8").trim().split("\n")
         .map((line) => JSON.parse(line) as { method: string })
         .map((call) => call.method)

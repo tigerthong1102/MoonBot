@@ -70,8 +70,6 @@ export function spareForRoom(spare: { idleMs: number; savesSignIns: boolean } | 
 
 export interface BrowserRoomOptions {
   max(): number;
-  /** How long the session's browser has sat unused (ms) when it may be closed now; null while a call, a person, a view
-   * or a running turn that could not get the same browser back has it. */
   spare(session: string): number | null;
   /** Closes an unused browser; true once it is gone. */
   close(session: string): Promise<boolean>;
@@ -80,8 +78,6 @@ export interface BrowserRoomOptions {
   pollMs?: number;
 }
 
-/** Counts the browsers agent-browser runs for this server. A browser over the limit starts once the least recently used
- * spare one is closed; with none to close its call waits, then is told why it cannot start. */
 export class BrowserRoom {
   readonly #open = new Set<string>();
   readonly #provisional = new Map<string, symbol>();
@@ -158,8 +154,6 @@ export function refusedSlot(result: unknown): boolean { return typeof result ===
 type ListedSpec = { command: string; args: readonly string[] };
 const listKey = (spec: ListedSpec) => JSON.stringify([spec.command, ...spec.args]);
 
-/** agent-browser's tool list follows from its binary and arguments, never from the session, so one answer serves every
- * session and listing tools starts no `agent-browser mcp` process of its own. */
 export class SharedToolLists {
   readonly #lists = new Map<string, Promise<unknown>>();
   readonly #known = new Map<string, unknown>();

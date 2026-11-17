@@ -107,8 +107,6 @@ export const awayNotice = (device: string) => `The person's ${device} is away, s
 /** What the bot reads once when those sites load from My Cloud's own connection because no computer shares one. */
 export const UNSHARED_NOTICE = `Sites that turn away data centres, such as Instagram, YouTube and Google sign-in, load from My Cloud's own connection and may refuse it with an error page or "too many requests". If one does and the person needs it, tell them these sites open through their own computer's internet connection while OpenMausBot is open on it, signed in to MausBot Cloud.`;
 
-/** One gate per running browser session, so a Chrome keeps the port it launched with; released once that browser has
- * ended, and opened again on the same port where it is still free. */
 export class BrowserEgress {
   private setup: Required<Omit<EgressSetup, "device">> & Pick<EgressSetup, "device"> | null = null;
   private readonly gates = new Map<string, Promise<EgressGate>>();

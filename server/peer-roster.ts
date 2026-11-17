@@ -315,8 +315,6 @@ const PEER_ROSTER_MAX = 12;
 const ROSTER_OPEN = "[TEAM ROSTER]";
 const ROSTER_CLOSE = "[/TEAM ROSTER]";
 
-/** Who is on the team changes whenever a bot is added, renamed or removed, so `roster` rides the volatile half of the
- * system prompt and only `rules` is part of what a per-thread engine process is keyed on. */
 export interface TeamPrompt {
   rules: string;
   roster: string;

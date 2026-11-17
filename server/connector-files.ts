@@ -108,8 +108,6 @@ function collect(node: unknown, field: string, call: { slug: string; source: unk
   }
 }
 
-/** The values a tools/call frame gives where a connected-app tool takes a file and that read as a path on this
- * computer, in a copy of the frame whose values can be replaced. Search, schema and connection tools carry none. */
 export function localFileReferences(frame: unknown): { frame: unknown; references: FileReference[] } {
   if (!isRecord(frame) || frame.method !== "tools/call" || !isRecord(frame.params) || typeof frame.params.name !== "string") return { frame, references: [] };
   const copy = structuredClone(frame) as Json & { params: { name: string; arguments?: unknown } };
@@ -260,8 +258,6 @@ export function uploadFailedText(reference: Pick<FileReference, "tool">, name: s
 export interface PreparedFiles {
   /** The files the call will upload, for its approval card. */
   files: Array<CardFile & { tool: string; source: unknown }>;
-  /** Uploads them and answers the frame that names each by its key; rejects with the text the bot is told. Absent when
-   * the call names none: the frame goes out as sent. Run only once the call has passed every check. */
   upload?: (options?: { check?: () => void; signal?: AbortSignal }) => Promise<unknown>;
   /** `calls` (connectorCallsIn of the frame as sent) with the files each will upload. */
   cardCalls<T extends { arguments?: unknown }>(calls: T[]): Array<T & { files?: CardFile[] }>;

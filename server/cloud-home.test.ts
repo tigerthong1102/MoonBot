@@ -600,7 +600,6 @@ it("the Cloud launcher starts the server again when it asks to after a restore o
   expect(launcher.indexOf("prepared = prepare();")).toBeLessThan(launcher.indexOf("\n  runServer();"));
   expect(launcher).toContain("if (!policy.again(code, stopping, signal)) return false;");
   expect(launcher).toContain("if (policy.delayMs() > 0) restartTimer = setTimeout(runServer, policy.delayMs());");
-  // A stop during the pause ends the wait, so a stopped home exits at once.
   expect(launcher).toContain("if (restartTimer) clearTimeout(restartTimer);");
   for (const code of [0, 1, null]) expect(restartPolicy().again(code)).toBe(false);
   expect(restartPolicy().again(RESTART_EXIT_CODE, true)).toBe(false);

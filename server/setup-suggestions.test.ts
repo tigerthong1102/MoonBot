@@ -184,7 +184,6 @@ describe("the card's answers", () => {
   });
 
   it("count the 6 s from when the writing starts, not while it waits for a free slot behind other bots' background calls", async () => {
-    // The writer as side-jobs queues it: told it waits, started 8 s later, answering 2 s after that.
     const started = vi.fn();
     const s = setup({ reply: () => new Promise<string>((resolve) => {
       const options = s.calls.at(-1)!.options as { waiting?(): void; started?(): void } | undefined;

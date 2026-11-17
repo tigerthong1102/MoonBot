@@ -170,12 +170,10 @@ describe("a browser over the limit", () => {
     const value = new BrowserRoom({ max: () => 3, spare: (session) => (session === "a" ? 1_000 : null), close, admit, waitMs: 300, pollMs: 20 });
     value.entered("a");
     value.entered("b");
-    // the count allows a third, the server's room does not: a spare browser closed for it lets the new one in
     expect(await value.enter("c", Date.now() + 1_000)).toBeNull();
     expect(close.mock.calls).toEqual([["a"]]);
     expect(admit.mock.calls).toEqual([["c", expect.any(Function)], ["c", expect.any(Function)]]);
     expect(value.open).toBe(2);
-    // an open browser is never asked about again, and with no spare browser left the refusal is the server's
     expect(await value.enter("c", Date.now() + 1_000)).toBeNull();
     expect(await value.enter("d", Date.now() + 1_000)).toBe("No room for another browser.");
     expect(admit).toHaveBeenCalledTimes(3);

@@ -116,7 +116,6 @@ describe("ThreadCache byte cap", () => {
     busy.add("a");
     cache.get("b");
     cache.load("d", rows("d", 9_000));
-    // a is busy, b was just read again, so c (least recently used of the rest) goes.
     expect(["a", "b", "c", "d"].filter((id) => cache.get(id))).toEqual(["a", "b", "d"]);
     expect(cache.approxBytes).toBeLessThanOrEqual(30_000);
 

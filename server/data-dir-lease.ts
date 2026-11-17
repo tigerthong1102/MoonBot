@@ -15,8 +15,6 @@ export type {
   OwnedDataDirLease,
 } from "../electron/data-dir-lease.mjs";
 
-/** The server's release for every exit path (process exit, graceful close, crash guard): the first call releases, later
- * calls do nothing, and a failure is logged, never thrown, so exiting is never stopped by the lease. */
 export function releaseOnceAtExit(lease: Pick<DataDirLease, "release">): () => void {
   let attempted = false;
   return () => {

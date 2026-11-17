@@ -34,8 +34,6 @@ export interface ChiefNoticeDeps {
   /** Starts this thread's request again where it stopped: a continuation of the request the harness recorded, never a line
    * of the person's. Absent: a run stopped for memory with no Chief to retry it is only reported. */
   continueRequest?(botId: string, threadId: string, text: string): Promise<unknown>;
-  /** A self-hosted server where turns wait for room: a run stopped for memory there is the server's shortage, as a start
-   * it had no room for is, and no Chief is asked about it. */
   selfHosted?(): boolean;
   /** Runs a retry after a run stopped for memory, MEMORY_RETRY_MS later by default, so the machine settles first. */
   later?(run: () => void, ms: number): void;
@@ -157,8 +155,6 @@ export function createChiefNotices(deps: ChiefNoticeDeps) {
     }
   }
 
-  /** Past its hour's share a Chief is not started again: the problems are counted on one line in its notices chat, which
-   * lists the chats they came from (the first FOLDED_LISTED) and links the newest. */
   function fold(chief: BotRecord, threadId: string, until: number, from: { botId: string; threadId: string; title: string; name: string }): void {
     const open = folded.get(chief.id), now = deps.now?.() ?? Date.now();
     const same = open && open.threadId === threadId && open.until > now ? open : null;

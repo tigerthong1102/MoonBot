@@ -243,8 +243,6 @@ describe("the connector's connection to MausBot", () => {
     admin.drop();
     await until(() => Object.keys(record.current.adminKeys).length === 2);
     admin.signingKid = "k2";
-    // Counted from here, and with the Admin's own side open: on a slow runner the agent can still read its dropped
-    // connection as open, or have reconnected once more before this drop.
     const before = admin.connections.length;
     admin.drop();
     await until(() => admin.connections.length > before && admin.connected && agent.connected);

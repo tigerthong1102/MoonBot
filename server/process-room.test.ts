@@ -52,7 +52,6 @@ describe("the container's limits, from Linux's own files", () => {
       .toEqual({ pidsMax: 512, pidsCurrent: 30, nproc: "unlimited", shmBytes: 64 * MB, pid1: "init", reaper: "yes" });
     expect(readProcessLimits({ platform: "linux", pid: 14, shm: () => null, read: files({ ...base, "/proc/1/comm": "MainThread\n", "/proc/14/comm": "node\n", "/proc/14/stat": stat(14, 1) }) }))
       .toMatchObject({ pid1: "node", reaper: "no", shmBytes: "unknown" });
-    // The launcher as process 1 with the image's tini beneath it.
     expect(readProcessLimits({ platform: "linux", pid: 14, shm: () => null, read: files({ ...base, "/proc/1/comm": "node\n", "/proc/14/comm": "node\n", "/proc/14/stat": stat(14, 13), "/proc/13/comm": "tini\n", "/proc/13/stat": stat(13, 1) }) }))
       .toMatchObject({ pid1: "node", reaper: "yes" });
     expect(readProcessLimits({ platform: "linux", pid: 14, shm: () => null, read: files({ "/proc/1/comm": "start.sh\n", "/proc/self/limits": "Max processes             4096                 4096                 processes \n" }) }))
@@ -150,7 +149,6 @@ describe("the pids budget", () => {
     expect(made.short(ENGINE_TASKS, 0)).toBe(true);
     made.spawnFailed("EAGAIN");
     expect(logs).toHaveLength(1);
-    // A limit the container shows is the one in force, whatever a refusal looked like.
     const shown = budget({ max: 4096, current: 300 });
     shown.made.spawnFailed("EAGAIN");
     expect(shown.made.limit()).toBe(4096);
@@ -293,7 +291,6 @@ describe("a self-hosted server's turns at once", () => {
   it("defaults to what its pids limit and its memory hold at an engine's usual size, whichever is fewer", () => {
     expect(server({ pids: 512 }).memory.most()).toBe(7);
     expect(server({ pids: 4096 }).memory.most()).toBe(60);
-    // A 4 GB container: 410 MB kept back, 700 MB an engine.
     expect(server({ pids: 4096, total: 4 * GB, available: 3 * GB }).memory.most()).toBe(5);
     expect(server({ pids: "max", total: 2 * GB, available: 1 * GB }).memory.most()).toBe(2);
     expect(server({ pids: 512, turns: 3 }).memory.most()).toBe(3);
@@ -331,7 +328,6 @@ describe("a burst of turns under a limit on turns", () => {
   it("starts the ones that got a place, though the rest queued before their engines were let in, and then the rest in turn", async () => {
     const s = server({ pids: 4096, turns: 2 });
     const order: string[] = [];
-    // Every turn asks for its place first; only then do the two that got one ask for room for their engines.
     const places = ["a", "b", "c", "d", "e"].map((thread) => s.memory.admit(thread, new AbortController().signal, () => {}, "turn").then(() => thread));
     await settle();
     expect(s.memory.counts()).toMatchObject({ running: 2, queued: 3 });
@@ -354,7 +350,6 @@ describe("a burst of turns under a limit on turns", () => {
 
 describe("room under the pids limit", () => {
   it("lets engines start while their processes fit, then stops one nobody is using, oldest first, to fit the next", async () => {
-    // 512 allowed, 51 kept back, 26 the server's: engines of 44 fit while 26 + 44n + what is promised + 60 stays within 461.
     const s = server({ pids: 512, turns: 40 });
     for (const thread of ["a", "b", "c", "d", "e", "f", "g", "h", "i"]) {
       expect(await s.start(thread)).toBe(true);
@@ -362,7 +357,6 @@ describe("room under the pids limit", () => {
     }
     expect(s.signals).toEqual([]);
     expect(s.children.size).toBe(9);
-    // 26 + 9 × 44 = 422; a tenth engine's 60 would pass 461. "a" and "b" are done and their engines idle.
     s.memory.turnEnded("a"); s.memory.turnEnded("b");
     expect(await s.start("j")).toBe(true);
     expect(s.signals).toEqual(["SIGTERM -1000"]);
@@ -390,7 +384,6 @@ describe("room under the pids limit", () => {
       if (await s.memory.admit(thread, new AbortController().signal, () => {}, "process")) admitted.push(thread);
     });
     await settle();
-    // Nothing has started, so the count still reads 26: seven promised engines of 60 fit under 461, an eighth does not.
     expect(admitted).toEqual(["a", "b", "c", "d", "e", "f", "g"]);
     for (const thread of admitted) s.memory.turnEnded(thread);
     await Promise.all(turns);
@@ -404,7 +397,6 @@ describe("room under the pids limit", () => {
       if (await s.memory.admit(thread, new AbortController().signal, () => {}, "process")) admitted.push(thread);
     });
     await settle();
-    // 26 now, 60 for each engine promised and 170 for one browser: four fit under 461 (one each would have let in one).
     expect(admitted).toEqual(["a", "b", "c", "d"]);
     for (const thread of ["a", "b", "c", "d", "e", "f"]) s.memory.turnEnded(thread);
     await Promise.all(turns);
@@ -421,7 +413,6 @@ describe("room under the pids limit", () => {
   it("holds new engines back after the kernel refused a spawn, at the count it refused at", async () => {
     const s = server({ pids: "max", turns: 40 });
     for (const thread of ["a", "b", "c", "d", "e"]) { await s.start(thread); s.advance(21_000); }
-    // 26 + 5 × 44 = 246 when the sixth engine's spawn is refused: the limit sits above the container, unreadable.
     s.budget.spawnFailed("EAGAIN");
     expect(s.budget.limit()).toBe(246);
     s.advance(31_000);
@@ -429,14 +420,12 @@ describe("room under the pids limit", () => {
     const sixth = s.memory.admit("f", new AbortController().signal, (text) => notices.push(text), "process");
     await settle();
     expect(notices).toHaveLength(1);
-    // It was full with five: 32 are kept back, so a new engine's 60 fit once three have gone.
     s.memory.turnEnded("a"); s.memory.turnEnded("b");
     await settle();
     expect(s.signals).toEqual(["SIGTERM -1000", "SIGTERM -1001"]);
     s.memory.turnEnded("c");
     expect(await sixth).toBe(true);
     expect(s.signals).toEqual(["SIGTERM -1000", "SIGTERM -1001", "SIGTERM -1002"]);
-    // Half an hour with no further refusal and the learned limit is forgotten.
     s.advance(31 * 60_000);
     expect(s.budget.limit()).toBeNull();
   });
@@ -491,9 +480,7 @@ describe("a new engine that never comes up", () => {
     const s = server({ pids: 512 });
     const turn = spawning(s);
     await turn.decorated.adapter.sendTurn({ threadId: "t1", text: "hi" } as SendTurnInput);
-    // Other work fills the container: 474 of 512, past the 51 kept back.
     s.state.base = 430;
-    // The driver's own "turn started" is not the engine speaking.
     turn.emit({ type: "turn.started", threadId: "t1", turnId: "turn-t1" });
     await vi.advanceTimersByTimeAsync(FIRST_FRAME_MS - 1_000);
     expect(s.signals).toEqual([]);
@@ -501,9 +488,7 @@ describe("a new engine that never comes up", () => {
     expect(s.signals).toEqual(["SIGKILL -1000"]);
     expect(s.memory.stoppedForRoom("t1")).toBe(true);
     expect(s.memory.counts().starvedEver).toBe(1);
-    // Not a refused spawn: nothing is counted as one, and no limit is learned from it.
     expect(s.budget.counts().spawnFailed.EAGAIN).toBe(0);
-    // The driver reports its engine's exit in its own words; the person reads the server's one line instead.
     turn.emit({ type: "runtime.error", threadId: "t1", turnId: "turn-t1", message: "claude exited null before result" });
     turn.emit({ type: "turn.completed", threadId: "t1", turnId: "turn-t1", ok: false, stopReason: "exit_before_result", cost: null });
     expect(turn.failure()).toBe(NO_ROOM);
@@ -521,7 +506,6 @@ describe("a new engine that never comes up", () => {
     (fake.instance.adapter as { sendTurn: (input: SendTurnInput) => Promise<{ turnId: string }> }).sendTurn = async (input) => {
       await input.engineAdmission?.("process");
       s.spawn(input.threadId);
-      // An ACP turn that may go to a backup answers only once the engine's handshake settles.
       return new Promise((_resolve, reject) => { fail = reject; });
     };
     const decorated = withEngineMemory(fake.instance, s.memory);
@@ -529,7 +513,6 @@ describe("a new engine that never comes up", () => {
     const turn = decorated.adapter.sendTurn({ threadId: "t1", text: "hi" } as SendTurnInput);
     const caught = turn.catch((error: unknown) => error);
     await vi.advanceTimersByTimeAsync(1_000);
-    // The server's own spawn of something else is refused while the engine starts.
     s.memory.spawnRefused("EAGAIN");
     await vi.advanceTimersByTimeAsync(FIRST_FRAME_MS);
     expect(s.signals).toEqual(["SIGKILL -1000"]);
@@ -556,7 +539,6 @@ describe("a new engine that never comes up", () => {
 
   it("is left alone with no sign of a shortage, however long it is silent (a cold npx start, a slow first start): its driver's own timeout decides", async () => {
     vi.useFakeTimers();
-    // A container with only a memory limit (pids.max reads "max"), plenty of it free, three engines already running.
     const s = server({ pids: "max", total: 8 * GB, available: 7 * GB });
     const before = s.memory.most();
     for (const thread of ["a", "b", "c"]) { await s.start(thread); s.children.get([...s.children.keys()].at(-1)!)!.stdout!.bytesRead = 100; }
@@ -591,13 +573,11 @@ describe("a new engine that never comes up", () => {
     const turn = spawning(s);
     await turn.decorated.adapter.sendTurn({ threadId: "t1", text: "hi" } as SendTurnInput);
     s.state.base = 430;
-    // Busy: a second of CPU every few seconds.
     let cpuMs = 0;
     const busy = setInterval(() => { cpuMs += 1_000; s.trees.set(1000, { cpuMs, children: 0 }); }, 2_000);
     await vi.advanceTimersByTimeAsync(3 * 60_000);
     expect(s.signals).toEqual([]);
     clearInterval(busy);
-    // Idle itself, but its npx child still runs.
     s.trees.set(1000, { cpuMs, children: 2 });
     await vi.advanceTimersByTimeAsync(60_000);
     expect(s.signals).toEqual([]);
@@ -628,16 +608,13 @@ describe("a new engine that never comes up", () => {
     const decorated = withEngineMemory(fake.instance, s.memory);
     decorated.adapter.onEvent(() => {});
     await decorated.adapter.sendTurn({ threadId: "t1", text: "hi" } as SendTurnInput);
-    // A shortage all along: none of these is stopped for it.
     s.memory.spawnRefused("EMFILE");
     await vi.advanceTimersByTimeAsync(FIRST_FRAME_MS * 3);
     fake.emit({ type: "turn.completed", threadId: "t1", turnId: "turn-t1", ok: true, stopReason: "end_turn", cost: null });
     await vi.advanceTimersByTimeAsync(10);
-    // The same thread again: its engine is still up, and a slow model is not a missing engine.
     await decorated.adapter.sendTurn({ threadId: "t1", text: "again" } as SendTurnInput);
     s.memory.spawnRefused("EMFILE");
     await vi.advanceTimersByTimeAsync(FIRST_FRAME_MS * 3);
-    // A process with no stdout to watch, and one started for a turn on an engine that may say nothing until its answer.
     s.memory.expectFrame("t3");
     s.spawn("t3", false);
     const quiet = fakeInstance("piAgent");
@@ -646,7 +623,6 @@ describe("a new engine that never comes up", () => {
     const pi = withEngineMemory(quiet.instance, s.memory);
     pi.adapter.onEvent(() => {});
     await pi.adapter.sendTurn({ threadId: "t4", text: "hi" } as SendTurnInput);
-    // Nor another process the same turn starts after its engine.
     await decorated.adapter.sendTurn({ threadId: "t5", text: "hi" } as SendTurnInput);
     s.spawn("t5");
     s.memory.spawnRefused("EMFILE");
@@ -664,7 +640,6 @@ describe("a new engine that never comes up", () => {
     await vi.advanceTimersByTimeAsync(FIRST_FRAME_MS + 1_000);
     expect(s.memory.stoppedForRoom("t1", 1000)).toBe(true);
     expect(s.memory.stoppedForRoom("t1", 1001)).toBe(false);
-    // A memory stop of an earlier turn is not this one's.
     s.memory.turnStarted("t1");
     expect(s.memory.stoppedForRoom("t1", 1000)).toBe(false);
     expect(s.memory.stoppedForRoom("t1")).toBe(false);
@@ -679,7 +654,6 @@ describe("a spawn refused during a turn", () => {
     s.memory.turnStarted("t1"); s.memory.turnStarted("t2"); s.memory.turnStarted("t3");
     s.memory.within("t1", () => s.memory.spawnRefused("EAGAIN", true));
     s.memory.within("t2", () => s.memory.spawnRefused("ENOENT", true));
-    // A refusal of some other spawn in a turn (a probe, a helper) is a sign of a shortage, never that turn's failure.
     s.memory.within("t3", () => s.memory.spawnRefused("EAGAIN"));
     s.memory.spawnRefused("EMFILE", true);
     expect([s.memory.stoppedForRoom("t1"), s.memory.stoppedForRoom("t2"), s.memory.stoppedForRoom("t3")]).toEqual([true, false, false]);
@@ -701,7 +675,6 @@ describe("a spawn refused during a turn", () => {
     const s = server({ pids: 4096 });
     s.memory.turnStarted("t1");
     s.memory.turnEnded("t1");
-    // A spawn from a timer the last turn armed.
     s.memory.within("t1", () => s.memory.spawnRefused("EAGAIN", true));
     s.memory.turnStarted("t1");
     expect(s.memory.stoppedForRoom("t1")).toBe(false);
@@ -715,7 +688,6 @@ describe("a spawn refused during a turn", () => {
     const limit = "You've hit your usage limit · resets 5pm";
     expect(s.memory.stopFailure("t1", limit)).toBeNull();
     expect(classifyRoutineFailure(limit)).not.toEqual({ kind: "busy" });
-    // A failure in the engine's words of nothing in particular is still the shortage's.
     expect(s.memory.stopFailure("t1", "claude exited null before result")?.message).toBe(NO_ROOM);
   });
 
@@ -754,7 +726,6 @@ describe("a spawn refused during a turn", () => {
     s.memory.within("t1", () => s.memory.spawnRefused("EAGAIN", true));
     await decorated.adapter.sendTurn({ threadId: "t1", text: "hi" } as SendTurnInput);
     stop("t1");
-    // Refused in the turn, then the person stopped it.
     await decorated.adapter.sendTurn({ threadId: "t2", text: "hi" } as SendTurnInput);
     s.memory.within("t2", () => s.memory.spawnRefused("EAGAIN", true));
     stop("t2");
@@ -844,15 +815,12 @@ describe("browsers under the pids limit", () => {
 
   it("opens one only where its processes fit, waits a while for room, then says why it cannot", async () => {
     vi.useFakeTimers();
-    // 1,024 allowed, 102 kept back: 922 to work in.
     const current = { value: 700 }, measured = { value: 0 }, running = new Set<string>();
     const { room: browsers } = room(current, measured, running);
     expect(await browsers.enter("bot-a")).toBeNull();
-    // bot-a's browser counts at its full size though the count does not show it yet: 700 + 170 + 170 > 922.
     const second = browsers.enter("bot-b");
     await vi.advanceTimersByTimeAsync(21_000);
     expect(await second).toBe(BROWSER_NO_ROOM);
-    // Once it runs and the count shows it, it is counted once.
     running.add("bot-a");
     current.value = 700 + BROWSER_TASKS; measured.value = BROWSER_TASKS;
     expect(await browsers.enter("bot-a")).toBeNull();
@@ -865,11 +833,9 @@ describe("browsers under the pids limit", () => {
     const current = { value: 500 }, measured = { value: 40 }, running = new Set<string>(["bot-a"]);
     const { budget, room: browsers } = room(current, measured, running);
     expect(await browsers.enter("bot-a")).toBeNull();
-    // 500 now, of which the browser shows 40 while it starts: 130 more are held for it, and an engine's 60 still fit (690 of 922).
     expect(budget.short(ENGINE_TASKS, 0)).toBe(false);
     current.value = 750;
     expect(budget.short(ENGINE_TASKS, 0)).toBe(true);
-    // Long after it started, still running at 40 threads: still held at its full size.
     vi.advanceTimersByTime(10 * 60_000);
     expect(budget.short(ENGINE_TASKS, 0)).toBe(true);
     running.delete("bot-a"); measured.value = 0; current.value = 710;

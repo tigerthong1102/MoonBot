@@ -106,9 +106,7 @@ it("a crash starts the server again after a pause that grows, and a crash loop s
   while (policy.again(CRASH_EXIT_CODE)) delays.push(policy.delayMs());
   expect(delays).toEqual([...CRASH_BACKOFF_MS]);
   expect(delays.every((delay, i) => i === 0 || delay > delays[i - 1]!)).toBe(true);
-  // A crash during a stop is the stop.
   expect(restartPolicy(() => clock).again(CRASH_EXIT_CODE, true)).toBe(false);
-  // The pause is not counted as the run's time up.
   clock += CRASH_BACKOFF_MS.at(-1)! + STABLE_RUN_MS;
   expect(policy.again(null, false, "SIGKILL")).toBe(true);
   expect(policy.delayMs()).toBe(CRASH_BACKOFF_MS[0]);

@@ -1352,7 +1352,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
 
     const seen = JSON.parse(readFileSync(dump, "utf8"));
     if (http === "1") {
-      // By URL: the same capability and settings as headers, and the loopback past any proxy the engine was given.
       const agents = seen.mcpConfig.mcpServers.agents;
       expect(agents).toMatchObject({ type: "http", alwaysLoad: true, url: "http://127.0.0.1:1/api/internal/mcp-http/agents", headers: { authorization: "Bearer tok" } });
       expect(JSON.parse(Buffer.from(agents.headers["x-omb-agents-env"], "base64url").toString("utf8"))).toMatchObject({ OMB_BOT_ID: "b1", [DEFER_TOOLS_ENV]: "1" });
@@ -1463,7 +1462,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(sent[1]).toContain("Bo [id: b]");
     expect(sent[1]).not.toContain("Busy:");
     expect(sent[1].endsWith("two")).toBe(true);
-    // Availability changed: only the per-turn half rides along, not the roster again.
     expect(sent[2]).toContain("Busy: Ana");
     expect(sent[2]).not.toContain("[TEAM ROSTER]");
     expect(sent[3]).toBe("four");
@@ -3743,7 +3741,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
   it.skipIf(process.platform === "win32")("stops a warm engine's whole tree before dispose returns: a server that exits leaves nothing running", async () => {
     const marker = join(scratch, "background.pid");
     const saved = { bash: process.env.FAKE_CLAUDE_RUN_BASH, calls: process.env.FAKE_CLAUDE_TOOL_CALLS };
-    // A tool call leaves a process behind in the engine's group, as a dev server or an MCP server does.
     process.env.FAKE_CLAUDE_RUN_BASH = "1";
     process.env.FAKE_CLAUDE_TOOL_CALLS = JSON.stringify([{ name: "Bash", input: { command: `"${process.execPath}" -e "setTimeout(() => {}, 60000)" >/dev/null 2>&1 & echo $! > "${marker}"` } }]);
     // An exited process its new parent has not collected yet still answers kill(pid, 0); on Linux it is gone once /proc

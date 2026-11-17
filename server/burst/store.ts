@@ -220,8 +220,6 @@ export function openBurstStore(dataDir: string) {
     requeue(burstId: string, seq: number): BurstChild | undefined {
       return move(burstId, seq, "queued");
     },
-    /** Running children go back in line, each counted as cut off once more; one cut off more than `maxRestarts` times fails
-     * with `stopped` instead. */
     requeueRunning(burstId: string, maxRestarts = Infinity, stopped = ""): BurstChild[] {
       const requeued = moveAll(burstId, "running", "queued", (child) => { child.restarts = (child.restarts ?? 0) + 1; });
       for (const child of requeued) if (child.restarts! > maxRestarts) move(burstId, child.seq, "failed", (failed) => { failed.error = stopped; });

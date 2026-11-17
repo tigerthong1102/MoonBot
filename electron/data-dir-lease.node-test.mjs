@@ -579,7 +579,6 @@ test("a Mac's volume is local only when the mount line naming df's mount point s
   assert.equal(macMountIsLocal(df("/dev/disk3s1", "/System/Volumes/Data"), table), true);
   assert.equal(macMountIsLocal(df("//u@nas/Files", "/Volumes/Files on NAS"), table), false);
   assert.equal(macMountIsLocal(df("/dev/disk5s1", "/Volumes/Backup (local)"), table), true);
-  // A mount point the table does not name, an unreadable df and an empty table are all doubts.
   assert.equal(macMountIsLocal(df("/dev/disk9s1", "/Volumes/Gone"), table), false);
   assert.equal(macMountIsLocal("df: /x: No such file or directory\n", table), false);
   assert.equal(macMountIsLocal(df("/dev/disk3s1", "/System/Volumes/Data"), ""), false);
@@ -601,7 +600,6 @@ test("a live owner with this machine id under another hostname still blocks a se
   if (current.machine === null) return t.skip("no machine id on this platform");
   plantOwner(dataDir, { host: renamedHost(current), pid: process.pid, token: randomUUID() });
 
-  // Without a boot session (Windows) the other hostname is refused before the pid is even asked.
   assert.throws(() => acquireDataDirLease(dataDir), current.boot === null ? /another machine/i : /already using this data directory/i);
 });
 
@@ -618,8 +616,6 @@ test("a lease with another machine id fails closed even under this hostname", as
   }
 });
 
-// An older build wrote no machine id. On a Mac's local disk, its record from an earlier boot is this Mac's whatever the
-// hostname was then; elsewhere (Windows and Linux keep their hostname across networks) another hostname still fails closed.
 test("an older build's lease from an earlier boot under another hostname: recovered on a Mac's local disk, refused elsewhere", async (t) => {
   const { dataDir } = temporaryDirectory();
   const current = recordWrittenByThisProcess(dataDir);

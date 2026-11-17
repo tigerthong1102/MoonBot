@@ -32,8 +32,6 @@ const RECORDS_MAX = 2_000;
 
 /** What a far member was last known as, kept so that it can be named while its place cannot be asked. */
 interface Known { name: string; color?: string; place: string; placeName: string; botId: string; kind?: "computer" | "cloud"; title?: string; mascotBody?: string; mascotFaceColor?: string }
-/** One turn handed over: where its words started and ended, so that the same turn sent again says the same and more, never
- * less; and how many members' answers led to it. */
 interface Turn { seat: string; hop: number; at: number; composed?: boolean; after?: string; through?: string }
 interface Kept {
   v: 1;
@@ -62,8 +60,6 @@ export interface LinkedRoomsDeps {
   wanted(): void;
   personName(threadId: string): string | undefined;
   line(threadId: string, key: ServerLineKey, params: Record<string, string>): string;
-  /** The room's lines as a member of it reads them: each with the note that says who it
-   * is from when it is not the person's own, narration left out. `order` is every line of the room, oldest first. */
   window(threadId: string, readerBotId: string): { lines: ReadonlyArray<{ id: string; text: string }>; order: readonly string[]; readable: readonly string[] };
   /** Who stands behind what is being said in this room thread now when it is not the person: a routine, a webhook, a guest. */
   opener?(botId: string, threadId: string): HandoffOpener | undefined;
@@ -207,8 +203,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
       return true;
     },
 
-    /** The words of a room turn, worked out as it is sent. The same turn sent again (its place of work restarted, or
-     * this one did) starts where it started the first time, so nothing it was to carry is lost. */
     brief(node: HandoffView): { from: { botId: string; name: string }; text: string; person?: string } | undefined {
       const at = seat(node), member = at?.group ? store.bot(at.linked) : null;
       if (!at?.group || !member) return undefined;
@@ -286,8 +280,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
       return group.memberIds.filter(isLinkedId).map((id) => { const bot = store.bot(id); return { id, name: nameOf(id), place: placeOf(id), state: bot?.home ? bot.home.gone ?? "ok" as const : "off" as const }; });
     },
 
-    /** A place's link ended for good (it did not connect for the link's whole term): its bots leave the rooms here, and
-     * each room says so once. Turning the link off, or a place being unlinked, removes nobody. */
     expired(peer: string, placeName: string): void {
       for (const group of store.groups) {
         if (group.dm) continue;

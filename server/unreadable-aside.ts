@@ -6,8 +6,7 @@ import { basename, dirname } from "node:path";
 /** Copies of unreadable content kept beside the file; a further one is not copied. */
 const ASIDE_COPIES = 5;
 
-/** Copies the unreadable file beside itself, named by its content so the same content is copied once. Returns the copy's
- * path, or null when there is nothing to copy or the copy cannot be made. The file itself stays where it is. */
+/** A backup failure must leave the original file untouched. */
 export function keepUnreadableAside(file: string): string | null {
   try {
     const aside = `${file}.unreadable-${createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 12)}`;

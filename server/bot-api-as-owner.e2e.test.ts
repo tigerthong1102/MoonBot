@@ -61,7 +61,6 @@ it("runs a marked key's thread at the bot's level as the owner's work, keeps the
   const dumped = () => { try { return JSON.parse(readFileSync(dump, "utf8")); } catch { return null; } };
   await expect.poll(() => JSON.stringify(dumped()?.prompt ?? "").includes("Tidy the build folder"), { timeout: hostTimeout(30_000) }).toBe(true);
   const launch = dumped();
-  // The bot's own level, unconfined, with OpenMausBot's tools; the words are the owner's request through the API.
   expect(launch.argv[launch.argv.indexOf("--permission-mode") + 1]).not.toBe("default");
   expect(launch.argv).not.toContain("--restricted");
   expect(Object.keys(launch.mcpConfig.mcpServers).length).toBeGreaterThan(1);
@@ -73,7 +72,6 @@ it("runs a marked key's thread at the bot's level as the owner's work, keeps the
   expect(task).toMatchObject({ botApi: true, botApiAsOwner: true, approvalMode: "full" });
   expect(task.outside).toBeUndefined();
 
-  // Full access answers an ordinary request; the never-list still denies.
   const socketPath = launch.mcpConfig.mcpServers.ogb.args.at(-1) as string;
   expect(await ask(socketPath, "printf 'as owner'")).toMatchObject({ behavior: "allow" });
   expect(await ask(socketPath, "sudo rm -rf /etc")).toMatchObject({ behavior: "deny", message: expect.stringContaining("Blocked by the safety floor") });
@@ -82,7 +80,6 @@ it("runs a marked key's thread at the bot's level as the owner's work, keeps the
   await pending;
   await expect.poll(async () => ((await api("GET", "/api/bots")).bots as any[]).find((one) => one.id === bot.id).tasks.find((one: any) => one.threadId === task.threadId).busy, { timeout: hostTimeout(20_000) }).toBe(false);
 
-  // Off again: the key can't go on in the owner's thread, and the change is in Settings → Activity.
   expect(await api("POST", `/api/bots/${bot.id}/bot-api/acts-as-owner`, { enabled: false })).toMatchObject({ actsAsOwner: false });
   const readAfterRevocation = await fetch(`${on.url}?thread=${task.threadId}`, { headers: { authorization: `Bearer ${on.key}` } });
   expect(readAfterRevocation.status).toBe(403);
@@ -92,8 +89,6 @@ it("runs a marked key's thread at the bot's level as the owner's work, keeps the
   expect(activity).toContain("bot-api.acts-as-owner.on");
   expect(activity).toContain("bot-api.acts-as-owner.off");
 
-  // Only on one person's server, read live: a second admin, or a whole domain as admin, switches the mark off at once,
-  // and it is back when the server is one person's again.
   expect(await api("POST", `/api/bots/${bot.id}/bot-api/acts-as-owner`, { enabled: true })).toMatchObject({ actsAsOwner: true });
   const status = async () => (await api("GET", `/api/bots/${bot.id}/bot-api`)) as { actsAsOwner: boolean; mayActAsOwner: boolean };
   await api("PUT", "/api/config", { signIn: { admins: ["one@example.test"] } });

@@ -10,8 +10,6 @@ import { describe, expect, it } from "vitest";
 import { mountChatTools, withHostFileTools, type ChatToolSession } from "./drivers/chat-mcp-tools.ts";
 import { gatedLocalComputer, withHostFiles } from "./local-computer.ts";
 
-// A disposable stand-in for this computer's driver: it lists one screen tool (and a read_file of its own, which the
-// bridge's must replace) and reports every call it was handed. It never opens a screen.
 const FAKE_DRIVER = `
 const readline = require("node:readline");
 const seen = [];
@@ -130,7 +128,6 @@ describe("file tools on this computer, through its bridge", () => {
       const folder = await computer.call("list_files", { path: join(home, "Desktop") });
       expect(folder.text.split("\n")).toEqual(expect.arrayContaining([join(real, "Desktop"), "folder  Novo", "link    elsewhere", "file    image.bin (3 bytes)"]));
 
-      // No app-side path rules: hidden folders, a link out, outside home and script files all save.
       const realRoot = realpathSync(root);
       for (const [path, at] of [
         [join(home, ".ssh", "config"), join(real, ".ssh", "config")],
@@ -149,7 +146,6 @@ describe("file tools on this computer, through its bridge", () => {
       expect(readdirSync(join(home, "Desktop"))).not.toContain("while-held.txt");
       computer.hold(false);
 
-      // The driver itself was never handed a file call.
       expect(JSON.parse((await computer.call("screenshot")).text)).toEqual(["screenshot"]);
     } finally {
       await computer.close();

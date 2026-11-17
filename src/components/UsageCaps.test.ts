@@ -70,7 +70,6 @@ describe("the usage caps card", () => {
     expect(markup).toMatch(/<input[^>]*aria-label="All bots together: Per day \(USD\)" disabled=""[^>]*value="2"\/>/);
     expect(markup).toMatch(/<input[^>]*aria-label="All bots together: Per day \(tokens\)" disabled=""[^>]*value="500"\/>/);
     expect(markup).toMatch(/<input[^>]*aria-label="All bots together: Per month \(USD\)" class[^>]*value="30"\/>/);
-    // The form holds 2 and 500 from the environment and the owner typed 40 per month: only 40 is theirs to save.
     expect(capsToSave(locked, "everything", { dailyUsd: 2, dailyTokens: 500, monthlyUsd: 40 }, { b1: { dailyUsd: 1 } }))
       .toEqual({ stops: "unattended", server: { dailyUsd: 4, monthlyUsd: 40 }, bots: { b1: { dailyUsd: 1 } } });
     expect(capsToSave(view(), "everything", { dailyUsd: 2 }, {})).toEqual({ stops: "everything", server: { dailyUsd: 2 }, bots: {} });

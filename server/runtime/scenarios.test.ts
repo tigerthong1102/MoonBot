@@ -2156,7 +2156,6 @@ describe("failed hand-offs spend no more of a request than they must", () => {
     w.rt.end(root.id, { ok: true, text: "" });
     await settleAll(w);
 
-    // Every hand-off stops at the limit; the root's own wrap-up turn is the one turn past it.
     expect(w.runner.runs()).toHaveLength(20);
     expect(get(w, root.id).budgets?.total).toBe(21);
     expect(get(w, root.id)).toMatchObject({ status: "completed", result: "Request budget exhausted: 20 turns in all" });

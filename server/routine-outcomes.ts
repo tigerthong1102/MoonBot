@@ -11,12 +11,8 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g
 const PATH = /(?:\b[A-Za-z]:)?(?:[\\/][\w.@~+-]+){2,}[\\/]?/g;
 /** A provider's request or object id ("req_011CUa7xYz9", "msg_01…", "toolu_01…") and a long hex digest. */
 const PREFIXED_ID = /\b[a-z]{2,8}_[A-Za-z0-9]{8,}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{12,}\b/g;
-/** A number of four digits or more on its own (a process id, a port, a count): never one inside a model id, and never a
- * shorter one, so exit codes and HTTP statuses stay apart. */
 const LONG_NUMBER = /(?<![\w.-])\d{4,}(?![\w-]|\.\d)/g;
 
-/** A failure's words without what changes from one run to the next (times, ids, paths, long numbers), so two runs that
- * fail for one reason read as the same failure, and an exit code, an HTTP status or a model still tell two apart. */
 export function failureShape(text: string): string {
   return text.replace(TIME, "<time>").replace(PATH, "<path>").replace(UUID, "<id>").replace(PREFIXED_ID, "<id>")
     .replace(LONG_NUMBER, "#").replace(/\s+/g, " ").trim().toLowerCase();

@@ -1149,7 +1149,6 @@ describe("Chat MCP startup budgets", () => {
       const mounting = watch(f.mount());
       const listed = () => { try { return f.read().calls.some((call) => call.method === "tools/list"); } catch { return false; } };
       await untilReal(listed);
-      // The deadline runs on the real clock from the spawn, so a loaded runner has already spent some of it.
       await vi.advanceTimersByTimeAsync(mcpStartupMs(process.env, process.platform, false) - 3_000);
       expect(mounting.done).toBe(false);
       await vi.advanceTimersByTimeAsync(3_100);

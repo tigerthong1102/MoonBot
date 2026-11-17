@@ -113,7 +113,6 @@ it("starts a routine that crashed again once, and it completes in the same conve
   const second = JSON.stringify(JSON.parse(readFileSync(s.dump, "utf8")).prompt);
   expect(second).toContain("this run's first start failed before it finished");
   expect(second).toContain("The routine's instructions are in the message above and are not repeated here.");
-  // The crashed start left no session to resume, so the conversation is replayed: the instructions arrive once, not twice.
   expect(second.split("Summarise my inbox.")).toHaveLength(2);
   expect((await s.prompts(threadId)).filter((text) => text.includes(ROUTINE_HEADER))).toHaveLength(1);
   expect(s.notified().filter((notification) => notification.kind === "routine-failed")).toEqual([]);
@@ -142,7 +141,6 @@ it("starts a routine whose tool server is dead once, not twice: one request to t
   const failed = await s.run(id);
   expect(failed.error).toContain(DEAD_TOOL_SERVER);
   expect(failed.retried).toBeUndefined();
-  // Longer than the 15 seconds a second start would have waited.
   await new Promise((resolve) => setTimeout(resolve, 20_000));
   expect(await s.run(id)).toMatchObject({ status: "failed" });
   expect(sent()).toBe(1);

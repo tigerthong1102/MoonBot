@@ -56,8 +56,6 @@ export interface SideJobText {
   generateText: (prompt: string, options?: SideJobTextOptions) => Promise<string>;
 }
 
-/** `waiting`: the call has to wait for a free slot (other bots' background calls); `started`: it starts now, after waiting
- * or at once. A call that is never queued calls neither. */
 export type SideJobTextOptions = Pick<TextGenerationOptions, "signal" | "timeoutMs"> & { waiting?(): void; started?(): void };
 
 export interface SideJobsDeps {

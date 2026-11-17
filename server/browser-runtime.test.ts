@@ -561,7 +561,6 @@ describe("server-owned browser MCP runtime", () => {
     expect(responses.map((r) => r.pid)).toEqual([list.pid, list.pid]);
     expect(responses[0].content[0].text).toContain("first");
     expect(responses[1].content[0].text).toContain("second");
-    // Another session's list is the same answer and starts no engine process of its own; its calls get their own client.
     expect(await value.agentRpc("two", spec(), "tools/list", {})).toEqual(list);
     const other = await value.agentRpc("two", spec(), "tools/call", { name: "echo", arguments: { text: "other" } }) as { pid: number };
     expect(other.pid).not.toBe(list.pid);
@@ -671,7 +670,6 @@ describe("server-owned browser MCP runtime", () => {
     await value.agentRpc("s", spec(), "tools/call", { name: "echo", arguments: { text: "first" } });
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(await value.closeIfIdle("s", 20)).toBe(true);
-    // Another bot's browser took the one slot while this one was closed.
     expect(await room.enter("other", Date.now() + 1_000)).toBeNull();
     const refused = await value.agentRpc("s", spec(), "tools/call", { name: "echo", arguments: { text: "again" } }) as { isError?: boolean; content: Array<{ text: string }> };
     expect(refused.isError).toBe(true);

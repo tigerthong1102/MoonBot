@@ -118,8 +118,6 @@ export const memoryWaitText = (count: number) => `Waiting for memory: ${running(
 export const memoryStillWaitingText = (count: number) => `Still waiting for memory: ${running(count)}.`;
 /** How a wait reads to the person, in their language, and where else it shows. */
 export interface EngineWaits {
-  /** `limit`: the most turns at once (a plan's, or a self-hosted server's), when that is what this one waits for rather
-   * than room. `server`: a self-hosted server, whose wait is for memory or for room under its process limit. */
   text(threadId: string, wait: { first: boolean; running: number; ahead: number; limit?: number; server?: boolean }): string;
   began(threadId: string, wait: { running: number; ahead: number; limit?: number; server?: boolean }): void;
   /** Whether anything is waiting for memory changed. */
@@ -185,8 +183,6 @@ interface Waiter { wake: () => void; threadId: string; since: number }
 
 export interface EngineMemoryOptions {
   enabled: boolean;
-  /** A self-hosted server also holds turns to a number of its own and to its container's pids limit; a Cloud home, the
-   * default, keeps to memory and its plan. */
   host?: Exclude<GateHost, null>;
   /** OMB_TURNS_MAX_RUNNING on a self-hosted server. */
   turns?: TurnsSetting;
@@ -218,8 +214,6 @@ export class EngineMemory {
   private readonly queue: Waiter[] = [];
   /** Threads whose engine was stopped for memory: how many tasks ran then, and whether their browser was running. */
   private readonly stops = new Map<string, { count: number; browser: boolean }>();
-  /** Threads whose turn could not run its engine for want of room: the code its failure names, and whether the engine's own
-   * spawn was refused (a later spawn in the same turn that works clears that) or the engine was stopped as silent. */
   private readonly starved = new Map<string, { code: ShortageCode; why: "refused" | "silent" }>();
   /** Threads whose engine this gate stopped, for room or for want of it, during their turn: that engine's pid. */
   private readonly roomStopped = new Map<string, number>();
@@ -278,8 +272,6 @@ export class EngineMemory {
   /** Whether every turn here waits for a place under a limit on turns, not only one that starts an engine. */
   limited(): boolean { return this.enabled && this.most() !== undefined; }
 
-  /** The most turns at once: the plan's, and on a self-hosted server the operator's number, or else what its memory and
-   * its pids limit hold at an engine's usual size. */
   most(): number | undefined {
     const plan = this.cap?.most(), server = this.serverMost();
     return plan === undefined ? server : server === undefined ? plan : Math.min(plan, server);
@@ -363,8 +355,6 @@ export class EngineMemory {
     return () => { if (timer) clearTimeout(timer); };
   }
 
-  /** The shortage the server shows for an engine started at `since`, by the code its turn's failure would name; null for
-   * none. */
   private shortage(since: number, crowdedAtStart: boolean): ShortageCode | null {
     if (this.lastRefusal && this.lastRefusal.at >= since) return this.lastRefusal.code;
     if (crowdedAtStart || this.processes?.short(0, 0)) return "EAGAIN";
@@ -375,8 +365,6 @@ export class EngineMemory {
   /** The next engine process this thread's turn starts keeps a session, and so speaks first: it gets FIRST_FRAME_MS to. */
   expectFrame(threadId: string): void { if (this.enabled) this.expecting.add(threadId); }
 
-  /** A spawn the system refused. Every one is a sign of a shortage; an engine's own (`engine`) inside a thread's running
-   * turn also fails that turn as one the server had no room for. */
   spawnRefused(code: string | undefined, engine = false): void {
     const threadId = this.context.getStore(), shortage = shortageCode({ code });
     if (!this.enabled || shortage === null) return;
@@ -425,8 +413,6 @@ export class EngineMemory {
     this.wake();
   }
 
-  /** A new engine never came up: its processes are stopped, and its threads' turns fail as ones the server had no room
-   * for, which start again by themselves rather than as the AI's failure. */
   private async starveEngine(engine: Engine, code: ShortageCode): Promise<void> {
     if (engine.stopping || engine.child.exitCode !== null || engine.child.signalCode !== null) return;
     for (const threadId of this.working(engine)) if (!this.starved.has(threadId)) this.starved.set(threadId, { code, why: "silent" });
@@ -438,15 +424,11 @@ export class EngineMemory {
 
   private noteRoomStopped(engine: Engine): void { for (const threadId of this.working(engine)) this.roomStopped.set(threadId, engine.child.pid!); }
 
-  /** Whether this thread's engine was stopped to make room, or for want of it, in its turn: its turn is not sent again at
-   * once. With `pid`, whether that engine process is the one stopped: any other exit is the engine's own. */
   stoppedForRoom(threadId: string, pid?: number): boolean {
     if (pid !== undefined) return this.roomStopped.get(threadId) === pid;
     return this.stops.has(threadId) || this.starved.has(threadId);
   }
 
-  /** How many engines may stay loaded with no turn running, on a self-hosted server: what fits beside the ones working.
-   * Infinity elsewhere. */
   idleEnginesAllowed(): number {
     const most = this.enabled ? this.serverMost() : undefined;
     return most === undefined ? Infinity : Math.max(1, most - this.busy());
@@ -543,8 +525,6 @@ export class EngineMemory {
     return this.stopFailure(threadId)?.message ?? null;
   }
 
-  /** `detail`: the failure that ends the turn, when one names its own cause (a usage limit, a sign-in) it is kept, whatever
-   * shortage was seen in the turn. `interrupted`: the person stopped the turn, which no shortage explains. */
   stopFailure(threadId: string, detail?: string, interrupted = false): ReturnType<typeof noticeFailure> | null {
     const starved = this.starved.get(threadId);
     if (starved !== undefined && !interrupted && (detail === undefined || !namesOwnCause(detail))) return noticeFailure("chat.notice.outOfProcesses", { code: starved.code });

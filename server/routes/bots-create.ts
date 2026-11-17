@@ -33,8 +33,6 @@ export interface BotCreateRouteDeps {
   hostedWorkspace: boolean;
   hostedFullAccessRefusal: string;
   desktopManaged: boolean;
-  /** The place a new bot works on when neither its request nor the New bot defaults name one: on the desktop app,
-   * This computer, where it can use the person's own files and apps; undefined (Auto) everywhere else. */
   newBotComputer?(selection: ModelSelection): "local" | undefined;
   maxWorkspaceBots: number;
   /** Whether this bot is paused: a Starter Cloud keeps only so many awake, and one made past them starts paused. */

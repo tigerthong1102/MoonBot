@@ -31,7 +31,6 @@ it("each member from another place is listed with where it lives and why it cann
   const picked = new Set(group.memberIds), toggled: string[] = [];
   const draw = () => act(async () => root.render(createElement(RoomFarMembers, { members: farMembersOf(group), picked: new Set(picked), onToggle: (id: string) => { toggled.push(id); if (!picked.delete(id)) picked.add(id); } })));
   await draw();
-  // One the server still lists but the room no longer has is not drawn.
   expect(rows().map((row) => [row.dataset.farMember, row.dataset.farState, row.getAttribute("aria-checked"), row.textContent])).toEqual([
     [far[0].id, "ok", "true", "Atlason My Cloud"],
     [far[1].id, "off", "true", "Novaon My Cloud · Link is off"],
@@ -41,6 +40,5 @@ it("each member from another place is listed with where it lives and why it cann
   await draw();
   expect(toggled).toEqual([far[2].id]);
   expect(rows()[2]!.getAttribute("aria-checked")).toBe("false");
-  // What the panel then saves: the member the person unticked is gone, the others stay as they were.
   expect(nextMemberIds(group.memberIds, picked, ["writer"])).toEqual(["writer", far[0].id, far[1].id]);
 });

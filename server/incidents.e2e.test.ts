@@ -534,8 +534,6 @@ it("reports a routine that keeps failing the same way once, again when it is spa
     const routine = (await api("POST", "/api/routines", {
       name: "Inbox brief", prompt: "Summarise my inbox.", botId: ada.id, schedule: { type: "cron", expression: "0 7 * * *", timeZone: "Europe/London" },
     }, undefined, 201)).routine;
-    // Each run fails twice: its one automatic second start comes 15 s after the first (ROUTINE_RETRY_MS), so a run takes
-    // over 15 s before it fails, and a busy machine needs room beyond that.
     const runFails = async () => {
       const { id } = (await api("POST", `/api/routines/${routine.id}/run`, undefined, undefined, 201)).run;
       await expect.poll(async () => ((await api("GET", "/api/routines")).runs as any[]).find((run) => run.id === id)?.status, { timeout: 45_000 }).toBe("failed");
@@ -548,7 +546,6 @@ it("reports a routine that keeps failing the same way once, again when it is spa
     await expect.poll(() => reports(incidents), { timeout: 20_000 }).toHaveLength(1);
     await runFails();
     await runFails();
-    // The third failure in a row spaces the routine out, and says so once.
     await expect.poll(() => reports(incidents), { timeout: 20_000 }).toHaveLength(2);
     writeFileSync(changedFlag, "changed");
     await runFails();

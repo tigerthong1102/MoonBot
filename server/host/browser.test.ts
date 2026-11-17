@@ -722,12 +722,10 @@ describe("a running turn's agent-browser browser", () => {
       expect(await host.browserRoom.enter(session, Date.now() + 1_000)).toBeNull();
       expect(await host.browserRuntime.closeIfIdle(session, HOUR * 1_000, spec)).toBe(false);
     }
-    // Just used: the waiting bot is told why, and the turn keeps both.
     expect(await host.browserRoom.enter("bot-b", Date.now() + 100)).toMatch(/^2 browsers are already open/);
     expect(closedSessions()).toEqual([]);
     anHourLater();
     expect(await host.browserRoom.enter("bot-b", Date.now() + 1_000)).toBeNull();
-    // The temporary browser would lose its sign-ins, so the turn keeps it.
     expect(closedSessions()).toEqual(["bot-a"]);
     expect(host.browserRoom.open).toBe(2);
   });
@@ -735,7 +733,6 @@ describe("a running turn's agent-browser browser", () => {
   it("counts toward the limit when a person's view started it, but not the person's own Chrome", async () => {
     ready();
     const { host } = setup(undefined, { cloudHome: true, browsersAtOnce: () => 1 });
-    // The live view tells agent-browser's runtime directly; the router hides it, so it is found through a call.
     const closing = vi.spyOn(BrowserRuntime.prototype, "closeIfIdle");
     await host.browserRuntime.closeIfIdle("bot-viewed", 1);
     const agentBrowser = closing.mock.contexts[0] as BrowserRuntime;

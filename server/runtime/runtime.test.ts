@@ -1632,7 +1632,6 @@ describe("Runtime: turns a restart cut start again a few at a time", () => {
     expect(second.runner.runs).toHaveLength(RERUN_BURST + 1);
     second.runtime.close();
 
-    // Down again during the reruns: those that had started fail as cut twice; the two still waiting are not cut again.
     const third = world(() => "hold", {}, store);
     const cutTwice = roots.filter(root => store.get(root.id)?.status === "failed");
     expect(cutTwice).toHaveLength(RERUN_BURST + 1);
@@ -1652,7 +1651,6 @@ describe("Runtime: turns a restart cut start again a few at a time", () => {
     second.runtime.tick(); await flush();
     const late = roots[RERUN_BURST]!;
     expect(store.get(late.id)?.status).toBe("queued");
-    // The person writes in that chat while its cut turn waits its turn: the new request runs, and the old one does not.
     const newer = second.runtime.begin(beginReq(chat(RERUN_BURST)));
     second.clock.advance(RERUN_GAP_MS);
     second.runtime.tick(); await flush();

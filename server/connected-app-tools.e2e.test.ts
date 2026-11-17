@@ -172,7 +172,6 @@ it("a bot's Google Drive upload of a file in its working folder reaches Composio
     expect(apps.calls.at(-1)).toMatchObject({ tool: "GOOGLEDRIVE_UPLOAD_FILE", arguments: { file_to_upload: outside } });
     expect(apps.uploads).toHaveLength(1);
 
-    // A hidden folder, even inside the bot's own folder, never goes out.
     const hidden = join(fixture.info.dataDir, "workspaces", bot.id, ".secrets", "token.txt");
     mkdirSync(dirname(hidden), { recursive: true });
     writeFileSync(hidden, "secret");

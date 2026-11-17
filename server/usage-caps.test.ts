@@ -24,7 +24,6 @@ describe("what has been used", () => {
     appendUsage(dataDir, row("2026-09-01T00:00:00.000Z", "a", 1));
     appendUsage(dataDir, row("2026-09-14T23:59:59.000Z", "b", 2, 4_000, 1_000, 3_000));
     appendUsage(dataDir, row("2026-09-15T00:00:00.000Z", "a", 0.5));
-    // A model with no price books $0 and still counts its tokens.
     appendUsage(dataDir, row("2026-09-15T08:00:00.000Z", "b", null, 10_000, 2_000));
     await flushUsageLedger(dataDir);
     const totals = usageTotals(dataDir, now);
@@ -55,21 +54,17 @@ describe("what has been used", () => {
     appendUsage(dataDir, row("2026-09-15T08:00:00.000Z", "a", 1));
     await flushUsageLedger(dataDir);
     expect(usageTotals(dataDir, now).server.day.usd).toBe(1);
-    // Booked here: counted from memory while it is written and once it has landed, and not again when the file is read past it.
     const booked = row("2026-09-15T11:59:00.000Z", "a", 0.5);
     noteUsage(dataDir, booked, appendUsage(dataDir, booked));
     await flushUsageLedger(dataDir);
     await Promise.resolve();
     expect(usageTotals(dataDir, at(1)).server.day.usd).toBe(1.5);
-    // Written by something else: seen at the next look after the cache window, from the appended bytes alone.
     appendUsage(dataDir, row("2026-09-15T11:59:30.000Z", "b", 2));
     await flushUsageLedger(dataDir);
     expect(usageTotals(dataDir, at(16)).server.day.usd).toBe(3.5);
     expect(usageTotals(dataDir, at(32)).bots.get("b")!.day.usd).toBe(2);
-    // A line still being written is left for the next look.
     appendFileSync(usageFileFor(dataDir, now), JSON.stringify(row("2026-09-15T11:59:40.000Z", "b", 4)).slice(0, 20));
     expect(usageTotals(dataDir, at(48)).server.day.usd).toBe(3.5);
-    // The file was rewritten shorter (a restore): it is read from the start.
     writeFileSync(usageFileFor(dataDir, now), JSON.stringify(row("2026-09-15T09:00:00.000Z", "a", 0.25)) + "\n");
     expect(usageTotals(dataDir, at(64)).server).toEqual({ day: { usd: 0.25, tokens: 1_500 }, month: { usd: 0.25, tokens: 1_500 } });
   });
@@ -94,7 +89,6 @@ describe("what has been used", () => {
       ["bot:b:month:usd", 1, 50, false, false],
     ]);
     expect(reachedCap(caps, dataDir, { botId: "a", personWaiting: false }, now, NO_ENV)).toMatchObject({ id: "server:month:usd", periodKey: "2026-09", resetsAt: Date.parse("2026-10-01T00:00:00Z") });
-    // Another bot's cap never stops this bot; a bot's own cap stops only that bot.
     expect(reachedCap({ bots: { a: { dailyTokens: 8_000 } } }, dataDir, { botId: "b", personWaiting: false }, now, NO_ENV)).toBeNull();
     expect(reachedCap({ bots: { a: { dailyTokens: 8_000 } } }, dataDir, { botId: "a", personWaiting: false }, now, NO_ENV)).toMatchObject({ id: "bot:a:day:tokens", periodKey: "2026-09-15" });
   });
@@ -107,7 +101,6 @@ describe("what has been used", () => {
     expect(reachedCap({ ...caps, stops: "unattended" }, dataDir, { botId: "a", personWaiting: true }, now, NO_ENV)).toBeNull();
     expect(reachedCap(caps, dataDir, { botId: "a", personWaiting: false }, now, NO_ENV)).toMatchObject({ id: "server:day:usd" });
     expect(reachedCap({ ...caps, stops: "everything" }, dataDir, { botId: "a", personWaiting: true }, now, NO_ENV)).toMatchObject({ id: "server:day:usd" });
-    // The cap is raised: the work starts again without anything else being done.
     expect(reachedCap({ server: { dailyUsd: 10 } }, dataDir, { botId: "a", personWaiting: false }, now, NO_ENV)).toBeNull();
   });
 });

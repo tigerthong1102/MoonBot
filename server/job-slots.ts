@@ -3,8 +3,6 @@ export interface SlotOptions {
   signal?: AbortSignal;
   /** Turns true while it waits (someone now waits on it): it starts at once, over the limit. */
   urgent?: () => boolean;
-  /** Something a person sees soon (a thread title, a new bot's setup suggestions): it waits ahead of the jobs nobody sees
-   * (memory upkeep, skill review, warm summaries), behind other such jobs that came first. */
   interactive?: boolean;
   /** Called once when the job has to wait for a free slot, before run() returns its promise. */
   onWait?: () => void;

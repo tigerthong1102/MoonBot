@@ -79,8 +79,6 @@ function stampOf(now: Date): string {
   return `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
 }
 
-/** A dated copy of the file as it is now, kept beside it. `skip` is a copy that must not be written over. A copy that
- * cannot be written does not stop the save; the caller says so. */
 export function writeConfigBackup(path: string, text: string, now: Date = new Date(), skip?: string): string | null {
   const dir = dirname(path);
   const base = CONFIG_BACKUP_PREFIX + stampOf(now);

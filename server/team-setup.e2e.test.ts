@@ -36,8 +36,6 @@ it("Clive sets up multi-provider teams at Ask with no card, keeps existing threa
     // The fixture pins its starter's name, but identity is the honest comparison: a name once collided with a random starter.
     const initialBotIds = new Set((await state()).map((bot: any) => bot.id));
     let previousPid: number | undefined;
-    // The turn this text starts, by its prompt: a change to the team reaches Clive's warm engine as a note, so a turn
-    // may run in the same process as the one before.
     const start = async (text: string) => {
       if (existsSync(gate)) unlinkSync(gate);
       await control("send", "--bot", chief.id, "--task", chief.threadId, "--text", text);

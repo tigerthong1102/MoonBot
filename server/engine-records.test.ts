@@ -69,7 +69,6 @@ describe.skipIf(!posix)("engines an earlier server of this data folder left", ()
     const left = await leftover(dir, "b".repeat(32), DEAD_SERVER, {});
     await sweep(dir);
     expect(running(left.engine)).toBe(false);
-    // Its child carries no tag: it is left alone.
     expect(running(left.child)).toBe(true);
   });
 
@@ -158,7 +157,6 @@ describe.skipIf(!posix)("a daemon an engine started in a session of its own", ()
   it("survives a clean restart: the server stopped its engine itself and the next start sweeps nothing", async () => {
     const dir = dataDir();
     const first = await serverWithEngine(dir);
-    // As dispose does at shutdown: the engine's whole group, not what left it.
     expect(await killCliTree(first.engine, 1_000)).toBe(true);
     expect(running(first.child)).toBe(false);
     expect(markEngineRunClean()).toBe(true);

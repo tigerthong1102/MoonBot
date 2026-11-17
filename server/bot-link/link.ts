@@ -132,11 +132,7 @@ export interface BotLinkDeps {
   };
   /** The teammate's result in the requester's conversation. */
   resultRow(parent: HandoffView, child: HandoffView, name: string): void;
-  /** The turns of a room member that lives in another place. Such a turn is a hand-off
-   * like any other: sent once, queued while that place is away, stopped with the room. Absent: no room has such a member. */
   rooms?: {
-    /** For a room turn, what its hand-off says, worked out as it is sent so that it holds everything said in the room up
-     * to then: who asks (the room), the words, and the person. Undefined: `node` is not a room turn. */
     brief(node: HandoffView): { from: { botId: string; name: string }; text: string; person?: string } | undefined;
     /** Why a room turn that waited can no longer go (the room or the thread is gone, the bot left it), or undefined. */
     problem(node: HandoffView): string | undefined;
@@ -766,8 +762,6 @@ export function createBotLink(deps: BotLinkDeps) {
       peers: Object.entries(state.peers).map(([peer, known]) => ({ ...known.place, online: isOnline(peer), bots: known.bots.length })),
       bots: Object.values(state.peers).reduce((sum, known) => sum + known.bots.length, 0), waiting: pending.size }
       : (() => { const ended = [...new Set(readEnded().map((one) => one.origin))]; return { on: false as const, ...(ended.length ? { ended } : {}) }; })()),
-    /** Every bot of every linked place, with its address here. `kind`: what that place is, in the words the sidebar's
-     * own rows use for where a bot lives: a computer links to its Cloud, a Cloud to computers. */
     linked: () => Object.entries(state?.peers ?? {}).flatMap(([peer, known]) => known.bots.map((bot) => ({ id: linkedId(peer, bot.id), peer, place: known.place, kind: state!.role === "dialer" ? "cloud" as const : "computer" as const, online: isOnline(peer), bot }))),
     /** Other places' bots as list_bots names them. */
     agents: () => Object.entries(state?.peers ?? {}).flatMap(([peer, known]) => known.bots.map((bot) => ({ id: linkedId(peer, bot.id), name: bot.name, section: "", model: bot.model ?? "", busy: false,

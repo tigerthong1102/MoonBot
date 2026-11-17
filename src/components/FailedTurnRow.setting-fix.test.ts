@@ -1,4 +1,3 @@
-// A failed turn that one setting fixes offers that setting on its row, so nobody has to find it in Settings.
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";

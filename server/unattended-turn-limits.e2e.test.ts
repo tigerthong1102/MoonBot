@@ -42,7 +42,6 @@ async function launch(env: NodeJS.ProcessEnv) {
     const rows = async () => { const row = await run(); return row?.threadId ? (await api("GET", `/api/threads/${row.threadId}/messages?limit=200`)).messages as any[] : []; };
     const made = async () => (await rows()).filter((message) => message.kind === "activity" && message.tool?.name === "Bash").length;
     await expect.poll(async () => until(await run(), await made()), { timeout: hostTimeout(60_000), interval: 250 }).toBe(true);
-    // A call the engine was about to make would land within its 600 ms cadence.
     await new Promise((resolve) => setTimeout(resolve, 2_000));
     return { run: await run(), made: await made(), stops: (await rows()).flatMap((message) => failedTurnCause(message.tool?.name ?? "") ?? []) };
   };

@@ -43,7 +43,6 @@ describe("who is on the team and the engine process a conversation keeps", () =>
     expect(after.stable).toContain("[id: c]");
     expect(after.roster).toContain("[id: c]");
     expect(after.stable).toContain(after.roster);
-    // Availability changing every few turns re-sends the per-turn half; the roster is not part of it.
     expect(after.volatile).not.toContain("[TEAM ROSTER]");
     expect(keyedStable({ systemStable: after.stable, systemRoster: after.roster })).toBe(keyedStable({ systemStable: before.stable, systemRoster: before.roster }));
     expect(before.text).toContain(peerRosterSystemPrompt(team, bot("self")));

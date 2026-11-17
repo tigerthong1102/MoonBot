@@ -63,12 +63,9 @@ it("a bot on the computer and a bot on the person's own server hand each other w
     expect(backedUp).not.toMatch(/Wait for bot turns/);
     await expect.poll(async () => (await computer.api("GET", "/api/bot-link")).online, { timeout: 15_000 }).toBe(true);
 
-    // The server's bot is a record on the computer, found by its address there and nowhere else: not listed, not saved,
-    // and it takes no turn on the computer.
     const rows = (await computer.api("GET", "/api/bot-link/bots")).bots as any[];
     const standIn = rows.find((row) => row.name === "Atlas");
     expect(standIn).toMatchObject({ botId: atlas.id, home: { name: "My server", kind: "cloud", key: expect.stringMatching(/^[0-9a-f]{8}$/u), online: true }, threadId: expect.any(String) });
-    // The address is the one the app's main process works out for the sidebar's row of the same bot.
     expect(standIn.id).toBe(linkedAddress(paired.place.id, atlas.id));
     expect(standIn.id).toMatch(/^link-[0-9a-f]{8}-/);
     expect(JSON.stringify(await computer.api("GET", `/api/bots/${standIn.id}`))).toContain("\"Atlas\"");
@@ -80,8 +77,6 @@ it("a bot on the computer and a bot on the person's own server hand each other w
     expect(refused).toContain("lives on My server");
     await home.api("GET", "/api/bot-link/bots", undefined, { token: owner, status: 403 });
 
-    // A stand-in is read-only on the computer. Every route that changes a bot is found in the server's own source and
-    // asked for the stand-in, with each changing method: each answers where the bot lives, and nothing on the computer changes.
     expect(JSON.stringify(await computer.api("GET", `/api/bots/${standIn.id}`))).not.toContain("\"home\"");
     const source = [join(import.meta.dirname, "index.ts"), ...readdirSync(join(import.meta.dirname, "routes")).filter((name) => name.endsWith(".ts") && !name.includes(".test.")).map((name) => join(import.meta.dirname, "routes", name))]
       .map((file) => readFileSync(file, "utf8")).join("\n");
@@ -98,7 +93,6 @@ it("a bot on the computer and a bot on the person's own server hand each other w
       const answer = await asked(method, `/api/bots/${standIn.id}${route}`, { chiefOfStaff: true, name: "Renamed", title: "New thread", text: "hello" });
       expect([answer.status, answer.text], `${method} /api/bots/<stand-in>${route}`).toEqual([409, expect.stringContaining("lives on My server")]);
     }
-    // Named in a body: no automation of its own, with the same plain reason. (A room member it may be: see below.)
     for (const [path, body] of [["/api/routines", { name: "Daily", prompt: "Count the orders.", botId: standIn.id, schedule: { kind: "daily", time: "09:00" } }]] as const) {
       const answer = await asked("POST", path, body);
       expect(answer.status, `${path}: ${answer.text}`).toBeGreaterThanOrEqual(400);
@@ -175,8 +169,6 @@ it("a bot on the computer and a bot on the person's own server hand each other w
     expect(said.some((message) => message.kind === "text" && message.text === "Atlas counts 3 returns.")).toBe(true);
     expect(said.find((message) => message.roomRequest?.phase === "result").tool.name).toContain("Atlas (My server)");
 
-    // A room on the computer with a member from each place. The server's bot is mentioned: its turn runs on the server,
-    // its answer is its own line in the room, once, and the member it names in that answer takes its turn after it.
     const made = (await computer.api("POST", "/api/groups", { name: "Launch", memberIds: [writer.id, standIn.id], setup: { bulletin: "", defaultResponder: { kind: "member", botId: writer.id } } }, { status: 201 })).group;
     const launch = { ...made, activeTaskId: made.activeTaskId ?? made.threadId };
     expect(launch.memberIds).toEqual([writer.id, standIn.id]);
@@ -194,24 +186,20 @@ it("a bot on the computer and a bot on the person's own server hand each other w
     const read = (await home.messages(roomWork.threadId)).map((message) => message.text ?? "").join("\n");
     expect(read).toContain("room \"Launch\"");
     expect(read).toContain("how many orders this week?");
-    // The room is kept across a restart's load rule: its far member is still a member in the saved record.
     expect(JSON.parse(readFileSync(join(computer.dataDir, "groups.json"), "utf8")).find((group: any) => group.id === launch.id).memberIds).toEqual([writer.id, standIn.id]);
 
     // Off on the computer: the server is told, and neither keeps the link.
     expect(await computer.api("PUT", "/api/bot-link", { on: false })).toEqual({ on: false });
     await expect.poll(() => existsSync(join(home.dataDir, "bot-link.json")), { timeout: 10_000 }).toBe(false);
     expect((await computer.api("GET", "/api/bot-link/bots")).bots).toEqual([]);
-    // Turning the link off removes nobody from a room: the far member stays, named, marked as out of reach, and takes no turn.
     const savedMembers = () => JSON.parse(readFileSync(join(computer.dataDir, "groups.json"), "utf8")).find((group: any) => group.id === launch.id).memberIds;
     expect(savedMembers()).toEqual([writer.id, standIn.id]);
-    // Saving the members again, with an address no record answers to among them, is not refused: that address is left out.
     const resaved = (await computer.api("PATCH", `/api/groups/${launch.id}`, { memberIds: [writer.id, standIn.id, "link-0000abcd-nobody"] })).group;
     expect(resaved.memberIds).toEqual([writer.id, standIn.id]);
     expect(resaved.farMembers).toEqual([{ id: standIn.id, name: "Atlas", place: "My server", state: "off" }]);
     await computer.cli("send-channel", "--channel", launch.id, "--text", "@Atlas are you there?");
     await expect.poll(async () => (await computer.messages(launch.activeTaskId)).some((message) => message.kind === "activity" && /The link to My server is off now/u.test(message.tool?.name ?? "")), { timeout: 20_000 }).toBe(true);
     expect(atlasTurns()).toBe(turnsBefore + 1);
-    // The person removes it: then nothing of it is left here.
     const without = (await computer.api("PATCH", `/api/groups/${launch.id}`, { memberIds: [writer.id] })).group;
     expect(without.memberIds).toEqual([writer.id]);
     expect(without.farMembers).toBeUndefined();

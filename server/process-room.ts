@@ -17,8 +17,6 @@ export const BROWSER_TASKS = 170;
 const SERVER_TASKS = 40;
 /** After a refused spawn that names no pids limit (open files, memory), nothing new starts for this long. */
 const SHORTAGE_HOLD_MS = 30_000;
-/** A limit learned from a refused spawn is kept this long after the last refusal: the refusal may have been another
- * limit's (ulimit -u, shared with every process of the same user), or the container's may have been raised. */
 const LEARNED_FOR_MS = 30 * 60_000;
 /** A browser let in counts at its full size while it starts, whatever its process says; after that while it runs. */
 const BROWSER_START_MS = 60_000;
@@ -91,8 +89,6 @@ export class ProcessBudget {
     return this.learned?.limit ?? null;
   }
 
-  /** Whether `tasks` more, on top of `held` already promised to engines still starting and the browsers running, would
-   * not fit. */
   short(tasks: number, held: number): boolean {
     if (this.now() < this.holdUntil) return true;
     const limit = this.limit(), { current } = this.state();
@@ -129,8 +125,6 @@ export class ProcessBudget {
 
   releaseBrowser(session: string): void { this.browsers.delete(session); }
 
-  /** Null once this session's browser may run: it already does, or its processes fit. Otherwise it waits for room until
-   * `until`, then answers why it cannot open. */
   private async enterBrowser(session: string, until: number, admitted?: (rollback: () => void) => void): Promise<string | null> {
     for (;;) {
       const since = this.browsers.get(session)?.since;
@@ -205,8 +199,6 @@ export function browserTasksNow(sessions: readonly string[], {
   return tasks;
 }
 
-/** What one engine's process tree is doing: CPU used so far (its own, its descendants', and its exited children's) and how
- * many descendants still run. */
 export interface TreeUse { cpuMs: number; children: number }
 
 /** The tree under `pid` by parent, from /proc; null where it can't be read (not Linux) or the process is gone. */

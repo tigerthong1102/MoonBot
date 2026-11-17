@@ -436,8 +436,6 @@ export class BrowserSweep {
     return this.#pass;
   }
 
-  /** Null when no daemon runs. When agent-browser cannot list them (it cannot start once the box is out of processes),
-   * the sessions with a pid file: closing one then stops its daemon by that file (closeBrowserSession). */
   async #owned(binaryPath: string, timeoutMs?: number): Promise<string[] | null> {
     const env = browserRuntimeEnv({});
     const files = daemonPidFiles(env);

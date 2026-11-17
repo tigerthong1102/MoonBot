@@ -498,8 +498,6 @@ describe("a connected app before any screen", () => {
   });
 });
 
-// A bot on an API model working on its Private desktop was asked to write into the person's OneDrive folder and sent them
-// to a "Settings → Computers" screen that does not exist, instead of switching itself to This computer.
 describe("files on this computer while the bot works elsewhere", () => {
   const ON_PRIVATE_DESKTOP = { thisComputer: { bot: "Ada", platform: "win32" as const } };
 
@@ -525,7 +523,6 @@ describe("files on this computer while the bot works elsewhere", () => {
     const text = thisComputerSwitch({ place: "vm", bot: "Ada", canSelect: true, botId: "bot-7" });
     expect(text).toContain("When the person asks you to keep using this computer, also keep it there: "
       + "app_settings set, id \"bots.settings\", value {\"botId\":\"bot-7\",\"computer\":\"local\"}; it applies at once with Undo.");
-    // An allow-once tap is for one request; a turn that is not the person's own line never hears of a lasting move.
     expect(text).not.toContain("says yes");
     expect(thisComputerSwitch({ place: "vm", bot: "Ada", canSelect: false, botId: "bot-7" })).not.toContain("app_settings");
     expect(surfacePrompt({ computer: "vm", browser: true }, { canSelect: false, thisComputer: { bot: "Ada", botId: "bot-7", platform: "win32" } }))

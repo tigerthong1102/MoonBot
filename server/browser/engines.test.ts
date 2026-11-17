@@ -157,7 +157,6 @@ describe("the runtime router", () => {
     const { old, chrome, runtime } = engines({ room: async (session) => { asked.push(session); return full; } });
     const refused = { isError: true, content: [{ type: "text", text: "No room for another browser." }] };
     await expect(runtime.agentRpc("s", CHROME, "tools/call", { name: "agent_browser_open" })).resolves.toEqual(refused);
-    // agent-browser asks the same room through its own BrowserRoom, after its count of browsers
     await expect(runtime.agentRpc("s1", AGENT_BROWSER, "tools/call", { name: "agent_browser_open" })).resolves.toBe("agent-browser");
     await expect(runtime.agentRpc("s", CHROME, "tools/list", {}), "a listing opens no browser").resolves.toBe("chrome");
     expect(asked).toEqual(["s"]);

@@ -298,7 +298,6 @@ describe("a run the server had no room to start", () => {
     expect(f.waiting.map(({ ms }) => ms)).toEqual([MEMORY_RETRY_MS]);
     f.settle();
     expect(f.continued).toEqual([{ botId: "ada", threadId: "ada-job", text: ROOM_RETRY_TEXT }]);
-    // That start finds no room either: the person hears, once, and still no Chief is asked and nothing starts again.
     f.notices.reportIncident({ kind: "failed", bot: f.ada as never, threadId: "ada-job", detail: NO_ROOM });
     f.settle();
     expect(f.continued).toHaveLength(1);
@@ -322,7 +321,6 @@ describe("a run the server had no room to start", () => {
     bare.notices.reportIncident({ kind: "failed", bot: bare.ada as never, threadId: "ada-job", detail: NO_ROOM });
     expect(told).toHaveLength(1);
     expect(bare.startTurn).not.toHaveBeenCalled();
-    // A crash still gets the teammate's one retry and then its Chief.
     const crash = shortFixture();
     crash.store.appendMessage("ada-job", { role: "user", kind: "text", text: "Reconcile the September invoices." });
     crash.notices.reportIncident({ kind: "failed", bot: crash.ada as never, threadId: "ada-job", detail: CRASH });

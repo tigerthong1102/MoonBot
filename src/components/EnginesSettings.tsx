@@ -515,8 +515,6 @@ function groupedAccounts(listed: InstanceInfo[]) {
   return { groups, groupOf, rows: listed.filter((instance) => !accountGroupOf(instance) || groupOf(instance)) };
 }
 
-/** The chat's AI sign-in card: Simple Providers with only the accounts a person signs in to (Claude, ChatGPT or Codex,
- * Antigravity), for an owner or admin. */
 export function AiSignInSettings() {
   const { state } = useStore();
   const { groups, groupOf, rows } = groupedAccounts(state.instances.filter((instance) => accountGroupOf(instance) !== null || (instance.driverKind === "antigravityAgent" && !instance.readOnly)));

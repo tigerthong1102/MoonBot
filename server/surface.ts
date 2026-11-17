@@ -234,8 +234,6 @@ export function namesHostPath(command: unknown, platform: NodeJS.Platform = proc
   return typeof command === "string" && Boolean(HOST_PATHS[platform]?.pattern.test(command));
 }
 
-/** A vm_exec command that failed and names such a path: only then does its result carry the switch to This computer.
- * A command that merely mentions one (writing it into a file, a volume flag) runs as written. */
 export function failedOnHostPath(command: unknown, result: { exitCode?: unknown; timedOut?: unknown }, platform: NodeJS.Platform = process.platform): boolean {
   return Number(result.exitCode ?? 0) !== 0 && result.timedOut !== true && namesHostPath(command, platform);
 }

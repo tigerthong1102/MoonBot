@@ -230,9 +230,7 @@ describe("openai-compat Local VM tools", () => {
     expect(shown.filter((message: any) => message.card)).toEqual([]);
   }, 60_000);
 
-  // An API model on its Private desktop, asked for the person's OneDrive folder, sent them to a settings screen that does not exist.
   it("offers an API model on its Private desktop the switch to This computer for the person's own files", async () => {
-    // The command runs as written; only its failure carries the switch.
     vmState({ containers: [], execResult: { exitCode: 1, stdout: "", stderr: "mkdir: cannot create directory: Permission denied", timedOut: false } });
     requests.length = 0;
     const hostPath = process.platform === "win32" ? "C:\\Users\\ana\\OneDrive\\Reports"
@@ -245,7 +243,6 @@ describe("openai-compat Local VM tools", () => {
     await until(() => requests.length, count => count >= 2);
     await idle(bot.id);
     const text = (content: unknown) => typeof content === "string" ? content : JSON.stringify(content);
-    // The place rules change turn to turn, so they ride the person's message as its context note, not the system message.
     const system = requests[0]!.messages.map(message => text(message.content)).join("\n");
     expect(toolNames(requests[0])).toContain("agents_select_computer");
     expect(system).toContain("A file or folder on the person's own computer");

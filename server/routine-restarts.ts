@@ -13,8 +13,6 @@ const HEADLESS_START = /^at:(\d{1,16})$/;
 
 export type StartupDecision = { run: true; marker: string | undefined } | { run: false; behind: (routineId: string) => string };
 
-/** Whether this start runs its startup routines, and what it records: the desktop's launch, or for a headless server the
- * time it ran them (`last` is what the previous start recorded). A skip is counted on one row per routine and window. */
 export function startupDecision(launchId: string | undefined, last: string | undefined, now: number, gapMs = startupRoutineGapMs()): StartupDecision {
   if (launchId !== undefined) return { run: true, marker: launchId };
   const ranAt = HEADLESS_START.exec(last ?? "")?.[1];

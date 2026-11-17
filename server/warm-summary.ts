@@ -50,8 +50,6 @@ export interface WarmSummaryDeps {
   plan(target: WarmSummaryTarget, contextTokens: number | undefined): WarmSummaryPlan | null;
   /** Why not now. `retry`: it may pass in minutes (a busy bot, a routine due); otherwise the next turn here arms it again. */
   hold(target: WarmSummaryTarget): { reason: string; retry: boolean } | null;
-  /** Writes and applies the summary. `awaited()`: a turn is waiting for it, so the turn's own setup is no reason to drop it.
-   * `stale()`: why it is no longer worth writing now (the cache went cold, or a hold), for a run that had to wait. */
   run(target: WarmSummaryTarget, plan: WarmSummaryPlan, control: { signal: AbortSignal; awaited(): boolean; stale(): { reason: string; retry: boolean } | null }): Promise<WarmSummaryOutcome>;
   log?(line: string): void;
 }

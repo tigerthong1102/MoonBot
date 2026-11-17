@@ -674,7 +674,6 @@ describe("turning a webhook back on, Run now, and a deleted bot's webhooks", () 
     const { webhook, secret } = create(h.manager);
     expect(h.manager.update(webhook.id, { enabled: false, verificationPending: false })).toMatchObject({ enabled: false });
     expect(h.manager.test(webhook.id)).toMatchObject({ runId: "run-1", duplicate: false });
-    // The person's own test: a usage cap lets it run as it lets a routine started by hand; an outside delivery is not.
     expect(h.queued.at(-1)).toMatchObject({ byPerson: true });
     expect(h.manager.update(webhook.id, { enabled: true, verificationPending: false })).toMatchObject({ enabled: true });
     h.manager.receive(webhook.endpointId, secret, { payload: { lead: "Ada" }, deliveryId: "outside-1" });

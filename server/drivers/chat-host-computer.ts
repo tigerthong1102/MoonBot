@@ -39,8 +39,6 @@ function reasonOf(error: unknown): string {
   return error instanceof Error && error.message ? error.message : "its helper did not start";
 }
 
-/** The turn waits `quickMs` once this driver has listed or failed before, `firstMs` on its first start; `list` bounds
- * the start itself by hostComputerStartupMs, and past the wait it goes on in the background. */
 export async function startHostComputer(key: string, list: (include: (tool: unknown) => boolean) => Promise<unknown[]>,
   include: (tool: unknown) => boolean, wait: { quickMs: number; firstMs: number }, signal: AbortSignal): Promise<HostComputerStart> {
   const seen: unknown[] = [];

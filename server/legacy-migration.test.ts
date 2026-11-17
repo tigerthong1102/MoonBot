@@ -1,4 +1,3 @@
-// Starting StartupBot must not move or replace another installation's data.
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

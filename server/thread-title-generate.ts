@@ -11,8 +11,6 @@ export function llmThreadTitlesEnabled(cfg: Pick<AppConfig, "features">): boolea
 
 export const THREAD_TITLE_TIMEOUT_MS = 10_000;
 
-/** A person sees the title soon, so the call waits ahead of background upkeep for a free slot. Past its 10 s the answer
- * is null at once, but the slot is held until the engine call has really ended: its process still counts until then. */
 export async function generateThreadTitle(
   provider: { generateText?: (prompt: string, options?: { signal?: AbortSignal }) => Promise<string> },
   text: string,

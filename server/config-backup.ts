@@ -122,8 +122,6 @@ export function listConfigBackups(dir: string): ConfigBackup[] {
 
 function pruneConfigBackups(dir: string, justWritten: string): void {
   const copies = listConfigBackups(dir);
-  // A corrected clock may put this save before every existing timestamp. The
-  // copy that makes the imminent overwrite reversible must survive retention.
   const removable = copies.filter((copy) => copy.name !== justWritten);
   for (const copy of removable.slice(0, Math.max(0, copies.length - CONFIG_BACKUP_KEEP))) {
     try {

@@ -438,7 +438,6 @@ export class McpOAuthManager {
     return Boolean(record.tokens?.refresh && record.tokenEndpoint && this.recordClient(name, record));
   }
 
-  /** One refresh at a time per sign-in. A forced refresh follows a refusal whatever the token's expiry says. */
   private renew(name: string, record: McpOAuthRecord, forced: boolean): Promise<RefreshResult> {
     const pending = this.refreshing.get(name);
     if (pending && isDeepStrictEqual(pending.record, record)) return pending.result;

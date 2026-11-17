@@ -44,8 +44,6 @@ export class ThreadCache {
     entry.usedAt = now;
     this.entries.delete(threadId);
     this.entries.set(threadId, entry);
-    // A burst of loads or busy turns can defer every eviction. Reads must
-    // retry once those protections expire, even when no transcript grows.
     if (now >= this.nextBudgetRetryAt) this.shrink(threadId);
     return entry.state;
   }
@@ -94,7 +92,6 @@ export class ThreadCache {
   private shrink(keep: string): void {
     if (this.bytes <= this.maxBytes) return;
     const now = Date.now();
-    // Keep repeated reads cheap while every remaining entry is protected.
     this.nextBudgetRetryAt = now + MIN_RESIDENCY_MS;
     const busy = this.busyThreadIds();
     for (const [threadId, entry] of this.entries) {

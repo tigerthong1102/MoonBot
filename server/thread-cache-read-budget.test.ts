@@ -110,7 +110,6 @@ it("Store reloads an evicted transcript with the same messages and active leaf",
     store.messagesFor(third.threadId);
     expect(cache.approxBytes).toBeLessThanOrEqual(25_000);
     expect(cache.get(second.threadId)).toBeUndefined();
-    // Read the evicted conversation through Store, which reloads messages.db.
     const reloaded = store.messagesFor(second.threadId);
     expect(reloaded).not.toBe(secondBefore);
     expect(reloaded).toEqual(secondExpected);

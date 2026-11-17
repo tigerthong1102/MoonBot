@@ -509,6 +509,33 @@ describe("a run that OpenMausBot's shutdown cuts off", () => {
     expect(h.started[1]!.prompt).toContain(retryNote("restarted"));
     expect(h.runs()).toHaveLength(1);
   });
+
+  it("continues an already-started routine after restart despite a newly reached cap", async () => {
+    let capped = false;
+    const continuations: boolean[] = [];
+    const h = harness({
+      capText: () => capped ? "Usage cap reached" : null,
+      startTurn: async (_botId, _threadId, _prompt, _runOn, _trigger, _onError, continuesRun) => {
+        continuations.push(continuesRun);
+      },
+    });
+    const routine = h.routine();
+    const run = await h.start(routine.id);
+    expect(continuations).toEqual([false]);
+    h.manager.close();
+    capped = true;
+    h.restart();
+    expect(h.run(run.id)).toMatchObject({ status: "queued", retried: "restarted" });
+    await h.advance(16 * SECOND);
+    expect(h.run(run.id).status).toBe("running");
+    expect(continuations).toEqual([false, true]);
+
+    const newRoutine = h.routine("maus-2");
+    const newRun = h.manager.runNow(newRoutine.id)!;
+    await h.manager.tick();
+    expect(h.run(newRun.id).status).toBe("failed");
+    expect(continuations).toEqual([false, true]);
+  });
 });
 
 describe("weekRuns", () => {

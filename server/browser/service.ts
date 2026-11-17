@@ -57,6 +57,7 @@ export interface BrowserServiceOptions {
   /** What the egress gate of this profile's browser refused since it was last asked, as one line. */
   egressNotice?: (key: string) => string | null;
   onTiming?: (timing: BrowserTiming) => void;
+  stopped?(session: string): void;
   callBudgetMs?: number;
   laneWaitMs?: number;
   takeoverMs?: number;
@@ -183,7 +184,10 @@ export class BrowserService {
     const starting = (async () => {
       for (let stopping = profile.stopping; stopping; stopping = profile.stopping) await stopping;
       return this.#start(profile, epoch);
-    })().finally(() => { if (profile.starting === starting) profile.starting = null; });
+    })().catch((error) => {
+      this.#options.stopped?.(profile.session);
+      throw error;
+    }).finally(() => { if (profile.starting === starting) profile.starting = null; });
     profile.starting = starting;
     return starting;
   }
@@ -275,6 +279,7 @@ export class BrowserService {
     if (profile.run !== run) return;
     for (const off of run.offs) off();
     profile.run = null;
+    this.#options.stopped?.(profile.session);
     profile.tabs.clear();
     if (run.closing) return;
     try {
@@ -317,6 +322,7 @@ export class BrowserService {
         } finally {
           profile.control.closing = false;
           profile.control.settle();
+          this.#options.stopped?.(profile.session);
         }
       }
     })());

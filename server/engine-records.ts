@@ -1,13 +1,3 @@
-// Engines and the other CLIs spawnCli starts lead POSIX sessions of their own (procs.ts), so nothing signals them when the
-// server dies: a server that is killed, or restarts in place in its container (server-launcher.ts), leaves them running.
-// Each server run writes down what it starts under <data>/engine-runs/<run tag>/. A server that shuts down cleanly has
-// stopped its engines itself and marks its run clean: nothing of it is ever swept. After an unclean death, the next server
-// of the same data folder stops what that run left, and only that: a recorded leader that is still the same process (same
-// boot, same start time), and processes carrying the run's random tag (spawnCli puts it in the environment, and children
-// inherit it) that are still in a recorded leader's process group or session. A daemon an engine started that left for a
-// session of its own (an adb server, tmux, pm2, a dev server, a browser) carries the tag too, and is never touched; nothing
-// is ever found by name. agent-browser daemons and their Chromes are left to the browser sweep, which closes them so they
-// save their sign-ins. Windows: off (engines there are not detached).
 import { randomBytes } from "node:crypto";
 import { execFile, execFileSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";

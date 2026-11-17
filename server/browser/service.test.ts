@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 import { removeTempDir } from "../testing/cleanup.ts";
+import { ProcessBudget, BROWSER_TASKS } from "../process-room.ts";
 import { forbiddenCommand } from "./cdp/testing/real-chrome.ts";
 import { BROWSER_CONTROL_REFUSAL } from "./control.ts";
 import { REDDIT_REFUSAL } from "./egress/reddit.ts";
@@ -66,6 +67,25 @@ function setup(options: Partial<BrowserServiceOptions> = {}, startUrls?: string[
 }
 
 describe("the bots' browser tools", () => {
+  it.each(["close", "idle", "exit", "startup failure"] as const)("releases process admission after %s", async (ending) => {
+    const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, now: () => 0, log: () => {} });
+    const { service, backend, target, call } = setup({ stopped: (session) => budget.releaseBrowser(session) });
+    const room = budget.browserRoom((session) => service.runs(session));
+    expect(await room.enter(target.session)).toBeNull();
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+    if (ending === "startup failure") backend.open = async () => { throw new Error("Chrome could not start"); };
+    await call("agent_browser_open", { url: "https://example.com/form" });
+    if (ending === "close") await service.close(target.session);
+    if (ending === "idle") await service.closeUnused(target.session);
+    if (ending === "exit") {
+      backend.chrome.exit();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(service.runs(target.session)).toBe(false);
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(false);
+    expect(await room.enter("bot-b")).toBeNull();
+  });
+
   it("advertises 21 tools and restart_browser, with OpenMausBot's names and no launch settings", async () => {
     const { service, target } = setup();
     const listed = await service.agentRpc(target, "tools/list", {}) as { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown> } }> };

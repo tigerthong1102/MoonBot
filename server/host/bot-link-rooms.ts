@@ -1,19 +1,3 @@
-// Rooms whose members live in more than one of the person's places (server/bot-link/link.ts). A room is one record with
-// one transcript, in the place it was made. A bot of another place is a member through its stand-in record
-// (server/host/bot-link-host.ts): it is mentioned, picked and listed as any member is, and when its turn comes the turn
-// is handed over the link instead of run here. That hand-off is an ordinary assignment in this place's runtime, so it is
-// sent once, waits without a clock while the member's place is off or asleep, and stops when the room is stopped. Its
-// answer is posted in the room as the member's own line, once.
-//
-// What crosses: the room's name, its members' names, and what was said in the room since that member was last sent it,
-// each line with the note that says who it is from, as a member here reads it. The same person owns both places, and a
-// member of a room reads the room. The person's own line crosses as the person's request; a routine's, a webhook's or a
-// guest's does not.
-//
-// A far member stays a member while it cannot be reached (the link is off, its place is unlinked, or its place no longer
-// has it): it is named as it was last known, takes no turn, and works again when the link is back. It leaves a room only
-// when the person removes it, or when its place's link ends for good. What each member was sent, and what each far
-// member is called, is kept in `bot-link-rooms.json`, which exists only while a room has such a member.
 import { randomUUID } from "node:crypto";
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";

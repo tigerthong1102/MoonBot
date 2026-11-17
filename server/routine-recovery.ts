@@ -16,6 +16,7 @@ import type { Routine, RoutineRun } from "./routines.ts";
 import { codedLine, fittedLine, type RoutineLine, type RoutineLineKey } from "./routine-lines.ts";
 import { hostTimeZone } from "./turn-clock.ts";
 import { classifyContinuable } from "./turn-continuation.ts";
+import { selectReplay } from "./context-rebuild.ts";
 
 export type RoutineOwnerCause = "signed_out" | "credits" | "usage_limit" | "setup";
 
@@ -186,8 +187,9 @@ export function sessionHolds(input: { resumes: boolean; messages: ReadonlyArray<
   const at = input.messages.findLastIndex((message) => message.role === "user" && message.text === input.prompt);
   if (at < 0) return false;
   if (input.resumes) return true;
-  const replayed = input.messages.slice(at);
-  return replayed.length <= (input.maxMessages ?? 40) && replayed.reduce((bytes, message) => bytes + Buffer.byteLength(message.text ?? ""), 0) <= input.budgetBytes;
+  const history = input.messages.map((message, index) => ({ id: String(index), role: message.role === "user" ? "user" as const : "assistant" as const, text: message.text ?? "" }));
+  const selected = selectReplay(history, { budgetBytes: input.budgetBytes, maxMessages: input.maxMessages });
+  return selected.transcript.some((entry) => entry.id === String(at) && entry.text === input.prompt);
 }
 
 /** A second start whose engine session will not hold the first start's message: one moved to a backup AI or waiting out a

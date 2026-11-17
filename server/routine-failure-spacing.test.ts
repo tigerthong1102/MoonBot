@@ -199,5 +199,7 @@ describe("a run's one second start", () => {
     expect(sessionHolds({ resumes: false, messages, prompt: "FIRST", budgetBytes: 24_000 })).toBe(true);
     expect(sessionHolds({ resumes: false, messages: [...messages, { role: "bot", text: "y".repeat(20_000) }], prompt: "FIRST", budgetBytes: 24_000 })).toBe(false);
     expect(sessionHolds({ resumes: true, messages, prompt: "missing", budgetBytes: 24_000 })).toBe(false);
+    const prompt = "x".repeat(23_900);
+    expect(sessionHolds({ resumes: false, messages: [{ role: "user", text: prompt }, { role: "bot", text: "y".repeat(50) }], prompt, budgetBytes: 24_000 })).toBe(false);
   });
 });

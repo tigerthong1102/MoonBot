@@ -1,5 +1,4 @@
-// The licensed monthly spend cap: enforced only with the `budgets` entitlement. It reads its total from the cap engine
-// (usage-caps.ts) and adds its own warning threshold, admin notifications and a stop on every kind of turn.
+// The monthly spend cap requires the `budgets` entitlement.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SPEND_LIMIT_REFUSAL } from "../shared/setting-fixes.ts";

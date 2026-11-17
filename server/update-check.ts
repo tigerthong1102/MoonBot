@@ -80,6 +80,7 @@ export function isNewerVersion(latest: string, current: string): boolean {
 export interface UpdateCheck {
   current: string;
   install: InstallKind;
+  disabled?: boolean;
   /** Where `latest` came from. `stable` falls back to `newest` until a first version has been promoted. */
   channel?: UpdateChannel;
   latest?: string;

@@ -969,7 +969,6 @@ describe("phone MCP calls claim before each command sent to the phone", () => {
     ["swipe", { direction: "up", duration_ms: 2000.4 }, [onPhone("shell", "wm", "size"), onPhone("shell", "input", "swipe", "540", "1440", "540", "480", "2000")], "Swiped from 540,1440 to 540,480 in 2000 ms"],
     ["swipe", { direction: "up", y: 1000 }, [onPhone("shell", "wm", "size"), onPhone("shell", "input", "swipe", "540", "1000", "540", "40", "260")], "Swiped from 540,1000 to 540,40 in 260 ms"],
     ["swipe", { direction: "down", x: 0, y: 0 }, [onPhone("shell", "wm", "size"), onPhone("shell", "input", "swipe", "0", "0", "0", "960", "260")], "Swiped from 0,0 to 0,960 in 260 ms"],
-    ["swipe", { direction: "right", x: 10000, y: 10000, distance: 10000 }, [onPhone("shell", "wm", "size"), onPhone("shell", "input", "swipe", "10000", "10000", "20000", "10000", "260")], "Swiped from 10000,10000 to 20000,10000 in 260 ms"],
     ["type_text", { text: "hi" }, [onPhone("shell", "input", "text", "hi")], "Typed text into the focused Android field"],
     ["press", { key: "home" }, [onPhone("shell", "input", "keyevent", "KEYCODE_HOME")], "Pressed home"],
   ])("%s sends its commands when every claim is granted", async (name, args, deviceCommands, text) => {
@@ -979,6 +978,13 @@ describe("phone MCP calls claim before each command sent to the phone", () => {
     expect(result.content[0]).toMatchObject({ type: "text", text: expect.stringContaining(text) });
     expect(commands).toEqual([DEVICES, ...deviceCommands]);
     expect(claims()).toBe(1 + deviceCommands.length);
+  });
+
+  it("rejects a swipe whose computed endpoint exceeds the coordinate bound", async () => {
+    const { commands, call } = phone();
+    const result = await call("swipe", { direction: "right", x: 10000, y: 10000, distance: 10000 });
+    expect(result).toMatchObject({ isError: true, content: [{ text: expect.stringContaining("Swipe endpoint") }] });
+    expect(commands).toEqual([DEVICES, onPhone("shell", "wm", "size")]);
   });
 
   const SWIPE_FIELDS_ERROR = 'swipe needs x and y from 0 to 10000, distance from 50 to 10000 and duration_ms from 50 to 2000, e.g. {"direction":"up","x":300,"y":1400,"distance":400,"duration_ms":800}';

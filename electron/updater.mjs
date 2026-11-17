@@ -183,7 +183,12 @@ export function attachUpdaterWindow(mainWindow) {
 
 /** `signals` (quietSignals): what tells a quiet moment; without them a downloaded update installs only on Restart or quit. */
 export function startUpdater(signals = null) {
-  if (!app.isPackaged || !STARTUPBOT_UPDATES_ENABLED) {
+  if (!STARTUPBOT_UPDATES_ENABLED) {
+    updaterCoordinator = null;
+    setState({ status: "idle", disabled: true });
+    return;
+  }
+  if (!app.isPackaged) {
     updaterCoordinator = null;
     setState({ status: "error", message: UPDATE_TEXT.unavailable, messageCode: "unavailable" });
     return;

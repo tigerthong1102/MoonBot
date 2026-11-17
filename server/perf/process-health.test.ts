@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProcessLimits } from "../process-limits.ts";
+import { ENGINE_PROCESS_KINDS, CHAT_RUNTIME_KINDS } from "../engine-memory.ts";
 import { classifyProcesses, type ProcessRow } from "./process-buckets.ts";
 import { perfHealth, perfLines, PERF_HEALTH_MAX_BYTES, type PerfSources } from "./perf-report.ts";
 import { createProcessHealth, processHealthLines, tally, trimmedProcessHealth, type ProcessHealth } from "./process-health.ts";
@@ -29,6 +30,15 @@ const quiet = { running: 0, queued: 0, longestWaitMs: 0, most: null, queuedEver:
 const none = { limit: null, spawnFailed: { EAGAIN: 0, EMFILE: 0, ENFILE: 0, ENOMEM: 0, ENOENT: 0, other: 0 }, forceKilled: 0, lateReaped: 0 };
 
 describe("the process-room record", () => {
+  it("accounts for engine kinds beyond the display limit", () => {
+    const kinds = [...ENGINE_PROCESS_KINDS, ...CHAT_RUNTIME_KINDS].slice(0, 10);
+    const list = kinds.map((_, i) => row(i + 100, SERVER, "engine"));
+    const buckets = new Map(list.map((entry, i) => [entry.pid, `engine:${kinds[i]}` as const]));
+    const counts = tally(list, buckets, 0, 0).engines;
+    expect(Object.keys(counts).length).toBeLessThanOrEqual(8);
+    expect(Object.values(counts).reduce((sum, count) => sum + count, 0)).toBe(kinds.length);
+    expect(counts.other).toBeGreaterThan(0);
+  });
   it("counts processes by kind, threads, zombies and open files, and keeps the most of each since start", () => {
     const list = rows(), buckets = classifyProcesses(list, SERVER, true, new Map([[100, "claudeAgent"], [200, "codex"]]));
     const health = createProcessHealth({ platform: "linux", pid: SERVER, limits: () => limits(), memoryLimitBytes: () => 4096 * MB, memoryUsedBytes: () => null, peaks: () => ({ pids: 197, memoryBytes: 1530 * MB }), fds: () => 61,
@@ -70,7 +80,8 @@ describe("the process-room record", () => {
     for (let sample = 0; sample < 3; sample++) health.sample(zombies, classifyProcesses(zombies, 1, true));
     expect(said.map(([kind]) => kind)).toEqual(["processes:near", "processes:zombies"]);
     expect(said[0]![1]).toBe('this server runs 420 processes and threads of the 512 its container allows (25 of them zombies). Past the limit nothing new can start; turns wait for room before that. See docs/self-hosting.md, "Running on a container platform".');
-    expect(said[1]![1]).toContain("25 exited processes are waiting to be collected and nothing collects them");
+    expect(said[1]![1]).toContain("25 exited processes are waiting to be collected");
+    expect(said[1]![1]).not.toContain("no init");
     expect(health.startLine()).toBe("processes: process 1 is this app, with no init; limits: processes and threads 512, memory none, ulimit -u unlimited, /dev/shm 64 MB");
     const calm = createProcessHealth({ platform: "linux", limits: () => limits({ pidsCurrent: 100 }), memoryLimitBytes: () => null, fds: () => 30, turns: () => quiet, counts: () => none,
       warn: () => { throw new Error("nothing to say"); } });

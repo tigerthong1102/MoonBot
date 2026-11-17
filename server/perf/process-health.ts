@@ -9,7 +9,7 @@ import { processBudget, type ProcessCounts } from "../process-room.ts";
 import type { ProcessBucket, ProcessRow } from "./process-buckets.ts";
 
 export const PROCESS_HEALTH_DOCS = 'docs/self-hosting.md, "Running on a container platform"';
-/** Above this many zombies nothing is collecting them: a few come and go between a process's exit and its parent's wait. */
+/** A few zombies can come and go between a process's exit and its parent's wait. */
 const ZOMBIES_WORTH_SAYING = 20;
 const NEAR_LIMIT = 0.8;
 const ENGINES_SHOWN = 8;
@@ -61,7 +61,8 @@ export function tally(rows: readonly ProcessRow[], buckets: ReadonlyMap<number, 
     if (bucket === "server") continue;
     if (bucket?.startsWith("engine:")) {
       const kind = bucket.slice("engine:".length), name = KNOWN_ENGINES.has(kind) ? kind : "unknown";
-      if (Object.hasOwn(out.engines, name) || Object.keys(out.engines).length < ENGINES_SHOWN) out.engines[name] = (out.engines[name] ?? 0) + 1;
+      const shown = Object.hasOwn(out.engines, name) || Object.keys(out.engines).length < ENGINES_SHOWN - 1 ? name : "other";
+      out.engines[shown] = (out.engines[shown] ?? 0) + 1;
     } else if (bucket === "browser") out.browser += 1;
     else if (bucket === "mcp") out.mcp += 1;
     else if (bucket === "commands" || bucket === "build") out.shell += 1;
@@ -148,7 +149,7 @@ export function createProcessHealth(deps: ProcessHealthDeps = {}) {
       }
       if (typeof now.zombies === "number" && now.zombies > ZOMBIES_WORTH_SAYING && !told.has("zombies")) {
         told.add("zombies");
-        deps.warn?.("processes:zombies", `${now.zombies} exited processes are waiting to be collected and nothing collects them: this container has no init as process 1. They count against its process limit until it restarts. See ${PROCESS_HEALTH_DOCS}.`);
+        deps.warn?.("processes:zombies", `${now.zombies} exited processes are waiting to be collected. They count against the process limit until collected. See ${PROCESS_HEALTH_DOCS}.`);
       }
     },
     report,

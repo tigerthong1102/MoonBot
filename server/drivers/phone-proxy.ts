@@ -667,6 +667,7 @@ async function callToolOn(onDevice: OnDevice, unclaimed: OnDevice, serial: strin
     if (!move) throw new Error("Invalid swipe direction");
     const or = (value: unknown, fallback: number) => (given(value) ? rounded(value) : fallback);
     const x = or(args.x, move.x); const y = or(args.y, move.y); const distance = or(args.distance, move.distance);
+    if (!inPixels(x + move.dx * distance) || !inPixels(y + move.dy * distance)) throw new Error("Swipe endpoint must be within 0 to 10000 pixels");
     const sent = [x, y, x + move.dx * distance, y + move.dy * distance, or(args.duration_ms, 260)].map((value) => String(Math.round(value)));
     await onDevice(serial, ["shell", "input", "swipe", ...sent]);
     const chosen = [args.x, args.y, args.distance, args.duration_ms].some(given);

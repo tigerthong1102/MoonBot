@@ -20,4 +20,6 @@ in Git. Do not change DNS, deploy paid services or publish as part of this audit
 
 ## CI evidence
 
+On `0c403c71f45d819888eb0a8a4671c257521fac54`, [Docker](https://github.com/tigerthong1102/MoonBot/actions/runs/43987313053), [website](https://github.com/tigerthong1102/MoonBot/actions/runs/43987313110), [docs](https://github.com/tigerthong1102/MoonBot/actions/runs/43987313407) and [connector E2E](https://github.com/tigerthong1102/MoonBot/actions/runs/43987313080) passed. [Full CI](https://github.com/tigerthong1102/MoonBot/actions/runs/43987313137) was still running when checked. Local follow-up changes require new CI. No StartupBot DMG has been built. The local Apple Silicon machine has Command Line Tools but not full Xcode.
+
 [Run 43981561567](https://github.com/tigerthong1102/MoonBot/actions/runs/43981561567) passed on `a9f9ce7e8642c986653a73bcd04b2de290879bd3`: 34 jobs passed and one was skipped. Later commits need their own CI. This is not installer or release qualification.

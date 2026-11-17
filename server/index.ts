@@ -7494,7 +7494,7 @@ async function finalScreenFrame(_botId: string, threadId: string): Promise<Frame
   return frame;
 }
 
-function threadTitleGate(bot: Pick<BotRecord, "modelSelection">): { ok: true; instance: ProviderInstance } | { ok: false; refusal: string } {
+function threadTitleGate(bot: Pick<BotRecord, "id" | "modelSelection">): { ok: true; instance: ProviderInstance } | { ok: false; refusal: string } {
   if (hostedModels && !hostedModels.allows(bot.modelSelection)) return { ok: false, refusal: hostedModels.error() };
   const instance = registry.get(bot.modelSelection.instanceId);
   if (!instance?.generateText) return { ok: false, refusal: "this bot's model can't generate a title — rename the thread instead" };
@@ -7502,10 +7502,16 @@ function threadTitleGate(bot: Pick<BotRecord, "modelSelection">): { ok: true; in
   if (refusal) return { ok: false, refusal };
   try {
     assertWithinBudget(cfg, DATA_DIR);
+    usageCapGate.assertTurn(bot.id, true);
   } catch (error) {
     return { ok: false, refusal: error instanceof Error ? error.message : String(error) };
   }
   return { ok: true, instance };
+}
+function cappedThreadTitle(instance: ProviderInstance, text: string, source: "first-message" | "conversation" | "call", botId: string): Promise<string | null> {
+  return generateThreadTitle(instance, text, source, undefined, () => {
+    try { assertWithinBudget(cfg, DATA_DIR); return usageCapGate.refusal(botId, true) === null; } catch { return false; }
+  });
 }
 
 const titleRegenerations = new Set<string>();
@@ -7633,7 +7639,7 @@ async function beginTurn(
     const titled = store.titleTaskFromFirstMessage(bot.id, resolvedImages.text, threadId);
     const snippet = titled?.title;
     if (titled && snippet && !titled.openedBy?.botId && llmThreadTitlesEnabled(cfg) && instance.generateText) {
-      void generateThreadTitle(instance, resolvedImages.text)
+      void cappedThreadTitle(instance, resolvedImages.text, "first-message", bot.id)
         .then((title) => {
           if (title) store.retitleTask(bot.id, threadId, snippet, title);
         })
@@ -10848,7 +10854,7 @@ function startGroupTurn(
     const titleInstance = registry.get(titleBot.modelSelection.instanceId);
     // An engine the organisation disallows never receives the text, even for a title.
     if (titled && snippet && titleText.trim() && llmThreadTitlesEnabled(cfg) && titleInstance?.generateText && !policyModelRefusal(titleInstance)) {
-      void generateThreadTitle(titleInstance, titleText)
+      void cappedThreadTitle(titleInstance, titleText, "first-message", titleBot.id)
         .then((title) => {
           if (title) store.retitleGroupTask(group.id, threadId, snippet, title);
         })
@@ -12269,7 +12275,7 @@ const taskRoutes = createTaskRoutes({
   checkedModelSelection,
   checkedTaskModelSwitch,
   threadTitleGate,
-  generateThreadTitle,
+  generateThreadTitle: cappedThreadTitle,
   settleDirectFollowup,
   clearTurnDigestState,
   revokeInternalCapabilitiesForThread,
@@ -12438,7 +12444,7 @@ function liveCallTitle(botId: string, threadId: string, excerpt: string): Promis
   const bot = store.projectBotForTask(botId, threadId);
   if (!bot || !llmThreadTitlesEnabled(cfg)) return null;
   const gate = threadTitleGate(bot);
-  return gate.ok ? generateThreadTitle(gate.instance, excerpt, "call") : null;
+  return gate.ok ? cappedThreadTitle(gate.instance, excerpt, "call", bot.id) : null;
 }
 const liveWiring = liveSessionWiring({ bot: liveBotFor, history: liveHistoryFor, cloudHome: Boolean(CLOUD_HOME), othersOnLoopback: adminActivityRecording, saveAgent: (agent) => { saveConfig({ live: agent }); Object.assign(cfg, loadConfig()); }, language: appLanguage, fishAgentLanguage: () => cfg.live?.fishAgentLanguage });
 const liveCalls = new LiveCallController({

@@ -1597,6 +1597,20 @@ describe("Runtime: at Full access a question is its requester's to answer, and o
 });
 
 describe("Runtime: turns a restart cut start again a few at a time", () => {
+  it("does not supersede a cut turn merely because newer work is queued", async () => {
+    const store = openRuntimeStore(":memory:");
+    const first = world(() => "hold", {}, store);
+    const old = first.runtime.begin(beginReq());
+    first.runtime.close();
+    const second = world(() => "hold", {}, store);
+    const parent = second.runtime.begin(beginReq({ assignee: { botId: "other", destination: { kind: "standing_thread", threadId: "other-chat" } } }));
+    const queued = ok(second.runtime.enqueue(toBot("chief", parent.id, "newer", { assignee: chief })));
+    expect(store.get(queued.id)?.startedAt).toBeUndefined();
+    second.runtime.tick();
+    await flush();
+    expect(store.get(old.id)?.status).toBe("running");
+    expect(store.get(old.id)?.restart).toBe("rerun");
+  });
   it("starts the first few at once and the rest one per gap, and a second restart cuts only the ones that had started", async () => {
     const store = openRuntimeStore(":memory:");
     const first = world(() => "hold", {}, store);

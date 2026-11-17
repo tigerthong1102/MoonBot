@@ -500,6 +500,7 @@ export interface LinuxLocalControlStatus {
 export type AppUpdateAnswer = "installing" | "later" | "downloading" | "current" | "failed" | "unavailable";
 
 export interface UpdaterState {
+  disabled?: boolean;
   status:
     | "idle"
     | "checking"

@@ -1,5 +1,8 @@
 # License and distribution gaps
 
+Review baseline: `0c403c71f45d819888eb0a8a4671c257521fac54`. The present
+audit does not constitute legal clearance or a complete dependency SBOM.
+
 The repository's LICENSE, NOTICE, LICENSING.md and third-party notices must be
 retained and reviewed together. Upstream's `enterprise/` is governed by a
 separate source-available license; its production, hosted and white-label terms

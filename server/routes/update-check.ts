@@ -6,8 +6,8 @@ import type { AdminActor } from "../admin-activity.ts";
 import { serverVersion } from "../environment.ts";
 import { SERVER_ROOT } from "../proxy-paths.ts";
 import type { RequestAuth } from "../request-auth.ts";
-import { createServerUpdater, SERVER_UPDATE_DIR, SERVER_UPDATE_DIR_ENV, type ServerUpdater } from "../server-update.ts";
-import { createUpdateChecker, installKind, updateChannel, type UpdateCheck } from "../update-check.ts";
+import type { ServerUpdater } from "../server-update.ts";
+import { installKind, type UpdateCheck } from "../update-check.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 export interface UpdateCheckRouteDeps {
@@ -42,7 +42,8 @@ export function createUpdateCheckRoutes(deps: UpdateCheckRouteDeps): RouteHandle
 }
 
 export function serverUpdateChecker(where: { desktopManaged: boolean; managed: boolean }): () => Promise<UpdateCheck> {
-  return createUpdateChecker({ current: serverVersion(), install: installKind({ ...where, serverRoot: SERVER_ROOT }), channel: updateChannel() });
+  const install = installKind({ ...where, serverRoot: SERVER_ROOT });
+  return async () => ({ current: serverVersion(), install, available: false, disabled: true });
 }
 
 /** Both routes' parts for this server: one shared check, and the button where the install has one. */
@@ -53,10 +54,5 @@ export function updateRouteDeps(where: {
   activeTurns(): number;
   actor(auth: RequestAuth, req: IncomingMessage): AdminActor;
 }): UpdateCheckRouteDeps {
-  const install = installKind({ ...where, serverRoot: SERVER_ROOT });
-  const channel = updateChannel();
-  const check = createUpdateChecker({ current: serverVersion(), install, channel });
-  const dir = process.env[SERVER_UPDATE_DIR_ENV]?.trim() || (install === "docker" ? SERVER_UPDATE_DIR : undefined);
-  const server = createServerUpdater({ dir, dataDir: where.dataDir, install, version: serverVersion(), check, activeTurns: where.activeTurns, followsStable: channel === "stable" });
-  return { check, server, actor: where.actor };
+  return { check: serverUpdateChecker(where), actor: where.actor };
 }

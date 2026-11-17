@@ -1,5 +1,9 @@
 # Upstream integration audit
 
+Review baseline: `0c403c71f45d819888eb0a8a4671c257521fac54`. No further
+upstream merge was performed during the follow-up review; future gap counts
+must be recalculated from the current upstream head.
+
 On 2026-11-16, `c9bb31e81` was 7 commits ahead and 64 commits behind
 `676c29f63`. Worktree `integration/upstream-20261116` merged that upstream head
 as `16e48c5c4` with no textual conflicts; the resulting tree has no tracked

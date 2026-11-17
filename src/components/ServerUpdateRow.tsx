@@ -46,7 +46,7 @@ export function useServerUpdate() {
     try {
       const next = await api<ServerUpdateCheck>("/api/updates/check", { timeoutMs: 20_000 });
       setCheck(next);
-      if (next.install !== "desktop" && next.install !== "managed") await readStatus().catch(() => null);
+      if (!next.disabled && next.install !== "desktop" && next.install !== "managed") await readStatus().catch(() => null);
     } catch {
       setFailed(true);
     } finally {

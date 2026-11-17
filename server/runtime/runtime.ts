@@ -418,7 +418,7 @@ export class Runtime {
 
   /** Work in this conversation from another request, begun since this start. */
   private newerWorkIn(threadId: string, n: Assignment): boolean {
-    return this.store.all({ assigneeThreadId: threadId }).some(other => other.rootId !== n.rootId && other.createdAt >= this.bootAt);
+    return this.store.all({ assigneeThreadId: threadId }).some(other => other.rootId !== n.rootId && other.createdAt >= this.bootAt && other.startedAt !== undefined && other.startedAt >= this.bootAt);
   }
 
   private dispatch(n: Assignment, parent: Assignment | undefined, resumed: boolean): boolean {

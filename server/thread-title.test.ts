@@ -6,6 +6,20 @@ import { callTitleExcerpt, threadTitlePrompt, titleConversationExcerpt, titleFro
 import { generateThreadTitle, THREAD_TITLE_TIMEOUT_MS } from "./thread-title-generate.ts";
 
 describe("a generated title and the background slots", () => {
+  it("checks the spending gate after a queued title receives a slot", async () => {
+    const slots = createJobSlots(1);
+    let free!: () => void;
+    const busy = slots.run(() => new Promise<void>((resolve) => { free = resolve; }));
+    let allowed = true;
+    const generateText = vi.fn(async () => "Trip plan");
+    const title = generateThreadTitle({ generateText }, "plan the trip", "first-message", slots, () => allowed);
+    await vi.waitFor(() => expect(free).toBeTypeOf("function"));
+    allowed = false;
+    free();
+    await busy;
+    expect(await title).toBeNull();
+    expect(generateText).not.toHaveBeenCalled();
+  });
   it("answers null after 10 s, but keeps its slot until the engine call has really ended", async () => {
     vi.useFakeTimers();
     try {

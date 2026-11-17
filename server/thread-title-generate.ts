@@ -18,10 +18,12 @@ export async function generateThreadTitle(
   text: string,
   source: ThreadTitleSource = "first-message",
   slots: JobSlots = backgroundTextSlots,
+  mayStart: () => boolean = () => true,
 ): Promise<string | null> {
   const prompt = threadTitlePrompt(text, source);
   return new Promise<string | null>((answer) => {
     void slots.run(async () => {
+      if (!mayStart()) { answer(null); return; }
       const expiry = new AbortController();
       const timer = setTimeout(() => {
         expiry.abort();

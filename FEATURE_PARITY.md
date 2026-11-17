@@ -4,6 +4,11 @@ Audit baseline: StartupBot `c9bb31e81`, upstream `676c29f63`; integration merge
 `16e48c5c4`. Presence in the tree is not an acceptance test. Status is for the
 integration branch unless stated otherwise.
 
+Follow-up review baseline `0c403c71f45d819888eb0a8a4671c257521fac54`: Docker
+and website Actions passed, but full CI and desktop acceptance remain pending.
+Subsequent update-route changes disable the inherited server updater; see
+REVIEW_AUDIT.md and test the final commit separately.
+
 | Area | Status | Evidence and remaining work |
 | --- | --- | --- |
 | Agents, AI providers, MCP, skills, memory | Retained; acceptance NOT RUN | Core remains present; provider accounts and external services need independent authorization and live testing. |

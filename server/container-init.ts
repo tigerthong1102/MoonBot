@@ -1,7 +1,6 @@
 import { accessSync, constants, statSync } from "node:fs";
 
 export const IMAGE_INIT = "/usr/bin/tini";
-/** Set on the launcher run again under tini, so a launcher that is still process 1 there never runs itself again. */
 export const UNDER_IMAGE_INIT = "OMB_UNDER_IMAGE_INIT";
 const DOCS = 'docs/self-hosting.md, "Running on a container platform"';
 const NO_INIT = `nothing collects the processes bots leave behind, so they pile up until the container's process limit and bots fail to start ("spawn EAGAIN"). Start the container with an init (docker run --init, or tini as its entrypoint): ${DOCS}.`;

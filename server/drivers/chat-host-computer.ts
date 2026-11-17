@@ -69,7 +69,6 @@ export function hostComputerFailure(ready: Promise<unknown>, signal: AbortSignal
   });
 }
 
-/** Whether or not this bot was given this computer, a slow helper is never a missing link. */
 const NOT_A_LINK = "This is a start-up problem of the computer's tools, not a missing link: never ask the person to link or connect this computer.";
 
 export function hostComputerDidNotStart(reason: string): string {

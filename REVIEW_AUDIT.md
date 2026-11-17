@@ -1,5 +1,11 @@
 # Review audit — 2026-11-17
 
+## Cache-size helper review on ca1bd3174
+
+CONFIRMED: approxBytes algorithm narration, discussion 4600755856 / thread PRRT_kwDOVwGsl864eMxU. Remove the private sizing-helper overview, the cache's equivalent reload/parent-chain narration and matching internal-helper explanations in the same batch. Mixed privacy/security comments retain only their independent invariants. All eight changed source/test files preserve complete comment-free TypeScript syntax, declarations and embedded literals against ca1bd3174; no cache estimate, eviction/retention rule, process/permission guard or assertion changes. All 365 focused cache/DB/rotation/host-fault/container/quota/process-health/roster/size/docs/selection tests and lint PASS.
+
+CI 44099407818 on ca1bd3174 passes 32 jobs, including all Ubuntu/Windows Vitest shards, Broker/Electron unit tests, native S4 jobs and Linux installed-package smoke. macOS smoke is CANCELED with zero executed steps after failing to acquire a hosted runner; annotations explicitly report macOS arm64 capacity constraints. The aggregate FAIL is therefore retained as an infrastructure blocker, not rewritten as PASS. Docker 44099407799, connector 44099407717, docs 44099407964 and website 44099408678 PASS on that exact SHA. Docs' first attempt failed before build/tests at pnpm installation (npm ECONNRESET); only the failed job was retried and passed. A new head still requires its own completed CI and clean Codex review. No passed job is manually rerun, no manual full matrix is dispatched, and Qodo remains excluded by owner instruction.
+
 ## Codex follow-up of bb49a760f
 
 | Finding | Classification | Evidence / fix |

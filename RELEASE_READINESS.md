@@ -1,5 +1,11 @@
 # Release readiness
 
+## Approximate cache-size comment follow-up
+
+Codex's completed review of `ca1bd3174a7a68e9db06f5435054d9380f810e9d` reports a confirmed private sizing-helper narration issue in thread-cache.ts (discussion 4600755856). Remove that comment and equivalent private-helper explanations, keeping only independently necessary security/privacy invariants where applicable. The cache sizing, budget, eviction, DB reload, engine lifecycle, fault classification, quota and roster behavior remain unchanged: full comment-free TypeScript syntax, declarations and embedded literals are identical across all eight source/test files. Existing assertions and limits remain. All 365 cache/rotation/DB/engine-fault/container/quota/process-health/roster/size/docs/CI-scope tests and lint pass.
+
+[CI 44099407818](https://github.com/tigerthong1102/MoonBot/actions/runs/44099407818) on ca1bd3174 completed with 32 successful jobs. Required macOS smoke again acquired no hosted runner and executed no steps; the aggregate correctly failed. Its annotations identify macOS arm64 capacity constraints. Docker 44099407799, connector 44099407717, docs 44099407964 and website 44099408678 pass. Docs initially failed during pnpm setup with npm ECONNRESET; only that failed job was retried, then passed. Those results are specific to ca1bd3174. The comment follow-up requires its own checks and completed clean Codex review; queued or abandoned macOS jobs are not PASS. No gate is weakened or installer/release published.
+
 ## ACP context-only accounting follow-up
 
 Codex review of `bb49a760fed6f410769d1b383cb44b8036754a92` confirmed that ACP context-only updates could disable the unattended tool-count fallback (discussion 4600473965). Ignore only unnamed reports with zero input/output/cache/reasoning usage and context metadata. Identified zero-token calls and reports with real cache/reasoning usage still count; batched tools do not replace available model-call accounting. Eight new regression cases retain both sides of that contract. Four fail before the fix; the complete related batch passes 174 tests and the unattended/approval/loop/link/recovery/size/docs/CI-scope batch passes 332 tests on Node 24.22.2. Lint, typecheck, build and packaged-server smoke pass.

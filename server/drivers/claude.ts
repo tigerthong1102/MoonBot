@@ -1228,7 +1228,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         }
         return { turnId };
       }
-      // The old process and its tree end before the new one starts, so two never share the session.
       if (live) { closeSession(threadId, turn.sessionReset ? "context reset" : "spawn contract changed", turn.sessionReset ? undefined : spawnContractDiff(live.argsKey, argsKey)); await stopEngineTree(live.child); }
       // A new process gets the stable half only; the volatile half rides its first message, so a relaunch reuses the cached prefix.
       const halves = promptHalves(turn);

@@ -41,7 +41,6 @@ export interface UsageCapGate {
 
 type Marks = Record<string, { period: string; limit: number; warn?: true; reached?: true }>;
 
-/** The notice marks as the file holds them: an entry out of shape is dropped, so a bad file never stops a turn. */
 export function marksOf(value: unknown): Marks {
   const marks: Marks = {};
   if (!value || typeof value !== "object" || Array.isArray(value)) return marks;
@@ -72,7 +71,6 @@ export function createUsageCapGate(deps: {
   dataDir: string;
   caps(): UsageCapsConfig | undefined;
   botName(botId: string): string | undefined;
-  /** One notice to the owner, in the notifications list: never a card. `aboutBotId` is the bot whose work met the cap. */
   notice(aboutBotId: string | undefined, title: string, body: string): void;
   log(line: string): void;
   language?(): string | undefined;

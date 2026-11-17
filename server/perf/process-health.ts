@@ -172,7 +172,6 @@ export function processHealthLines(health: ProcessHealth): string[] {
   ];
 }
 
-/** Without its most-since-start counts and with at most four engine kinds: what is dropped first when the report must shrink. */
 export function trimmedProcessHealth(health: ProcessHealth): ProcessHealth {
   const fewer = (count: ProcessTally | Unknown) => (count === "unknown" ? count : { ...count, engines: Object.fromEntries(Object.entries(count.engines).slice(0, 4)) });
   return { ...health, now: fewer(health.now), peak: "unknown" };

@@ -6,14 +6,12 @@ export interface ThreadState {
   activeLeafId: string | null;
 }
 
-/** A conversation nobody read or wrote for this long gives its parsed transcript back; the next read reloads it from messages.db. */
 export const THREAD_IDLE_MS = 10 * 60_000;
 const SWEEP_EVERY_MS = 60_000;
 /** OMB_THREAD_CACHE_MB limits cached transcript memory in MiB. */
 export const THREAD_CACHE_MAX_BYTES = (Number(process.env.OMB_THREAD_CACHE_MB) > 0 ? Number(process.env.OMB_THREAD_CACHE_MB) : 256) * 1024 * 1024;
 const MIN_RESIDENCY_MS = 5_000;
 
-/** About what a value holds: its strings' lengths and a few bytes per field. Walks fields, never copies text. */
 export function approxBytes(value: unknown, depth = 0): number {
   if (typeof value === "string") return value.length;
   if (value === null || typeof value !== "object" || depth > 8) return 8;
@@ -48,7 +46,6 @@ export class ThreadCache {
     return entry.state;
   }
 
-  /** Rows stored without a parentId chain onto the row before them. */
   load(threadId: string, rows: ThreadRows): ThreadState {
     const { messages } = rows;
     let prev: string | null = null;

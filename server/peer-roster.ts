@@ -275,7 +275,7 @@ const ROSTER_DEPARTMENT_MAX = 60;
 const departmentLabel = (bot: RosterMember): string =>
   clip(sectionKey(bot.section).replace(/[[\]()]/g, " "), ROSTER_DEPARTMENT_MAX) || "General";
 
-/** Says who, never what they are doing: who is busy is the availability line's. */
+/** A peer roster must not disclose task content. */
 export function renderRoster(team: readonly RosterMember[], opts: RosterOptions): string {
   if (!team.length) return opts.empty;
   const listed = team.slice(0, opts.max);

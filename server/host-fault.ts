@@ -28,12 +28,9 @@ const TOOL_SERVER = new RegExp(
 const SIGNED_OUT = new RegExp(
   String.raw`\bnot logged in\b|\bplease run /login\b|\blogged out\b|\bauthentication_error\b|\binvalid (?:api key|x-api-key|bearer token)\b` +
   String.raw`|\bmissing bearer\b|\bauthentication required\b|\bOAuth token (?:has )?expired\b|(?:^API Error:? |\bHTTP |\(status |\bunexpected status |\bstatus code:? )401\b`, "i");
-/** An engine that exited before its result: its stderr tail follows the colon, and names a cause only for what an
- * exit itself shows (memory, disk, processes), never a tool server it merely mentions. */
 const ENGINE_EXIT = /^([\w.-]+ exited (?:-?\d+|null)(?: \(signal \w+\))? before [\w/]+)[:;]/;
 
-/** Which such fault a failure's own words name; null for anything else, the AI's own errors and its provider's among
- * them. Classify the system's failure text and stop reason only: never a name, a request or a model's reply. */
+/** Engine-fault recovery must not be inferred from user text or model replies. */
 export function hostFaultOf(failure: string, stopReason?: string | null): HostFault | null {
   if (PROCESS_START.test(failure)) return "process_start";
   if (DISK_FULL.test(failure)) return "disk_full";

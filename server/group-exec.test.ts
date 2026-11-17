@@ -52,6 +52,14 @@ describe.skipIf(!posix)("a child in a group of its own", () => {
     await expect(result).rejects.toMatchObject({ killed: true });
   });
 
+  it("does not retain output beyond maxBuffer while termination is pending", async () => {
+    const script = 'process.on("SIGTERM", () => {}); setInterval(() => process.stdout.write("x".repeat(65536)), 1)';
+    await expect(execFileInGroupAsync(process.execPath, ["-e", script], { maxBuffer: 1024 })).rejects.toMatchObject({
+      code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+      stdout: "x".repeat(1024),
+    });
+  });
+
   it("stopGroup ends a spawned child's group, and does nothing once the child has exited", async () => {
     const { file, args } = script();
     const shell = spawn(file, args, { stdio: "ignore", ...OWN_GROUP });

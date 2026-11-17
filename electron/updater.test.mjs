@@ -10,6 +10,7 @@ import { cloudPageSenderAllowed } from "./cloud-home.mjs";
 import { otherOwnClouds, ownCloud } from "./cloud-list.mjs";
 import environments from "./environments.cjs";
 import localOriginModule from "./local-origin.cjs";
+import { unavailableStartupBotCloud } from "./startupbot-identity.mjs";
 
 const LOCAL = "http://127.0.0.1:8799";
 const CLOUD = "https://home-7f3k2.fly.dev";
@@ -47,6 +48,7 @@ function mainRule() {
   // The bot link hears every change of the sign-in (bot-link-main.mjs ends a link whose account or Cloud changed).
   const botLink = { look: vi.fn(async () => {}) };
   const context = vm.createContext({
+    unavailableStartupBotCloud,
     ipcMain: { handle: () => {}, on: (channel, listener) => listeners.set(channel, listener) },
     senderIsLocal: localOriginModule.isLocalSender, workspaceSenderAllowed: environments.workspaceSenderAllowed, cloudPageSenderAllowed, myCloudOrigin, otherOwnClouds,
     activeEnvironment: environments.activeEnvironment, rendererOrigin: () => LOCAL, desktopRemoteAccess: false,

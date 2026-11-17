@@ -10,6 +10,9 @@ import { waitForExit } from "./testing/cleanup.ts";
 import { readRegistry, writeRegistry } from "./testing/registry.ts";
 
 const key = "isolated-trust-capability";
+let uploadEntered = false;
+let releaseUpload: (() => void) | undefined;
+let blockUpload = false;
 let fixture: VerificationServer;
 let child: ChildProcess;
 let broker: Server;
@@ -71,6 +74,7 @@ beforeAll(async () => {
     const put = req.method === "PUT" ? /^\/upload\/(\d+)$/.exec(req.url ?? "") : null;
     if (put) {
       uploads[Number(put[1]) - 1]!.bytes = raw;
+      if (blockUpload) { uploadEntered = true; await new Promise<void>((resolve) => { releaseUpload = resolve; }); }
       return res.end();
     }
     const body = raw ? JSON.parse(raw) : {};
@@ -431,6 +435,23 @@ it("shows each outbound batch recipient and amount with explicit preview truncat
     calls: [{ app: "Gmail", label: "Send email" }, { app: "Stripe", label: "Create refund" }],
   });
   await api("POST", `/api/threads/${b.threadId}/respond`, { requestId: card.card.requestId, behavior: "deny" });
+  expect((await held).body.result.isError).toBe(true);
+  expect(relayed).toHaveLength(before);
+});
+
+it("refuses a send when its write scope is revoked during attachment upload", async () => {
+  const b = await bot("Upload scope race");
+  const file = join(fixture.info.dataDir, "workspaces", b.id, "report.pdf");
+  mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, "%PDF-1.4 report");
+  const token = await mint(b.id, b.threadId), before = relayed.length;
+  blockUpload = true; uploadEntered = false;
+  const held = relay(token, "GMAIL_SEND_EMAIL", { to: "owner@fixture.test", attachment: file });
+  try {
+    const card = await pending(b.threadId);
+    await api("POST", `/api/threads/${b.threadId}/respond`, { requestId: card.card.requestId, behavior: "allow" });
+    await expect.poll(() => uploadEntered, { timeout: 5_000 }).toBe(true);
+    expect((await api("PATCH", `/api/bots/${b.id}`, { connectorScopes: { apps: { gmail: "read" } } })).status).toBe(200);
+  } finally { blockUpload = false; releaseUpload?.(); releaseUpload = undefined; }
   expect((await held).body.result.isError).toBe(true);
   expect(relayed).toHaveLength(before);
 });

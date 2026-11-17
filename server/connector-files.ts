@@ -1,8 +1,7 @@
 // A connected-app tool that takes a file (GOOGLEDRIVE_UPLOAD_FILE's file_to_upload, a Gmail attachment) reads it from
 // Composio's file storage by `s3key`: Composio runs the tool on its own servers and never sees this computer's disk. A
 // bot that names a file in its working folder (C:\Users\…\report.pdf) gets the file uploaded here first, and the call
-// carries the `{ name, mimetype, s3key }` Composio asks for. Without this, every such call failed at Composio with a
-// storage error the bot could not act on. Files are read before the call's checks and approval card (which lists them),
+// carries the `{ name, mimetype, s3key }` Composio asks for. Files are read before the call's checks and approval card,
 // and uploaded only after its last check, right before it goes out.
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";

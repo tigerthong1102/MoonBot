@@ -1,8 +1,10 @@
 import path from "node:path";
 
+export const startupBotUserDataDir = appData => path.join(appData, "StartupBot");
+
 export function configureStartupBotIdentity(app) {
   app.setName("StartupBot");
-  app.setPath("userData", path.join(app.getPath("appData"), "StartupBot"));
+  app.setPath("userData", startupBotUserDataDir(app.getPath("appData")));
 }
 
 export function startupBotDataDir(home, override) {

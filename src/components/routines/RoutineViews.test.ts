@@ -16,7 +16,7 @@ function list(props: Partial<Parameters<typeof RoutineList>[0]> = {}) {
   return renderToStaticMarkup(createElement(RoutineList, { routines: [routine], runs: [run], onOpen: vi.fn(), onLogs: vi.fn(), ...props }));
 }
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); setLocale("en"); });
 
 describe("routine list", () => {
   it("warns on an enabled routine whose bot is paused, with a way to swap it in", () => {
@@ -67,10 +67,10 @@ describe("routine list", () => {
     setLocale("en");
   });
   it("says a coded run result in the app language, and the run's own words otherwise", () => {
-    const waiting = { ...run, output: undefined, attention: "Starting again shortly after OpenMausBot restarted while it ran", attentionCode: "routines.server.retryAfterRestart" } as RoutineRun;
-    expect(list({ runs: [waiting] })).toContain("Starting again shortly after OpenMausBot restarted while it ran");
+    const waiting = { ...run, output: undefined, attention: "Starting again shortly after StartupBot restarted while it ran", attentionCode: "routines.server.retryAfterRestart" } as RoutineRun;
+    expect(list({ runs: [waiting] })).toContain("Starting again shortly after StartupBot restarted while it ran");
     setLocale("pt-br");
-    expect(list({ runs: [waiting] })).toContain("Vai começar novamente em instantes: o OpenMausBot reiniciou durante a execução");
+    expect(list({ runs: [waiting] })).toContain("Vai começar novamente em instantes: o StartupBot reiniciou durante a execução");
     expect(list()).toContain("Brief prepared.");
     setLocale("en");
   });

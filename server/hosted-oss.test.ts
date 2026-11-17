@@ -32,7 +32,7 @@ function call(path: string, local = false, token?: string) {
 beforeAll(async () => {
   port = await freePortBlock([0, 1], 35_000, 5_000);
   home = mkdtempSync(join(tmpdir(), "omb-hosted-oss-"));
-  pairedToken = new SessionRegistry({ file: join(home, ".openmausbot", "sessions.json") }).issue({ label: "fixture", scopes: ["admin", "client"] }).token;
+  pairedToken = new SessionRegistry({ file: join(home, ".startupbot", "sessions.json") }).issue({ label: "fixture", scopes: ["admin", "client"] }).token;
   child = spawn(process.execPath, [join(import.meta.dirname, "index.ts")], { env: {
     ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),

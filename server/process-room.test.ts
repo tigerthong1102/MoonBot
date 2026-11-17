@@ -780,6 +780,8 @@ describe("browsers under the pids limit", () => {
     expect(budget.short(BROWSER_TASKS, 0)).toBe(false);
     budget.reserveBrowser("person");
     expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+    budget.releaseBrowser("person");
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(false);
   });
 
   it("renews an expired reservation when a stopped browser starts again", () => {

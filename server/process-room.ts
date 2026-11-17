@@ -122,6 +122,8 @@ export class ProcessBudget {
     this.browsers.set(session, this.now());
   }
 
+  releaseBrowser(session: string): void { this.browsers.delete(session); }
+
   /** Null once this session's browser may run: it already does, or its processes fit. Otherwise it waits for room until
    * `until`, then answers why it cannot open. */
   private async enterBrowser(session: string, until: number): Promise<string | null> {

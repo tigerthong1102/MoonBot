@@ -132,7 +132,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
         if (!attachesToChrome(spec.env ?? {})) browserRoom.entered(session);
         return chromeLauncher.started(session, spec);
       },
-      stopped: (session) => chromeLauncher.stopped(session),
+      stopped: (session) => { processBudget.releaseBrowser(session); chromeLauncher.stopped(session); },
     },
     room: browserRoom,
     relayCommand: (spec, session, command, timeoutMs) => relayCommand(spec, session, command, timeoutMs).catch((error: unknown) => {

@@ -41,3 +41,11 @@ Four Codex threads (design exception, process-group timeout, crash-guard comment
 | Urgent background job transfers overflow to an ordinary waiter | CONFIRMED | Retire the completed slot before admitting a queued job, with a regression for limit one and an urgent overflow. |
 
 The three focused suites for the browser reservation, job slots, and preview passed 61 tests locally. Final-head CI and end-to-end review remain outstanding.
+
+## CI and Codex follow-up against 3acbf38f9303427c26bfae8c8a1af4fa509356fd
+
+Run 44009054591 completed with failures. The authentication cascades traced to test fixtures writing `.openmausbot` while StartupBot reads `.startupbot`; production authorization was retained. Other confirmed failures were the updater VM missing the disabled cloud transport, stale product text, server/catalog text disagreement, and a locale-switching test lacking unconditional cleanup.
+
+Latest Codex findings: connector header history removed; confirmed browser shutdown now releases process-budget reservations; emitted thread links use StartupBot with legacy parsing retained; subprocess retained output is bounded after overflow; connector permissions are checked again after attachment upload. Focused regression results: 87 resource/link/process tests, 25 trust-control tests including revocation during upload, and 444 contract/updater/UI/ratchet tests passed locally. Build and lint passed. Full failing-file rerun and final-head CI remain required.
+
+The delayed numeric process-group SIGKILL finding remains open; no claim of full termination safety is made. Updater source and current repository support URL remain intentional; neither was changed back to upstream.

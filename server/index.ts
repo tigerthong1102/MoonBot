@@ -14429,29 +14429,25 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             : req.headers["mcp-session-id"],
           async () => {
             requireActiveInternalCapability();
-            const fresh = store.bot(internalCapability.botId);
-            if (!fresh || fresh.composio === false || !composio.configured(cfg) || managedPolicy.appsCallRefusal(connectorCalls, serviceSlugs)) refuseDispatch("Connected apps were disabled while this call waited.");
-            const freshAccess = connectorAccessDecision(fresh.connectorScopes, connectorCalls, serviceSlugs);
-            if (!freshAccess.ok || (opaque && fresh.connectorTools !== undefined && !sandbox.open(fresh)) ||
-                (call.kind === "tools" && !evaluateConnectorTools(call.names, fresh.connectorTools, serviceSlugs).allowed) ||
-                (call.kind === "unrecognized" && fresh.connectorTools !== undefined)) {
-              refuseDispatch("This bot's connected-app permissions changed. The call was not run.");
-            }
+            const checkDispatch = (final = false) => {
+              requireActiveInternalCapability();
+              const fresh = store.bot(internalCapability.botId);
+              if (!fresh || fresh.composio === false || !composio.configured(cfg) || managedPolicy.appsCallRefusal(connectorCalls, serviceSlugs)) refuseDispatch("Connected apps were disabled while this call waited.");
+              const freshAccess = connectorAccessDecision(fresh.connectorScopes, connectorCalls, serviceSlugs);
+              if (!freshAccess.ok || (opaque && fresh.connectorTools !== undefined && !sandbox.open(fresh)) ||
+                  (call.kind === "tools" && !evaluateConnectorTools(call.names, fresh.connectorTools, serviceSlugs).allowed) ||
+                  (call.kind === "unrecognized" && fresh.connectorTools !== undefined)) refuseDispatch("This bot's connected-app permissions changed. The call was not run.");
+              if (outboundTool && final) {
+                try { outboundHold.beforeDispatch({ bot: fresh, threadId: internalCapability.threadId, tool: outboundTool, opaque, fullAccess: fullAccess && sendsFreely(), approved: outboundApproved }); }
+                catch (error) { refuseDispatch(error instanceof Error ? error.message : String(error)); }
+              }
+            };
+            checkDispatch();
             const reservedDrafts = internalCapability.gmailDrafts ??= new Set();
             const nextDrafts = new Set(reservedDrafts);
             const draftReservation = reserveGmailDrafts(connectorCalls, nextDrafts);
             if (draftReservation) refuseDispatch(draftReservation);
-            if (outboundTool) {
-              try {
-                outboundHold.beforeDispatch({
-                  bot: fresh, threadId: internalCapability.threadId, tool: outboundTool, opaque,
-                  fullAccess: fullAccess && sendsFreely(), approved: outboundApproved,
-                });
-              } catch (error) {
-                refuseDispatch(error instanceof Error ? error.message : String(error));
-              }
-            }
-            const sent = files.upload ? await files.upload().catch((error: unknown) => refuseDispatch(error instanceof Error ? error.message : String(error))) : undefined; requireActiveInternalCapability(); for (const key of nextDrafts) reservedDrafts.add(key); return sent as typeof body | undefined;
+            const sent = files.upload ? await files.upload().catch((error: unknown) => refuseDispatch(error instanceof Error ? error.message : String(error))) : undefined; checkDispatch(true); for (const key of nextDrafts) reservedDrafts.add(key); return sent as typeof body | undefined;
           }, undefined, teamConnections.via(actor.access)[1],
         ); } catch (error) {
           if (dispatchRefusal) return refuseOutbound(dispatchRefusal);

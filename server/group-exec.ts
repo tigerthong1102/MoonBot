@@ -63,9 +63,14 @@ export function execFileInGroup(
     callback(error ? Object.assign(error, { cmd, stdout, stderr, ...(stopped ? { killed: true } : {}) }) : null, stdout, stderr);
   };
   const child = spawn(file, args, { ...rest, ...OWN_GROUP, stdio: ["pipe", "pipe", "pipe"] });
+  let retainedBytes = 0;
   const take = (which: "stdout" | "stderr") => (chunk: string) => {
-    if (which === "stdout") stdout += chunk; else stderr += chunk;
-    if (!overflow && stdout.length + stderr.length > maxBuffer) { overflow = true; stop(); }
+    const bytes = Buffer.from(chunk);
+    const available = Math.max(0, maxBuffer - retainedBytes);
+    const retained = bytes.subarray(0, available).toString("utf8");
+    if (which === "stdout") stdout += retained; else stderr += retained;
+    retainedBytes += Math.min(bytes.length, available);
+    if (!overflow && bytes.length > available) { overflow = true; stop(); }
   };
   child.stdout!.setEncoding("utf8").on("data", take("stdout"));
   child.stderr!.setEncoding("utf8").on("data", take("stderr"));

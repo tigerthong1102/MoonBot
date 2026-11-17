@@ -36,7 +36,7 @@ StartupBot releases are not yet available from this repository.
 <br>
 <br>
 
-<img src="docs/screenshots/hero.png" alt="OpenMausBot — a Telegram-style chat app where every chat is a real AI agent" width="900">
+<img src="branding/startupbot-original.png" alt="StartupBot" width="240">
 
 </div>
 
@@ -304,14 +304,16 @@ See [Run OpenMausBot from scripts and CI](docs/headless-cli.md).
 
 ## Quick start
 
-**Released builds ([latest release](https://github.com/milind-soni/OpenMausBot/releases/latest)):** the harness server is embedded, so no separate server setup is required.
+StartupBot installers have not passed the release gates yet. No public StartupBot download is available from this repository. Upstream installers are separate products and must not be presented as StartupBot builds.
 
-| | Download | Install |
-|---|---|---|
-| **macOS** (Apple silicon) | [OpenMausBot.dmg](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot.dmg) | Drag it to Applications, open it. Signed & notarized. |
-| **macOS** (Intel) | [OpenMausBot-intel.dmg](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-intel.dmg) | Same app, built for Intel Macs. Signed & notarized. |
-| **Windows** (x64) | [OpenMausBot-setup.exe](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-setup.exe) | Run it — one-click, per-user, no admin rights. The installer isn't code-signed yet, so SmartScreen shows "unknown publisher": **More info → Run anyway**. |
-| **Ubuntu 24.04** (x64) | [OpenMausBot-amd64.deb](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-amd64.deb) · [OpenMausBot.AppImage](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot.AppImage) | Install the `.deb` with APT (recommended), or make the AppImage executable and run it. Beta; GNOME is the supported desktop. |
+| Platform | StartupBot availability |
+|---|---|
+| macOS Apple Silicon / Intel | Not released; internal package and clean-machine verification pending. |
+| Windows | Not released; installer and clean-machine verification pending. |
+| Linux | Not released; package and restricted-host sandbox verification pending. |
+| iOS / Android | Not released; native builds and device validation pending. |
+
+See [release readiness](RELEASE_READINESS.md) for build evidence and blockers. Only link downloadable StartupBot artifacts after they exist and are approved.
 
 See the [Ubuntu Desktop guide](docs/linux-desktop.md) for installation, capabilities, and troubleshooting.
 Any desktop build can also open the bots of another Windows, macOS, or Ubuntu computer over Tailscale; see [open one computer's bots from another computer](docs/desktop-companion.md).
@@ -320,7 +322,7 @@ Any desktop build can also open the bots of another Windows, macOS, or Ubuntu co
 **From source:**
 
 ```sh
-git clone https://github.com/milind-soni/OpenMausBot && cd OpenMausBot
+git clone https://github.com/tigerthong1102/MoonBot && cd MoonBot
 pnpm install
 
 pnpm dev:server    # harness server → 127.0.0.1:8799

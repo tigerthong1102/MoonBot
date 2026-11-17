@@ -30,11 +30,8 @@ export interface PerfHostDeps {
   timer?: false;
   now?: () => number;
   sampler?: ProcessSampler;
-  /** Tests: the event-loop delay recorder. */
   stalls?: LoopStalls;
-  /** Tests: the process-room recorder. */
   processes?: ProcessHealthRecorder;
-  /** The engine processes the server tracks, with the threads each runs (engine-memory, where turns wait for room). */
   engines?: () => ReadonlyArray<{ pid: number; threads: readonly string[] }>;
 }
 

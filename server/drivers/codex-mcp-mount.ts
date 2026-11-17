@@ -57,10 +57,8 @@ export function boxAdmittedEnv(custom: { box?: { allowEnv: string[] } }): Set<st
   return new Set(botBox.enabled() ? custom.box?.allowEnv : []);
 }
 
-/** One of OpenMausBot's own stdio proxies as Codex's streamable HTTP server, when enabled:
- * no proxy process. The token stays in Codex's environment under the name the proxy read it from, and argv names it only
- * (`bearer_token_env_var`); the other headers (the agents server's settings, a tool limit) go as `http_headers`. Checked
- * on codex-cli 0.50.0, 0.80.0, 0.117.0, 0.146.0 and 0.169.0. */
+/** Codex CLI 0.50.0, 0.80.0, 0.117.0, 0.146.0 and 0.169.0 support bearer_token_env_var and http_headers.
+ * Bearer credentials must remain in environment variables, never argv. */
 function mountOwnOverHttp(appServerArgs: string[], env: Record<string, string | undefined>, prefix: string, server: StdioMcpSpec,
   approval: McpApprovalMode, written: Set<string>): boolean {
   const http = ownMcpHttpEnabled() ? ownMcpOverHttp({ name: prefix, command: server.command, args: server.args, env: server.env }) : null;

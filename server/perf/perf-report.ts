@@ -26,9 +26,7 @@ export interface PerfSources {
   live: LiveTurnView[];
   limits: EngineLimitsReport | null | undefined;
   process: ProcessReport | null;
-  /** The loop's delays measured all the time, and the blocking work the server times. */
   stalls?: StallsReport | null;
-  /** How close the server is to its process and memory limits; null where nothing records it. */
   processes?: ProcessHealth | null;
 }
 

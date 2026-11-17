@@ -11,14 +11,12 @@ export function ownMcpHttpEnabled(env: NodeJS.ProcessEnv = process.env, boxed: b
 
 const LOOPBACK = ["127.0.0.1", "localhost", "::1"];
 
-/** An engine set up to use a proxy for HTTP (HTTPS_PROXY, ALL_PROXY) would send its calls to this server's loopback URL
- * there too: the loopback names join NO_PROXY and no_proxy, both spellings, keeping whatever either held. */
+/** HTTP proxy settings can route loopback requests through a proxy unless NO_PROXY/no_proxy excludes those hosts. */
 export function withLoopbackNoProxy(env: Record<string, string | undefined>): void {
   const hosts = [env.NO_PROXY, env.no_proxy].flatMap((value) => (value ?? "").split(",")).map((host) => host.trim()).filter(Boolean);
   env.NO_PROXY = env.no_proxy = [...new Set([...hosts, ...LOOPBACK])].join(",");
 }
 
-/** `http` as given; an engine that will reach this server by URL gets the loopback names in its NO_PROXY first. */
 export function loopbackUnproxied(env: Record<string, string | undefined>, http: boolean): boolean {
   if (http) withLoopbackNoProxy(env);
   return http;
@@ -26,8 +24,7 @@ export function loopbackUnproxied(env: Record<string, string | undefined>, http:
 
 type StdioMount = { command?: unknown; args?: unknown; env?: unknown; alwaysLoad?: unknown };
 
-/** One --mcp-config entry as Claude Code's HTTP form when it is one of OpenMausBot's own stdio proxies (Claude Code 1.0.60,
- * 2.0.0, 2.1.257 and 2.1.325 checked: `type: "http"` with headers connects and lists tools), else null. `alwaysLoad` stays. */
+/** Claude Code 1.0.60, 2.0.0, 2.1.257 and 2.1.325 support MCP entries with type: "http" and headers. */
 export function claudeOwnHttpMount(server: unknown): Record<string, unknown> | null {
   const mount = server as StdioMount | null;
   if (!mount || typeof mount.command !== "string" || !Array.isArray(mount.args) || !mount.env || typeof mount.env !== "object") return null;
@@ -45,8 +42,7 @@ export function claudeOwnMcpOverHttp(servers: Record<string, unknown>, enabled: 
   return converted;
 }
 
-/** ACP engine instances whose agent said, in its `initialize` answer, that it reaches MCP servers by URL
- * (`agentCapabilities.mcpCapabilities.http`). The ACP spec lets a client send an `http` server only to such an agent. */
+/** ACP permits an http MCP server only when initialize reports agentCapabilities.mcpCapabilities.http. */
 const acpHttpAgents = new Set<string>();
 
 export function noteAcpMcpHttp(instanceId: string, init: unknown): void {
@@ -55,8 +51,6 @@ export function noteAcpMcpHttp(instanceId: string, init: unknown): void {
   else acpHttpAgents.delete(instanceId);
 }
 
-/** An ACP engine gets OpenMausBot's own servers by URL once its agent has said it can take them (its first session starts
- * with the stdio form), unless its servers come from the launcher's own configuration. */
 export function acpOwnMcpOverHttp(instanceId: string, fromLaunch: boolean, enabled: boolean = ownMcpHttpEnabled()): boolean {
   return enabled && !fromLaunch && acpHttpAgents.has(instanceId);
 }

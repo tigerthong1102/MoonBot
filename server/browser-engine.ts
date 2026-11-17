@@ -581,7 +581,7 @@ export function agentBrowserIntegration(input: {
   /** The Chrome OMB prepared for the engine to start (server/browser/chrome/launcher.ts); unused when attaching. */
   launcher?: Record<string, string>;
   dataDir?: string;
-  /** /dev/shm is too small for Chrome's shared memory; read from the host when absent. */
+  /** A small /dev/shm can exhaust Chrome shared memory. */
   smallShm?: boolean;
 }): { command: string; args: string[]; env: Record<string, string> } {
   const sourceEnv = input.env ?? process.env;

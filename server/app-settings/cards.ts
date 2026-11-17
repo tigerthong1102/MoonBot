@@ -11,9 +11,7 @@ export interface SettingsCard {
   text: string;
   /** What the bot is told to say around the card. */
   guide: string;
-  /** The card is an action, not a switch: the bot is told nothing about on or off. */
   action?: true;
-  /** Where the control is in Settings, when that is not `where` → `label`. */
   path?: string;
 }
 

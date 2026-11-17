@@ -14,7 +14,6 @@ export interface NudgeTurn {
   tools: boolean;
   /** app_settings set would take a change in this turn: the owner's own conversation, not a guest's. */
   owner: boolean;
-  /** The engine and model this turn runs on. */
   model: string;
 }
 

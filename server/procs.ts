@@ -172,9 +172,7 @@ function linuxDescendantsStopped(child: ChildProcess): boolean {
   return true;
 }
 
-/** Whether every process still in this group has exited and only waits to be collected. Where nothing collects orphans
- * (Node as a container's process 1) such members stay for good, and kill(-pgid, 0) goes on succeeding for them. False
- * when a member runs, when none is found, or when /proc can't say. */
+/** Unreaped zombies keep a POSIX process group observable to kill(-pgid, 0). */
 export function linuxGroupOnlyExited(group: number, list: () => string[] = () => readdirSync("/proc"), stat: (pid: number) => string = (pid) => readFileSync(`/proc/${pid}/stat`, "utf8")): boolean {
   let entries: string[];
   try { entries = list(); } catch { return false; }

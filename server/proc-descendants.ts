@@ -71,7 +71,6 @@ export function signalTree(tree: readonly TreeProcess[], signal: NodeJS.Signals)
   }
 }
 
-/** SIGTERM to every process of `tree`, SIGKILL to those still there after `graceMs`. Resolves once none is left or the kill was sent. */
 export async function stopTree(tree: readonly TreeProcess[], graceMs: number, platform: NodeJS.Platform = process.platform): Promise<void> {
   let left = stillRunning(tree, platform);
   if (!left.length) return;

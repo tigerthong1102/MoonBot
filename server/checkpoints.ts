@@ -200,7 +200,6 @@ function gitEnv(shadow: string, cwd: string): NodeJS.ProcessEnv {
   return env;
 }
 
-/** A timeout reports a killed child; a `signal` cancellation also stops the child, and is told apart by the signal. */
 function gitFailure(command: string, err: Error & { killed?: boolean }, stderr: string, signal?: AbortSignal): Error {
   if (err.killed && err.name !== "AbortError" && !signal?.aborted) {
     return new GitTimeoutError(`git ${command} timed out after ${GIT_TIMEOUT_MS / 1000} s`);

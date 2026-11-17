@@ -10,31 +10,20 @@ import { CAP_FIELDS, capsFromEnv, capStates, effectiveCaps, reachedCap, type Cap
 export const USAGE_CAP_CODE = "spend_cap";
 
 export interface UsageCapView {
-  /** What a reached cap stops now: the environment's choice when it makes one, else the saved one. */
   stops: CapStops;
-  /** What `config.json` holds, which a save keeps when the environment makes the choice. */
   savedStops: CapStops;
-  /** The saved caps, as `config.json` holds them. */
   server: CapLimits;
   bots: Record<string, CapLimits>;
-  /** Fields the environment sets: they win over the saved ones and cannot be changed here. `values` is what it sets. */
   env: { stops: boolean; server: Array<keyof CapLimits>; values: { stops?: CapStops; server: CapLimits } };
-  /** Every cap in force with its use now. */
   caps: CapState[];
 }
 
 export interface UsageCapGate {
-  /** Throws the refusal (409, `spend_cap`) of a turn a reached cap keeps from starting. */
   assertTurn(botId: string | undefined, personWaiting: boolean, language?: string): void;
-  /** The same refusal as words, or null when the work may start. */
   refusal(botId: string | undefined, personWaiting: boolean, language?: string): string | null;
-  /** A scheduled occurrence that will not run: the cause its counted `missed` row is kept under, and that row's line. */
   routineSkip(botId: string, routineId: string): { behind: string; resetsAt: number; words(count: number): RoutineLine } | null;
-  /** A run already queued (a webhook's, an app event's) that will not start; a run started by hand counts as a person's. */
   runText(botId: string, trigger: string | undefined, language?: string): string | null;
-  /** What a bot handing work to `botId` is told when nobody is waiting on it; null when the hand-off may go. */
   handoff(botId: string, origin: "user" | "outside" | undefined): string | null;
-  /** After a turn's usage is booked: the 80% line and the reached notice, once each per cap per period. */
   booked(botId: string): void;
   view(): UsageCapView;
 }

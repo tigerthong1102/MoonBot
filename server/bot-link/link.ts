@@ -136,16 +136,12 @@ export interface BotLinkDeps {
     brief(node: HandoffView): { from: { botId: string; name: string }; text: string; person?: string } | undefined;
 
     problem(node: HandoffView): string | undefined;
-    /** A room turn ended: its answer is the member's line in the room. True when `child` was a room turn. */
     reply(child: HandoffView, parent: HandoffView | undefined, name: string): boolean;
-    /** Whether that bot of another place is a member of this room. */
     member(groupId: string, linked: string): boolean;
-    /** On the Cloud: a computer's link ended for good, because it did not connect for the link's whole term. */
     expired?(peer: string, placeName: string): void;
   };
   /** The coordinator should look again: a place came back, or went. */
   kick(): void;
-  /** The other places' bots changed: one came, went or changed, or a place was linked or unlinked. */
   directoryChanged?(): void;
   /** On the Cloud: ends the session a computer's link used. */
   revoke?(sessionId: string): void;

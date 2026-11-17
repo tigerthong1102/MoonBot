@@ -1,10 +1,8 @@
 import { readFileSync } from "node:fs";
-// cgroup paths are POSIX paths on every platform this reads them, and in tests run on Windows.
+// cgroup paths use POSIX separators.
 import { posix } from "node:path";
 import { boxMemory } from "./box-memory.ts";
 
-/** One open browser with one page in the server image (Chromium 156, agent-browser 0.37.0): 13 processes, about 160
- * threads (each counts against a pids limit) and about 350 MB. */
 const BROWSER_THREADS = 160;
 const BROWSER_BYTES = 400 * 1024 * 1024;
 const BROWSER_SHARE = 0.4;
@@ -14,7 +12,6 @@ const ROOM_WAIT_MS = 30_000;
 type Read = (path: string) => string | null;
 const readText: Read = (path) => { try { return readFileSync(path, "utf8"); } catch { return null; } };
 
-/** The tightest `pids.max` from `at` up to the hierarchy's root under `root`. */
 function tightest(read: Read, root: string, from: string): number | null {
   let limit: number | null = null;
   for (let at = from.trim(); ; at = posix.dirname(at)) {
@@ -24,9 +21,7 @@ function tightest(read: Read, root: string, from: string): number | null {
   }
 }
 
-/** The tightest task limit over this process's own cgroup and its parents (a container's --pids-limit, a systemd
- * TasksMax): cgroup v2 `pids.max` and v1's under the pids controller. A hybrid host lists both, and its limit is often
- * only in v1's, so both are read. Null with no limit, and off Linux. */
+/** Linux cgroup v2 uses pids.max; v1 uses the pids controller. Hybrid hosts can enforce limits in either hierarchy. */
 export function pidsLimit(read: Read = readText): number | null {
   const membership = read("/proc/self/cgroup");
   if (membership === null) return null;
@@ -57,7 +52,6 @@ export function defaultBrowserRoomSize(env: NodeJS.ProcessEnv = process.env): nu
   return size;
 }
 
-/** Eviction must not close a temporary browser held by a running turn. */
 export function spareForRoom(spare: { idleMs: number; savesSignIns: boolean } | null, turn: { holds: boolean; idleMs: number }): number | null {
   if (spare === null) return null;
   if (!turn.holds) return spare.idleMs;
@@ -67,7 +61,6 @@ export function spareForRoom(spare: { idleMs: number; savesSignIns: boolean } | 
 export interface BrowserRoomOptions {
   max(): number;
   spare(session: string): number | null;
-  /** Closes an unused browser; true once it is gone. */
   close(session: string): Promise<boolean>;
   admit?(session: string, admitted?: (rollback: () => void) => void): Promise<string | null>;
   waitMs?: number;

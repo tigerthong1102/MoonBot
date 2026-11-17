@@ -92,7 +92,6 @@ export interface ProcessSamplerOptions {
   engines?: () => ReadonlyMap<number, string>;
   /** After each timed sample: other once-a-sample checks ride the same timer. */
   afterSample?: () => void;
-  /** Each sample's rows with their buckets, before the rows are dropped. */
   seen?: (rows: readonly ProcessRow[], buckets: ReadonlyMap<number, ProcessBucket>, truncated: boolean) => void;
 }
 

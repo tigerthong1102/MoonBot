@@ -66,15 +66,13 @@ export class OutboundRequestService {
   }
 }
 
-/** One app action on a card, with the files of this computer it will upload. */
 export type CardCall = ConnectorCall & { files?: ReadonlyArray<{ name: string; path: string; bytes: number }> };
 
 function fileSize(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-/** What a "Send on your behalf?" card shows: each app action, the files it uploads in full, and its arguments cut at 400
- * characters. The files come first so no argument can push one out of sight. */
+/** Approval cards must disclose every file upload before truncated action arguments. */
 export function outboundCard(outboundCalls: CardCall[]): { app: string | null; calls: { app: string | null; label: string }[]; summary: string } {
   const calls = outboundCalls.map((call) => {
     const { app, label } = describeTool(call.slug);

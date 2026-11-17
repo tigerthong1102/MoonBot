@@ -13,7 +13,6 @@ export interface BurstRecord {
   threadId: string;
   cardMessageId?: string;
   phase: BurstPhase;
-  /** Times a restart cut its merge turn off. */
   mergeRestarts?: number;
   task: string;
   instructions: string;
@@ -35,7 +34,6 @@ export interface BurstChild {
   status: BurstChildStatus;
   threadId?: string;
   attempts: number;
-  /** Times a restart cut this part off while it ran. */
   restarts?: number;
   result?: string;
   error?: string;

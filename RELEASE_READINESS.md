@@ -1,5 +1,13 @@
 # Release readiness
 
+## MCP comment and Windows fixture lifecycle follow-up
+
+Codex review of `59cf02ec602fc0ebec4f71527b9940537074e639` confirms the private MCP streaming-helper overview (discussion 4601298402). Remove it and equivalent added internal narration, retaining the external HTTP timeout fact, public contracts and security/privacy invariants. Complete TypeScript syntax, declarations and embedded literals are identical across 61 comment-only files. Existing streaming/keepalive/JSON, approval, quota, process and data behavior is unchanged.
+
+[CI 44107135167](https://github.com/tigerthong1102/MoonBot/actions/runs/44107135167) has 31 successful jobs. Windows shard 8/8 reports all 5,647 tests PASS but fails teardown RPC because asynchronous cleanup logs remain pending. The bot-link fixture discarded the directory-removal Promise and did not await it in afterEach. Return and await cleanup; two delayed-lifecycle regressions fail before the fix and pass afterward. Local validation passes 543 MCP/driver/process/quota/connector/guard tests and 189 lifecycle/engine/usage/health tests, with one platform SKIP. Batches overlap. All 48 bot-link tests, lint, typecheck, production build and isolated packaged-server smoke PASS. The preceding 3b974053d pairing timeout did not recur on this Windows run; its precise timing cause is not proven, and diagnostics remain without relaxed assertions or deadlines.
+
+Required macOS smoke again acquired no hosted arm64 runner and ran no steps; the aggregate correctly FAILS. Docker 44107135642, connector 44107135562, docs 44107135656 and website 44107135524 PASS on 59cf02ec6. New-head required checks and completed clean Codex review remain pending. READY TO MERGE: NO until those gates pass; source merge does not establish commercial distribution rights. Updater/release stay disabled. No installer, release or deployment is produced.
+
 ## Routine cap-reset comment follow-up
 
 Codex's completed review of `3b974053df35b40a818b5ddedc6411f957370ca2` confirms a scheduling-branch narration issue (discussion 4601062296). Remove it and equivalent newly added internal routine comments. Complete TypeScript syntax, declarations and embedded literals remain identical in both routine files. The real-ledger one-shot cap-reset regression and every assertion/deadline remain unchanged. Local Node 24.22.2 verification: all 501 routine/cap/HTTP-link/size/docs/CI-scope tests PASS; lint, typecheck and production build PASS. The earlier focused 309-test batch overlaps and is not summed.

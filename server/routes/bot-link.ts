@@ -64,7 +64,6 @@ export interface BotLinkRouteDeps {
   /** The link was turned on here. */
   turnedOn?(): void;
   seenMs?: number;
-  /** What this place says its version reads; a test stands in for an older Cloud with it. */
   level?: number;
 }
 

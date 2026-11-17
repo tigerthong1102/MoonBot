@@ -4,11 +4,8 @@ import { chatNotice, failedNoticeTool, type ChatNoticeKey } from "../chat-notice
 import { createLoopGuard, type LoopGuard, type LoopGuardDeps, type LoopGuardSettings } from "./loop-guard.ts";
 
 export interface UnattendedLimits {
-  /** Milliseconds one turn may work, waits on a person or a computer left out. */
   maxMs: number;
-  /** Requests to the AI one turn may make. */
   maxRequests: number;
-  /** Permission requests one turn may have denied or left unanswered. */
   maxDenials: number;
 }
 

@@ -185,7 +185,7 @@ export interface EngineMemoryOptions {
   groups?: () => Map<number, number>;
   now?: () => number;
   signal?: (pid: number, signal: NodeJS.Signals) => void;
-  /** An engine's process tree: whether it still works. Null where it can't be read, and then it is never stopped as silent. */
+  /** An unreadable process tree must not authorize stopping an engine as silent. */
   tree?: (pid: number) => TreeUse | null;
   log?: (line: string) => void;
   tickMs?: number;
@@ -320,8 +320,7 @@ export class EngineMemory {
     this.engines.set(pid, engine);
     this.oomKills ??= this.read()?.oomKills ?? null;
     if (this.starved.get(threadId)?.why === "refused") this.starved.delete(threadId);
-    // An engine that keeps a session (Claude's stream, ACP, Codex's app-server) writes to its stdout first thing. Read from
-    // the pipe's byte count: no listener is added to it.
+    // Session-based engines (Claude's stream, ACP and Codex's app-server) emit initialization on stdout.
     const out = this.expecting.delete(threadId) ? child.stdout as { bytesRead?: unknown } | null : null;
     const unwatch = out && typeof out.bytesRead === "number" ? this.watchFirstFrame(engine, out as { bytesRead: number }) : null;
     child.once("exit", (_code, signal) => { unwatch?.(); this.exited(pid, engine, signal); });
@@ -686,8 +685,6 @@ export class EngineMemory {
 const HOST = gateHost();
 export const engineMemory = new EngineMemory({ enabled: HOST !== null, host: HOST ?? "cloud", turns: turnsSetting(process.env.OMB_TURNS_MAX_RUNNING) });
 
-/** Engines that keep a session over stdout and answer first (stream-json's init, JSON-RPC's initialize); every driver
- * that admits its own engines (ACP) does too. */
 const SESSION_KINDS: ReadonlySet<string> = new Set(["claudeAgent", "codex"]);
 
 /**
@@ -757,8 +754,6 @@ export function withEngineMemory(instance: ProviderInstance, memory: EngineMemor
       try {
         return await memory.within(threadId, () => adapter.sendTurn(driverAdmits ? { ...input, engineAdmission: admit } : input));
       } catch (error) {
-        // A start the server had no room for names that, never the engine's own words: no backup AI is tried for it. A refusal
-        // that names its own cause (a usage limit, a sign-in) stays what it is.
         if (error instanceof TurnNotStartedError && !(error instanceof TurnUsageLimitRefusedError || error instanceof TurnAuthenticationRefusedError)
           && memory.stoppedForRoom(threadId) && !namesOwnCause(error.message)) error.message = memory.stopFailure(threadId)?.message ?? error.message;
         memory.turnEnded(threadId);

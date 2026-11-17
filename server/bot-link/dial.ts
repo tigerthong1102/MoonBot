@@ -27,7 +27,6 @@ export interface DialerOptions {
   log?(line: string): void;
   holdMs?: number;
   firstRetryMs?: number;
-  /** What this computer says its version reads; a test stands in for an older app with it. */
   level?: number;
 }
 

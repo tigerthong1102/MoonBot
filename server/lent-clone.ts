@@ -44,7 +44,6 @@ export function runGit(args: string[], timeoutMs = CLONE_MS): Promise<void> {
   return new Promise((resolve, reject) => {
     // The address is always https://github.com/<owner>/<name>.git (lentGit's repo), never one a computer sent.
     const run = gitInvocation(args);
-    // Its own group, so a timeout also ends git-remote-https and any credential helper it started.
     const child = spawn("git", run.args, { stdio: ["ignore", "ignore", "pipe"], env: run.env, ...OWN_GROUP });
     let error = "";
     child.stderr.on("data", (chunk) => { if (error.length < 4_000) error += chunk; });

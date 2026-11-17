@@ -1112,7 +1112,7 @@ async function startDesktopTunnel(cfg: AppConfig, botId: string, alias: string, 
     shell: false,
     env: { ...process.env, PATH: ssh.path },
     stdio: ["ignore", "ignore", "pipe"],
-    ...OWN_GROUP, // with ssh's ProxyCommand, if any, so a stop reaches it
+    ...OWN_GROUP,
   });
   start.child = child;
   let failure: string | null = null;

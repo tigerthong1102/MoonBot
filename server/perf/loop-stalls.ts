@@ -34,10 +34,8 @@ interface Minute { count: number; points: Array<[number, number]>; maxMs: number
 
 export interface StallStats { p50: number; p95: number; p99: number; max: number; over100ms: number; over1s: number }
 export interface StallsReport {
-  /** The loop's delays over the last minute and the last hour, ms. */
   m1: StallStats | null;
   h1: StallStats | null;
-  /** Whole-file saves and runtime-store reads: how many, their total and longest ms. */
   saves: { m1: Tally; h1: Tally };
   runtimeReads: { m1: Tally; h1: Tally };
 }

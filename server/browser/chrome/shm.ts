@@ -1,7 +1,6 @@
 import { statfsSync } from "node:fs";
 
-/** What the compose files give /dev/shm. Docker's default, and most container platforms', is 64 MB, which a Chrome page
- * with large images or a video fills; Chrome then crashes the tab (crbug.com/736452). */
+/** Docker defaults /dev/shm to 64 MB; Chrome tabs can crash when images or video exhaust it (crbug.com/736452). */
 const ROOMY_BYTES = 512 * 1024 * 1024;
 
 type Statfs = (path: string) => { blocks: number | bigint; bsize: number | bigint };

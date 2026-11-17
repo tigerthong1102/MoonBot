@@ -13,10 +13,8 @@ export const CONFIG_BACKUP_KEEP = 10;
 const BACKUP_NAME = /^config\.json\.bak\.(\d{8})-(\d{6})(?:-(\d+))?$/;
 
 export interface ConfigBackup {
-  /** The file name, which carries the moment the copy was taken. */
   name: string;
   path: string;
-  /** `YYYYMMDD-HHMMSS` in UTC. */
   stamp: string;
   bytes: number;
 }
@@ -32,8 +30,7 @@ function backupOrder(name: string): { stamp: string; order: number } {
   return { stamp: `${match[1]}-${match[2]}`, order: match[3] ? Number(match[3]) : 0 };
 }
 
-/** The settings file as it is on disk. A file that is there but cannot be understood is never taken for an empty
- * one: it is reported, so a save can refuse to replace it. */
+/** An unreadable settings file must never be treated as empty or overwritten by a save. */
 export function readConfigFile(path: string): ConfigFileRead {
   let text: string;
   try {
@@ -136,12 +133,9 @@ function pruneConfigBackups(dir: string): void {
 
 export type ConfigRestore = { ok: true; name: string; kept: string | null; restored: boolean } | { ok: false; error: string };
 
-/** Checks that a copy is a settings file the server can read: it returns the reason it is not, or null when it is. */
 export type ConfigBackupCheck = (text: string) => string | null;
 
-/** Puts a dated copy back as the settings file. The file it replaces is kept, so the restore is itself reversible.
- * A dry run reports what it would do and changes nothing. Nothing is put back over a file that cannot be read or
- * kept: a restore never loses what it finds. */
+/** A restore must preserve replaced settings and refuse to overwrite a file it cannot read or back up. */
 export function restoreConfigBackup(dir: string, name: string, options: { dryRun?: boolean; check?: ConfigBackupCheck } = {}): ConfigRestore {
   if (!BACKUP_NAME.test(name)) return { ok: false, error: `${name} is not a dated copy of the settings file; run openmausbot config backups to see the copies` };
   const source = join(dir, name);

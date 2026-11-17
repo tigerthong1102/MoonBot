@@ -291,7 +291,7 @@ export async function relayMcp(
     headers.set("mcp-session-id", forwardedTransportSessionId);
   }
   // Discovery may await I/O: check turn authority and permissions after it, right before dispatch.
-  const sent = await beforeSend?.(); if (sent !== undefined) payload = sent; // beforeSend may answer the frame to send instead (files it uploaded)
+  const sent = await beforeSend?.(); if (sent !== undefined) payload = sent;
   const response = await withToolsListFallback(identity, payload, () => fetch(url, {
     method: "POST",
     headers,

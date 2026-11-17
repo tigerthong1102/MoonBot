@@ -18,11 +18,8 @@ export interface ProcessTally {
   /** Unknown where the process list carries no thread counts or states (macOS's `ps` columns). */
   threads: Count;
   zombies: Count;
-  /** This server's own open file descriptors. */
   fds: Count;
-  /** What the container's pids limit counts now: processes and threads. */
   pidsUsed: Count;
-  /** Engine processes by engine kind, a fixed list's words. */
   engines: Record<string, number>;
   browser: number;
   mcp: number;
@@ -37,7 +34,6 @@ export interface ProcessHealth {
   serverIsPid1: boolean;
   limits: { pids: number | "max" | Unknown; memMB: number | "none" | Unknown; nproc: number | "unlimited" | Unknown; shmMB: Count; gate: number | "none" };
   now: ProcessTally | Unknown;
-  /** The most of each since start, from the sampler's lists (a minute apart on Linux). */
   peak: ProcessTally | Unknown;
   /** The kernel's own most since the container started: exact, where cgroup v2 keeps it. */
   kernelPeak: { pids: Count; memMB: Count };
@@ -84,7 +80,6 @@ function peakOf(peak: ProcessTally | null, now: ProcessTally): ProcessTally {
 export interface ProcessHealthDeps {
   limits?: () => ProcessLimits;
   memoryLimitBytes?: () => number | null;
-  /** What counts against the container's memory limit now; null where none is set or readable. */
   memoryUsedBytes?: () => number | null;
   peaks?: () => { pids: number | null; memoryBytes: number | null };
   fds?: () => Count;
@@ -92,7 +87,6 @@ export interface ProcessHealthDeps {
   counts?: () => ProcessCounts;
   platform?: NodeJS.Platform;
   pid?: number;
-  /** One line at most per kind; the caller limits how often. */
   warn?: (kind: string, line: string) => void;
 }
 
@@ -159,7 +153,6 @@ const tallyLine = (count: ProcessTally) =>
   `${count.procs} processes, ${words(count.threads)} threads, ${words(count.zombies)} zombies, ${words(count.fds)} open files, ${words(count.pidsUsed)} against the limit; `
   + `engines ${Object.entries(count.engines).map(([kind, n]) => `${kind} ${n}`).join(", ") || "none"}, browser ${count.browser}, tool servers ${count.mcp}, commands ${count.shell}, other ${count.other}`;
 
-/** The same for people: a @devs report and the diagnostics text. */
 export function processHealthLines(health: ProcessHealth): string[] {
   const failed = Object.entries(health.since.spawnFailed).filter(([, n]) => n > 0).map(([code, n]) => `${code} ${n}`).join(", ") || "none";
   return [

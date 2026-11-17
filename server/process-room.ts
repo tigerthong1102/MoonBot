@@ -5,10 +5,8 @@ import { linuxProcessList } from "./perf/process-sampler.ts";
 import { containerLimited, readPids } from "./process-limits.ts";
 import type { ShortageCode } from "./process-shortage.ts";
 
-/** A scripted engine on Node 24 used 44 threads across six processes (2026-11-16). */
 export const ENGINE_TASKS = 60;
 export const SESSION_TASKS = 40;
-/** One bot's browser: 13 processes with 163 threads (agent-browser 0.37.0 and Chromium 156 on one page, 2026-11-16). */
 export const BROWSER_TASKS = 170;
 const SERVER_TASKS = 40;
 const SHORTAGE_HOLD_MS = 30_000;
@@ -23,7 +21,6 @@ export const turnsUnder = (limit: number) => Math.max(1, Math.floor((limit - mar
 
 export type SpawnFailureCode = ShortageCode | "ENOENT" | "other";
 export interface ProcessCounts {
-  /** The pids limit the gate works to: the cgroup's, or the count at which a spawn was first refused. Null: none known. */
   limit: number | null;
   spawnFailed: Record<SpawnFailureCode, number>;
   forceKilled: number;
@@ -43,7 +40,6 @@ export class ProcessBudget {
   private readonly read: () => { max: number | "max" | null; current: number | null };
   private readonly now: () => number;
   private readonly log: (line: string) => void;
-  /** The count at which the kernel first refused a spawn: the limit, where none can be read (one set on a parent cgroup). */
   private learned: { limit: number; at: number } | null = null;
   private holdUntil = -Infinity;
   private readonly spawnFailures: Record<SpawnFailureCode, number> = { EAGAIN: 0, EMFILE: 0, ENFILE: 0, ENOMEM: 0, ENOENT: 0, other: 0 };
@@ -186,7 +182,6 @@ export function browserTasksNow(sessions: readonly string[], {
 
 export interface TreeUse { cpuMs: number; children: number }
 
-/** The tree under `pid` by parent, from /proc; null where it can't be read (not Linux) or the process is gone. */
 export function linuxTreeUse(pid: number, rows: () => readonly ProcessRow[] = () => linuxProcessList().rows,
   reapedMs: (pid: number) => number | null = (of) => { try { return parseReapedChildrenMs(readFileSync(`/proc/${of}/stat`, "utf8")); } catch { return null; } }): TreeUse | null {
   const below = new Map<number, ProcessRow[]>();

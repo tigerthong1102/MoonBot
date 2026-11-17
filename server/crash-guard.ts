@@ -75,9 +75,7 @@ export function crashLine(kind: "exception" | "rejection", error: unknown, turn:
 
 export interface CrashGuardDeps {
   turnIdentity?: (threadId: string) => object | undefined;
-  /** Stops the turn and frees what it holds; false when the turn had already ended. */
   failTurn(turn: TurnScope, detail: string): boolean;
-  /** The close after a fatal error: mark running turns cut, flush nothing else, process.exit(code). */
   shutdown(code: number): void;
   log?: (line: string) => void;
   redact?: (text: string) => string;

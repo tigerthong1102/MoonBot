@@ -118,7 +118,6 @@ export interface BridgeOptions {
   /** A tools/call the bridge carries out itself through the child, answering the agent with what this resolves to; null
    * forwards the frame as it came. Frames after it wait, so the agent's calls still act in order. */
   relay?: (call: ToolCall, child: ChildCalls) => Promise<unknown> | null;
-  /** Tools the bridge lists beside the child's, which `relay` answers. */
   ownTools?: readonly Record<string, unknown>[];
   /** The child can die and come back behind this bridge (the app restarts the driver), so the agent's connection stays up:
    * calls that were waiting are answered with `stopped`, and the next call starts a new child. */

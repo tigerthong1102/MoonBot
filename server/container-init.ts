@@ -7,7 +7,6 @@ const NO_INIT = `nothing collects the processes bots leave behind, so they pile 
 
 export interface ContainerInit {
   exec: { file: string; args: string[]; env: NodeJS.ProcessEnv } | null;
-  /** Said once at start, when this process found itself the container's process 1. */
   line: string | null;
 }
 
@@ -28,8 +27,7 @@ export function containerInit(options: {
   };
 }
 
-/** A regular file this user may execute (not on a noexec mount). Checked before execve because Node 24 aborts the
- * whole process when execve fails, rather than throwing. */
+/** Node 24 aborts the process when execve fails rather than throwing. */
 export function canRun(file: string): boolean {
   try {
     if (!statSync(file).isFile()) return false;
@@ -40,8 +38,6 @@ export function canRun(file: string): boolean {
   }
 }
 
-/** Runs `exec` and does not return; when it cannot (this Node has no execve, or the kernel refuses where Node throws),
- * says why and carries on without an init. */
 export function execUnderInit(exec: NonNullable<ContainerInit["exec"]>, execve: ((file: string, args: string[], env: NodeJS.ProcessEnv) => never) | null = process.execve?.bind(process) ?? null): void {
   try {
     if (!execve) throw new Error("this Node cannot replace its own process");

@@ -1131,7 +1131,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         if (gated) mcpServers[name] = { ...gated, ...((mcpServers[name] as { alwaysLoad?: unknown })?.alwaysLoad === true ? { alwaysLoad: true } : {}) };
       }
       allowed.splice(0, allowed.length, ...allowed.filter((name) => Object.hasOwn(mcpServers, name.slice("mcp__".length).split("__")[0]!)));
-      const ownHttp = claudeOwnMcpOverHttp(mcpServers); // OpenMausBot's own servers by URL where that setting is on: no proxy process each
+      const ownHttp = claudeOwnMcpOverHttp(mcpServers);
       // Full access keeps ask_user: native bypass skips permission prompts, not questions.
       let broker: Awaited<ReturnType<typeof createPermissionBroker>> | undefined;
       const socketPath = permissionSocketPath(threadId, botId);
@@ -1215,7 +1215,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         emit({ ...base(threadId, turnId), type: "turn.started" });
         const volatile = turn.systemVolatile ?? "", roster = turn.systemRoster ?? "", same = !turn.mentionTurn && (volatile === live.volatile || (live.volatile === null && !volatile.trim()));
         const message = same && roster === live.roster.now
-          ? promptMsg // a changed roster (a bot added, renamed or removed) rides this message, with no relaunch
+          ? promptMsg
           : claudeUserMessage(withRosterNote(same ? turn.text : withVolatileNote(turn.text, volatile, live.volatile === null), roster, live.roster.now), turn.images);
         live.volatile = volatile; live.roster.now = roster;
         const running = live.turn;
@@ -1490,7 +1490,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
               if (retry.rebuilt) emit({ ...base(threadId, currentTurnId()), type: "runtime.notice", message: rebuiltSessionNotice("Claude Code") });
               retry.rebuilt = false;
             } else if (o.subtype === "compact_boundary") {
-              session.volatile = null; session.roster.now = session.roster.launched; if (!o.parent_tool_use_id) emit({ ...base(threadId, currentTurnId()), type: "context.compacted" }); // only the system prompt survives a compaction, so the next turn re-sends the volatile half; a subagent's own compaction is not the chat's
+              session.volatile = null; session.roster.now = session.roster.launched; if (!o.parent_tool_use_id) emit({ ...base(threadId, currentTurnId()), type: "context.compacted" }); // Claude retains the system prompt through compaction; a subagent's compaction is separate from the chat's.
             } else if (o.subtype === "thinking_tokens") {
               emit({ ...base(threadId, currentTurnId()), type: "item.updated", itemType: "reasoning", tokens: o.estimated_tokens });
             }

@@ -22,7 +22,6 @@ import { configEntries } from "./registry-config.ts";
 import { pictureEntries } from "./registry-pictures.ts";
 import { windowEntries } from "./registry-window.ts";
 
-/** Where the person changes it by hand: a real place in the app, which the bot names as placePath gives it. */
 export type Where = SettingsPlaceId;
 
 interface Base {

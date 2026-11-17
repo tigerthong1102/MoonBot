@@ -91,7 +91,6 @@ function exists(pid: number): boolean {
   try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === "EPERM"; }
 }
 
-/** One process from two readings: the start tick (Linux) or lstart string, or on macOS within 2 s of when spawn returned. */
 function sameStart(leader: Leader, listed: string): boolean {
   if (leader.start) return leader.start === listed;
   if (leader.at === null) return false;

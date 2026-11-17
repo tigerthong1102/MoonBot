@@ -10,9 +10,7 @@ export interface ProcessLimits {
   /** RLIMIT_NPROC's soft value. */
   nproc: number | "unlimited" | Unknown;
   shmBytes: number | Unknown;
-  /** Process 1: a program that collects orphans, Node (this server or its launcher), or something else. */
   pid1: "init" | "node" | "other" | Unknown;
-  /** Whether something collects exited orphans: an init as process 1, or one this server runs under as a subreaper. */
   reaper: "yes" | "no" | Unknown;
 }
 
@@ -29,8 +27,7 @@ const count = (text: string | null): number | "max" | null => {
   return /^\d+$/.test(value) ? Number(value) : null;
 };
 
-/** This process's cgroup directory for pids: v2's unified tree, else v1's pids controller. In a container with its own
- * cgroup namespace the path is "/", so the files sit at the mount's root. */
+/** In a container with its own cgroup namespace, the cgroup path is "/", relative to its mount. */
 function pidsFiles(read: Read): string[] {
   const own = read("/proc/self/cgroup") ?? "";
   const v2 = /^0::(\/.*)$/m.exec(own)?.[1], v1 = /^\d+:(?:[^:]*,)?pids(?:,[^:]*)?:(\/.*)$/m.exec(own)?.[1];
@@ -42,8 +39,6 @@ function pidsFiles(read: Read): string[] {
 
 export interface CgroupMemory { limitBytes: number; usedBytes: number; oomKills: number | null; fullStall10: number | null }
 
-/** This process's cgroup memory limit and what counts against it now (file pages the kernel can drop at once left out);
- * null where no limit is set or readable. v2's files, else v1's. */
 export function readCgroupMemory(read: Read = readText): CgroupMemory | null {
   const own = read("/proc/self/cgroup") ?? "";
   const v2 = /^0::(\/.*)$/m.exec(own)?.[1], v1 = /^\d+:(?:[^:]*,)?memory(?:,[^:]*)?:(\/.*)$/m.exec(own)?.[1];
@@ -72,8 +67,7 @@ export function containerLimited(read: Read = readText): boolean {
   return typeof v1 === "number" && v1 < 2 ** 60;
 }
 
-/** The cgroup's limit and how much of it is used now. A limit set on a parent cgroup the container cannot see (a
- * Kubernetes pod's) reads as "max" here. */
+/** Cgroup limits enforced by hidden ancestors can remain active while the container sees "max". */
 export function readPids(read: Read = readText): { max: number | "max" | null; current: number | null } {
   for (const dir of pidsFiles(read)) {
     const current = count(read(`${dir}/pids.current`));

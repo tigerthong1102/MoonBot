@@ -20,10 +20,8 @@ export interface BotLinkHostDeps {
   dataDir: string;
   environmentId: string;
   store: Pick<Store, "bots" | "bot" | "standIns" | "createTask" | "taskByThread" | "appendMessage" | "patchTask" | "onChange" | "group" | "groups" | "groupTaskByThread" | "markGroupThreadUnread" | "activePath" | "messagesFor" | "patchGroup">;
-  /** A room line in the language of its thread, and what follows a member's answer (its mentions take their turns). */
   roomLine: LinkedRoomsDeps["line"];
   roomFollow?: LinkedRoomsDeps["follow"];
-  /** The room's lines as a member reads them, and who stands behind a room thread's words when it is not the person. */
   roomWindow: LinkedRoomsDeps["window"];
   roomOpener?: LinkedRoomsDeps["opener"];
 

@@ -2,10 +2,6 @@
 // again meets it again and spends the person's AI budget for nothing. Read from the failure's own words, so every caller
 // (a routine's second start, a Chief's incident, a hand-off's resume, the turn admission) judges one failure one way.
 
-/** process_start: the server could not start another process (out of processes or file handles);
- * out_of_room: no memory to start an engine, or an engine that had started was stopped for memory, killed by the kernel,
- * or never sent its first output; disk_full: no room left to write; tool_server: an MCP server did not start, died or
- * needs its own sign-in; signed_out: the engine says the bot's AI needs signing in again. */
 export type HostFault = "process_start" | "out_of_room" | "disk_full" | "tool_server" | "signed_out";
 
 const EXHAUSTED = String.raw`(?:EAGAIN|EMFILE|ENFILE)`;

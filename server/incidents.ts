@@ -27,8 +27,7 @@ export interface Incident {
   title?: string | null;
   room?: string | null;
   detail: string;
-  /** The failure's own words and stop reason, when `detail` adds anything to them (a routine's name): only these are
-   * read for what kind of failure it was. */
+  /** Failure classification must use system failure text and engine stop reasons, never routine names. */
   failure?: { text: string; stopReason?: string | null };
   lastRequest?: string | null;
   lastReply?: string | null;

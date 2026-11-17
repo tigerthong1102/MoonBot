@@ -29,8 +29,6 @@ function agentsEnv(headers: IncomingHttpHeaders, token: string, harness: string)
 type Frame = { id?: RpcId; method?: unknown; params?: unknown } | null;
 const isRequest = (frame: Frame) => frame !== null && typeof frame === "object" && Object.hasOwn(frame, "id");
 
-/** A tool call may run for minutes; a client that takes server-sent events gets its headers at once and a comment now and
- * then, so its HTTP client never gives up waiting. Everything else is answered as one JSON body. */
 function streams(headers: IncomingHttpHeaders, frames: Frame[]): boolean {
   return /\btext\/event-stream\b/.test(headers.accept ?? "") && frames.some((frame) => isRequest(frame) && frame!.method === "tools/call");
 }

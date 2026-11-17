@@ -2,8 +2,7 @@ import { noticeFailure, type ChatNoticeKey } from "../chat-notices.ts";
 import type { ServerText } from "../../shared/server-text.ts";
 
 const HOST_COMPUTER_STARTUP_MS = 20_000;
-/** Windows: each turn starts the gate proxy as Electron and cua-driver.exe behind it, beside every other built-in;
- * a cold start there (Defender scanning both executables on a busy disk) runs well past the general budget. */
+/** Windows Defender can delay cold starts of Electron and cua-driver.exe on a busy disk. */
 const WINDOWS_HOST_COMPUTER_STARTUP_MS = 45_000;
 export const HOST_COMPUTER_QUICK_MS = 1_500;
 
@@ -26,9 +25,7 @@ const lastFailed = new Set<string>();
 
 export type HostComputerStart =
   | { state: "listed"; tools: unknown[] }
-  /** Slow this turn: its last start's tools are listed, and a call waits for `ready`. */
   | { state: "pending"; tools: unknown[]; ready: Promise<void> }
-  /** Slow with no earlier list to show: the stand-in waits for `ready`. */
   | { state: "starting"; ready: Promise<unknown[]> }
   | { state: "failed"; reason: string };
 

@@ -45,8 +45,6 @@ const whole = (raw: string | null, fallback: number, max: number): number | null
   return /^\d{1,7}$/.test(raw) && Number(raw) <= max ? Number(raw) : null;
 };
 
-/** The period's dollars booked on engines signed in with a subscription now, and the turns they came from. A row keeps
- * no record of how its engine was signed in when it ran, so this reads the sign-in as it is today. */
 export function notBilledShare(rows: readonly UsageRow[], onPlan: (instanceId: string) => boolean): { usd: number; turns: number } {
   const plan = new Map<string, boolean>();
   let usd = 0, turns = 0;

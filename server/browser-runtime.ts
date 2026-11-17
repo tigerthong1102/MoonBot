@@ -837,7 +837,6 @@ export class BrowserRuntime {
   /** Told just before an idle close stops a session's browser. */
   onIdleClose(listener: (session: string) => void): void { this.idleCloseListeners.add(listener); }
   private browserStopped(session: string): void { this.launch?.stopped(session); this.room?.left(session); }
-  /** How long the session's browser has sat unused and whether a reopened one keeps its sign-ins; null while a call, a person or a view has it. */
   spare(session: string): { idleMs: number; savesSignIns: boolean } | null {
     const gate = this.gates.get(session);
     return !gate?.spec || gate.watchers > 0 || this.working(session) ? null : { idleMs: Date.now() - gate.lastUsed, savesSignIns: gate.spec.env.AGENT_BROWSER_RESTORE_SAVE === "auto" };

@@ -8,9 +8,7 @@ type Outcome = { id: string; routineId: string; status: string; error?: string |
 type Spaced = { id: string; updatedAt: number };
 
 export interface FailureSpacingLimits {
-  /** Failed runs in a row before the routine's next scheduled runs are spaced out. */
   runs: number;
-  /** How long after the last failure the next scheduled run waits: at that failure, and from the one after it on. */
   firstMs: number;
   laterMs: number;
 }

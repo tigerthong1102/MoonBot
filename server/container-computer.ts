@@ -34,7 +34,6 @@ import {
 } from "./container-isolation.ts";
 import { SPAWNED_PROXIES } from "./proxy-paths.ts";
 
-// Its own group: a timeout also ends the docker CLI plugins and credential helpers it started.
 const run = execFileInGroupAsync;
 const SCREENSHOT_STATUS_TTL_MS = 10_000;
 

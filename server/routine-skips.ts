@@ -9,7 +9,6 @@ export interface RoutineSkips {
   /** The scheduled times of the first and the last of them. */
   firstAt: number;
   lastAt: number;
-  /** The cause: the id of the run they waited behind, `no-start:` and the id of the last run whose computer did not start, `failed:` and the id of the last run that failed, or `startup:`, the time of the start that last ran a startup routine and the routine's id. */
   behind: string;
   /** The owner was told about this cause. */
   told?: true;

@@ -1,7 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { killCliTree, waitForExit } from "./procs.ts";
 
-/** How long an engine gets to leave on its own after its input ends, and after SIGTERM, before it is killed. */
 export const ENGINE_EOF_GRACE_MS = 500;
 export const ENGINE_TERM_GRACE_MS = 1_500;
 

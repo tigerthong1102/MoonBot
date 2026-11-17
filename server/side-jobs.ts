@@ -70,7 +70,6 @@ export interface SideJobsDeps {
   assertWithinBudget: () => void;
   book: (row: Omit<UsageRow, "at" | "costSource">, tokensReported: boolean, notificationThreadId: string) => void;
   log?: (line: string) => void;
-  /** How many background jobs run at once, across bots. */
   slots?: JobSlots;
 }
 

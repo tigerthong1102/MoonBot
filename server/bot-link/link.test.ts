@@ -6,7 +6,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createCoordinator, type CoordinateBotsCall, type Coordinator, type CoordinatorHost, type HandoffView, type HostTurnResult } from "../coordinator.ts";
 import type { RequestAuth } from "../request-auth.ts";
@@ -212,15 +212,16 @@ function place(label: string, bots: Bot[], version?: number) {
       return { status: response.status, body: await response.json() as Record<string, any> };
     },
     async restart(options?: Parameters<typeof boot>[0]) { const at = port; const serving = Boolean(http); await shutdown(); boot(options); if (serving) await listen(at); },
-    remove() { removeTempDir(dir); },
+    remove() { return removeTempDir(dir); },
   };
   return api;
 }
 
 const places: Array<ReturnType<typeof place>> = [];
-afterEach(async () => {
-  for (const each of places.splice(0)) { await each.shutdown(); each.remove(); }
-});
+async function cleanupPlaces() {
+  for (const each of places.splice(0)) { await each.shutdown(); await each.remove(); }
+}
+afterEach(cleanupPlaces);
 
 /** A computer and a Cloud. The same id, `shared`, is a different bot in each. */
 async function two(options: { paired?: boolean; limits?: { queueMs?: number; stallMs?: number } } = {}) {
@@ -1122,4 +1123,41 @@ it.each(["user", "outside", "unknown"] as const)("preserves %s provenance when a
   await until(() => cloud.runs.length === 1, "linked follow-up reaches the recipient");
   expect(cloud.runs[0]!.origin).toEqual(origin ?? { kind: "outside" });
   expect(operation.personStarted).toBe(kind === "user");
+});
+
+
+it("finishes removing a fixture's directory before reporting cleanup complete", async () => {
+  const computer = place("cleanup", [{ id: "writer", name: "Writer" }]).boot();
+  places.push(computer);
+  const dir = computer.dir;
+  await computer.shutdown();
+  const removing = computer.remove();
+  expect(removing).toBeInstanceOf(Promise);
+  await removing;
+  expect(existsSync(dir)).toBe(false);
+});
+
+it("waits for delayed fixture removal before teardown completes", async () => {
+  const computer = place("delayed-cleanup", [{ id: "writer", name: "Writer" }]).boot();
+  places.push(computer);
+  const remove = computer.remove.bind(computer);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let entered = false, finished = false;
+  const spy = vi.spyOn(computer, "remove").mockImplementation(async () => {
+    entered = true;
+    await gate;
+    await remove();
+  });
+  const closing = cleanupPlaces().then(() => { finished = true; });
+  try {
+    await until(() => entered, "cleanup reaches directory removal");
+    expect(finished).toBe(false);
+  } finally {
+    release();
+    await closing;
+    spy.mockRestore();
+  }
+  expect(finished).toBe(true);
+  expect(existsSync(computer.dir)).toBe(false);
 });

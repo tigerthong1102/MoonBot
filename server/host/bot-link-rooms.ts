@@ -41,19 +41,15 @@ export interface LinkedRoomsDeps {
   dataDir: string;
   store: Pick<Store, "bot" | "group" | "groups" | "groupTaskByThread" | "activePath" | "messagesFor" | "appendMessage" | "markGroupThreadUnread" | "patchGroup">;
   coordinator(): Coordinator;
-  /** The link is on, and whether that place is connected now. */
   on(): boolean;
   linked(peer: string): boolean;
   online(peer: string): boolean;
-  /** The bots the linked places have now, by their address here. */
   linkedBots(): ReadonlyArray<{ id: string; peer: string; place: { name: string }; kind?: "computer" | "cloud"; bot: { id: string; name: string; color?: string; title?: string; mascotBody?: string; mascotFaceColor?: string } }>;
   selfName(): string;
-  /** There is work for a place that is not connected: a computer asks its Cloud for it now, as for any hand-off. */
   wanted(): void;
   personName(threadId: string): string | undefined;
   line(threadId: string, key: ServerLineKey, params: Record<string, string>): string;
   window(threadId: string, readerBotId: string): { lines: ReadonlyArray<{ id: string; text: string }>; order: readonly string[]; readable: readonly string[] };
-  /** Who stands behind what is being said in this room thread now when it is not the person: a routine, a webhook, a guest. */
   opener?(botId: string, threadId: string): HandoffOpener | undefined;
   follow?(groupId: string, threadId: string, speaker: BotRecord, text: string, hop: number, source: HandoffView): void;
   maxHops?: number;
@@ -69,7 +65,7 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
   try {
     const read = JSON.parse(readFileSync(file, "utf8")) as Partial<Kept> | null;
     if (read?.v === 1) kept = { v: 1, members: { ...read.members }, seats: { ...read.seats }, turns: { ...read.turns } };
-  } catch { /* none yet */ }
+  } catch { }
   const save = () => {
     const oldest = <T extends { at: number }>(records: Record<string, T>) => {
       const extra = Object.keys(records).length - RECORDS_MAX;
@@ -177,7 +173,7 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
           save();
           coordinator.endTurn(root, { ok: true, text: "" });
         } catch (error) {
-          try { coordinator.endTurn(root, { ok: false, text: "" }); } catch { /* the root never began */ }
+          try { coordinator.endTurn(root, { ok: false, text: "" }); } catch { }
           const why = error instanceof Error ? error.message : String(error);
           deps.log?.(`bot link: ${member.name}'s room turn was not handed over (${why})`);
           note(threadId, member.id, "server.rooms.linkedNotSent", { output: redactSecretsInText(why).slice(0, 400) });

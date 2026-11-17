@@ -1,14 +1,10 @@
 export interface SlotOptions {
-  /** Aborted while waiting: the job never starts and its place is freed. */
   signal?: AbortSignal;
-  /** Turns true while it waits (someone now waits on it): it starts at once, over the limit. */
   urgent?: () => boolean;
   interactive?: boolean;
-  /** Called once when the job has to wait for a free slot, before run() returns its promise. */
   onWait?: () => void;
 }
 
-/** At most `limit` jobs at once, the rest in arrival order, interactive ones first. */
 export interface JobSlots {
   run<T>(job: () => Promise<T>, options?: SlotOptions): Promise<T>;
   readonly limit: number;

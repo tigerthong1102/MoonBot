@@ -70,7 +70,6 @@ export interface WebhookManagerOptions {
     deliveryId: string;
     receivedAt: number;
     sameConversation?: boolean;
-    /** The person's own Run now test, not an outside delivery. */
     byPerson?: boolean;
   }) => { id: string };
   cancelQueued?: (webhookId: string, message: string) => void;

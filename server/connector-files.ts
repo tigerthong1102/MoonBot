@@ -41,14 +41,10 @@ export interface OpenedLocalFile {
 }
 
 export interface FileStagingDeps {
-  /** The file at `path` when the bot may send it; null when there is no such file there, or it is outside the bot's
-   * folders: the value is then not one of its files and is left as it is. Throws why a file there may not be sent. */
+  /** Files outside the bot's authorized folders must not be uploaded. */
   open(path: string, maxBytes?: number): Promise<OpenedLocalFile | null>;
-  /** Composio's upload link and key for the file. */
   requestUpload(request: { toolkit_slug: string; tool_slug: string; filename: string; mimetype: string; md5: string }): Promise<{ key: string; url: string }>;
-  /** The toolkit a tool belongs to (GOOGLEDRIVE_UPLOAD_FILE → googledrive). */
   toolkitFor(tool: string): string;
-  /** The app's name for people (Google Drive). */
   appFor(tool: string): string;
   put?(url: string, bytes: Uint8Array, mimetype: string, signal?: AbortSignal): Promise<void>;
 }
@@ -63,7 +59,6 @@ interface FileReference {
   replace(staged: StagedFile): void;
 }
 
-/** A file one call will upload, as its approval card lists it. */
 export interface CardFile {
   name: string;
   path: string;
@@ -138,8 +133,7 @@ const within = (root: string, path: string) => {
 const hiddenBelow = (root: string, path: string) => relative(root, path).split(/[\\/]/).some((part) => part.startsWith("."));
 const real = (path: string) => realpath(path).catch(() => null);
 
-/** The bot's file at `path`, read through the chat file-link resolver (realpath containment, no-follow, secret folders,
- * 100 MB), or null when nothing the bot may send is there. A Local VM path is read from the VM's host folder. */
+/** File uploads require realpath containment, no-follow checks, excluded secret folders and the 100 MB size limit. */
 export async function openBotFile(path: string, scope: BotFileScope, maxBytes = FILE_MAX_BYTES): Promise<OpenedLocalFile | null> {
   const target = (scope.guest ? guestWorkspaceToHost(path, scope.guest.root, scope.guest.host) : null) ?? path;
   const canonical = await real(target);
@@ -238,7 +232,6 @@ export function unreadableFileText(reference: Pick<FileReference, "tool" | "fiel
     + "such as GOOGLEDRIVE_CREATE_FILE_FROM_TEXT, needs no file.";
 }
 
-/** What the bot is told when the file was read but Composio did not take it. */
 export function uploadFailedText(reference: Pick<FileReference, "tool">, name: string, app: string, reason: string): string {
   return `OpenMausBot did not run ${reference.tool}: uploading ${name} for ${app} failed (${reason}). Nothing was written to ${app}. `
     + "This is usually brief: try the call once more. If it fails again, tell the person the upload to "
@@ -246,10 +239,8 @@ export function uploadFailedText(reference: Pick<FileReference, "tool">, name: s
 }
 
 export interface PreparedFiles {
-  /** The files the call will upload, for its approval card. */
   files: Array<CardFile & { tool: string; source: unknown }>;
   upload?: (options?: { check?: () => void; signal?: AbortSignal }) => Promise<unknown>;
-  /** `calls` (connectorCallsIn of the frame as sent) with the files each will upload. */
   cardCalls<T extends { arguments?: unknown }>(calls: T[]): Array<T & { files?: CardFile[] }>;
 }
 
@@ -330,7 +321,6 @@ export async function stageConnectorFiles(frame: unknown, deps: FileStagingDeps)
   }
 }
 
-/** Composio could not find the file a call named: a made-up key, a stale one, or a path it cannot reach. */
 const MISSING_STAGED_FILE = /Failed to download file|storage returned HTTP 404|invalid s3key|s3key (?:was )?not found/i;
 
 export function missingFileHint(): string {

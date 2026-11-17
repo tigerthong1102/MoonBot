@@ -43,7 +43,6 @@ const unwritten = new Map<string, Map<string, Entry>>();
 
 const positive = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0);
 
-/** The tokens a cap counts: fresh input plus output, the same sum the Usage page's bars show. */
 export function capTokens(row: Pick<UsageRow, "input" | "output" | "cachedInput">): number {
   const input = positive(row.input);
   return Math.max(0, input - Math.min(positive(row.cachedInput), input)) + positive(row.output);
@@ -124,7 +123,7 @@ function refresh(dataDir: string, read: Read, now: Date): Read {
   } catch {
     return readMonth(dataDir, now);
   } finally {
-    if (fd !== undefined) try { closeSync(fd); } catch { /* already closed */ }
+    if (fd !== undefined) try { closeSync(fd); } catch { }
   }
 }
 
@@ -172,7 +171,6 @@ export function measure(limit: number, used: number, warnAtPercent = CAP_WARN_PE
 }
 
 export interface CapState {
-  /** `server:day:usd`, or `bot:<id>:month:tokens`: stable for one cap, whatever its limit. */
   id: string;
   scope: "server" | "bot";
   botId?: string;
@@ -183,9 +181,7 @@ export interface CapState {
   percent: number;
   warn: boolean;
   reached: boolean;
-  /** The UTC day or month the use was counted in. */
   periodKey: string;
-  /** When that period rolls over and the cap counts from zero again. */
   resetsAt: number;
 }
 
@@ -241,13 +237,9 @@ export function reachedCap(saved: UsageCapsConfig | undefined, dataDir: string, 
   return reached.sort((a, b) => b.resetsAt - a.resetsAt)[0] ?? null;
 }
 
-/** What the harness already knows of the conversation a turn runs in. */
 export interface ThreadStanding {
-  /** Marked unattended by the turn that last ran there. */
   unattended: boolean;
-  /** The trigger of the request the conversation is working on, when a routine, webhook, app event or API call started it. */
   automation: string | undefined;
-  /** Whether that request traces to a person's own typed line. */
   origin: "user" | "outside" | undefined;
 }
 

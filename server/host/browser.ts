@@ -79,14 +79,12 @@ export interface BrowserHostDeps {
   /** My Cloud's way to the person's own Chrome on the computer that lends it, and which computer that is. */
   lentChrome?: { route(): ChromeRoute | null; lender(): ChromeLender | null };
   /** The engine memory guard, told which browsers each thread's turn starts or holds. */
-  /** `selfHosted`: turns wait for room on this server, under its pids limit, and so do its bots' browsers. */
   engineMemory?: { useBrowsers(browsers: EngineBrowsers): void; selfHosted?(): boolean };
   /** Whose browser a conversation's turns use on a Team Cloud: the member's, the group chat's or the team's. Every
    * browser is the bot's own without it. */
   audienceOf?(threadId: string): Audience;
   /** The box every Chrome of the bots' browsers runs in (a Team Cloud's), or none. */
   browserBox?(seccompFd: number, ro: readonly string[]): LauncherBox | null;
-  /** How many agent-browser browsers run at once; sized by this server's limits without it. */
   browsersAtOnce?(): number;
 }
 

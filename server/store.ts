@@ -156,7 +156,7 @@ export function titleFromLlm(raw: string): string | null {
 export interface BotRecord extends Omit<WireBot, "avatarUrl" | "tasks"> {
   tasks?: TaskRecord[];
   avatarUrl?: string;
-  resumeCursors: Record<string, unknown>; /** Set on a stand-in: the place this bot lives in, and its id there. */ home?: { place: string; placeName: string; botId: string; /** What that place is, as the sidebar's rows say it. */ kind?: "computer" | "cloud"; /** It cannot be reached now: the link is off or its place is unlinked ("off"), or its place no longer has it ("missing"). */ gone?: "off" | "missing" }; mainThreadChoice?: string; // mainThreadChoice ("Set as main thread") is host-only; clients get mainThreadId.
+  resumeCursors: Record<string, unknown>; home?: { place: string; placeName: string; botId: string; kind?: "computer" | "cloud"; gone?: "off" | "missing" }; mainThreadChoice?: string; // mainThreadChoice ("Set as main thread") is host-only; clients get mainThreadId.
   /** Elevation journal: Full/Custom runs as Ask until Electron confirms the prepared reply; a marker surviving a restart is revoked on load. */
   approvalGrant?: {
     requestId: string;
@@ -1279,7 +1279,7 @@ export class Store {
   }
 
   bot(id: string) {
-    return this.bots.find((b) => b.id === id) ?? this.standIns.get(id) ?? null; } /** One of this place's own bots. Every method that changes a bot looks here and never among the stand-ins: a record with `home` is read-only on this place. */ private own(id: string) { return this.bots.find((b) => b.id === id) ?? null;
+    return this.bots.find((b) => b.id === id) ?? this.standIns.get(id) ?? null; } /** Linked stand-ins are read-only and must never be mutated as local bots. */ private own(id: string) { return this.bots.find((b) => b.id === id) ?? null;
   }
 
   botByThread(threadId: string) {

@@ -66,7 +66,7 @@ export interface ChatToolSession {
 type Server = { command: string; args: string[]; env: Record<string, string> };
 /** `required`: a server the turn must not run without (see `mustHave` in mountChatTools). */
 type RegisteredTool = { client: ChatMcpClient; server: string; launch: string; builtInBrowser: boolean; agents: boolean; hostComputer: boolean; required: boolean; name: string; schema: ValidateFunction; searched: boolean;
-  /** Listed from this computer's last start while this one finishes: a call waits for it. */ ready?: Promise<void> };
+   ready?: Promise<void> };
 function chatToolName(server: string, tool: string): string {
   return `${server}_${tool}`.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 64) || "mcp_tool";
 }
@@ -87,8 +87,6 @@ export function mcpStartupMs(env: Record<string, string | undefined> = process.e
   return cloudRole(env) ? CLOUD_STARTUP_MS : builtIn && platform === "win32" ? WINDOWS_BUILT_IN_STARTUP_MS : STARTUP_MS;
 }
 
-/** `startupMs` replaces both mcpStartupMs budgets, `hostComputerMs` hostComputerStartupMs. `notice` hears, for the person,
- * that this computer's tools did not start, worded once per `conversation`. */
 export interface ChatToolMountOptions {
   startupMs?: number;
   hostComputerMs?: number;

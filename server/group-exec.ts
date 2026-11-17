@@ -1,13 +1,11 @@
-// A child started in a process group of its own (POSIX), so a timeout or a stop reaches what it started too: git's remote
-// helpers, docker's CLI plugins, ffmpeg's workers, ssh's ProxyCommand. Signalling the child alone orphans them. Windows has
-// no process groups: taskkill /T walks the tree there.
+// POSIX signals to a child PID do not reach its descendants; signaling its process group does.
+// Windows taskkill /T stops a process tree.
 import { execFile, spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import { GROUP_SUPERVISOR } from "./group-exec-supervisor.ts";
 import { processGroupMembers } from "./process-group.ts";
 
 const supervisedGroups = new WeakSet<ChildProcess>();
 
-/** Spawn options: a group of its own on POSIX; no console window on Windows. */
 export const OWN_GROUP = { windowsHide: true, detached: process.platform !== "win32" } as const;
 
 const KILL_GRACE_MS = 2_000;
@@ -19,7 +17,7 @@ function groupSignal(pid: number, signal: NodeJS.Signals): boolean {
   } catch { return false; }
 }
 
-/** Stop a child and the processes it started, without signaling a reused process-group ID after closure. */
+/** Never signal a process group whose original identity can no longer be verified. */
 export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExitedLeader = false): void {
   if (supervisedGroups.has(child)) {
     if (child.exitCode === null && child.signalCode == null) {
@@ -51,9 +49,6 @@ export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExi
 type ExecError = Error & { code?: number | string | null; signal?: NodeJS.Signals | null; killed?: boolean; cmd?: string; stdout?: string; stderr?: string };
 type GroupExecOptions = Pick<SpawnOptions, "cwd" | "env" | "uid" | "gid"> & { timeout?: number; maxBuffer?: number; signal?: AbortSignal; encoding?: "utf8"; input?: never };
 
-/** execFile in a group of its own (execFile itself drops `detached`): `timeout` and `signal` stop the whole group (SIGTERM,
- * then SIGKILL), and its errors are shaped as execFile's: `code` is the exit code (or the spawn error's), `killed` is true
- * for a run it stopped, and output past `maxBuffer` (1 MiB) stops it. Output is UTF-8 text. */
 export function execFileInGroup(
   file: string,
   args: readonly string[],

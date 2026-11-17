@@ -11,10 +11,6 @@ export function farMembersOf(group: Pick<Group, "memberIds" | "farMembers">): Fa
   return (group.farMembers ?? []).filter((member) => group.memberIds.includes(member.id));
 }
 
-/**
- * Those members in the room's member list: each with where it lives, and why it cannot answer now when it cannot (the
- * link is off, or its place no longer has it). It stays a member until the person unticks it here.
- */
 export function RoomFarMembers({ members, picked, onToggle }: { members: FarMember[]; picked: Set<string>; onToggle: (id: string) => void }) {
   if (!members.length) return null;
   return (

@@ -18,9 +18,6 @@ export function shortageCode(error: unknown): ShortageCode | null {
 const NO_ROOM_NOTICE = /^There is no room to start another program \((?:EAGAIN|EMFILE|ENFILE|ENOMEM)\)/;
 const SPAWN_REFUSED = /^(?:Error: )?(?:spawn failed: )?(?:posix_)?spawn(?:Sync)?\b[^\n]*\b(?:EAGAIN|EMFILE|ENFILE|ENOMEM)\b/;
 
-/** Whether a failed turn's cause is the server's own refused spawn: the server's notice for it or Node's spawn error at the
- * head of the failure. Never an engine that exited on its own, whatever its stderr tail says (a file watcher's "EMFILE: too
- * many open files, watch"): that engine ran, and its turn may still go to a backup AI. */
 export const outOfProcesses = (cause: string): boolean => NO_ROOM_NOTICE.test(cause) || SPAWN_REFUSED.test(cause);
 
 const OWN_CAUSES: ReadonlySet<string> = new Set(["auth", "quota", "unknown_model", "provider_safety"]);

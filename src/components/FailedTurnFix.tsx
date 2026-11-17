@@ -13,9 +13,6 @@ export type FailedTurnAction = { label: string; onClick: () => void };
 
 const line = (text: string) => <p data-failed-turn-fix="line" className="mt-1.5 text-[13px] text-ink-secondary">{text}</p>;
 
-/** What the row offers besides Retry: `action` takes Retry's place (null: no Retry, nothing to tap), `control` sits
- * below. The model picker needs the bot's own conversation (`threadId`); a room's row and the phone layout, whose
- * header has no picker either, leave it out. */
 export function useFailedTurnFix(tool: NonNullable<Message["tool"]>, botId: string | undefined, threadId: string | undefined): { action?: FailedTurnAction | null; control?: ReactNode } {
   const dispatch = useStoreDispatch();
   const bot = useStoreSelector((state) => (botId ? state.bots.find((candidate) => candidate.id === botId) : undefined));

@@ -14,12 +14,6 @@ const CRASH_CODES = new Set([CRASH_EXIT_CODE, 134, 135, 136, 137, 139]);
 export const crashed = (code: number | null, signal?: NodeJS.Signals | null): boolean =>
   code === null ? Boolean(signal && CRASH_SIGNALS.has(signal)) : CRASH_CODES.has(code);
 
-/**
- * One rule for every launcher. A server that asks for a restart (75) starts again at once, at most MAX_RESTARTS in a
- * row. A server that crashed starts again after CRASH_BACKOFF_MS[n], at most that many times in a row; any other exit
- * (0, a refused start, a person stopping it) ends the launcher. A run that stayed up STABLE_RUN_MS starts both counts
- * again.
- */
 export function restartPolicy(now: () => number = Date.now) {
   let restarts = 0, crashes = 0, startedAt = now(), delay = 0;
   return {

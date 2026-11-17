@@ -99,9 +99,6 @@ export class ProcessBudget {
     return limit !== null && current !== null && current + held + this.browsersHeld() + tasks > limit - margin(limit);
   }
 
-  /** What the browsers let in still hold against the limit beyond what the count shows of them: each counts at its full
-   * size for as long as it runs, so one opened after its turn was let in (on a bot's first browser call) is never missed,
-   * and one still starting or loading a page has its room kept. */
   private browsersHeld(): number {
     const at = this.now();
     for (const [session, { since }] of this.browsers) if (at - since >= BROWSER_START_MS && this.browserRuns?.(session) === false) this.browsers.delete(session);

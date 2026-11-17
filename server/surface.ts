@@ -209,10 +209,7 @@ const PLACE_NAMES: Record<Surface, string> = {
   cloud: "its Cloud desktop", vm: "its Private desktop", local: "This computer", browser: "the built-in Browser",
 };
 
-/** What a bot says and does when work needs this computer's own files but the turn works elsewhere. `canSelect`: this
- * turn may call select_computer, the switch the person allows with one tap; otherwise only the person's own choice moves
- * it. `botId`: the bot's own id, so a person's own request can keep This computer as its Works on through app_settings;
- * only such a turn hears it, since an allow-once tap or an automation is never a lasting choice. */
+/** Only a person's own request may persist the bot's choice of This computer. */
 export function thisComputerSwitch(input: { place: Surface | null; bot: string; canSelect: boolean; botId?: string }): string {
   const where = input.place && input.place !== "local"
     ? `This bot works on ${PLACE_NAMES[input.place]}, not on this computer.` : "This bot does not work on this computer this turn.";

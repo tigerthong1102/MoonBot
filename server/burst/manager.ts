@@ -337,9 +337,6 @@ export function createBurstManager(deps: BurstManagerDeps) {
     laneOwned(threadId: string): boolean {
       return ownThreads.has(threadId);
     },
-    /** After a restart: a running turn is gone, so its part goes back in line and a merge tries again, until restarts cut
-     * either off more than OMB_BURST_PART_MAX_RESTARTS times: the part then fails with one line, and the parts are
-     * posted as they came instead of merged. */
     recover(): void {
       store.prune(now() - PRUNE_AFTER_MS);
       const most = burstPartMaxRestarts();

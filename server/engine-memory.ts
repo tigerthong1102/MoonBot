@@ -348,9 +348,6 @@ export class EngineMemory {
     this.arm();
   }
 
-  /** From FIRST_FRAME_MS on, a new engine that has written nothing is stopped as one that never came up, only while the
-   * server shows a shortage (pids at its limit at the start or now, a spawn refused since the start, memory short or
-   * stalled) and only once its process tree has gone idle with no child running. Otherwise it is left to its driver. */
   private watchFirstFrame(engine: Engine, out: { bytesRead: number }): () => void {
     const pid = engine.child.pid!, crowdedAtStart = this.processes?.short(ENGINE_TASKS, 0) === true;
     let timer: ReturnType<typeof setTimeout> | null = null, last: TreeUse | null = null;

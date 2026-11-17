@@ -113,11 +113,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
     more.receipt ? { kind: "bot-link.room-reply", key: more.receipt } : undefined);
   };
 
-  /**
-   * What the member reads: where it is, who is there, and what was said in the room after `after`, the last line it was
-   * sent (without one: after its own last line), up to `upTo` when the turn was already sent once. Its own lines are left
-   * out, since it wrote them. `through` is the last line this covers, whoever wrote it.
-   */
   function words(group: GroupRecord, threadId: string, member: BotRecord, after: string | undefined, upTo?: string): { text: string; through?: string } {
     const whole = deps.window(threadId, member.id);
     // The same turn asked for again ends where it ended the first time: what was said later belongs to the next turn.
@@ -173,11 +168,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
     /** Whether a turn of this room member is one this module forwards. */
     forwards: (bot: Pick<BotRecord, "id" | "home"> | null | undefined): boolean => Boolean(bot?.home) && isLinkedId(bot!.id),
 
-    /**
-     * A room member that lives elsewhere takes its turn: handed over the link, never run here. Returns at once (the
-     * room goes on with its other members); the answer is posted when it comes. A turn that still waits to be sent is
-     * not queued a second time: it is sent with everything said up to the moment it goes.
-     */
     memberTurn(group: GroupRecord, threadId: string, member: BotRecord, hop: number): boolean {
       const address = parseLinked(member.id);
       // It stays a member while it cannot be reached, and takes no turn: the room says why.
@@ -288,11 +278,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
     /** Whether any room here has a member from another place. */
     any: (): boolean => farIds().size > 0,
 
-    /**
-     * The far members of this place's rooms that cannot be reached now, as records to find them by: the link is off or
-     * their place is not linked ("off"), or their place no longer has that bot ("missing"). They stay members, are named
-     * as they were last known, and take no turn until they can be reached again.
-     */
     absent(): FarRecord[] {
       const ids = farIds();
       if (ids.size === 0) return [];

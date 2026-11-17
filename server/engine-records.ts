@@ -133,9 +133,7 @@ export function leftBehind(table: readonly Listed[], tag: string, leaders: Reado
   }).map((entry) => entry.pid);
 }
 
-/** Starts recording for this server and stops what earlier servers of `dataDir` left. Resolves once that sweep is done. It
- * runs alongside the server's own start: what this server starts carries its own tag, and nothing that started after this
- * server (`cutoff`, its own start unless a test plays both servers in one process) is ever taken for an earlier run's. */
+/** Never reclaim a process started by this server or after its recorded cutoff. */
 export async function startEngineRecords(dataDir: string, log: (line: string) => void = console.info, cutoff?: string | null): Promise<void> {
   if (process.platform === "win32" || run) return;
   const root = join(dataDir, ENGINE_RUNS_DIR);

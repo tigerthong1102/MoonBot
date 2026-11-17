@@ -190,9 +190,6 @@ export class ChromeEngine {
 export interface RuntimeRouterOptions {
   /** What a tool call is told instead of reaching either engine, or null to run it. */
   refusal?(session: string, spec: BrowserSpawnSpec, params: unknown): string | null;
-  /** Asked next, before an opt-in engine's tool call that may open the session's browser: what it is told while the server
-   * has no room to run one (a self-hosted server's pids limit), or null once it has. agent-browser's calls ask the same
-   * room through its BrowserRoom, after its count of browsers. */
   room?(session: string, spec: BrowserSpawnSpec, params: unknown): Promise<string | null>;
   /** Asked each time beforeDispatch ran, so after it claimed the session for this call's turn and before anything reaches
    * the engine: what a refusal that depends on who is calling tells the call, or null to run it. */

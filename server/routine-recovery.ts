@@ -214,9 +214,6 @@ export function recoverRun(run: RoutineRun, failure: string, facts: RoutineFailu
     return { queued: false, error: line.text, ...(alert === undefined ? {} : { alert }) };
   };
   if (verdict.kind === "busy") {
-    // A server with no room to start the run's engine is waited for once, 30 s, behind the server's own wait for room; a
-    // second refusal fails the run with it. Each recheck is a real spawn, unlike a busy bot's, so a server that stays full
-    // is not asked for a process every 30 s for an hour, and the routine's failure spacing counts the run at once.
     const noRoom = outOfProcesses(failure);
     if (noRoom && run.roomWaited) return failed(again);
     if (noRoom) run.roomWaited = true;

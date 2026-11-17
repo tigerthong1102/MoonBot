@@ -22,10 +22,6 @@ export interface RuntimeOptions {
   rerunGapMs?: number;
 }
 
-/** After a restart, the first RERUN_BURST turns it cut start again at once and the rest one at a time this far apart: a
- * server that fell under the load of many turns does not meet it again in its first second, and a fall during the
- * reruns cuts only those already started (a turn cut twice fails; one still waiting here was not cut again). Of 34 cut
- * turns, the last starts 15 s after the first. */
 export const RERUN_GAP_MS = 500;
 export const RERUN_BURST = 4;
 export const RERUN_HELD = "waiting its turn to start again after the restart";

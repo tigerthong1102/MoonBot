@@ -27,9 +27,6 @@ export function failureSpacingLimits(env: NodeJS.ProcessEnv = process.env): Fail
     laterMs: Math.max(firstMs, envWhole(env.OMB_ROUTINE_FAILURE_SPACING_MAX_MS, FAILURE_SPACING_MS, 60_000)) };
 }
 
-/** The routine's newest failed runs that started work, since it last completed a run, was turned on or was changed, or
- * a run failed only on the owner's AI account (signed out, out of credit, a usage limit): that ends a streak and any
- * spacing it began, since the cause changed. */
 export function failedRuns<T extends Outcome>(routine: Spaced, runs: readonly T[]): T[] {
   const outcomes = outcomesNewestFirst(runs, routine.id);
   const end = outcomes.findIndex((run) => run.status !== "failed" || run.createdAt < routine.updatedAt || run.ownerCause !== undefined);

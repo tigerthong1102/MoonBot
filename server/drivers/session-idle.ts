@@ -42,9 +42,6 @@ export function sessionIdlePolicy(
   return { idleMs: Math.max(minimumMs, configured), minimumMs };
 }
 
-/** On a small box with less than half of it free, a second idle engine would leave no room for a turn's own engine. On a
- * self-hosted server whose memory or pids limit holds only so many engines (`fits`), no more stay idle than fit beside the
- * ones working: each holds its processes and threads against that limit while it waits. */
 export function idleEnginesAllowed(box: Pick<BoxMemory, "bytes">, availableBytes: number, fits: number = Infinity): number {
   return Math.min(fits, box.bytes <= SMALL_BOX_BYTES && availableBytes < box.bytes / 2 ? 1 : Infinity);
 }
@@ -96,11 +93,6 @@ const WATCHED_MS = 30 * 60_000;
 /** A thread nobody has in front of them (a teammate's delegated work, a routine) keeps its engine this long. */
 export const UNWATCHED_IDLE_MS = 30_000;
 
-/**
- * How long one thread's idle engine stays up after a turn. Where turns wait for room (a Cloud home, a self-hosted Linux
- * server): briefly for a thread no person has had in front of them lately, and for the one they have, the configured time
- * scaled by the memory left (down to a tenth). Elsewhere the configured time.
- */
 export function engineIdleMs(threadId: string, policy: SessionIdlePolicy, memory: Pick<EngineMemory, "enabled" | "headroom"> = engineMemory,
   now: number = Date.now()): number {
   if (!memory.enabled) return policy.idleMs;

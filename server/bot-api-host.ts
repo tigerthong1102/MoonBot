@@ -255,6 +255,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
         const threadId = url.searchParams.get("thread") ?? "";
         const task = /^[\w-]{1,128}$/.test(threadId) ? deps.store.taskByThread(botId, threadId) : undefined;
         if (!task || task.botApi !== true) { json(res, 404, { error: "no such thread" }); return true; }
+        if (task.botApiAsOwner === true && !keyAsOwner) { json(res, 403, { error: NO_LONGER_OWNER }); return true; }
         const state = threadState(botId, threadId);
         json(res, "reply" in state ? 200 : 202, state);
         return true;

@@ -497,6 +497,8 @@ describe("a key that acts as the owner", () => {
     // Once the server no longer allows it, the key acts as nobody: it can't go on in the owner's thread, and new threads are fenced.
     allowed = false;
     expect((await h.app("GET", "/api/bots/b1/bot-api")).body.actsAsOwner).toBe(false);
+    expect((await h.call("b1", key, undefined, { method: "GET", query: `?thread=${ownedThread}` })).status).toBe(403);
+    expect((await h.call("b1", key, undefined, { method: "GET", query: `?thread=${fencedThread}` })).status).toBe(200);
     const refused = await h.call("b1", key, { message: "More", thread: ownedThread });
     expect(refused.status).toBe(403);
     expect(refused.body.error).toContain("no longer does");
@@ -505,7 +507,9 @@ describe("a key that acts as the owner", () => {
     allowed = true;
 
     // A new key starts without it, and switching it off is recorded too: by hand, by a new key, or by switching the API off.
-    expect((await h.app("POST", "/api/bots/b1/bot-api/new-key")).body.actsAsOwner).toBe(false);
+    const rotated = await h.app("POST", "/api/bots/b1/bot-api/new-key");
+    expect(rotated.body.actsAsOwner).toBe(false);
+    expect((await h.call("b1", rotated.body.key, undefined, { method: "GET", query: `?thread=${ownedThread}` })).status).toBe(403);
     await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: true });
     expect((await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: false })).body.actsAsOwner).toBe(false);
     await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: true });

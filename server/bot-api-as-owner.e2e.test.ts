@@ -87,6 +87,8 @@ it("runs a marked key's thread at the bot's level as the owner's work, keeps the
 
   // Off again: the key can't go on in the owner's thread, and the change is in Settings → Activity.
   expect(await api("POST", `/api/bots/${bot.id}/bot-api/acts-as-owner`, { enabled: false })).toMatchObject({ actsAsOwner: false });
+  const readAfterRevocation = await fetch(`${on.url}?thread=${task.threadId}`, { headers: { authorization: `Bearer ${on.key}` } });
+  expect(readAfterRevocation.status).toBe(403);
   const refused = await call(on.url, on.key, { message: "More", thread: task.threadId });
   expect(refused.status).toBe(403);
   const activity = readdirSync(join(dataDir, "admin-activity")).map((name) => readFileSync(join(dataDir, "admin-activity", name), "utf8")).join("\n");

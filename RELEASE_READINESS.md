@@ -17,3 +17,7 @@ upstream secrets or release endpoints may be reused. The owner must provide or
 approve an independent repository, signing identities, developer accounts,
 service ownership, legal review and real-device access. Never put credentials
 in Git. Do not change DNS, deploy paid services or publish as part of this audit.
+
+## CI evidence
+
+[Run 43981561567](https://github.com/tigerthong1102/MoonBot/actions/runs/43981561567) passed on `a9f9ce7e8642c986653a73bcd04b2de290879bd3`: 34 jobs passed and one was skipped. Later commits need their own CI. This is not installer or release qualification.

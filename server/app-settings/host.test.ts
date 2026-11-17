@@ -515,7 +515,6 @@ describe("every other setting applies at once with Undo, Full access or not", ()
     expect(String(refused.body.error)).toContain("This computer under “Where Kiwi works” in Bot's screen");
     expect(fx.botPatches).toEqual([]);
     expect(fx.cards()).toEqual([]);
-    // Other settings, and another place, still change from an automation as before.
     expect((await fx.set("bots.settings", JSON.stringify({ botId: "kiwi", computer: "vm" }))).status).toBe(200);
     expect(fx.botPatches).toEqual([{ botId: "kiwi", body: { computer: "vm" } }]);
   });

@@ -41,7 +41,6 @@ describe("the container's limits, from Linux's own files", () => {
     const container = { ...host, "/sys/fs/cgroup/memory.max": String(2 * GB), "/sys/fs/cgroup/memory.current": String(1536 * MB), "/sys/fs/cgroup/memory.stat": "inactive_file 0\n", "/sys/fs/cgroup/memory.events": "oom_kill 1\n" };
     const read = (map: Record<string, string>) => (path: string) => { if (path in map) return map[path]!; throw new Error("ENOENT"); };
     expect(readHostMemory(read(container))).toEqual({ totalBytes: 2 * GB, availableBytes: 512 * MB, swapFreeBytes: 0, oomKills: 1, fullStall10: null });
-    // No limit below the machine's memory: the machine's numbers, as before.
     expect(readHostMemory(read(host))).toMatchObject({ totalBytes: 67108864 * 1024, swapFreeBytes: 8388608 * 1024, oomKills: 40 });
     expect(readHostMemory(read({ ...host, "/sys/fs/cgroup/memory.max": "max\n", "/sys/fs/cgroup/memory.current": "1\n" }))).toMatchObject({ totalBytes: 67108864 * 1024 });
   });
@@ -766,7 +765,6 @@ describe("a spawn refused during a turn", () => {
     const now = 1_800_000_000_000;
     const run = () => ({ id: "r1", routineId: "x", target: "bot", botId: "b", status: "running", checkKey: "k", deferredAt: now - ROUTINE_BUSY_WAIT_MS }) as unknown as RoutineRun;
     expect(recoverRun(run(), NO_ROOM, {}, now, [])).toMatchObject({ queued: false });
-    // Its bot busy with the person: it waits as long as that takes, as before.
     expect(recoverRun(run(), "busy", { cause: "busy" }, now, [])).toEqual({ queued: true });
   });
 });

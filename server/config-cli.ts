@@ -18,7 +18,7 @@ restore   put a copy back, by name or "latest"; the file it replaces is kept,
           so the restore can be undone. Stop the server first if it is
           running, so nothing it holds in memory is written over the copy.
 
---data-dir DIR  the OpenMausBot data folder (default ~/.openmausbot)
+--data-dir DIR  the StartupBot data folder (default ~/.startupbot)
 --dry-run        say what a restore would do, and change nothing
 --json           print the result as JSON`;
 
@@ -52,7 +52,7 @@ export function parseConfigArgs(argv: string[], env: NodeJS.ProcessEnv = process
   const help = argv.includes("--help") || argv.includes("-h");
   const dryRun = argv.includes("--dry-run");
   const fail = (error: string): ConfigCliError => ({ error, json });
-  let dataDir = env.OMB_DATA_DIR || join(homedir(), ".openmausbot");
+  let dataDir = env.OMB_DATA_DIR || join(homedir(), ".startupbot");
   let name: string | undefined;
   const words = argv.filter((arg) => arg !== "--json" && arg !== "--help" && arg !== "-h" && arg !== "--dry-run");
   const command = words[0];

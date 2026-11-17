@@ -2437,7 +2437,7 @@ describe("DATA_DIR outside the suite's throwaway home", () => {
   it("treats an empty OMB_DATA_DIR as unset", () => {
     const home = mkdtempSync(join(tmpdir(), "omb-config-home-"));
     try {
-      expect(childDataDir({ HOME: home, USERPROFILE: home, OMB_DATA_DIR: "" })).toBe(join(home, ".openmausbot"));
+      expect(childDataDir({ HOME: home, USERPROFILE: home, OMB_DATA_DIR: "" })).toBe(join(home, ".startupbot"));
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
@@ -2446,7 +2446,7 @@ describe("DATA_DIR outside the suite's throwaway home", () => {
   it("keeps the home folder outside tests", () => {
     const home = mkdtempSync(join(tmpdir(), "omb-config-home-"));
     try {
-      expect(childDataDir({ HOME: home, USERPROFILE: home })).toBe(join(home, ".openmausbot"));
+      expect(childDataDir({ HOME: home, USERPROFILE: home })).toBe(join(home, ".startupbot"));
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

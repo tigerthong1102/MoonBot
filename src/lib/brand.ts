@@ -14,7 +14,7 @@ export interface BrandStatus {
   notice?: string;
 }
 
-export const DEFAULT_BRAND: Brand = { name: "OpenMausBot" };
+export const DEFAULT_BRAND: Brand = { name: "StartupBot" };
 export const PRODUCT_NAME = "StartupBot";
 
 let current: BrandStatus = { brand: DEFAULT_BRAND, source: "default", file: "" };

@@ -1,6 +1,3 @@
-// The cap engine over the usage ledger: what has been used this UTC day and month, by the server and by each bot, in
-// estimated dollars and in tokens, and which caps that use has reached. The open caps (`usageCaps`) and the licensed
-// monthly budget (spend.ts) both read their totals here.
 import { closeSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 
 import { directTurnKind } from "./agents-turn.ts";

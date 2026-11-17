@@ -15,12 +15,12 @@ function groupSignal(pid: number, signal: NodeJS.Signals): boolean {
   } catch { return false; }
 }
 
-/** SIGTERM to the child's group now and SIGKILL to what is left of it after `graceMs`. Only while the child has not been
- * seen to exit, or within the grace: a group outlives its leader only while a member runs, and the system gives no new
- * process that number while it does. */
+/** Stop a child and the processes it started, without signaling a reused process-group ID after closure. */
 export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExitedLeader = false): void {
   const pid = child.pid;
-  if (!allowExitedLeader && ((child.exitCode ?? null) !== null || (child.signalCode ?? null) !== null)) return;
+  const exited = child.exitCode !== null || child.signalCode !== null;
+  const streamsClosed = [child.stdout, child.stderr].every(stream => !stream || stream.closed || stream.destroyed);
+  if (exited && (!allowExitedLeader || streamsClosed)) return;
   if (pid && process.platform === "win32") {
     execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
     return;
@@ -30,7 +30,13 @@ export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExi
     try { child.kill("SIGTERM"); } catch {}
     return;
   }
-  const hard = setTimeout(() => groupSignal(pid, "SIGKILL"), graceMs);
+  const hard = setTimeout(() => {
+    // A finished child and closed pipes no longer hold a trustworthy group identity.
+    if ((child.exitCode !== null || child.signalCode !== null) &&
+        [child.stdout, child.stderr].every(stream => !stream || stream.closed || stream.destroyed)) return;
+    groupSignal(pid, "SIGKILL");
+  }, graceMs);
+  child.once("close", () => clearTimeout(hard));
   hard.unref?.();
 }
 

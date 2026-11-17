@@ -60,6 +60,25 @@ describe.skipIf(!posix)("a child in a group of its own", () => {
     });
   });
 
+  it("hard-kills descendants that inherit pipes and ignore graceful termination", async () => {
+    const result = execFileInGroupAsync("/bin/sh", ["-c", "trap '' TERM; sleep 30 & wait"], { timeout: 200 });
+    await expect(result).rejects.toMatchObject({ killed: true });
+  });
+
+  it("does not signal a closed group's ID after its child exits", async () => {
+    const shell = spawn("/bin/sh", ["-c", "sleep 30"], { stdio: ["ignore", "pipe", "pipe"], ...OWN_GROUP });
+    const signal = vi.spyOn(process, "kill");
+    try {
+      const closed = new Promise<void>(resolve => shell.once("close", () => resolve()));
+      stopGroup(shell, 250);
+      await closed;
+      await new Promise(resolve => setTimeout(resolve, 300));
+      expect(signal.mock.calls.filter(args => args[0] === -shell.pid && args[1] === "SIGKILL")).toHaveLength(0);
+    } finally {
+      signal.mockRestore();
+    }
+  });
+
   it("stopGroup ends a spawned child's group, and does nothing once the child has exited", async () => {
     const { file, args } = script();
     const shell = spawn(file, args, { stdio: "ignore", ...OWN_GROUP });

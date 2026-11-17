@@ -77,7 +77,7 @@ export interface BrowserRoomOptions {
   close(session: string): Promise<boolean>;
   /** Asked once the count allows a new browser: the server's own room for its processes (process-room.ts, a self-hosted
    * server's pids limit). Null once it fits; otherwise the refusal, after a spare browser is closed if one may go. */
-  admit?(session: string): Promise<string | null>;
+  admit?(session: string, admitted?: (rollback: () => void) => void): Promise<string | null>;
   waitMs?: number;
   pollMs?: number;
 }
@@ -100,17 +100,19 @@ export class BrowserRoom {
       if (this.#open.has(session)) return null;
       const others = [...this.#open];
       if (others.length < Math.max(1, this.#options.max())) {
-        const refused = await this.#options.admit?.(session) ?? null;
+        let rollback: (() => void) | undefined;
+        const refused = await this.#options.admit?.(session, undo => { rollback = undo; }) ?? null;
         if (refused !== null) {
           if (await this.#closeOneSpare(others)) continue;
           return refused;
         }
         // Another session may have taken the last place while the server's room was asked.
-        if (!this.#open.has(session) && this.#open.size >= Math.max(1, this.#options.max())) continue;
+        if (this.#open.has(session)) { rollback?.(); return null; }
+        if (this.#open.size >= Math.max(1, this.#options.max())) { rollback?.(); continue; }
         this.#open.add(session);
         const token = Symbol();
         this.#provisional.set(session, token);
-        onAdmitted?.(() => { if (this.#provisional.get(session) === token) this.left(session); });
+        onAdmitted?.(() => { if (this.#provisional.get(session) === token) { this.left(session); rollback?.(); } });
         return null;
       }
       if (await this.#closeOneSpare(others)) continue;

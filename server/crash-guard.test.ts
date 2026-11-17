@@ -1,3 +1,4 @@
+import { AsyncResource } from "node:async_hooks";
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,11 +8,12 @@ import { CRASH_EXIT_CODE } from "./restart.ts";
 
 const peerGone = (code: string) => Object.assign(new Error("socket hang up"), { code });
 
-function rig(turnRunning = true) {
+function rig(turnRunning = true, turnIdentity?: (threadId: string) => object | undefined) {
   const events = new EventEmitter();
   const calls = { failed: [] as string[], shutdown: [] as number[], exit: [] as number[], log: [] as string[] };
   let clock = 0;
   installCrashGuard({
+    turnIdentity,
     failTurn: (turn) => { calls.failed.push(turn.threadId); return turnRunning; },
     shutdown: (code) => calls.shutdown.push(code),
     exit: (code) => calls.exit.push(code),
@@ -51,6 +53,63 @@ describe("the crash guard's rule", () => {
 });
 
 describe("installCrashGuard", () => {
+  it("rejects a stale execution after the watchdog starts another turn before its driver dispatch", async () => {
+    vi.useFakeTimers();
+    let watched: object = {};
+    const { calls, raise } = rig(true, () => watched);
+    const instance = withTurnScope({ adapter: {
+      sendTurn: async () => {
+        setTimeout(AsyncResource.bind(() => raise("uncaughtException", new Error("old execution"))), 1);
+        return { turnId: "old" };
+      }, onEvent: () => () => {},
+    } } as unknown as Pick<ProviderInstance, "adapter">);
+    await instance.adapter.sendTurn({ threadId: "watchdog-generation", botId: "b" } as never);
+    watched = {};
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls.failed).toEqual([]);
+    expect(calls.shutdown).toEqual([CRASH_EXIT_CODE]);
+  });
+
+  it.each([false, true])("a stale driver callback cannot fail a newer turn, including after an engine switch: %s", async (switchEngine) => {
+    vi.useFakeTimers();
+    const { calls, raise } = rig();
+    const adapter = () => withTurnScope({ adapter: {
+      sendTurn: async (input: { threadId: string; text: string }) => {
+        if (input.text === "first") setTimeout(AsyncResource.bind(() => raise("uncaughtException", new Error("old callback"))), 10);
+        return { turnId: input.text };
+      }, onEvent: () => () => {},
+    } } as unknown as Pick<ProviderInstance, "adapter">);
+    const first = adapter(), second = switchEngine ? adapter() : first;
+    const threadId = `stale-${switchEngine}`;
+    await first.adapter.sendTurn({ threadId, botId: "b", text: "first" } as never);
+    await second.adapter.sendTurn({ threadId, botId: "b", text: "second" } as never);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(calls.failed).toEqual([]);
+    expect(calls.shutdown).toEqual([CRASH_EXIT_CODE]);
+  });
+
+  it("fails the current driver execution but treats a completed execution's late error as fatal", async () => {
+    vi.useFakeTimers();
+    const { calls, raise } = rig();
+    let emit: (event: never) => void = () => {};
+    const instance = withTurnScope({ adapter: {
+      sendTurn: async () => {
+        setTimeout(AsyncResource.bind(() => raise("uncaughtException", new Error("current"))), 1);
+        setTimeout(AsyncResource.bind(() => emit({ type: "turn.completed", threadId: "completed-scope", turnId: "one" } as never)), 2);
+        setTimeout(AsyncResource.bind(() => raise("uncaughtException", new Error("late"))), 3);
+        return { turnId: "one" };
+      }, onEvent: (listener: (event: never) => void) => { emit = listener; return () => {}; },
+    } } as unknown as Pick<ProviderInstance, "adapter">);
+    instance.adapter.onEvent(() => {});
+    await instance.adapter.sendTurn({ threadId: "completed-scope", botId: "b" } as never);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls.failed).toEqual(["completed-scope"]);
+    expect(calls.shutdown).toEqual([]);
+    await vi.advanceTimersByTimeAsync(2);
+    expect(calls.failed).toEqual(["completed-scope"]);
+    expect(calls.shutdown).toEqual([CRASH_EXIT_CODE]);
+  });
+
   it("stops the turn and keeps the server up when a turn's own work throws or rejects", async () => {
     const { calls, raise } = rig();
     await runInTurn({ botId: "b", threadId: "t1" }, async () => {
@@ -78,7 +137,7 @@ describe("installCrashGuard", () => {
     const seen: Array<string | undefined> = [];
     let emit: (event: never) => void = () => {};
     const instance = withTurnScope({ adapter: {
-      sendTurn: async () => { seen.push(currentTurn()?.threadId); await Promise.resolve(); setTimeout(() => emit({} as never), 1); },
+      sendTurn: async () => { seen.push(currentTurn()?.threadId); await Promise.resolve(); setTimeout(() => emit({} as never), 1); return { turnId: "t9" }; },
       onEvent: (listener: (event: never) => void) => { emit = listener; return () => {}; },
     } } as unknown as Pick<ProviderInstance, "adapter">);
     instance.adapter.onEvent(() => seen.push(currentTurn()?.threadId ?? "outside"));

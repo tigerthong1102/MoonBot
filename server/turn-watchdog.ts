@@ -195,7 +195,9 @@ export class TurnWatchdog {
     if (turn) this.watch(threadId, turn.botId);
   }
 
-  /** Stops a watched turn now, as a stall would (server/crash-guard.ts: an error in the turn's own work). */
+  identity(threadId: string): object | undefined { return this.turns.get(threadId); }
+
+  /** Stops the watched turn now, as a stall would. */
   fail(threadId: string, reason: StallReason = "server-error"): boolean {
     const turn = this.turns.get(threadId);
     if (!turn) return false;

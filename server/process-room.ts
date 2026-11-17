@@ -65,7 +65,7 @@ export class ProcessBudget {
   private readonly browserTasks: () => number | null;
   private readonly pollMs: number;
   /** Browsers let in (browserRoom), by session, and when. */
-  private readonly browsers = new Map<string, number>();
+  private readonly browsers = new Map<string, { since: number }>();
   private browserRuns: ((session: string) => boolean) | null = null;
   private seenBrowsers: { at: number; tasks: number | null } | null = null;
 
@@ -104,34 +104,39 @@ export class ProcessBudget {
    * and one still starting or loading a page has its room kept. */
   private browsersHeld(): number {
     const at = this.now();
-    for (const [session, since] of this.browsers) if (at - since >= BROWSER_START_MS && this.browserRuns?.(session) === false) this.browsers.delete(session);
+    for (const [session, { since }] of this.browsers) if (at - since >= BROWSER_START_MS && this.browserRuns?.(session) === false) this.browsers.delete(session);
     if (!this.browsers.size) return 0;
     if (!this.seenBrowsers || at - this.seenBrowsers.at >= 1_000 || at < this.seenBrowsers.at) this.seenBrowsers = { at, tasks: this.browserTasks() };
     return Math.max(0, this.browsers.size * BROWSER_TASKS - (this.seenBrowsers.tasks ?? 0));
   }
 
   /** The gate a bot's browser passes before it opens: `runs` says whether a session's browser is running now. */
-  browserRoom(runs: (session: string) => boolean): { enter(session: string): Promise<string | null> } {
+  browserRoom(runs: (session: string) => boolean): { enter(session: string, admitted?: (rollback: () => void) => void): Promise<string | null> } {
     this.browserRuns = runs;
-    return { enter: (session) => this.enterBrowser(session, this.now() + BROWSER_WAIT_MS) };
+    return { enter: (session, admitted) => this.enterBrowser(session, this.now() + BROWSER_WAIT_MS, admitted) };
   }
 
   reserveBrowser(session: string): void {
-    const since = this.browsers.get(session);
+    const since = this.browsers.get(session)?.since;
     if (since !== undefined && (this.now() - since < BROWSER_START_MS || this.browserRuns?.(session) !== false)) return;
-    this.browsers.set(session, this.now());
+    this.browsers.set(session, { since: this.now() });
   }
 
   releaseBrowser(session: string): void { this.browsers.delete(session); }
 
   /** Null once this session's browser may run: it already does, or its processes fit. Otherwise it waits for room until
    * `until`, then answers why it cannot open. */
-  private async enterBrowser(session: string, until: number): Promise<string | null> {
+  private async enterBrowser(session: string, until: number, admitted?: (rollback: () => void) => void): Promise<string | null> {
     for (;;) {
-      const since = this.browsers.get(session);
+      const since = this.browsers.get(session)?.since;
       if (since !== undefined && (this.now() - since < BROWSER_START_MS || this.browserRuns?.(session) !== false)) return null;
       this.browsers.delete(session);
-      if (this.browserRuns?.(session) || !this.short(BROWSER_TASKS, 0)) { this.browsers.set(session, this.now()); return null; }
+      if (this.browserRuns?.(session) || !this.short(BROWSER_TASKS, 0)) {
+        const reservation = { since: this.now() };
+        this.browsers.set(session, reservation);
+        admitted?.(() => { if (this.browsers.get(session) === reservation && this.browserRuns?.(session) === false) this.browsers.delete(session); });
+        return null;
+      }
       if (this.now() >= until) return BROWSER_NO_ROOM;
       await new Promise((resolve) => { const timer = setTimeout(resolve, Math.max(1, Math.min(this.pollMs, until - this.now()))); timer.unref?.(); });
     }

@@ -17,9 +17,11 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { ProviderInstance } from "./contracts.ts";
 import { CRASH_EXIT_CODE } from "./restart.ts";
 
-export interface TurnScope { botId: string; threadId: string }
+export interface TurnScope { botId: string; threadId: string; executionId?: symbol; isCurrent?: () => boolean }
 
 const scope = new AsyncLocalStorage<TurnScope>();
+const activeExecutions = new Map<string, { scope: TurnScope; turnId?: string }>();
+let watchedIdentity: ((threadId: string) => object | undefined) | undefined;
 
 /** Runs a turn's work so that an error nothing catches inside it, however late, is known to be that turn's. */
 export const runInTurn = <T>(turn: TurnScope, run: () => T): T => scope.run(turn, run);
@@ -30,10 +32,27 @@ export const outsideTurn = <T>(run: () => T): T => scope.exit(run);
 /** A driver's sendTurn runs in the turn's scope, and its events reach the server's listeners outside it. */
 export function withTurnScope<I extends Pick<ProviderInstance, "adapter">>(instance: I): I {
   const adapter = instance.adapter;
+  const active = activeExecutions;
   (instance as { adapter: ProviderInstance["adapter"] }).adapter = {
     ...adapter,
-    sendTurn: (input) => runInTurn({ botId: input.botId ?? "", threadId: input.threadId }, () => adapter.sendTurn(input)),
-    onEvent: (listener) => adapter.onEvent((event) => outsideTurn(() => listener(event))),
+    sendTurn: (input) => {
+      const turn: TurnScope = { botId: input.botId ?? "", threadId: input.threadId, executionId: Symbol() };
+      const entry = { scope: turn, turnId: undefined as string | undefined };
+      const watched = watchedIdentity?.(input.threadId);
+      turn.isCurrent = () => active.get(input.threadId) === entry &&
+        (!watchedIdentity || (watched !== undefined && watchedIdentity(input.threadId) === watched));
+      active.set(input.threadId, entry);
+      return runInTurn(turn, () => adapter.sendTurn(input).then(result => { entry.turnId = result.turnId; return result; }, error => {
+        if (active.get(input.threadId) === entry) active.delete(input.threadId);
+        throw error;
+      }));
+    },
+    onEvent: (listener) => adapter.onEvent((event) => {
+      const entry = active.get(event.threadId), origin = currentTurn();
+      if (event.type === "turn.completed" && entry &&
+          (origin?.executionId ? origin.executionId === entry.scope.executionId : event.turnId !== undefined && event.turnId === entry.turnId)) active.delete(event.threadId);
+      return outsideTurn(() => listener(event));
+    }),
   };
   return instance;
 }
@@ -75,6 +94,7 @@ export function crashLine(kind: "exception" | "rejection", error: unknown, turn:
 }
 
 export interface CrashGuardDeps {
+  turnIdentity?: (threadId: string) => object | undefined;
   /** Stops the turn and frees what it holds; false when the turn had already ended. */
   failTurn(turn: TurnScope, detail: string): boolean;
   /** The close after a fatal error: mark running turns cut, flush nothing else, process.exit(code). */
@@ -87,6 +107,7 @@ export interface CrashGuardDeps {
 }
 
 export function installCrashGuard(deps: CrashGuardDeps) {
+  watchedIdentity = deps.turnIdentity;
   const log = deps.log ?? ((line: string) => console.error(line)), redact = deps.redact ?? ((text: string) => text);
   const now = deps.now ?? Date.now, exit = deps.exit ?? ((code: number) => process.exit(code));
   const recent: number[] = [];
@@ -101,7 +122,7 @@ export function installCrashGuard(deps: CrashGuardDeps) {
       log(crashLine(kind, error, turn, verdict, redact));
       if (verdict === "fail-turn" && turn) {
         let stopped = false;
-        try { stopped = deps.failTurn(turn, error instanceof Error ? error.name : "error"); } catch (failure) { log(redact(`crash guard: stopping the turn failed: ${String(failure)}`)); }
+        try { stopped = turn.isCurrent?.() !== false && deps.failTurn(turn, error instanceof Error ? error.name : "error"); } catch (failure) { log(redact(`crash guard: stopping the turn failed: ${String(failure)}`)); }
         if (stopped) return;
         log(`crash guard: no running turn of thread ${turn.threadId} to stop — the server closes and starts again`);
         verdict = "exit";

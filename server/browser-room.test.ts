@@ -1,8 +1,32 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { BrowserRoom, browserRoomSize, pidsLimit, prepareBrowserRoom, SharedToolLists, spareForRoom } from "./browser-room.ts";
+import { ProcessBudget, BROWSER_TASKS } from "./process-room.ts";
 
 const files = (map: Record<string, string>) => (path: string) => map[path] ?? null;
+
+it.each([false, true])("preparation rollback preserves an existing process reservation: %s", async (existing) => {
+  const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, log: () => {} });
+  const processRoom = budget.browserRoom(() => false);
+  if (existing) budget.reserveBrowser("one");
+  const room = new BrowserRoom({ max: () => 2, spare: () => null, close: async () => false, admit: processRoom.enter });
+  await expect(prepareBrowserRoom(room, "one", Date.now() + 1000, async () => { throw new Error("prepare failed"); })).rejects.toThrow("prepare failed");
+  expect(room.open).toBe(0);
+  expect(budget.short(BROWSER_TASKS, 0)).toBe(existing);
+  if (!existing) expect(await processRoom.enter("two")).toBeNull();
+});
+
+it("a confirmed browser keeps its process reservation when a concurrent preparation fails", async () => {
+  let running = false;
+  const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, log: () => {} });
+  const processRoom = budget.browserRoom(() => running);
+  const room = new BrowserRoom({ max: () => 2, spare: () => null, close: async () => false, admit: processRoom.enter });
+  await expect(prepareBrowserRoom(room, "one", Date.now() + 1000, async () => {
+    running = true; room.entered("one"); throw new Error("prepare failed");
+  })).rejects.toThrow("prepare failed");
+  expect(room.open).toBe(1);
+  expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+});
 
 describe("the task limit a server runs under", () => {
   it("reads a container's cgroup v2 limit, the tightest over the cgroup and its parents", () => {
@@ -149,7 +173,7 @@ describe("a browser over the limit", () => {
     // the count allows a third, the server's room does not: a spare browser closed for it lets the new one in
     expect(await value.enter("c", Date.now() + 1_000)).toBeNull();
     expect(close.mock.calls).toEqual([["a"]]);
-    expect(admit.mock.calls).toEqual([["c"], ["c"]]);
+    expect(admit.mock.calls).toEqual([["c", expect.any(Function)], ["c", expect.any(Function)]]);
     expect(value.open).toBe(2);
     // an open browser is never asked about again, and with no spare browser left the refusal is the server's
     expect(await value.enter("c", Date.now() + 1_000)).toBeNull();

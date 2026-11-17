@@ -57,3 +57,11 @@ The latest remote changes were fast-forwarded without rewriting history. Confirm
 Local review regression: 430 passed, 2 platform skips across ten suites (title generation and regeneration, browser runtime/live, process budget, thread links, process groups, connector files, local computer and routine recovery). Remaining OAuth, secret-card, MCP-expiry and fill-login wording tests: 229 passed across six suites after aligning the stale assertions and two production messages with StartupBot. Lint and typecheck passed before the final text-only edits. These results do not imply final-head GitHub CI passed.
 
 The previous broad rerun had 1357 passed and 11 failed, including two runtime investigations (secret-request spawn readiness and room image steering). Those two have not been dismissed as flaky or qualified by the narrower passing review tests. Full CI, package smoke and fresh final-head reviews remain merge gates.
+
+## Codex follow-up from ac7baf1042
+
+- CONFIRMED: removed the cross-file implementation overview from electron/bot-link-address.mjs; the address helpers and consistency test remain.
+- CONFIRMED: provisional process-budget admission provides an ownership-checked rollback to BrowserRoom. A failed preparation releases only its own reservation; existing reservations and a concurrently confirmed browser remain held.
+- CONFIRMED: each scoped driver execution has an identity, checked against both the latest dispatch and the watchdog's watched execution before crash recovery can stop a turn. A late callback from a completed or superseded execution follows the fatal policy without failing the newer turn. Regression tests cover same-engine and switched-engine reuse, completion, and the gap before a replacement driver dispatch.
+
+Focused validation: 356 passed, one platform skip across crash guard, watchdog, browser room/runtime/live, process room and linked-address suites. This is local evidence; final-head CI remains required.

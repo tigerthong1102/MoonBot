@@ -119,7 +119,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     max: deps.browsersAtOnce ?? (() => defaultBrowserRoomSize()),
     spare: (session) => spareForRoom(agentBrowserRuntime.spare(session), { holds: !turnResources.free(`browser:${session}`), idleMs: idleMs() }),
     close: (session) => agentBrowserRuntime.closeIfIdle(session, 1),
-    ...(processRoom ? { admit: (session: string) => processRoom.enter(session) } : {}),
+    ...(processRoom ? { admit: (session: string, admitted?: (rollback: () => void) => void) => processRoom.enter(session, admitted) } : {}),
   });
   const agentBrowserRuntime = new BrowserRuntime({
     closeBrowser: (session, spec) => closeBrowserSession(spec.command, browserRuntimeEnv({ ...spec.env, AGENT_BROWSER_SESSION: session })),

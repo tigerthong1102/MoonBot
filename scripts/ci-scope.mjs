@@ -191,7 +191,7 @@ export const VITEST_SUBSETS = {
   },
   "docs-tests": {
     part: "docs tests",
-    files: ["scripts/testing/analytics-docs.test.ts", "server/model-providers-docs.test.ts", "src/locales/vocabulary.test.ts"],
+    files: ["scripts/startupbot-branding.test.mjs", "scripts/testing/analytics-docs.test.ts", "server/model-providers-docs.test.ts", "src/locales/vocabulary.test.ts"],
     shards: 1,
     nodeTests: false,
   },

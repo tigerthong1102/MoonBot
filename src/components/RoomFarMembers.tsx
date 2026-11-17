@@ -40,7 +40,7 @@ export function RoomFarMembers({ members, picked, onToggle }: { members: FarMemb
             <span
               className={cn(
                 "flex size-[18px] shrink-0 items-center justify-center rounded-full border",
-                picked.has(member.id) ? "border-accent bg-accent text-white" : "border-hairline/60",
+                picked.has(member.id) ? "border-accent bg-accent text-accent-ink" : "border-hairline/60",
               )}
             >
               {picked.has(member.id) && <Check size={12} />}

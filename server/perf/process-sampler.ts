@@ -25,7 +25,7 @@ export interface ProcessList {
   totalMs: number | null;
 }
 
-interface Sample { at: number; windowMs: number; cpu: Partial<Record<ProcessBucket, number>>; total: number | null; driftMs: number; elu: number | null }
+interface Sample { at: number; windowMs: number; cpu: Partial<Record<ProcessBucket, number>>; total: number | null; driftMs: number; elu: number | null; truncated: boolean }
 
 export interface BucketReport { bucket: ProcessBucket; procs: number; cpu5mS: number; cpu60mS: number; peakPct: number; rssMB: number }
 export interface ProcessReport {
@@ -112,7 +112,7 @@ export function createProcessSampler(options: ProcessSamplerOptions) {
   const now = options.now ?? Date.now, monotonic = options.monotonic ?? (() => performance.now());
   const serverPid = options.serverPid ?? process.pid;
   const samples: Sample[] = [];
-  let previous: { at: number; rows: Map<number, { start: string; cpuMs: number; bucket: ProcessBucket; ppid: number }>; reapedMs: number | null; totalMs: number | null } | null = null;
+  let previous: { at: number; rows: Map<number, { start: string; cpuMs: number; bucket: ProcessBucket; ppid: number }>; reapedMs: number | null; totalMs: number | null; truncated: boolean } | null = null;
   let latest: { at: number; procs: Partial<Record<ProcessBucket, number>>; rss: Partial<Record<ProcessBucket, number>>; browsers: number; truncated?: boolean } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null, due = 0, running = false;
 
@@ -142,10 +142,10 @@ export function createProcessSampler(options: ProcessSamplerOptions) {
     }
     if (previous) {
       const total = list.totalMs !== null && previous.totalMs !== null ? Math.max(0, list.totalMs - previous.totalMs) : null;
-      samples.push({ at: now(), windowMs: Math.max(1, at - previous.at), cpu, total, driftMs, elu: options.utilization?.() ?? null });
+      samples.push({ at: now(), windowMs: Math.max(1, at - previous.at), cpu, total, driftMs, elu: options.utilization?.() ?? null, truncated: list.truncated === true || previous.truncated });
       while (samples.length && samples[0]!.at <= now() - HOUR) samples.shift();
     } else options.utilization?.();
-    previous = { at, rows, reapedMs: list.reapedMs, totalMs: list.totalMs };
+    previous = { at, rows, reapedMs: list.reapedMs, totalMs: list.totalMs, truncated: list.truncated === true };
     latest = { at: now(), procs, rss, browsers, ...(list.truncated ? { truncated: true } : {}) };
   };
 
@@ -192,7 +192,7 @@ export function createProcessSampler(options: ProcessSamplerOptions) {
       const elus = hour.flatMap((sample) => (sample.elu === null ? [] : [sample.elu]));
       return {
         at: latest?.at ?? null, intervalS: Math.round(options.intervalMs / 1000), scope: options.scope, samples: hour.length, buckets,
-        ...(latest?.truncated ? { truncated: true } : {}),
+        ...(latest?.truncated || hour.some((sample) => sample.truncated) ? { truncated: true } : {}),
         browsers: latest?.browsers ?? 0, unseen60mS: unseen === null ? null : round1(unseen / 1000),
         loop: { eluPct: elus.length ? Math.round(elus.at(-1)! * 100) : null, eluMaxPct: elus.length ? Math.round(Math.max(...elus) * 100) : null,
           driftP95Ms: Math.round(exactQuantile(drifts, 0.95)), driftMaxMs: Math.round(drifts.at(-1) ?? 0) },

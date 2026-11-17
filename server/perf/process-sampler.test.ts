@@ -85,6 +85,19 @@ describe("the sampler", () => {
     await sampler.sampleNow();
     expect(sampler.report().truncated).toBe(true);
   });
+  it("keeps the incomplete warning while an affected CPU interval is in the hour", async () => {
+    let clock = 1_800_000_000_000;
+    let truncated = true;
+    const sampler = createProcessSampler({ list: () => ({ rows: [row(SERVER, 1, "node")], reapedMs: null, totalMs: null, truncated }), intervalMs: 60_000, scope: "tree", serverPid: SERVER, now: () => clock, monotonic: () => clock });
+    await sampler.sampleNow();
+    truncated = false;
+    clock += 60_000;
+    await sampler.sampleNow();
+    expect(sampler.report().truncated).toBe(true);
+    clock += 60 * 60_000;
+    await sampler.sampleNow();
+    expect(sampler.report().truncated).toBeUndefined();
+  });
   it("answers who used the CPU in the last five and sixty minutes, with each bucket's peak", async () => {
     let clock = 1_800_000_000_000, mono = 0;
     let lists: ProcessList[] = [];

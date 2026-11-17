@@ -980,7 +980,8 @@ posixOnly("mid-turn steering e2e", () => {
   it("a room steer folds a queued attachment into the running Claude turn as native images", async () => {
     rmSync(steerFinishGate, { force: true });
     const created = (await api("POST", "/api/bots")).body.bot;
-    await api("PATCH", `/api/bots/${created.id}`, { modelSelection: { instanceId: "claudeSteer", model: "claude-fake" } });
+    const selected = await api("PATCH", `/api/bots/${created.id}`, { modelSelection: { instanceId: "claudeSteer", model: "claude-fake" } });
+    expect(selected.status, JSON.stringify(selected.body)).toBe(200);
     const room = (await api("POST", "/api/groups", {
       name: "Image steer room",
       memberIds: [created.id],
@@ -992,7 +993,7 @@ posixOnly("mid-turn steering e2e", () => {
     try {
       expect((await api("POST", `/api/groups/${room.id}/messages`, { text: "start the room" })).status).toBe(202);
       await waitFor(async () => (await getGroup())?.busyBotId === created.id, "the room turn to start");
-      await waitFor(async () => (await getGroup())?.messages.some((m: any) => m.kind === "activity"), "the room tool chip");
+      await waitFor(async () => (await getGroup())?.messages.some((m: any) => m.kind === "activity" && m.tool?.name === "Bash"), "the running room tool chip");
 
       const attachments = join(home, ".startupbot", "attachments");
       mkdirSync(attachments, { recursive: true });
@@ -1007,7 +1008,7 @@ posixOnly("mid-turn steering e2e", () => {
         threadId: room.threadId,
       });
       expect(steered.status).toBe(200);
-      expect(steered.body).toMatchObject({ ok: true, steered: true });
+      expect(steered.body, JSON.stringify(steered.body)).toMatchObject({ ok: true, steered: true });
       expect(steered.body.queueIds).toEqual([queued.body.queueId]);
       expect(steered.body.blockedBy).toBeUndefined();
       const folded = (await getGroup())?.messages.find((m: any) => m.text === imageText);

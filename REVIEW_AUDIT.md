@@ -65,3 +65,7 @@ The previous broad rerun had 1357 passed and 11 failed, including two runtime in
 - CONFIRMED: each scoped driver execution has an identity, checked against both the latest dispatch and the watchdog's watched execution before crash recovery can stop a turn. A late callback from a completed or superseded execution follows the fatal policy without failing the newer turn. Regression tests cover same-engine and switched-engine reuse, completion, and the gap before a replacement driver dispatch.
 
 Focused validation: 356 passed, one platform skip across crash guard, watchdog, browser room/runtime/live, process room and linked-address suites. This is local evidence; final-head CI remains required.
+
+## CI fixture follow-up
+
+The secret-request Cloud fixture now supplies OMB_DATA_DIR explicitly, matching its generated StartupBot config instead of the Cloud launcher's default directory. Its original secret-redaction and one-use assertions remain. The room image-steer test now waits for the engine's actual Bash tool chip, not an unrelated activity such as resource admission waiting; steering, image, queue and timeout assertions remain. Running both complete files together passed all 25 tests. Qodo review is excluded from subsequent work at the owner's request.

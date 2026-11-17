@@ -14429,7 +14429,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             : req.headers["mcp-session-id"],
           async () => {
             requireActiveInternalCapability();
-            const checkDispatch = (final = false) => {
+            const checkDispatch = (final = false, record = true) => {
               requireActiveInternalCapability();
               const fresh = store.bot(internalCapability.botId);
               if (!fresh || fresh.composio === false || !composio.configured(cfg) || managedPolicy.appsCallRefusal(connectorCalls, serviceSlugs)) refuseDispatch("Connected apps were disabled while this call waited.");
@@ -14438,11 +14438,11 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
                   (call.kind === "tools" && !evaluateConnectorTools(call.names, fresh.connectorTools, serviceSlugs).allowed) ||
                   (call.kind === "unrecognized" && fresh.connectorTools !== undefined)) refuseDispatch("This bot's connected-app permissions changed. The call was not run.");
               if (outboundTool && final) {
-                try { outboundHold.beforeDispatch({ bot: fresh, threadId: internalCapability.threadId, tool: outboundTool, opaque, fullAccess: fullAccess && sendsFreely(), approved: outboundApproved }); }
+                try { outboundHold.beforeDispatch({ bot: fresh, threadId: internalCapability.threadId, tool: outboundTool, opaque, fullAccess: fullAccess && sendsFreely(), approved: outboundApproved, record }); }
                 catch (error) { refuseDispatch(error instanceof Error ? error.message : String(error)); }
               }
             };
-            checkDispatch(true);
+            checkDispatch(true, false);
             const reservedDrafts = internalCapability.gmailDrafts ??= new Set();
             const nextDrafts = new Set(reservedDrafts);
             const draftReservation = reserveGmailDrafts(connectorCalls, nextDrafts);
@@ -14451,13 +14451,13 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             if (files.upload) {
               const controller = new AbortController();
               const checkUploadPermission = () => {
-                try { checkDispatch(true); }
+                try { checkDispatch(true, false); }
                 catch (error) { controller.abort(error); }
               };
               const monitor = setInterval(checkUploadPermission, 100);
               monitor.unref?.();
               try {
-                sent = await files.upload({ check: () => checkDispatch(true), signal: controller.signal });
+                sent = await files.upload({ check: () => checkDispatch(true, false), signal: controller.signal });
               } catch (error) {
                 refuseDispatch(error instanceof Error ? error.message : String(error));
               } finally {

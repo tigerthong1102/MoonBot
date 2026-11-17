@@ -40,7 +40,7 @@ export interface OutboundHold {
   /** A send goes out without asking (Full access with no rule of its own, or "allow") or waits on the "Send on your behalf?" card. `fullAccess`: the turn runs at Full access. */
   hold(input: { bot: OutboundHoldBot; threadId: string; tool: string; calls: CardCall[]; opaque: boolean; fullAccess: boolean; active: () => boolean }): Promise<OutboundHoldAnswer>;
   /** At dispatch time, against the bot as it is now: a send that needs no card is recorded; otherwise the hold must have been approved. Throws the refusal text. */
-  beforeDispatch(input: { bot: OutboundHoldBot; threadId: string; tool: string; opaque: boolean; fullAccess: boolean; approved: boolean }): void;
+  beforeDispatch(input: { bot: OutboundHoldBot; threadId: string; tool: string; opaque: boolean; fullAccess: boolean; approved: boolean; record?: boolean }): void;
 }
 
 export function createOutboundHold(deps: OutboundHoldDeps): OutboundHold {
@@ -107,10 +107,10 @@ export function createOutboundHold(deps: OutboundHoldDeps): OutboundHold {
       }
       return { ok: true, approved: false };
     },
-    beforeDispatch({ bot: fresh, threadId, tool: outboundTool, opaque, fullAccess, approved }) {
+    beforeDispatch({ bot: fresh, threadId, tool: outboundTool, opaque, fullAccess, approved, record = true }) {
       const rule = sendsWithoutAsking(fresh.outbound, fullAccess, opaque);
       if (rule) {
-        appendDecision(DATA_DIR, { threadId, botId: fresh.id, botName: fresh.name, tool: outboundTool, decision: "auto-approved", source: "outbound", rule });
+        if (record) appendDecision(DATA_DIR, { threadId, botId: fresh.id, botName: fresh.name, tool: outboundTool, decision: "auto-approved", source: "outbound", rule });
       } else if (!approved) {
         throw new Error("The outbound policy changed. Ask for approval again before sending.");
       }

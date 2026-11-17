@@ -48,9 +48,7 @@ export function protectSupervisor(file: ScoreFile = procFile): boolean {
   }
 }
 
-/** The init this supervisor runs under (the Cloud home image's tini, process 1 where the host supplies none): root gives
- * it the supervisor's score too, since the container ends with its process 1. False where the parent is no such init, or
- * its score can't be set. */
+/** Linux containers exit when their PID 1 exits. */
 export function protectInit(parent: number = process.ppid, file: ScoreFile = procFile): boolean {
   if (process.platform !== "linux") return false;
   try {

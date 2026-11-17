@@ -155,9 +155,7 @@ export function createBotLinkMain({ wanted, pref, localRequest, fetch: fetchImpl
   void look();
   return {
     look,
-    /** The address over the link of a bot the sidebar lists for `home`: where the other place's bots know it, and where
-     * this place's stand-in for it is found. Null while no link of this Cloud and account is on, so a row never carries
-     * an address that belongs to another Cloud's or another account's link. */
+    /** Linked-bot addresses must belong to the active Cloud/account link. */
     address(home, botId) {
       const peer = linkedTo();
       if (!peer || typeof botId !== "string" || !botId) return null;

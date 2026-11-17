@@ -13,10 +13,8 @@ export interface ContainerInit {
   line: string | null;
 }
 
-/** Linux hands a process whose parent exited to process 1 (or the nearest subreaper), which must wait() for it or it
- * stays in the process table as a zombie and counts against the container's pids limit. Node waits only for the
- * children it started itself, so as process 1 it hands that place to tini and runs as tini's child: tini then collects
- * every orphan, across server restarts, and passes `docker stop` on. */
+/** Linux PID 1 or a subreaper must wait for adopted orphans to prevent zombies consuming the pids limit.
+ * Node waits only for children it started. */
 export function containerInit(options: {
   pid?: number; platform?: NodeJS.Platform; runnable?: (path: string) => boolean;
   env?: NodeJS.ProcessEnv; execPath?: string; execArgv?: string[]; argv?: string[];

@@ -59,14 +59,10 @@ export interface UnattendedTurns extends LoopGuard {
 interface Counted {
   turnId: string | undefined;
   workedMs: number;
-  /** Model calls the engine reported with an id of their own (several usage reports for one id are one call), and those
-   * it reported without one: some engines (Codex, ACP's usage_update, Muse Code, the chat-completions drivers) report
-   * usage several times for one call, so reports without an id count one call per step, a step ending where a tool
-   * starts. */
+  /** Codex and ACP engines can emit repeated usage updates for one model call. */
   calls: Set<string>;
   unnamedCalls: number;
   inStep: boolean;
-  /** Tool calls started: the count for an engine that reports no usage per call. */
   tools: number;
   denials: number;
   stopped: boolean;

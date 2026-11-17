@@ -58,10 +58,7 @@ export function defaultBrowserRoomSize(env: NodeJS.ProcessEnv = process.env): nu
   return size;
 }
 
-/** What the room may close for a bot waiting on a slot (how long the browser sat unused), or null. A browser no turn holds
- * may go. One a running turn holds goes only here, never in the regular idle sweep, and only once it sat unused for the
- * idle time and reopens with its sign-ins: open pages are lost either way, and a temporary browser would lose its
- * sign-ins too, so the turn keeps it. */
+/** Eviction must not close a temporary browser held by a running turn. */
 export function spareForRoom(spare: { idleMs: number; savesSignIns: boolean } | null, turn: { holds: boolean; idleMs: number }): number | null {
   if (spare === null) return null;
   if (!turn.holds) return spare.idleMs;

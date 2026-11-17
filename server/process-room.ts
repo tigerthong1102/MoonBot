@@ -5,9 +5,7 @@ import { linuxProcessList } from "./perf/process-sampler.ts";
 import { containerLimited, readPids } from "./process-limits.ts";
 import type { ShortageCode } from "./process-shortage.ts";
 
-/** What one working bot holds against pids.max: its engine and the five tool servers a default bot's engine starts ran as
- * 6 processes with 44 threads (a scripted engine on Node 24, 2026-11-16); a real engine CLI and the commands it runs add
- * to that. */
+/** A scripted engine on Node 24 used 44 threads across six processes (2026-11-16). */
 export const ENGINE_TASKS = 60;
 /** One more session in an engine process that is already running: its tool servers. */
 export const SESSION_TASKS = 40;

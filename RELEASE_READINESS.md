@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | Windows installer | NO-GO | Clean-machine install, product identity, separate data directory, signing and updater not qualified. |
 | macOS Apple Silicon / Intel | NO-GO | Unsigned local experimental DMGs were produced from a changing, uncommitted tree, so they cannot be traced to a commit. Clean-machine launch, agent, Computer Use, separate-data and permission acceptance, signing and notarization remain unverified. |
-| Linux | NO-GO | Ubuntu 24.04 installed-package smoke passed on 3f9676095; asset rights, signing/updater qualification and acceptance on other distributions remain open. |
+| Linux | NO-GO | Ubuntu 24.04 installed-package smoke passed on 021673f3f; asset rights, signing/updater qualification and acceptance on other distributions remain open. |
 | iOS | NO-GO | Upstream release-branch source found; dependency/asset review incomplete; no simulator build, signing or TestFlight artifact. |
 | Android | NO-GO | Upstream release-branch source found; dependency/asset review incomplete; no Android SDK build, APK, AAB or emulator evidence. |
 | Website | NO-GO | Local bilingual preview only; visual QA, verified downloads, deployment and approved privacy/terms remain outstanding. |
@@ -63,3 +63,5 @@ Retained full 44065206581 has a confirmed Windows shard 7/8 failure in the relay
 CI [44071162348](https://github.com/tigerthong1102/MoonBot/actions/runs/44071162348) completed SUCCESS on fdd466f6c7f8c8c031384a459f42b1c8f809f219 (34 passed, zero failed, one deployment skipped), including Windows shard 7/8. Docker, connector, docs and website also pass on that exact SHA. The older full run's failure/cancellations remain recorded separately.
 
 The final batched review correction removes runtime budget-test narration and equivalent internal overviews, with identical executable output across all 93 changed source/test files. All 323 focused/guard tests, lint and typecheck pass. The owner explicitly chose a final batched push with required checks on the final SHA; skip-ci is not used and no additional full matrix is dispatched. Final-head automatic CI and completed clean Codex review are still pending at this checkpoint. Source merge readiness remains distinct from commercial distribution permission.
+
+CI [44076359973](https://github.com/tigerthong1102/MoonBot/actions/runs/44076359973) completed SUCCESS on 021673f3f770fbce10dc48853b178c65e19a2f98 (34 passed, zero failed, one deployment skipped); Docker, connector, docs and website also pass. Codex then found a remaining mixed engine-fact/private-counter overview. The follow-up retains only external facts or configuration/data-safety contracts, with identical executable output across 11 source files. All 97 focused tests, lint and typecheck pass. Existing CI was allowed to finish before this next batched push; passed jobs are not manually rerun and no full matrix is dispatched. The new head still needs its own required checks and completed clean Codex review.

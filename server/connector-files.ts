@@ -263,11 +263,7 @@ export interface PreparedFiles {
   cardCalls<T extends { arguments?: unknown }>(calls: T[]): Array<T & { files?: CardFile[] }>;
 }
 
-/**
- * Reads, here and before anything goes out, each file of the bot's that `frame` names where a connected-app tool takes a
- * file. A value that is not one of the bot's files is left as it is (a Drive folder path such as /Apps/report.pdf, text
- * that starts with /). Answers the refusal the bot is told when a file it named may not be sent.
- */
+/** Only a bot's authorized local files may be uploaded. */
 export async function prepareConnectorFiles(frame: unknown, deps: FileStagingDeps): Promise<PreparedFiles | { refusal: string }> {
   const found = localFileReferences(frame);
   const ready: Array<{ reference: FileReference; file: OpenedLocalFile; name: string; mimetype: string }> = [];

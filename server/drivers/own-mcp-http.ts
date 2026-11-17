@@ -5,9 +5,7 @@ import { ownMcpOverHttp } from "./turn-mcp.ts";
 /** "1" turns the URL form on; off unless set, on every kind of server. */
 export const OWN_MCP_HTTP_ENV = "OMB_OWN_MCP_HTTP";
 
-/** Whether engines get OpenMausBot's own servers by URL: only with OMB_OWN_MCP_HTTP=1, and never while the bot box is on
- * (a boxed engine reaches this server only through the box's relays, which carry the stdio proxies' requests, not an
- * engine's own). */
+/** OMB_OWN_MCP_HTTP=1 permits URL transport; boxed engines must retain stdio isolation. */
 export function ownMcpHttpEnabled(env: NodeJS.ProcessEnv = process.env, boxed: boolean = botBox.enabled()): boolean {
   return !boxed && env[OWN_MCP_HTTP_ENV] === "1";
 }

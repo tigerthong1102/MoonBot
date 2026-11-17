@@ -1,7 +1,5 @@
-// A connected-app tool that takes a file (Google Drive's GOOGLEDRIVE_UPLOAD_FILE, a Gmail attachment) reads it from
-// Composio's file storage by `s3key`, never from the caller's disk. The app asks here for a place to put the file's
-// bytes: Composio answers a one-time upload link and the key the tool call then names. The bytes go from the app to
-// that link directly and never pass through this Worker.
+// Composio tools read uploaded files by s3key, not from the caller's disk.
+// File bytes must go directly to approved storage, never through this Worker.
 import { z } from "zod";
 
 import { composioUploadLink } from "../../../shared/composio-storage";

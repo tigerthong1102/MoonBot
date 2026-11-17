@@ -65,10 +65,7 @@ export function readCgroupMemory(read: Read = readText): CgroupMemory | null {
   return null;
 }
 
-/** Whether this process runs in a container that was given a limit: a pids or memory limit in the files at the cgroup
- * mount's root, which are the container's own there (its cgroup namespace, or v1's bind mount) and do not exist, or say
- * no limit, on a machine's real root cgroup. A limit set only on a parent the container cannot see (a Kubernetes pod's
- * pids limit) does not show. */
+/** A cgroup namespace can hide limits enforced by ancestors outside the container. */
 export function containerLimited(read: Read = readText): boolean {
   if (typeof count(read("/sys/fs/cgroup/pids.max")) === "number" || typeof count(read("/sys/fs/cgroup/memory.max")) === "number") return true;
   if (typeof count(read("/sys/fs/cgroup/pids/pids.max")) === "number") return true;

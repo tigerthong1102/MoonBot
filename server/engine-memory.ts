@@ -25,10 +25,7 @@ export const SESSION_BYTES = 200 * MB;
 export const BROWSER_BYTES = 400 * MB;
 /** A new engine's share is held back this long while it starts and grows; it is measured once it has run this long. */
 const RESERVE_MS = 90_000, SETTLED_MS = 30_000, TASKS_RESERVE_MS = 20_000, TASKS_SETTLED_MS = 5_000, SERVER_TURNS_FOR_MS = 5_000;
-/** A new engine process that has sent nothing this long after its turn began, while the server is short of room, never
- * came up: under a full pids limit a process can start and then hang, its threads refused, without any error. With no
- * sign of a shortage, or while its processes still work (a cold `npx` install, a slow first start), each driver's own
- * start timeout decides instead. */
+/** Under a full pids limit, a process can start and then hang when its threads are refused. */
 export const FIRST_FRAME_MS = 90_000;
 /** A silent engine's tree is read this long apart: less CPU than IDLE_CPU_MS between two reads and no child running is idle. */
 const FRAME_SAMPLE_MS = 5_000, FRAME_RECHECK_MS = 15_000, IDLE_CPU_MS = 50, FRAME_WATCH_MS = 10 * 60_000;

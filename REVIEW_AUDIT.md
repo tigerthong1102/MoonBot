@@ -10,21 +10,21 @@ Qodo lists 16 bugs plus one rule insight. NEEDS INVESTIGATION is not a dismissal
 | 1 | Windows updates look in wrong repo (`electron-builder.yml`) | FALSE POSITIVE | Independent update source is intentional; updater is disabled. |
 | 2 | Owner-level replies remain readable after key rotation (`server/bot-api-host.ts`) | CONFIRMED | GET lacked the owner-mode guard used by POST; guard added; host tests (21) and an isolated server fixture (1) passed. |
 | 3 | Failed browser launches can occupy a slot (`server/browser-runtime.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
-| 4 | An unused browser can still occupy a slot (`server/browser-runtime.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
+| 4 | An unused browser can still occupy a slot (`server/browser-runtime.ts`) | CONFIRMED | Successful close releases the reservation; browser runtime regression test passes. |
 | 5 | Queued work can cancel a restart retry (`server/runtime/runtime.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
 | 6 | Every app launch reports an update failure (`electron/updater.mjs`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
 | 7 | A person's browser can exceed process limits (`server/host/browser.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
-| 8 | Unknown account state exposes old link ids (`electron/bot-link-main.mjs`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
+| 8 | Unknown account state exposes old link ids (`electron/bot-link-main.mjs`) | CONFIRMED | Address lookup now requires matching known account IDs; Electron regression test passes. Legacy account-less links cannot expose addresses until paired with a known account. |
 | 9 | Large hosts get incomplete process reports (`server/perf/process-sampler.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
-| 10 | Upstream report never shows merge conflicts (`.github/workflows/startupbot-upstream.yml`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
+| 10 | Upstream report never shows merge conflicts (`.github/workflows/startupbot-upstream.yml`) | CONFIRMED | Uses the modern merge-tree conflict report; a temporary Git repository with conflicting edits reported the affected path and conflict. |
 | 11 | Servers still point users at upstream releases (`electron/updater-config.mjs`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
-| 12 | One file-staging call can exhaust server memory (`server/connector-files.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
+| 12 | One file-staging call can exhaust server memory (`server/connector-files.ts`) | CONFIRMED | A request now has a cumulative file-size budget and reads through a bounded handle; connector file tests pass. Concurrent requests still require separate memory-pressure evaluation. |
 | 13 | Process reports lose some engine counts (`server/perf/process-health.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
 | 14 | Zombie warnings falsely blame missing init (`server/perf/process-health.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
 | 15 | Phone swipes can end far off the screen (`server/drivers/phone-proxy.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
-| 16 | A failed config restore crashes the cli (`server/config-backup.ts`) | NEEDS INVESTIGATION | Review finding requires behavioral verification; no resolution claimed. |
+| 16 | A failed config restore crashes the cli (`server/config-backup.ts`) | CONFIRMED | Atomic-write failure returns a structured error; a regression test injects the failure after preserving the current settings. |
 | 17 | Site support link points at another repo (`startupbot-site/site.js`) | FALSE POSITIVE | MoonBot is the current repository; the target StartupBot repository is not yet verified. |
 
-Codex Review at `1d26b6866` has five unresolved, non-outdated threads: usage-cap design rule, descendant process lifetime, crash-guard comments, browser slot release and title-generation usage cap. All are NEEDS INVESTIGATION until verified and fixed. The browser close finding overlaps Qodo #4.
+Codex Review at `1d26b6866` has five unresolved, non-outdated threads. The browser close finding overlaps Qodo #4 and is fixed. The group execution timeout was confirmed and has a descendant-outlives-leader regression test. The retrospective crash-guard header was removed. The usage-cap design rule and title-generation usage cap still need investigation. None of these GitHub threads has been resolved.
 
 No review thread has been resolved. Re-run full CI and both reviews after fixes; release remains NO-GO.

@@ -29,7 +29,13 @@ jobs:
             echo '### License and dependency changes'
             git diff --stat "$base" upstream/main -- LICENSE LICENSING.md NOTICE third_party enterprise pnpm-lock.yaml package.json
             echo '### Merge conflict preview'
-            git merge-tree "$base" HEAD upstream/main | grep -E '^\+{7}|^<{7}|^>{7}' || true
+            if preview=$(git merge-tree --write-tree HEAD upstream/main); then
+              echo 'No merge conflicts detected.'
+            else
+              status=$?
+              if [ "$status" -ne 1 ]; then exit "$status"; fi
+              printf '%s\n' "$preview"
+            fi
             echo '### Recent releases'
             gh api repos/milind-soni/OpenMausBot/releases --jq '.[0:5][] | [.tag_name,.published_at,.html_url] | @tsv'
           } >> "$GITHUB_STEP_SUMMARY"

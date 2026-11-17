@@ -1,7 +1,9 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import * as atomic from "./atomic.ts";
 
 import {
   CONFIG_BACKUP_KEEP,
@@ -16,6 +18,20 @@ const dirs: string[] = [];
 const tempDir = () => { const dir = mkdtempSync(join(tmpdir(), "omb-config-backup-")); dirs.push(dir); return dir; };
 const configPath = (dir: string) => join(dir, "config.json");
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
+
+it("reports a failed restore write and preserves the existing settings", () => {
+  const dir = tempDir();
+  const name = "config.json.bak.20261116-003000";
+  writeFileSync(join(dir, name), '{"old":true}');
+  writeFileSync(configPath(dir), '{"current":true}');
+  const original = atomic.writeFileAtomic;
+  const write = vi.spyOn(atomic, "writeFileAtomic");
+  write.mockImplementationOnce(original).mockImplementationOnce(() => { throw new Error("disk full"); });
+  try {
+    expect(restoreConfigBackup(dir, name)).toMatchObject({ ok: false, error: expect.stringContaining("could not be written") });
+    expect(readFileSync(configPath(dir), "utf8")).toBe('{"current":true}');
+  } finally { write.mockRestore(); }
+});
 
 describe("reading the settings file", () => {
   it("tells a file that is not there from one that cannot be read", () => {

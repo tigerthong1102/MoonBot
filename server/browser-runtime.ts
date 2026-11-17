@@ -576,6 +576,9 @@ export class BrowserRuntime {
         let result = relayed
           ? await this.relayTool(session, spec, relayed, args, engineTimeoutMs)
           : await entry.client.rpc(method, request, engineTimeoutMs);
+        if (toolName === "agent_browser_close" && result && typeof result === "object" && (result as { isError?: boolean }).isError !== true) {
+          this.browserStopped(session);
+        }
         phases.engineMs = performance.now() - engineStarted;
         beforeDispatch?.();
         if (method === "tools/list") {

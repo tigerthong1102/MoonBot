@@ -91,7 +91,7 @@ export function createBotLinkMain({ wanted, pref, localRequest, fetch: fetchImpl
   const linkedTo = () => {
     const mine = cloud();
     if (!known?.on || known.role !== "dialer" || !known.peer?.id || !mine.origin || mine.signedOut || known.origin !== mine.origin) return null;
-    if (mine.account && known.account && mine.account !== known.account) return null;
+    if (!mine.account || !known.account || mine.account !== known.account) return null;
     return known.peer;
   };
   const note = (state) => {

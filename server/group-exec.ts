@@ -18,9 +18,9 @@ function groupSignal(pid: number, signal: NodeJS.Signals): boolean {
 /** SIGTERM to the child's group now and SIGKILL to what is left of it after `graceMs`. Only while the child has not been
  * seen to exit, or within the grace: a group outlives its leader only while a member runs, and the system gives no new
  * process that number while it does. */
-export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS): void {
+export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExitedLeader = false): void {
   const pid = child.pid;
-  if ((child.exitCode ?? null) !== null || (child.signalCode ?? null) !== null) return;
+  if (!allowExitedLeader && ((child.exitCode ?? null) !== null || (child.signalCode ?? null) !== null)) return;
   if (pid && process.platform === "win32") {
     execFile("taskkill", ["/PID", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
     return;
@@ -53,7 +53,7 @@ export function execFileInGroup(
   const stop = () => {
     if (stopped) return;
     stopped = true;
-    stopGroup(child);
+    stopGroup(child, KILL_GRACE_MS, process.platform !== "win32");
   };
   const finish = (error: ExecError | null) => {
     if (finished) return;
@@ -74,7 +74,7 @@ export function execFileInGroup(
   child.once("error", (error) => finish(error));
   child.once("close", (code, exitSignal) => {
     if (overflow) return finish(Object.assign(new RangeError(`${file} wrote more than ${maxBuffer} bytes`), { code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" }));
-    if (code === 0 && !exitSignal) return finish(null);
+    if (code === 0 && !exitSignal && !stopped) return finish(null);
     finish(Object.assign(new Error(`Command failed: ${cmd}\n${stderr}`), { code, signal: exitSignal }));
   });
   if (timeout) {

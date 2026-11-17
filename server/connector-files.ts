@@ -49,7 +49,7 @@ export interface OpenedLocalFile {
 export interface FileStagingDeps {
   /** The file at `path` when the bot may send it; null when there is no such file there, or it is outside the bot's
    * folders: the value is then not one of its files and is left as it is. Throws why a file there may not be sent. */
-  open(path: string): Promise<OpenedLocalFile | null>;
+  open(path: string, maxBytes?: number): Promise<OpenedLocalFile | null>;
   /** Composio's upload link and key for the file (server/composio-files.ts). */
   requestUpload(request: { toolkit_slug: string; tool_slug: string; filename: string; mimetype: string; md5: string }): Promise<{ key: string; url: string }>;
   /** The toolkit a tool belongs to (GOOGLEDRIVE_UPLOAD_FILE → googledrive). */
@@ -150,7 +150,7 @@ const real = (path: string) => realpath(path).catch(() => null);
 
 /** The bot's file at `path`, read through the chat file-link resolver (realpath containment, no-follow, secret folders,
  * 100 MB), or null when nothing the bot may send is there. A Local VM path is read from the VM's host folder. */
-export async function openBotFile(path: string, scope: BotFileScope): Promise<OpenedLocalFile | null> {
+export async function openBotFile(path: string, scope: BotFileScope, maxBytes = FILE_MAX_BYTES): Promise<OpenedLocalFile | null> {
   const target = (scope.guest ? guestWorkspaceToHost(path, scope.guest.root, scope.guest.host) : null) ?? path;
   const canonical = await real(target);
   const attachments = (await Promise.all(scope.attachments.map(real))).filter((one): one is string => one !== null);
@@ -158,11 +158,11 @@ export async function openBotFile(path: string, scope: BotFileScope): Promise<Op
   const roots = attached ? [dirname(canonical)] : scope.guest ? [scope.guest.host, ...scope.roots] : scope.roots;
   let file: OpenedMessageFile;
   try {
-    file = await openMessageFile(target, roots, FILE_MAX_BYTES);
+    file = await openMessageFile(target, roots, maxBytes);
   } catch (error) {
     const { status, code } = (error ?? {}) as { status?: unknown; code?: unknown };
     if (code === "outside_workspace" || code === "directory" || status === 404) return null;
-    if (code === "file_too_large") throw new Error(`it is larger than ${limitMegabytes(FILE_MAX_BYTES)} MB`);
+    if (code === "file_too_large") throw new Error(`it is larger than the remaining ${limitMegabytes(maxBytes)} MB upload allowance`);
     throw error;
   }
   try {
@@ -177,7 +177,15 @@ export async function openBotFile(path: string, scope: BotFileScope): Promise<Op
       || (!ownAppFolder && home !== null && within(home, file.path) && hiddenBelow(home, file.path))) {
       throw new Error(SENSITIVE);
     }
-    return { name: file.name, mime: file.mime, bytes: await file.handle.readFile() };
+    const bytes = Buffer.allocUnsafe(file.bytes + 1);
+    let used = 0;
+    while (used < bytes.length) {
+      const read = await file.handle.read(bytes, used, bytes.length - used, used);
+      if (!read.bytesRead) break;
+      used += read.bytesRead;
+    }
+    if (used > file.bytes) throw new Error("it changed while it was being read; try again");
+    return { name: file.name, mime: file.mime, bytes: bytes.subarray(0, used) };
   } finally {
     await file.handle.close().catch(() => undefined);
   }
@@ -210,7 +218,7 @@ export function connectorFileDeps(options: {
 }): FileStagingDeps {
   const toolkit = (tool: string) => serviceSlugForCandidates(tool, options.serviceSlugs) ?? serviceSlugFor(tool);
   return {
-    open: (path) => openBotFile(path, options.scope),
+    open: (path, maxBytes) => openBotFile(path, options.scope, maxBytes),
     requestUpload: (request) => requestFileUpload(options.via[0], request, options.via[1]),
     toolkitFor: (tool) => toolkit(tool) ?? tool.toLowerCase(),
     appFor: (tool) => options.appFor(tool) ?? toolkit(tool) ?? "the app",
@@ -270,14 +278,17 @@ export interface PreparedFiles {
 export async function prepareConnectorFiles(frame: unknown, deps: FileStagingDeps): Promise<PreparedFiles | { refusal: string }> {
   const found = localFileReferences(frame);
   const ready: Array<{ reference: FileReference; file: OpenedLocalFile; name: string; mimetype: string }> = [];
+  let totalBytes = 0;
   for (const reference of found.references) {
     let file: OpenedLocalFile | null;
     try {
-      file = await deps.open(onDisk(reference.path));
+      file = await deps.open(onDisk(reference.path), FILE_MAX_BYTES - totalBytes);
     } catch (error) {
       return { refusal: unreadableFileText(reference, deps.appFor(reference.tool), reasonOf(error)) };
     }
     if (!file) continue;
+    totalBytes += file.bytes.byteLength;
+    if (totalBytes > FILE_MAX_BYTES) return { refusal: `OpenMausBot did not run this call: the files exceed ${limitMegabytes(FILE_MAX_BYTES)} MB in total. Send them in smaller batches.` };
     if (ready.length === MAX_FILES_PER_REQUEST) {
       return { refusal: `OpenMausBot did not run this call: it names more than ${MAX_FILES_PER_REQUEST} files, and one call can upload at most ${MAX_FILES_PER_REQUEST}. Send them in smaller batches.` };
     }

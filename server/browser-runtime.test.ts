@@ -865,6 +865,16 @@ describe("server-owned browser MCP runtime", () => {
     expect(launch.ready).toHaveBeenCalledTimes(2);
   });
 
+  it("releases the browser slot when a close tool call succeeds", async () => {
+    const room = new BrowserRoom({ max: () => 1, spare: () => null, close: async () => false, waitMs: 20 });
+    const value = runtime({ room });
+    await value.agentRpc("s", spec(), "tools/call", { name: "echo", arguments: {} });
+    expect(room.open).toBe(1);
+    await value.agentRpc("s", spec(), "tools/call", { name: "agent_browser_close", arguments: {} });
+    expect(room.open).toBe(0);
+    expect(await room.enter("other", Date.now() + 100)).toBeNull();
+  });
+
   it("answers a call with the launcher's reason while the browser cannot start yet, without starting the engine", async () => {
     const launch = { ready: vi.fn(async () => { throw new Error("Getting the browser ready (52 of 182 MB). Try again in a minute."); }), started: vi.fn(), stopped: vi.fn() };
     const value = runtime({ launch });

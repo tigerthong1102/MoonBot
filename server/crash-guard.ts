@@ -1,6 +1,3 @@
-// What the server does with an error nothing caught. Without this, one bad callback ended the server with every turn
-// in flight; the launcher did not start it again, and the turns it reran at the next start failed if it fell again.
-//
 // The rule:
 // - A promise rejection nobody handled is survivable: the operation it belonged to is over, and what it changed before
 //   failing was written step by step. It is logged, and the turn it ran for (if any) is stopped.

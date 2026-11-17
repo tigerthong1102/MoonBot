@@ -10,6 +10,7 @@ import {
   type BotFileScope, type FileStagingDeps,
 } from "./connector-files.ts";
 import { outboundCard } from "./outbound-requests.ts";
+import { FILE_MAX_BYTES } from "../shared/upload-limits.ts";
 
 const call = <A,>(name: string, args: A, id = 1) => ({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } });
 const multi = (...tools: Array<{ tool_slug: string; arguments: any }>) => call("COMPOSIO_MULTI_EXECUTE_TOOL", { tools });
@@ -33,6 +34,18 @@ function deps(overrides: Partial<FileStagingDeps> = {}) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("connected-app file arguments", () => {
+  it("bounds the total bytes staged before any upload", async () => {
+    const limits: Array<number | undefined> = [];
+    const half = Math.floor(FILE_MAX_BYTES / 2) + 1;
+    const { value, requests } = deps({ open: async (_path, maxBytes) => {
+      limits.push(maxBytes);
+      return { name: "large.pdf", mime: "application/pdf", bytes: { byteLength: half } as Uint8Array };
+    } });
+    const result = await prepareConnectorFiles(multi({ tool_slug: "GMAIL_SEND_EMAIL", arguments: { attachments: ["/tmp/a.pdf", "/tmp/b.pdf"] } }), value);
+    expect(result).toMatchObject({ refusal: expect.stringContaining("in total") });
+    expect(limits).toEqual([FILE_MAX_BYTES, FILE_MAX_BYTES - half]);
+    expect(requests).toEqual([]);
+  });
   it("uploads a Windows path given as Google Drive's file_to_upload and names it by its staged key", async () => {
     const frame = multi({ tool_slug: "GOOGLEDRIVE_UPLOAD_FILE", arguments: { file_to_upload: "C:\\Users\\sam\\Documents\\report.pdf", folder_to_upload_to: "1AbC" } });
     const { value, opened, requests, puts } = deps();

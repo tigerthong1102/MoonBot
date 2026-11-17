@@ -47,6 +47,11 @@ describe.skipIf(!posix)("a child in a group of its own", () => {
     await expect(execFileInGroupAsync("/bin/sh", ["-c", "exit 3"])).rejects.toMatchObject({ code: 3 });
   });
 
+  it("times out when the group leader exits before a descendant closes stdout", async () => {
+    const result = execFileInGroupAsync("/bin/sh", ["-c", "sleep 30 & exit 0"], { timeout: 300 });
+    await expect(result).rejects.toMatchObject({ killed: true });
+  });
+
   it("stopGroup ends a spawned child's group, and does nothing once the child has exited", async () => {
     const { file, args } = script();
     const shell = spawn(file, args, { stdio: "ignore", ...OWN_GROUP });

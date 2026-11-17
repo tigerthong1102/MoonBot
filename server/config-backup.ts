@@ -187,6 +187,10 @@ export function restoreConfigBackup(dir: string, name: string, options: { dryRun
     if (!aside) return { ok: false, error: `The file ${target} could not be kept as a copy, so it was left as it is and nothing was put back` };
     kept = aside;
   }
-  writeFileAtomic(target, text, { mode: 0o600 });
+  try {
+    writeFileAtomic(target, text, { mode: 0o600 });
+  } catch {
+    return { ok: false, error: `The copy ${name} could not be written to ${target}${kept ? `; the previous file was kept at ${kept}` : ""}` };
+  }
   return { ok: true, name, kept, restored: true };
 }

@@ -86,6 +86,8 @@ test("the address of a bot of the other place is the link's own, only while the 
   assert.equal(h.the.changes >= 1, true, "the sidebar is told the addresses came");
   h.the.account = "account-2";
   assert.equal(h.link.address("cloud", "scout"), null, "another account: none, before the next look");
+  h.the.account = null;
+  assert.equal(h.link.address("cloud", "scout"), null, "unknown account: none");
   h.the.account = "account-1";
   h.the.origin = "https://omb-u-2.fly.dev";
   assert.equal(h.link.address("cloud", "scout"), null, "another Cloud: none");

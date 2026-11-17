@@ -18,7 +18,7 @@ function groupSignal(pid: number, signal: NodeJS.Signals): boolean {
 /** Stop a child and the processes it started, without signaling a reused process-group ID after closure. */
 export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExitedLeader = false): void {
   const pid = child.pid;
-  const exited = child.exitCode !== null || child.signalCode !== null;
+  const exited = child.exitCode !== null || child.signalCode != null;
   const streamsClosed = [child.stdout, child.stderr].every(stream => !stream || stream.closed || stream.destroyed);
   if (exited && (!allowExitedLeader || streamsClosed)) return;
   if (pid && process.platform === "win32") {
@@ -32,7 +32,7 @@ export function stopGroup(child: ChildProcess, graceMs = KILL_GRACE_MS, allowExi
   }
   const hard = setTimeout(() => {
     // A finished child and closed pipes no longer hold a trustworthy group identity.
-    if ((child.exitCode !== null || child.signalCode !== null) &&
+    if ((child.exitCode !== null || child.signalCode != null) &&
         [child.stdout, child.stderr].every(stream => !stream || stream.closed || stream.destroyed)) return;
     groupSignal(pid, "SIGKILL");
   }, graceMs);

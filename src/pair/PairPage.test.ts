@@ -9,6 +9,8 @@ vi.mock("../components/DesktopWorkspaceSwitcher", () => ({ DesktopWorkspaceSwitc
 import { codeProblem, codeReady, openInAppLink, PairPage, pairIntro, pairsAutomatically, pairTitle, TeamLeftPage, teamPage, unencryptedPublic } from "./PairPage";
 import en from "../locales/en.json";
 import type { EnvironmentDescriptor } from "../lib/session";
+import { internalDeepLink } from "../../electron/startupbot-identity.mjs";
+import { parseServerInput } from "../../electron/server-address.mjs";
 
 const code = "ABCD-EFGH-JK23";
 const render = (initialCode: string | null) => { f.effects = []; return renderToStaticMarkup(createElement(PairPage, { initialCode })); };
@@ -80,8 +82,18 @@ it("names a wrong kind of code instead of letting it be sent as a wrong one", ()
 });
 
 it("opens the phone app at this server with the code filled in", () => {
-  expect(openInAppLink("https://maus.example.com", "7kq2m9xdh4tp")).toBe("openmausbot://pair?address=https%3A%2F%2Fmaus.example.com&code=7KQ2-M9XD-H4TP");
-  expect(openInAppLink("http://192.168.1.20:8799", "")).toBe("openmausbot://pair?address=http%3A%2F%2F192.168.1.20%3A8799");
+  expect(openInAppLink("https://maus.example.com", "7kq2m9xdh4tp")).toBe("startupbot://pair?address=https%3A%2F%2Fmaus.example.com&code=7KQ2-M9XD-H4TP");
+  expect(openInAppLink("http://192.168.1.20:8799", "")).toBe("startupbot://pair?address=http%3A%2F%2F192.168.1.20%3A8799");
+});
+
+it("opens StartupBot and preserves the desktop pairing parser's transport checks", () => {
+  for (const origin of ["https://startupbot.example", "http://192.168.1.20:8799"]) {
+    const link = openInAppLink(origin, code);
+    expect(new URL(link).protocol).toBe("startupbot:");
+    expect(parseServerInput(internalDeepLink(link))).toMatchObject({ ok: true, candidates: [origin], code, credential: null });
+  }
+  const insecure = openInAppLink("http://203.0.113.9:8799", code);
+  expect(parseServerInput(internalDeepLink(insecure))).toMatchObject({ ok: false, problem: "publicHttp" });
 });
 
 it("warns only on plain http across the open internet", () => {
@@ -97,7 +109,7 @@ it("asks for the code first, with email sign-in as a link below, and says how to
   const html = render(code);
   expect(html).toContain(en["pair.notEncrypted"].replace("'", "&#x27;"));
   expect(html).toContain(en["pair.fromLink"]);
-  expect(html).toContain("openmausbot://pair?address=http%3A%2F%2F203.0.113.9%3A8799&amp;code=ABCD-EFGH-JK23");
+  expect(html).toContain("startupbot://pair?address=http%3A%2F%2F203.0.113.9%3A8799&amp;code=ABCD-EFGH-JK23");
   expect(html).toContain("npx openmausbot pair");
   expect(html.indexOf("<form")).toBeLessThan(html.indexOf(en["pair.code"]));
 });

@@ -32,17 +32,13 @@ export interface UsageTotals {
 
 type Entry = { at: string; botId: string; usd: number; tokens: number };
 type Sums = { server: Record<CapPeriod, Used>; bots: Map<string, Record<CapPeriod, Used>> };
-/** One month file as far as it was read: running sums for its month and for `day`, and how many bytes they cover. The
- * ledger only grows by whole lines, so a later look reads just what was appended, and only when the file changed. */
 type Read = {
   at: number; day: string; month: string; size: number; mtimeMs: number; sums: Sums;
-  /** Every row counted, by ledger key. */
   keys: Set<string>;
-  /** Rows counted from memory when their append landed, which the file has not yet been read past. */
   fromMemory: Set<string>;
 };
 const cache = new Map<string, Read>();
-// Rows whose async ledger append may not have landed yet: a long turn would otherwise re-read the month without its own row.
+// Pending usage must count toward caps before its ledger append completes.
 const unwritten = new Map<string, Map<string, Entry>>();
 
 const positive = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0);
@@ -78,7 +74,6 @@ function addTo(sums: Sums, entry: Entry, month: string, day: string): void {
   }
 }
 
-/** Counts the whole lines of `bytes`; returns how many bytes they span (a line still being written is left for later). */
 function countLines(read: Read, bytes: Buffer): number {
   const end = bytes.lastIndexOf(10) + 1;
   for (const line of bytes.subarray(0, end).toString("utf8").split("\n")) {
@@ -103,7 +98,6 @@ function statOf(file: string): { size: number; mtimeMs: number } {
   }
 }
 
-/** Reads the month file from the start. */
 function readMonth(dataDir: string, now: Date): Read {
   const read: Read = { at: now.getTime(), day: dayKey(now), month: monthKeyOf(now), size: 0, mtimeMs: 0, sums: { server: zero(), bots: new Map() }, keys: new Set(), fromMemory: new Set() };
   const file = usageFileFor(dataDir, now);
@@ -114,7 +108,6 @@ function readMonth(dataDir: string, now: Date): Read {
   return read;
 }
 
-/** Brings a read up to date: nothing when the file is as it was, the appended bytes when it grew, all of it otherwise. */
 function refresh(dataDir: string, read: Read, now: Date): Read {
   const file = usageFileFor(dataDir, now);
   const { size, mtimeMs } = statOf(file);
@@ -150,7 +143,6 @@ export function usageTotals(dataDir: string, now = new Date()): UsageTotals {
   return totals;
 }
 
-/** Counts a booked row from memory until its append lands, so the next cap check already sees it. */
 export function noteUsage(dataDir: string, row: Pick<UsageRow, "at" | "threadId" | "botId" | "costUsd" | "input" | "output" | "cachedInput">, written: Promise<boolean>): void {
   const entry = entryOf(row);
   if (!entry.usd && !entry.tokens) return;
@@ -175,7 +167,6 @@ export function resetUsageTotalsForTests(): void {
   unwritten.clear();
 }
 
-/** One limit measured against its use: the arithmetic every cap shares. */
 export function measure(limit: number, used: number, warnAtPercent = CAP_WARN_PERCENT): { percent: number; warn: boolean; reached: boolean } {
   const percent = Math.min(999, Math.round((used / limit) * 100));
   return { percent, warn: percent >= warnAtPercent, reached: used >= limit };

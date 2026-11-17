@@ -46,11 +46,10 @@ export function codeReady(code: string): boolean {
   return kind === "code" || kind === "credential";
 }
 
-/** The phone app opens this server with the code already filled in. */
 export function openInAppLink(origin: string, code: string): string {
   const read = readPairingInput(code);
   const filled = read.kind === "code" ? `&code=${encodeURIComponent(formatPairingCode(read.code))}` : "";
-  return `openmausbot://pair?address=${encodeURIComponent(origin)}${filled}`;
+  return `startupbot://pair?address=${encodeURIComponent(origin)}${filled}`;
 }
 
 /** Plain http to the open internet: the session cookie and every chat would cross it readable. */

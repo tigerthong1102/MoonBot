@@ -14,6 +14,7 @@ const { writeFileSync } = require("node:fs");
 writeFileSync(process.env.PID_FILE, String(process.pid));
 process.stdin.resume();
 if (process.env.IGNORES_TERM === "1") process.on("SIGTERM", () => {});
+if (process.env.FLUSH_FILE) process.on("SIGTERM", () => setTimeout(() => { writeFileSync(process.env.FLUSH_FILE, "flushed"); process.exit(0); }, 100));
 setInterval(() => {}, 60_000);
 `;
 
@@ -35,7 +36,7 @@ describe.skipIf(process.platform === "win32")("mcp-gate and the processes it sta
   let gate: ChildProcessWithoutNullStreams | undefined;
   let serverPid = 0;
 
-  const start = async (env: Record<string, string> = {}) => {
+  const start = async (env: Record<string, string> = {}, direct = false) => {
     const server = join(scratch, "server.cjs");
     const pidFile = join(scratch, "server.pid");
     writeFileSync(server, SERVER);
@@ -46,8 +47,8 @@ describe.skipIf(process.platform === "win32")("mcp-gate and the processes it sta
         OMB_GATE_NAME: "notes",
         OMB_GATE_SPILL_DIR: join(scratch, "spill"),
         OMB_GATE_UPSTREAM: JSON.stringify({
-          command: "/bin/sh",
-          args: ["-c", `"${process.execPath}" "${server}"; exit 0`],
+          command: direct ? process.execPath : "/bin/sh",
+          args: direct ? [server] : ["-c", `"${process.execPath}" "${server}"; exit 0`],
           env: { PID_FILE: pidFile, ...env },
         }),
       },
@@ -87,5 +88,13 @@ describe.skipIf(process.platform === "win32")("mcp-gate and the processes it sta
     gate!.kill("SIGTERM");
     expect(await until(exited, 6_000)).toBe(true);
     expect(await until(() => !alive(serverPid), 2_000)).toBe(true);
+  }, 40_000);
+
+  it("lets a direct upstream flush during its own SIGTERM grace period", async () => {
+    const flushed = join(scratch, "flushed");
+    await start({ FLUSH_FILE: flushed }, true);
+    gate!.kill("SIGTERM");
+    expect(await until(exited, 5_000)).toBe(true);
+    expect(readFileSync(flushed, "utf8")).toBe("flushed");
   }, 40_000);
 });

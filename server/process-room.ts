@@ -1,5 +1,5 @@
 // A server in a container may hold only so many processes and threads (its cgroup's pids.max); past that every spawn
-// fails with EAGAIN. The gate that holds turns for memory (engine-memory.ts) asks here whether one more engine fits.
+// fails with EAGAIN.
 import { readFileSync } from "node:fs";
 import { nameBucket, parseReapedChildrenMs, type ProcessRow } from "./perf/process-buckets.ts";
 import { linuxProcessList } from "./perf/process-sampler.ts";

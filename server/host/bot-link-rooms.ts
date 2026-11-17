@@ -68,7 +68,7 @@ export interface LinkedRoomsDeps {
   /** Who stands behind what is being said in this room thread now when it is not the person: a routine, a webhook, a guest. */
   opener?(botId: string, threadId: string): HandoffOpener | undefined;
   /** After a member's answer is in the room: the members it names take their turns, as after any member's answer. */
-  follow?(groupId: string, threadId: string, speaker: BotRecord, text: string, hop: number): void;
+  follow?(groupId: string, threadId: string, speaker: BotRecord, text: string, hop: number, origin?: HandoffView["origin"]): void;
   maxHops?: number;
   now?: () => number;
   log?(line: string): void;
@@ -273,7 +273,7 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
         store.markGroupThreadUnread(group.id, at.threadId, true);
         const hop = turn?.hop ?? hopOf(parent?.id ?? child.parentId);
         if (member && !member.home?.gone && group.memberIds.includes(member.id) && hop < (deps.maxHops ?? 3)) {
-          try { deps.follow?.(group.id, at.threadId, member, said, hop); } catch (error) { deps.log?.(`bot link: the mentions in ${from.name}'s answer were not followed (${String(error)})`); }
+          try { deps.follow?.(group.id, at.threadId, member, said, hop, child.origin ?? parent?.origin); } catch (error) { deps.log?.(`bot link: the mentions in ${from.name}'s answer were not followed (${String(error)})`); }
         }
         return true;
       }
@@ -342,10 +342,10 @@ export interface RoomFollowPorts<Operation extends { cancelled: boolean }> {
 }
 
 export function followRoomMentions<Operation extends { cancelled: boolean }>(ports: RoomFollowPorts<Operation>): NonNullable<LinkedRoomsDeps["follow"]> {
-  return (groupId, threadId, speaker, text, hop) => {
+  return (groupId, threadId, speaker, text, hop, origin) => {
     const next = ports.mentioned(text, ports.members(groupId).filter((member) => member.id !== speaker.id));
     if (!next.length) return;
-    const operation = ports.begin(groupId, threadId, next.map((member) => member.id));
+    const operation = Object.assign(ports.begin(groupId, threadId, next.map((member) => member.id)), { personStarted: origin?.kind === "user" });
     const turns = (ports.queue.get(threadId) ?? Promise.resolve()).then(async () => {
       const spoken = new Set<string>([speaker.id]);
       for (const member of next) {

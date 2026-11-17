@@ -255,7 +255,13 @@ const stopUpstream = (): Promise<void> => stopping ??= (async () => {
     return;
   }
   if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
-  await stopTree(tree, TREE_STOP_GRACE_MS);
+  const childStopped = new Promise<void>((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) return resolve();
+    const done = () => { clearTimeout(timer); child.off("exit", done); resolve(); };
+    const timer = setTimeout(done, TREE_STOP_GRACE_MS);
+    child.once("exit", done);
+  });
+  await Promise.all([stopTree(tree, TREE_STOP_GRACE_MS), childStopped]);
   if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
 })();
 const leave = (code: number) => void stopUpstream().finally(() => process.exit(code));

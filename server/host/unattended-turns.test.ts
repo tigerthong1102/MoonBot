@@ -93,6 +93,18 @@ describe("a turn nobody is watching", () => {
     expect(tools.interrupts).toHaveLength(1);
   });
 
+  it.each([true, false])("counts batched tools as one model request when usage has an id: %s", (identified) => {
+    const r = rig({ limits: { maxRequests: 3 } });
+    for (let request = 1; request <= 3; request++) {
+      r.emit({ ...r.base(), type: "thread.token-usage.updated", ...(identified ? { itemId: `msg-${request}` } : {}), input: 10, output: 5 });
+      if (request < 3) {
+        for (let tool = 0; tool < 4; tool++) r.emit({ ...r.base(), type: "item.started", itemType: "tool", itemId: `t${request}-${tool}`, title: `read ${tool}` });
+        expect(r.interrupts).toEqual([]);
+      }
+    }
+    expect(r.interrupts).toHaveLength(1);
+  });
+
   it("counts usage reports without an id as one call per step between tool calls, as Codex, ACP and the chat-completions drivers send several per call", () => {
     const r = rig({ limits: { maxRequests: 3 } });
     const call = (step: number) => {

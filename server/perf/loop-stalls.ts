@@ -1,6 +1,3 @@
-// How long the event loop could not answer, measured all the time (perf_hooks.monitorEventLoopDelay), and the blocking
-// work the server times itself: whole-file saves and runtime-store reads. The process sampler's own "timer late" reads
-// one timer once a minute, so it missed 2–3 s stalls a probe saw; this does not. Numbers only, no names or content.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { monitorEventLoopDelay, performance, type IntervalHistogram } from "node:perf_hooks";
 

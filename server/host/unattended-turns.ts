@@ -81,7 +81,7 @@ type Stop = { key: ChatNoticeKey; params: ServerTextParams };
 
 function over(turn: Counted, limits: UnattendedLimits): Stop | undefined {
   if (turn.denials >= limits.maxDenials) return { key: "chat.notice.unattendedDenied", params: { count: turn.denials } };
-  const requests = Math.max(turn.calls.size + turn.unnamedCalls, turn.tools);
+  const requests = turn.calls.size + turn.unnamedCalls || turn.tools;
   if (requests >= limits.maxRequests) return { key: "chat.notice.unattendedRequests", params: { count: limits.maxRequests } };
   if (turn.workedMs >= limits.maxMs) return { key: "chat.notice.unattendedTooLong", params: { minutes: Math.round(limits.maxMs / 60_000) } };
   return undefined;

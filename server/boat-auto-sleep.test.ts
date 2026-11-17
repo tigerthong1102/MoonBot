@@ -1,7 +1,6 @@
-// The idle sleep over HTTP, against one stub that plays both Boat (/boat, public API v1) and the Admin's relay (/relay,
-// the legacy box dialect): the stop reaches whichever one the credential belongs to, after Chrome is asked to exit.
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
+import { setTimeout as delay } from "node:timers/promises";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { hostTimeout } from "./testing/host-timeout.ts";
@@ -17,16 +16,17 @@ let base = "";
 let state = "ready";
 /** Status the stub answers a stop with; a 2xx archives the computer. */
 let stopStatus = 200;
+let responseDelayMs = 0;
 /** Whether the background command the stub started (process 7) still runs. */
 let jobRunning = false;
 const requests: Array<{ method: string; path: string; auth: string; command?: string; at: number }> = [];
 
 const stops = () => requests.filter(request => request.method === "POST" && request.path.endsWith("/stop"));
 const waitFor = async (accept: () => boolean, ms = hostTimeout(5_000)) => {
-  const end = Date.now() + ms;
+  const end = performance.now() + ms;
   while (!accept()) {
-    if (Date.now() > end) throw new Error(`timed out: ${JSON.stringify(requests)}`);
-    await new Promise(resolve => setTimeout(resolve, 25));
+    if (performance.now() > end) throw new Error(`timed out: ${JSON.stringify(requests)}`);
+    await delay(25);
   }
 };
 
@@ -38,7 +38,8 @@ beforeAll(async () => {
     req.on("end", () => {
       const body = raw ? JSON.parse(raw) : {};
       requests.push({ method: req.method ?? "GET", path: url.pathname, auth: String(req.headers.authorization ?? ""), command: body.command, at: Date.now() });
-      const send = (status: number, payload: unknown) => {
+      const send = async (status: number, payload: unknown) => {
+        if (responseDelayMs) await delay(responseDelayMs);
         res.writeHead(status, { "content-type": "application/json", connection: "close" });
         res.end(JSON.stringify(payload));
       };
@@ -69,8 +70,6 @@ afterAll(async () => {
 });
 
 describe("a cloud computer goes to sleep after its idle window", () => {
-  /** One stop was sent and the sleep it belongs to has finished: a test that ended at the stop itself left that sleep's
-   * log line to land in the next test's log. */
   const asleep = () => waitFor(() => stops().length === 1 && !power.awake());
   let power: ReturnType<typeof import("./host/cloud-computer-power.ts").createCloudComputerPower>;
   let logs: string[];
@@ -96,6 +95,7 @@ describe("a cloud computer goes to sleep after its idle window", () => {
     requests.length = 0;
     state = "ready";
     stopStatus = 200;
+    responseDelayMs = 0;
     jobRunning = false;
     logs = [];
     busy = false;
@@ -108,6 +108,7 @@ describe("a cloud computer goes to sleep after its idle window", () => {
 
   afterEach(() => {
     power?.close();
+    vi.useRealTimers();
     vi.unstubAllEnvs();
   });
 
@@ -149,7 +150,6 @@ describe("a cloud computer goes to sleep after its idle window", () => {
     expect(requests).toEqual([]);
     busy = false;
     state = "archived";
-    // The first quiet look starts a full window; the look after it finds the computer asleep and lets its timer go.
     await waitFor(() => !power.awake());
     expect(stops()).toEqual([]);
     expect(requests.map(request => request.method)).toEqual(["GET"]);
@@ -173,10 +173,17 @@ describe("a cloud computer goes to sleep after its idle window", () => {
   });
 
   it("a stop the relay refuses is logged and retried after a longer wait each time", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     stopStatus = 503;
+    responseDelayMs = 650;
     await powerFor({});
     power.used(botId);
-    await waitFor(() => stops().length === 3 && logs.length === 3, hostTimeout(10_000));
+    for (const [index, gap] of [1_000, 1_000, 2_000].entries()) {
+      await vi.advanceTimersByTimeAsync(gap - 1);
+      expect(stops()).toHaveLength(index);
+      await vi.advanceTimersByTimeAsync(1);
+      await waitFor(() => stops().length === index + 1 && logs.length === index + 1);
+    }
     for (const line of logs) {
       expect(line).toBe("cloud computer auto-sleep-test: could not go to sleep, retrying in 1 min: boat sleep failed: Cloud computers are not available right now.");
     }

@@ -106,8 +106,6 @@ export function writeConfigBackup(path: string, text: string, now: Date = new Da
   return null;
 }
 
-/** The dated copies kept beside the settings file, oldest first. Copies taken in the same second are ordered by the
- * number they carry, not by their name, so the tenth of a second comes after the ninth. */
 export function listConfigBackups(dir: string): ConfigBackup[] {
   let names: string[];
   try {

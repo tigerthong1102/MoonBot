@@ -69,12 +69,28 @@ export function containerLimited(read: Read = readText): boolean {
 
 /** Cgroup limits enforced by hidden ancestors can remain active while the container sees "max". */
 export function readPids(read: Read = readText): { max: number | "max" | null; current: number | null } {
-  for (const dir of pidsFiles(read)) {
+  const dirs = new Set<string>();
+  for (const candidate of pidsFiles(read)) {
+    if (candidate.split("/").some((part) => part === ".." || part === ".")) continue;
+    const root = candidate === "/sys/fs/cgroup/pids" || candidate.startsWith("/sys/fs/cgroup/pids/") ? "/sys/fs/cgroup/pids" : "/sys/fs/cgroup";
+    for (let dir = candidate; ; dir = dir.slice(0, dir.lastIndexOf("/"))) {
+      dirs.add(dir);
+      if (dir === root) break;
+    }
+  }
+  let best: { max: number | "max" | null; current: number | null } = { max: null, current: null };
+  let remaining = Infinity;
+  for (const dir of dirs) {
     const current = count(read(`${dir}/pids.current`));
     if (typeof current !== "number") continue;
-    return { max: count(read(`${dir}/pids.max`)), current };
+    const max = count(read(`${dir}/pids.max`));
+    if (best.current === null) best = { max, current };
+    if (typeof max === "number" && max - current < remaining) {
+      best = { max, current };
+      remaining = max - current;
+    }
   }
-  return { max: null, current: null };
+  return best;
 }
 
 /** The kernel's own high-water marks for this cgroup since it was made (cgroup v2: pids.peak, memory.peak); null where

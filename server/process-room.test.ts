@@ -25,6 +25,35 @@ describe("the container's limits, from Linux's own files", () => {
     expect(readPids(() => null)).toEqual({ max: null, current: null });
   });
 
+  it.each(["v2", "v1"])("honors visible %s ancestor limits and their sibling usage", (version) => {
+    const root = version === "v2" ? "/sys/fs/cgroup" : "/sys/fs/cgroup/pids";
+    const values: Record<string, string> = {
+      "/proc/self/cgroup": version === "v2" ? "0::/budget/service" : "3:pids:/budget/service",
+      [`${root}/budget/service/pids.max`]: "max", [`${root}/budget/service/pids.current`]: "100",
+      [`${root}/budget/pids.max`]: "256", [`${root}/budget/pids.current`]: "220",
+      [`${root}/pids.max`]: "1024", [`${root}/pids.current`]: "300",
+    };
+    const read = () => readPids(files(values));
+    expect(read()).toEqual({ max: 256, current: 220 });
+    const budget = new ProcessBudget({ read, log: () => {} });
+    expect(budget.limit()).toBe(256);
+    expect(budget.short(ENGINE_TASKS, 0)).toBe(true);
+    values[`${root}/budget/service/pids.max`] = "128";
+    expect(read()).toEqual({ max: 128, current: 100 });
+    values[`${root}/pids.current`] = "1020";
+    expect(read()).toEqual({ max: 1024, current: 1020 });
+    delete values[`${root}/pids.current`];
+    delete values[`${root}/budget/service/pids.current`];
+    expect(read()).toEqual({ max: 256, current: 220 });
+  });
+
+  it("checks capacity with a matching limit and usage snapshot", () => {
+    let reads = 0;
+    const budget = new ProcessBudget({ read: () => ++reads === 1 ? { max: 1024, current: 1000 } : { max: 128, current: 100 }, log: () => {} });
+    expect(budget.short(ENGINE_TASKS, 0)).toBe(true);
+    expect(reads).toBe(1);
+  });
+
   it("reads the memory limit and what counts against it, leaving out file pages the kernel can drop", () => {
     const v2 = files({ "/sys/fs/cgroup/memory.max": "2147483648\n", "/sys/fs/cgroup/memory.current": "1500000000\n", "/sys/fs/cgroup/memory.stat": "anon 900000000\ninactive_file 400000000\n",
       "/sys/fs/cgroup/memory.events": "low 0\noom 3\noom_kill 2\n", "/sys/fs/cgroup/memory.pressure": "some avg10=1.00 avg60=0 avg300=0 total=1\nfull avg10=0.50 avg60=0 avg300=0 total=1\n" });
@@ -242,8 +271,6 @@ class FakeChild extends EventEmitter {
   }
 }
 
-/** A self-hosted server in a container: `pids` is its pids.max, each engine holds 44 against it, and memory is plentiful
- * unless the test says otherwise. */
 function server(options: { pids?: number | "max" | null; turns?: number | "auto"; total?: number; available?: number; perEngine?: number; host?: "server" | "cloud";
   tree?: (pid: number) => TreeUse | null } = {}) {
   let clock = 1_800_000_000_000, nextPid = 1000;

@@ -65,8 +65,9 @@ export class ProcessBudget {
 
   private state(): { max: number | "max" | null; current: number | null } { return this.read(); }
 
-  limit(): number | null {
-    const { max } = this.state();
+  limit(): number | null { return this.limitFor(this.state().max); }
+
+  private limitFor(max: number | "max" | null): number | null {
     if (typeof max === "number") return max;
     if (this.learned && this.now() - this.learned.at >= LEARNED_FOR_MS) this.learned = null;
     return this.learned?.limit ?? null;
@@ -74,7 +75,7 @@ export class ProcessBudget {
 
   short(tasks: number, held: number): boolean {
     if (this.now() < this.holdUntil) return true;
-    const limit = this.limit(), { current } = this.state();
+    const { max, current } = this.state(), limit = this.limitFor(max);
     return limit !== null && current !== null && current + held + this.browsersHeld() + tasks > limit - margin(limit);
   }
 

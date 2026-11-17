@@ -1,5 +1,11 @@
 # Release readiness
 
+## Latest PR #1 validation
+
+The reviewed head `522da6b64927b06a5ba7df5569845626913e0025` fixes the connector-helper comment finding and makes the descendant fixture wait for its PID before aborting. Its [CI run 44083246218](https://github.com/tigerthong1102/MoonBot/actions/runs/44083246218) failed the Linux container S4 resize regression; Docker, connector, docs and website passed on that SHA. The earlier [23542a6db CI](https://github.com/tigerthong1102/MoonBot/actions/runs/44080404476) was canceled with a real Ubuntu shard 7/8 fixture failure and is not a green baseline.
+
+The follow-up removes the confirmed backup-allocation narration and equivalent private-helper overviews, preserving complete comment-free TypeScript syntax, declarations and embedded program strings in 87 source files. It also waits across two renderer animation frames after clearing device metrics: Chrome 157.0.8103.78 can still report the emulated size in the first frame, causing window fitting to calculate invalid bounds. The unchanged size/frame assertions now run 32 resize cycles. Local evidence: the old implementation failed on that exact Chrome version with `[1280,1400,2]`; the fix passed 240 diagnostic cycles and all 102 native S4 tests. The four backup/viewer/process/connector suites pass 87 tests. Local validation also passes all 12 stream tests on Chrome 156.0.8078.80, 258 backup/connector/cap/verification/CI-scope/size tests, lint, typecheck, production build and packaged-server smoke. Required checks and a completed clean Codex review must still validate the pushed follow-up SHA. No manual full matrix is dispatched and no passed job is manually rerun.
+
 | Target | Decision | Evidence / blocker |
 | --- | --- | --- |
 | Windows installer | NO-GO | Clean-machine install, product identity, separate data directory, signing and updater not qualified. |

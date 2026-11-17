@@ -6,7 +6,6 @@ import { writeFileAtomic } from "../atomic.ts";
 import type { Message, Store } from "../store.ts";
 
 export const SETTING_NUDGES_FILE = "setting-nudges.json";
-/** Failures in a row before the bot speaks up. */
 const AFTER = 2;
 const MAX_THREADS = 500;
 
@@ -48,7 +47,6 @@ export function createSettingNudges(deps: { dataDir: string; store: Pick<Store, 
   const indexOf = (messages: readonly Message[], id: string | undefined) => (id ? messages.findIndex((message) => message.id === id) : -1);
 
   return {
-    /** The note for this turn, or empty when nothing current is due. */
     note(threadId: string, turn: NudgeTurn): string {
       const messages = deps.store.messagesFor(threadId);
       const last = messages.at(-1);

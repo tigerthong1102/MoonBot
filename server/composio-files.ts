@@ -6,7 +6,6 @@ import { apiBase, projectHeaders, responseError } from "./composio-project.ts";
 import { projectApiKey } from "./composio-session.ts";
 import { composioUploadLink } from "../shared/composio-storage.ts";
 
-/** A service run on this computer for development or tests hands out links on this computer too. */
 function loopback(link: string | undefined): boolean {
   try {
     const url = new URL(link ?? "");

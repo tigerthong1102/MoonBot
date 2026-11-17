@@ -21,13 +21,11 @@ export function standInNamed(standIns: ReadonlyMap<string, StandIn>, method: str
   return null;
 }
 
-/** The answer such a request gets: where the bot lives, in the words a turn for it is refused with. */
 export function standInWriteRefusal(standIns: ReadonlyMap<string, StandIn>, method: string, url: URL): { error: string; code: "moved" } | null {
   const named = standInNamed(standIns, method, url);
   return named ? { error: botMoveRefusal(named) ?? `${named.name} lives in another place.`, code: "moved" } : null;
 }
 
-/** The first stand-in among ids a request's body names (a room's members, an automation's bot), or null. */
 export function standInAmong(standIns: ReadonlyMap<string, StandIn>, ids: readonly unknown[]): { error: string } | null {
   if (standIns.size === 0) return null;
   for (const id of ids) {

@@ -36,8 +36,6 @@ export interface ConfigCliError {
   json: boolean;
 }
 
-/** A copy is only put back when it is a settings file the server can read: a file the loader would reject would
- * change the settings without saying so. */
 function settingsProblem(text: string): string | null {
   try {
     parseStoredConfig(parseJson(text));

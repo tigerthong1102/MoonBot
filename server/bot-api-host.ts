@@ -124,7 +124,6 @@ export function createBotApiHost(deps: BotApiHostDeps) {
   deps.store.onChange((change) => { if (change.type === "bot.deleted") manager.removeForBot(change.botId); });
 
   const included = () => deps.included?.() !== false;
-  /** The key acts as the owner, and this server allows that now. */
   const asOwner = (botId: string) => manager.actsAsOwner(botId) && deps.actsAsOwner?.available() === true;
   const pendingFor = (botId: string) => {
     const set = running.get(botId);
@@ -153,7 +152,6 @@ export function createBotApiHost(deps: BotApiHostDeps) {
   async function runCall(botId: string, call: z.output<typeof callSchema>, turnStarted: () => void, keyAsOwner: boolean): Promise<{ status: number; body: BotApiReply }> {
     const store = deps.store;
     let threadId = call.thread;
-    // A thread keeps what it was opened as: a fenced one stays fenced whatever the key does now.
     let owned = keyAsOwner;
     if (threadId !== undefined) {
       const task = store.taskByThread(botId, threadId);
@@ -168,7 +166,6 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     let opened = false;
     if (threadId === undefined) {
       // Asks from the start, with none of the bot's saved allowances: nothing may answer an approval for an outside caller.
-      // A key acting as the owner opens it at the bot's own level with its saved allowances instead, as the owner's work.
       const task = store.createTask(botId, message.slice(0, 80), false, undefined, undefined, owned ? undefined : "ask", undefined, undefined, (created) => deps.opened?.(created.threadId));
       if (!task) fail(404, "no such bot");
       threadId = task.threadId;
@@ -240,8 +237,6 @@ export function createBotApiHost(deps: BotApiHostDeps) {
         return true;
       }
       const keyAsOwner = asOwner(botId);
-      // A key acting as the owner opens threads that run unconfined; a thread it continues that was opened fenced still
-      // runs confined, and an AI that can't be is refused when its turn starts.
       if (!keyAsOwner && !deps.canConfine(botId)) {
         manager.recordRefused(botId, 403, CANNOT_CONFINE);
         json(res, 403, { error: CANNOT_CONFINE });
@@ -301,7 +296,6 @@ export function createBotApiHost(deps: BotApiHostDeps) {
 
   /** What callers sent is for the people who manage the key, not everyone who can see the bot. */
   const ownerRefusal = (auth: RequestAuth) => deps.actsAsOwner?.refusal(auth) ?? (deps.actsAsOwner ? null : ACTS_AS_OWNER_NEVER);
-  /** `actsAsOwner` is what the key does now: marked, and allowed on this server. `mayActAsOwner`: this person may change it. */
   const view = (botId: string, auth: RequestAuth): BotApiStatus & { included: boolean; canTakeCalls: boolean; url: string; canManage: boolean; mayActAsOwner: boolean; calls: BotApiAttempt[] } => {
     const canManage = deps.manageRefusal(auth, botId) === null;
     return { included: included(), canTakeCalls: asOwner(botId) || deps.canConfine(botId), ...manager.status(botId), actsAsOwner: asOwner(botId), url: botApiEndpoint(deps.hooksBaseUrl(), botId), canManage,
@@ -323,7 +317,6 @@ export function createBotApiHost(deps: BotApiHostDeps) {
       if (match[2] === "acts-as-owner") {
         const parsed = switchSchema.safeParse(await readBody(req));
         if (!parsed.success) return answer(res, 400, { error: schemaIssue(parsed.error, "Send {\"enabled\": true | false}") });
-        // Switching it off is always allowed to whoever manages the key; switching it on only to the owner, where allowed.
         const refused = parsed.data.enabled ? ownerRefusal(auth) : null;
         if (refused) return answer(res, 403, { error: refused });
         if (!manager.enabled(botId)) return answer(res, 409, { error: "The Bot API is off for this bot" });

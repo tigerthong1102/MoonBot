@@ -1,9 +1,7 @@
-// Copies of a file whose content could not be understood, kept beside it so the bytes are not lost.
 import { createHash } from "node:crypto";
 import { chmodSync, constants, copyFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname } from "node:path";
 
-/** Copies of unreadable content kept beside the file; a further one is not copied. */
 const ASIDE_COPIES = 5;
 
 /** A backup failure must leave the original file untouched. */

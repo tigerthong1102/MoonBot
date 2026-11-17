@@ -64,7 +64,6 @@ const NAME: Record<`${CapState["scope"]}:${CapState["period"]}`, { line: ServerL
 export const capAmount = (unit: CapState["unit"], value: number): string =>
   unit === "usd" ? `$${value.toFixed(2)}` : `${Math.round(value).toLocaleString("en-US")} tokens`;
 
-/** Host-local with its zone: the period itself rolls over at midnight UTC. */
 export function capResets(at: number, timeZone = hostTimeZone()): string {
   return `${new Date(at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone })} (${timeZone})`;
 }
@@ -76,7 +75,6 @@ export function createUsageCapGate(deps: {
   /** One notice to the owner, in the notifications list: never a card. `aboutBotId` is the bot whose work met the cap. */
   notice(aboutBotId: string | undefined, title: string, body: string): void;
   log(line: string): void;
-  /** The language the owner's notice is written in. */
   language?(): string | undefined;
   now?(): Date;
   env?: NodeJS.ProcessEnv;
@@ -108,7 +106,6 @@ export function createUsageCapGate(deps: {
   const refusedWords = (state: CapState, language?: string) => serverLine(language, "server.usageCap.refused",
     { cap: nameOf(state, language), limit: capAmount(state.unit, state.limit), resets: capResets(state.resetsAt) });
 
-  /** Marks the cap's 80% line or reached notice as said for this period; true the first time. */
   const first = (state: CapState, what: "warn" | "reached"): boolean => {
     const all = load();
     const saved = all[state.id];

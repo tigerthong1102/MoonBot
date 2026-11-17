@@ -47,7 +47,6 @@ export interface ProcessHealth {
 
 const KNOWN_ENGINES: ReadonlySet<string> = new Set([...ENGINE_PROCESS_KINDS, ...CHAT_RUNTIME_KINDS, "unknown"]);
 
-/** One sample's rows as counts. A row outside every bucket (not started by this server, or adopted by an init) is "other". */
 export function tally(rows: readonly ProcessRow[], buckets: ReadonlyMap<number, ProcessBucket>, fds: Count, pidsUsed: Count): ProcessTally {
   const out: ProcessTally = { procs: rows.length, threads: 0, zombies: 0, fds, pidsUsed, engines: {}, browser: 0, mcp: 0, shell: 0, other: 0 };
   let threads = 0, zombies = 0, detailed = rows.length > 0;
@@ -130,7 +129,6 @@ export function createProcessHealth(deps: ProcessHealthDeps = {}) {
   };
 
   return {
-    /** After each of the sampler's process lists: nothing here on a platform that has none. */
     sample(rows: readonly ProcessRow[], buckets: ReadonlyMap<number, ProcessBucket>, truncated = false): void {
       const read = limits();
       incomplete = truncated;

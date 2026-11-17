@@ -25,7 +25,6 @@ export const loopGuardConfigSchema = z.object({
   steerAt: count.optional(),
   /** Identical failures in a row before the turn is stopped; unset never stops. OMB_LOOP_GUARD_STOP_AT wins; null clears. */
   stopAt: count.nullable().optional(),
-  /** For a turn nobody is watching the guard is on whatever `enabled` says, unless this is false. */
   unattended: z.boolean().optional(),
   /** Identical failures in a row before such a turn is stopped; 20 when unset. OMB_LOOP_GUARD_UNATTENDED_STOP_AT wins. */
   unattendedStopAt: count.optional(),

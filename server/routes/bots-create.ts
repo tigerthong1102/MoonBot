@@ -208,7 +208,6 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
           ...ordinary, name: bot.name, section, modelSelection: bot.modelSelection,
           mascotExpression: ordinary.mascotExpression ?? undefined,
           avatarUrl: ordinary.avatarUrl || undefined,
-          // Auto with Approve for me stays Auto: This computer with it needs the warning only the bot's Settings shows.
           computer: ordinary.computer ?? (ordinary.computer === undefined && ordinary.approvalMode !== "auto" ? deps.newBotComputer?.(selection) : undefined), cwd: checkedCwd.cwd ?? undefined,
           mcpServers: ordinary.mcpServers ?? undefined,
           browserProfile: ordinary.browserProfile || undefined,

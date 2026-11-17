@@ -501,7 +501,6 @@ function SimpleEngines({ rows, isReady, renderEngine, more, accountsOnly = false
   );
 }
 
-/** A provider's accounts share one card, which takes the place of its first account. */
 function groupedAccounts(listed: InstanceInfo[]) {
   const groups = new Map<AccountGroup, InstanceInfo[]>();
   for (const instance of listed) {

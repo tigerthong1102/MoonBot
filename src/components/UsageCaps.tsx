@@ -107,12 +107,10 @@ function LimitInputs({ who, draft, locked, disabled, onChange }: { who: string; 
   );
 }
 
-/** The owner's caps on a day's and a month's usage, for the server and for each bot, with the use against each. */
 export function UsageCapsCard({ view, onSaved }: { view: UsageCapView | null | undefined; onSaved?: () => void }) {
   return view ? <CapsForm view={view} onSaved={onSaved} /> : null;
 }
 
-/** The server's caps in force: an environment value shows (greyed) in place of the saved one. */
 const serverInForce = (view: UsageCapView): CapLimits => ({ ...view.server, ...view.env.values?.server });
 
 /** What a save sends: the owner's own values, never one the environment holds. A greyed field keeps what config.json

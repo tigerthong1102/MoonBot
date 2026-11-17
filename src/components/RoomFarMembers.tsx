@@ -6,7 +6,6 @@ import type { Group } from "@/state/store";
 
 type FarMember = NonNullable<Group["farMembers"]>[number];
 
-/** The members of a room that live in another of the person's places, still members of it. */
 export function farMembersOf(group: Pick<Group, "memberIds" | "farMembers">): FarMember[] {
   return (group.farMembers ?? []).filter((member) => group.memberIds.includes(member.id));
 }

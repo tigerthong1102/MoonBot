@@ -61,7 +61,6 @@ export interface ChiefNoticeDeps {
 
 /** How long a run stopped for memory waits before it starts again; the memory gate then holds it until there is room. */
 export const MEMORY_RETRY_MS = 30_000;
-/** The chats a Chief's line for the problems it was not started for names; its count covers the rest. */
 export const FOLDED_LISTED = 5;
 export const MEMORY_RETRY_TEXT = "[OpenMausBot started this again by itself, once: the last run was stopped to free memory on this Cloud. "
   + "Continue the request above from where it stopped and finish it. If the same problem comes back, say exactly what is blocking and stop.]";
@@ -69,7 +68,6 @@ export const MEMORY_RETRY_TEXT = "[OpenMausBot started this again by itself, onc
 export const SERVER_MEMORY_RETRY_TEXT = "[OpenMausBot started this again by itself, once: the last run was stopped to free memory on this server. "
   + "Continue the request above from where it stopped and finish it. If the same problem comes back, say exactly what is blocking and stop.]";
 
-/** A run the server had no room to start is the server's shortage: it starts again by itself, and no AI is asked about it. */
 export const ROOM_RETRY_TEXT = "[OpenMausBot started this again by itself, once: the last run could not start because this server had no room for another program. "
   + "Continue the request above from where it stopped and finish it. If the same problem comes back, say exactly what is blocking and stop.]";
 
@@ -77,7 +75,6 @@ export function createChiefNotices(deps: ChiefNoticeDeps) {
   const { store } = deps;
   const incidentLedger = new IncidentLedger();
   const chiefBudget = new ChiefIncidentBudget({ now: deps.now, limit: deps.chiefTurnsPerHour });
-  /** Each Chief's line that counts the problems it was not started for, while its hour's share is spent. */
   const folded = new Map<string, { threadId: string; messageId: string; count: number; until: number; chats: Array<{ botId: string; threadId: string; title: string; name: string }> }>();
   const schedule = deps.schedule ?? ((run: () => void) => { setTimeout(run, 0).unref?.(); });
   const later = deps.later ?? ((run: () => void, ms: number) => { setTimeout(run, ms).unref?.(); });
@@ -226,7 +223,6 @@ export function createChiefNotices(deps: ChiefNoticeDeps) {
    * Never retried: a stall the turn watchdog stopped (kind "stalled"), a stop, a refusal or a cap (retriesTeammateThread,
    * from the failure's words and `facts`), a run that answered a retry, and a thread whose asks are not the Chief's person's. */
   /** `notified`: the person already heard of it another way (a usage limit's own notice), so only the Chief is told. */
-  /** `failure`: the failure's own words when `detail` adds a name to them; only those are read for the kind of failure. */
   function reportIncident(input: { kind: IncidentKind; bot: BotRecord; threadId: string; detail: string; failure?: string; facts?: RoutineFailureFacts; notified?: boolean }): void {
     const { bot, threadId } = input;
     if (deps.quietThread?.(bot.id, threadId)) return;
@@ -252,7 +248,6 @@ export function createChiefNotices(deps: ChiefNoticeDeps) {
       alreadyNotified: input.notified === true || input.kind === "could-not-start" || input.kind === "routine-failed",
     });
     const chiefRetries = Boolean(chief && !group && reachesChief(chief, bot, threadId));
-    // Before any Chief hears: a Chief's turn about it would be a paid one, started on the same full server.
     const noRoom = outOfProcesses(input.detail), stoppedHere = !noRoom && memoryStopped(input.detail) && (deps.selfHosted ?? (() => engineMemory.selfHosted()))();
     if (noRoom || stoppedHere) {
       const person = (retry?: IncidentRetry): void => void deliver({ chief: null, title: INCIDENTS_THREAD_TITLE, bot, threadId, chip: incidentChip(incident, deps.threadLanguage?.(threadId)),

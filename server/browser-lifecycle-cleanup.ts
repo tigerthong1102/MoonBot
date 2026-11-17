@@ -384,7 +384,6 @@ export function browserIdleMs(cfg: { browserEngine?: { idleTimeoutMinutes?: numb
   return (cfg.browserEngine?.idleTimeoutMinutes ?? (cloudHome ? CLOUD_HOME_BROWSER_IDLE_MINUTES : DEFAULT_BROWSER_IDLE_MINUTES)) * 60_000;
 }
 
-/** The sessions agent-browser has written a `<session>.pid` for (one per daemon, removed when it exits). */
 function daemonPidFiles(env: NodeJS.ProcessEnv): string[] {
   try {
     return readdirSync(dirname(browserDaemonFile({ ...env, AGENT_BROWSER_SESSION: "" }, ".pid")))

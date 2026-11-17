@@ -2,7 +2,6 @@
 import { botBox } from "../bot-box/box.ts";
 import { ownMcpOverHttp } from "./turn-mcp.ts";
 
-/** "1" turns the URL form on; off unless set, on every kind of server. */
 export const OWN_MCP_HTTP_ENV = "OMB_OWN_MCP_HTTP";
 
 /** OMB_OWN_MCP_HTTP=1 permits URL transport; boxed engines must retain stdio isolation. */

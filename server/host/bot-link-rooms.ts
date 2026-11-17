@@ -10,33 +10,27 @@ import { redactSecretsInText } from "../redact.ts";
 import type { ServerLineKey } from "../server-lines.ts";
 import type { BotRecord, GroupRecord, Store } from "../store.ts";
 
-/** The thread name a room turn's hand-off carries: one for each member and room thread, so the member's work thread in
- * its own place continues from turn to turn. */
 const ROOM_THREAD = /^(link-[0-9a-f]{8}-.+):room:([^:]+):([^:]+)$/su;
 export const roomWorkThread = (linked: string, groupId: string, threadId: string): string => `${linked}:room:${groupId}:${threadId}`;
 export const parseRoomWorkThread = (threadId: string): { linked: string; groupId: string; threadId: string } | null => {
   const found = ROOM_THREAD.exec(threadId);
   return found ? { linked: found[1]!, groupId: found[2]!, threadId: found[3]! } : null;
 };
-/** The root a room turn hangs from carries how many members' answers led to it, so two bots cannot call each other for ever. */
 const ROOM_ROOT = /^link-room-(\d)-/u;
 const roomRoot = (hop: number): string => `link-room-${Math.max(0, Math.min(9, hop))}-${randomUUID()}`;
 const hopOf = (rootId: string | undefined): number => Number(ROOM_ROOT.exec(rootId ?? "")?.[1] ?? 0);
 
-/** As many of the room's latest lines as one hand-off carries, and no more characters than this. */
 const LINES_MAX = 40;
 const WORDS_MAX = 9_000;
 const LINE_MAX = 3_000;
 const FILE = "bot-link-rooms.json";
 const RECORDS_MAX = 2_000;
 
-/** What a far member was last known as, kept so that it can be named while its place cannot be asked. */
 interface Known { name: string; color?: string; place: string; placeName: string; botId: string; kind?: "computer" | "cloud"; title?: string; mascotBody?: string; mascotFaceColor?: string }
 interface Turn { seat: string; hop: number; at: number; composed?: boolean; after?: string; through?: string }
 interface Kept {
   v: 1;
   members: Record<string, Known>;
-  /** The last line of the room each member was sent, by its work thread there. */
   seats: Record<string, { through: string; at: number }>;
   turns: Record<string, Turn>;
 }
@@ -74,7 +68,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
   const { store } = deps;
   const now = deps.now ?? Date.now;
   const file = join(deps.dataDir, FILE);
-  /** Read once, and only written when a room has a member from another place: with none, no file exists. */
   let kept: Kept = { v: 1, members: {}, seats: {}, turns: {} };
   try {
     const read = JSON.parse(readFileSync(file, "utf8")) as Partial<Kept> | null;
@@ -142,7 +135,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
     return { text, ...(through ? { through } : {}) };
   }
 
-  /** Remembers each far member of a room as it is now, and forgets the ones no room has any more. */
   function sync(): void {
     const ids = farIds();
     if (ids.size === 0 && Object.keys(kept.members).length === 0 && Object.keys(kept.seats).length === 0) return;
@@ -159,7 +151,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
   }
 
   return {
-    /** Whether a turn of this room member is one this module forwards. */
     forwards: (bot: Pick<BotRecord, "id" | "home"> | null | undefined): boolean => Boolean(bot?.home) && isLinkedId(bot!.id),
 
     memberTurn(group: GroupRecord, threadId: string, member: BotRecord, hop: number): boolean {
@@ -180,8 +171,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
         const root = roomRoot(hop), seatHere = { groupId: group.id, threadId, botId: `link-room-${group.id}` };
         const path = store.activePath(threadId);
         const latest = path.findLast((message) => message.kind === "text" && Boolean(message.text))?.text ?? "";
-        // Whose words these are, as for a member's turn here: the person's own line is the person's request; a routine's,
-        // a webhook's, a guest's or another app's is not.
         const opener = deps.opener?.(seatHere.botId, threadId);
         const origin = workOrigin(path.findLast((message) => message.role === "user" && message.kind === "text" && Boolean(message.text)));
         try {
@@ -260,7 +249,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
 
     sync,
 
-    /** Whether any room here has a member from another place. */
     any: (): boolean => farIds().size > 0,
 
     absent(): FarRecord[] {
@@ -274,7 +262,6 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
       });
     },
 
-    /** A room's members from other places, for the app: who each is, where it lives, and whether it can be reached. */
     far(group: Pick<GroupRecord, "memberIds" | "dm">): Array<{ id: string; name: string; place: string; state: "ok" | FarGone }> {
       if (group.dm) return [];
       return group.memberIds.filter(isLinkedId).map((id) => { const bot = store.bot(id); return { id, name: nameOf(id), place: placeOf(id), state: bot?.home ? bot.home.gone ?? "ok" as const : "off" as const }; });

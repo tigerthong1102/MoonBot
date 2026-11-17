@@ -142,7 +142,6 @@ export function fitToolListResult(result: unknown, profile: ToolSchemaProfile | 
 }
 
 /** Every listed schema gets a plain object root; under a profile each is also fitted to it. */
-/** `ownTools`: listed after the child's on its last page, in place of any child tool of the same name. */
 export function createToolListNormalizer(profile?: ToolSchemaProfile, log?: (line: string) => void, ownTools: readonly JsonObject[] = []): {
   observeRequest: (line: string) => void;
   rewriteResponse: (line: string) => string;

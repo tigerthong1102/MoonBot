@@ -90,9 +90,7 @@ function ownCall(job: SideJob, instance: SideJobInstance): TextCall | undefined 
   return call?.bind(instance);
 }
 
-/** A turn or a person is waiting on these, so they start at once. */
 const NEVER_QUEUED: ReadonlySet<SideJob> = new Set(["compaction", "representative", "status-reply"]);
-/** A person sees these soon (a new bot's suggestions card): they wait ahead of memory upkeep and skill review. */
 const SEEN_SOON: ReadonlySet<SideJob> = new Set(["setup-suggestions"]);
 
 export function createSideJobs(deps: SideJobsDeps): SideJobs {
@@ -204,11 +202,9 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     const bot = deps.bot(botId);
     const own = at.instance ?? (bot ? deps.instance(bot.modelSelection.instanceId) : null);
     if (!bot || !own || deps.refusal(own)) return null;
-    // The review's changes are written with the bot's own skill tools, whoever read the conversation.
     if (job === "skill-review" && own.adapter.capabilities.agentsMcp !== true) return null;
     const call = ownCall(job, own);
     if (call) {
-      // The summary belongs to a turn that already passed the spend limit and is not booked on its own.
       if (job === "compaction") return { via: "engine", generateText: call };
       if (job === "setup-suggestions") {
         const quick = quickModel(bot, own);

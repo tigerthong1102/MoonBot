@@ -838,7 +838,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       mcpConfigPath: string | null;
       systemPromptPath: string | null;
       argsKey: string; /** the CLI version whose --help chose the args, and whether they include --autocompact */ cliVersion: string | null; passedAutocompact: boolean;
-      /** the volatile half the conversation holds; null once a compaction may have summarized it away. `roster`: the team roster in the launch prompt, and the one the conversation holds now (a compaction keeps only the first) */
       volatile: string | null; roster: { launched: string; now: string };
       sessionId: string | null;
       /** `init` arrived; before it the CLI took nothing, so a resume retry is safe */
@@ -2073,7 +2072,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           for (const { stop } of active.values()) stop();
           for (const threadId of Array.from(sessions.keys())) closeSession(threadId, "dispose");
           listeners.clear();
-          // Engines lead sessions of their own, so nothing stops them once this server exits.
           await stopEngineTrees(Array.from(sessions.values(), (s) => s.child));
         }
       },

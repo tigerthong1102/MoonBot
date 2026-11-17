@@ -75,7 +75,6 @@ export function createJobSlots(limit: number): JobSlots {
   };
 }
 
-/** A whole number from 1 to 64 in `raw`, else `fallback`. */
 export function slotLimit(raw: string | undefined, fallback: number): number {
   const parsed = Number(raw);
   return raw !== undefined && raw.trim() !== "" && Number.isInteger(parsed) && parsed >= 1 && parsed <= 64 ? parsed : fallback;

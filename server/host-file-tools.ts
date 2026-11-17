@@ -1,19 +1,15 @@
-// File tools a chat bot gets on this desktop's own computer. The app adds no rules of its own about which paths: the OS
-// account decides what can be opened, and the person's approval level (the bridge's gate) decides what is asked.
 import { randomUUID } from "node:crypto";
 import { constants, promises as fs } from "node:fs";
 import path from "node:path";
 
 import type { ToolCall } from "./mcp-bridge.ts";
 
-/** Size caps only so one call cannot stall a turn. */
 export const HOST_FILE_READ_LIMIT = 10 * 1024 * 1024;
 export const HOST_FILE_WRITE_LIMIT = 25 * 1024 * 1024;
 const LISTED = 500;
 
 const encoding = { type: "string", enum: ["utf8", "base64"], description: "utf8 (default) for text, base64 for any other file." };
 
-/** What a bot on this computer is offered beside the screen tools. */
 export const HOST_FILE_TOOLS = [
   {
     name: "list_files",
@@ -95,7 +91,6 @@ async function readFile(home: string, args: Record<string, unknown>): Promise<Re
   const target = await fs.realpath(fullPath(home, args.path));
   const stat = await fs.stat(target);
   if (stat.isDirectory()) return refused(`${target} is a folder: list it with list_files.`);
-  // A pipe or device could block the turn forever.
   if (!stat.isFile()) return refused(`${target} is not an ordinary file.`);
   if (stat.size > HOST_FILE_READ_LIMIT) return refused(`${target} is ${sizeText(stat.size)}; files up to 10 MB can be read.`);
   const data = await fs.readFile(target);
@@ -118,9 +113,7 @@ async function writeFile(home: string, args: Record<string, unknown>): Promise<R
   const existing = await fs.stat(named).catch(() => null);
   if (existing?.isDirectory()) throw new Mistake(`${named} is a folder. Give a file name inside it.`);
   if (existing && args.overwrite !== true) throw alreadyThere(named);
-  // A link is followed: the file it points at is the one replaced.
   const target = existing ? await fs.realpath(named) : named;
-  // A temp file beside it, then a rename: a reader sees the whole old file or the whole new one.
   const temp = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID().slice(0, 8)}.tmp`);
   try {
     await fs.writeFile(temp, data, { flag: "wx", flush: true, ...(existing ? { mode: existing.mode & 0o777 } : {}) });
@@ -133,8 +126,6 @@ async function writeFile(home: string, args: Record<string, unknown>): Promise<R
   return said(`Saved ${sizeText(data.length)} to ${target}${existing ? " (replaced the file that was there)" : ""}.`);
 }
 
-/** A finished temp file put at a path nothing may hold yet: a link fails if anything got there meanwhile, and where a
- * folder takes no links (FAT, some cloud folders) a copy that fails the same way. The temp file goes either way. */
 export async function placeNew(temp: string, target: string, link: (from: string, to: string) => Promise<void> = fs.link): Promise<void> {
   try {
     try {
@@ -176,7 +167,6 @@ async function makeFolder(home: string, args: Record<string, unknown>): Promise<
 
 const RUN = { list_files: listFiles, read_file: readFile, write_file: writeFile, make_folder: makeFolder } as const;
 
-/** The bridge's relay for these tools: null for any other call. Failures come back as the OS worded them. */
 export function hostFileRelay(home: string): (call: ToolCall) => Promise<Result> | null {
   return (call) => {
     if (!HOST_FILE_TOOL_NAMES.has(call.name)) return null;

@@ -175,7 +175,7 @@ suite("the v2 stream on real Chrome", () => {
       if (output.type === "frame") { frames.push(jpegSize(output.data)); output.ack(); }
     });
     try {
-      for (let cycle = 0; cycle < 12; cycle++) {
+      for (let cycle = 0; cycle < 32; cycle++) {
         for (const [width, height, pageWidth, pageHeight] of [[1600, 1000, 1600, 1000], [1200, 900, 1280, 960], [400, 750, 1280, 2400]]) {
           await view.input({ type: "resize", width, height });
           await until(pageSize, same([pageWidth, pageHeight, 2]));

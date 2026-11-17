@@ -204,12 +204,10 @@ export function whereWorksControl(bot: string): string {
   return `open Bot's screen in this chat and choose This computer under “Where ${bot} works”`;
 }
 
-/** Each place as the person's Screen panel names it. */
 const PLACE_NAMES: Record<Surface, string> = {
   cloud: "its Cloud desktop", vm: "its Private desktop", local: "This computer", browser: "the built-in Browser",
 };
 
-/** Only a person's own request may persist the bot's choice of This computer. */
 export function thisComputerSwitch(input: { place: Surface | null; bot: string; canSelect: boolean; botId?: string }): string {
   const where = input.place && input.place !== "local"
     ? `This bot works on ${PLACE_NAMES[input.place]}, not on this computer.` : "This bot does not work on this computer this turn.";
@@ -276,7 +274,6 @@ export function surfacePrompt(
   mounted: MountedSurfaces,
   opts: { pinned?: Surface | null; note?: string; canSelect?: boolean; cloudHome?: boolean; botOpened?: boolean;
     ownComputer?: ReadonlyArray<{ name: string; platform: LentPlatform | null }>;
-    /** This computer can be picked for this bot here: its name, and the platform this server runs on. */
     thisComputer?: { bot: string; botId?: string; platform: NodeJS.Platform } } = {},
 ): string {
   const reportBack = opts.botOpened && !opts.canSelect;

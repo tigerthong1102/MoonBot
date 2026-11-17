@@ -116,7 +116,6 @@ export function execFileInGroup(
   return child;
 }
 
-/** execFileInGroup as a promise, shaped as `promisify(execFile)`'s: rejects with `code`, `killed`, `stdout` and `stderr`. */
 export function execFileInGroupAsync(file: string, args: readonly string[], options: GroupExecOptions = {}): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     execFileInGroup(file, args, options, (error, stdout, stderr) => {

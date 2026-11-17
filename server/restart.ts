@@ -3,7 +3,6 @@ export const RESTART_EXIT_CODE = 75;
 export const CRASH_EXIT_CODE = 70;
 export const MAX_RESTARTS = 5;
 export const STABLE_RUN_MS = 60_000;
-/** The pause before each start after a crash in a row: a crash loop slows down, then stops at the last. */
 export const CRASH_BACKOFF_MS = [1_000, 2_000, 5_000, 15_000, 30_000] as const;
 
 /** Killed by the system rather than asked to stop: out of memory (SIGKILL, SIGABRT), or a fault. Shells and
@@ -31,12 +30,10 @@ export function restartPolicy(now: () => number = Date.now) {
       startedAt = now() + delay;
       return true;
     },
-    /** How long to wait before the start the last again() allowed. */
     delayMs: (): number => delay,
   };
 }
 
-/** What a launcher says before starting the server again. */
 export const restartLine = (code: number | null, delayMs: number): string => code === RESTART_EXIT_CODE
   ? "OpenMausBot is starting again to finish installing a copy from the desktop app…"
   : `OpenMausBot stopped unexpectedly (${code ?? "killed"}); starting it again in ${Math.round(delayMs / 1000)} s…`;

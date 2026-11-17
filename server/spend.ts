@@ -1,4 +1,3 @@
-// The monthly spend cap requires the `budgets` entitlement.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { SPEND_LIMIT_REFUSAL } from "../shared/setting-fixes.ts";

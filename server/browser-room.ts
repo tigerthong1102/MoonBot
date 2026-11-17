@@ -7,7 +7,6 @@ import { boxMemory } from "./box-memory.ts";
  * threads (each counts against a pids limit) and about 350 MB. */
 const BROWSER_THREADS = 160;
 const BROWSER_BYTES = 400 * 1024 * 1024;
-/** The part of the server's limits that browsers may fill; engines and their tools need the rest. */
 const BROWSER_SHARE = 0.4;
 const MOST_BROWSERS = 16;
 const ROOM_WAIT_MS = 30_000;
@@ -84,7 +83,6 @@ export class BrowserRoom {
 
   get open(): number { return this.#open.size; }
 
-  /** Null once `session` may run a browser; otherwise the refusal for the bot. */
   async enter(session: string, deadline: number, onAdmitted?: (release: () => void) => void): Promise<string | null> {
     const until = Math.min(deadline, Date.now() + (this.#options.waitMs ?? ROOM_WAIT_MS));
     for (;;) {
@@ -111,7 +109,6 @@ export class BrowserRoom {
     }
   }
 
-  /** Spare browsers, least recently used first, until one closes; one that will not close leaves the next to try. */
   async #closeOneSpare(others: readonly string[]): Promise<boolean> {
     const spare = others.flatMap((other) => { const idle = this.#options.spare(other); return idle === null ? [] : [{ other, idle }]; })
       .sort((a, b) => b.idle - a.idle);
@@ -125,7 +122,6 @@ export class BrowserRoom {
     return false;
   }
 
-  /** A browser that runs whether or not a call started it, such as one a person's view opened. */
   entered(session: string): void { this.#open.add(session); this.#provisional.delete(session); }
 
   left(session: string): void { this.#open.delete(session); this.#provisional.delete(session); }
@@ -139,13 +135,11 @@ export async function prepareBrowserRoom<T>(room: BrowserRoom | undefined, sessi
 }
 
 const REFUSED = new WeakSet<object>();
-/** A call's answer when every browser allowed is open: it reached no browser. */
 export function slotRefusal(text: string): { isError: true; content: Array<{ type: "text"; text: string }> } {
   const refusal = { isError: true as const, content: [{ type: "text" as const, text }] };
   REFUSED.add(refusal);
   return refusal;
 }
-/** A slot refusal opened nothing, so a note that this call reopened the browser waits for the call that does. */
 export function refusedSlot(result: unknown): boolean { return typeof result === "object" && result !== null && REFUSED.has(result); }
 
 type ListedSpec = { command: string; args: readonly string[] };
@@ -155,7 +149,6 @@ export class SharedToolLists {
   readonly #lists = new Map<string, Promise<unknown>>();
   readonly #known = new Map<string, unknown>();
 
-  /** `check` runs first on every ask, as a session's own connection would check its launch settings. */
   get(spec: ListedSpec, load: () => Promise<unknown>, check?: () => void): Promise<unknown> {
     try { check?.(); } catch (error) { return Promise.reject(error); }
     const key = listKey(spec);
@@ -171,6 +164,5 @@ export class SharedToolLists {
     return list;
   }
 
-  /** The list already read for these launch settings, if any. */
   known(spec: ListedSpec): unknown { return this.#known.get(listKey(spec)); }
 }

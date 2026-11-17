@@ -190,7 +190,6 @@ export function createBotLinkRoutes(deps: BotLinkRouteDeps): RouteHandler {
     const power = deps.power();
     if (power?.sleeping()) return answerAsleep(res, json);
     seen(peer);
-    // Each side says what its version reads; a computer on the first version says nothing and is sent only what that reads.
     link.setLevel(peer, levelOf(req.headers[LEVEL_HEADER]));
     if ((deps.level ?? PROTOCOL_LEVEL) > 1) res.setHeader(LEVEL_HEADER, String(deps.level ?? PROTOCOL_LEVEL));
     if (body.data.fresh) link.sessionStarted(peer);

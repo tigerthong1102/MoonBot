@@ -115,7 +115,6 @@ export function keyedStable(turn: Pick<SendTurnInput, "systemStable" | "systemRo
   return stable !== undefined && roster ? stable.replace(roster, "") : stable;
 }
 
-/** The team roster as it is now, before `text`, when it differs from what the process last had (`had`). */
 export function withRosterNote(text: string, roster: string, had: string): string {
   if (roster === had) return text;
   const note = `<system-reminder>\n${roster.trim() ? `The team roster changed since this session started. It replaces the roster in your instructions:\n\n${roster.trim()}` : "The team roster in your instructions is out of date: it has no members now."}\n</system-reminder>`;

@@ -39,7 +39,6 @@ export function createOwnMcpHttpRoutes(options: { keepaliveMs?: number; maxPendi
   const keepaliveMs = options.keepaliveMs ?? KEEPALIVE_MS;
   const maxPending = options.maxPending ?? MAX_PENDING;
   const maxOutputBytes = options.maxOutputBytes ?? MAX_OUTPUT_BYTES;
-  /** Requests in flight per server and capability: a bot's turn, as one stdio proxy serves. */
   const pending = new Map<string, number>();
 
   return async function ownMcpHttpRoutes({ req, res, path, method, json, readBody }: RouteContext): ReturnType<RouteHandler> {
@@ -47,7 +46,6 @@ export function createOwnMcpHttpRoutes(options: { keepaliveMs?: number; maxPendi
     const name = path.slice(OWN_MCP_HTTP_PATH.length);
     const kind = name === "agents" ? "agents" : parseHarnessMcpKind(name);
     if (!kind) return json(res, 404, { error: "no such MCP server" });
-    // No stream to open on its own and no session to end: a client falls back to request and response.
     if (method !== "POST") {
       res.writeHead(405, { allow: "POST" });
       res.end();
@@ -69,7 +67,6 @@ export function createOwnMcpHttpRoutes(options: { keepaliveMs?: number; maxPendi
       pending.set(key, (pending.get(key) ?? 0) + 1);
       try {
         const reply = await answer(frame as Json) as { result?: { protocolVersion?: unknown } } | undefined;
-        // The version the client asked for: these servers answer the same way in every version.
         const asked = (frame?.params as { protocolVersion?: unknown } | undefined)?.protocolVersion;
         if (frame?.method === "initialize" && typeof asked === "string" && reply?.result) reply.result.protocolVersion = asked;
         return reply;
@@ -80,7 +77,6 @@ export function createOwnMcpHttpRoutes(options: { keepaliveMs?: number; maxPendi
         if (left > 0) pending.set(key, left); else pending.delete(key);
       }
     };
-    // The stdio proxy's output cap, over the whole answer: a reply that would pass it becomes a failure the bot can read.
     let sent = 0;
     const capped = (frame: Frame, reply: unknown): unknown => {
       if (reply === undefined) return undefined;
@@ -102,7 +98,6 @@ export function createOwnMcpHttpRoutes(options: { keepaliveMs?: number; maxPendi
   };
 }
 
-/** One server-sent event per reply as each finishes, with a comment line in between to keep the connection busy. */
 async function stream(res: ServerResponse, frames: Frame[], run: (frame: Frame) => Promise<unknown>, capped: (frame: Frame, reply: unknown) => unknown, keepaliveMs: number): Promise<void> {
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform", connection: "keep-alive" });
   res.flushHeaders();

@@ -9,7 +9,6 @@ const DEFAULT_THREADS_FLOOR = 3, BYTES_PER_DEFAULT_THREAD = 2 * 1024 ** 3;
 export interface BotThreadsHost { memoryGate: boolean; totalBytes: number; oneThreadPerBot: boolean }
 type SavedThreads = { threads?: { maxConcurrentPerBot?: number } };
 
-/** The memory this server may use: its container's limit where one is set, not the machine's. */
 export const botThreadsHost = (oneThreadPerBot = false): BotThreadsHost => ({ memoryGate: engineMemory.enabled, totalBytes: boxMemory().bytes, oneThreadPerBot });
 
 export function defaultBotThreads(host: Pick<BotThreadsHost, "memoryGate" | "totalBytes"> = botThreadsHost()): number {

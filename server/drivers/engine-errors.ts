@@ -14,7 +14,6 @@ export const limitQuietMs = (): number => {
   return Number.isFinite(ms) && ms > 0 ? ms : DEFAULT_LIMIT_QUIET_MS;
 };
 
-/** A 429 whose wait is longer than any engine retries on its own is a usage limit, not a short rate limit. */
 export const usageLimitWait = (status: number | null | undefined, waitMs: number | null | undefined): boolean =>
   status === 429 && (waitMs ?? 0) > limitQuietMs();
 

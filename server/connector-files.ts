@@ -22,9 +22,7 @@ const isRecord = (value: unknown): value is Json => typeof value === "object" &&
 
 /** Fields Composio's tools take a file in, besides any `{ s3key }` object. */
 const FILE_FIELDS = new Set(["file_to_upload", "file", "files", "file_upload", "upload", "attachment", "attachments", "document", "image", "media"]);
-/** Where a `{ … }` file object may carry a path instead of a staged key. */
 const PATH_KEYS = ["s3key", "path", "file_path", "local_path", "filepath"] as const;
-/** An absolute path on this computer, in any spelling a bot writes one: C:\…, C:/…, \\server\share, /…, ~/…, file://… */
 const LOCAL_PATH = /^(?:[A-Za-z]:[\\/]|\\\\[^\\]|\/(?!\/)|~[\\/]|file:\/\/)/;
 const MIME = /^[A-Za-z0-9][\w.+-]*\/[\w.+-]+$/;
 const MAX_FILES_PER_REQUEST = 10;
@@ -61,7 +59,6 @@ interface FileReference {
   path: string;
   name?: string;
   mimetype?: string;
-  /** The call's arguments in the frame as the bot sent it, to find the call on its approval card. */
   source: unknown;
   replace(staged: StagedFile): void;
 }
@@ -86,7 +83,6 @@ function referenceIn(owner: Json | unknown[], key: string | number, field: strin
   }
   if (!isRecord(value)) return false;
   const pathKey = PATH_KEYS.find((candidate) => localPath(value[candidate]));
-  // Only a file object: `{ s3key }` anywhere, or a path inside a field that takes a file.
   if (!pathKey || (pathKey !== "s3key" && !FILE_FIELDS.has(field.toLowerCase()))) return false;
   const name = typeof value.name === "string" && value.name.trim() ? basename(value.name.trim().replace(/\\/g, "/")) : undefined;
   const given = typeof value.mimetype === "string" ? value.mimetype : typeof value.mime_type === "string" ? value.mime_type : undefined;
@@ -163,7 +159,6 @@ export async function openBotFile(path: string, scope: BotFileScope, maxBytes = 
     const realRoots = (await Promise.all(roots.map(real))).filter((one): one is string => one !== null);
     const root = realRoots.filter((one) => within(one, file.path)).sort((a, b) => b.length - a.length)[0] ?? dirname(file.path);
     const appData = (await Promise.all(scope.refuse.map(real))).filter((one): one is string => one !== null);
-    // A bot's own workspace sits inside the app's data folder: only a folder strictly inside it may send from there.
     const ownAppFolder = appData.some((data) => within(data, root));
     const home = await real(scope.home ?? homedir());
     if (hiddenBelow(root, file.path)
@@ -185,8 +180,6 @@ export async function openBotFile(path: string, scope: BotFileScope, maxBytes = 
   }
 }
 
-/** The scope of one turn: the bot's folders without the attachment store (which holds every conversation's and every
- * team member's files), this conversation's own attachments by path, and the app's own data folders. */
 export function connectorFileScope(input: {
   roots: readonly string[];
   attachmentStore: string;
@@ -203,7 +196,6 @@ export function connectorFileScope(input: {
   };
 }
 
-/** The relay's staging for one call: the bot's files, uploaded through the same connection the call goes out on. */
 export function connectorFileDeps(options: {
   scope: BotFileScope;
   via: readonly [AppConfig, BrokerAccess?];
@@ -219,7 +211,6 @@ export function connectorFileDeps(options: {
   };
 }
 
-/** A path as the file system reads it: ~/ is the home folder, file:// a file URL. */
 function onDisk(path: string): string {
   if (/^~[\\/]/.test(path)) return join(homedir(), path.slice(2));
   if (/^file:\/\//i.test(path)) {
@@ -240,7 +231,6 @@ async function putBytes(url: string, bytes: Uint8Array, mimetype: string, signal
 
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim().slice(0, 240);
 
-/** What the bot is told when a file it named may not be sent. */
 export function unreadableFileText(reference: Pick<FileReference, "tool" | "field" | "path">, app: string, reason: string): string {
   return `OpenMausBot did not run ${reference.tool}: it could not send ${reference.path} to ${app} (${reason}). `
     + `Nothing was written to ${app}. Give ${reference.field || "the file field"} the full path of a file in your working folder or one `

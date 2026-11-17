@@ -86,7 +86,6 @@ export function createBotLinkMain({ wanted, pref, localRequest, fetch: fetchImpl
     }
   }
 
-  /** What this computer's server last said of its link, and the Cloud and account it holds for: what `address` reads. */
   let known = null, addressed = "";
   const linkedTo = () => {
     const mine = cloud();

@@ -197,7 +197,6 @@ export class TurnWatchdog {
 
   identity(threadId: string): object | undefined { return this.turns.get(threadId); }
 
-  /** Stops the watched turn now, as a stall would. */
   fail(threadId: string, reason: StallReason = "server-error"): boolean {
     const turn = this.turns.get(threadId);
     if (!turn) return false;

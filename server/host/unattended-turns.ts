@@ -34,8 +34,6 @@ export function unattendedLimits(env: NodeJS.ProcessEnv = process.env): Unattend
   };
 }
 
-/** A turn a person's own message started, or a continuation of one (a memory retry, a card's answer): attended, whatever
- * routine run or wait is also open in that chat. */
 export const personDriven = (request: { personLine?: true; origin?: { kind: string } } | undefined): boolean =>
   request?.personLine === true || request?.origin?.kind === "user";
 

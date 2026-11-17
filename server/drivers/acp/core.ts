@@ -419,7 +419,6 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
           return;
         }
         host.draining = true;
-        // EOF is no guaranteed exit: Qwen is tracked before another turn can resume its history.
         if (support.restartOnMcpChange) void retireChild(threadId, session.child);
         else void (leaving.add(session.child), stopEngineTree(session.child, 5_000, 5_000).then((stopped) => stopped && leaving.delete(session.child)));
       };
@@ -1646,7 +1645,6 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
             settle(threadId, session, true, "cancelled");
           }
           listeners.clear();
-          // Engines lead sessions of their own, so nothing stops them once this server exits.
           await stopEngineTrees([...disposingSessions.map(([, session]) => session.child), ...[...retiring.values()].flatMap((children) => [...children]), ...leaving]);
         },
       };

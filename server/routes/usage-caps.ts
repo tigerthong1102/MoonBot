@@ -1,4 +1,3 @@
-// Usage-cap configuration is restricted to the server owner or an authorized administrator.
 import { CAP_FIELDS, usageCapsSchema, type CapLimits, type UsageCapsConfig } from "../usage-caps.ts";
 import type { UsageCapView } from "../host/usage-cap-gate.ts";
 import { schemaIssue } from "../schema.ts";
@@ -12,7 +11,6 @@ export interface UsageCapRouteDeps {
 
 const OWNER_ONLY = "Only the owner of this server can see or change its usage caps.";
 
-/** Zero and empty mean no cap, so neither is kept. */
 function setLimits(limits: CapLimits | undefined): CapLimits {
   const kept: CapLimits = {};
   for (const { field } of CAP_FIELDS) {

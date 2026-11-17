@@ -4,7 +4,6 @@ import { closeSync, fstatSync, openSync, readSync, renameSync, rmSync, statSync,
 /** Event-log retention must never trim conversation transcripts. */
 export const DEFAULT_THREAD_EVENT_LOG_MAX_BYTES = 256 * 1024 * 1024;
 
-/** The cap the logs are trimmed to: the person's limit (config's threadEventLogMaxBytes), or the default ceiling. */
 export const threadLogCapOrDefault = (cap: number | null): number => cap ?? DEFAULT_THREAD_EVENT_LOG_MAX_BYTES;
 
 let capProvider: () => number | null = () => null;

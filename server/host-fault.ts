@@ -44,8 +44,6 @@ export function hostFaultOf(failure: string, stopReason?: string | null): HostFa
   return null;
 }
 
-/** Whether starting the same work again soon meets the fault again. An engine stopped for room is the exception: the
- * memory and process admission holds its next start until there is room, so that start may pass. */
 export const retryCannotFix = (fault: HostFault): boolean => fault !== "out_of_room";
 
 /** The fault in the words a model is given, to follow "because". */

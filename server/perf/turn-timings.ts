@@ -13,7 +13,6 @@ import {
   type FailoverWhy, type LimitScope, type QueueWhy, type ToolKind, type ToolStat, type TurnTiming,
 } from "./turn-record.ts";
 
-/** Enough for an hour of 34 bots' turns, so the hour's percentiles are not cut short. */
 export const RING_CAP = 1_000;
 const LIVE_CAP = 200, PENDING_CAP = 500, OPEN_TOOLS_CAP = 64;
 /** A turn whose end never came is taken as over after this long: dropped, or, while it waits on a person, finished as such. */

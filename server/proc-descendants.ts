@@ -58,7 +58,6 @@ export function descendantsOf(root: number, platform: NodeJS.Platform = process.
   return found;
 }
 
-/** Those of `tree` still running as the same process. */
 export function stillRunning(tree: readonly TreeProcess[], platform: NodeJS.Platform = process.platform): TreeProcess[] {
   if (!tree.length) return [];
   const now = new Map(rows(platform).filter((row) => !row.gone).map((row) => [row.pid, row.start]));

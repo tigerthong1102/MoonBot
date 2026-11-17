@@ -38,7 +38,6 @@ export interface UsageGroup {
 interface UsageSummary {
   groupBy: UsageGroupBy;
   groups: UsageGroup[];
-  /** The period as a whole; `unpriced` counts its turns whose model has no price, booked at $0. */
   total?: { turns: number; unpriced: number };
   budget?: BudgetState | null;
   caps?: UsageCapView | null;
@@ -46,7 +45,6 @@ interface UsageSummary {
   notBilled?: { usd: number; turns: number };
 }
 
-/** What the period's dollars leave out or overstate, one line each; nothing when the total is complete and billed. */
 export function CostCaveats({ summary }: { summary: Pick<UsageSummary, "total" | "notBilled"> | null }) {
   const plan = summary?.notBilled?.usd ?? 0;
   const unpriced = summary?.total?.unpriced ?? 0;

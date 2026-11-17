@@ -46,8 +46,6 @@ export interface BotLinkHostDeps {
 
 export function createBotLinkHost(deps: BotLinkHostDeps) {
   const { store } = deps;
-  /** Each bot of each linked place as a record this place finds by its address: its name and look, and where it lives.
-   * It has no conversation, model or tools here, and takes no turn here. */
   const syncStandIns = () => {
     const next = new Map<string, BotRecord>();
     for (const { id, peer, place, kind, bot } of link.linked()) {
@@ -69,7 +67,6 @@ export function createBotLinkHost(deps: BotLinkHostDeps) {
       deps.roomChanged?.(group.id);
     }
   };
-  /** What the app was last told of each room's far members. */
   const farTold = new Map<string, string>();
   const rooms = createLinkedRooms({ dataDir: deps.dataDir, store, coordinator: deps.coordinator, on: () => link.on(), linked: (peer) => link.has(peer), online: (peer) => link.online(peer), linkedBots: () => link.linked(), selfName: () => link.selfName(), wanted: () => link.wanted(),
     personName: deps.personName, line: deps.roomLine, window: deps.roomWindow, log: deps.log, ...(deps.roomOpener ? { opener: deps.roomOpener } : {}), ...(deps.roomFollow ? { follow: deps.roomFollow } : {}) });
@@ -119,8 +116,6 @@ export function createBotLinkHost(deps: BotLinkHostDeps) {
     upkeep = setInterval(() => link.tidy(), 60 * 60_000);
     upkeep.unref?.();
   };
-  /** A room's members changed: a far member is remembered by name for when its place cannot be asked, and one the person
-   * removed is forgotten. Watched while the link is on, or while a room still has a far member. */
   let stopWatchingRooms: (() => void) | undefined;
   const watchRooms = () => { stopWatchingRooms ??= store.onChange((change) => { if (change.type === "group" && (store.standIns.size > 0 || rooms.any())) syncStandIns(); }); };
   const routes = createBotLinkRoutes({ link, dialer, turnedOn: watch, environmentId: deps.environmentId, local: deps.local, owner: deps.owner, power: deps.power,

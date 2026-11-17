@@ -86,7 +86,6 @@ export function describeBrand(status: BrandStatus): string {
   return `brand: default${status.notice ? ` (${status.notice})` : ""}`;
 }
 
-/** The name a person reads: an applied brand file's own name, else StartupBot. */
 export function productName(status: BrandStatus = loadBrand()): string {
   return status.source === "file" ? status.brand.name : PRODUCT_NAME;
 }

@@ -11498,7 +11498,6 @@ function recordTurnPlace(botId: string, threadId: string, place: Surface | null)
   if (place) turnPlaces.set(threadId, { botId, place });
   else turnPlaces.delete(threadId);
 }
-/** The switch to This computer as this turn can make it: select_computer on a person's own request, else the person's choice. */
 function thisComputerSwitchFor(capability: InternalCapability, bot: BotRecord, place?: Surface): string { const turn = turnPlaces.get(capability.threadId), select = computerSelectionTurns.get(capability.threadId); return thisComputerSwitch({ place: place ?? (turn?.botId === bot.id ? turn.place : null), bot: bot.name, botId: bot.id, canSelect: Boolean(select && select.generation === capability.generation && !select.handoff && bot.computer !== "off") }); }
 
 function signInPlace(bot: BotRecord, threadId: string): Surface | null {

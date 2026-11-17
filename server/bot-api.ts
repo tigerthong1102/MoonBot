@@ -32,8 +32,6 @@ const recordSchema = z.object({
   keyCreatedAt: z.number().finite().nonnegative(),
   callCount: z.number().int().nonnegative(),
   lastCalledAt: z.number().finite().nonnegative().optional(),
-  /** The owner marked this key as acting for them: a thread it opens runs at the bot's own level. A new
-   * key starts without it. */
   actsAsOwner: z.literal(true).optional(),
 });
 const attemptSchema = z.object({
@@ -46,7 +44,6 @@ const attemptSchema = z.object({
   preview: z.string().optional(),
   reason: z.string().optional(),
   repeats: z.number().int().positive().optional(),
-  /** Taken in a thread that runs as the owner's own work. */
   asOwner: z.literal(true).optional(),
 });
 const fileSchema = z.object({
@@ -164,12 +161,10 @@ export class BotApiManager {
     return this.bots.some((candidate) => candidate.botId === botId);
   }
 
-  /** Whether the key acts as the owner. The host also asks whether this server allows it at all. */
   actsAsOwner(botId: string): boolean {
     return this.bots.find((candidate) => candidate.botId === botId)?.actsAsOwner === true;
   }
 
-  /** Marks the key as acting for the owner, or not; false when the API is off. */
   setActsAsOwner(botId: string, on: boolean): boolean {
     const record = this.bots.find((candidate) => candidate.botId === botId);
     if (!record) return false;
@@ -289,8 +284,6 @@ export function botApiPrompt(message: string, receivedAt: number): string {
   ].join("\n");
 }
 
-/** A message through a key the owner marked as acting for them: their request, at the bot's own level. Its words are
- * still defused, so they can't pass for a note or name a stored file. */
 export function botApiOwnerPrompt(message: string): string {
   return [fromNote(API_OWNER_WHO, "message", AUTHORITY.behalf), withoutAttachedImages(message)].join("\n");
 }

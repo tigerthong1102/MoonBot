@@ -10,7 +10,6 @@ export interface EndedGateChecks {
   release(session: string): Promise<void>;
 }
 
-/** Releases the gate of every session whose browser no longer runs and that nothing uses; resolves to those released. */
 export async function releaseEndedGates(checks: EndedGateChecks): Promise<string[]> {
   const released: string[] = [];
   for (const session of checks.sessions()) {

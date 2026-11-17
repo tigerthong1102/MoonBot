@@ -7,25 +7,18 @@ import type { ShortageCode } from "./process-shortage.ts";
 
 /** A scripted engine on Node 24 used 44 threads across six processes (2026-11-16). */
 export const ENGINE_TASKS = 60;
-/** One more session in an engine process that is already running: its tool servers. */
 export const SESSION_TASKS = 40;
 /** One bot's browser: 13 processes with 163 threads (agent-browser 0.37.0 and Chromium 156 on one page, 2026-11-16). */
 export const BROWSER_TASKS = 170;
-/** The server, its launcher and init, and what the server runs for itself (git, probes). */
 const SERVER_TASKS = 40;
-/** After a refused spawn that names no pids limit (open files, memory), nothing new starts for this long. */
 const SHORTAGE_HOLD_MS = 30_000;
 const LEARNED_FOR_MS = 30 * 60_000;
-/** A browser let in counts at its full size while it starts, whatever its process says; after that while it runs. */
 const BROWSER_START_MS = 60_000;
-/** How long a browser call waits for room before it is told why it cannot open one: well inside the call's own budget. */
 const BROWSER_WAIT_MS = 20_000;
 export const BROWSER_NO_ROOM = "This server is close to its limit on running programs, so another browser cannot open now. " +
   "Try the browser again in a few minutes, or carry on without it.";
 
-/** Kept below the limit for what nobody counts ahead: a command's own children, a probe, a thread pool growing. */
 export const margin = (limit: number) => Math.max(32, Math.round(limit * 0.1));
-/** How many engines fit under a pids limit. */
 export const turnsUnder = (limit: number) => Math.max(1, Math.floor((limit - margin(limit) - SERVER_TASKS) / ENGINE_TASKS));
 
 export type SpawnFailureCode = ShortageCode | "ENOENT" | "other";
@@ -59,7 +52,6 @@ export class ProcessBudget {
   private refused: (() => void) | null = null;
   private readonly browserTasks: (sessions: readonly string[]) => number | null;
   private readonly pollMs: number;
-  /** Browsers let in (browserRoom), by session, and when. */
   private readonly browsers = new Map<string, { since: number }>();
   private browserRuns: ((session: string) => boolean) | null = null;
   private browserPid: ((session: string) => number | null) | null = null;
@@ -73,13 +65,10 @@ export class ProcessBudget {
     this.pollMs = options.pollMs ?? 1_000;
   }
 
-  /** Called when the system refuses a spawn for want of room: whoever holds turns back looks again. */
   onRefused(refused: () => void): void { this.refused = refused; }
 
-  /** Two small files, read each time: a count a moment old would hold a turn back after the room it waited for came. */
   private state(): { max: number | "max" | null; current: number | null } { return this.read(); }
 
-  /** The limit in force; null where none is set, readable or learned. */
   limit(): number | null {
     const { max } = this.state();
     if (typeof max === "number") return max;
@@ -107,7 +96,6 @@ export class ProcessBudget {
     return starting + Math.max(0, reservations.size * BROWSER_TASKS - (this.seenBrowsers?.tasks ?? 0));
   }
 
-  /** The gate a bot's browser passes before it opens: `runs` says whether a session's browser is running now. */
   browserRoom(runs: (session: string) => boolean, pid?: (session: string) => number | null): { enter(session: string, admitted?: (rollback: () => void) => void): Promise<string | null> } {
     this.browserRuns = runs;
     this.browserPid = pid ?? null;
@@ -139,7 +127,6 @@ export class ProcessBudget {
     }
   }
 
-  /** Every spawn the operating system refused, by its code. A pids refusal also teaches the limit where none is readable. */
   spawnFailed(code: string | undefined): void {
     const known: SpawnFailureCode = code !== undefined && Object.hasOwn(this.spawnFailures, code) ? (code as SpawnFailureCode) : "other";
     this.spawnFailures[known] += 1;

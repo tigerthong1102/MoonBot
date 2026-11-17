@@ -66,7 +66,6 @@ export class ThreadCache {
     return state;
   }
 
-  /** A cached transcript gained `added` (and lost `removed`, a message it replaced). */
   grew(threadId: string, added: Message, removed?: Message): void {
     const entry = this.entries.get(threadId);
     if (!entry) return;

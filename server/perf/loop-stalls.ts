@@ -14,7 +14,6 @@ export function noteBlocking(kind: BlockingKind, ms: number): void {
   if (ms > tally.maxMs) tally.maxMs = ms;
 }
 
-/** Runs synchronous work that blocks the server and counts its time. */
 export function timeBlocking<T>(kind: BlockingKind, run: () => T): T {
   const at = performance.now();
   try {
@@ -26,13 +25,11 @@ export function timeBlocking<T>(kind: BlockingKind, run: () => T): T {
 
 const arrival = new AsyncLocalStorage<number>();
 export const markRequestArrival = (at = Date.now()): void => arrival.enterWith(at);
-/** The current request's arrival, if it came within `withinMs` of `at`. */
 export function requestArrivedBefore(at: number, withinMs = 60_000): number | undefined {
   const arrived = arrival.getStore();
   return arrived !== undefined && arrived <= at && at - arrived <= withinMs ? arrived : undefined;
 }
 
-/** A distribution as monitorEventLoopDelay gives it: [percentile, delay ms] in rising order, and how many samples. */
 interface Minute { count: number; points: Array<[number, number]>; maxMs: number; saves: Tally; runtimeReads: Tally }
 
 export interface StallStats { p50: number; p95: number; p99: number; max: number; over100ms: number; over1s: number }
@@ -45,7 +42,6 @@ export interface StallsReport {
   runtimeReads: { m1: Tally; h1: Tally };
 }
 
-/** The histogram holds the time between its timer's firings: the delay is what exceeds the timer's own interval. */
 const lateMs = (ns: number, resolutionMs: number) => Math.max(0, ns / 1e6 - resolutionMs);
 
 function minuteOf(histogram: Pick<IntervalHistogram, "count" | "max" | "percentile">, tallies: Record<BlockingKind, Tally>, resolutionMs: number): Minute {
@@ -58,7 +54,6 @@ function minuteOf(histogram: Pick<IntervalHistogram, "count" | "max" | "percenti
   return { count: histogram.count, points, maxMs: histogram.count ? lateMs(histogram.max, resolutionMs) : 0, saves: { ...tallies.saves }, runtimeReads: { ...tallies.runtimeReads } };
 }
 
-/** The share of a minute's samples at or under `value`. */
 function shareAtOrUnder(minute: Minute, value: number): number {
   let share = 0;
   for (const [percentile, delay] of minute.points) {
@@ -68,7 +63,6 @@ function shareAtOrUnder(minute: Minute, value: number): number {
   return share;
 }
 
-/** Percentiles over several minutes together, each weighted by its samples: exact to the histograms' own precision. */
 export function stallStats(minutes: readonly Minute[]): StallStats | null {
   const used = minutes.filter((minute) => minute.count > 0);
   const total = used.reduce((sum, minute) => sum + minute.count, 0);
@@ -120,9 +114,7 @@ export function createLoopStalls(options: { histogram?: Histogram & Partial<Pick
       timer = undefined;
       histogram.disable?.();
     },
-    /** Rolls the minute now (tests). */
     roll,
-    /** The last full minute (or the one under way, before the first ends) and the last hour including the minute under way. */
     report(): StallsReport {
       const live = minuteOf(histogram, current, resolutionMs);
       const last = minutes.at(-1);

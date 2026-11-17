@@ -11,7 +11,6 @@ export async function stopEngineTree(child: ChildProcess, eofGraceMs = ENGINE_EO
   return killCliTree(child, termGraceMs).catch(() => false);
 }
 
-/** Stops every distinct tree at once; resolves when all are confirmed gone or past their deadlines. */
 export async function stopEngineTrees(children: Iterable<ChildProcess>, eofGraceMs?: number): Promise<boolean> {
   const results = await Promise.all([...new Set(children)].map((child) => stopEngineTree(child, eofGraceMs)));
   return results.every(Boolean);

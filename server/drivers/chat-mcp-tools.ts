@@ -83,7 +83,6 @@ const STDERR_TAIL_CHARS = 4_000, STDERR_LINE_CHARS = 300;
  * was given (mountChatTools `mustHave`). */
 const OPTIONAL_BUILT_INS: ReadonlySet<string> = new Set(["computer", "browser", "composio", OWN_APPS_SERVER, "data", "email", "device"]);
 
-/** How long a server that runs a command gets to start here: one of the app's own (`builtIn`) or one the person configured. */
 export function mcpStartupMs(env: Record<string, string | undefined> = process.env, platform: NodeJS.Platform = process.platform, builtIn = true): number {
   return cloudRole(env) ? CLOUD_STARTUP_MS : builtIn && platform === "win32" ? WINDOWS_BUILT_IN_STARTUP_MS : STARTUP_MS;
 }
@@ -827,7 +826,6 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
     }
   };
   const answer = (result: DirectoryResult): ChatToolResult => ({ text: boundedText(result.content.map((part) => part.text).join("\n")), ok: result.isError !== true });
-  /** Waits for this computer's start, then lists its tools in the stand-in's place, keeping the runtime's own tools. */
   const awaitHostComputer = async (callSignal: AbortSignal): Promise<ChatToolResult> => {
     const waiting = standIn!;
     if (!waiting.ready) return { ok: false, text: hostComputerDidNotStart(waiting.reason!) };

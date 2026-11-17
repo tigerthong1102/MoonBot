@@ -180,10 +180,8 @@ export class BrowserEgress {
     return gate.then((opened) => opened.port);
   }
 
-  /** The sessions with an open gate. */
   sessions(): string[] { return [...this.gates.keys()]; }
 
-  /** Closes `session`'s listener: its browser has ended, so nothing connects through it until the next open. */
   async release(session: string): Promise<void> {
     const gate = this.gates.get(session);
     if (!gate) return;

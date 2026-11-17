@@ -235,7 +235,6 @@ const RESUME_QUOTE_MAX = 2_000;
 /** Failed work's cause outside the work itself, and the teammate it failed with. */
 export interface ResumeFault { fault: HostFault; who: string }
 
-/** A fault of this server stops the same work wherever it is sent; one of a teammate's own engine or tools only there. */
 const SERVER_WIDE: ReadonlySet<HostFault> = new Set(["process_start", "disk_full"]);
 
 function faultLine(faults: readonly ResumeFault[], person: string): string {
@@ -247,7 +246,6 @@ function faultLine(faults: readonly ResumeFault[], person: string): string {
   return lines.join(" ");
 }
 
-/** `faults`: the settled work that failed for a reason outside the work itself. */
 export function composeResume(a: Assignment, names: EnvelopeNames, reports: readonly string[], questions: readonly string[] = [], faults: readonly ResumeFault[] = []): string {
   const person = label(names.person, "the user");
   const against = a.parentId ? "your assignment" : "the request";

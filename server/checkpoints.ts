@@ -215,7 +215,6 @@ function runGit(args: string[], cwd: string, env: NodeJS.ProcessEnv, signal?: Ab
 function startGit(args: string[], cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal, input?: string): Promise<string> {
   return new Promise((resolvePromise, rejectPromise) => {
     signal?.throwIfAborted();
-    // Its own group: a timeout or a stop also ends what git started (hooks are off, but pack and gc helpers run).
     const child = execFileInGroup(
       "git",
       args,

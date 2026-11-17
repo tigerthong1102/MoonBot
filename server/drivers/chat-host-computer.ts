@@ -5,15 +5,12 @@ const HOST_COMPUTER_STARTUP_MS = 20_000;
 /** Windows: each turn starts the gate proxy as Electron and cua-driver.exe behind it, beside every other built-in;
  * a cold start there (Defender scanning both executables on a busy disk) runs well past the general budget. */
 const WINDOWS_HOST_COMPUTER_STARTUP_MS = 45_000;
-/** How long a turn waits before going on with an earlier list, or with the stand-in after a failed start. */
 export const HOST_COMPUTER_QUICK_MS = 1_500;
 
-/** How long this computer's helper gets to start; past the turn's own wait it starts in the background. */
 export function hostComputerStartupMs(platform: NodeJS.Platform = process.platform): number {
   return platform === "win32" ? WINDOWS_HOST_COMPUTER_STARTUP_MS : HOST_COMPUTER_STARTUP_MS;
 }
 
-/** Tool name, under the "computer" server, the model sees while the computer's real tools are not listed. */
 export const HOST_COMPUTER_STAND_IN = "computer_tools_status";
 
 type Server = { command: string; args: string[]; env: Record<string, string> };
@@ -63,7 +60,6 @@ export async function startHostComputer(key: string, list: (include: (tool: unkn
   return { state: "starting", ready: listing };
 }
 
-/** The cause, waiting for `ready` unless the turn or the call is stopped first; undefined once it has started. */
 export function hostComputerFailure(ready: Promise<unknown>, signal: AbortSignal): Promise<string | undefined> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) return reject(new Error("MCP operation cancelled"));
@@ -89,7 +85,6 @@ export function hostComputerStandIn(reason?: string) {
   return { type: "function" as const, function: { name: HOST_COMPUTER_STAND_IN, description, parameters: { type: "object", properties: {}, additionalProperties: false } } };
 }
 
-/** A catalog piece for the cause, so the person's line is worded in their language rather than carrying the English. */
 function why(reason: string): string {
   if (/timed out/i.test(reason)) return "chat.notice.part.computerToolsTookTooLong";
   if (/exited|could not start|input closed|stopped/i.test(reason)) return "chat.notice.part.computerToolsHelperStopped";
@@ -99,7 +94,6 @@ function why(reason: string): string {
 const NOTICED_KEPT = 500;
 const noticed = new Set<string>();
 
-/** The person's line for a start that failed: in full once per conversation, then a short one while it keeps failing. */
 export function hostComputerNotice(conversation: string | undefined, reason: string): { message: string; text: ServerText } {
   const repeat = conversation !== undefined && noticed.has(conversation);
   if (conversation !== undefined && !repeat) {
@@ -110,12 +104,10 @@ export function hostComputerNotice(conversation: string | undefined, reason: str
   return noticeFailure(key, repeat ? undefined : { why: why(reason) });
 }
 
-/** The computer started in this conversation, so its next failure is told in full again. */
 export function hostComputerStarted(conversation: string | undefined): void {
   if (conversation !== undefined) noticed.delete(conversation);
 }
 
-/** Tells the person when a start the turn went on without fails, unless the turn ended first. */
 export function watchHostComputerStart(ready: Promise<unknown>, conversation: string | undefined, notice: ((line: { message: string; text: ServerText }) => void) | undefined,
   open: () => boolean): void {
   ready.then(() => hostComputerStarted(conversation), (error: unknown) => {

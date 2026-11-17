@@ -11,10 +11,8 @@ function described(place: SettingsPlace): string {
   return notes.length ? `${place.path} (${notes.join("; ")})` : place.path;
 }
 
-/** The place's path, with when only Advanced mode or one kind of place shows it. */
 export const placePath = (id: SettingsPlaceId): string => described(byId.get(id)!);
 
-/** The places whose words, path or id match `query`, best first. */
 export function findPlaces(query: string, limit = 6): string[] {
   const words = query.toLowerCase().split(/[^\p{L}\p{N}&'-]+/u).filter((word) => word.length > 1);
   if (!words.length) return [];
@@ -27,7 +25,6 @@ export function findPlaces(query: string, limit = 6): string[] {
   }).filter((hit) => hit.score > 0).sort((a, b) => b.score - a.score).slice(0, limit).map((hit) => described(hit.place));
 }
 
-/** Every place, one per line, after how Settings opens: for directions no setting covers. */
 export function placesList(): string {
   return [SETTINGS_HOW_TO_OPEN, ...PLACES.map(described)].join("\n");
 }

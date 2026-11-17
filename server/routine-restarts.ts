@@ -20,7 +20,6 @@ export function startupDecision(launchId: string | undefined, last: string | und
   return { run: true, marker: `at:${now}` };
 }
 
-/** When the `index`-th run a restart cut off may start again: in turn, and not before `held` (another machine's lease). */
 export function restartRetryAt(now: number, index: number, held: number | undefined, staggerMs = restartStaggerMs()): number {
   return Math.max(held ?? 0, now + ROUTINE_RETRY_MS + index * staggerMs);
 }

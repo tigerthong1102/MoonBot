@@ -166,7 +166,6 @@ export interface CoordinateContext {
 }
 type CoordinateResult = { status: number; body: Record<string, unknown> };
 type Remote = { peer: string; bot: LinkedBot };
-/** `level`: what that place's protocol version reads, 1 until it says more. `told`: the level its last hello was made for. */
 type Live = { online: boolean; seq: number; outbox: Numbered[]; level: number; told?: number };
 
 export type BotLink = ReturnType<typeof createBotLink>;
@@ -214,7 +213,6 @@ export function createBotLink(deps: BotLinkDeps) {
     one.outbox.push({ seq: ++one.seq, frame });
     for (const listener of outboundListeners) listener(peer);
   }
-  /** A place on the first version takes a hello only with the fields that version knows. */
   const basic = ({ id, name, title, description, model, level }: LinkedBot): LinkedBot => ({ id, name, ...(title ? { title } : {}), ...(description ? { description } : {}), ...(model ? { model } : {}), ...(level ? { level } : {}) });
   const hello = (peer: string) => {
     if (!state) return;
@@ -743,7 +741,6 @@ export function createBotLink(deps: BotLinkDeps) {
   return {
     host, coordinate, resolve,
     on: () => state !== null,
-    /** What this place is called, as the other places were told. */
     selfName: () => state?.self.name ?? "",
     placeName,
     /** This place is linked here now. */
@@ -817,8 +814,6 @@ export function createBotLink(deps: BotLinkDeps) {
     /** This place's bots changed: connected places hear the new list. */
     botsChanged(): void { if (state && JSON.stringify(directory()) !== toldBots) for (const [peer, one] of live) if (one.online) hello(peer); },
     setOnline,
-    /** What that place's version reads, as its last exchange said. One that turns out to read more than its last hello
-     * was made for is told again, in full. */
     setLevel(peer: string, level: number): void {
       if (!state?.peers[peer]) return;
       const one = linkOf(peer);
@@ -873,7 +868,6 @@ export function createBotLink(deps: BotLinkDeps) {
     hasOutgoing: (peer: string, ack = 0) => live.get(peer)?.outbox.some((entry) => entry.seq > ack) === true,
     onOutgoing(listener: (peer: string) => void): () => void { outboundListeners.add(listener); return () => outboundListeners.delete(listener); },
     /** Work was handed to a place that is not connected: a computer asks its Cloud for it now. */
-    /** There is work for a place that is not connected, handed over outside `coordinate` (a room turn). */
     wanted(): void { for (const listener of wantedListeners) listener(); },
     onWanted(listener: () => void): () => void { wantedListeners.add(listener); return () => wantedListeners.delete(listener); },
     sleeps: () => state?.sleeps === true,

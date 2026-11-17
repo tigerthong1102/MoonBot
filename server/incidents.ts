@@ -74,7 +74,6 @@ export const CHIEF_INCIDENT_TURNS_PER_HOUR = 6;
 export const chiefIncidentTurnsPerHour = (env: NodeJS.ProcessEnv = process.env): number =>
   envWhole(env.OMB_CHIEF_INCIDENT_TURNS_PER_HOUR, CHIEF_INCIDENT_TURNS_PER_HOUR);
 
-/** The incident turns each Chief started within the last hour, across all the threads it hears about. */
 export class ChiefIncidentBudget {
   private readonly at = new Map<string, number[]>();
   private readonly options: { now?: () => number; limit?: () => number };
@@ -83,7 +82,6 @@ export class ChiefIncidentBudget {
     this.options = options;
   }
 
-  /** Counts one more incident turn for `chiefId`; null when it has had its hour's share, with when the oldest one leaves the hour. */
   take(chiefId: string): { until: number } | null {
     const now = this.options.now?.() ?? Date.now();
     const recent = (this.at.get(chiefId) ?? []).filter((time) => now - time < INCIDENT_WINDOW_MS);

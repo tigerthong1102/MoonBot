@@ -1,5 +1,16 @@
 # Review audit — 2026-11-17
 
+## Latest Codex and CI follow-up: 522da6b64
+
+| Finding | Classification | Evidence |
+| --- | --- | --- |
+| Connector staging/helper narration, review 23542a6db, discussion 4599404587 | CONFIRMED, fixed by 522da6b64 | Both helper-overview comments removed; complete connector/process suites pass 32 local tests. |
+| Backup-name allocation narration, review 522da6b64, discussion 4599702306 | CONFIRMED | Remove the suffix-allocation comment and equivalent private helper narration. Same-second ordering, retention and name-reuse assertions remain unchanged. |
+| Ubuntu shard 7/8 descendant fixture, run 44080404476 | CONFIRMED, fixed by 522da6b64 | A 500 ms timeout could kill the command before the descendant wrote its PID. The isolated fixture now waits for readiness, attaches a rejection handler immediately, then aborts and awaits cleanup in finally; process-tree cleanup assertions remain. |
+| Linux container S4 rapid resizing, run 44083246218/job 134039936429 | CONFIRMED | Reproduced locally on official Chrome for Testing 157.0.8103.78. A single animation frame after clear still exposed the old emulated viewport; fitting could then calculate invalid window bounds. Two renderer frames prevent that stale measurement. Old code failed twice in diagnostic runs; the fix passed 240 cycles and the complete 102-test native S4 batch. The permanent regression increases 12 to 32 cycles without changing page/frame assertions or timeout. |
+
+Comment cleanup preserves complete comment-free TypeScript syntax, type declarations and embedded program strings in 87 files. License/attribution, external platform facts, public configuration/wire contracts and security invariants remain. The backup/viewer/process/connector regression batch passes 87 tests. Run 44083246218 has a real S4 failure; separate Docker 44083246098, connector 44083246148, docs 44083246149 and website 44083246192 pass only on 522da6b64. Local validation also passes all 12 stream tests on Chrome 156.0.8078.80, 258 backup/connector/cap/verification/CI-scope/size tests, lint, typecheck, production build and packaged-server smoke. New-head required CI and completed clean Codex review are pending. Qodo is excluded at the owner's request. No workflow gates, auth boundaries, updater or release settings change.
+
 Reviewed PR head: `a9f9ce7e8642c986653a73bcd04b2de290879bd3`.
 Additional changes reviewed against `0c403c71f45d819888eb0a8a4671c257521fac54` are in the commits following that head; final CI must be checked on the resulting head.
 CI run [43981561567](https://github.com/tigerthong1102/MoonBot/actions/runs/43981561567): success, 34 successful jobs and 1 skipped. This evidence applies only to that head.

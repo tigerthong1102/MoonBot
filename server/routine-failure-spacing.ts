@@ -33,7 +33,6 @@ export function failedRuns<T extends Outcome>(routine: Spaced, runs: readonly T[
   return (end < 0 ? outcomes : outcomes.slice(0, end)).filter((run) => run.startedAt != null);
 }
 
-/** Until when the routine's scheduled runs are held back for failing, and the failure the spacing counts from; null when they are not. */
 export function failureSpacing<T extends Outcome>(routine: Spaced, runs: readonly T[], limits = failureSpacingLimits()): { until: number; last: T; streak: number } | null {
   const failed = failedRuns(routine, runs), last = failed[0];
   if (!last || failed.length < limits.runs) return null;
@@ -42,21 +41,18 @@ export function failureSpacing<T extends Outcome>(routine: Spaced, runs: readonl
 
 export interface RunSpacing<T> { until: number; last: T; streak: number; behind: string; why: SkipWhy }
 
-/** The spacing that holds the routine's scheduled runs back longest: for a cloud computer that did not start, or for failed runs. */
 export function runSpacing<T extends Outcome>(routine: Spaced, runs: readonly T[], limits = failureSpacingLimits()): RunSpacing<T> | null {
   const noStart = noStartSpacing(routine, runs), failed = failureSpacing(routine, runs, limits);
   if (noStart && (!failed || noStart.until >= failed.until)) return { ...noStart, behind: `no-start:${noStart.last.id}`, why: "routines.server.part.computerNoStart" };
   return failed && { ...failed, behind: `failed:${failed.last.id}`, why: "routines.server.part.runsFailed" };
 }
 
-/** What the owner is told, once, by the failure that begins the spacing; nothing for a routine that is off, whose schedule starts no run to space. */
 export function failureSpacingAlert<T extends Outcome>(routine: Spaced & { enabled?: boolean } | undefined, runs: readonly T[], run: T, limits = failureSpacingLimits()): RoutineAlert | undefined {
   const failed = routine && routine.enabled !== false ? failedRuns(routine, runs) : [];
   if (failed.length !== limits.runs || failed[0]?.id !== run.id) return undefined;
   return { detail: `${run.error} ${limits.runs} runs in a row failed. It stays on, and tries again less often until a run completes.` };
 }
 
-/** The routine as wake and sleep planning should see it: its next run is the first occurrence a spacing does not skip. */
 export function afterRunSpacing<R extends Spaced & { enabled: boolean; nextRunAt: number | null; schedule: unknown }, T extends Outcome>(routine: R, runs: readonly T[], now: number, next: (schedule: R["schedule"], after: number) => number | null): R {
   return afterSpacing(routine, runs, now, next, runSpacing);
 }

@@ -260,8 +260,6 @@ export function createPlacesTogether({ pref, cloud, powerChecked, computer, loca
     }, over);
   }
 
-  /** The row with the address the link gives its bot, worked out as the row is handed over: the list is the sidebar's
-   * own read and stays whole with the link down; the address is there only while the link is this Cloud's and account's. */
   function addressed(row) {
     let linked = null;
     try { linked = address(row.home, row.id); } catch {}
@@ -298,7 +296,6 @@ export function createPlacesTogether({ pref, cloud, powerChecked, computer, loca
     refresh,
     /** The signed-in account or My Cloud's address may have changed: lists that belong to another are dropped now. */
     scopeChanged: sameScope,
-    /** The link between the two places came, went or changed hands: rows on screen get their addresses again. */
     linkChanged() { if (active() && kept.size > 0) tell(); },
     /** A row's click: the other place opens at that bot. Only a bot main listed itself, for this Cloud and account, opens. */
     open(asking, botId) {

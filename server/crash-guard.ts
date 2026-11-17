@@ -1,4 +1,3 @@
-// Unknown synchronous exceptions are fatal because state integrity cannot be established.
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { ProviderInstance } from "./contracts.ts";
@@ -10,13 +9,10 @@ const scope = new AsyncLocalStorage<TurnScope>();
 const activeExecutions = new Map<string, { scope: TurnScope; turnId?: string }>();
 let watchedIdentity: ((threadId: string) => object | undefined) | undefined;
 
-/** Runs a turn's work so that an error nothing catches inside it, however late, is known to be that turn's. */
 export const runInTurn = <T>(turn: TurnScope, run: () => T): T => scope.run(turn, run);
 export const currentTurn = (): TurnScope | undefined => scope.getStore();
-/** Runs server code a driver calls into (its event listeners) outside any turn's scope. */
 export const outsideTurn = <T>(run: () => T): T => scope.exit(run);
 
-/** A driver's sendTurn runs in the turn's scope, and its events reach the server's listeners outside it. */
 export function withTurnScope<I extends Pick<ProviderInstance, "adapter">>(instance: I): I {
   const adapter = instance.adapter;
   const active = activeExecutions;
@@ -44,12 +40,10 @@ export function withTurnScope<I extends Pick<ProviderInstance, "adapter">>(insta
   return instance;
 }
 
-/** What the person is told in a turn the guard stopped. */
 export const SERVER_ERROR_CAUSE = "turn stopped — the server hit an unexpected error (details in the server log)";
 
 export const STORM_LIMIT = 10;
 export const STORM_WINDOW_MS = 60_000;
-/** Closing after a fatal error may take this long before the process exits anyway. */
 export const FATAL_EXIT_DEADLINE_MS = 20_000;
 
 const PEER_GONE = new Set(["EPIPE", "ECONNRESET", "ECONNABORTED", "ENOTCONN", "ETIMEDOUT", "ERR_STREAM_DESTROYED", "ERR_STREAM_WRITE_AFTER_END", "ERR_STREAM_PREMATURE_CLOSE"]);
@@ -70,7 +64,6 @@ export function crashVerdict(kind: "exception" | "rejection", error: unknown, tu
   return PEER_GONE.has(codeOf(error) ?? "") ? "keep" : "exit";
 }
 
-/** The error as one log line and its stack, with nothing from the process's environment. */
 export function crashLine(kind: "exception" | "rejection", error: unknown, turn: TurnScope | undefined, verdict: CrashVerdict, redact: (text: string) => string): string {
   const name = error instanceof Error ? error.name : typeof error;
   const message = error instanceof Error ? error.message : String(error);
@@ -117,7 +110,6 @@ export function installCrashGuard(deps: CrashGuardDeps) {
       if (verdict !== "exit") return;
       if (closing) { exit(CRASH_EXIT_CODE); return; }
       closing = true;
-      // Ref'd on purpose: a close that hangs still ends here.
       setTimeout(() => exit(CRASH_EXIT_CODE), FATAL_EXIT_DEADLINE_MS);
       deps.shutdown(CRASH_EXIT_CODE);
     } catch {

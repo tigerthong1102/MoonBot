@@ -55,7 +55,6 @@ const entryOf = (row: Pick<UsageRow, "at" | "botId" | "costUsd" | "input" | "out
 export const dayKey = (now: Date): string => now.toISOString().slice(0, 10);
 export const monthKeyOf = (now: Date): string => now.toISOString().slice(0, 7);
 
-/** When the period that holds `now` rolls over, in UTC. */
 export function periodEnd(period: CapPeriod, now: Date): number {
   return period === "day"
     ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + DAY_MS
@@ -228,7 +227,6 @@ function statesOf(scope: "server" | "bot", botId: string | undefined, limits: Ca
   return states;
 }
 
-/** Every cap that is set, with its use now. `botId` narrows it to the caps that count that bot's work. */
 export function capStates(saved: UsageCapsConfig | undefined, dataDir: string, now = new Date(), env: NodeJS.ProcessEnv = process.env, botId?: string): CapState[] {
   const caps = effectiveCaps(saved, env);
   const bots = Object.entries(caps.bots).filter(([id]) => botId === undefined || id === botId);
@@ -253,9 +251,6 @@ export interface ThreadStanding {
   origin: "user" | "outside" | undefined;
 }
 
-/** Whether a person is waiting on this turn. Their own message always is. A run started by hand is; a routine, webhook,
- * app event or Bot API call is not. A hand-off counts as theirs when it traces to a person's own typed line, and a
- * continuation when the conversation it continues is not an automation's. */
 export function personWaiting(turn: Parameters<typeof directTurnKind>[0] & { origin?: { kind: "user" | "outside" } }, thread: ThreadStanding): boolean {
   const kind = directTurnKind(turn);
   if (kind === "person") return true;

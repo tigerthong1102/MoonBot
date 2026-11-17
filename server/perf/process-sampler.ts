@@ -44,10 +44,8 @@ export interface ProcessReport {
 
 const readText = (path: string): string | null => { try { return readFileSync(path, "utf8"); } catch { return null; } };
 
-/** A sample reads at most this many processes: a container holds a few thousand at its limit, a shared host may show more. */
 export const MAX_SAMPLED_PROCESSES = 8_192;
 
-/** Every process /proc shows, up to MAX_SAMPLED_PROCESSES, read synchronously: one stat file each. */
 export function linuxProcessList(read: (path: string) => string | null = readText, list: () => string[] = () => readdirSync("/proc")): ProcessList {
   const rows: ProcessRow[] = [];
   let truncated = false;

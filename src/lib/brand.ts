@@ -23,7 +23,6 @@ export function brand(): Brand {
   return current.brand;
 }
 
-/** The product name, overridden by a white-label brand file. */
 export function productName(): string {
   return current.source === "file" ? current.brand.name : PRODUCT_NAME;
 }

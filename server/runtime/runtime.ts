@@ -25,7 +25,6 @@ export interface RuntimeOptions {
 export const RERUN_GAP_MS = 500;
 export const RERUN_BURST = 4;
 export const RERUN_HELD = "waiting its turn to start again after the restart";
-/** A cut turn is not run again once newer work in its conversation started first: it would answer out of order. */
 export const RERUN_SUPERSEDED = "cut by a restart; newer work in this conversation started before it could run again, so it was not run again";
 
 export interface BeginRequest {
@@ -59,8 +58,6 @@ interface LiveTurn { controller: AbortController; rootId: string; activeAt: numb
 
 type TerminalStatus = "completed" | "failed" | "cancelled";
 
-/** Work nobody is waiting on (a routine's, a webhook's): the caps that only failures in a row or a total can end apply to
- * it alone. A person's request always gets its requester's turn to react. */
 const unattendedRoot = (root: Assignment | undefined): boolean => root !== undefined && root.origin.kind !== "person";
 
 export class Runtime {
@@ -81,7 +78,6 @@ export class Runtime {
   private batch: Map<string, Assignment> | null = null;
   private lastThrew = false;
   private readonly rerunGapMs: number;
-  /** Monotonic: no turn a restart cut starts before this. */
   private nextRerunAt = Number.NEGATIVE_INFINITY;
   private rerunsStarted = 0;
 
@@ -387,7 +383,6 @@ export class Runtime {
       if (rerun && this.clock.monotonic() < this.nextRerunAt) { this.held(n.id, RERUN_HELD); busyThreads.add(thread); continue; }
       const resumed = n.status === "resume";
       const root = n.parentId ? this.store.get(n.rootId) : n;
-      // The root's own resume is let through: it wraps up what came back, and can start nothing more.
       if (unattendedRoot(root) && !(resumed && root?.id === n.id) && root?.budgets && (root.budgets.total ?? 0) + 1 > this.limits.totalExecutions) {
         this.cancelTree(root, `${this.limits.totalExecutions} turns in all, the most one request may take`, "failed", "budget");
         continue;
@@ -412,7 +407,6 @@ export class Runtime {
     }
   }
 
-  /** Work in this conversation from another request, begun since this start. */
   private newerWorkIn(threadId: string, n: Assignment): boolean {
     return this.store.all({ assigneeThreadId: threadId }).some(other => other.rootId !== n.rootId && other.createdAt >= this.bootAt && other.startedAt !== undefined && other.startedAt >= this.bootAt);
   }

@@ -7,7 +7,6 @@ export const ENGINE_TAG_ENV = "OMB_ENGINE_TAG";
 /** In the data folder; this machine's own, never backed up or moved. */
 export const ENGINE_RUNS_DIR = "engine-runs";
 const TAG = /^[0-9a-f]{32}$/;
-/** Written by a server whose shutdown finished: it stopped its own engines, and what they left on purpose stays. */
 const CLEAN = "clean";
 
 /** `start`: the kernel's start tick on Linux, ps's lstart elsewhere; `at`: when spawn returned (ms), where no start was read. */
@@ -18,7 +17,6 @@ export type Listed = { pid: number; start: string; zombie: boolean; pgid: number
 
 let run: { dir: string; tag: string } | null = null;
 
-/** The tag spawnCli adds to a child's environment, or null before startEngineRecords (tests, other processes). */
 export function engineRunTag(): string | null {
   return run?.tag ?? null;
 }
@@ -45,7 +43,6 @@ function environment(entries: string[]): Map<string, string> {
   }));
 }
 
-/** Every process with its start time, group, session and, where the system shows it to this user, its environment. */
 async function processes(): Promise<Listed[] | null> {
   if (process.platform === "linux") {
     let names: string[];
@@ -102,7 +99,6 @@ function sameStart(leader: Leader, listed: string): boolean {
   return Number.isFinite(seen) && Math.abs(seen - leader.at) < 2_000;
 }
 
-/** Started before this server: nothing this server starts can be an earlier run's. Unknown on either side counts as before. */
 function startedBefore(listed: string, self: string | null): boolean {
   if (!self || !listed) return true;
   if (process.platform === "linux") return Number(listed) < Number(self);
@@ -112,11 +108,8 @@ function startedBefore(listed: string, self: string | null): boolean {
 
 export interface SweepSelf { pid: number; tag: string | null; start: string | null }
 
-/** What of an earlier, dead run `tag` with `leaders` is still running in `table`: see the note at the top. */
 export function leftBehind(table: readonly Listed[], tag: string, leaders: ReadonlyMap<number, Leader>, self: SweepSelf): number[] {
   const byPid = new Map(table.map((entry) => [entry.pid, entry]));
-  // A group or session id is a recorded leader's only while that pid is not some other process: the system gives no new
-  // process a number that still names a group or session, so with the leader gone, the id is still its.
   const leadersGroup = (id: number | null) => {
     const leader = id === null ? undefined : leaders.get(id);
     if (!leader) return false;
@@ -154,12 +147,9 @@ export async function startEngineRecords(dataDir: string, log: (line: string) =>
   for (const other of earlier) await sweepRun(join(root, other), other, self, log).catch((error) => log(`engine records: ${other}: ${error instanceof Error ? error.message : String(error)}`));
 }
 
-/** Whether an earlier run's server still runs: "gone" from another boot or another container (none of its processes is
- * here), "dead" on this boot, "unknown" when that cannot be told (its folder is then left alone). */
 function serverState(server: ServerRecord, self: { pid: number; boot: string | null; ns: string | null }): "alive" | "dead" | "gone" | "unknown" {
   if (!Number.isInteger(server.pid) || (server.pid as number) <= 0) return "unknown";
   if (typeof server.boot === "string" && self.boot && server.boot !== self.boot) return "gone";
-  // This server holds the data folder's lease, so that container's server has ended, and its processes with it.
   if (typeof server.ns === "string" && self.ns && server.ns !== self.ns) return "gone";
   const pid = server.pid as number;
   if (pid === self.pid || !exists(pid)) return "dead";
@@ -203,7 +193,6 @@ async function sweepRun(dir: string, tag: string, self: SweepSelf & { boot: stri
       await new Promise((resolve) => setTimeout(resolve, 100));
       left = await theirs() ?? left;
     }
-    // Read again right before: only processes still that run's are killed.
     signal(left, "SIGKILL");
     for (const until = Date.now() + 1_000; Date.now() < until && left.length; ) {
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -220,7 +209,6 @@ function signal(pids: number[], value: NodeJS.Signals): void {
   }
 }
 
-/** Writes down a child spawnCli started in a session of its own; the record goes once the child and its group have gone. */
 export function recordEngine(child: ChildProcess, start: string | null): void {
   const pid = child.pid;
   if (!run || !pid) return;
@@ -240,14 +228,11 @@ function forget(file: string): void {
   try { rmSync(file, { force: true }); } catch {}
 }
 
-/** killCliTree confirmed the whole tree gone. */
 export function engineStopped(child: ChildProcess): void {
   const file = stoppedFiles.get(child);
   if (file) forget(file);
 }
 
-/** At a graceful exit: when nothing this run recorded still runs (its engines' groups are all gone), the run is marked
- * clean and the next start sweeps nothing of it. What its engines started in sessions of their own stays running. */
 export function markEngineRunClean(): boolean {
   if (!run) return false;
   try {
@@ -266,7 +251,6 @@ export function markEngineRunClean(): boolean {
   } catch { return false; }
 }
 
-/** For tests: forget this process's run. */
 export function resetEngineRecordsForTest(): void {
   run = null;
 }

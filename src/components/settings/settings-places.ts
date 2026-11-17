@@ -10,7 +10,6 @@ const JUMPS: Record<NonNullable<SettingsIndexEntry["jump"]>, string> = {
   bot: "a bot's own Settings (click the bot's name at the top of its chat)",
   shortcuts: "the keyboard shortcut list (the menu under the person's name → Keyboard shortcuts)",
 };
-/** Pages shown under the place's own name, the account's or the app's, rather than a label of their own. */
 const IDENTITY_PAGE: Partial<Record<SettingsPage["id"], string>> = { overview: "(the place's own name, at the top)" };
 
 const SEEN = { here: {}, elsewhere: { here: false }, browser: { desktop: false, here: false, home: false, cloud: true } } satisfies Record<string, Partial<SettingsContext>>;
@@ -35,7 +34,6 @@ function fill(text: string): string {
   return text.replaceAll("{app}", "MausBot").replaceAll("{place}", "My Cloud");
 }
 
-/** The places, in Settings' own order, with their labels read from `labels` (the English catalog). */
 export function buildSettingsPlaces(labels: Readonly<Record<string, string>>): SettingsPlace[] {
   const label = (key: string) => {
     const text = labels[key];

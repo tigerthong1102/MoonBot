@@ -6,7 +6,6 @@ export function createThreadMaps() {
   const maps: ThreadKeyed[] = [];
   let timer: ReturnType<typeof setInterval> | undefined;
   const forget = (threadId: string) => { for (const map of maps) map.delete(threadId); };
-  /** Drops every entry whose conversation `keep` no longer wants: archived, deleted, and not running. */
   const sweep = (keep: (threadId: string) => boolean) => {
     for (const map of maps) for (const threadId of Array.from(map.keys())) if (!keep(threadId)) map.delete(threadId);
   };
@@ -30,7 +29,6 @@ export interface KeepStore {
   groupByThread(threadId: string): unknown;
 }
 
-/** A conversation's entries stay while it runs, is open (not archived) or belongs to a room; otherwise they go. */
 export const keepThreadEntry = (store: KeepStore, busy: (botId: string, threadId: string) => boolean) => (threadId: string): boolean => {
   const bot = store.botByThread(threadId);
   if (!bot) return Boolean(store.groupByThread(threadId));

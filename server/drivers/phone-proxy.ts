@@ -31,7 +31,6 @@ const PACKAGE = /^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$/;
 const COMPONENT = /^([A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+)\/\S+$/;
 const SAFE_TEXT = /^[A-Za-z0-9 _.,@-]+$/;
 const ADB_KEYBOARD = "com.android.adbkeyboard/.AdbIME";
-// `adb shell` hands its arguments to the phone's shell as one line, so a keyboard id is sent back only when that shell reads each character of it literally.
 const SAFE_KEYBOARD_ID = /^[\w.]+\/[\w.]+$/;
 const KEYCODES: Record<string, string> = {
   back: "KEYCODE_BACK",
@@ -646,7 +645,6 @@ async function callToolOn(onDevice: OnDevice, unclaimed: OnDevice, serial: strin
     if (!durationOk(args)) throw new Error(`tap needs ${DURATION_NEEDS}, e.g. ${JSON.stringify(HELD_TAP_EXAMPLE)}`);
     const at = [String(Math.round(x)), String(Math.round(y))];
     const held = given(args.duration_ms) ? String(rounded(args.duration_ms)) : undefined;
-    // Android's `input` has no touch long press: a swipe that ends where it starts holds the finger there (seen on Android 9).
     await onDevice(serial, ["shell", "input", ...(held ? ["swipe", ...at, ...at, held] : ["tap", ...at])]);
     return textResult(held ? `Pressed ${at.join(",")} for ${held} ms` : `Tapped ${at.join(",")}`);
   }

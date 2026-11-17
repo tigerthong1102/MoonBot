@@ -83,7 +83,6 @@ export function createPerfHost(deps: PerfHostDeps) {
   };
   const enginePids = () => new Map((deps.engines?.() ?? []).map(({ pid, threads }) => [pid, threads.map(timings.engineOf).find((kind) => kind !== null) ?? "unknown"] as const));
   const linux = process.platform === "linux", windows = process.platform === "win32";
-  /** Its two warnings are said once each for the life of the server. */
   const processes = deps.processes ?? createProcessHealth({ warn: (kind, line) => say(kind, line) });
   const sampler = deps.sampler ?? createProcessSampler({
     list: linux ? () => linuxProcessList() : psProcessList, intervalMs: linux ? LINUX_SAMPLE_MS : OTHER_SAMPLE_MS,

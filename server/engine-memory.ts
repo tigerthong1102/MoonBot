@@ -27,7 +27,6 @@ export const BROWSER_BYTES = 400 * MB;
 const RESERVE_MS = 90_000, SETTLED_MS = 30_000, TASKS_RESERVE_MS = 20_000, TASKS_SETTLED_MS = 5_000, SERVER_TURNS_FOR_MS = 5_000;
 /** Under a full pids limit, a process can start and then hang when its threads are refused. */
 export const FIRST_FRAME_MS = 90_000;
-/** A silent engine's tree is read this long apart: less CPU than IDLE_CPU_MS between two reads and no child running is idle. */
 const FRAME_SAMPLE_MS = 5_000, FRAME_RECHECK_MS = 15_000, IDLE_CPU_MS = 50, FRAME_WATCH_MS = 10 * 60_000;
 const TICK_MS = 2_000, RELIEF_COOLDOWN_MS = 15_000, NOTICE_REPEAT_MS = 10 * 60_000, STOP_GRACE_MS = 5_000;
 /** How long a bot's turn lets a person's own work go first. Past this it takes its place by arrival, so it is never starved. */
@@ -212,11 +211,8 @@ export class EngineMemory {
   /** Threads whose engine was stopped for memory: how many tasks ran then, and whether their browser was running. */
   private readonly stops = new Map<string, { count: number; browser: boolean }>();
   private readonly starved = new Map<string, { code: ShortageCode; why: "refused" | "silent" }>();
-  /** Threads whose engine this gate stopped, for room or for want of it, during their turn: that engine's pid. */
   private readonly roomStopped = new Map<string, number>();
-  /** The last spawn the system refused for want of room, anywhere on the server. */
   private lastRefusal: { at: number; code: ShortageCode } | null = null;
-  /** Threads whose turn is about to start an engine that keeps a session (expectFrame). */
   private readonly expecting = new Set<string>();
   private queuedEver = 0;
   private starvedEver = 0;
@@ -263,10 +259,8 @@ export class EngineMemory {
 
   useCap(cap: EngineCap): void { this.cap = cap; }
 
-  /** A self-hosted server where turns wait for room (not a Cloud home, not the desktop app). */
   selfHosted(): boolean { return this.enabled && this.server; }
 
-  /** Whether every turn here waits for a place under a limit on turns, not only one that starts an engine. */
   limited(): boolean { return this.enabled && this.most() !== undefined; }
 
   most(): number | undefined {
@@ -359,7 +353,6 @@ export class EngineMemory {
     return memory && ((memory.fullStall10 ?? 0) >= STALL_PERCENT || this.free(memory) < this.floor(memory)) ? "ENOMEM" : null;
   }
 
-  /** The next engine process this thread's turn starts keeps a session, and so speaks first: it gets FIRST_FRAME_MS to. */
   expectFrame(threadId: string): void { if (this.enabled) this.expecting.add(threadId); }
 
   spawnRefused(code: string | undefined, engine = false): void {
@@ -381,7 +374,6 @@ export class EngineMemory {
     if (child.pid) this.engines.get(child.pid)?.threads.delete(threadId);
   }
 
-  /** A turn starts with nothing from an earlier one: what stopped or starved that turn's engine is not this one's cause. */
   turnStarted(threadId: string): void {
     if (!this.enabled) return;
     this.active.add(threadId);
@@ -431,7 +423,6 @@ export class EngineMemory {
     return most === undefined ? Infinity : Math.max(1, most - this.busy());
   }
 
-  /** Turns running and waiting now, and counts since the server started: numbers only. */
   counts(): { running: number; queued: number; longestWaitMs: number; most: number | null; queuedEver: number; starvedEver: number } {
     const at = this.now();
     return { running: this.active.size, queued: this.waitingSince.size, longestWaitMs: Math.max(0, ...[...this.waitingSince.values()].map((since) => at - since)),

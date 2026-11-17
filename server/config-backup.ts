@@ -8,7 +8,6 @@ import { keepUnreadableAside } from "./unreadable-aside.ts";
 
 /** The dated copies kept beside config.json: `config.json.bak.20261116-003000`. */
 export const CONFIG_BACKUP_PREFIX = "config.json.bak.";
-/** How many dated copies are kept; the oldest go first. */
 export const CONFIG_BACKUP_KEEP = 10;
 
 const BACKUP_NAME = /^config\.json\.bak\.(\d{8})-(\d{6})(?:-(\d+))?$/;
@@ -28,7 +27,6 @@ export type ConfigFileRead =
   | { state: "unreadable"; reason: string }
   | { state: "invalid"; reason: string };
 
-/** The moment a copy carries, and the number it was given inside that second. */
 function backupOrder(name: string): { stamp: string; order: number } {
   const match = BACKUP_NAME.exec(name)!;
   return { stamp: `${match[1]}-${match[2]}`, order: match[3] ? Number(match[3]) : 0 };
@@ -54,7 +52,6 @@ export function readConfigFile(path: string): ConfigFileRead {
   }
 }
 
-/** The error a save refuses with: the file on disk is left as it is, and its bytes are kept. */
 export function configSaveRefusal(read: { state: "unreadable" | "invalid"; reason: string }, path: string): Error {
   const why = read.state === "invalid" ? `it is not a settings file (${read.reason})` : `it could not be read (${read.reason})`;
   const aside = read.state === "invalid" ? keepUnreadableAside(path) : null;
@@ -65,8 +62,6 @@ export function configSaveRefusal(read: { state: "unreadable" | "invalid"; reaso
   );
 }
 
-/** The error a save refuses with when its dated copy could not be written: without that copy the file would be
- * replaced with nothing to go back to. */
 export function configBackupRefusal(path: string): Error {
   return Object.assign(
     new Error(`The settings file ${path} was left as it is because its dated copy could not be written, so nothing was saved.`),
@@ -82,7 +77,6 @@ function stampOf(now: Date): string {
 export function writeConfigBackup(path: string, text: string, now: Date = new Date(), skip?: string): string | null {
   const dir = dirname(path);
   const base = CONFIG_BACKUP_PREFIX + stampOf(now);
-  // The number continues above the ones already there, so a name that retention removed is never used again.
   let taken = 0;
   for (const copy of listConfigBackups(dir)) {
     if (copy.name.startsWith(base)) taken = Math.max(taken, backupOrder(copy.name).order + 1);

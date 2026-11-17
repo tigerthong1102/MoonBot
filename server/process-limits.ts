@@ -57,7 +57,6 @@ export function readCgroupMemory(read: Read = readText): CgroupMemory | null {
   }
   for (const dir of [...(v1 && v1 !== "/" ? [`/sys/fs/cgroup/memory${v1}`] : []), "/sys/fs/cgroup/memory"]) {
     const limit = count(read(`${dir}/memory.limit_in_bytes`)), used = count(read(`${dir}/memory.usage_in_bytes`));
-    // v1 writes "no limit" as a number near 2^63.
     if (typeof limit !== "number" || typeof used !== "number" || limit >= 2 ** 60) continue;
     const droppable = number(read(`${dir}/memory.stat`), /^total_inactive_file (\d+)$/m) ?? 0;
     return { limitBytes: limit, usedBytes: Math.max(0, used - droppable), oomKills: number(read(`${dir}/memory.oom_control`), /^oom_kill (\d+)$/m), fullStall10: null };
@@ -122,7 +121,6 @@ export function readProcessLimits(options: LimitsOptions = {}): ProcessLimits {
   const pids = readPids(read), first = comm(read, 1);
   const pid1: ProcessLimits["pid1"] = first === null ? "unknown" : INITS.has(first) ? "init" : NODE.has(first) ? "node" : "other";
   let reaper: ProcessLimits["reaper"] = pid1 === "init" ? "yes" : pid1 === "node" ? "no" : "unknown";
-  // Process 1 is not an init: the launcher may still have put one, as a subreaper, between itself and this server.
   for (let at: number | null = pid, depth = 0; reaper !== "yes" && at !== null && at > 1 && depth < 8; at = parentOf(read, at), depth += 1) {
     const name = comm(read, at);
     if (name !== null && (name === "tini" || name === "dumb-init" || name === "catatonit")) reaper = "yes";
@@ -131,7 +129,6 @@ export function readProcessLimits(options: LimitsOptions = {}): ProcessLimits {
   return { pidsMax: pids.max ?? "unknown", pidsCurrent: pids.current ?? "unknown", nproc: nproc(read), shmBytes: shm ?? "unknown", pid1, reaper };
 }
 
-/** Open file descriptors of this process; "unknown" where /proc is not there. */
 export function openDescriptors(list: (path: string) => string[] = readdirSync): number | Unknown {
   try { return list("/proc/self/fd").length; } catch { return "unknown"; }
 }

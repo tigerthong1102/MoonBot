@@ -7,7 +7,6 @@ import { splitCliString } from "../env-path.ts";
  * push those calls past their timeouts. Launches past this many wait until one has its turn running. */
 export function codexLaunchLimit(): number {
   const configured = Number(process.env.OMB_CODEX_LAUNCH_SLOTS);
-  // The CPUs this process may use (its container's or its affinity's), not every one the machine has.
   return Number.isInteger(configured) && configured > 0 ? configured : Math.max(2, availableParallelism());
 }
 

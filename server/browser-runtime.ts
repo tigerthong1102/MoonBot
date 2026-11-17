@@ -576,9 +576,7 @@ export class BrowserRuntime {
         let result = relayed
           ? await this.relayTool(session, spec, relayed, args, engineTimeoutMs)
           : await entry.client.rpc(method, request, engineTimeoutMs);
-        if (toolName === "agent_browser_close" && result && typeof result === "object" && (result as { isError?: boolean }).isError !== true) {
-          this.browserStopped(session);
-        }
+        if (toolName === "agent_browser_close" && result && typeof result === "object" && (result as { isError?: boolean }).isError !== true) this.browserStopped(session);
         phases.engineMs = performance.now() - engineStarted;
         beforeDispatch?.();
         if (method === "tools/list") {
@@ -839,7 +837,6 @@ export class BrowserRuntime {
 
   /** Told just before an idle close stops a session's browser. */
   onIdleClose(listener: (session: string) => void): void { this.idleCloseListeners.add(listener); }
-
   private browserStopped(session: string): void { this.launch?.stopped(session); this.room?.left(session); }
   /** How long the session's browser has sat unused and whether a reopened one keeps its sign-ins; null while a call, a person or a view has it. */
   spare(session: string): { idleMs: number; savesSignIns: boolean } | null {

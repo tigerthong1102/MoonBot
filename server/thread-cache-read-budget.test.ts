@@ -15,7 +15,7 @@ describe("read-only access after transcript cache protections expire", () => {
   it("retries byte eviction after a burst of recent loads, keeping the requested transcript", () => {
     const cache = new ThreadCache(() => new Set(), 25_000);
     const states = ["a", "b", "c", "d"].map((id) => cache.load(id, rows(id)));
-    expect(cache.size).toBe(4); // all are inside the minimum residency window
+    expect(cache.size).toBe(4);
     vi.setSystemTime(START + 5_001);
 
     expect(cache.get("d")).toBe(states[3]);
@@ -34,7 +34,7 @@ describe("read-only access after transcript cache protections expire", () => {
     const shown = cache.load("shown", rows("shown"));
     vi.setSystemTime(START + 5_001);
     expect(cache.get("shown")).toBe(shown);
-    expect(cache.size).toBe(2); // the other transcript is still busy
+    expect(cache.size).toBe(2);
     busy.clear();
     vi.setSystemTime(START + 10_002);
 
@@ -42,7 +42,7 @@ describe("read-only access after transcript cache protections expire", () => {
 
     expect(cache.get("busy")).toBeUndefined();
     expect(cache.approxBytes).toBeLessThanOrEqual(15_000);
-    expect(work.messages[0]!.text).toHaveLength(10_000); // eviction never mutates a caller's value
+    expect(work.messages[0]!.text).toHaveLength(10_000);
   });
 
   it("refreshes the requested entry before choosing the least recently used victim", () => {

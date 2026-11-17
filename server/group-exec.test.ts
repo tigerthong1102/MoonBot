@@ -67,13 +67,15 @@ describe.skipIf(!posix)("a child in a group of its own", () => {
 
   it("does not signal a closed group's ID after its child exits", async () => {
     const shell = spawn("/bin/sh", ["-c", "sleep 30"], { stdio: ["ignore", "pipe", "pipe"], ...OWN_GROUP });
+    const groupPid = shell.pid;
+    if (!groupPid) throw new Error("the test command did not spawn");
     const signal = vi.spyOn(process, "kill");
     try {
       const closed = new Promise<void>(resolve => shell.once("close", () => resolve()));
       stopGroup(shell, 250);
       await closed;
       await new Promise(resolve => setTimeout(resolve, 300));
-      expect(signal.mock.calls.filter(args => args[0] === -shell.pid && args[1] === "SIGKILL")).toHaveLength(0);
+      expect(signal.mock.calls.filter(args => args[0] === -groupPid && args[1] === "SIGKILL")).toHaveLength(0);
     } finally {
       signal.mockRestore();
     }

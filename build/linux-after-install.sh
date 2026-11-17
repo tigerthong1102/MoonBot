@@ -119,7 +119,7 @@ in_container() {
 }
 
 install_browser_apparmor_profile() {
-  profile=$APP_ROOT/resources/openmausbot-browser.apparmor
+  profile=$APP_ROOT/resources/startupbot-browser.apparmor
   if [ -L "$profile" ] || [ ! -f "$profile" ] || [ "$(stat -c '%h' -- "$profile")" != 1 ]; then
     echo "OpenMausBot browser AppArmor profile is missing or unsafe: $profile" >&2
     exit 1
@@ -163,7 +163,7 @@ install_browser_apparmor_profile() {
     echo "OpenMausBot AppArmor policy directory is unsafe: $APPARMOR_DIR" >&2
     exit 1
   fi
-  target=$APPARMOR_DIR/openmausbot-browser
+  target=$APPARMOR_DIR/startupbot-browser
   if [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
     echo "OpenMausBot AppArmor profile target is unsafe: $target" >&2
     exit 1

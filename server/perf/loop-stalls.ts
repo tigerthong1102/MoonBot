@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { monitorEventLoopDelay, performance, type IntervalHistogram } from "node:perf_hooks";
+import { monitorEventLoopDelay, performance, type Histogram, type IntervalHistogram } from "node:perf_hooks";
 
 export type BlockingKind = "saves" | "runtimeReads";
 export interface Tally { n: number; ms: number; maxMs: number }
@@ -96,7 +96,7 @@ export const STALL_RESOLUTION_MS = 20;
 export const MINUTE_MS = 60_000;
 const MINUTES_KEPT = 60;
 
-export function createLoopStalls(options: { histogram?: IntervalHistogram; minuteMs?: number; resolutionMs?: number } = {}) {
+export function createLoopStalls(options: { histogram?: Histogram & Partial<Pick<IntervalHistogram, "enable" | "disable">>; minuteMs?: number; resolutionMs?: number } = {}) {
   const resolutionMs = options.resolutionMs ?? STALL_RESOLUTION_MS;
   const histogram = options.histogram ?? monitorEventLoopDelay({ resolution: resolutionMs });
   const minuteMs = options.minuteMs ?? MINUTE_MS;
@@ -111,14 +111,14 @@ export function createLoopStalls(options: { histogram?: IntervalHistogram; minut
   return {
     start() {
       if (timer) return;
-      histogram.enable();
+      histogram.enable?.();
       timer = setInterval(roll, minuteMs);
       timer.unref?.();
     },
     stop() {
       if (timer) clearInterval(timer);
       timer = undefined;
-      histogram.disable();
+      histogram.disable?.();
     },
     /** Rolls the minute now (tests). */
     roll,

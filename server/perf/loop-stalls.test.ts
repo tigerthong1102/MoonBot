@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createHistogram, type IntervalHistogram } from "node:perf_hooks";
+import { createHistogram } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 
@@ -31,7 +31,7 @@ describe("the loop stall recorder", () => {
     const histogram = createHistogram();
     for (let i = 0; i < 96; i++) histogram.record(20_000_000);
     for (let i = 0; i < 4; i++) histogram.record(2_000_000_000);
-    const stalls = createLoopStalls({ histogram: histogram as unknown as IntervalHistogram });
+    const stalls = createLoopStalls({ histogram });
     expect(stalls.report().m1).toMatchObject({ p95: 0, over100ms: 4, over1s: 4 });
     stalls.roll();
     for (let i = 0; i < 100; i++) histogram.record(20_000_000);

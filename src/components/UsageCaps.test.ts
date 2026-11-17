@@ -79,7 +79,7 @@ describe("the usage caps card", () => {
   it("reads a row of inputs as caps: empty and 0 are no cap, dollars may be fractions, tokens are whole", () => {
     expect(limitsOf({ dailyUsd: "2.5", monthlyUsd: "", dailyTokens: "1,000,000", monthlyTokens: "0" })).toEqual({ dailyUsd: 2.5, dailyTokens: 1_000_000 });
     expect(limitsOf({ dailyUsd: "", monthlyUsd: "", dailyTokens: "", monthlyTokens: "" })).toEqual({});
-    for (const bad of [{ dailyUsd: "-1" }, { dailyUsd: "lots" }, { dailyTokens: "1.5" }, { dailyUsd: "1,50" }, { monthlyUsd: "0,50" }, { dailyUsd: "1,000" }]) {
+    for (const bad of [{ dailyUsd: "-1" }, { dailyUsd: "lots" }, { dailyTokens: "1.5" }, { dailyUsd: "1,000" }]) {
       expect(limitsOf({ dailyUsd: "", monthlyUsd: "", dailyTokens: "", monthlyTokens: "", ...bad })).toBeNull();
     }
   });
@@ -97,4 +97,11 @@ describe("what the period's dollars leave out", () => {
     expect(markup).toContain("Turns counted at $0 because their model has no price: 3. The total leaves them out.");
     expect(render({ total: { turns: 9, unpriced: 3 } })).not.toContain("not billed");
   });
+});
+
+it("keeps decimal-comma dollar caps and rejects ambiguous separators", () => {
+  const draft = { dailyUsd: "1,50", monthlyUsd: "0,50", dailyTokens: "1,000,000", monthlyTokens: "" };
+  expect(limitsOf(draft)).toEqual({ dailyUsd: 1.5, monthlyUsd: 0.5, dailyTokens: 1000000 });
+  for (const value of ["1,234", "1,234.50", "1.234,50", "1,2,3"]) expect(limitsOf({ ...draft, dailyUsd: value })).toBeNull();
+  expect(limitsOf({ ...draft, dailyTokens: "1,50" })).toBeNull();
 });

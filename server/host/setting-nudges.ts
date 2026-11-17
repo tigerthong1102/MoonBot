@@ -10,7 +10,6 @@ const AFTER = 2;
 const MAX_THREADS = 500;
 
 export interface NudgeTurn {
-  /** The turn has OpenMausBot's tools, and the person started it. */
   tools: boolean;
   /** app_settings set would take a change in this turn: the owner's own conversation, not a guest's. */
   owner: boolean;

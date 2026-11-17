@@ -18,6 +18,7 @@ import { createBotLink, SPOOL_KEEP_MS, type BotLink } from "./link.ts";
 import { createBotLinkRoutes as routesOf, linkSessionRefusal } from "../routes/bot-link.ts";
 import { createLinkedRooms, followRoomMentions, type LinkedRooms } from "../host/bot-link-rooms.ts";
 import type { WorkOrigin } from "../peer-provenance.ts";
+import { openRuntimeStore, type RuntimeStore } from "../runtime/store.ts";
 import type { BotRecord, GroupRecord } from "../store.ts";
 import { createRoomTranscript } from "../host/room-transcript.ts";
 import { EXCHANGE_BYTES, LINK_EXPIRES_MS, PAIR_PATH, STATE_PATH, SYNC_PATH, linkedId, peerKey, type Frame } from "./protocol.ts";
@@ -39,7 +40,6 @@ const until = async (what: () => boolean, label: string, ms = 8_000) => {
 const call = (botIds: string[], message: string, more: Partial<CoordinateBotsCall> = {}): CoordinateBotsCall =>
   ({ botIds, message, rework: false, thread: "standing", reply: "resume", consult: false, ...more });
 
-/** One place. `boot()` again over the same folder is that place's server restarted. */
 function place(label: string, bots: Bot[], version?: number) {
   const dir = mkdtempSync(join(tmpdir(), `bot-link-${label}-`));
   const threads = new Set<string>();
@@ -61,13 +61,10 @@ function place(label: string, bots: Bot[], version?: number) {
   /** Requests this place's server answers with a failure, once each. */
   const failing: Array<{ match: RegExp; status: number }> = [];
   let run: Run = async (node) => ({ ok: true, text: `${node.botId} did: ${node.text}` });
-  /** Rooms of this place, their words, and the receipts that make a line posted under one key one line: all three are
-   * what the store keeps on disk, so they outlive `boot()`. */
   type Line = { id: string; role: "user" | "bot"; kind: string; text?: string; from?: { botId: string; name: string }; tool?: { name: string; ok?: boolean }; via?: "api"; relayed?: boolean; webhookPost?: unknown; peerPost?: { unattended?: boolean } };
   const groups: Array<{ id: string; name: string; threadId: string; memberIds: string[]; dm: boolean }> = [];
   const words = new Map<string, Line[]>(), receipts = new Set<string>(), followed: string[] = [], followedSources: HandoffView[] = [];
   let rooms!: LinkedRooms, lines = 0;
-  /** Room threads a routine is running in now. */
   const routineThreads = new Set<string>();
   const followedOrigins: Array<HandoffView["origin"]> = [];
   const member = (id: string) => bots.find((bot) => bot.id === id) ?? (() => { const far = link.linked().find((one) => one.id === id); return far ? { id, name: far.bot.name, color: "blue", home: { place: far.peer, placeName: far.place.name, botId: far.bot.id } } : null; })()
@@ -88,6 +85,7 @@ function place(label: string, bots: Bot[], version?: number) {
   };
   let coordinator!: Coordinator, link!: BotLink, dialer!: ReturnType<typeof createDialer>, ticker: NodeJS.Timeout | undefined, http: Server | undefined;
   let opened = 0, port = 0, generation = 0, skew = 0, minted = 0, directoryChanges = 0;
+  let database: RuntimeStore | undefined;
   const sockets = new Set<import("node:net").Socket>();
 
   function boot(options: { now?: () => number; limits?: { queueMs?: number; stallMs?: number } } = {}) {
@@ -120,7 +118,8 @@ function place(label: string, bots: Bot[], version?: number) {
         return run(node, resumed, signal);
       },
     };
-    coordinator = createCoordinator({ dataDir: dir, host: link.host(inner), now: options.now, log: () => {}, ...(options.limits ? { runtimeLimits: options.limits } : {}) });
+    database = openRuntimeStore(join(dir, "runtime.db"));
+    coordinator = createCoordinator({ dataDir: dir, runtimeStore: database, host: link.host(inner), now: options.now, log: () => {}, ...(options.limits ? { runtimeLimits: options.limits } : {}) });
     dialer = createDialer({ link, log: (line) => { dialErrors.push(line); if (dialErrors.length > 10) dialErrors.shift(); }, holdMs: 400, firstRetryMs: 20, ...(version ? { level: version } : {}) });
     ticker = setInterval(() => coordinator.tick(), 15);
     return api;
@@ -167,6 +166,8 @@ function place(label: string, bots: Bot[], version?: number) {
     await unplug();
     link.close();
     try { coordinator.close(); } catch { /* already closed */ }
+    database?.close();
+    database = undefined;
   }
 
   /** One of this place's bots takes a turn in which it hands work on; the turn then ends and waits for it. */
@@ -180,20 +181,15 @@ function place(label: string, bots: Bot[], version?: number) {
   }
 
   const api = {
+    get database() { return database; },
     dir, bots, runs, sent, results, requests, dialErrors, boot, listen, unplug, shutdown, handOff, keep, ledger,
     failOnce: (match: RegExp, status = 500) => { failing.push({ match, status }); },
-    /** What an assignment here carries one way: who it is from and each file's name and words. */
     carries: (id: string, way: "sent" | "returned") => { const batch = ledger.get(`${id}:${way}`); return batch ? { from: batch.from.name, files: batch.files.map((file) => [file.name, readFileSync(file.path, "utf8")]) } : undefined; },
-    /** The bot working on `id` attaches a file: it goes back with its result. */
     attach: (id: string, name: string, words: string) => { const batch = ledger.get(`${id}:returned`) ?? { from: { botId: "x", name: "x" }, files: [] }; batch.files.push(keep(name, Buffer.from(words))); ledger.set(`${id}:returned`, batch); },
-    /** The files still waiting in this place's spool folder. */
     spooled: () => { const root = join(dir, "bot-link-files"); return existsSync(root) ? readdirSync(root, { recursive: true }).map(String).filter((entry) => /[\\/](?:sent|returned)[\\/]/.test(entry)) : []; },
     followed, followedSources, followedOrigins, routineThreads, member, get rooms() { return rooms; },
-    /** A line in a room that takes no turn by itself: a bot's, an outside app's. */
     post(groupId: string, line: Omit<Line, "id">) { roomStore.appendMessage(groups.find((one) => one.id === groupId)!.threadId, line); },
-    /** A room of this place; its members may live in either. */
     room(name: string, memberIds: string[]) { const group = { id: `${name.toLowerCase()}-room`, name, threadId: `${name.toLowerCase()}-thread`, memberIds, dm: false }; groups.push(group); rooms.sync(); return group; },
-    /** The person writes in a room: each member the line names takes its turn. */
     say(groupId: string, text: string, hop = 0, more: Partial<Line> = {}) {
       const group = groups.find((one) => one.id === groupId)!;
       roomStore.appendMessage(group.threadId, { role: "user", kind: "text", text, ...more });
@@ -1160,4 +1156,14 @@ it("waits for delayed fixture removal before teardown completes", async () => {
   }
   expect(finished).toBe(true);
   expect(existsSync(computer.dir)).toBe(false);
+});
+
+
+it("closes the fixture-owned runtime database before removing its files", async () => {
+  const computer = place("database-cleanup", [{ id: "writer", name: "Writer" }]).boot();
+  places.push(computer);
+  const database = computer.database!;
+  expect(database.all()).toEqual([]);
+  await computer.shutdown();
+  expect(() => database.all()).toThrow();
 });

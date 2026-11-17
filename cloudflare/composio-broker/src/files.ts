@@ -8,7 +8,6 @@ import { actingUser, composioRequest, json, listConnectedAccounts, readJsonBody,
 const uploadRequestSchema = z.object({
   toolkit_slug: z.string().regex(/^[a-z0-9_][a-z0-9_-]{0,80}$/),
   tool_slug: z.string().regex(/^[A-Z0-9][A-Z0-9_]{0,127}$/),
-  // A bare file name: no folder, no control characters.
   // eslint-disable-next-line no-control-regex
   filename: z.string().min(1).max(255).refine((name) => !/[\u0000-\u001f\u007f/\\]/.test(name)),
   mimetype: z.string().max(127).regex(/^[A-Za-z0-9][\w.+-]*\/[\w.+-]+$/),
@@ -21,8 +20,7 @@ const uploadResponseSchema = z.object({
   newPresignedUrl: z.string().optional(),
 });
 
-/** POST /v1/files/upload: Composio's upload link and key for one file a tool call will name. Only for a toolkit the
- *  installation has a working connection to: nothing else could use the file. */
+/** Upload links must be restricted to toolkits connected to the installation. */
 export async function requestFileUpload(request: Request, installation: InstallationRow, env: Env) {
   const parsed = uploadRequestSchema.safeParse(await readJsonBody(request, 4096));
   if (!parsed.success) return json({ error: "invalid file upload request" }, 400);

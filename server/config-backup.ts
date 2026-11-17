@@ -6,7 +6,6 @@ import { writeFileAtomic } from "./atomic.ts";
 import { parseJson, type JsonObject } from "./schema.ts";
 import { keepUnreadableAside } from "./unreadable-aside.ts";
 
-/** The dated copies kept beside config.json: `config.json.bak.20261116-003000`. */
 export const CONFIG_BACKUP_PREFIX = "config.json.bak.";
 export const CONFIG_BACKUP_KEEP = 10;
 

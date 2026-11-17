@@ -18,7 +18,6 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-/** A dead tool server as the engine reports it: the same failure, with a new process id and time each run. */
 const deadTool = (at: number) => `MCP server "crm" could not start (pid ${4000 + (at / MINUTE) % 997}) at ${new Date(at).toISOString()}; check its command and installation`;
 const spawnRefused = (at: number) => `spawn /usr/local/bin/claude EAGAIN (pid ${30000 + Math.floor(at / MINUTE) % 997})`;
 
@@ -84,7 +83,6 @@ function world(botCount: number, failure: (at: number) => string, refuseStart = 
   return {
     allRuns: () => manager.listRuns(), persistedRuns: () => JSON.parse(readFileSync(join(dir, "routines.json"), "utf8")).runs as RoutineRun[],
     routineTurns, chiefTurns, lines, notified, report: notices.reportIncident, bot: (id: string) => store.bot(id), task: (botId: string, title: string) => store.createTask(botId, title),
-    /** A scheduler pass every minute up to `to`; each turn the pass before left running fails. */
     async passTo(to: number) {
       while (now < to) {
         now += MINUTE;

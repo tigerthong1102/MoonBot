@@ -17,7 +17,6 @@ const leaks = (text: string) => SECRETS.filter((secret) => text.toLowerCase().in
 
 const SERVER = 14;
 const row = (pid: number, ppid: number, name: string, threads = 7, state = "S"): ProcessRow => ({ pid, ppid, name, cpuMs: 1, rssBytes: MB, start: `s${pid}`, threads, state });
-/** A container: tini, the launcher, the server; two engines with their tool servers and a command; a browser; orphans. */
 const rows = (): ProcessRow[] => [
   row(1, 0, "tini", 1), row(7, 1, "node"), row(SERVER, 7, "node", 11),
   row(100, SERVER, "claude", 12), row(101, 100, "node"), row(102, 100, "node"), row(103, 100, "sh", 1), row(104, 103, "git", 1),
@@ -67,7 +66,6 @@ describe("the process-room record", () => {
   it("is unknown, never zero, where the system has no such files: macOS's process list, Windows with none at all", () => {
     const mac = createProcessHealth({ platform: "darwin", turns: () => quiet, counts: () => none, memoryLimitBytes: () => { throw new Error("not read off Linux"); } });
     expect(mac.report()).toMatchObject({ pid1: "unknown", reaper: "unknown", limits: { pids: "unknown", memMB: "unknown", nproc: "unknown", shmMB: "unknown", gate: "none" }, now: "unknown", peak: "unknown", kernelPeak: { pids: "unknown", memMB: "unknown" } });
-    // ps gives macOS no thread counts or states: the processes are counted, the rest stays unknown.
     const plain = [{ pid: 5, ppid: 1, name: "node", cpuMs: 1, rssBytes: MB, start: "ps:5" }, { pid: 6, ppid: 5, name: "claude", cpuMs: 1, rssBytes: MB, start: "ps:6" }];
     mac.sample(plain, classifyProcesses(plain, 5, true));
     expect(mac.report().now).toEqual({ procs: 2, threads: "unknown", zombies: "unknown", fds: "unknown", pidsUsed: "unknown", engines: { claudeAgent: 1 }, browser: 0, mcp: 0, shell: 0, other: 0 });

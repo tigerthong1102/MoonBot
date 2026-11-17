@@ -89,14 +89,31 @@ async function listFiles(home: string, args: Record<string, unknown>): Promise<R
 async function readFile(home: string, args: Record<string, unknown>): Promise<Result> {
   const as = wanted(args.encoding);
   const target = await fs.realpath(fullPath(home, args.path));
-  const stat = await fs.stat(target);
-  if (stat.isDirectory()) return refused(`${target} is a folder: list it with list_files.`);
-  if (!stat.isFile()) return refused(`${target} is not an ordinary file.`);
-  if (stat.size > HOST_FILE_READ_LIMIT) return refused(`${target} is ${sizeText(stat.size)}; files up to 10 MB can be read.`);
-  const data = await fs.readFile(target);
-  const text = as === "base64" ? data.toString("base64") : data.toString("utf8");
-  if (as === "utf8" && !Buffer.from(text, "utf8").equals(data)) return refused(`${target} is not plain text. Read it with encoding base64.`);
-  return said(`${target} (${sizeText(data.length)}):\n${text}`);
+  const named = await fs.stat(target);
+  if (named.isDirectory()) return refused(`${target} is a folder: list it with list_files.`);
+  if (!named.isFile()) return refused(`${target} is not an ordinary file.`);
+  const file = await fs.open(target, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
+  try {
+    const stat = await file.stat();
+    if (stat.isDirectory()) return refused(`${target} is a folder: list it with list_files.`);
+    if (!stat.isFile()) return refused(`${target} is not an ordinary file.`);
+    const tooLarge = () => refused(`${target} is larger than 10 MB; files up to 10 MB can be read.`);
+    if (stat.size > HOST_FILE_READ_LIMIT) return tooLarge();
+    const buffer = Buffer.allocUnsafe(HOST_FILE_READ_LIMIT + 1);
+    let size = 0;
+    while (size < buffer.length) {
+      const { bytesRead } = await file.read(buffer, size, buffer.length - size, size);
+      if (!bytesRead) break;
+      size += bytesRead;
+    }
+    if (size > HOST_FILE_READ_LIMIT) return tooLarge();
+    const data = buffer.subarray(0, size);
+    const text = as === "base64" ? data.toString("base64") : data.toString("utf8");
+    if (as === "utf8" && !Buffer.from(text, "utf8").equals(data)) return refused(`${target} is not plain text. Read it with encoding base64.`);
+    return said(`${target} (${sizeText(data.length)}):\n${text}`);
+  } finally {
+    await file.close();
+  }
 }
 
 const alreadyThere = (target: string) => new Mistake(`${target} already exists. To replace it, call write_file again with overwrite: true.`);

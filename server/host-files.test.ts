@@ -1,7 +1,8 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { listsComputerTool } from "./computer-tool-list.ts";
 import { withHostFileTools } from "./drivers/chat-mcp-tools.ts";
@@ -30,6 +31,7 @@ describe("the bridge's switch", () => {
 describe("file tools on disk", () => {
   const made: string[] = [];
   afterEach(() => {
+    vi.restoreAllMocks();
     for (const dir of made.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
   const fixture = () => {
@@ -113,6 +115,27 @@ describe("file tools on disk", () => {
       expect((await call("write_file", { path: join(home, "locked", "a.txt"), content: "x" })).text).toMatch(/EACCES: permission denied/);
       chmodSync(join(home, "locked"), 0o700);
     }
+  });
+
+  it.each([HOST_FILE_READ_LIMIT, HOST_FILE_READ_LIMIT + 1])("bounds reads when metadata underreports a %i-byte file", async (bytes) => {
+    const { home, call } = fixture();
+    const target = join(home, "growing.txt");
+    writeFileSync(target, Buffer.alloc(bytes, "a"));
+    const stat = fs.stat.bind(fs), open = fs.open.bind(fs);
+    vi.spyOn(fs, "stat").mockImplementation(async (...args) => {
+      const value = await stat(...args);
+      if (value) Object.defineProperty(value, "size", { value: 0 });
+      return value;
+    });
+    vi.spyOn(fs, "open").mockImplementation(async (...args) => {
+      const file = await open(...args), inspect = file.stat.bind(file);
+      vi.spyOn(file, "stat").mockImplementation(async (...options) => Object.defineProperty(await inspect(...options), "size", { value: 0 }));
+      return file;
+    });
+    const result = await call("read_file", { path: target });
+    expect(result.error).toBe(bytes > HOST_FILE_READ_LIMIT);
+    if (result.error) expect(result.text).toMatch(/files up to 10 MB can be read/);
+    else expect(result.text).toHaveLength(`${target} (10.0 MB):\n`.length + bytes);
   });
 
   it("lists the home folder when given no path", async () => {

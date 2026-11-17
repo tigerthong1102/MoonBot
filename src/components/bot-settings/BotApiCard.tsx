@@ -18,7 +18,6 @@ export interface BotApiCall {
   preview?: string;
   reason?: string;
   repeats?: number;
-  /** Taken in a thread that ran as the owner's own work. */
   asOwner?: true;
 }
 

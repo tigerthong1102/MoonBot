@@ -12,11 +12,9 @@ export interface LiveRow {
   answer: string;
   ms: number;
   costUsd?: number;
-  /** The model call failed or timed out; the case is scored on an empty answer. */
   error?: string;
 }
 
-/** One call per case, one at a time, with the dream's real prompt; a failed call is scored, never skipped. */
 export async function runCases(cases: readonly DreamCase[], generate: (prompt: string) => Promise<Generated>, clock: () => number = Date.now): Promise<LiveRow[]> {
   const rows: LiveRow[] = [];
   for (const testCase of cases) {

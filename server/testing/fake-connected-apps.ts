@@ -22,7 +22,6 @@ export interface FakeConnectedApps {
   gmailError?: string;
   /** Every tool call that reached the service, with its arguments and the whole multi-execute item. */
   calls: Array<{ tool: string; arguments: unknown; item: Record<string, unknown> }>;
-  /** Each file a tool call was to read: the upload request, then the bytes put to its link. */
   uploads: Array<{ request: unknown; key: string; bytes?: Buffer; contentType?: string }>;
   close(): Promise<void>;
 }

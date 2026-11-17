@@ -137,7 +137,12 @@ export function usageTotals(dataDir: string, now = new Date()): UsageTotals {
     month, day, server: { day: { ...read.sums.server.day }, month: { ...read.sums.server.month } },
     bots: new Map([...read.sums.bots].map(([botId, used]) => [botId, { day: { ...used.day }, month: { ...used.month } }])),
   };
-  for (const [key, entry] of unwritten.get(dataDir) ?? []) if (!read.keys.has(key)) addTo(totals, entry, month, day);
+  const pending = unwritten.get(dataDir);
+  for (const [key, entry] of pending ?? []) {
+    if (entry.at.slice(0, 7) < month) pending!.delete(key);
+    else if (!read.keys.has(key)) addTo(totals, entry, month, day);
+  }
+  if (pending?.size === 0) unwritten.delete(dataDir);
   return totals;
 }
 
@@ -149,10 +154,11 @@ export function noteUsage(dataDir: string, row: Pick<UsageRow, "at" | "threadId"
   unwritten.set(dataDir, entries);
   entries.set(key, entry);
   void written.then((landed) => {
+    if (!landed) return;
     entries.delete(key);
     if (entries.size === 0 && unwritten.get(dataDir) === entries) unwritten.delete(dataDir);
     const read = cache.get(dataDir);
-    if (landed && read && !read.keys.has(key) && entry.at.startsWith(read.month)) {
+    if (read && !read.keys.has(key) && entry.at.startsWith(read.month)) {
       read.keys.add(key);
       read.fromMemory.add(key);
       addTo(read.sums, entry, read.month, read.day);

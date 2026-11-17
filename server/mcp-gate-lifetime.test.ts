@@ -7,8 +7,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "mcp-gate.ts");
 
-/** A server behind a launcher, as `npx <package>` runs one: the launcher passes no signal on, and the server ignores the
- * end of its input. */
 const SERVER = `
 const { writeFileSync } = require("node:fs");
 writeFileSync(process.env.PID_FILE, String(process.pid));

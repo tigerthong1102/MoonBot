@@ -1,5 +1,18 @@
 # Release readiness
 
+## Current merge-gate candidate from ce6348b3e
+
+The whole-PR audit inventories 743 changed files at baseline `ce6348b3ed1f0bb6e4a50d389a31e417e434b75b` and reviews the high-risk authorization/data/resource/lifecycle boundaries. REVIEW_AUDIT.md records classifications, red/green evidence and the limits of that coverage. The batched corrections preserve all test assertions and OSS boundaries; they revalidate Bot API access after slow request bodies, honor actual cgroup ancestry, close fixture-owned SQLite, join/cancel fixture cleanup, bound host-file reads, retain incurred usage after ledger-write failure, and require fresh engine ownership before cleanup escalation. Approximate leader timestamps need the original run tag. The deliberate first-engine admission probe remains unchanged.
+
+[Baseline full CI 44114523305](https://github.com/tigerthong1102/MoonBot/actions/runs/44114523305) is FAIL, not PASS: Windows shard 8 fails two directory-removal regressions because its runtime database is still open; the required macOS arm64 job acquires no runner; aggregate fails. Docker 44114523300, connector 44114523282, Docs 44114523365 and website 44114523296 PASS on that exact baseline. The earlier canceled dfbbdda880 run also reveals a control-fixture timeout and cross-test request contamination. Final-head required CI must validate both lifecycle fixes.
+
+The required macOS job keeps its name and every smoke step/assertion and moves to standard `macos-26-intel`, avoiding the repeatedly unavailable arm64 pool. All the same commands pass locally on macOS 26.7.3 arm64/Electron 43.7.9 in disposable fixtures: server bundle, native approval modes, media permissions, app frames/engagement, companion build, phone authorization/revocation/restart and login handoff. Report hosted Intel and local arm64 evidence independently. [GitHub lists macos-26-intel as a standard public-repository runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners); no paid/larger runner or extra matrix is requested.
+
+Source merge gate: final pushed SHA must have all required checks PASS and a fresh completed clean Codex review; unresolved confirmed findings or failed/queued/canceled checks prevent READY TO MERGE. Qodo is excluded by owner instruction. The PR remains Ready for Review; no merge is authorized. Final dynamic check/review results are updated in the PR description, without creating another commit merely to record them.
+
+Commercial/platform release gate: NO-GO remains. Branding/asset rights, retained Enterprise history, dependency notices, signed installers/updater qualification and actual platform/device acceptance are separate unresolved matters in BRANDING_AUDIT.md and LICENSE_GAP.md. Failure to persist usage cannot be repaired in memory across process death; repair storage before relying on durable spending records. No macOS/Windows installer, release, deployment, native mobile build or commercial clearance is claimed by this CI repair.
+
+
 ## MCP comment and Windows fixture lifecycle follow-up
 
 Codex review of `59cf02ec602fc0ebec4f71527b9940537074e639` confirms the private MCP streaming-helper overview (discussion 4601298402). Remove it and equivalent added internal narration, retaining the external HTTP timeout fact, public contracts and security/privacy invariants. Complete TypeScript syntax, declarations and embedded literals are identical across 61 comment-only files. Existing streaming/keepalive/JSON, approval, quota, process and data behavior is unchanged.

@@ -134,15 +134,10 @@ function ownerIsAlive(owner) {
   return !ownerPredatesThisBoot(owner) && processIsAlive(owner.pid) && ownerIdentityMatches(owner);
 }
 
-/**
- * An install's own id, which outlives a reboot and a rename: macOS IOPlatformUUID, Windows MachineGuid, Linux machine-id.
- * Recorded hashed, never raw. A container's /etc/machine-id comes from its image, so every container (and every VM booted
- * from that image) shares one: Linux trusts it only when systemd, which generates it per install, is PID 1 outside a
- * container. Null wherever it cannot be read.
- */
+/** macOS IOPlatformUUID, Windows MachineGuid and Linux machine-id can outlive reboots and renames.
+ * Containers and cloned VM images can share machine-id values. Persist machine identifiers only as hashes. */
 let cachedMachineId;
 
-/** A probe's stdout, its window hidden on Windows; throws when it fails or runs past `timeout`. */
 function commandOutput(file, args, timeout = 5_000) {
   return execFileSync(file, args, { encoding: "utf8", timeout, windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
 }
@@ -192,11 +187,7 @@ function machineId() {
   return cachedMachineId;
 }
 
-/**
- * From `df -P <path>` and `mount`: whether the volume holding the path is mounted local, never a network share (smbfs,
- * nfs, afpfs, webdav). A mount point may itself hold " on " or " (", so df names it and only the line naming exactly
- * that mount point counts. False on any doubt.
- */
+/** macOS df and mount can report mount points containing " on " or " (". Network shares must not authorize local ownership. */
 export function macMountIsLocal(dfOutput, mountTable) {
   const lines = String(dfOutput).trimEnd().split("\n");
   if (lines.length !== 2) return false;
@@ -236,11 +227,7 @@ function onLocalUnsyncedMacVolume(dir) {
   }
 }
 
-/**
- * macOS gives the host a new name on another network, and before boot sessions and machine ids were recorded nothing
- * else identified the Mac; such a record is this Mac's when it was written in an earlier boot on a folder only this Mac
- * mounts and no sync service mirrors. Known open risk: an older build on another Mac reaching this folder some other way.
- */
+/** macOS can change hostnames between networks. Known open risk: a legacy lease reached through an unrecognized sync service. */
 function olderBuildRecordFromEarlierMacBoot(record, dir) {
   if (process.platform !== "darwin" || dir === undefined || record.machine !== undefined) return false;
   const boot = bootSession();
@@ -248,13 +235,7 @@ function olderBuildRecordFromEarlierMacBoot(record, dir) {
   return onLocalUnsyncedMacVolume(dir);
 }
 
-/**
- * Another machine id is another machine. The same id is this machine under any hostname only on macOS, which renames the
- * host on another network; Linux and Windows keep theirs, and a VM cloned from a template keeps the template's id. Then:
- * the same host, or the same boot session (random per boot), proves this machine. `dir`, the folder the record sits in,
- * admits an older build's record from an earlier boot of this Mac; without it that is never presumed, as when clearing a
- * single-machine volume.
- */
+/** Windows and Linux VMs cloned from a template can share machine identifiers. */
 function sameMachine(record, dir) {
   if (fromAnotherPidNamespace(record)) return false;
   const machine = machineId();

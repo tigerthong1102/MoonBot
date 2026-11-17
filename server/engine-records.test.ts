@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ENGINE_RUNS_DIR, ENGINE_TAG_ENV, engineRunTag, leftBehind, markEngineRunClean, resetEngineRecordsForTest, startEngineRecords, type Listed } from "./engine-records.ts";
+import { ENGINE_RUNS_DIR, ENGINE_TAG_ENV, engineRunTag, leftBehind, markEngineRunClean, resetEngineRecordsForTest, startEngineRecords, stopRecordedEngines, type Listed } from "./engine-records.ts";
 import { killCliTree, spawnCli } from "./procs.ts";
 import { removeTempDir } from "./testing/cleanup.ts";
 
@@ -32,11 +32,9 @@ const startOf = (pid: number) => process.platform === "linux"
 const running = (pid: number) => {
   try { return !execFileSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" }).trim().startsWith("Z"); } catch { return false; }
 };
-/** The test process plays both servers, so the next one may not skip what started after it (startEngineRecords' cutoff). */
 const sweep = (dir: string) => startEngineRecords(dir, () => {}, null);
 
-/** An engine of an earlier server run: a session leader whose child outlives it in the background, as an MCP server does.
- * Both are node: macOS shows no environment of its own system programs (/bin/sleep), as it does of an engine's. */
+/** macOS ps can omit the environment of system programs such as /bin/sleep. */
 async function leftover(dir: string, tag: string, server: { pid: number; start: string | null; boot?: string }, env: NodeJS.ProcessEnv = { [ENGINE_TAG_ENV]: tag }) {
   const pids = join(dir, `pids-${tag}`);
   const wait = `"${process.execPath}" -e "setTimeout(() => {}, 60000)"`;
@@ -211,8 +209,53 @@ describe("what of an earlier run is still running", () => {
     expect(leftBehind([row(10, { start: at(3), env: null }), row(11, { pgid: 10, sid: 10, start: at(4) })], tag, leaders, self)).toEqual([]);
   });
 
+  it("requires the run tag when only an approximate leader start time was recorded", () => {
+    const startedAt = new Date("2026-11-17T12:00:00Z");
+    const approximate = new Map([[10, { start: null, at: startedAt.getTime() }]]);
+    const noCutoff = { ...self, start: null };
+    const one = row(10, { start: startedAt.toUTCString() });
+    expect(leftBehind([one], tag, approximate, noCutoff)).toEqual([10]);
+    expect(leftBehind([{ ...one, env: null }], tag, approximate, noCutoff)).toEqual([]);
+    expect(leftBehind([{ ...one, env: env("c".repeat(32)) }], tag, approximate, noCutoff)).toEqual([]);
+  });
+
   it("never takes what started after this server, nor what carries this server's own tag", () => {
     expect(leftBehind([row(10, { start: at(40) }), row(11, { pgid: 10, sid: 10, start: at(41) })], tag, new Map([[10, { start: at(40), at: null }]]), self)).toEqual([]);
     expect(leftBehind([row(11, { pgid: 10, sid: 10, env: env(self.tag) })], tag, leaders, self)).toEqual([]);
+  });
+});
+
+
+describe("recorded-engine escalation", () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+
+  it("sends nothing when ownership is unavailable at the first read", async () => {
+    const kill = vi.spyOn(process, "kill").mockReturnValue(true);
+    expect(await stopRecordedEngines(async () => null, () => {})).toBeNull();
+    expect(kill).not.toHaveBeenCalled();
+  });
+
+  it.each([null, []])("requires fresh process identity before SIGKILL: %j", async (current) => {
+    vi.useFakeTimers();
+    const kill = vi.spyOn(process, "kill").mockReturnValue(true);
+    const theirs = vi.fn(async () => [12345] as number[] | null);
+    const stopping = stopRecordedEngines(theirs, () => {});
+    await vi.advanceTimersByTimeAsync(1_400);
+    theirs.mockResolvedValue(current);
+    await vi.advanceTimersByTimeAsync(1_200);
+    expect(await stopping).toEqual(current);
+    expect(kill.mock.calls).toEqual([[12345, "SIGTERM"]]);
+  });
+
+  it("still escalates verified survivors and confirms their departure", async () => {
+    vi.useFakeTimers();
+    const kill = vi.spyOn(process, "kill").mockReturnValue(true);
+    const theirs = vi.fn(async () => [12345] as number[] | null);
+    const stopping = stopRecordedEngines(theirs, () => {});
+    await vi.advanceTimersByTimeAsync(1_600);
+    expect(kill.mock.calls).toEqual([[12345, "SIGTERM"], [12345, "SIGKILL"]]);
+    theirs.mockResolvedValue([]);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(await stopping).toEqual([]);
   });
 });

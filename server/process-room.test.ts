@@ -54,6 +54,40 @@ describe("the container's limits, from Linux's own files", () => {
     expect(reads).toBe(1);
   });
 
+  it.each(["/budget/service", "/"])("ignores a pids-named sibling outside the v2 membership %s", (membership) => {
+    const own = membership === "/" ? "/sys/fs/cgroup" : `/sys/fs/cgroup${membership}`;
+    const read = files({
+      "/proc/self/cgroup": `0::${membership}`,
+      [`${own}/pids.max`]: "512", [`${own}/pids.current`]: "100",
+      "/sys/fs/cgroup/pids/pids.max": "1", "/sys/fs/cgroup/pids/pids.current": "1",
+    });
+    expect(readPids(read)).toEqual({ max: 512, current: 100 });
+    const budget = new ProcessBudget({ read: () => readPids(read), log: () => {} });
+    expect(budget.limit()).toBe(512);
+    expect(budget.short(ENGINE_TASKS, 0)).toBe(false);
+  });
+
+  it.each(["v1", "v2"])("keeps engine and browser reservations within every visible %s ancestor", (version) => {
+    const root = version === "v2" ? "/sys/fs/cgroup" : "/sys/fs/cgroup/pids";
+    const values: Record<string, string> = {
+      "/proc/self/cgroup": version === "v2" ? "0::/budget/service" : "3:pids:/budget/service",
+      [`${root}/budget/service/pids.max`]: "512", [`${root}/budget/service/pids.current`]: "100",
+      [`${root}/budget/pids.max`]: "1000", [`${root}/budget/pids.current`]: "700",
+      [`${root}/pids.max`]: "max", [`${root}/pids.current`]: "2000",
+    };
+    const budget = new ProcessBudget({ read: () => readPids(files(values)), log: () => {} });
+    budget.reserveBrowser("browser");
+    expect(budget.short(ENGINE_TASKS, 0)).toBe(true);
+    budget.releaseBrowser("browser");
+    expect(budget.short(ENGINE_TASKS, 0)).toBe(false);
+    expect(budget.short(ENGINE_TASKS, 160)).toBe(true);
+    values[`${root}/budget/pids.current`] = "990";
+    expect(budget.short(1, 0)).toBe(true);
+    values[`${root}/budget/pids.current`] = "500";
+    values[`${root}/budget/service/pids.current`] = "480";
+    expect(budget.short(1, 0)).toBe(true);
+  });
+
   it("reads the memory limit and what counts against it, leaving out file pages the kernel can drop", () => {
     const v2 = files({ "/sys/fs/cgroup/memory.max": "2147483648\n", "/sys/fs/cgroup/memory.current": "1500000000\n", "/sys/fs/cgroup/memory.stat": "anon 900000000\ninactive_file 400000000\n",
       "/sys/fs/cgroup/memory.events": "low 0\noom 3\noom_kill 2\n", "/sys/fs/cgroup/memory.pressure": "some avg10=1.00 avg60=0 avg300=0 total=1\nfull avg10=0.50 avg60=0 avg300=0 total=1\n" });
@@ -63,6 +97,28 @@ describe("the container's limits, from Linux's own files", () => {
       "/sys/fs/cgroup/memory/memory.stat": "total_inactive_file 100000000\n", "/sys/fs/cgroup/memory/memory.oom_control": "oom_kill_disable 0\nunder_oom 0\noom_kill 1\n" });
     expect(readCgroupMemory(v1)).toEqual({ limitBytes: GB, usedBytes: 500_000_000, oomKills: 1, fullStall10: null });
     expect(readCgroupMemory(files({ "/sys/fs/cgroup/memory/memory.limit_in_bytes": "9223372036854771712\n", "/sys/fs/cgroup/memory/memory.usage_in_bytes": "1\n" }))).toBeNull();
+  });
+
+  it.each(["v1", "v2"])("applies a visible %s ancestor memory cap with sibling usage", (version) => {
+    const root = version === "v2" ? "/sys/fs/cgroup" : "/sys/fs/cgroup/memory";
+    const max = version === "v2" ? "memory.max" : "memory.limit_in_bytes";
+    const used = version === "v2" ? "memory.current" : "memory.usage_in_bytes";
+    const events = version === "v2" ? "memory.events" : "memory.oom_control";
+    const values = {
+      "/proc/self/cgroup": version === "v2" ? "0::/budget/service" : "3:memory:/budget/service",
+      [`${root}/budget/service/${max}`]: version === "v2" ? "max" : "9223372036854771712",
+      [`${root}/budget/service/${used}`]: String(300 * MB),
+      [`${root}/budget/service/${events}`]: "oom_kill 0",
+      [`${root}/budget/${max}`]: String(2 * GB), [`${root}/budget/${used}`]: String(1900 * MB),
+      [`${root}/budget/${events}`]: "oom_kill 10",
+      "/proc/meminfo": "MemTotal:       67108864 kB\nMemAvailable:   60000000 kB\nSwapFree:        8388608 kB\n",
+    };
+    expect(readCgroupMemory(files(values))).toMatchObject({ limitBytes: 2 * GB, usedBytes: 1900 * MB, oomKills: 0 });
+    expect(readHostMemory((path) => values[path as keyof typeof values] ?? "")).toMatchObject({ totalBytes: 2 * GB, availableBytes: 148 * MB, swapFreeBytes: 0, oomKills: 0 });
+    values[`${root}/budget/service/${max}`] = String(GB);
+    expect(readCgroupMemory(files(values))).toMatchObject({ limitBytes: 2 * GB, usedBytes: 1900 * MB, oomKills: 0 });
+    values[`${root}/budget/${used}`] = String(500 * MB);
+    expect(readCgroupMemory(files(values))).toMatchObject({ limitBytes: GB, usedBytes: 300 * MB, oomKills: 0 });
   });
 
   it("gives the gate the container's memory, not the machine's: a 2 GB container on a 64 GB host has 2 GB", () => {
@@ -124,7 +180,7 @@ describe("where turns wait for room, and the one setting", () => {
     expect(containerLimited(files({ "/sys/fs/cgroup/memory/memory.limit_in_bytes": "2147483648\n" }))).toBe(true);
     expect(containerLimited(files({ "/sys/fs/cgroup/pids.max": "max\n", "/sys/fs/cgroup/memory.max": "max\n" }))).toBe(false);
     expect(containerLimited(files({ "/sys/fs/cgroup/memory/memory.limit_in_bytes": "9223372036854771712\n" }))).toBe(false);
-    // A server under systemd on a plain machine: its limits sit in its own cgroup's directory, not at the root.
+    // systemd services can have a nested cgroup limit while the hierarchy root remains unlimited.
     expect(containerLimited(files({ "/proc/self/cgroup": "0::/system.slice/omb.service\n", "/sys/fs/cgroup/system.slice/omb.service/pids.max": "4915\n" }))).toBe(false);
     expect(containerLimited(() => null)).toBe(false);
   });
@@ -262,7 +318,6 @@ class FakeChild extends EventEmitter {
   exitCode: number | null = null;
   signalCode: NodeJS.Signals | null = null;
   readonly pid: number;
-  /** A pipe's count of what the process wrote; null: a process with no stdout of its own to watch. */
   readonly stdout: { bytesRead: number } | null;
   constructor(pid: number, piped = true) { super(); this.pid = pid; this.stdout = piped ? { bytesRead: 0 } : null; }
   exit(signal: NodeJS.Signals | null = null) {
@@ -280,7 +335,6 @@ function server(options: { pids?: number | "max" | null; turns?: number | "auto"
   const state = { base: 26, total: options.total ?? 64 * GB, available: options.available ?? 60 * GB };
   const pids = options.pids === undefined ? 512 : options.pids;
   const budget = new ProcessBudget({ read: () => ({ max: pids, current: pids === null ? null : state.base + children.size * 44 }), now: () => clock, log: () => {} });
-  /** Each engine's tree: idle with no child unless the test says otherwise. */
   const trees = new Map<number, TreeUse>();
   const memory = new EngineMemory({
     enabled: true, host: options.host ?? "server", turns: options.turns ?? "auto", processes: budget, tickMs: 5,
@@ -301,7 +355,6 @@ function server(options: { pids?: number | "max" | null; turns?: number | "auto"
     memory.track(child as unknown as ChildProcess);
     return child;
   });
-  /** One turn admitted and its engine started, as the adapter does. */
   const start = async (threadId: string) => {
     const turn = await memory.admit(threadId, new AbortController().signal, () => {}, "turn");
     const engine = memory.hasEngine(threadId) || await memory.admit(threadId, new AbortController().signal, () => {}, "process");
@@ -489,7 +542,6 @@ describe("a new engine that never comes up", () => {
     return { instance, sent, interrupted, emit };
   }
 
-  /** An adapter whose sendTurn starts its engine, as spawnCli does inside the driver's own sendTurn. */
   function spawning(s: ReturnType<typeof server>, driverKind = "claudeAgent") {
     const fake = fakeInstance(driverKind);
     const send = fake.instance.adapter.sendTurn;

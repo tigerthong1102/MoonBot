@@ -26,7 +26,6 @@ function env(limited = false) {
 }
 
 const drive = (status = "ACTIVE") => Response.json({ items: [{ id: "ca_drive", status, toolkit: { slug: "googledrive" } }] });
-/** Composio as the broker sees it: the installation's accounts, then the upload link it hands out. */
 const composio = (link: unknown, accounts = drive()) => async (input: string | URL | Request) =>
   (String(input).includes("/connected_accounts") ? accounts.clone() : Response.json(link));
 

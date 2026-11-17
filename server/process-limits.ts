@@ -1,5 +1,6 @@
 // Linux cgroup limits may be unavailable on other platforms or inside restricted sandboxes.
 import { readFileSync, readdirSync, statfsSync } from "node:fs";
+import { posix } from "node:path";
 
 export type Unknown = "unknown";
 
@@ -28,35 +29,45 @@ const count = (text: string | null): number | "max" | null => {
 };
 
 /** In a container with its own cgroup namespace, the cgroup path is "/", relative to its mount. */
-function pidsFiles(read: Read): string[] {
+function controllerDirectories(read: Read, controller: "pids" | "memory"): Array<{ path: string; version: 1 | 2 }> {
   const own = read("/proc/self/cgroup") ?? "";
-  const v2 = /^0::(\/.*)$/m.exec(own)?.[1], v1 = /^\d+:(?:[^:]*,)?pids(?:,[^:]*)?:(\/.*)$/m.exec(own)?.[1];
-  const dirs = ["/sys/fs/cgroup", "/sys/fs/cgroup/pids"];
-  if (v2 && v2 !== "/") dirs.unshift(`/sys/fs/cgroup${v2}`);
-  if (v1 && v1 !== "/") dirs.unshift(`/sys/fs/cgroup/pids${v1}`);
+  const v2 = /^0::(\/.*)$/m.exec(own)?.[1];
+  const v1 = new RegExp(`^\\d+:(?:[^:]*,)?${controller}(?:,[^:]*)?:(/.*)$`, "m").exec(own)?.[1];
+  const roots: Array<{ root: string; membership: string; version: 1 | 2 }> = [];
+  if (v2) roots.push({ root: "/sys/fs/cgroup", membership: v2, version: 2 });
+  if (v1) roots.push({ root: `/sys/fs/cgroup/${controller}`, membership: v1, version: 1 });
+  if (!roots.length) roots.push({ root: "/sys/fs/cgroup", membership: "/", version: 2 }, { root: `/sys/fs/cgroup/${controller}`, membership: "/", version: 1 });
+  const dirs: Array<{ path: string; version: 1 | 2 }> = [];
+  for (const { root, membership, version } of roots) {
+    const invalid = membership.split("/").some((part) => part === ".." || part === ".");
+    for (let path = invalid ? root : posix.resolve(root, `.${membership}`); path === root || path.startsWith(`${root}/`); path = posix.dirname(path)) {
+      dirs.push({ path, version });
+      if (path === root) break;
+    }
+  }
   return dirs;
 }
 
 export interface CgroupMemory { limitBytes: number; usedBytes: number; oomKills: number | null; fullStall10: number | null }
 
 export function readCgroupMemory(read: Read = readText): CgroupMemory | null {
-  const own = read("/proc/self/cgroup") ?? "";
-  const v2 = /^0::(\/.*)$/m.exec(own)?.[1], v1 = /^\d+:(?:[^:]*,)?memory(?:,[^:]*)?:(\/.*)$/m.exec(own)?.[1];
   const number = (text: string | null, pattern: RegExp) => { const found = text === null ? null : pattern.exec(text); return found ? Number(found[1]) : null; };
-  for (const dir of [...(v2 && v2 !== "/" ? [`/sys/fs/cgroup${v2}`] : []), "/sys/fs/cgroup"]) {
-    const limit = count(read(`${dir}/memory.max`)), used = count(read(`${dir}/memory.current`));
-    if (typeof limit !== "number" || typeof used !== "number") continue;
-    const droppable = number(read(`${dir}/memory.stat`), /^inactive_file (\d+)$/m) ?? 0;
-    return { limitBytes: limit, usedBytes: Math.max(0, used - droppable), oomKills: number(read(`${dir}/memory.events`), /^oom_kill (\d+)$/m),
-      fullStall10: number(read(`${dir}/memory.pressure`), /^full avg10=([\d.]+)/m) };
+  let tightest: Pick<CgroupMemory, "limitBytes" | "usedBytes"> | null = null;
+  let ownEvents: Pick<CgroupMemory, "oomKills" | "fullStall10"> | undefined;
+  for (const { path: dir, version } of controllerDirectories(read, "memory")) {
+    const limit = count(read(`${dir}/${version === 2 ? "memory.max" : "memory.limit_in_bytes"}`));
+    const used = count(read(`${dir}/${version === 2 ? "memory.current" : "memory.usage_in_bytes"}`));
+    if (typeof used !== "number") continue;
+    ownEvents ??= {
+      oomKills: number(read(`${dir}/${version === 2 ? "memory.events" : "memory.oom_control"}`), /^oom_kill (\d+)$/m),
+      fullStall10: version === 2 ? number(read(`${dir}/memory.pressure`), /^full avg10=([\d.]+)/m) : null,
+    };
+    if (typeof limit !== "number" || (version === 1 && limit >= 2 ** 60)) continue;
+    const droppable = number(read(`${dir}/memory.stat`), version === 2 ? /^inactive_file (\d+)$/m : /^total_inactive_file (\d+)$/m) ?? 0;
+    const usedBytes = Math.max(0, used - droppable);
+    if (!tightest || limit - usedBytes < tightest.limitBytes - tightest.usedBytes) tightest = { limitBytes: limit, usedBytes };
   }
-  for (const dir of [...(v1 && v1 !== "/" ? [`/sys/fs/cgroup/memory${v1}`] : []), "/sys/fs/cgroup/memory"]) {
-    const limit = count(read(`${dir}/memory.limit_in_bytes`)), used = count(read(`${dir}/memory.usage_in_bytes`));
-    if (typeof limit !== "number" || typeof used !== "number" || limit >= 2 ** 60) continue;
-    const droppable = number(read(`${dir}/memory.stat`), /^total_inactive_file (\d+)$/m) ?? 0;
-    return { limitBytes: limit, usedBytes: Math.max(0, used - droppable), oomKills: number(read(`${dir}/memory.oom_control`), /^oom_kill (\d+)$/m), fullStall10: null };
-  }
-  return null;
+  return tightest ? { ...tightest, oomKills: ownEvents?.oomKills ?? null, fullStall10: ownEvents?.fullStall10 ?? null } : null;
 }
 
 /** A cgroup namespace can hide limits enforced by ancestors outside the container. */
@@ -69,18 +80,9 @@ export function containerLimited(read: Read = readText): boolean {
 
 /** Cgroup limits enforced by hidden ancestors can remain active while the container sees "max". */
 export function readPids(read: Read = readText): { max: number | "max" | null; current: number | null } {
-  const dirs = new Set<string>();
-  for (const candidate of pidsFiles(read)) {
-    if (candidate.split("/").some((part) => part === ".." || part === ".")) continue;
-    const root = candidate === "/sys/fs/cgroup/pids" || candidate.startsWith("/sys/fs/cgroup/pids/") ? "/sys/fs/cgroup/pids" : "/sys/fs/cgroup";
-    for (let dir = candidate; ; dir = dir.slice(0, dir.lastIndexOf("/"))) {
-      dirs.add(dir);
-      if (dir === root) break;
-    }
-  }
   let best: { max: number | "max" | null; current: number | null } = { max: null, current: null };
   let remaining = Infinity;
-  for (const dir of dirs) {
+  for (const { path: dir } of controllerDirectories(read, "pids")) {
     const current = count(read(`${dir}/pids.current`));
     if (typeof current !== "number") continue;
     const max = count(read(`${dir}/pids.max`));
@@ -96,11 +98,11 @@ export function readPids(read: Read = readText): { max: number | "max" | null; c
 /** The kernel's own high-water marks for this cgroup since it was made (cgroup v2: pids.peak, memory.peak); null where
  * the kernel keeps none. */
 export function readCgroupPeaks(read: Read = readText): { pids: number | null; memoryBytes: number | null } {
-  const peak = (file: string) => {
-    for (const dir of pidsFiles(read)) { const value = count(read(`${dir}/${file}`)); if (typeof value === "number") return value; }
+  const peak = (controller: "pids" | "memory", file: string) => {
+    for (const { path: dir } of controllerDirectories(read, controller)) { const value = count(read(`${dir}/${file}`)); if (typeof value === "number") return value; }
     return null;
   };
-  return { pids: peak("pids.peak"), memoryBytes: peak("memory.peak") };
+  return { pids: peak("pids", "pids.peak"), memoryBytes: peak("memory", "memory.peak") };
 }
 
 function nproc(read: Read): ProcessLimits["nproc"] {

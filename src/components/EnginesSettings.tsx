@@ -472,7 +472,6 @@ function SimpleEngines({ rows, isReady, renderEngine, more, accountsOnly = false
   isReady: (instance: InstanceInfo) => boolean;
   renderEngine: (instance: InstanceInfo, bare?: boolean) => ReactNode;
   more: { id: string; open: boolean; onToggle: () => void };
-  /** The chat's sign-in card: every account row in view, no fold and no hidden providers. */
   accountsOnly?: boolean;
 }) {
   const [opened, setOpened] = useState<string | null>(null);

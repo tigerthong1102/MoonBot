@@ -546,13 +546,11 @@ test("a record names this machine by a hashed id where the platform has one", ()
   else assert.ok(record.machine === null || /^[0-9a-f]{32}$/.test(record.machine));
 });
 
-// Only macOS renames the host per network; elsewhere the same id under another hostname may be a VM cloned from a template.
 test("a lease with this machine id under another hostname from an earlier boot: recovered on macOS, refused elsewhere", async (t) => {
   const { dataDir } = temporaryDirectory();
   const current = recordWrittenByThisProcess(dataDir);
   if (current.machine === null) return t.skip("no machine id on this platform");
   const leasePath = path.join(dataDir, LEASE_NAME);
-  // A live pid too: a lease from an earlier boot of this machine is stale whatever now runs under its pid.
   for (const pid of [await exitedPid(), process.pid]) {
     const planted = `${JSON.stringify({ ...current, host: renamedHost(current), boot: current.boot === null ? null : randomUUID(), uptime: Math.floor(osUptime() * 1000) + 3_600_000, pid, token: randomUUID() })}\n`;
     writeFileSync(leasePath, planted, { mode: 0o600 });
@@ -820,14 +818,7 @@ test("a live but unrelated Windows pid reused within the same boot is treated as
   }
 });
 
-/**
- * The Windows liveness probes faked on any host: kill answers EPERM for the given pids (the OS answer
- * for a pid this account cannot signal — live processes of another user, and exited processes that a
- * handle still keeps referenced), tasklist answers from a PATH shim, and powershell.exe under a faked
- * SystemRoot. On Windows 11 wmic is absent, so the PATH shim intentionally carries no wmic. On Windows
- * itself the shims cannot execute, so only the platform and kill fakes apply and the real tasklist and
- * powershell answer for themselves.
- */
+/** Windows kill(pid, 0) can return EPERM for another user's process or a referenced exited process. Windows 11 has no wmic. */
 function fakeWindowsHost(t, { epermPids = [], tasklist, powershell = null } = {}) {
   const realWindows = process.platform === "win32";
   const priorPlatform = Object.getOwnPropertyDescriptor(process, "platform");
@@ -872,7 +863,6 @@ function fakeWindowsHost(t, { epermPids = [], tasklist, powershell = null } = {}
   process.env.SystemRoot = systemRoot;
 }
 
-/** The record a Windows build leaves on disk: no boot id, no pid namespace, no start ticks. */
 function windowsLeaseRecord(pid, createdAt = Date.now() - 60_000) {
   return {
     version: 1,
@@ -894,7 +884,6 @@ function plantWindowsChildLease(dataDir, pid, createdAt) {
   return childPath;
 }
 
-/** A pid the real process list shows as running, for the Windows-host runs where no shim can fake one. */
 function runningPid(t) {
   const child = spawn(process.execPath, ["--eval", "setInterval(()=>{}, 1_000);"], { stdio: "ignore" });
   assert.ok(child.pid);
@@ -941,7 +930,7 @@ test("a Windows owner this account cannot signal but that still runs keeps block
   const liveForeignPid = realWindows ? runningPid(t) : await exitedPid();
   fakeWindowsHost(t, { epermPids: [liveForeignPid], tasklist: [liveForeignPid] });
   const { dataDir } = temporaryDirectory();
-  // On Windows the record must postdate the live pid's real creation time, or it reads as a reused pid.
+  // Windows exposes process creation times independently of PID values.
   plantWindowsChildLease(dataDir, liveForeignPid, realWindows ? Date.now() : undefined);
 
   assert.throws(() => acquireDataDirLease(dataDir), /still shutting down/i);

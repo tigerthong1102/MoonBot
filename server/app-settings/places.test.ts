@@ -32,13 +32,11 @@ describe("places", () => {
   });
 });
 
-/** Every path a place's own path starts with, after "Settings → ", longest first. */
 const REAL = [...new Set((SETTINGS_PLACES as readonly SettingsPlace[]).flatMap(({ path, simplePath }) => [path, simplePath ?? ""]).flatMap((path) => {
   if (!path.startsWith(`Settings${ARROW}`)) return [];
   const parts = path.slice(`Settings${ARROW}`.length).replace(/ \(.*\)$/, "").split(ARROW);
   return parts.map((_, index) => parts.slice(0, index + 1).join(ARROW));
 }))].sort((a, b) => b.length - a.length);
-/** Another app's settings named in our text: the system's, ChatGPT's, a provider's own site. */
 const OTHER_APP = /(?:System|ChatGPT|Postiz →|Windows|macOS|iOS|Android|phone's|Chrome|Bot|bot's) $/;
 const SCANNED = ["server", "shared", "packages/phone-protocol/src", "skills", "electron"];
 const SOURCE = /\.(?:ts|mjs|md)$/;
@@ -51,10 +49,8 @@ function* sources(dir: string): Generator<string> {
   }
 }
 
-/** A line of a language catalog's English, which changes with its translations, not here. */
 const CATALOG_LINE = /^\s*"[a-z][\w-]*(?:\.[\w-]+)+": /;
 
-/** A "Settings → …" in text a bot or a person reads, that names no real place. */
 function inventedPaths(text: string): string[] {
   const found: string[] = [];
   for (const line of text.split("\n")) {

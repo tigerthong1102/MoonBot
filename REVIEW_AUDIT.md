@@ -1,5 +1,56 @@
 # Review audit — 2026-11-17
 
+## Whole-PR audit and batched corrections from ce6348b3e
+
+Baseline: `ce6348b3ed1f0bb6e4a50d389a31e417e434b75b`; base: `7ac4f4954a91b7b3ce64843911628a46db142262`. This pass inventories the complete 743-file PR (20,834 added / 4,644 removed lines at the baseline), separates brand-only/literal changes from executable changes using parsed TypeScript, and inspects high-risk authorization, credentials/files, process identity, resource admission, unattended work, provider, Electron and release boundaries. Inventory coverage is not a claim of line-by-line manual review or proof that no bugs exist. The scope remains PR #1, without another upstream merge, Enterprise import, installer, release or deployment. Qodo is excluded by the owner's instruction.
+
+The latest two Codex findings reviewed dfbbdda880: process-room fixture narration (4601610918) and missing visible ancestor PID limits (4601610931). Both are CONFIRMED and already addressed by ce6348b3e, whose tests and behavior were independently inspected. This pass extends the hierarchy tests and fixes further independently reproduced gaps below. A completed clean review of the final pushed SHA remains required; resolving an older thread is not a new-head review.
+
+| Finding | Classification | Correction and evidence |
+| --- | --- | --- |
+| Bot API authenticates before awaiting a delayed body, then dispatches with stale owner authority/key/policy | CONFIRMED | Revalidate enabled state, bearer key, plan policy, owner delegation and confinement after parsing and before admission. Five initial real-HTTP regressions fail before the fix; seven final cases cover rotation, disable, both owner-policy withdrawals, plan withdrawal, changed AI and safe confined fallback. Existing safety-floor and owner-only E2E remain. |
+| A pure v2 hierarchy can mistake a sibling named pids for this process's v1 controller | CONFIRMED | Derive controller directories from the actual membership; bound ancestor traversal to its mount. Two sibling regressions fail before the fix; keep v1/v2 ancestor, matching-snapshot, engine and browser reservation assertions. |
+| Memory admission ignores a tight visible parent and its sibling usage | CONFIRMED | Read each visible ancestor with matching usage/reclaimable memory and use the least remaining capacity. Two v1/v2 regressions fail before the fix. Keep OOM/pressure telemetry scoped to the nearest readable own group, preventing unrelated parent OOM events from changing attribution. |
+| Windows bot-link cleanup awaits removal but still holds SQLite open | CONFIRMED | Give the fixture explicit ownership of its runtime store, inject it through CoordinatorOptions, and close it before deleting files. Production default construction/close semantics are unchanged. Retain both removal regressions and add a direct closed-database regression; 171 coordinator/link tests pass. |
+| A second verification-fixture close returns before the first finishes; timed-out Windows work can reach the next test's request spy | CONFIRMED | Join the close Promise; own launch/commands with a test-scoped abort signal and await teardown. Apply the existing hostTimeout factor to explicit fixture deadlines (30 seconds strict / 60 seconds Windows or parallel), retaining the production launch deadline and all RPC/transcript/slow-starter assertions. Concurrent-close regression fails before the fix. Await the remaining helper/sentinel directory cleanup. |
+| Host file reads trust metadata but then read the entire growing file | CONFIRMED | Inspect the opened regular file, read at most 10 MiB plus one sentinel byte, reject excess and close the handle in finally. Underreported-size boundary cases reproduce the old excess read; exactly 10 MiB still succeeds. Existing path, binary, overwrite and permission behavior remains. |
+| A failed ledger append erases already-incurred usage from spending caps | CONFIRMED | Keep failed writes counted in memory through their applicable UTC periods; deduplicate a later successful retry and discard expired pending entries. A real ENOTDIR append regression fails before the fix. Correct the old spend test's unsafe drop-on-write-failure expectation after fixing production; retain every assertion. Disk failure still prevents durable recovery across a process restart and must be repaired. |
+| Engine cleanup can escalate using stale PIDs after a failed ownership reread | CONFIRMED | Refuse escalation when fresh ownership is unavailable and retain the run records for another sweep. A deterministic regression fails before the fix; initial unknown ownership, departure/PID reuse and verified-survivor escalation remain covered. |
+| Approximate engine-start timestamps alone can identify an unrelated process | CONFIRMED | Require the original random run tag when a precise start identity was not recorded. The no-tag/wrong-tag regression fails before the fix; precise start-time and descendant cleanup assertions remain. |
+| First engine may probe when conservative capacity estimates do not fit | FALSE POSITIVE | Existing explicit contract intentionally permits the only task to probe. An experimental restriction was rejected and removed; engine-memory admission behavior is unchanged. |
+| Added private-helper/test narration violates AGENTS.md | CONFIRMED | Batch-remove redundant narration and condense mixed comments to external facts or security/privacy invariants. Full comment-free parsed syntax, types, embedded programs/strings and assertions are identical before/after each comment-only pass. License notices, directives, public wire/configuration/driver contracts and necessary external facts remain. |
+| Hosted macOS arm64 job repeatedly never acquires a runner | CONFIRMED infrastructure blocker | Pin the one required macOS smoke job to standard macos-26-intel. Keep its name, every step, timeout and assertion. Same job commands also pass locally on Apple Silicon; report the architectures separately. No larger/paid runner, omitted check, skip-ci or manual full matrix is used. |
+
+### Audit boundaries and retained behavior
+
+| Area | Review focus / retained checks |
+| --- | --- |
+| Authentication, Bot API, vault, connector uploads and backup | Current authority across asynchronous work; private/shared secret selection; authorized roots, redirect/storage allowlist, excluded credentials, approved upload and no-follow/containment checks; fail-closed config save/restore. |
+| Linked rooms, unattended work, routines and runtime | User/outside provenance, reached caps, model-call versus tool fallback, one-shot reset/restart behavior, finite retries and handoff budgets, read-only stand-ins and receipt deduplication. |
+| Processes, memory, browsers and diagnostics | Parent limits/sibling load, matching identity snapshots, provisional reservation rollback, confirmed closure, descendant survival/cleanup, crash execution identity, native histogram counts and bounded transcript cache. |
+| Providers, Electron and release | HTTP capability parity and proxy isolation, provider compatibility, Android keyboard restoration, isolated data paths, checked file saving and private IPC; independent disabled updater/release and no upstream SaaS reactivation. |
+| CI, Docker, UI/site and licenses | Retained tests and required jobs, OSS edition/security/image invariants, locale isolation, no fake release links, and existing distribution/asset/history gaps. No real-device, installer or commercial qualification is inferred. |
+
+### Verification snapshot for the batched candidate
+
+Local environment: Node 24.22.2, macOS 26.7.3 arm64, Electron 43.7.9. All server/conversation checks use isolated temporary homes and fake engines; no live app data or paid model is used. Individual batches overlap and must not be summed.
+
+- PASS: 42 Bot API host/manager/owner E2E tests.
+- PASS: 171 bot-link/runtime-coordinator tests, including the fixture-owned database lifecycle; final lifecycle/size/docs guard batch: 184 PASS.
+- PASS: 66 final ledger/cap/host-file/control/owner tests.
+- PASS: 399 resource/browser-room/host-file/workflow/scope tests.
+- PASS: 92 engine/descendant/MCP lifetime/crash/watchdog tests; the subsequently completed engine-record-only batch has 16 PASS, including initial unknown ownership.
+- PASS: all 2,141 executable Electron Node tests; 13 existing platform skips, zero failures.
+- PASS: all 126 broker tests.
+- PASS: every local macOS-job command: packaged server, approval modes, guarded media permissions, app-frame engagement, companion build, phone pairing/auth/revocation/restart/fail-closed bootstrap, private login handoff. These are real isolated smoke tests, not installer acceptance.
+- PASS: final lint, typecheck, production build and rebuilt packaged-server smoke. All seven macOS-job commands pass again after the functional corrections. There are 23 added regression cases in this batch; 48 files are strictly comment-only against ce6348b3e, with identical complete parsed syntax/types/strings.
+- RUNNING at commit preparation: broad local Vitest with OMB_VITEST_WORKERS=2. It is not reported as PASS, and final touched suites were rerun independently after edits. Exact-head required GitHub CI and a fresh completed Codex review remain mandatory after push.
+
+[Baseline CI 44114523305](https://github.com/tigerthong1102/MoonBot/actions/runs/44114523305) is FAIL: 31 jobs passed, Windows shard 8 failed the two actual directory-removal regressions, required macOS smoke never acquired a runner, aggregate failed. Docker 44114523300, connector 44114523282, Docs 44114523365 and website 44114523296 completed PASS on ce6348b3e. The dfbbdda880 run 44111238358 was superseded/canceled and also exposed the control-fixture timeout/contamination; it is not a green run. Older pairing-readiness timing remains unproven and its original diagnostics/assertions remain; a passing later run alone is not a root-cause proof.
+
+Standard macos-26-intel availability and public-repository pricing were checked against [GitHub's runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners); this repository is public. The arm64 capacity failure is not counted as a test PASS. Final dynamic check/review links belong in the PR description to avoid another documentation-only SHA/CI cycle.
+
+
 ## MCP transport review and Windows teardown on 59cf02ec6
 
 CONFIRMED: the MCP streaming-helper implementation overview, discussion 4601298402 / thread PRRT_kwDOVwGsl864fd4g. Remove the response-sequence narration; retain the HTTP-client timeout fact, transport authorization invariant and the existing SSE/keepalive/JSON tests. Batch equivalent newly added internal callback/helper/field narration. Preserve licensing, public wire/driver/configuration contracts, external OS/vendor facts and security/privacy/data-safety invariants. All 61 comment-only files have identical complete comment-free TypeScript syntax, declarations and embedded literals against 59cf02ec6. No MCP framing, keepalive interval, response negotiation, quota, browser, process, data or authorization behavior changes.

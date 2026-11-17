@@ -220,14 +220,14 @@ export function thisComputerSwitch(input: { place: Surface | null; bot: string; 
   return `${where} To use files on this computer, switch it to This computer: ${how}.${keep} No other setting or menu does this, so never name one.`;
 }
 
-/** A path only this computer's own disk has, by the platform this server runs on; another place never has it. */
+/** A local host path must not authorize access to another place's disk. */
 const HOST_PATHS: Partial<Record<NodeJS.Platform, { pattern: RegExp; example: string }>> = {
   win32: { pattern: /(?:^|[\s"'`=(,;|>])(?:[A-Za-z]:[\\/]|\\\\[^\\\s]+\\|%(?:USERPROFILE|HOMEPATH|OneDrive\w*)%)/i, example: "C:\\Users\\…" },
   darwin: { pattern: /(?:^|[\s"'`=(,;|>])\/Users\/[^/\s"']/, example: "/Users/…" },
   linux: { pattern: /(?:^|[\s"'`=(,;|>])\/home\/(?!cua(?![\w.-]))[\w.-]/, example: "/home/…" },
 };
 
-/** Whether a command names a path on this computer's own disk, which a Private desktop never has. */
+/** Commands referencing this host's disk must not be routed to a private desktop. */
 export function namesHostPath(command: unknown, platform: NodeJS.Platform = process.platform): boolean {
   return typeof command === "string" && Boolean(HOST_PATHS[platform]?.pattern.test(command));
 }
@@ -236,7 +236,7 @@ export function failedOnHostPath(command: unknown, result: { exitCode?: unknown;
   return Number(result.exitCode ?? 0) !== 0 && result.timedOut !== true && namesHostPath(command, platform);
 }
 
-/** On a server where This computer can be picked: a host path or "my PC" is this computer, never the mounted place. */
+/** Host-disk access must not be redirected to a mounted remote place. */
 function ownFilesSentence(own: { bot: string; botId?: string; platform: NodeJS.Platform }, place: Surface | null, canSelect: boolean): string {
   const example = HOST_PATHS[own.platform]?.example;
   return ` A file or folder on the person's own computer (${example ? `a path such as ${example}, ` : ""}their Desktop, Documents, Downloads or OneDrive, or "my PC") is on this computer${place ? `, which ${surfaceLabel(place)} cannot reach` : ""}, and it is never one of the shared computers. ${thisComputerSwitch({ place, bot: own.bot, canSelect, ...(own.botId ? { botId: own.botId } : {}) })}`;

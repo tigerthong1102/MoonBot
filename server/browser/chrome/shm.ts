@@ -5,7 +5,6 @@ const ROOMY_BYTES = 512 * 1024 * 1024;
 
 type Statfs = (path: string) => { blocks: number | bigint; bsize: number | bigint };
 
-/** True where Chrome should keep its shared memory out of /dev/shm (--disable-dev-shm-usage puts it in /tmp). */
 export function devShmIsSmall(platform: NodeJS.Platform = process.platform, statfs: Statfs = statfsSync): boolean {
   if (platform !== "linux") return false;
   try {

@@ -118,9 +118,10 @@ describe("CI concurrency", () => {
 
   it("keeps each PR to one macOS job", () => {
     const macosJobs = Object.entries(workflow.jobs as Record<string, { "runs-on": string; strategy?: { matrix?: { os?: unknown } } }>)
-      .filter(([, job]) => job["runs-on"] === "macos-latest" || JSON.stringify(job.strategy?.matrix?.os ?? "").includes("macos"))
+      .filter(([, job]) => String(job["runs-on"]).startsWith("macos-") || JSON.stringify(job.strategy?.matrix?.os ?? "").includes("macos"))
       .map(([name]) => name);
     expect(macosJobs.sort()).toEqual(["electron-smokes"]);
+    expect(workflow.jobs["electron-smokes"]["runs-on"]).toBe("macos-26-intel");
     const smokes = workflow.jobs["electron-smokes"].steps.map((step: { run?: string }) => step.run);
     expect(smokes).toContain("pnpm test:packaged-server");
   });

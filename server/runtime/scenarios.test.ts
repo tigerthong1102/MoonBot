@@ -2085,10 +2085,8 @@ describe("§5 outward / §2 loop guard", () => {
 describe("failed hand-offs spend no more of a request than they must", () => {
   const CANNOT_START = "spawn /usr/local/bin/claude EAGAIN";
   const COORDINATOR_LIMITS: Partial<Limits> = { requests: 64, executions: 96, wakes: 48 };
-  /** Work nobody is waiting on: the caps that end a request on failures alone are for it. */
   const ROUTINE: Partial<BeginRequest> = { origin: { kind: "routine", source: "routine", ref: "routine-1" } };
 
-  /** A requester that hands the same work out again every time it is resumed, up to `turns` resumes. Each resume is one model request. */
   function reworkOnEveryResume(w: World, root: Assignment, turns: number): void {
     w.runner.script(root.id, ...Array.from({ length: turns }, () => custom((ctx) => {
       const sent = ctx.handOut(workFor("dev", "Build", { rework: true }));

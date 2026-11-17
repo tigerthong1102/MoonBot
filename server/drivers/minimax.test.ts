@@ -228,7 +228,6 @@ describe("MinimaxDriver", () => {
     }
   });
 
-  /** Runs one turn and returns every chat body the driver sent, in order. */
   async function chatBodies(
     model: string,
     variant?: string,
@@ -286,8 +285,7 @@ describe("MinimaxDriver", () => {
   });
 
   it("never sends reasoning_effort none, which MiniMax refuses", async () => {
-    // The provider answers as OpenAI does when tools and reasoning meet: the runtime drops to
-    // reasoning-off, and MiniMax has no `reasoning_effort: "none"` to answer that with.
+    // MiniMax does not support reasoning_effort: "none".
     const bodies = await chatBodies("MiniMax-M3", undefined, (call) => call === 1
       ? new Response(JSON.stringify({ error: { message: "Function tools with reasoning_effort are not supported in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'." } }), { status: 400, headers: { "content-type": "application/json" } })
       : new Response('data: {"choices":[{"delta":{"content":"hello"}}]}\n' + "data: [DONE]\n", { headers: { "content-type": "text/event-stream" } }));

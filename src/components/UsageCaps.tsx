@@ -25,12 +25,10 @@ export interface CapState {
   resetsAt: number;
 }
 
-/** `caps` on GET /api/usage and the body of /api/usage/caps: only the owner gets one. */
+/** Usage caps are visible only to the owner. */
 export interface UsageCapView {
-  /** What a reached cap stops now; `savedStops` is what config.json holds. */
   stops: "unattended" | "everything";
   savedStops?: "unattended" | "everything";
-  /** The saved caps; `env.values` holds what the environment sets, which wins field by field. */
   server: CapLimits;
   bots: Record<string, CapLimits>;
   env: { stops: boolean; server: CapField[]; values?: { server: CapLimits } };
@@ -48,7 +46,6 @@ type Draft = Record<CapField, string>;
 const draftOf = (limits: CapLimits | undefined): Draft =>
   Object.fromEntries(FIELDS.map(({ field }) => [field, limits?.[field] ? String(limits[field]) : ""])) as Draft;
 
-/** The numbers a row of inputs holds, or null when one is not a cap: empty means none, dollars 0 or more, tokens whole. */
 export function limitsOf(draft: Draft): CapLimits | null {
   const limits: CapLimits = {};
   for (const { field, whole } of FIELDS) {
@@ -113,8 +110,6 @@ export function UsageCapsCard({ view, onSaved }: { view: UsageCapView | null | u
 
 const serverInForce = (view: UsageCapView): CapLimits => ({ ...view.server, ...view.env.values?.server });
 
-/** What a save sends: the owner's own values, never one the environment holds. A greyed field keeps what config.json
- * has, and the choice of what a cap stops keeps the saved one while the environment makes it. */
 export function capsToSave(view: UsageCapView, stops: UsageCapView["stops"], server: CapLimits, bots: Record<string, CapLimits>): { stops: UsageCapView["stops"]; server: CapLimits; bots: Record<string, CapLimits> } {
   const own: CapLimits = { ...server };
   for (const field of view.env.server) {

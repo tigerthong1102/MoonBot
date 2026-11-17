@@ -68,7 +68,7 @@ describe("the loop stall recorder", () => {
       await delay(60);
       const before = stalls.report().saves.m1.n;
       writeFileAtomic(join(dir, "a.json"), "{}");
-      timeBlocking("runtimeReads", () => { const until = Date.now() + 300; while (Date.now() < until) { /* the stall */ } });
+      timeBlocking("runtimeReads", () => { const until = Date.now() + 300; while (Date.now() < until) { } });
       await delay(60);
       const report = stalls.report();
       expect(report.m1!.max).toBeGreaterThanOrEqual(250);

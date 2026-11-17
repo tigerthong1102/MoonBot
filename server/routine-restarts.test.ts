@@ -30,7 +30,6 @@ function server(launchId?: () => string) {
   return {
     started, first,
     setNow: (at: number) => { now = at; },
-    /** One process start: its scheduler's first pass, then each turn it started ends before the process dies. */
     async boot(): Promise<RoutineManager> {
       const booted = new RoutineManager(options());
       booted.start();

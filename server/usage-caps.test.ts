@@ -1,4 +1,4 @@
-import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -67,6 +67,26 @@ describe("what has been used", () => {
     expect(usageTotals(dataDir, at(48)).server.day.usd).toBe(3.5);
     writeFileSync(usageFileFor(dataDir, now), JSON.stringify(row("2026-09-15T09:00:00.000Z", "a", 0.25)) + "\n");
     expect(usageTotals(dataDir, at(64)).server).toEqual({ day: { usd: 0.25, tokens: 1_500 }, month: { usd: 0.25, tokens: 1_500 } });
+  });
+
+  it("keeps billed usage against caps when the ledger append fails, and deduplicates its successful retry", async () => {
+    usageTotals(dataDir, now);
+    writeFileSync(join(dataDir, "usage"), "not a directory");
+    const booked = row("2026-09-15T11:59:00.000Z", "a", 2);
+    const writing = appendUsage(dataDir, booked);
+    noteUsage(dataDir, booked, writing);
+    expect(await writing).toBe(false);
+    await Promise.resolve();
+    expect(usageTotals(dataDir, now).server.day.usd).toBe(2);
+    expect(reachedCap({ server: { dailyUsd: 1 } }, dataDir, { personWaiting: false }, now, NO_ENV)).not.toBeNull();
+    expect(usageTotals(dataDir, new Date("2026-09-16T00:00:01Z")).server).toEqual({ day: { usd: 0, tokens: 0 }, month: { usd: 2, tokens: 1_500 } });
+    unlinkSync(join(dataDir, "usage"));
+    const retry = appendUsage(dataDir, booked);
+    noteUsage(dataDir, booked, retry);
+    expect(await retry).toBe(true);
+    await Promise.resolve();
+    expect(usageTotals(dataDir, new Date("2026-09-16T00:00:20Z")).server.month.usd).toBe(2);
+    expect(usageTotals(dataDir, new Date("2026-10-01T00:00:01Z")).server.month.usd).toBe(0);
   });
 
   it("sets no cap at all until one is asked for, and reads 0 as no cap", () => {

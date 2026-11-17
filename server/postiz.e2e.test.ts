@@ -47,9 +47,7 @@ async function turn(botId: string, calls: unknown[]): Promise<Dump> {
   return dump;
 }
 
-/** Files under the data folder that hold this text, the fake engine's own capture of its launch files aside.
- * The dated copies of the settings file count as the settings file itself: config.json holds every credential
- * of the install, so a copy of it beside it holds nothing that config.json does not hold. */
+/** Settings backups contain the credentials in config.json and require the same protection. */
 function filesHolding(secret: string): string[] {
   const found: string[] = [];
   const walk = (dir: string) => {

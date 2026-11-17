@@ -15,7 +15,6 @@ const folders: string[] = [];
 afterEach(async () => { for (const folder of folders.splice(0)) await removeTempDir(folder); });
 
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
-/** A shell that starts a background child (as git starts git-remote-https) and writes its pid. */
 function script(): { file: string; args: string[] } {
   const dir = mkdtempSync(join(tmpdir(), "omb-group-exec-"));
   folders.push(dir);

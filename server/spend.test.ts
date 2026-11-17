@@ -78,7 +78,7 @@ describe("spend against a monthly cap", () => {
     expect(monthToDateSpend(dataDir, new Date(end.getTime() + 60_000))).toBeCloseTo(1.2, 9);
   });
 
-  it("never counts a booked turn twice when a re-read already sees its row, and drops one whose write failed", async () => {
+  it("never counts a booked turn twice and keeps billed usage when its ledger write fails", async () => {
     const onDisk = row("2026-09-15T11:00:00.000Z", 0.5);
     await appendUsage(dataDir, onDisk);
     noteSpend(dataDir, onDisk, new Promise<boolean>(() => {}));
@@ -88,9 +88,9 @@ describe("spend against a monthly cap", () => {
     expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.8, 9);
     await Promise.resolve();
     await Promise.resolve();
-    expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.5, 9);
+    expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.8, 9);
     noteSpend(dataDir, row("2026-09-15T11:06:00.000Z", null), new Promise<boolean>(() => {}));
-    expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.5, 9);
+    expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.8, 9);
   });
 
   it("counts estimated costs against the cap exactly like reported ones", async () => {

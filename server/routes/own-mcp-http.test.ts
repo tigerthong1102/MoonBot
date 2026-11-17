@@ -14,7 +14,6 @@ import { TOOL_LIMIT_ENV, TOOL_LIMIT_HEADER } from "../tool-count-limit.ts";
 const internalCalls: Array<{ path: string; authorization?: string; body?: unknown }> = [];
 let server: Server;
 let base: string;
-/** The route under test; a test may swap in one with shorter timings or smaller limits. */
 let routes: RouteHandler = ownMcpHttpRoutes;
 
 beforeAll(async () => {
@@ -47,7 +46,6 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 const post = (kind: string, body: unknown, headers: Record<string, string> = { authorization: "Bearer turn-capability" }) =>
   fetch(`${base}${OWN_MCP_HTTP_PATH}${kind}`, { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers }, body: JSON.stringify(body) });
-/** A JSON body, or the replies of a server-sent event stream (one, or all of a batch's in id order). */
 async function read(response: { headers: { get(name: string): string | null }; text(): Promise<string> }): Promise<unknown> {
   const text = await response.text();
   if (!response.headers.get("content-type")?.startsWith("text/event-stream")) return JSON.parse(text);
@@ -128,8 +126,6 @@ describe("a long tool call, and the stdio proxy's limits", () => {
   };
 
   it("streams headers at once and keeps the connection busy, so a client that gives up on silence still gets its answer", async () => {
-    // An HTTP client that gives up after 300 ms without headers or bytes (undici checks about every half second), as
-    // Node's fetch does after 300 s; the call takes 2.5 s.
     const impatient = new Agent({ headersTimeout: 300, bodyTimeout: 300 });
     const slower = { ...slow, params: { name: "slower", arguments: {} } };
     try {

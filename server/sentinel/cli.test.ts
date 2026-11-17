@@ -25,9 +25,9 @@ describe("openmausbot sentinel", () => {
     dir = mkdtempSync(join(tmpdir(), "omb-sentinel-cli-"));
     fixture = fixtureDataDir(join(dir, "data"), [{ id: "b1", name: "Probe", threadId: "t1" }]);
   });
-  afterEach(() => {
+  afterEach(async () => {
     fixture.close();
-    removeTempDir(dir);
+    await removeTempDir(dir);
   });
 
   it("scans a live data dir from the command line, keeps references only, and does nothing when nothing changed", () => {

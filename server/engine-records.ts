@@ -9,7 +9,7 @@ export const ENGINE_RUNS_DIR = "engine-runs";
 const TAG = /^[0-9a-f]{32}$/;
 const CLEAN = "clean";
 
-/** `start`: the kernel's start tick on Linux, ps's lstart elsewhere; `at`: when spawn returned (ms), where no start was read. */
+/** Linux exposes process start ticks; macOS ps exposes lstart. */
 type Leader = { start: string | null; at: number | null };
 type ServerRecord = { pid?: unknown; start?: unknown; boot?: unknown; ns?: unknown };
 /** `sid` only where the system shows it (Linux); macOS's ps prints no session id. */
@@ -109,18 +109,20 @@ export interface SweepSelf { pid: number; tag: string | null; start: string | nu
 
 export function leftBehind(table: readonly Listed[], tag: string, leaders: ReadonlyMap<number, Leader>, self: SweepSelf): number[] {
   const byPid = new Map(table.map((entry) => [entry.pid, entry]));
+  const matchesLeader = (leader: Leader, entry: Listed) => sameStart(leader, entry.start)
+    && (leader.start !== null || entry.env?.get(ENGINE_TAG_ENV) === tag);
   const leadersGroup = (id: number | null) => {
     const leader = id === null ? undefined : leaders.get(id);
     if (!leader) return false;
     const holder = byPid.get(id!);
-    return !holder || sameStart(leader, holder.start);
+    return !holder || matchesLeader(leader, holder);
   };
   return table.filter((entry) => {
     if (entry.zombie || entry.pid === self.pid || entry.pid <= 1) return false;
     const tagged = entry.env?.get(ENGINE_TAG_ENV);
     if ((self.tag && tagged === self.tag) || entry.env?.get("AGENT_BROWSER_DAEMON") === "1" || !startedBefore(entry.start, self.start)) return false;
     const leader = leaders.get(entry.pid);
-    if (leader && sameStart(leader, entry.start)) return true;
+    if (leader && matchesLeader(leader, entry)) return true;
     return tagged === tag && (leadersGroup(entry.pgid) || leadersGroup(entry.sid));
   }).map((entry) => entry.pid);
 }
@@ -164,7 +166,7 @@ async function sweepRun(dir: string, tag: string, self: SweepSelf & { boot: stri
   try { server = JSON.parse(readFileSync(join(dir, "server.json"), "utf8")) as ServerRecord; } catch { return; }
   const state = serverState(server, self);
   if (state === "gone") return forgetRun();
-  // Never another live server's: the data folder's lease allows one, but its records are its own while it runs.
+  // Never reclaim another live server's engine records.
   if (state !== "dead") return;
   const leaders = new Map<number, Leader>();
   try {
@@ -183,23 +185,31 @@ async function sweepRun(dir: string, tag: string, self: SweepSelf & { boot: stri
     const table = await processes();
     return table && leftBehind(table, tag, leaders, self);
   };
-  let left = await theirs();
+  const left = await stopRecordedEngines(theirs, log);
   if (left === null) return;
+  if (left.length) log(`engine records: ${left.length} process(es) of an earlier server did not stop`);
+  else forgetRun();
+}
+
+export async function stopRecordedEngines(theirs: () => Promise<number[] | null>, log: (line: string) => void): Promise<number[] | null> {
+  let left = await theirs();
+  if (left === null) return null;
   if (left.length) {
     log(`Stopping ${left.length} process${left.length === 1 ? "" : "es"} an earlier OpenMausBot server of this data folder started and left running.`);
     signal(left, "SIGTERM");
     for (const until = Date.now() + 1_500; Date.now() < until && left.length; ) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      left = await theirs() ?? left;
+      left = await theirs();
+      if (left === null) return null;
     }
     signal(left, "SIGKILL");
     for (const until = Date.now() + 1_000; Date.now() < until && left.length; ) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      left = await theirs() ?? left;
+      left = await theirs();
+      if (left === null) return null;
     }
   }
-  if (left.length) log(`engine records: ${left.length} process(es) of an earlier server did not stop`);
-  else forgetRun();
+  return left;
 }
 
 function signal(pids: number[], value: NodeJS.Signals): void {

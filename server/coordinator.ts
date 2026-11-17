@@ -1,5 +1,6 @@
 import { RuntimeCoordinator } from "./runtime-coordinator.ts";
 import type { WorkOrigin } from "./peer-provenance.ts";
+import type { RuntimeStore } from "./runtime/store.ts";
 import type { LegacyThreadResolver } from "./runtime/import-legacy.ts";
 import type { Answerer, Assignment, EnvelopeNames, Level, Limits, Mode, Origin, Outcome, Owner, Reply, Requester, StatusView, TurnEvidence } from "./runtime/types.ts";
 import type { ModelSelection } from "../shared/wire.ts";
@@ -252,6 +253,7 @@ export interface HandoffLimit {
 
 export interface CoordinatorOptions {
   dataDir: string;
+  runtimeStore?: RuntimeStore;
   host: CoordinatorHost;
   handoffLimit?: HandoffLimit;
   now?: () => number;

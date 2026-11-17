@@ -420,7 +420,7 @@ describe("a browser daemon that will not close (#2603)", () => {
     const { actual, binaryPath, env, pids } = await engine({ close: () => { closes += 1; return 0; }, listFails: true, daemon: SAVING_DAEMON });
     expect(await closeBrowserSession(binaryPath, env, 1_000)).toBe(true);
     expect(closes).toBe(0);
-    // TERM to the daemon first, so it still saves its sign-ins from its browser.
+    // agent-browser saves browser sign-ins before its daemon exits on SIGTERM.
     expect(readFileSync(join(env.HOME, "browser.pid.saved"), "utf8")).toBe("saved");
     for (const pid of Object.values(pids)) expect(gone(actual, pid), String(pid)).toBe(true);
   });

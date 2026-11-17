@@ -164,7 +164,6 @@ it("a bot's Google Drive upload of a file in its working folder reaches Composio
     expect(apps.uploads[0]!.bytes?.toString()).toBe("%PDF-1.4 the report");
     expect(apps.calls.at(-1)).toMatchObject({ tool: "GOOGLEDRIVE_UPLOAD_FILE", arguments: { file_to_upload: { name: "report.pdf", mimetype: "application/pdf", s3key: "fake-files/1" } } });
 
-    // A path that is not one of the bot's files goes to the app as it is: only Composio can say what it means there.
     const outside = join(scratch, "elsewhere.pdf");
     writeFileSync(outside, "not the bot's");
     const passed = (await upload(outside)).answer;

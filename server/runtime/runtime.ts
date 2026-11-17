@@ -18,7 +18,6 @@ export interface RuntimeOptions {
   limits?: Partial<Limits>;
   level?: typeof assignmentLevel;
   log?: (line: string) => void;
-  /** Turns a restart cut start again at most one per this many ms (default RERUN_GAP_MS). */
   rerunGapMs?: number;
 }
 

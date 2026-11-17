@@ -51,7 +51,6 @@ afterEach(async () => {
   for (const dir of dirs.splice(0)) rmSync(dir, { force: true, recursive: true });
 });
 
-/** This desktop's computer as the gate hands it over: the driver it reaches is `driver`, the turn's capability its own. */
 function computer(driver: string, env: Record<string, string> = {}) {
   const answered = join(dirs[0]!, `answered-${randomUUID()}`);
   return {

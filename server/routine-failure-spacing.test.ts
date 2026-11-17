@@ -95,7 +95,6 @@ function harness(start?: RoutineManagerOptions["startTurn"], schedule: Parameter
   const working = () => manager.listRuns().filter((run) => run.status === "running");
   return {
     manager, started, alerts,
-    /** A scheduler pass every minute up to `to`; `settle` ends each turn the pass before left working. */
     passTo: async (to: number, settle: (run: RoutineRun) => void) => {
       while (now < to) {
         now += MINUTE;

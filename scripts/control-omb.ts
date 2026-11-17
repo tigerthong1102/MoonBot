@@ -446,16 +446,16 @@ export async function launchVerificationServer(
     throw error;
   }
 
-  let closed = false;
+  let closing: Promise<void> | undefined;
   return {
     info: { url, pid: child.pid!, dataDir, logPath },
     fixtureDumpPath,
     child,
-    async close() {
-      if (closed) return;
-      closed = true;
-      await waitForExit(child, { signal: "SIGTERM" });
-      await removeTempDir(dataDir);
+    close() {
+      return closing ??= (async () => {
+        await waitForExit(child, { signal: "SIGTERM" });
+        await removeTempDir(dataDir);
+      })();
     },
   };
 }

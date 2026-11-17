@@ -20,7 +20,6 @@ const call = async (endpoint: string, key: string, body: unknown) => {
   return { status: response.status, body: await response.json() as any };
 };
 
-/** One permission request as the engine's broker client sends it, and the harness's answer. */
 async function ask(socketPath: string, command: string): Promise<any> {
   const socket = connect(socketPath);
   sockets.push(socket);

@@ -4,7 +4,6 @@ import { foldForMatch, passageMatcher } from "../../server/memory-entries.ts";
 import { checkDreamFacts } from "../../server/memory-fact-checks.ts";
 import { contradictionCandidates } from "../../server/memory-tidy.ts";
 
-/** One saved line matches when it contains any of these, ignoring case, width and invisible characters. */
 export interface Expected {
   anyOf: string[];
 }
@@ -22,9 +21,7 @@ export interface DreamCase {
   expect: {
     learned: Expected[];
     outdated: Array<Expected & { line: number }>;
-    /** No saved line may contain any of these, ignoring case, width, invisible characters and digits that stand for letters. */
     never: string[];
-    /** Any saved line no expectation covers fails the case. */
     nothingElse?: boolean;
   };
 }

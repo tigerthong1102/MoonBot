@@ -63,8 +63,7 @@ emulator-5554 device product:sdk model:Emulator transport_id:6
   });
 });
 
-// Lines cut, in their order, from four `dumpsys input_method` outputs of a Huawei Mate 9 (Android 9). Three are from a switch from the Baidu keyboard to ADBKeyBoard with a search
-// field taking input: before `ime set`, right after it (ADBKeyBoard is not bound yet, so the dump has no section for it) and once it shows. The fourth is the home screen with ADBKeyBoard as the keyboard.
+// Huawei Mate 9 (Android 9) input_method dumps include pre-bind, bound and no-focused-field keyboard states.
 const BEFORE_THE_SWITCH = [
   "  mCurMethodId=com.baidu.input_huawei/.ImeService",
   "  mCurId=com.baidu.input_huawei/.ImeService mHaveConnect=true mBoundToMethod=true",
@@ -137,7 +136,6 @@ describe("phone MCP text input", () => {
   ].join("\n");
   // Android 13 and later print the same value under this name, followed by its handler.
   const NO_FIELD_13 = "  mServedInputConnection=null\n  mServedInputConnectionHandler=null\n";
-  /** A phone whose default keyboard is `keyboard`, the only one switched on in its keyboard list. */
   const device = (keyboard: string, inputState = FIELD) => {
     const commands: string[][] = [];
     const shell = async (...command: string[]) => {
@@ -269,7 +267,6 @@ describe("phone MCP text input", () => {
     const INPUT_STATE = ["dumpsys", "input_method"];
     const INPUT = ["am", "broadcast", "-a", "ADB_INPUT_B64", "-p", "com.android.adbkeyboard", "--es", "msg", "5LqM5omLIGlQYWQ="];
     const RESTORE = ["ime", "set", VENDOR_KEYBOARD];
-    /** A phone whose keyboard list holds `switchedOn`, and whose input state reads as each of `dumps` in turn, then as the last of them. */
     const switching = (dumps: string[], keyboard = VENDOR_KEYBOARD, switchedOn = [VENDOR_KEYBOARD, ADB_KEYBOARD]) => {
       const phone = device(keyboard);
       let reads = 0;
@@ -1155,8 +1152,6 @@ describe("phone MCP calls claim before each command sent to the phone", () => {
   const RESTORE = onPhone("shell", "ime", "set", "com.baidu.input_huawei/.ImeService");
   const OTHER_TEXT = { text: "二手" };
 
-  /** adb for a phone whose default keyboard is Baidu's, with ADBKeyBoard switched on in its keyboard list and showing as soon as it is set.
-   * `during` runs while adb runs each command. */
   function adbOfPhoneWithAnotherKeyboard(during: (command: string) => void) {
     const commands: string[][] = [];
     const adb = async (args: string[]) => {

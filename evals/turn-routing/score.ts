@@ -6,12 +6,10 @@ export interface RoutingCase {
   text: string;
   attachments?: number;
   priorTurnUsedTools?: boolean;
-  /** The tier a person would pick: simple when a quick model answers as well as the full one. */
   want: TurnTier;
   why: string;
 }
 
-/** `cautious`: the full model for a simple turn, which only costs money. `eager`: the quick model for a turn that needed the full one, which costs the answer. */
 export type Verdict = "right" | "cautious" | "eager";
 
 export interface RoutingRow {

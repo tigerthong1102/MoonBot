@@ -1,5 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer, request as httpRequest, type ClientRequest, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -124,6 +124,32 @@ async function harness(script: Script, options: { waitMs?: number; full?: boolea
     return { out, ...answered! };
   };
   return { fake, host, manager, turns, recorded, base, call, app };
+}
+
+async function pendingBody(h: Awaited<ReturnType<typeof harness>>, key: string) {
+  const body = JSON.stringify({ message: "Do the work" });
+  const authorize = vi.spyOn(h.manager, "authorize");
+  let req!: ClientRequest;
+  const answer = new Promise<{ status: number; body: Record<string, unknown> }>((resolve, reject) => {
+    req = httpRequest(`${h.base}/hooks/api/bots/b1/messages`, {
+      method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "content-length": Buffer.byteLength(body) },
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+      res.on("error", reject);
+      res.on("end", () => {
+        try { resolve({ status: res.statusCode!, body: JSON.parse(Buffer.concat(chunks).toString("utf8")) }); }
+        catch (error) { reject(error); }
+      });
+    });
+    req.on("error", reject);
+    req.flushHeaders();
+  });
+  void answer.catch(() => undefined);
+  try { await vi.waitFor(() => expect(authorize).toHaveBeenCalled(), { timeout: 5_000 }); }
+  catch (error) { req.destroy(); throw error; }
+  finally { authorize.mockRestore(); }
+  return { close: () => req.destroy(), complete: () => { req.end(body); return answer; } };
 }
 
 describe("the Bot API door on the webhook receiver", () => {
@@ -540,4 +566,54 @@ describe("a key that acts as the owner", () => {
     expect((await h.call("b1", key, { message: "Hi" })).status).toBe(200);
     expect(h.fake.bots.get("b1")!.tasks.at(-1)).toMatchObject({ approvalMode: "ask", outside: true });
   });
+});
+
+
+it.each(["rotate", "disable", "owner-off", "operator-off", "plan-off"])("rechecks Bot API access after reading a delayed body: %s", async (change) => {
+  let available = true, included = true;
+  const h = await harness(replies("Done"), { noConfine: true, included: () => included, owner: { available: () => available } });
+  const key = (await h.app("POST", "/api/bots/b1/bot-api", { enabled: true })).body.key as string;
+  await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: true });
+  const pending = await pendingBody(h, key);
+  try {
+    if (change === "rotate") {
+      await h.app("POST", "/api/bots/b1/bot-api/new-key");
+      await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: true });
+    } else if (change === "disable") await h.app("POST", "/api/bots/b1/bot-api", { enabled: false });
+    else if (change === "owner-off") await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: false });
+    else if (change === "operator-off") available = false;
+    else included = false;
+    const answer = await pending.complete();
+    expect(answer.status).toBe(change === "rotate" ? 401 : 403);
+    expect(h.turns).toHaveLength(0);
+    expect(h.fake.bots.get("b1")!.tasks).toHaveLength(0);
+  } finally { pending.close(); }
+});
+
+it("uses confined authorization when owner delegation is withdrawn during a delayed body", async () => {
+  const h = await harness(replies("Done"), { owner: { available: () => true } });
+  const key = (await h.app("POST", "/api/bots/b1/bot-api", { enabled: true })).body.key as string;
+  await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: true });
+  const pending = await pendingBody(h, key);
+  try {
+    await h.app("POST", "/api/bots/b1/bot-api/acts-as-owner", { enabled: false });
+    expect((await pending.complete()).status).toBe(200);
+    expect(h.fake.bots.get("b1")!.tasks).toEqual([expect.objectContaining({ approvalMode: "ask", outside: true })]);
+    expect(h.turns[0]!.opts.userMessage.apiAsOwner).toBeUndefined();
+    expect(h.turns[0]!.prompt).toContain("[UNTRUSTED BOT API MESSAGE]");
+  } finally { pending.close(); }
+});
+
+
+it("rechecks confinement when the selected AI changes during a delayed request body", async () => {
+  const options = { noConfine: false };
+  const h = await harness(replies("Done"), options);
+  const key = (await h.app("POST", "/api/bots/b1/bot-api", { enabled: true })).body.key as string;
+  const pending = await pendingBody(h, key);
+  try {
+    options.noConfine = true;
+    expect((await pending.complete()).status).toBe(403);
+    expect(h.turns).toHaveLength(0);
+    expect(h.fake.bots.get("b1")!.tasks).toHaveLength(0);
+  } finally { pending.close(); }
 });

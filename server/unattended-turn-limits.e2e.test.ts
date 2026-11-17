@@ -10,7 +10,6 @@ import { hostTimeout } from "./testing/host-timeout.ts";
 const CALLS = 14;
 const SAME_FAILURE = Array.from({ length: CALLS }, () => ({ name: "Bash", input: { command: "git status" }, ok: false, output: "fatal: not a git repository" }));
 const DIFFERENT_CALLS = Array.from({ length: CALLS }, (_, index) => ({ name: "Bash", input: { command: `ls part-${index}` }, ok: true, output: "ok" }));
-/** The last call holds, so a turn nothing stops stays open with every call made. */
 const held = (calls: object[]) => JSON.stringify([...calls, { name: "Bash", input: { command: "sleep 600" }, hold: true }]);
 
 let fixture: VerificationServer | undefined;
@@ -33,7 +32,6 @@ async function launch(env: NodeJS.ProcessEnv) {
     return value;
   };
   const bot = (await runControlOmb(["new-bot", "--name", "Night bot", "--url", url]) as any).bot;
-  /** One run of a new routine playing `calls`: the run row, and the model calls the engine got to make. */
   const play = async (name: string, calls: object[], until: (run: any, made: number) => boolean) => {
     writeFileSync(script, held(calls));
     const { routine } = await api("POST", "/api/routines", { name, prompt: "Tidy the repository.", botId: bot.id, schedule: { type: "cron", expression: "0 3 * * *", timeZone: "Europe/London" } });

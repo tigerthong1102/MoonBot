@@ -206,6 +206,18 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     return { status: 200, body: { reply: replyText(after()), thread: threadId } };
   }
 
+  const accessNow = (botId: string, key: string): { owner: boolean } | { status: 401 | 403; error: string } => {
+    const denied = (status: 401 | 403, error: string) => {
+      if (deps.store.bot(botId)) manager.recordRefused(botId, status, error);
+      return { status, error };
+    };
+    if (!manager.enabled(botId) || !deps.store.bot(botId)) return denied(403, "The Bot API is off for this bot");
+    if (!manager.authorize(botId, key)) return denied(401, "Invalid key");
+    if (!included()) return denied(403, BOT_API_UPGRADE);
+    const owner = asOwner(botId);
+    return !owner && !deps.canConfine(botId) ? denied(403, CANNOT_CONFINE) : { owner };
+  };
+
   const door: IngressDoor = async (req, res, url) => {
     const match = PUBLIC_PATH.exec(url.pathname);
     if (!match) return false;
@@ -221,32 +233,13 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     // A call can wait minutes for its reply: the claim that holds off maintenance ends once the turn has started.
     const release = () => { claim?.(); claim = undefined; };
     try {
-      if (!manager.enabled(botId) || !deps.store.bot(botId)) {
-        if (deps.store.bot(botId)) manager.recordRefused(botId, 403, "The Bot API is off for this bot");
-        json(res, 403, { error: "The Bot API is off for this bot" });
-        return true;
-      }
-      if (!manager.authorize(botId, bearerSecret(req))) {
-        manager.recordRefused(botId, 401, "Invalid key");
-        json(res, 401, { error: "Invalid key" });
-        return true;
-      }
-      if (!included()) {
-        manager.recordRefused(botId, 403, BOT_API_UPGRADE);
-        json(res, 403, { error: BOT_API_UPGRADE });
-        return true;
-      }
-      const keyAsOwner = asOwner(botId);
-      if (!keyAsOwner && !deps.canConfine(botId)) {
-        manager.recordRefused(botId, 403, CANNOT_CONFINE);
-        json(res, 403, { error: CANNOT_CONFINE });
-        return true;
-      }
+      let access = accessNow(botId, bearerSecret(req));
+      if ("error" in access) { json(res, access.status, { error: access.error }); return true; }
       if (req.method === "GET") {
         const threadId = url.searchParams.get("thread") ?? "";
         const task = /^[\w-]{1,128}$/.test(threadId) ? deps.store.taskByThread(botId, threadId) : undefined;
         if (!task || task.botApi !== true) { json(res, 404, { error: "no such thread" }); return true; }
-        if (task.botApiAsOwner === true && !keyAsOwner) { json(res, 403, { error: NO_LONGER_OWNER }); return true; }
+        if (task.botApiAsOwner === true && !access.owner) { json(res, 403, { error: NO_LONGER_OWNER }); return true; }
         const state = threadState(botId, threadId);
         json(res, "reply" in state ? 200 : 202, state);
         return true;
@@ -266,6 +259,9 @@ export function createBotApiHost(deps: BotApiHostDeps) {
         json(res, status, { error: message });
         return true;
       }
+      access = accessNow(botId, bearerSecret(req));
+      if ("error" in access) { json(res, access.status, { error: access.error }); return true; }
+      const keyAsOwner = access.owner;
       if (!manager.admit(botId)) {
         manager.record(botId, { outcome: "rejected", statusCode: 429, reason: "Rate limit exceeded", preview: call.message });
         json(res, 429, { error: "Too many calls: this key takes 10 a minute" });

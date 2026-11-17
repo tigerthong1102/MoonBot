@@ -27,7 +27,6 @@ let sandboxBot: any;
 const gmailDrafts = new Map<string, Record<string, unknown>>();
 let brokerOrigin = "";
 const relayed: unknown[] = [];
-/** Files put to the fixture's upload links: what a connected-app call's local file sent to Composio's storage. */
 const uploads: Array<{ request: unknown; bytes?: string }> = [];
 const evidence: unknown[] = [];
 let blockSession: (() => void) | undefined;

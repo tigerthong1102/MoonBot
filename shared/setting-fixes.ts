@@ -2,7 +2,6 @@ import { failedTurnCause, type FailedTurnTool } from "./failed-turn.ts";
 
 export type SettingFix = "model" | "sign-in" | "spend-limit";
 
-/** How our own spend-cap refusal begins; no provider's words about its own limits begin this way. */
 export const SPEND_LIMIT_REFUSAL = "this workspace has reached its monthly spend limit";
 
 const MODEL_NOTICES = /^chat\.notice\.(?:usageLimit|usageLimitResets|claudeExtraUsage|claudeLimit\w*|toolCount\w*|modelNoRoute\w*)$/;

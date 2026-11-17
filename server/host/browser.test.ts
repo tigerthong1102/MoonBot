@@ -681,7 +681,6 @@ describe("a running turn's agent-browser browser", () => {
     vi.stubEnv("XDG_RUNTIME_DIR", folder);
     vi.mocked(runningBrowserSessionNames).mockResolvedValue(sessions);
   }
-  /** Every browser's clock an hour on: each one has sat unused past a Cloud home's 3 minutes. */
   function anHourLater() {
     const real = Date.now.bind(Date);
     vi.spyOn(Date, "now").mockImplementation(() => real() + HOUR);

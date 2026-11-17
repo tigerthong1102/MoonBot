@@ -4,6 +4,7 @@
 import readline from "node:readline";
 import { allowedServerOrigin, EXAMPLE_ADDRESS } from "../electron/server-address.mjs";
 import { isRecord, projectMessage } from "./mcp-message-projection.ts";
+import { dispatchFailedAfterLatestUser, hasFailedJobRoot } from "./mcp-job-status.ts";
 
 /** A server's base URL: https anywhere, http only on loopback or a private network (LAN, Tailscale). */
 export function validateBaseUrl(url: string): string {
@@ -659,23 +660,6 @@ function messageNeedsInput(message: Record<string, any>): boolean {
   return Boolean(card || connector || secret || signIn);
 }
 
-function dispatchFailedAfterLatestUser(messages: Array<Record<string, any>>): boolean {
-  const lastUser = messages.findLastIndex((message) => message.role === "user");
-  const turnMessages = messages.slice(lastUser + 1);
-  // Only an explicit terminal receipt overrides prose. Existing providers
-  // also emit diagnostics on intentional cancellation, which remain settled.
-  if (turnMessages.some((message) => message.tool?.terminal === true && message.tool.ok === false)) return true;
-  if (turnMessages.some((message) => message.role === "bot" && message.kind === "text" && message.text?.trim())) {
-    return false;
-  }
-  return turnMessages.some(
-    (message) =>
-      message.kind === "activity" &&
-      message.tool?.ok === false &&
-      typeof message.tool?.name === "string" &&
-      /^error:/i.test(message.tool.name.trim()),
-  );
-}
 
 async function conversationTail(
   fetcher: (path: string, options?: RequestInit) => Promise<any>,
@@ -1081,8 +1065,7 @@ export async function handleToolCall(
       // went silent, or its dispatch failed after the last message. `state`
       // is the job's own reading (a lead whose work failed is failed there).
       const activity = job.conversation?.activity;
-      const failedRoot = job.state === "failed" && records(job.nodes).some((node) =>
-        node.status === "failed" && node.outcome !== "stopped" && Array.isArray(job.roots) && job.roots.includes(node.id));
+      const failedRoot = hasFailedJobRoot(job);
       const status = job.state === "needs-input" || (!failedRoot && tail.raw.some(messageNeedsInput)) ? "needs-user" : timedOut ? "timed-out"
         : activity === "dead" || failedRoot ? "failed" : activity === "no-signal" ? "stalled" : dispatchFailedAfterLatestUser(tail.raw) ? "failed" : "settled";
       const jobState = status === "needs-user" ? "needs-input" : status === "timed-out" ? "timed-out"

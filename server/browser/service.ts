@@ -57,6 +57,7 @@ export interface BrowserServiceOptions {
   /** What the egress gate of this profile's browser refused since it was last asked, as one line. */
   egressNotice?: (key: string) => string | null;
   onTiming?: (timing: BrowserTiming) => void;
+  starting?(session: string): void;
   stopped?(session: string): void;
   callBudgetMs?: number;
   laneWaitMs?: number;
@@ -184,17 +185,14 @@ export class BrowserService {
     const starting = (async () => {
       for (let stopping = profile.stopping; stopping; stopping = profile.stopping) await stopping;
       return this.#start(profile, epoch);
-    })().catch((error) => {
-      this.#options.stopped?.(profile.session);
-      throw error;
-    }).finally(() => { if (profile.starting === starting) profile.starting = null; });
+    })().finally(() => { if (profile.starting === starting) profile.starting = null; });
     profile.starting = starting;
     return starting;
   }
 
   async #start(profile: ProfileState, epoch: number): Promise<Running> {
-    await this.#capacity(profile, epoch);
-    this.#stillWanted(profile, epoch);
+    try { await this.#capacity(profile, epoch); this.#stillWanted(profile, epoch); }
+    catch (error) { this.#startupFailed(profile, epoch, error); }
     const opening = this.#open(profile, epoch);
     profile.opening = opening;
     try {
@@ -204,6 +202,11 @@ export class BrowserService {
     }
   }
 
+  #startupFailed(profile: ProfileState, epoch: number, error: unknown): never {
+    if (!profile.run && profile.epoch === epoch && this.#profiles.get(profile.key) === profile) this.#options.stopped?.(profile.session);
+    throw error;
+  }
+
   #stillWanted(profile: ProfileState, epoch: number): void {
     if (profile.epoch !== epoch || this.#profiles.get(profile.key) !== profile) throw new Error("The browser was closed while it was starting.");
   }
@@ -211,9 +214,13 @@ export class BrowserService {
   async #open(profile: ProfileState, epoch: number): Promise<Running> {
     const fresh = profile.fresh;
     profile.fresh = false;
-    rmSync(profile.downloadDir, { recursive: true, force: true });
-    mkdirSync(profile.downloadDir, { recursive: true, mode: 0o700 });
-    const opened = await this.#options.backend(profile.key).open({ key: profile.key, mode: "headless", fresh, viewport: profile.hub.viewport(), downloadDir: profile.downloadDir });
+    let opened: OpenedBrowser;
+    try {
+      rmSync(profile.downloadDir, { recursive: true, force: true });
+      mkdirSync(profile.downloadDir, { recursive: true, mode: 0o700 });
+      this.#options.starting?.(profile.session);
+      opened = await this.#options.backend(profile.key).open({ key: profile.key, mode: "headless", fresh, viewport: profile.hub.viewport(), downloadDir: profile.downloadDir });
+    } catch (error) { this.#startupFailed(profile, epoch, error); }
     const run: Running = { opened, browser: opened.browser, offs: [], closing: false };
     const browser = opened.browser;
     const adopt = (page: CdpPage, origin: Tab["origin"]) => {
@@ -254,7 +261,7 @@ export class BrowserService {
     } catch (error) {
       run.closing = true;
       for (const off of run.offs) off();
-      await opened.close().catch(() => undefined);
+      await opened.close().then(() => this.#options.stopped?.(profile.session), () => undefined);
       throw error;
     }
     profile.run = run;
@@ -308,7 +315,7 @@ export class BrowserService {
           run.closing = true;
           for (const off of run.offs) off();
           profile.hub.stopped(reopened?.kind === "idle" ? "asleep" : "closed");
-          await run.opened.close().catch(() => undefined);
+          await run.opened.close().then(() => this.#options.stopped?.(profile.session), () => undefined);
         }
         await opening?.catch(() => undefined);
       } finally {
@@ -322,7 +329,6 @@ export class BrowserService {
         } finally {
           profile.control.closing = false;
           profile.control.settle();
-          this.#options.stopped?.(profile.session);
         }
       }
     })());

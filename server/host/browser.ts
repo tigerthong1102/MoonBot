@@ -155,9 +155,10 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     egressPort: (key) => browserEgress.open(key),
     egressNotice: (key) => browserEgress.takeNotice(key),
     idleMs,
-    stopped: (session) => processBudget.releaseBrowser(session),
     language: deps.language,
     held: (session) => !turnResources.free(`browser:${session}`),
+    starting: (session) => { if (processRoom) processBudget.reserveBrowser(session); },
+    stopped: (session) => processBudget.releaseBrowser(session),
     log: (line) => console.warn(line),
   });
   const lendRefusal = deps.lendRefusal ?? ((): LendRefusal => "unproven");

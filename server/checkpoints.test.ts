@@ -215,7 +215,6 @@ describe("snapshot", () => {
     expect(tree(await snapshot(bot, cwd, "plain again"))).toEqual(["100644 a.txt", "100644 lib/b.txt"]);
   });
 
-  // A full 25-commit GC cycle with real git subprocesses: Windows process startup can exhaust the default limit.
   it("keeps a pinned pre-turn commit through a sibling turn's snapshot until it is released", async () => {
     const { bot, cwd } = workspace();
     const shadow = shadowOf(bot, cwd);
@@ -235,7 +234,7 @@ describe("snapshot", () => {
     expect(() => userGit(shadow, "cat-file", "-e", `${hashB}^{commit}`)).toThrow();
     await release(bot, cwd, "dispatch-A");
     await release(bot, cwd, "never-pinned");
-  }, process.platform === "win32" ? 60_000 : 20_000);
+  }, 60_000);
 
   it("sweeps pins a previous process left behind, on first use of the shadow", async () => {
     const { bot, cwd } = workspace();

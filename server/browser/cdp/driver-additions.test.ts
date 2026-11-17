@@ -190,6 +190,18 @@ describe("the current document's lifecycle", () => {
     expect(lifecycle.reached("domcontentloaded")).toBe(true);
   });
 
+  it("settles a pending navigation when Chrome restores a cached document without new load events", async () => {
+    const { session, emit } = eventSession();
+    const lifecycle = new Lifecycle(session, "main");
+    lifecycle.adopt("old", true);
+    const document = lifecycle.nextDocument(100);
+    const loaded = lifecycle.waitFor("load", { loaderId: "restored", timeoutMs: 100 });
+    emit("Page.frameNavigated", { frame: { id: "main", loaderId: "restored" }, type: "BackForwardCacheRestore" });
+    await expect(document).resolves.toBe("restored");
+    await expect(loaded).resolves.toBeUndefined();
+    expect(lifecycle.reached("load", "old")).toBe(false);
+  });
+
   it("still adopts the first observed loader and ignores subframe events", () => {
     const { session, emit } = eventSession();
     const lifecycle = new Lifecycle(session, "main");

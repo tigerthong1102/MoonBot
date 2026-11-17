@@ -16,6 +16,7 @@ import { DATA_DIR, type AppConfig } from "../config.ts";
 import type { Store } from "../store.ts";
 import { TurnResources, type TurnOwner } from "../turn-resources.ts";
 import { BrowserRuntime } from "../browser-runtime.ts";
+import { processBudget, ProcessBudget } from "../process-room.ts";
 import { LentChromeDoors, type ChromeLender } from "../browser/lent-chrome.ts";
 import { audienceBrowserSuffix } from "../browser/audience.ts";
 import { chromeLauncher } from "../browser/chrome/launcher.ts";
@@ -45,8 +46,8 @@ afterEach(async () => { await Promise.all(hosts.splice(0).map((host) => host.bro
 
 const turn = { threadId: "thread-1", generation: "gen-1" };
 
-function setup(engine: "chrome" | "agent-browser" | undefined, { cloudHome = false, server = false, hosted = false, device, lendRefusal, holder, audienceOf, bots: botIds = ["scout"], browserBox, lentChrome, turnResources, browsersAtOnce }: {
-  cloudHome?: boolean; server?: boolean; hosted?: boolean; device?: BrowserHostDeps["device"]; lendRefusal?: BrowserHostDeps["lendRefusal"]; holder?: (resource: string) => TurnOwner | undefined;
+function setup(engine: "chrome" | "agent-browser" | undefined, { cloudHome = false, server = false, hosted = false, selfHosted = false, device, lendRefusal, holder, audienceOf, bots: botIds = ["scout"], browserBox, lentChrome, turnResources, browsersAtOnce }: {
+  cloudHome?: boolean; server?: boolean; hosted?: boolean; selfHosted?: boolean; device?: BrowserHostDeps["device"]; lendRefusal?: BrowserHostDeps["lendRefusal"]; holder?: (resource: string) => TurnOwner | undefined;
   audienceOf?: BrowserHostDeps["audienceOf"]; bots?: string[]; browserBox?: BrowserHostDeps["browserBox"];
   lentChrome?: BrowserHostDeps["lentChrome"]; turnResources?: BrowserHostDeps["turnResources"]; browsersAtOnce?: BrowserHostDeps["browsersAtOnce"];
 } = {}) {
@@ -76,6 +77,7 @@ function setup(engine: "chrome" | "agent-browser" | undefined, { cloudHome = fal
     browserBox,
     lentChrome,
     browsersAtOnce,
+    engineMemory: { useBrowsers: () => {}, selfHosted: () => selfHosted },
   });
   hosts.push(host);
   return { cfg, host, minted, bots };
@@ -101,6 +103,38 @@ describe("the bots' browser host and the engine memory guard", () => {
 });
 
 describe("the bots' browser host with browserEngine.engine set to chrome", () => {
+  it.each(["tool", "unused", "all", "crash", "startup-failure"])("releases the Chrome process reservation on %s before its startup grace expires", async (kind) => {
+    const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, log: () => {} });
+    const room = vi.spyOn(processBudget, "browserRoom").mockImplementation((runs) => budget.browserRoom(runs));
+    const reserve = vi.spyOn(processBudget, "reserveBrowser").mockImplementation((session) => budget.reserveBrowser(session));
+    const release = vi.spyOn(processBudget, "releaseBrowser").mockImplementation((session) => budget.releaseBrowser(session));
+    const backend = new FakeBackend();
+    const open = vi.spyOn(LocalBackend.prototype, "open").mockImplementation((request) => backend.open(request));
+    const { host } = setup("chrome", { server: true, selfHosted: true });
+    try {
+      const browser = (await host.browserIntegration("scout", undefined, turn))!;
+      if (kind === "startup-failure") open.mockRejectedValueOnce(new Error("fixture startup failed"));
+      const result = await host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_status", arguments: {} });
+      if (kind === "startup-failure") expect(result).toHaveProperty("isError", true);
+      else {
+        expect(result).not.toHaveProperty("isError", true);
+        expect(budget.short(170, 0)).toBe(true);
+        if (kind === "tool") await host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_close", arguments: {} });
+        else if (kind === "unused") expect(await host.browserRuntime.closeUnused(browser.session, browser.spec)).toBe(true);
+        else if (kind === "all") await host.browserRuntime.closeAll();
+        else backend.chromes.at(-1)!.exit();
+      }
+      await expect.poll(() => budget.short(170, 0)).toBe(false);
+      await host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_status", arguments: {} });
+      expect(budget.short(170, 0)).toBe(true);
+      await expect(host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_status", arguments: {} }, () => { throw new Error("fixture caller refused"); })).rejects.toThrow("fixture caller refused");
+      expect(budget.short(170, 0)).toBe(true);
+    } finally {
+      await host.browserRuntime.closeAll();
+      open.mockRestore(); room.mockRestore(); reserve.mockRestore(); release.mockRestore();
+    }
+  });
+
   it("keeps Chrome open between browser calls until the host's whole-turn claim is released", async () => {
     const backend = new FakeBackend();
     const open = vi.spyOn(LocalBackend.prototype, "open").mockImplementation((request) => backend.open(request));

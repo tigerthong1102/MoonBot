@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 const read = (file) => readFileSync(new URL(`../${file}`, import.meta.url));
 
@@ -20,6 +21,19 @@ describe("StartupBot distribution branding", () => {
     expect(svg).toContain("<title id=\"title\">StartupBot</title>");
     expect(svg).toContain("<image href=\"startupbot");
     expect(svg).not.toMatch(/OpenMausBot|SupaMaus|<path\b/);
+  });
+
+  it("keeps active installed-package smokes on the builder's installation root", () => {
+    const builder = parse(read("electron-builder.yml").toString());
+    const root = `/opt/${builder.productName}`;
+    expect(builder.productName).toBe("StartupBot");
+    expect(builder.appId).toBe("ai.startupbot.desktop");
+    for (const workflow of [".github/workflows/ci.yml", ".github/workflows/package-linux.yml"]) {
+      expect(read(workflow).toString()).toContain(`scripts/smoke-browser-bundle.mjs --resources ${root}/resources`);
+    }
+    for (const script of ["scripts/run-linux-package-smoke.mjs", "scripts/smoke-deb-command.mjs"]) {
+      expect(read(script).toString()).toContain(`${root}/${builder.linux.executableName}`);
+    }
   });
 
   it("does not advertise upstream installers as StartupBot downloads", () => {

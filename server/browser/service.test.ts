@@ -67,7 +67,7 @@ function setup(options: Partial<BrowserServiceOptions> = {}, startUrls?: string[
 }
 
 describe("the bots' browser tools", () => {
-  it.each(["close", "idle", "exit", "startup failure"] as const)("releases process admission after %s", async (ending) => {
+  it.each(["close", "idle", "idle sweep", "exit", "startup failure"] as const)("releases process admission after %s", async (ending) => {
     const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, now: () => 0, log: () => {} });
     const { service, backend, target, call } = setup({ stopped: (session) => budget.releaseBrowser(session) });
     const room = budget.browserRoom((session) => service.runs(session));
@@ -77,6 +77,7 @@ describe("the bots' browser tools", () => {
     await call("agent_browser_open", { url: "https://example.com/form" });
     if (ending === "close") await service.close(target.session);
     if (ending === "idle") await service.closeUnused(target.session);
+    if (ending === "idle sweep") { service.profile(target).lastUsed = Date.now() - 10; await service.closeIdle(1); }
     if (ending === "exit") {
       backend.chrome.exit();
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -84,6 +85,34 @@ describe("the bots' browser tools", () => {
     expect(service.runs(target.session)).toBe(false);
     expect(budget.short(BROWSER_TASKS, 0)).toBe(false);
     expect(await room.enter("bot-b")).toBeNull();
+  });
+
+  it("does not release a replacement browser's reservation when an erased startup fails late", async () => {
+    const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, now: () => 0, log: () => {} });
+    const { service, call, target } = setup({ maxRunning: 1, held: (session) => session === "bot-b", starting: (session) => budget.reserveBrowser(session), stopped: (session) => budget.releaseBrowser(session) });
+    budget.browserRoom((session) => service.runs(session));
+    await call("agent_browser_status", {}, { session: "bot-b", key: "bot:b" });
+    const old = call("agent_browser_status");
+    await sleep(10);
+    await service.erase(target.key);
+    await service.close("bot-b");
+    await service.running(service.profile(target));
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+    expect((await old).isError).toBe(true);
+    expect(service.runs(target.session)).toBe(true);
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+  });
+
+  it("keeps the reservation if Chrome closure is unconfirmed", async () => {
+    const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, now: () => 0, log: () => {} });
+    const { service, call, backend, target } = setup({ starting: (session) => budget.reserveBrowser(session), stopped: (session) => budget.releaseBrowser(session) });
+    const open = backend.open.bind(backend);
+    backend.open = async (request) => ({ ...await open(request), close: async () => { throw new Error("fixture close not confirmed"); } });
+    try {
+      await call("agent_browser_status");
+      await service.close(target.session);
+      expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+    } finally { backend.chrome.exit(); }
   });
 
   it("advertises 21 tools and restart_browser, with OpenMausBot's names and no launch settings", async () => {

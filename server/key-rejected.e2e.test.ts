@@ -52,7 +52,8 @@ it("a key the provider rejects stops showing Ready until it changes or works aga
     };
 
     chat = "limit";
-    expect((await turn()).status).toBe("failed");
+    const limited = await turn();
+    expect(limited.status, JSON.stringify(limited)).toBe("failed");
     expect(await snapshot()).toMatchObject({ state: "available", authenticated: true });
     const afterLimit = await control(["messages", "--bot", bot.id, "--limit", "1"]);
     expect(afterLimit.bot.tasks.map((task: { title: string }) => task.title)).toHaveLength(1);

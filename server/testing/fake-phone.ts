@@ -1,6 +1,7 @@
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, watch, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
+import { setTimeout as wait } from "node:timers/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,17 +49,15 @@ export function fakePhone({ mode = "", video = SCRCPY_VIDEO, devices = "", under
     calls: () => (existsSync(join(dir, "calls.ndjson")) ? read("calls.ndjson").trim().split("\n").map((line) => JSON.parse(line) as string[]) : []),
     serverPid: () => Number(read("server.pid")),
     /** Every byte the phone's control socket has received, in hex, once there are at least `bytes` of them. */
-    control: (bytes: number) =>
-      new Promise<string>((resolve) => {
-        const look = () => {
-          const received = existsSync(join(dir, "control.hex")) ? read("control.hex") : "";
-          if (received.length < bytes * 2) return;
-          changes.close();
-          resolve(received);
-        };
-        const changes = watch(dir, look);
-        look();
-      }),
+    control: async (bytes: number, timeoutMs = 5_000): Promise<string> => {
+      const deadline = Date.now() + timeoutMs;
+      while (true) {
+        const received = existsSync(join(dir, "control.hex")) ? read("control.hex") : "";
+        if (received.length >= bytes * 2) return received;
+        if (Date.now() >= deadline) throw new Error(`Fake phone expected ${bytes} control bytes, received ${Math.floor(received.length / 2)}`);
+        await wait(10);
+      }
+    },
     /** More video on the running session's socket; settles once the phone has passed all of it on. */
     send: (bytes: Buffer) =>
       new Promise<void>((resolve, reject) => {

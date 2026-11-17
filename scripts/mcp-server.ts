@@ -1081,8 +1081,10 @@ export async function handleToolCall(
       // went silent, or its dispatch failed after the last message. `state`
       // is the job's own reading (a lead whose work failed is failed there).
       const activity = job.conversation?.activity;
-      const status = job.state === "needs-input" || tail.raw.some(messageNeedsInput) ? "needs-user" : timedOut ? "timed-out"
-        : activity === "dead" ? "failed" : activity === "no-signal" ? "stalled" : dispatchFailedAfterLatestUser(tail.raw) ? "failed" : "settled";
+      const failedRoot = job.state === "failed" && records(job.nodes).some((node) =>
+        node.status === "failed" && node.outcome !== "stopped" && Array.isArray(job.roots) && job.roots.includes(node.id));
+      const status = job.state === "needs-input" || (!failedRoot && tail.raw.some(messageNeedsInput)) ? "needs-user" : timedOut ? "timed-out"
+        : activity === "dead" || failedRoot ? "failed" : activity === "no-signal" ? "stalled" : dispatchFailedAfterLatestUser(tail.raw) ? "failed" : "settled";
       const jobState = status === "needs-user" ? "needs-input" : status === "timed-out" ? "timed-out"
         : status !== "settled" && (job.state === "completed" || job.state === "idle") ? status : job.state;
       return {

@@ -89,7 +89,7 @@ function place(label: string, bots: Bot[], version?: number) {
   let opened = 0, port = 0, generation = 0, skew = 0, minted = 0, directoryChanges = 0;
   const sockets = new Set<import("node:net").Socket>();
 
-  function boot(options: { limits?: { queueMs?: number; stallMs?: number } } = {}) {
+  function boot(options: { now?: () => number; limits?: { queueMs?: number; stallMs?: number } } = {}) {
     rooms = createLinkedRooms({ dataDir: dir, store: roomStore as never, coordinator: () => coordinator, on: () => link.on(), linked: (peer) => link.has(peer), online: (peer) => link.online(peer), linkedBots: () => link.linked(), selfName: () => link.selfName(), wanted: () => link.wanted(),
       window: (threadId, reader) => createRoomTranscript({ store: roomStore as never, teammateReportContext: () => "" }).window(threadId, "Sam", undefined, reader),
       opener: (botId, threadId) => (routineThreads.has(threadId) ? { requester: { kind: "routine_run", runId: "run-1", botId, threadId }, origin: { kind: "routine", source: "routine", ref: "routine-1" } } : undefined),
@@ -119,7 +119,7 @@ function place(label: string, bots: Bot[], version?: number) {
         return run(node, resumed, signal);
       },
     };
-    coordinator = createCoordinator({ dataDir: dir, host: link.host(inner), log: () => {}, ...(options.limits ? { runtimeLimits: options.limits } : {}) });
+    coordinator = createCoordinator({ dataDir: dir, host: link.host(inner), now: options.now, log: () => {}, ...(options.limits ? { runtimeLimits: options.limits } : {}) });
     dialer = createDialer({ link, holdMs: 400, firstRetryMs: 20, ...(version ? { level: version } : {}) });
     ticker = setInterval(() => coordinator.tick(), 15);
     return api;
@@ -495,8 +495,8 @@ describe("the link between a computer and its Cloud", () => {
 
   it("a computer that goes off while it works for the Cloud holds the work without a clock and without keeping the Cloud busy", async () => {
     const { computer, cloud } = await two();
-    // Only the Cloud's clocks are short: the computer's own work is not what is measured.
-    await cloud.restart({ limits: { queueMs: 80, stallMs: 2_000 } });
+    let now = Date.now();
+    await cloud.restart({ now: () => now, limits: { queueMs: 80, stallMs: 2_000 } });
     await until(() => computer.link.online() && cloud.link.online(), "the link is back after the Cloud restarted");
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -506,7 +506,8 @@ describe("the link between a computer and its Cloud", () => {
     expect(cloud.coordinator.pace()).toBe("busy");
     await computer.dialer.stop();
     await until(() => !cloud.link.online(), "the Cloud sees the computer gone");
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    now += 3_000;
+    cloud.coordinator.tick();
     expect(cloud.coordinator.node(receipts[0]!.requestId!)?.status).toBe("running");
     expect(cloud.coordinator.pace()).toBe("parked");
     release();
@@ -514,6 +515,24 @@ describe("the link between a computer and its Cloud", () => {
     await until(() => cloud.results.length === 1, "the result is back");
     expect(cloud.results[0]).toMatchObject({ status: "completed", result: "local-writer did: Draft the summary" });
     expect(computer.runs.filter((run) => !run.resumed)).toHaveLength(1);
+  });
+
+  it("still expires linked work after the stall budget while the computer remains online", async () => {
+    const { computer, cloud } = await two();
+    let now = Date.now();
+    await cloud.restart({ now: () => now, limits: { queueMs: 80, stallMs: 2_000 } });
+    await until(() => computer.link.online() && cloud.link.online(), "the link is back after the Cloud restarted");
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    computer.engine(async () => { await gate; return { ok: true, text: "finished" }; });
+    const { receipts } = await cloud.handOff("cloud-analyst", call(["Writer"], "Draft the summary"));
+    try {
+      await until(() => computer.runs.length === 1, "the work starts on the computer");
+      expect(cloud.link.online()).toBe(true);
+      now += 3_000;
+      cloud.coordinator.tick();
+      expect(cloud.coordinator.node(receipts[0]!.requestId!)).toMatchObject({ status: "failed", outcome: "stalled" });
+    } finally { release(); }
   });
 
   it("a computer not heard from for thirty days is unlinked on the Cloud: its sign-in ends and work waiting for it fails with the reason", async () => {

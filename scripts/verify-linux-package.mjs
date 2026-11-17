@@ -455,10 +455,11 @@ try {
   const desktopFile = path.join(desktopDir, desktopEntries[0]);
   requireFile(desktopFile);
   const desktop = readFileSync(desktopFile, "utf8");
+  const desktopName = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).desktopName;
   for (const expected of [
     "Name=StartupBot",
     "Exec=/opt/StartupBot/openmausbot %U",
-    "StartupWMClass=ai.startupbot.desktop",
+    `StartupWMClass=${desktopName.replace(/\.desktop$/, "")}`,
     "Categories=Utility;",
   ]) {
     if (!desktop.includes(expected)) fail(`desktop entry is missing ${JSON.stringify(expected)}`);

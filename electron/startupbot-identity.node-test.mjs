@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { configureStartupBotIdentity, internalDeepLink, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
+import { configureStartupBotIdentity, internalDeepLink, packagedSmokeHome, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
 
 test("desktop identity uses its own application and data directories", () => {
   const state = {};
@@ -15,6 +15,29 @@ test("desktop identity uses its own application and data directories", () => {
 
 test("the unconfigured cloud client cannot contact an upstream service", async () => {
   await assert.rejects(unavailableStartupBotCloud(), /StartupBot Cloud is not configured/);
+});
+
+test("only an explicit package fixture changes the server's home", () => {
+  const home = path.resolve("temporary-fixture");
+  assert.deepEqual(packagedSmokeHome({ OMB_SMOKE_HOME: home }), {});
+  assert.deepEqual(packagedSmokeHome({ OMB_SMOKE_TEST: "1", OMB_SMOKE_HOME: home }), { HOME: home, USERPROFILE: home });
+  assert.throws(() => packagedSmokeHome({ OMB_SMOKE_TEST: "1", OMB_SMOKE_HOME: "relative" }), /absolute/);
+});
+
+test("an explicit absolute Electron profile stays isolated from the default profile", () => {
+  const profile = path.resolve("temporary-fixture", "electron-profile");
+  const state = {};
+  const app = {
+    commandLine: { getSwitchValue: () => profile },
+    setName: () => {}, setPath: (key, value) => { state[key] = value; },
+    setAppLogsPath: value => { state.logs = value; },
+    getPath: () => path.resolve("default-appdata"),
+  };
+  configureStartupBotIdentity(app);
+  assert.equal(state.userData, profile);
+  assert.equal(state.logs, path.join(profile, "logs"));
+  app.commandLine.getSwitchValue = () => "relative-profile";
+  assert.throws(() => configureStartupBotIdentity(app), /absolute/);
 });
 
 test("maps only StartupBot deep links to the existing protocol handlers", () => {

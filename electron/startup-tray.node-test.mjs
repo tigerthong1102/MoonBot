@@ -155,6 +155,9 @@ test("the tray's menu and the startup screen speak the app's language, and the t
   assert.deepEqual(trayInstance.menu.map(item => item.label), ["Abrir o StartupBot", undefined, "Sair do StartupBot"]);
   assert.equal(trayInstance.tooltip, "StartupBot");
   const html = startupScreenHtml(iconPath, { t: text.t, lang: text.intlTag() });
+  assert.match(html, /<title>StartupBot<\/title>/);
+  assert.match(html, /<h1>StartupBot<\/h1>/);
+  assert.doesNotMatch(html, /OpenMausBot|MausBot/);
   assert.match(html, /<html lang="pt-BR">/);
   assert.match(html, /<button aria-label="Fechar"/);
   assert.match(startupScreenHtml(iconPath), /<html lang="en">.*<button aria-label="Close"/s);

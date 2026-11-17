@@ -233,6 +233,7 @@ export type BotAvatarProps = Omit<MausAvatarProps, "color" | "gradient"> & {
     avatarFocusY?: number;
     mascotBody?: BotBodyId | null;
     mascotFaceColor?: MascotFaceColor | null;
+    defaultBot?: object;
   };
 };
 
@@ -252,7 +253,9 @@ export function resolveBotAvatarOutcome(params: {
 }
 
 export function BotAvatar({ bot, size = 44, label, readable = false, ...mascotProps }: BotAvatarProps) {
-  const profile = botAvatarProfile(bot);
+  const savedProfile = botAvatarProfile(bot);
+  const profile = bot.defaultBot && !savedProfile.avatarUrl && !bot.mascotBody
+    ? { ...savedProfile, avatarUrl: "/startupbot-icon-192.png", avatarCrop: "circle" as const } : savedProfile;
   const festival = useFestivalDress();
   const [imageFailed, setImageFailed] = useState(false);
 

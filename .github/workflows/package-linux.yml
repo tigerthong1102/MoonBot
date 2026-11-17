@@ -1,15 +1,13 @@
-# Ubuntu packages, built and exercised on the exact distribution we support.
-#
-# This workflow deliberately produces an artifact instead of publishing a
-# partial release. That keeps release credentials and publication authority
-# in the unified release workflow while making every release candidate
-# reproducible from an exact ref. Attach the resulting files to the matching
-# canonical OpenMausBot release after the smoke test passes.
-name: Package Ubuntu
+name: Internal package verification
 
 on:
   workflow_dispatch:
     inputs:
+      desktop:
+        description: "Build StartupBot internal macOS and Windows installers instead of Ubuntu"
+        required: false
+        type: boolean
+        default: false
       ref:
         description: "Commit/tag/branch to build (defaults to the branch this is run from)"
         required: false
@@ -20,6 +18,7 @@ permissions:
 
 jobs:
   package:
+    if: ${{ !inputs.desktop }}
     name: DEB + AppImage (Ubuntu 24.04 x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -139,3 +138,120 @@ jobs:
             release/SHA256SUMS-ubuntu-x64.txt
           if-no-files-found: error
           retention-days: 14
+
+  macos:
+    if: inputs.desktop
+    name: StartupBot macOS internal DMGs
+    runs-on: macos-26-intel
+    timeout-minutes: 60
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package:prepare
+      - run: pnpm build:speech && pnpm build:cua
+      - run: pnpm exec electron-builder --config electron-builder.internal.yml --mac dmg --arm64 --x64 --publish never
+      - name: Test the installed Intel DMG on its native host
+        shell: bash
+        run: |
+          set -euo pipefail
+          volume="$RUNNER_TEMP/StartupBotVolume"
+          mkdir -p "$volume" "$RUNNER_TEMP/StartupBotInstalled"
+          hdiutil attach -nobrowse -readonly -mountpoint "$volume" release/internal/*-x64.dmg
+          trap 'hdiutil detach "$volume"' EXIT
+          ditto "$volume/StartupBot.app" "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app"
+          codesign --verify --deep --strict "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app"
+          node scripts/smoke-internal-desktop.mjs --app "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --output release/internal/smoke
+      - name: Test the packaged browser and server
+        env:
+          OMB_SMOKE_DIST: ${{ github.workspace }}/release/internal/mac/StartupBot.app/Contents/Resources/server
+        run: |
+          node scripts/smoke-browser-bundle.mjs --resources release/internal/mac/StartupBot.app/Contents/Resources
+          node scripts/smoke-packaged-server.mjs --browser-bundle "$PWD/release/internal/mac/StartupBot.app/Contents/Resources/browser-engine"
+      - run: node scripts/internal-build-metadata.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-macOS-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            release/internal/*.dmg
+            release/internal/SHA256SUMS.txt
+            release/internal/build-metadata.json
+            release/internal/smoke/
+            docs/STARTUPBOT_INTERNAL_TEST.md
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: failure()
+        with:
+          name: StartupBot-macOS-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release/internal/smoke/
+          retention-days: 7
+
+  windows:
+    if: inputs.desktop
+    name: StartupBot Windows internal EXE
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      NODE_OPTIONS: --max-old-space-size=4096
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package:prepare
+      - run: pnpm build:cua:win
+      - run: pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never
+      - name: Install EXE and test the installed application
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem release/internal/*-Setup.exe)
+          if ($installer.Count -ne 1) { throw 'Expected exactly one StartupBot installer' }
+          $destination = Join-Path $env:RUNNER_TEMP 'StartupBotInstalled'
+          $install = Start-Process -FilePath $installer[0].FullName -ArgumentList '/S', "/D=$destination" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
+          node scripts/smoke-internal-desktop.mjs --app "$destination/StartupBot.exe" --output release/internal/smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Installed application smoke failed' }
+      - name: Test the packaged browser and server
+        env:
+          OMB_SMOKE_DIST: ${{ github.workspace }}/release/internal/win-unpacked/resources/server
+        run: |
+          node scripts/smoke-browser-bundle.mjs --resources release/internal/win-unpacked/resources
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged browser smoke failed' }
+          node scripts/smoke-packaged-server.mjs --browser-bundle "$env:GITHUB_WORKSPACE/release/internal/win-unpacked/resources/browser-engine"
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged server smoke failed' }
+      - run: node scripts/internal-build-metadata.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Windows-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            release/internal/*-Setup.exe
+            release/internal/SHA256SUMS.txt
+            release/internal/build-metadata.json
+            release/internal/smoke/
+            docs/STARTUPBOT_INTERNAL_TEST.md
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: failure()
+        with:
+          name: StartupBot-Windows-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: release/internal/smoke/
+          retention-days: 7

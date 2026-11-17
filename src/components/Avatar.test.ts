@@ -73,6 +73,14 @@ describe("mascot facial feature colors", () => {
 });
 
 describe("BotAvatar's two avatar outcomes", () => {
+  it("uses StartupBot's approved logo for its uncustomized helper and preserves chosen avatars", () => {
+    expect(renderBot({ defaultBot: {} })).toContain('src="/startupbot-icon-192.png"');
+    const uploaded = renderBot({ defaultBot: {}, avatarUrl: "/api/attachments/own.png", avatarCrop: "circle" });
+    expect(uploaded).toContain('src="/api/attachments/own.png"');
+    expect(uploaded).not.toContain('src="/startupbot-icon-192.png"');
+    expect(renderBot({ defaultBot: {}, mascotBody: "star" })).toContain("<svg");
+  });
+
   it("zooms and positions a custom image inside its crop", () => {
     const markup = renderBot({
       avatarUrl: "/api/attachments/cat.webp",

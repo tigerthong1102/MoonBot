@@ -72,7 +72,7 @@ export function MeetScreen({ hosted, onNext }: { hosted: boolean; onNext: () => 
   const [dialog, setDialog] = useState(false);
   const [typing, setTyping] = useState(false);
 
-  const logo = brand().logo;
+  const logo = brand().logo || "/startupbot-icon-192.png";
   const face = typing ? "listening" : "idle";
   const failure = pill.error ?? (tested?.state === "failed" ? tested.error ?? t("onboarding.engines.noAnswer", { name: tested.instance.displayName }) : null);
   const signingIn = asking && !ready;

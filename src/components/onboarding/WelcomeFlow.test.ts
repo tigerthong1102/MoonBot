@@ -101,6 +101,7 @@ describe("a new install's first run", () => {
   it("is two screens with an AI already working: Next, then Create, and it lands in the Chief's chat", async () => {
     await show();
     expect(host.querySelector("h1")?.textContent).toBe("Meet StartupBot");
+    expect(host.querySelector("img")?.getAttribute("src")).toBe("/startupbot-icon-192.png");
     expect(host.querySelector("[data-demo-composer]")?.textContent, "reduced motion shows the whole sentence").toContain("Hand off any task to your team of bots");
     for (const gone of ["Step 1", "Back", "Skip", "Your name", "Connect an AI", "Set up later"]) expect(text()).not.toContain(gone);
     expect(button("Next")!.disabled).toBe(false);

@@ -130,7 +130,7 @@ describe("snapshot", () => {
     expect(snapshotsIn(bot, cwd).map(c => c.hash)).toEqual([latest]);
     expect(() => userGit(shadow, "cat-file", "-e", oldBlob)).toThrow();
     expect(userGit(shadow, "cat-file", "-p", `${latest}:a.txt`)).toBe("latest payload");
-  });
+  }, 60_000);
 
   // Each case below is one where an incremental `add -A` alone would differ from a from-empty rebuild.
 

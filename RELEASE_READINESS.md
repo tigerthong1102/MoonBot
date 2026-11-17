@@ -27,3 +27,7 @@ On `0c403c71f45d819888eb0a8a4671c257521fac54`, [Docker](https://github.com/tiger
 ## Current review follow-up
 
 The reviewed baseline advanced to e92e045ca without rewriting history. Codex fixes cover Linux sandbox attachment, independent AppArmor policy ownership, spending-cap input validation, accurate event-loop stall accounting and unattended model-request limits. Targeted local regressions pass; Linux hook execution is platform-skipped on this Mac and the local Docker daemon is unavailable. Full CI must be checked on the resulting pushed SHA. Historical green runs above do not qualify the current HEAD. PR #1 remains ready for human review at the owner's request; this does not assert merge or release readiness. No installer was built or release published in this task.
+
+## Review and CI follow-up from 5652232a0
+
+The latest reviewed tree includes independent icons and AppArmor policy ownership, native histogram boundary fixes, Sentinel discovery and Chrome reservation cleanup. Run 44036029216 failed the installed Linux executable path, browser-history BFCache assumption and stale Sentinel fixture. These have focused patches and local regression evidence in REVIEW_AUDIT.md; a new full CI on the pushed result is required. The older 44033575068 run also had dependency-download, timing and checkpoint-deadline failures and must not be called green. BRANDING_AUDIT.md explicitly records that locale copy, avatars, documentation and rights clearance are incomplete. No commercial release or platform-install qualification is asserted.

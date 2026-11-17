@@ -55,7 +55,7 @@ export interface FileStagingDeps {
   toolkitFor(tool: string): string;
   /** The app's name for people (Google Drive). */
   appFor(tool: string): string;
-  put?(url: string, bytes: Uint8Array, mimetype: string): Promise<void>;
+  put?(url: string, bytes: Uint8Array, mimetype: string, signal?: AbortSignal): Promise<void>;
 }
 
 interface FileReference {
@@ -233,11 +233,12 @@ function onDisk(path: string): string {
   return path;
 }
 
-async function putBytes(url: string, bytes: Uint8Array, mimetype: string): Promise<void> {
+async function putBytes(url: string, bytes: Uint8Array, mimetype: string, signal?: AbortSignal): Promise<void> {
   const body = new Uint8Array(bytes.byteLength);
   body.set(bytes);
   // The link is Composio's own storage: a redirect elsewhere is refused, never followed with the file.
-  const response = await fetch(url, { method: "PUT", body, redirect: "error", headers: { "content-type": mimetype }, signal: AbortSignal.timeout(5 * 60_000) });
+  const timeout = AbortSignal.timeout(5 * 60_000);
+  const response = await fetch(url, { method: "PUT", body, redirect: "error", headers: { "content-type": mimetype }, signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
   await response.body?.cancel().catch(() => undefined);
   if (!response.ok) throw new Error(`the upload was refused (HTTP ${response.status})`);
 }
@@ -264,7 +265,7 @@ export interface PreparedFiles {
   files: Array<CardFile & { tool: string; source: unknown }>;
   /** Uploads them and answers the frame that names each by its key; rejects with the text the bot is told. Absent when
    * the call names none: the frame goes out as sent. Run only once the call has passed every check. */
-  upload?: () => Promise<unknown>;
+  upload?: (options?: { check?: () => void; signal?: AbortSignal }) => Promise<unknown>;
   /** `calls` (connectorCallsIn of the frame as sent) with the files each will upload. */
   cardCalls<T extends { arguments?: unknown }>(calls: T[]): Array<T & { files?: CardFile[] }>;
 }
@@ -300,13 +301,21 @@ export async function prepareConnectorFiles(frame: unknown, deps: FileStagingDep
   });
   if (!ready.length) return { files, cardCalls };
   const put = deps.put ?? putBytes;
-  const upload = async () => {
+  const upload = async (options: { check?: () => void; signal?: AbortSignal } = {}) => {
+    const permitted = () => {
+      if (options.signal?.aborted) throw options.signal.reason ?? new Error("Upload cancelled");
+      options.check?.();
+      if (options.signal?.aborted) throw options.signal.reason ?? new Error("Upload cancelled");
+    };
     for (const { reference, file, name, mimetype } of ready) {
       const app = deps.appFor(reference.tool);
       try {
+        permitted();
         const md5 = createHash("md5").update(file.bytes).digest("hex");
         const link = await deps.requestUpload({ toolkit_slug: deps.toolkitFor(reference.tool), tool_slug: reference.tool, filename: name, mimetype, md5 });
-        await put(link.url, file.bytes, mimetype);
+        permitted();
+        await put(link.url, file.bytes, mimetype, options.signal);
+        permitted();
         reference.replace({ name, mimetype, s3key: link.key });
       } catch (error) {
         throw new Error(uploadFailedText(reference, name, app, reasonOf(error)));

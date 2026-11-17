@@ -14442,12 +14442,31 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
                 catch (error) { refuseDispatch(error instanceof Error ? error.message : String(error)); }
               }
             };
-            checkDispatch();
+            checkDispatch(true);
             const reservedDrafts = internalCapability.gmailDrafts ??= new Set();
             const nextDrafts = new Set(reservedDrafts);
             const draftReservation = reserveGmailDrafts(connectorCalls, nextDrafts);
             if (draftReservation) refuseDispatch(draftReservation);
-            const sent = files.upload ? await files.upload().catch((error: unknown) => refuseDispatch(error instanceof Error ? error.message : String(error))) : undefined; checkDispatch(true); for (const key of nextDrafts) reservedDrafts.add(key); return sent as typeof body | undefined;
+            let sent: unknown;
+            if (files.upload) {
+              const controller = new AbortController();
+              const checkUploadPermission = () => {
+                try { checkDispatch(true); }
+                catch (error) { controller.abort(error); }
+              };
+              const monitor = setInterval(checkUploadPermission, 100);
+              monitor.unref?.();
+              try {
+                sent = await files.upload({ check: () => checkDispatch(true), signal: controller.signal });
+              } catch (error) {
+                refuseDispatch(error instanceof Error ? error.message : String(error));
+              } finally {
+                clearInterval(monitor);
+              }
+            }
+            checkDispatch(true);
+            for (const key of nextDrafts) reservedDrafts.add(key);
+            return sent as typeof body | undefined;
           }, undefined, teamConnections.via(actor.access)[1],
         ); } catch (error) {
           if (dispatchRefusal) return refuseOutbound(dispatchRefusal);

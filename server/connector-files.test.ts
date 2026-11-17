@@ -140,6 +140,38 @@ describe("connected-app file arguments", () => {
     expect(sent.params.arguments.tools[0]!.arguments.attachment).toMatchObject({ s3key: "staged/1.pdf" });
   });
 
+  it("refuses before transferring bytes when access disappears after requesting the upload link", async () => {
+    let allowed = true;
+    const { value, requests, puts } = deps({ requestUpload: async () => {
+      allowed = false;
+      return { key: "staged/denied.pdf", url: "https://storage.composio.dev/upload/denied" };
+    } });
+    const prepared = await prepareConnectorFiles(multi({ tool_slug: "GMAIL_SEND_EMAIL", arguments: { attachment: "/tmp/report.pdf" } }), value);
+    if ("refusal" in prepared || !prepared.upload) throw new Error("The test file was not prepared");
+    await expect(prepared.upload({ check: () => { if (!allowed) throw new Error("Access revoked"); } })).rejects.toThrow("Access revoked");
+    expect(requests).toEqual([]);
+    expect(puts).toEqual([]);
+  });
+
+  it("aborts an in-flight upload when its permission signal is revoked", async () => {
+    const abort = new AbortController();
+    let startPut: (() => void) | undefined;
+    const putStarted = new Promise<void>((resolve) => { startPut = resolve; });
+    const { value } = deps({ put: async (_url, _bytes, _mime, signal) => {
+      startPut?.();
+      await new Promise<void>((_resolve, reject) => {
+        if (signal?.aborted) return reject(signal.reason);
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    } });
+    const prepared = await prepareConnectorFiles(multi({ tool_slug: "GMAIL_SEND_EMAIL", arguments: { attachment: "/tmp/report.pdf" } }), value);
+    if ("refusal" in prepared || !prepared.upload) throw new Error("The test file was not prepared");
+    const pending = prepared.upload({ signal: abort.signal });
+    await putStarted;
+    abort.abort(new Error("Access revoked"));
+    await expect(pending).rejects.toThrow("Access revoked");
+  });
+
   it("refuses with what to do when a file may not be sent, naming the app and writing nothing", async () => {
     const { value, requests } = deps({ open: async () => { throw new Error("it is in a hidden folder or in the app's own data, which is never sent to an app"); } });
     const staged = await stageConnectorFiles(multi({ tool_slug: "GOOGLEDRIVE_UPLOAD_FILE", arguments: { file_to_upload: "C:\\Users\\sam\\.ssh\\id_ed25519" } }), value);

@@ -35,27 +35,39 @@ export function parseMcpResponse(text: string, id: unknown): Record<string, unkn
 }
 
 const MAX_CACHED_CONTINUATIONS = 32;
-const lastToolsLists = new Map<string, Map<string | undefined, unknown>>();
+type CatalogPage = { tools: unknown[]; nextCursor?: string };
+type CatalogCache = { firstPageOrder?: number; pages: Map<string | undefined, CatalogPage> };
 
-function toolsListId(payload: unknown): { id: unknown; cursor: string | undefined } | null {
+const lastToolsLists = new Map<string, CatalogCache>();
+let nextDiscoveryOrder = 0;
+
+function toolsListId(payload: unknown): { id: string | number; cursor: string | undefined } | null {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  const frame = payload as { method?: unknown; id?: unknown; params?: unknown };
-  if (frame.method !== "tools/list" || frame.id === undefined) return null;
+  const frame = payload as { jsonrpc?: unknown; method?: unknown; id?: unknown; params?: unknown };
+  if (frame.jsonrpc !== "2.0" || frame.method !== "tools/list") return null;
+  if (typeof frame.id !== "string" && (typeof frame.id !== "number" || !Number.isFinite(frame.id))) return null;
   if (frame.params !== undefined && (!frame.params || typeof frame.params !== "object" || Array.isArray(frame.params))) return null;
   const cursor = (frame.params as { cursor?: unknown } | undefined)?.cursor;
   if (cursor !== undefined && typeof cursor !== "string") return null;
   return { id: frame.id, cursor };
 }
 
-function toolsResult(text: string, id: unknown): unknown {
+function toolsResult(text: string, id: string | number): CatalogPage | undefined {
   try {
     const frame = parseMcpResponse(text, id);
-    if (!frame || frame.id !== id || frame.id === null || "error" in frame) return undefined;
+    if (!frame || frame.jsonrpc !== "2.0" || frame.id !== id || "error" in frame) return undefined;
     const result = frame.result;
-    return Array.isArray((result as { tools?: unknown } | undefined)?.tools) ? result : undefined;
+    if (!result || typeof result !== "object" || !("tools" in result) || !Array.isArray(result.tools)) return undefined;
+    if ("nextCursor" in result && typeof result.nextCursor !== "string") return undefined;
+    return result as CatalogPage;
   } catch {
     return undefined;
   }
+}
+
+function remembersCursor(cache: CatalogCache, cursor: string): boolean {
+  return cache.firstPageOrder === undefined || cache.pages.has(cursor) ||
+    [...cache.pages.values()].some((page) => page.nextCursor === cursor);
 }
 
 /** `backend` names the endpoint and credential, so one backend's list is never served for another. */
@@ -66,10 +78,11 @@ export async function withToolsListFallback(
 ): Promise<Response> {
   const request = toolsListId(payload);
   if (!request) return send();
-  const pagesAtStart = lastToolsLists.get(backend);
+  const discoveryOrder = request.cursor === undefined ? ++nextDiscoveryOrder : undefined;
+  const cacheAtStart = lastToolsLists.get(backend);
   const fallback = () => {
-    if (lastToolsLists.get(backend) !== pagesAtStart) return undefined;
-    const cached = pagesAtStart?.get(request.cursor);
+    if (lastToolsLists.get(backend) !== cacheAtStart) return undefined;
+    const cached = cacheAtStart?.pages.get(request.cursor);
     return cached === undefined ? undefined : Response.json({ jsonrpc: "2.0", id: request.id, result: cached });
   };
   let response: Response;
@@ -83,16 +96,18 @@ export async function withToolsListFallback(
   if (response.ok) {
     const result = toolsResult(await response.clone().text(), request.id);
     if (result !== undefined) {
-      if (request.cursor === undefined) {
-        lastToolsLists.set(backend, new Map([[undefined, result]]));
-      } else {
-        const pages = lastToolsLists.get(backend);
-        if (pages === pagesAtStart || (pagesAtStart === undefined && !pages?.has(undefined))) {
-          const current = pages ?? new Map<string | undefined, unknown>();
-          current.set(request.cursor, result);
-          if (current.size > MAX_CACHED_CONTINUATIONS + Number(current.has(undefined))) {
-            const oldest = [...current.keys()].find((cursor) => cursor !== undefined);
-            current.delete(oldest);
+      const cache = lastToolsLists.get(backend);
+      if (discoveryOrder !== undefined) {
+        if (discoveryOrder > (cache?.firstPageOrder ?? 0)) {
+          lastToolsLists.set(backend, { firstPageOrder: discoveryOrder, pages: new Map([[undefined, result]]) });
+        }
+      } else if (request.cursor !== undefined && (cache === cacheAtStart || (!cacheAtStart && cache?.firstPageOrder === undefined))) {
+        const current: CatalogCache = cache ?? { pages: new Map() };
+        if (remembersCursor(current, request.cursor)) {
+          current.pages.set(request.cursor, result);
+          if (current.pages.size > MAX_CACHED_CONTINUATIONS + Number(current.pages.has(undefined))) {
+            const oldest = [...current.pages.keys()].find((cursor) => cursor !== undefined);
+            current.pages.delete(oldest);
           }
           lastToolsLists.set(backend, current);
         }

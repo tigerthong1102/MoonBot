@@ -124,6 +124,43 @@ describe("paginated tools/list fallback", () => {
     return { promise, resolve };
   };
 
+  it("keeps the newer successful discovery when an older first page returns later", async () => {
+    const backend = "out-of-order-discovery";
+    const a = deferredResponse(), b = deferredResponse();
+    const firstA = withToolsListFallback(backend, page("first-a"), () => a.promise);
+    const firstB = withToolsListFallback(backend, page("first-b"), () => b.promise);
+
+    b.resolve(reply("first-b", "new", "new-cursor"));
+    await firstB;
+    await withToolsListFallback(backend, page("second-b", "new-cursor"), async () => reply("second-b", "new_tool"));
+    a.resolve(reply("first-a", "old", "old-cursor"));
+    expect(await (await firstA).json()).toMatchObject({ result: { nextCursor: "old-cursor" } });
+
+    const unavailable = async () => new Response(null, { status: 503 });
+    const fallback = await withToolsListFallback(backend, page("retry"), unavailable);
+    expect(await fallback.json()).toMatchObject({ result: { tools: [{ name: "new" }], nextCursor: "new-cursor" } });
+    const continuation = await withToolsListFallback(backend, page("retry-second", "new-cursor"), unavailable);
+    expect(await continuation.json()).toMatchObject({ result: { tools: [{ name: "new_tool" }] } });
+    const lateContinuation = await withToolsListFallback(backend, page("old-second", "old-cursor"), async () => reply("old-second", "retired_tool"));
+    expect(lateContinuation.status).toBe(200);
+    expect((await withToolsListFallback(backend, page("old-cursor", "old-cursor"), unavailable)).status).toBe(503);
+  });
+
+  it("accepts an older successful discovery if the later request failed", async () => {
+    const backend = "later-discovery-failed";
+    const a = deferredResponse(), b = deferredResponse();
+    const firstA = withToolsListFallback(backend, page("first-a"), () => a.promise);
+    const firstB = withToolsListFallback(backend, page("first-b"), () => b.promise);
+
+    b.resolve(new Response(null, { status: 503 }));
+    expect((await firstB).status).toBe(503);
+    a.resolve(reply("first-a", "available", "second"));
+    await firstA;
+
+    const fallback = await withToolsListFallback(backend, page("retry"), async () => { throw new Error("offline"); });
+    expect(await fallback.json()).toMatchObject({ result: { tools: [{ name: "available" }], nextCursor: "second" } });
+  });
+
   it("keeps first and continuation pages separate during a backend outage", async () => {
     const backend = "pages-outage";
     await withToolsListFallback(backend, page("seed-first"), async () => reply("seed-first", "read", "second"));
@@ -132,6 +169,17 @@ describe("paginated tools/list fallback", () => {
     expect(await first.json()).toEqual({ jsonrpc: "2.0", id: "retry-first", result: { tools: [{ name: "read" }], nextCursor: "second" } });
     const second = await withToolsListFallback(backend, page("retry-second", "second"), async () => new Response(null, { status: 429 }));
     expect(await second.json()).toEqual({ jsonrpc: "2.0", id: "retry-second", result: { tools: [{ name: "write" }] } });
+  });
+
+  it.each([
+    { jsonrpc: "1.0", result: { tools: [] } },
+    { jsonrpc: "2.0", result: { tools: [], nextCursor: 10 } },
+  ])("does not replace a valid catalog with a malformed response", async (malformed) => {
+    const backend = `malformed-response-${malformed.jsonrpc}`;
+    await withToolsListFallback(backend, page("first"), async () => reply("first", "read"));
+    await withToolsListFallback(backend, page("malformed"), async () => Response.json({ id: "malformed", ...malformed }));
+    const fallback = await withToolsListFallback(backend, page("retry"), async () => new Response(null, { status: 429 }));
+    expect(await fallback.json()).toMatchObject({ result: { tools: [{ name: "read" }] } });
   });
 
   it("does not substitute a cached first page for a never-seen cursor", async () => {

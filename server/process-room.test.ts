@@ -782,6 +782,16 @@ describe("browsers under the pids limit", () => {
     expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
   });
 
+  it("renews an expired reservation when a stopped browser starts again", () => {
+    let now = 0;
+    const budget = new ProcessBudget({ read: () => ({ max: 1024, current: 700 }), browserTasks: () => 0, log: () => {}, now: () => now });
+    budget.browserRoom(() => false);
+    budget.reserveBrowser("person");
+    now = 61_000;
+    budget.reserveBrowser("person");
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+  });
+
   function room(current: { value: number }, measured: { value: number | null }, running: Set<string>) {
     const budget = new ProcessBudget({ read: () => ({ max: 1024, current: current.value }), browserTasks: () => measured.value, log: () => {}, pollMs: 100 });
     return { budget, room: budget.browserRoom((session) => running.has(session)) };

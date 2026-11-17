@@ -9,6 +9,21 @@ const later = () => {
 };
 
 describe("a few background jobs at once", () => {
+  it("retires urgent overflow before starting an ordinary waiter", async () => {
+    const slots = createJobSlots(1), firstGate = later(), urgentGate = later();
+    const first = slots.run(() => firstGate.done);
+    let started = false;
+    const waiting = slots.run(async () => { started = true; });
+    const urgent = slots.run(() => urgentGate.done, { urgent: () => true });
+    urgentGate.finish();
+    await urgent;
+    expect(slots.running).toBe(1);
+    expect(started).toBe(false);
+    firstGate.finish();
+    await Promise.all([first, waiting]);
+    expect(started).toBe(true);
+    expect(slots.running).toBe(0);
+  });
   it("runs at most the limit, the rest in arrival order", async () => {
     const slots = createJobSlots(2);
     const started: number[] = [];

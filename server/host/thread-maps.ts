@@ -1,6 +1,3 @@
-// Per-conversation maps the server keeps in memory (a turn's trigger, the model a session reported, a room's queue, ...)
-// were never emptied: with many bots they grow for as long as the server runs. Each such map is tracked here; a deleted
-// conversation's entries go at once, and a sweep drops those of conversations that are archived or gone.
 type ThreadKeyed = { delete(threadId: string): unknown; keys(): IterableIterator<string> };
 
 export const THREAD_MAPS_SWEEP_MS = 10 * 60_000;

@@ -29,3 +29,15 @@ Qodo lists 16 bugs plus one rule insight. NEEDS INVESTIGATION is not a dismissal
 Codex Review at `1d26b6866`: browser close overlaps Qodo #4; the group execution timeout has a descendant-outlives-leader regression test; the retrospective crash-guard header was removed. DESIGN.md now gives a narrow exception for owner-set spending caps. Title generation checks the relevant budget again after a queued job obtains a slot, including direct, group, manual and call titles; the queued-slot unit test passes. Full end-to-end cap verification and current-head review are still required.
 
 Four Codex threads (design exception, process-group timeout, crash-guard comment and browser close) have been replied to and resolved. The title-cap thread remains open pending end-to-end verification. Re-run full CI and both reviews after fixes; release remains NO-GO.
+
+## Follow-up review on later commits
+
+| Finding | Classification | Evidence / remaining work |
+| --- | --- | --- |
+| Timed-out group ID can be reused before delayed SIGKILL | NEEDS INVESTIGATION | The delayed numeric group ID has no verified lifetime token. Do not consider the process timeout fully resolved until termination is redesigned and tested without signalling unrelated processes. |
+| Reopened browser loses stale startup reservation | CONFIRMED | Renew an expired reservation when its browser has stopped; regression exercises the second startup before process counts catch up. |
+| Long preview repeatedly copies the entire prefix | CONFIRMED | Inspect only the last two UTF-16 units, preserving supplementary code point handling; preview tests pass. |
+| Thread-map header records implementation history | CONFIRMED | Removed the retrospective comment. |
+| Urgent background job transfers overflow to an ordinary waiter | CONFIRMED | Retire the completed slot before admitting a queued job, with a regression for limit one and an urgent overflow. |
+
+The three focused suites for the browser reservation, job slots, and preview passed 61 tests locally. Final-head CI and end-to-end review remain outstanding.

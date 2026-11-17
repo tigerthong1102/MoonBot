@@ -21,11 +21,12 @@ export interface JobSlots {
 export function createJobSlots(limit: number): JobSlots {
   let running = 0;
   const waiting: Array<{ start: () => void; interactive: boolean }> = [];
-  // A finished job hands its slot to the first waiter, so a caller arriving in between cannot take it.
   const release = () => {
-    const next = waiting.shift();
-    if (next) next.start();
-    else running -= 1;
+    running -= 1;
+    if (running < limit) {
+      const next = waiting.shift();
+      if (next) { running += 1; next.start(); }
+    }
   };
   const slot = ({ signal, urgent, interactive = false, onWait }: SlotOptions): Promise<void> => {
     signal?.throwIfAborted();

@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { execFileInGroup, execFileInGroupAsync, OWN_GROUP, stopGroup } from "./group-exec.ts";
 import { removeTempDir } from "./testing/cleanup.ts";
+import { processGroupMembers } from "./process-group.ts";
+
+vi.mock("./process-group.ts", { spy: true });
 
 const posix = process.platform !== "win32";
 const folders: string[] = [];
@@ -96,6 +99,44 @@ describe.skipIf(!posix)("a child in a group of its own", () => {
       expect(signal.mock.calls.filter(args => args[0] === -groupPid && args[1] === "SIGKILL")).toHaveLength(0);
     } finally {
       signal.mockRestore();
+    }
+  });
+
+  it("hard-kills a descendant with ignored stdio after the leader closes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omb-group-exec-"));
+    folders.push(dir);
+    const pidFile = join(dir, "child.pid");
+    const descendant = 'process.on("SIGTERM", () => {}); require("node:fs").writeFileSync(process.argv[1], String(process.pid)); setInterval(() => {}, 1000)';
+    const parent = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}, ${JSON.stringify(pidFile)}], { stdio: "ignore" }); setInterval(() => {}, 1000)`;
+    const leader = spawn(process.execPath, ["-e", parent], { ...OWN_GROUP, stdio: "ignore" });
+    let descendantPid: number | undefined;
+    try {
+      descendantPid = await childOf(pidFile);
+      const closed = new Promise<void>(resolve => leader.once("close", () => resolve()));
+      stopGroup(leader, 200);
+      await closed;
+      await vi.waitFor(() => expect(processGroupMembers(leader.pid!).has(descendantPid!)).toBe(false), { timeout: 2_000 });
+    } finally {
+      if (descendantPid) { try { process.kill(descendantPid, "SIGKILL"); } catch {} }
+      try { process.kill(-leader.pid!, "SIGKILL"); } catch {}
+    }
+  });
+
+  it("does not hard-kill a reused group whose member PID has a different start time", async () => {
+    const leader = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { ...OWN_GROUP, stdio: "ignore" });
+    const pid = leader.pid!;
+    const members = vi.mocked(processGroupMembers);
+    members.mockReturnValueOnce(new Map([[pid, "original"]])).mockReturnValueOnce(new Map([[pid, "replacement"]]));
+    const signal = vi.spyOn(process, "kill");
+    try {
+      const closed = new Promise<void>(resolve => leader.once("close", () => resolve()));
+      stopGroup(leader, 100);
+      await closed;
+      await new Promise(resolve => setTimeout(resolve, 200));
+      expect(signal.mock.calls.filter(args => args[0] === -pid && args[1] === "SIGKILL")).toHaveLength(0);
+    } finally {
+      signal.mockRestore();
+      members.mockClear();
     }
   });
 

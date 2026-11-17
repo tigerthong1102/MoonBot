@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
-import { configureStartupBotIdentity, internalDeepLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
+import { configureStartupBotIdentity, internalDeepLink, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
 
 test("desktop identity uses its own application and data directories", () => {
   const state = {};
@@ -21,4 +21,13 @@ test("maps only StartupBot deep links to the existing protocol handlers", () => 
   assert.equal(internalDeepLink("startupbot://team/abc"), "openmausbot://team/abc");
   assert.equal(internalDeepLink("https://startupbot.ai"), "https://startupbot.ai");
   assert.equal(internalDeepLink("STARTUPBOT://team/abc"), "STARTUPBOT://team/abc");
+});
+
+test("only parsed chat links are queued and delivered", () => {
+  const events = [];
+  const handlers = { parse: value => value === "valid" ? "parsed" : null, store: value => events.push(value), reveal: () => events.push("reveal"), deliver: () => events.push("deliver") };
+  assert.equal(queueIncomingChatLink("invalid", handlers), false);
+  assert.deepEqual(events, []);
+  assert.equal(queueIncomingChatLink("valid", handlers), true);
+  assert.deepEqual(events, ["parsed", "reveal", "deliver"]);
 });

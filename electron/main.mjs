@@ -129,7 +129,7 @@ const { createDesktopWorkspaceManager } = require("./desktop-workspace.cjs");
 const { createTrustedApprovalModeCoordinator } = require("./approval-trusted-mode.cjs");
 const { DESKTOP_MUTATION_HEADER, desktopServerHeaders } = require("./desktop-server-auth.cjs");
 const { MIN_BOUNDS, normalizeUnreadCount, resolveWindowState } = require("./window-state.cjs");
-import { configureStartupBotIdentity, internalDeepLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
+import { configureStartupBotIdentity, internalDeepLink, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
 configureStartupBotIdentity(app);
 for (let index = 0; index < process.argv.length; index++) process.argv[index] = internalDeepLink(process.argv[index]);
 
@@ -236,14 +236,7 @@ function queuePackageInstall(rawLink) {
   return true;
 }
 
-function queueChatLink(rawLink) {
-  const link = chatLinkFrom(rawLink);
-  if (!link) return false;
-  pendingChatLink = link;
-  revealForLink();
-  deliverChatLink();
-  return true;
-}
+const queueChatLink = rawLink => queueIncomingChatLink(rawLink, { parse: chatLinkFrom, store: link => { pendingChatLink = link; }, reveal: revealForLink, deliver: deliverChatLink });
 
 app.on("open-url", (event, url) => {
   url = internalDeepLink(url);

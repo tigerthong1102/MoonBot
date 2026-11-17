@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { connectorCallsIn, outboundCallsIn } from "../shared/outbound.ts";
 import {
   connectorFileScope, localFileReferences, openBotFile, prepareConnectorFiles, stageConnectorFiles, withMissingFileHint,
-  type BotFileScope, type FileStagingDeps,
+  uploadWithPermissionChecks, type BotFileScope, type FileStagingDeps,
 } from "./connector-files.ts";
 import { outboundCard } from "./outbound-requests.ts";
 import { FILE_MAX_BYTES } from "../shared/upload-limits.ts";
@@ -170,6 +170,25 @@ describe("connected-app file arguments", () => {
     await putStarted;
     abort.abort(new Error("Access revoked"));
     await expect(pending).rejects.toThrow("Access revoked");
+  });
+
+  it("watches authorization while a slow upload is in flight", async () => {
+    let authorized = true;
+    let started!: () => void;
+    const putStarted = new Promise<void>((resolve) => { started = resolve; });
+    const { value } = deps({ put: async (_url, _bytes, _mime, signal) => {
+      started();
+      await new Promise<void>((_resolve, reject) => {
+        if (signal?.aborted) return reject(signal.reason);
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    } });
+    const prepared = await prepareConnectorFiles(multi({ tool_slug: "GMAIL_SEND_EMAIL", arguments: { attachment: "/tmp/report.pdf" } }), value);
+    if ("refusal" in prepared || !prepared.upload) throw new Error("The file was not prepared");
+    const pending = uploadWithPermissionChecks(prepared.upload, () => { if (!authorized) throw new Error("Permission revoked"); });
+    await putStarted;
+    authorized = false;
+    await expect(pending).rejects.toThrow("Permission revoked");
   });
 
   it("refuses with what to do when a file may not be sent, naming the app and writing nothing", async () => {

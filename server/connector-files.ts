@@ -326,6 +326,20 @@ export async function prepareConnectorFiles(frame: unknown, deps: FileStagingDep
   return { files, upload, cardCalls };
 }
 
+/** Keep connected-app transfer permission current throughout a potentially slow file upload. */
+export async function uploadWithPermissionChecks(upload: NonNullable<PreparedFiles["upload"]>, check: () => void): Promise<unknown> {
+  check();
+  const controller = new AbortController();
+  const recheck = () => {
+    try { check(); }
+    catch (error) { controller.abort(error); }
+  };
+  const monitor = setInterval(recheck, 100);
+  monitor.unref?.();
+  try { return await upload({ check, signal: controller.signal }); }
+  finally { clearInterval(monitor); }
+}
+
 /** prepareConnectorFiles and its upload at once: the frame to send, or the refusal. */
 export async function stageConnectorFiles(frame: unknown, deps: FileStagingDeps): Promise<{ frame: unknown } | { refusal: string }> {
   const prepared = await prepareConnectorFiles(frame, deps);

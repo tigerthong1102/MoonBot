@@ -79,7 +79,7 @@ describe("the usage caps card", () => {
   it("reads a row of inputs as caps: empty and 0 are no cap, dollars may be fractions, tokens are whole", () => {
     expect(limitsOf({ dailyUsd: "2.5", monthlyUsd: "", dailyTokens: "1,000,000", monthlyTokens: "0" })).toEqual({ dailyUsd: 2.5, dailyTokens: 1_000_000 });
     expect(limitsOf({ dailyUsd: "", monthlyUsd: "", dailyTokens: "", monthlyTokens: "" })).toEqual({});
-    for (const bad of [{ dailyUsd: "-1" }, { dailyUsd: "lots" }, { dailyTokens: "1.5" }]) {
+    for (const bad of [{ dailyUsd: "-1" }, { dailyUsd: "lots" }, { dailyTokens: "1.5" }, { dailyUsd: "1,50" }, { monthlyUsd: "0,50" }, { dailyUsd: "1,000" }]) {
       expect(limitsOf({ dailyUsd: "", monthlyUsd: "", dailyTokens: "", monthlyTokens: "", ...bad })).toBeNull();
     }
   });

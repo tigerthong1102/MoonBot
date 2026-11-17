@@ -1,6 +1,3 @@
-// Where the server asks the cap engine (usage-caps.ts) before work starts, and the one line each refusal leaves: a turn's
-// refusal, a routine's counted skipped row, what a bot handing work on is told, and one notice per cap per period.
-// <data>/usage/cap-notices.json remembers which caps were announced for which period, so a restart does not repeat one.
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 

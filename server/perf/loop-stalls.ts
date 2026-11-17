@@ -53,8 +53,13 @@ export interface StallsReport {
 /** The histogram holds the time between its timer's firings: the delay is what exceeds the timer's own interval. */
 const lateMs = (ns: number, resolutionMs: number) => Math.max(0, Math.round(ns / 1e5) / 10 - resolutionMs);
 
-function minuteOf(histogram: Pick<IntervalHistogram, "count" | "max" | "percentiles">, tallies: Record<BlockingKind, Tally>, resolutionMs: number): Minute {
-  const points = [...histogram.percentiles].map(([percentile, ns]) => [percentile, lateMs(ns, resolutionMs)] as [number, number]).sort((a, b) => a[0] - b[0]);
+function minuteOf(histogram: Pick<IntervalHistogram, "count" | "max" | "percentile">, tallies: Record<BlockingKind, Tally>, resolutionMs: number): Minute {
+  const ranks = new Map<number, number>();
+  for (let rank = 1; rank <= histogram.count; rank++) {
+    const percentile = rank / histogram.count * 100;
+    ranks.set(lateMs(histogram.percentile(percentile), resolutionMs), percentile);
+  }
+  const points = [...ranks].map(([delay, percentile]) => [percentile, delay] as [number, number]);
   return { count: histogram.count, points, maxMs: histogram.count ? lateMs(histogram.max, resolutionMs) : 0, saves: { ...tallies.saves }, runtimeReads: { ...tallies.runtimeReads } };
 }
 

@@ -52,7 +52,8 @@ const draftOf = (limits: CapLimits | undefined): Draft =>
 export function limitsOf(draft: Draft): CapLimits | null {
   const limits: CapLimits = {};
   for (const { field, whole } of FIELDS) {
-    const raw = draft[field].trim().replace(/,/g, "");
+    const input = draft[field].trim();
+    const raw = whole ? input.replace(/,/g, "") : input;
     if (raw === "") continue;
     const value = Number(raw);
     if (!Number.isFinite(value) || value < 0 || (whole && !Number.isInteger(value))) return null;

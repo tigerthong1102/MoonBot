@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHistogram, type IntervalHistogram } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 
@@ -26,6 +27,17 @@ describe("loop stall percentiles", () => {
 });
 
 describe("the loop stall recorder", () => {
+  it("retains exact sample ranks between sparse native histogram percentiles and across rolls", () => {
+    const histogram = createHistogram();
+    for (let i = 0; i < 96; i++) histogram.record(20_000_000);
+    for (let i = 0; i < 4; i++) histogram.record(2_000_000_000);
+    const stalls = createLoopStalls({ histogram: histogram as unknown as IntervalHistogram });
+    expect(stalls.report().m1).toMatchObject({ p95: 0, over100ms: 4, over1s: 4 });
+    stalls.roll();
+    for (let i = 0; i < 100; i++) histogram.record(20_000_000);
+    expect(stalls.report().h1).toMatchObject({ p95: 0, over100ms: 4, over1s: 4 });
+  });
+
   it("sees a stall the once-a-minute sampler would miss, and counts whole-file saves", async () => {
     const stalls = createLoopStalls({ minuteMs: 60_000 });
     const dir = mkdtempSync(join(tmpdir(), "loop-stalls-"));

@@ -38,6 +38,28 @@ describe("the loop stall recorder", () => {
     expect(stalls.report().h1).toMatchObject({ p95: 0, over100ms: 4, over1s: 4 });
   });
 
+  it.each([1, 3, 11, 21, 101])("matches native percentile ranks for %s samples and merged minutes", (count) => {
+    const histogram = createHistogram();
+    const merged = createHistogram();
+    for (let i = 1; i < count; i++) { histogram.record(20_000_000); merged.record(20_000_000); }
+    histogram.record(2_000_000_000);
+    merged.record(2_000_000_000);
+    const expected = (source: typeof histogram) => Object.fromEntries([50, 95, 99].map((p) => [`p${p}`, Math.max(0, Math.round(source.percentile(p) / 100_000) / 10 - 20)]));
+    const stalls = createLoopStalls({ histogram });
+    expect(stalls.report().m1).toMatchObject(expected(histogram));
+    stalls.roll();
+    for (let i = 0; i < 10; i++) { histogram.record(20_000_000); merged.record(20_000_000); }
+    expect(stalls.report().h1).toMatchObject(expected(merged));
+  });
+
+  it("counts delays over a threshold before rounding their displayed milliseconds", () => {
+    const histogram = createHistogram({ figures: 5 });
+    histogram.record(120_001_000);
+    histogram.record(1_020_001_000);
+    const stalls = createLoopStalls({ histogram });
+    expect(stalls.report().m1).toMatchObject({ over100ms: 2, over1s: 1, max: 1000 });
+  });
+
   it("sees a stall the once-a-minute sampler would miss, and counts whole-file saves", async () => {
     const stalls = createLoopStalls({ minuteMs: 60_000 });
     const dir = mkdtempSync(join(tmpdir(), "loop-stalls-"));

@@ -48,7 +48,7 @@ export interface StallsReport {
 }
 
 /** The histogram holds the time between its timer's firings: the delay is what exceeds the timer's own interval. */
-const lateMs = (ns: number, resolutionMs: number) => Math.max(0, Math.round(ns / 1e5) / 10 - resolutionMs);
+const lateMs = (ns: number, resolutionMs: number) => Math.max(0, ns / 1e6 - resolutionMs);
 
 function minuteOf(histogram: Pick<IntervalHistogram, "count" | "max" | "percentile">, tallies: Record<BlockingKind, Tally>, resolutionMs: number): Minute {
   const ranks = new Map<number, number>();
@@ -76,17 +76,19 @@ export function stallStats(minutes: readonly Minute[]): StallStats | null {
   const total = used.reduce((sum, minute) => sum + minute.count, 0);
   if (!total) return null;
   const values = [...new Set(used.flatMap((minute) => minute.points.map(([, delay]) => delay)))].sort((a, b) => a - b);
-  const atOrUnder = (value: number) => used.reduce((sum, minute) => sum + minute.count * shareAtOrUnder(minute, value), 0) / total;
+  const atOrUnder = (value: number) => used.reduce((sum, minute) => sum + Math.round(minute.count * shareAtOrUnder(minute, value)), 0);
   const quantile = (q: number) => {
+    const rank = Math.max(1, Math.round(q * total));
     let low = 0, high = values.length - 1;
     while (low < high) {
       const mid = (low + high) >> 1;
-      if (atOrUnder(values[mid]!) >= q) high = mid; else low = mid + 1;
+      if (atOrUnder(values[mid]!) >= rank) high = mid; else low = mid + 1;
     }
     return values[low] ?? 0;
   };
-  const over = (value: number) => Math.round(used.reduce((sum, minute) => sum + minute.count * (1 - shareAtOrUnder(minute, value)), 0));
-  return { p50: quantile(0.5), p95: quantile(0.95), p99: quantile(0.99), max: Math.max(...used.map((minute) => minute.maxMs)), over100ms: over(100), over1s: over(1000) };
+  const over = (value: number) => total - atOrUnder(value);
+  const display = (ms: number) => Math.round(ms * 10) / 10;
+  return { p50: display(quantile(0.5)), p95: display(quantile(0.95)), p99: display(quantile(0.99)), max: display(Math.max(...used.map((minute) => minute.maxMs))), over100ms: over(100), over1s: over(1000) };
 }
 
 const sum = (tallies: readonly Tally[]): Tally => tallies.reduce((all, tally) => ({ n: all.n + tally.n, ms: all.ms + tally.ms, maxMs: Math.max(all.maxMs, tally.maxMs) }), zero());

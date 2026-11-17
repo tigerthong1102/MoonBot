@@ -63,7 +63,7 @@ function place(label: string, bots: Bot[], version?: number) {
    * what the store keeps on disk, so they outlive `boot()`. */
   type Line = { id: string; role: "user" | "bot"; kind: string; text?: string; from?: { botId: string; name: string }; tool?: { name: string; ok?: boolean }; via?: "api"; relayed?: boolean; webhookPost?: unknown; peerPost?: { unattended?: boolean } };
   const groups: Array<{ id: string; name: string; threadId: string; memberIds: string[]; dm: boolean }> = [];
-  const words = new Map<string, Line[]>(), receipts = new Set<string>(), followed: string[] = [];
+  const words = new Map<string, Line[]>(), receipts = new Set<string>(), followed: string[] = [], followedSources: HandoffView[] = [];
   let rooms!: LinkedRooms, lines = 0;
   /** Room threads a routine is running in now. */
   const routineThreads = new Set<string>();
@@ -93,7 +93,7 @@ function place(label: string, bots: Bot[], version?: number) {
     rooms = createLinkedRooms({ dataDir: dir, store: roomStore as never, coordinator: () => coordinator, on: () => link.on(), linked: (peer) => link.has(peer), online: (peer) => link.online(peer), linkedBots: () => link.linked(), selfName: () => link.selfName(), wanted: () => link.wanted(),
       window: (threadId, reader) => createRoomTranscript({ store: roomStore as never, teammateReportContext: () => "" }).window(threadId, "Sam", undefined, reader),
       opener: (botId, threadId) => (routineThreads.has(threadId) ? { requester: { kind: "routine_run", runId: "run-1", botId, threadId }, origin: { kind: "routine", source: "routine", ref: "routine-1" } } : undefined),
-      personName: () => "Sam", line: (_threadId, key, params) => `${key} ${params.bot ?? params.bots}${params.place ? ` [${params.place}]` : ""}`, follow: (_groupId, _threadId, speaker, text, hop, origin) => { followedOrigins.push(origin); followed.push(`${speaker.name} at ${hop}: ${text}`); } });
+      personName: () => "Sam", line: (_threadId, key, params) => `${key} ${params.bot ?? params.bots}${params.place ? ` [${params.place}]` : ""}`, follow: (_groupId, _threadId, speaker, text, hop, source) => { followed.push(`${speaker.name} at ${hop}: ${text}`); followedSources.push(source); followedOrigins.push(source.origin); } });
     link = createBotLink({
       rooms, directoryChanged: () => { directoryChanges += 1; rooms.sync(); },
       dataDir: dir, coordinator: () => coordinator, bots: () => bots, bot: (id) => bots.find((bot) => bot.id === id), level: () => "full",
@@ -187,7 +187,7 @@ function place(label: string, bots: Bot[], version?: number) {
     attach: (id: string, name: string, words: string) => { const batch = ledger.get(`${id}:returned`) ?? { from: { botId: "x", name: "x" }, files: [] }; batch.files.push(keep(name, Buffer.from(words))); ledger.set(`${id}:returned`, batch); },
     /** The files still waiting in this place's spool folder. */
     spooled: () => { const root = join(dir, "bot-link-files"); return existsSync(root) ? readdirSync(root, { recursive: true }).map(String).filter((entry) => /[\\/](?:sent|returned)[\\/]/.test(entry)) : []; },
-    followed, followedOrigins, routineThreads, get rooms() { return rooms; },
+    followed, followedSources, followedOrigins, routineThreads, get rooms() { return rooms; },
     /** A line in a room that takes no turn by itself: a bot's, an outside app's. */
     post(groupId: string, line: Omit<Line, "id">) { roomStore.appendMessage(groups.find((one) => one.id === groupId)!.threadId, line); },
     /** A room of this place; its members may live in either. */
@@ -747,6 +747,7 @@ describe("the link between a computer and its Cloud", () => {
     await until(() => computer.said(room.id).length === 2, "the answer is in the room");
     expect(computer.said(room.id)).toEqual(["Sam: @Analyst how many orders this week?", "Analyst: 42 orders. @Writer please confirm."]);
     expect(computer.followed).toEqual(["Analyst at 0: 42 orders. @Writer please confirm."]);
+    expect(computer.followedSources[0]?.origin).toMatchObject({ kind: "user" });
     const turn = cloud.runs.find((run) => run.botId === "cloud-analyst")!;
     expect(turn.text).toContain("room \"Launch\" on Sam's Mac");
     expect(turn.text).toContain("Sam: @Analyst how many orders this week?");
@@ -926,6 +927,8 @@ describe("the link between a computer and its Cloud", () => {
     await until(() => held.length === 3, "the third turn runs on the Cloud");
     expect(turns()[2]!.origin).not.toMatchObject({ kind: "user" });
     held[2]!({ ok: true, text: "Sent." });
+    await until(() => computer.followedSources.length === 3, "all reply origins reach the room follower");
+    expect(computer.followedSources.at(-1)?.origin).toMatchObject({ kind: "outside" });
   });
 
   it("a far member whose link is off, or whose place no longer has it, stays a member, takes no turn, and works again when the link is back", async () => {
@@ -1088,7 +1091,7 @@ it.each(["user", "outside", "unknown"] as const)("preserves %s provenance when a
     run: async (_group, _thread, _bot, _hop, _spoken, op) => { attended = op.personStarted; return true; },
   });
   follow("room", "thread", { id: "remote" } as BotRecord, "@local", 0,
-    kind === "unknown" ? undefined : kind === "user" ? { kind, request: "Please check" } : { kind });
+    { id: "assignment", origin: kind === "unknown" ? undefined : kind === "user" ? { kind, request: "Please check" } : { kind } } as HandoffView);
   await queue.get("thread");
   expect(attended).toBe(kind === "user");
 });

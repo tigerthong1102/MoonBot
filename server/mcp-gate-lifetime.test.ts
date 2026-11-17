@@ -14,7 +14,10 @@ const { writeFileSync } = require("node:fs");
 writeFileSync(process.env.PID_FILE, String(process.pid));
 process.stdin.resume();
 if (process.env.IGNORES_TERM === "1") process.on("SIGTERM", () => {});
-if (process.env.FLUSH_FILE) process.on("SIGTERM", () => setTimeout(() => { writeFileSync(process.env.FLUSH_FILE, "flushed"); process.exit(0); }, 100));
+if (process.env.FLUSH_FILE) process.once("SIGTERM", () => setTimeout(() => {
+  writeFileSync(process.env.FLUSH_FILE, "flushed"); process.exit(0);
+}, Number(process.env.FLUSH_MS ?? 100)));
+if (process.env.WITH_CHILD === "1") require("node:child_process").spawn(process.execPath, ["-e", "setInterval(() => {}, 60000)"], { stdio: "ignore" });
 setInterval(() => {}, 60_000);
 `;
 
@@ -80,6 +83,26 @@ describe.skipIf(process.platform === "win32")("mcp-gate and the processes it sta
     await start();
     gate!.kill("SIGTERM");
     expect(await until(exited, 5_000)).toBe(true);
+    expect(await until(() => !alive(serverPid), 2_000)).toBe(true);
+  }, 40_000);
+
+  it.each(["SIGTERM", "SIGINT"] as const)("lets a direct MCP server flush shutdown data after %s", async (signal) => {
+    const flushed = join(scratch, "flushed.txt");
+    await start({ FLUSH_FILE: flushed, FLUSH_MS: "100" }, true);
+    gate!.kill(signal);
+    expect(await until(exited, 5_000)).toBe(true);
+    expect(existsSync(flushed)).toBe(true);
+    expect(readFileSync(flushed, "utf8")).toBe("flushed");
+    expect(await until(() => !alive(serverPid), 2_000)).toBe(true);
+  }, 40_000);
+
+  it("lets the parent finish flushing after its descendant exits first", async () => {
+    const flushed = join(scratch, "flushed.txt");
+    await start({ FLUSH_FILE: flushed, FLUSH_MS: "500", WITH_CHILD: "1" }, true);
+    gate!.kill("SIGTERM");
+    expect(await until(exited, 5_000)).toBe(true);
+    expect(existsSync(flushed)).toBe(true);
+    expect(readFileSync(flushed, "utf8")).toBe("flushed");
     expect(await until(() => !alive(serverPid), 2_000)).toBe(true);
   }, 40_000);
 

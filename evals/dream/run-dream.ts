@@ -1,10 +1,4 @@
-// Sends each dream case to a real model with the dream's own prompt and scores what runDream would keep.
-//
-//   OMB_EVAL_LIVE=1 OMB_EVAL_LIVE_INSTANCE='{"instanceId":"claude","driver":"claudeAgent","model":"claude-haiku-5-5","config":{"cli":"/path/to/claude"},"environmentFrom":["HOME","USER","PATH"]}' \
-//     node --experimental-strip-types evals/dream/run-dream.ts [--only id,id]
-//
-// Each case is one real model call on your account: never in CI, closed unless OMB_EVAL_LIVE=1. The server's data folder is
-// a temporary one, so nothing reads or writes ~/.openmausbot.
+// Live model evaluation requires OMB_EVAL_LIVE=1, may incur API charges, and uses an isolated data directory.
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";

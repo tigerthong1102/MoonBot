@@ -1,6 +1,3 @@
-// Each agent-browser session's egress gate is a loopback listener of its own (gate.ts). A bot's browser that has ended
-// (closed for sitting unused, restarted, or never reopened after a server restart) needs none until it opens again.
-
 export interface EndedGateChecks {
   /** Sessions with an open gate, as a copy: a release changes the set. */
   sessions(): Iterable<string>;

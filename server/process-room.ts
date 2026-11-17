@@ -1,5 +1,4 @@
-// A server in a container may hold only so many processes and threads (its cgroup's pids.max); past that every spawn
-// fails with EAGAIN.
+// A container's cgroup pids.max limits processes and threads; exceeding it makes spawns fail with EAGAIN.
 import { readFileSync } from "node:fs";
 import { nameBucket, parseReapedChildrenMs, type ProcessRow } from "./perf/process-buckets.ts";
 import { linuxProcessList } from "./perf/process-sampler.ts";

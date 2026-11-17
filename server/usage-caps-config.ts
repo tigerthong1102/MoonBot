@@ -1,4 +1,3 @@
-// The shape of `usageCaps` in config.json, apart from the engine that reads the ledger (usage-caps.ts).
 import { z } from "zod";
 
 const amount = z.number().finite().min(0).max(1_000_000);

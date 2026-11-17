@@ -1,5 +1,3 @@
-// Written by scripts/gen-settings-places.ts from Settings' own index and the English catalog; edit those, then run it.
-
 /** A real place in Settings, as the person reads it in English. `advanced`: only Advanced mode shows it; `simplePath`:
  * where Simple mode shows it instead. `only`: the one kind of place or app it shows on. */
 export interface SettingsPlace {

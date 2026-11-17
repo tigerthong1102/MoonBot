@@ -1,6 +1,3 @@
-// Every real place in Settings, as the person reads it in English: the list bots cite instead of guessing a menu path.
-// shared/settings-places.ts is this list written out (scripts/gen-settings-places.ts); settings-places.test.ts fails
-// when the two differ.
 import type { SettingsPlace } from "../../../shared/settings-places.ts";
 import { ADVANCED_PAGES, fullContext, pageById, SETTINGS_INDEX, SETTINGS_PAGES, type SettingsContext, type SettingsIndexEntry, type SettingsPage } from "./settings-index.ts";
 
@@ -80,11 +77,8 @@ export function buildSettingsPlaces(labels: Readonly<Record<string, string>>): S
   return places;
 }
 
-/** shared/settings-places.ts as committed: the shape, then one place per line. */
 export function settingsPlacesFile(labels: Readonly<Record<string, string>>): string {
   return [
-    "// Written by scripts/gen-settings-places.ts from Settings' own index and the English catalog; edit those, then run it.",
-    "",
     "/** A real place in Settings, as the person reads it in English. `advanced`: only Advanced mode shows it; `simplePath`:",
     " * where Simple mode shows it instead. `only`: the one kind of place or app it shows on. */",
     "export interface SettingsPlace {",

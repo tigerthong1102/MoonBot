@@ -4,8 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { removeTempDir } from "../testing/cleanup.ts";
-import { resetUsageTotalsForTests, type UsageCapsConfig } from "../usage-caps.ts";
+import { personWaitingInRoom, resetUsageTotalsForTests, type UsageCapsConfig } from "../usage-caps.ts";
 import { appendUsage, flushUsageLedger } from "../usage-ledger.ts";
+import { followRoomMentions } from "./bot-link-rooms.ts";
+import type { HandoffView } from "../coordinator.ts";
+import type { BotRecord } from "../store.ts";
 import { capResets, createUsageCapGate, marksOf } from "./usage-cap-gate.ts";
 
 describe("the usage cap gate", () => {
@@ -32,6 +35,32 @@ describe("the usage cap gate", () => {
     log = [];
   });
   afterEach(async () => { await removeTempDir(dataDir); });
+
+  it.each(["outside", "unknown", "user"] as const)("preserves %s origin in linked-room follow-ups when no routine is active", async (kind) => {
+    caps = { stops: "unattended", server: { dailyUsd: 1 } };
+    await spend("2026-09-15T08:00:00.000Z", "a", 2);
+    const open = gate();
+    const queue = new Map<string, Promise<void>>();
+    const source = { id: "linked-assignment", ...(kind === "unknown" ? {} : { origin: kind === "user" ? { kind, request: "Ask Ada" } : { kind } }) } as HandoffView;
+    const member = { id: "a", name: "Ada" } as BotRecord;
+    const started: string[] = [], refused: unknown[] = [], sources: HandoffView[] = [];
+    const follow = followRoomMentions<{ cancelled: boolean; personStarted?: boolean }>({
+      members: () => [member], mentioned: () => [member], queue,
+      begin: (_group, _thread, _bots, assignment) => { sources.push(assignment); return { cancelled: false }; },
+      finish: () => {}, wait: async () => "run",
+      run: async (_group, _thread, botId, _hop, _spoken, operation) => {
+        try { open.assertTurn(botId, personWaitingInRoom(operation, undefined)); started.push(botId); }
+        catch (error) { refused.push(error); }
+        return true;
+      },
+    });
+    follow("room", "room-thread", { id: "linked-speaker" } as BotRecord, "@Ada continue", 0, source);
+    await queue.get("room-thread");
+    expect(sources).toEqual([source]);
+    expect(started).toEqual(kind === "user" ? ["a"] : []);
+    if (kind !== "user") expect(refused).toMatchObject([{ status: 409, code: "spend_cap" }]);
+    else expect(refused).toEqual([]);
+  });
 
   it("lets everything through and says nothing while no cap is set", async () => {
     await spend("2026-09-15T08:00:00.000Z", "a", 500);

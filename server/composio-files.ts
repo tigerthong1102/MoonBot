@@ -1,7 +1,3 @@
-// Where to put one file's bytes so a connected-app tool can read it by `s3key`: Composio's one-time upload link, asked
-// for with the project key, or through the managed connection service, which holds the key
-// (cloudflare/composio-broker/src/files.ts). Chosen the way relayMcp chooses: a member's own installation, else the
-// project key, else the service.
 import { z } from "zod";
 
 import type { AppConfig } from "./config.ts";

@@ -1,5 +1,3 @@
-// Where things are in the app, as a bot tells the person: only places from Settings' own index (shared/settings-places.ts),
-// so a bot never sends someone to a menu that does not exist.
 import { SETTINGS_HOW_TO_OPEN, SETTINGS_PLACES, type SettingsPlace, type SettingsPlaceId } from "../../shared/settings-places.ts";
 
 const PLACES: readonly SettingsPlace[] = SETTINGS_PLACES;

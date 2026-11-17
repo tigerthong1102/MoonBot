@@ -254,15 +254,16 @@ const stopUpstream = (): Promise<void> => stopping ??= (async () => {
     await killCliTree(child, TREE_STOP_GRACE_MS);
     return;
   }
-  if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
-  const childStopped = new Promise<void>((resolve) => {
-    if (child.exitCode !== null || child.signalCode !== null) return resolve();
-    const done = () => { clearTimeout(timer); child.off("exit", done); resolve(); };
-    const timer = setTimeout(done, TREE_STOP_GRACE_MS);
+  const exited = () => child.exitCode !== null || child.signalCode !== null;
+  const upstreamExit = exited() ? Promise.resolve() : new Promise<void>((resolve) => {
+    const timer = setTimeout(() => { child.off("exit", done); resolve(); }, TREE_STOP_GRACE_MS);
+    const done = () => { clearTimeout(timer); resolve(); };
     child.once("exit", done);
   });
-  await Promise.all([stopTree(tree, TREE_STOP_GRACE_MS), childStopped]);
-  if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+  if (!exited()) child.kill("SIGTERM");
+  await Promise.all([upstreamExit, stopTree(tree, TREE_STOP_GRACE_MS)]);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  if (!exited()) child.kill("SIGKILL");
 })();
 const leave = (code: number) => void stopUpstream().finally(() => process.exit(code));
 process.on("SIGTERM", () => leave(0));

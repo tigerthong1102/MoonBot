@@ -1,7 +1,4 @@
-// A stand-in (server/host/bot-link-host.ts) is the record of a bot that lives in another of the person's places. On this
-// place it is read-only: nothing here changes it, deletes it, or gives it a thread, a room or an automation of its own.
-// The store's write methods look only among this place's own bots; this is the same rule at the door, so a request that
-// names a stand-in where a bot is changed is answered with where that bot lives instead of half-doing something.
+// Linked bots are read-only here; mutation requests must not create or alter local state.
 import { botMoveRefusal } from "../bot-moves.ts";
 
 type StandIn = { name: string; home?: { place: string; placeName: string; botId: string } };

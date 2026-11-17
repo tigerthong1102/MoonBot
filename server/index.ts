@@ -652,7 +652,7 @@ import { createCardRequester, linePersonKey } from "./host/thread-person.ts"; im
 import { createThreadRoutes } from "./routes/threads.ts";
 import { createWebhookRoutes } from "./routes/webhooks.ts";
 import { withScopeHint } from "./connector-scope-hint.ts";
-import { connectorFileDeps, connectorFileScope, prepareConnectorFiles, withMissingFileHint } from "./connector-files.ts";
+import { connectorFileDeps, connectorFileScope, prepareConnectorFiles, uploadWithPermissionChecks, withMissingFileHint } from "./connector-files.ts";
 import { createConnectorCards } from "./host/connector-cards.ts";
 import { createLoginMailCodes } from "./host/login-mail-codes.ts";
 import { onThreadSeen, personAsks as personAskAt, sawThread } from "./thread-presence.ts"; import { createWarmSummaryHost, HARNESS_IDLE_FRACTION } from "./host/warm-summary-host.ts";
@@ -14447,23 +14447,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             const nextDrafts = new Set(reservedDrafts);
             const draftReservation = reserveGmailDrafts(connectorCalls, nextDrafts);
             if (draftReservation) refuseDispatch(draftReservation);
-            let sent: unknown;
-            if (files.upload) {
-              const controller = new AbortController();
-              const checkUploadPermission = () => {
-                try { checkDispatch(true, false); }
-                catch (error) { controller.abort(error); }
-              };
-              const monitor = setInterval(checkUploadPermission, 100);
-              monitor.unref?.();
-              try {
-                sent = await files.upload({ check: () => checkDispatch(true, false), signal: controller.signal });
-              } catch (error) {
-                refuseDispatch(error instanceof Error ? error.message : String(error));
-              } finally {
-                clearInterval(monitor);
-              }
-            }
+            const sent = files.upload ? await uploadWithPermissionChecks(files.upload, () => checkDispatch(true, false))
+              .catch((error: unknown) => refuseDispatch(error instanceof Error ? error.message : String(error))) : undefined;
             checkDispatch(true);
             for (const key of nextDrafts) reservedDrafts.add(key);
             return sent as typeof body | undefined;

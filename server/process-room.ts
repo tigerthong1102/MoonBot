@@ -106,7 +106,9 @@ export class ProcessBudget {
     for (const [session, { since }] of this.browsers) if (at - since >= BROWSER_START_MS && this.browserRuns?.(session) === false) this.browsers.delete(session);
     if (!this.browsers.size) return 0;
     if (!this.seenBrowsers || at - this.seenBrowsers.at >= 1_000 || at < this.seenBrowsers.at) this.seenBrowsers = { at, tasks: this.browserTasks() };
-    return Math.max(0, this.browsers.size * BROWSER_TASKS - (this.seenBrowsers.tasks ?? 0));
+    const running = [...this.browsers.keys()].filter((session) => this.browserRuns?.(session) === true).length;
+    const starting = this.browsers.size - running;
+    return starting * BROWSER_TASKS + Math.max(0, running * BROWSER_TASKS - (this.seenBrowsers.tasks ?? 0));
   }
 
   /** The gate a bot's browser passes before it opens: `runs` says whether a session's browser is running now. */

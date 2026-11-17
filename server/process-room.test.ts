@@ -774,6 +774,18 @@ describe("a spawn refused during a turn", () => {
 describe("browsers under the pids limit", () => {
   afterEach(() => { vi.useRealTimers(); });
 
+  it("does not let unrelated browser tasks offset browsers still starting", async () => {
+    vi.useFakeTimers();
+    const budget = new ProcessBudget({ read: () => ({ max: 500, current: 200 }), browserTasks: () => 170, log: () => {}, pollMs: 100 });
+    const browsers = budget.browserRoom(() => false);
+    expect(await browsers.enter("bot-a")).toBeNull();
+    const second = browsers.enter("bot-b");
+    await vi.advanceTimersByTimeAsync(21_000);
+    expect(await second).toBe(BROWSER_NO_ROOM);
+    budget.releaseBrowser("bot-a");
+    expect(await browsers.enter("bot-b")).toBeNull();
+  });
+
   it("reserves startup footprint for a person's browser before it appears in process counts", () => {
     const budget = new ProcessBudget({ read: () => ({ max: 1024, current: 700 }), browserTasks: () => 0, log: () => {} });
     budget.browserRoom(() => false);

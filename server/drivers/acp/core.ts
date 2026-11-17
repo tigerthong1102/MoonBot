@@ -387,8 +387,6 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
       const sessions = new Map<string, AcpSession>();
     // Retain every closing Qwen child until its tree is gone: closing drops the pool entry, not its native writer lease.
       const retiring = new Map<string, Set<ReturnType<typeof spawnCli>>>();
-      // Other agents get 5 s to leave on their own after EOF, as before, then their tree is stopped; no turn waits for them,
-      // dispose does.
       const leaving = new Set<ReturnType<typeof spawnCli>>();
       const retireChild = async (threadId: string, child: ReturnType<typeof spawnCli>): Promise<boolean> => {
         let children = retiring.get(threadId);

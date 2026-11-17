@@ -7,7 +7,7 @@ import { SECRET_ON_PAGE, SecretHolds, type SecretHold } from "./browser-secret-h
 import type { BrowserSteps, StepCall, StepContext } from "./browser-steps.ts";
 import { HARNESS_CALL_BUDGET_MS } from "./harness-budget.ts";
 import { launchSettingsKey } from "./browser-launch-key.ts";
-import { refusedSlot, SharedToolLists, slotRefusal, type BrowserRoom } from "./browser-room.ts";
+import { prepareBrowserRoom, refusedSlot, SharedToolLists, slotRefusal, type BrowserRoom } from "./browser-room.ts";
 
 export interface BrowserSpawnSpec {
   command: string;
@@ -291,6 +291,7 @@ export type ApplyViewport = (spec: BrowserSpawnSpec, size: PageSize) => Promise<
 type LaunchSpec = { command: string; env?: Record<string, string | undefined> };
 /** The browser the engine starts, prepared by OMB. */
 export interface BrowserLaunch {
+  starting?(session: string, spec: LaunchSpec): void;
   /** Before the engine may start the browser; rejects with a message for the bot while it cannot start yet. */
   ready(spec: LaunchSpec): Promise<void>;
   /** Once the engine runs the browser, again after every start. */
@@ -515,11 +516,9 @@ export class BrowserRuntime {
     const invoke = async () => {
       const launchStarted = performance.now();
       let dispatched = false;
-      const full = method === "tools/call" && toolName !== "agent_browser_close" && !attachesToChrome(spec.env) ? await this.room?.enter(session, deadline - this.options.followUpReserveMs) : null;
-      if (full) return slotRefusal(full);
-      if (method === "tools/call") await this.launchReady(spec);
-      const entry = this.connect(session, spec);
-      await entry.client.ready;
+      const prepared = await prepareBrowserRoom(method === "tools/call" && toolName !== "agent_browser_close" && !attachesToChrome(spec.env) ? this.room : undefined, session, deadline - this.options.followUpReserveMs, async () => { if (method === "tools/call") await this.launchReady(spec); const entry = this.connect(session, spec); await entry.client.ready; return entry; });
+      if ("refusal" in prepared) return slotRefusal(prepared.refusal);
+      const entry = prepared.entry;
       beforeDispatch?.();
       if (method === "tools/call" && this.gate(session).owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
       if (method === "tools/call" && await this.pageSizes.beforeCall(session)) {
@@ -844,7 +843,7 @@ export class BrowserRuntime {
     return !gate?.spec || gate.watchers > 0 || this.working(session) ? null : { idleMs: Date.now() - gate.lastUsed, savesSignIns: gate.spec.env.AGENT_BROWSER_RESTORE_SAVE === "auto" };
   }
 
-  launchReady(spec: LaunchSpec): Promise<void> { return this.launch?.ready(spec) ?? Promise.resolve(); }
+  launchReady(spec: LaunchSpec, personSession?: string): Promise<void> { if (personSession) this.launch?.starting?.(personSession, spec); return this.launch?.ready(spec) ?? Promise.resolve(); }
 
   /** A browser without its identity still browses, so a failure here never fails the call. */
   launched(session: string, spec: LaunchSpec): Promise<void> { return this.launch?.started(session, spec).catch(() => undefined) ?? Promise.resolve(); }

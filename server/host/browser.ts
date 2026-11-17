@@ -126,6 +126,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     applyViewport: (spec, size) => setBrowserViewport(spec.command, spec.env, size),
     // A browser a person's view started counts toward the limit too. It is not refused, so a bot's next new one waits.
     launch: {
+      starting: (session, spec) => { if (processRoom && !attachesToChrome(spec.env ?? {})) processBudget.reserveBrowser(session); },
       ready: (spec) => chromeLauncher.ready(spec),
       started: (session, spec) => {
         if (!attachesToChrome(spec.env ?? {})) browserRoom.entered(session);

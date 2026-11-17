@@ -774,6 +774,14 @@ describe("a spawn refused during a turn", () => {
 describe("browsers under the pids limit", () => {
   afterEach(() => { vi.useRealTimers(); });
 
+  it("reserves startup footprint for a person's browser before it appears in process counts", () => {
+    const budget = new ProcessBudget({ read: () => ({ max: 1024, current: 700 }), browserTasks: () => 0, log: () => {} });
+    budget.browserRoom(() => false);
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(false);
+    budget.reserveBrowser("person");
+    expect(budget.short(BROWSER_TASKS, 0)).toBe(true);
+  });
+
   function room(current: { value: number }, measured: { value: number | null }, running: Set<string>) {
     const budget = new ProcessBudget({ read: () => ({ max: 1024, current: current.value }), browserTasks: () => measured.value, log: () => {}, pollMs: 100 });
     return { budget, room: budget.browserRoom((session) => running.has(session)) };

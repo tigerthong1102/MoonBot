@@ -116,6 +116,8 @@ export class ProcessBudget {
     return { enter: (session) => this.enterBrowser(session, this.now() + BROWSER_WAIT_MS) };
   }
 
+  reserveBrowser(session: string): void { if (!this.browsers.has(session)) this.browsers.set(session, this.now()); }
+
   /** Null once this session's browser may run: it already does, or its processes fit. Otherwise it waits for room until
    * `until`, then answers why it cannot open. */
   private async enterBrowser(session: string, until: number): Promise<string | null> {

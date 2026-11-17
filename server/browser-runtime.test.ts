@@ -885,6 +885,15 @@ describe("server-owned browser MCP runtime", () => {
     expect(launch.started).not.toHaveBeenCalled();
   });
 
+  it("releases a newly admitted slot when launch preparation fails", async () => {
+    const room = new BrowserRoom({ max: () => 1, spare: () => null, close: async () => false, waitMs: 20 });
+    const launch = { ready: vi.fn(async () => { throw new Error("not ready"); }), started: vi.fn(), stopped: vi.fn() };
+    const value = runtime({ room, launch });
+    await expect(value.agentRpc("s", spec(), "tools/call", { name: "echo" })).rejects.toThrow("not ready");
+    expect(room.open).toBe(0);
+    expect(await room.enter("other", Date.now() + 100)).toBeNull();
+  });
+
   it("still runs the bot's command when the browser's identity cannot be attached", async () => {
     const launch = { ready: async () => {}, started: async () => { throw new Error("no DevTools address"); }, stopped: vi.fn() };
     await expect(runtime({ launch }).agentRpc("s", spec(), "tools/call", { name: "echo", arguments: { text: "works" } })).resolves.toMatchObject({ content: [{ type: "text" }] });

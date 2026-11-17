@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { BrowserRoom, browserRoomSize, pidsLimit, SharedToolLists, spareForRoom } from "./browser-room.ts";
+import { BrowserRoom, browserRoomSize, pidsLimit, prepareBrowserRoom, SharedToolLists, spareForRoom } from "./browser-room.ts";
 
 const files = (map: Record<string, string>) => (path: string) => map[path] ?? null;
 
@@ -121,6 +121,22 @@ describe("a browser over the limit", () => {
     expect(await value.enter("b", Date.now() + 50)).toMatch(/already open/);
     value.left("viewed");
     expect(await value.enter("b", Date.now() + 1_000)).toBeNull();
+  });
+
+  it("does not undo a person's browser admission after a provisional admission", async () => {
+    const { value } = room({ max: 1 });
+    let release: (() => void) | undefined;
+    expect(await value.enter("viewed", Date.now() + 100, (undo) => { release = undo; })).toBeNull();
+    value.entered("viewed");
+    release?.();
+    expect(value.open).toBe(1);
+  });
+
+  it("keeps an existing browser slot if preparing another call fails", async () => {
+    const { value } = room({ max: 1 });
+    value.entered("viewed");
+    await expect(prepareBrowserRoom(value, "viewed", Date.now() + 100, async () => { throw new Error("failed"); })).rejects.toThrow("failed");
+    expect(value.open).toBe(1);
   });
 
   it("asks the server's room for its processes once the count allows, and closes a spare browser before refusing", async () => {

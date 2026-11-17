@@ -86,6 +86,7 @@ export interface BrowserRoomOptions {
  * spare one is closed; with none to close its call waits, then is told why it cannot start. */
 export class BrowserRoom {
   readonly #open = new Set<string>();
+  readonly #provisional = new Map<string, symbol>();
   readonly #options: BrowserRoomOptions;
 
   constructor(options: BrowserRoomOptions) { this.#options = options; }
@@ -93,7 +94,7 @@ export class BrowserRoom {
   get open(): number { return this.#open.size; }
 
   /** Null once `session` may run a browser; otherwise the refusal for the bot. */
-  async enter(session: string, deadline: number): Promise<string | null> {
+  async enter(session: string, deadline: number, onAdmitted?: (release: () => void) => void): Promise<string | null> {
     const until = Math.min(deadline, Date.now() + (this.#options.waitMs ?? ROOM_WAIT_MS));
     for (;;) {
       if (this.#open.has(session)) return null;
@@ -107,6 +108,9 @@ export class BrowserRoom {
         // Another session may have taken the last place while the server's room was asked.
         if (!this.#open.has(session) && this.#open.size >= Math.max(1, this.#options.max())) continue;
         this.#open.add(session);
+        const token = Symbol();
+        this.#provisional.set(session, token);
+        onAdmitted?.(() => { if (this.#provisional.get(session) === token) this.left(session); });
         return null;
       }
       if (await this.#closeOneSpare(others)) continue;
@@ -123,7 +127,7 @@ export class BrowserRoom {
       // Asked again just before closing: an earlier close's wait may have let a call or a person in.
       if (!this.#open.has(other) || this.#options.spare(other) === null) continue;
       if (await this.#options.close(other).catch(() => false)) {
-        this.#open.delete(other);
+        this.left(other);
         return true;
       }
     }
@@ -131,9 +135,16 @@ export class BrowserRoom {
   }
 
   /** A browser that runs whether or not a call started it, such as one a person's view opened. */
-  entered(session: string): void { this.#open.add(session); }
+  entered(session: string): void { this.#open.add(session); this.#provisional.delete(session); }
 
-  left(session: string): void { this.#open.delete(session); }
+  left(session: string): void { this.#open.delete(session); this.#provisional.delete(session); }
+}
+
+export async function prepareBrowserRoom<T>(room: BrowserRoom | undefined, session: string, deadline: number, prepare: () => Promise<T>): Promise<{ entry: T } | { refusal: string }> {
+  let release: (() => void) | undefined;
+  const refusal = await room?.enter(session, deadline, (undo) => { release = undo; });
+  if (refusal) return { refusal };
+  try { return { entry: await prepare() }; } catch (error) { release?.(); throw error; }
 }
 
 const REFUSED = new WeakSet<object>();

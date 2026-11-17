@@ -1,3 +1,5 @@
+import type { Routine, RoutineRun } from "./routines.ts";
+import { cloneSchedule } from "./routine-schedules.ts";
 import { ROUTINE_RUN_LIMIT_MAX_MINUTES, ROUTINE_RUN_LIMIT_MIN_MINUTES } from "../shared/routines.ts";
 import { z } from "zod";
 
@@ -77,4 +79,20 @@ export function loadAttachments(value: unknown): RoutineContextAttachment[] {
 
 export function cloneAttachments(attachments: readonly RoutineContextAttachment[] | undefined): RoutineContextAttachment[] {
   return attachments?.map((attachment) => ({ ...attachment })) ?? [];
+}
+
+export function cloneRoutine(routine: Routine): Routine {
+  return {
+    ...routine,
+    schedule: cloneSchedule(routine.schedule),
+    attachments: cloneAttachments(routine.attachments),
+  };
+}
+
+export function cloneRun(run: RoutineRun): RoutineRun {
+  return {
+    ...run,
+    attachments: cloneAttachments(run.attachments),
+    denials: run.denials ? [...run.denials] : undefined,
+  };
 }

@@ -333,7 +333,7 @@ import { buildRecoveryText, buildTurnContext, engineIsFresh, replaysNatively } f
 import { Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, sessionStart, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
 import { extractReplayImages, extractTurnImages, videoFramesWithin } from "./turn-images.ts";
 import { callTitleExcerpt } from "./thread-title.ts";
-import { generateThreadTitle, llmThreadTitlesEnabled } from "./thread-title-generate.ts";
+import { createThreadTitleGate, generateThreadTitle, llmThreadTitlesEnabled } from "./thread-title-generate.ts";
 import { engineCommandCpuMs, engineProcessExited, engineProcessGone, ENGINE_EXIT_STALL_MS, stallLimitMs, stallNotice, TurnWatchdog } from "./turn-watchdog.ts"; import { createIdleThreads } from "./host/idle-threads.ts";
 import { TurnResources, type TurnOwner } from "./turn-resources.ts";
 import { createPhoneHold } from "./phone-screen/hold.ts"; import { createPhoneGate } from "./routes/phone-gate.ts";
@@ -7493,20 +7493,7 @@ async function finalScreenFrame(_botId: string, threadId: string): Promise<Frame
   return frame;
 }
 
-function threadTitleGate(bot: Pick<BotRecord, "id" | "modelSelection">): { ok: true; instance: ProviderInstance } | { ok: false; refusal: string } {
-  if (hostedModels && !hostedModels.allows(bot.modelSelection)) return { ok: false, refusal: hostedModels.error() };
-  const instance = registry.get(bot.modelSelection.instanceId);
-  if (!instance?.generateText) return { ok: false, refusal: "this bot's model can't generate a title — rename the thread instead" };
-  const refusal = policyModelRefusal(instance);
-  if (refusal) return { ok: false, refusal };
-  try {
-    assertWithinBudget(cfg, DATA_DIR);
-    usageCapGate.assertTurn(bot.id, true);
-  } catch (error) {
-    return { ok: false, refusal: error instanceof Error ? error.message : String(error) };
-  }
-  return { ok: true, instance };
-}
+const threadTitleGate = createThreadTitleGate({ instanceFor: bot => registry.get(bot.modelSelection.instanceId), hostedRefusal: bot => hostedModels && !hostedModels.allows(bot.modelSelection) ? hostedModels.error() : null, modelRefusal: policyModelRefusal, assertBudget: bot => { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(bot.id, true); } });
 function cappedThreadTitle(instance: ProviderInstance, text: string, source: "first-message" | "conversation" | "call", botId: string): Promise<string | null> {
   return generateThreadTitle(instance, text, source, undefined, () => {
     try { assertWithinBudget(cfg, DATA_DIR); return usageCapGate.refusal(botId, true) === null; } catch { return false; }

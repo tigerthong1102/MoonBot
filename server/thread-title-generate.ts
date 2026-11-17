@@ -1,5 +1,7 @@
 // Generated thread titles: automatic ones only when features.llmThreadTitles is on, "Regenerate title" whenever the person
 // asks. The engine's one-shot text call, given 10 seconds once it starts, its reply cleaned to a title or null.
+import type { BotRecord } from "./store.ts";
+import type { ProviderInstance } from "./contracts.ts";
 import type { AppConfig } from "./config.ts";
 import { backgroundTextSlots, type JobSlots } from "./job-slots.ts";
 import { titleFromLlm } from "./store.ts";
@@ -38,4 +40,23 @@ export async function generateThreadTitle(
       }
     }, { interactive: true }).catch(() => answer(null));
   });
+}
+
+export function createThreadTitleGate(deps: {
+  instanceFor(bot: Pick<BotRecord, "id" | "modelSelection">): ProviderInstance | null | undefined;
+  hostedRefusal(bot: Pick<BotRecord, "id" | "modelSelection">): string | null;
+  modelRefusal(instance: ProviderInstance): string | null | undefined;
+  assertBudget(bot: Pick<BotRecord, "id" | "modelSelection">): void;
+}) {
+  return (bot: Pick<BotRecord, "id" | "modelSelection">): { ok: true; instance: ProviderInstance } | { ok: false; refusal: string } => {
+    const hosted = deps.hostedRefusal(bot);
+    if (hosted) return { ok: false, refusal: hosted };
+    const instance = deps.instanceFor(bot);
+    if (!instance?.generateText) return { ok: false, refusal: "this bot's model can't generate a title — rename the thread instead" };
+    const refusal = deps.modelRefusal(instance);
+    if (refusal) return { ok: false, refusal };
+    try { deps.assertBudget(bot); }
+    catch (error) { return { ok: false, refusal: error instanceof Error ? error.message : String(error) }; }
+    return { ok: true, instance };
+  };
 }

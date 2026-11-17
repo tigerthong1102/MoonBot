@@ -685,7 +685,7 @@ describe("McpOAuthManager with a failing onSettled", () => {
     const started = await manager.start("docs", mcp.url);
     const page = await approve(started);
     expect(page.status).toBe(200);
-    expect(await page.text()).toBe("Signed in. You can close this tab and return to OpenMausBot.");
+    expect(await page.text()).toBe("Signed in. You can close this tab and return to StartupBot.");
     expect(manager.authState("docs", mcp.url)).toBe("signed-in");
     await manager.start("docs", mcp.url);
     await expect.poll(() => heard).toEqual(["succeeded", "expired"]);
@@ -717,7 +717,7 @@ describe("McpOAuthManager sign-in from a browser on another computer", () => {
     const callback = await returnAddress(started);
     expect(callback.origin + callback.pathname).toBe("https://cloud.example/mcp-oauth/callback");
     const page = await manager.publicCallback("cloud.example", callback.search);
-    expect(page).toEqual({ status: 200, text: "Signed in. You can close this tab and return to OpenMausBot." });
+    expect(page).toEqual({ status: 200, text: "Signed in. You can close this tab and return to StartupBot." });
     expect(manager.status("docs", started.flowId, "alice")?.phase).toBe("succeeded");
     expect(oauth.isValid(`Bearer ${await manager.accessToken("docs", mcp.url)}`)).toBe(true);
 

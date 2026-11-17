@@ -676,7 +676,7 @@ export class McpOAuthManager {
       await this.acceptCallback(flow, callback);
       return flow.status.phase === "failed"
         ? { status: 400, text: `${flow.status.message} You can close this tab.` }
-        : { status: 200, text: "Signed in. You can close this tab and return to OpenMausBot." };
+        : { status: 200, text: "Signed in. You can close this tab and return to StartupBot." };
     } catch (error) {
       return { status: error instanceof McpSignInError ? error.status : 400, text: "Invalid or expired sign-in. Return to OpenMausBot and try again." };
     }

@@ -49,3 +49,11 @@ Run 44009054591 completed with failures. The authentication cascades traced to t
 Latest Codex findings: connector header history removed; confirmed browser shutdown now releases process-budget reservations; emitted thread links use StartupBot with legacy parsing retained; subprocess retained output is bounded after overflow; connector permissions are checked again after attachment upload. Focused regression results: 87 resource/link/process tests, 25 trust-control tests including revocation during upload, and 444 contract/updater/UI/ratchet tests passed locally. Build and lint passed. Full failing-file rerun and final-head CI remain required.
 
 The delayed numeric process-group SIGKILL finding remains open; no claim of full termination safety is made. Updater source and current repository support URL remain intentional; neither was changed back to upstream.
+
+## Codex verification on 2026-11-17 (baseline e031d8baef72dceaf0d90f9af8c6641f1748a144)
+
+The latest remote changes were fast-forwarded without rewriting history. Confirmed fixes: Linux descriptor consumer uses the StartupBot bundle identity; routine restart recovery propagates continuesRun through usage-cap checks; connector permissions are checked during upload and before dispatch; closed child processes cancel delayed group kills; UI selection uses accent-ink; retrospective helper headers were removed.
+
+Local review regression: 430 passed, 2 platform skips across ten suites (title generation and regeneration, browser runtime/live, process budget, thread links, process groups, connector files, local computer and routine recovery). Remaining OAuth, secret-card, MCP-expiry and fill-login wording tests: 229 passed across six suites after aligning the stale assertions and two production messages with StartupBot. Lint and typecheck passed before the final text-only edits. These results do not imply final-head GitHub CI passed.
+
+The previous broad rerun had 1357 passed and 11 failed, including two runtime investigations (secret-request spawn readiness and room image steering). Those two have not been dismissed as flaky or qualified by the narrower passing review tests. Full CI, package smoke and fresh final-head reviews remain merge gates.

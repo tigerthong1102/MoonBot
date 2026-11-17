@@ -1,4 +1,3 @@
-// Unattended work is bounded by duration, model requests and permission denials.
 import type { ServerTextParams } from "../../shared/server-text.ts";
 import type { RuntimeEvent } from "../contracts.ts";
 import { chatNotice, failedNoticeTool, type ChatNoticeKey } from "../chat-notices.ts";
@@ -38,18 +37,14 @@ export const personDriven = (request: { personLine?: true; origin?: { kind: stri
   request?.personLine === true || request?.origin?.kind === "user";
 
 export interface UnattendedTurnDeps extends Omit<LoopGuardDeps, "settings"> {
-  /** The loop guard's settings for a turn: an unattended one has it on, with a stop. */
   settings(unattended: boolean): LoopGuardSettings;
-  /** Nobody is waiting on this conversation's turn. */
   unattended(threadId: string): boolean;
   limits?(): UnattendedLimits;
   now?(): number;
-  /** False leaves the clock to the caller's own sweep(). */
   timer?: boolean;
 }
 
 export interface UnattendedTurns extends LoopGuard {
-  /** Adds the time since the last sweep to every unattended turn that is not waiting, and stops one past its limit. */
   sweep(): void;
   close(): void;
 }
@@ -127,6 +122,10 @@ export function createUnattendedTurns(deps: UnattendedTurnDeps): UnattendedTurns
     let turn = turns.get(threadId);
     if (!turn || (event.turnId !== undefined && turn.turnId !== undefined && turn.turnId !== event.turnId)) turns.set(threadId, (turn = fresh(event.turnId)));
     if (event.type === "thread.token-usage.updated") {
+      const contextOnly = event.itemId === undefined && event.input === 0 && event.output === 0
+        && (event.cachedInput ?? 0) === 0 && (event.reasoning ?? 0) === 0
+        && (event.contextTokens !== undefined || event.contextWindow !== undefined);
+      if (contextOnly) return;
       if (event.itemId !== undefined) turn.calls.add(event.itemId);
       else if (!turn.inStep) { turn.unnamedCalls += 1; turn.inStep = true; }
     } else if (event.type === "item.started" && event.itemType === "tool") { turn.tools += 1; turn.inStep = false; }

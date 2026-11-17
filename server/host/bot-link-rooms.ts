@@ -34,9 +34,7 @@ interface Kept {
   seats: Record<string, { through: string; at: number }>;
   turns: Record<string, Turn>;
 }
-/** Why a far member cannot be reached: the link is off or its place is not linked, or its place no longer has it. */
 export type FarGone = "off" | "missing";
-/** A far bot one of this place's rooms has as a member, as the host makes its stand-in record. */
 export interface FarRecord extends Known { id: string; gone?: FarGone }
 
 export interface LinkedRoomsDeps {
@@ -57,7 +55,6 @@ export interface LinkedRoomsDeps {
   window(threadId: string, readerBotId: string): { lines: ReadonlyArray<{ id: string; text: string }>; order: readonly string[]; readable: readonly string[] };
   /** Who stands behind what is being said in this room thread now when it is not the person: a routine, a webhook, a guest. */
   opener?(botId: string, threadId: string): HandoffOpener | undefined;
-  /** After a member's answer is in the room: the members it names take their turns, as after any member's answer. */
   follow?(groupId: string, threadId: string, speaker: BotRecord, text: string, hop: number, source: HandoffView): void;
   maxHops?: number;
   now?: () => number;
@@ -285,11 +282,9 @@ export type LinkedRooms = ReturnType<typeof createLinkedRooms>;
 
 export interface RoomFollowPorts<Operation extends { cancelled: boolean }> {
   members(groupId: string): BotRecord[];
-  /** The members `text` mentions. */
   mentioned(text: string, members: BotRecord[]): BotRecord[];
   begin(groupId: string, threadId: string, botIds: string[], source: HandoffView): Operation;
   finish(groupId: string, operation: Operation): void;
-  /** One turn after another in each room thread. */
   queue: Map<string, Promise<void>>;
   wait(operation: Operation, threadId: string, bot: BotRecord): Promise<"run" | "skip" | "stop">;
   run(groupId: string, threadId: string, botId: string, hop: number, spoken: Set<string>, operation: Operation): Promise<boolean>;

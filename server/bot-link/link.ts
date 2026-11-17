@@ -134,7 +134,7 @@ export interface BotLinkDeps {
   resultRow(parent: HandoffView, child: HandoffView, name: string): void;
   rooms?: {
     brief(node: HandoffView): { from: { botId: string; name: string }; text: string; person?: string } | undefined;
-    /** Why a room turn that waited can no longer go (the room or the thread is gone, the bot left it), or undefined. */
+
     problem(node: HandoffView): string | undefined;
     /** A room turn ended: its answer is the member's line in the room. True when `child` was a room turn. */
     reply(child: HandoffView, parent: HandoffView | undefined, name: string): boolean;

@@ -1,5 +1,16 @@
 # Review audit — 2026-11-17
 
+## Codex follow-up of bb49a760f
+
+| Finding | Classification | Evidence / fix |
+| --- | --- | --- |
+| Context-only updates counted as model calls, discussion 4600473965 / thread PRRT_kwDOVwGsl864divi | CONFIRMED | ACP core emits unnamed zero-input/output context reports. Those reports incorrectly created an unnamed call and disabled tool fallback. Exclude context metadata with no model identifier or input/output/cache/reasoning usage. Eight regressions cover zero context values, tool fallback, mixed real calls and context, batched tools, named zero-token calls, cache-only/reasoning-only reports and zero usage without context. Four fail before the fix; all pass afterward. |
+| Browser admission/idle-sweep narration, discussion 4600473975 / thread PRRT_kwDOVwGsl864divq | CONFIRMED | Remove the overview and equivalent private helper narration; retain external OS facts, security invariants, licensing and public config/wire documentation. Eight comment-only files have identical complete TypeScript syntax, declarations and embedded literals against bb49a760f. |
+
+Local Node 24.22.2 evidence: 174 budget/browser/process/ACP tests PASS; 332 unattended-limit/approval/loop/link/recovery/size/docs/CI-scope tests PASS. Batches overlap and are not summed. Lint, typecheck, production build and packaged-server smoke PASS. No production behavior changes beyond context-only request accounting; existing tests, timeouts, model-call coalescing, admission/idle-sweep behavior, auth and updater/release settings remain.
+
+On bb49a760f, CI 44095281931 passes 32 executable jobs and fails only its aggregate after macOS smoke cannot acquire a hosted runner. The macOS job has no executed steps; annotations explicitly identify macOS arm64 capacity constraints. Docker 44095282439, connector 44095282422, docs 44095282189 and website 44095282107 PASS. This is not a full CI PASS and cannot qualify the follow-up head. New-head required checks and completed clean Codex review remain pending. No passed job is manually rerun and no full manual matrix is dispatched. Qodo remains excluded by owner instruction.
+
 ## Latest Codex follow-up: 4da4eddd8
 
 - CONFIRMED: fatal-shutdown implementation overview, discussion 4600265635 / thread PRRT_kwDOVwGsl864dDaA. Remove the reported inline block and nine equivalent added internal comments in server/index.ts. Retain the owner-authority security invariants and external Composio fact. Complete comment-free TypeScript syntax, declarations and embedded program strings are unchanged.

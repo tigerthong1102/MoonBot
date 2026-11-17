@@ -112,7 +112,6 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     botByThread: (threadId: string) => deps.store().botByThread(threadId) };
 
   const processRoom = deps.engineMemory?.selfHosted?.() ? processBudget.browserRoom((session) => browserRunning(session, usedBrowserSessions.get(session)), browserProcessPid) : null;
-  // Only a bot waiting for a slot closes a browser a running turn holds; the idle sweep below never does.
   const browserRoom = new BrowserRoom({
     max: deps.browsersAtOnce ?? (() => defaultBrowserRoomSize()),
     spare: (session) => spareForRoom(agentBrowserRuntime.spare(session), { holds: !turnResources.free(`browser:${session}`), idleMs: idleMs() }),

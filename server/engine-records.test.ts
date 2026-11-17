@@ -147,7 +147,7 @@ describe.skipIf(!posix)("a daemon an engine started in a session of its own", ()
     const run = join(dir, ENGINE_RUNS_DIR, tag);
     return { tag, engine, child, daemon, run };
   }
-  /** The server is gone: its process no longer runs (the test process keeps running, so its record says so). */
+
   const serverDied = (run: string) => {
     const server = JSON.parse(readFileSync(join(run, "server.json"), "utf8")) as Record<string, unknown>;
     writeFileSync(join(run, "server.json"), JSON.stringify({ ...server, pid: 999_999_999 }));

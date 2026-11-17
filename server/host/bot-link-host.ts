@@ -26,7 +26,7 @@ export interface BotLinkHostDeps {
   /** The room's lines as a member reads them, and who stands behind a room thread's words when it is not the person. */
   roomWindow: LinkedRoomsDeps["window"];
   roomOpener?: LinkedRoomsDeps["opener"];
-  /** A room's far members can be reached now, or no longer can: the app hears the room again. */
+
   roomChanged?(groupId: string): void;
   coordinator(): Coordinator;
   kick(): void;

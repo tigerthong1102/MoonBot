@@ -235,8 +235,7 @@ const child = spawn(resolved.command, resolved.args, {
   ...(process.platform === "win32" ? { windowsHide: true } : {}),
 });
 
-// The real server must not outlive its gate: a launcher (npx, a shell) does not pass a signal on to what it started, so
-// each process below the gate is signalled itself. On Windows only taskkill /T reaps a tree.
+// On POSIX, signaling a process does not signal its descendants. Windows taskkill /T stops a process tree.
 const END_OF_INPUT_GRACE_MS = 5_000;
 const TREE_STOP_GRACE_MS = 1_500;
 const tree: TreeProcess[] = [];

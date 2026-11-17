@@ -43,7 +43,7 @@ function rows(platform: NodeJS.Platform): Row[] {
   return platform === "linux" ? linuxRows() : platform === "win32" ? [] : psRows();
 }
 
-/** The live processes below `root`, parents before their children. Empty on Windows, where taskkill /T walks the tree. */
+
 export function descendantsOf(root: number, platform: NodeJS.Platform = process.platform): TreeProcess[] {
   const all = rows(platform);
   const found: TreeProcess[] = [];

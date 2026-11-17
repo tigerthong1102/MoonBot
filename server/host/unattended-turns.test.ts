@@ -30,7 +30,6 @@ function rig(options: { unattended?: boolean; limits?: Partial<UnattendedLimits>
     log: () => {},
   });
   const emit = (event: RuntimeEvent) => turns.onEvent(event);
-  /** One request to the AI that runs one shell command; how many of them the turn got to make is what the tests count. */
   let requests = 0;
   const request = (command: string, ok: boolean) => {
     if (!state.live) return false;
@@ -45,7 +44,6 @@ function rig(options: { unattended?: boolean; limits?: Partial<UnattendedLimits>
   return {
     turns, state, rows, interrupts, emit, base, request,
     requests: () => requests,
-    /** Plays requests until the turn is stopped or `most` were made. */
     loop(most: number, command: (index: number) => string, ok = false) { for (let i = 0; i < most && request(command(i), ok); i++); },
     advance(ms: number) { state.now += ms; turns.sweep(); },
     stops: () => rows.flatMap((row) => failedTurnCause(row.name) ?? []),
@@ -91,6 +89,47 @@ describe("a turn nobody is watching", () => {
     const tools = rig({ limits: { maxRequests: 3 } });
     for (let i = 0; i < 3; i++) tools.emit({ ...tools.base(), type: "item.started", itemType: "tool", itemId: `t${i}`, title: `read file ${i}` });
     expect(tools.interrupts).toHaveLength(1);
+  });
+
+  it.each([{ contextTokens: 48_000, contextWindow: 200_000 }, { contextTokens: 0 }, { contextWindow: 0 }])("keeps tool fallback after context-only updates: %j", (context) => {
+    const r = rig({ limits: { maxRequests: 3 } });
+    r.emit({ ...r.base(), type: "thread.token-usage.updated", input: 0, output: 0, ...context });
+    for (let tool = 1; tool <= 3; tool++) {
+      r.emit({ ...r.base(), type: "item.started", itemType: "tool", itemId: `tool-${tool}`, title: `read ${tool}` });
+      expect(r.interrupts).toHaveLength(tool === 3 ? 1 : 0);
+    }
+    expect(r.rows[0]).toMatchObject({ nameCode: "chat.notice.unattendedRequests", nameParams: { count: 3 } });
+  });
+
+  it("keeps context-only updates out of model counts while preserving batched tools", () => {
+    const r = rig({ limits: { maxRequests: 3 } });
+    const context = () => r.emit({ ...r.base(), type: "thread.token-usage.updated", input: 0, output: 0, contextTokens: 48_000, contextWindow: 200_000 });
+    context();
+    for (let call = 1; call <= 3; call++) {
+      r.emit({ ...r.base(), type: "thread.token-usage.updated", input: 10, output: 5 });
+      if (call === 3) break;
+      for (let tool = 0; tool < 10; tool++) {
+        context();
+        r.emit({ ...r.base(), type: "item.started", itemType: "tool", itemId: `tool-${call}-${tool}`, title: `read ${call}-${tool}` });
+      }
+      expect(r.interrupts).toEqual([]);
+    }
+    expect(r.interrupts).toHaveLength(1);
+  });
+
+  it.each(["identified", "cache", "reasoning", "zero"] as const)("counts %s model reports without overcounting batched tools", (kind) => {
+    const r = rig({ limits: { maxRequests: 3 } });
+    for (let call = 1; call <= 3; call++) {
+      r.emit({ ...r.base(), type: "thread.token-usage.updated", input: 0, output: 0,
+        ...(kind === "zero" ? {} : { contextWindow: 200_000 }),
+        ...(kind === "identified" ? { itemId: `model-${call}` } : {}),
+        ...(kind === "cache" ? { cachedInput: 100 } : {}), ...(kind === "reasoning" ? { reasoning: 5 } : {}),
+      });
+      if (call === 3) break;
+      for (let tool = 0; tool < 10; tool++) r.emit({ ...r.base(), type: "item.started", itemType: "tool", itemId: `tool-${call}-${tool}`, title: `read ${tool}` });
+      expect(r.interrupts).toEqual([]);
+    }
+    expect(r.interrupts).toHaveLength(1);
   });
 
   it.each([true, false])("counts batched tools as one model request when usage has an id: %s", (identified) => {

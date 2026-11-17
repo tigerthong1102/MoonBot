@@ -1,5 +1,13 @@
 # Release readiness
 
+## ACP context-only accounting follow-up
+
+Codex review of `bb49a760fed6f410769d1b383cb44b8036754a92` confirmed that ACP context-only updates could disable the unattended tool-count fallback (discussion 4600473965). Ignore only unnamed reports with zero input/output/cache/reasoning usage and context metadata. Identified zero-token calls and reports with real cache/reasoning usage still count; batched tools do not replace available model-call accounting. Eight new regression cases retain both sides of that contract. Four fail before the fix; the complete related batch passes 174 tests and the unattended/approval/loop/link/recovery/size/docs/CI-scope batch passes 332 tests on Node 24.22.2. Lint, typecheck, build and packaged-server smoke pass.
+
+The browser-admission comment finding (discussion 4600473975) is confirmed. Remove it and equivalent private-helper narration; condense mixed comments to external OS facts. Eight comment-only files preserve complete TypeScript syntax, declarations and embedded strings against bb49a760f. Existing admission, idle-sweep, descendant cleanup and security assertions remain.
+
+[CI 44095281931](https://github.com/tigerthong1102/MoonBot/actions/runs/44095281931) on bb49a760f passed all 32 executable jobs, including Ubuntu/Windows shards, S4 and installed Linux package smoke. Its required macOS smoke was canceled before running any step because a hosted runner was never acquired; the aggregate correctly failed. Annotations again identify macOS arm64 capacity constraints. Docker 44095282439, connector 44095282422, docs 44095282189 and website 44095282107 pass on that SHA. These are previous-head results; new-head required CI and completed clean Codex review are pending. No required job, test or authorization boundary is bypassed, and release/updater remain disabled.
+
 ## Current Codex follow-up: 4da4eddd8
 
 The completed Codex review of `4da4eddd88c78dd1273c892c235fa7e3ef968abc` reports one confirmed fatal-shutdown comment-policy finding (discussion 4600265635). Remove that overview and nine equivalent added internal comments from server/index.ts. Complete comment-free TypeScript syntax, declarations and embedded strings are identical to the reviewed head; shutdown, engine cleanup, lease ordering, restart and usage-cap behavior do not change. All 91 focused crash/watchdog/engine-record/restart/graceful-shutdown/room-recovery/routine-recovery/size tests and lint pass.

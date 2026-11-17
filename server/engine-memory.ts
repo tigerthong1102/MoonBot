@@ -46,10 +46,8 @@ export interface HostMemory { totalBytes: number; availableBytes: number; swapFr
 
 const procText = (path: string) => readFileSync(path, "utf8");
 
-/** /proc/meminfo, the kernel's OOM kill count and memory stall; null where there is no /proc (not Linux). /proc/meminfo is
- * the whole machine's even inside a container, so under a cgroup limit below the machine's memory the limit, what counts
- * against it and the cgroup's own OOM kills and stall are what is reported, and swap, which the limit may not allow, is not
- * counted on. */
+/** /proc/meminfo describes the host even inside a cgroup. Memory limits, usage, OOM kills and pressure may be scoped
+ * to that cgroup; swap may be disabled by its limit. */
 export function readHostMemory(read: (path: string) => string = procText): HostMemory | null {
   const host = readMachineMemory(read);
   if (!host) return null;

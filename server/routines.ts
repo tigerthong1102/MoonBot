@@ -114,7 +114,6 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   status: RoutineRunStatus;
   manual: boolean;
   deferredAt?: number;
-  /** Set when the run waited once because the server had no room to start its engine. */
   roomWaited?: true;
   deferredNoticeAt?: number;
   /** How long a scheduled run has been seen queued behind its bot's other work, added up pass by pass (routine-bounds.ts `busyWait`). */
@@ -133,7 +132,7 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   workedMs?: number;
   triggerSource?: RoutineRunTrigger;
   /** "app": a connected-app event started it; "wait": a wait's follow-up did (its triggerSource stays "webhook", an outside event). sameConversation: its trigger keeps one conversation (routine-same-conversation.ts). */
-  eventSource?: "app" | "wait"; sameConversation?: true; /** A person's own "Run now" test of its webhook started it: a usage cap treats it as a run started by hand. */ byPerson?: true;
+  eventSource?: "app" | "wait"; sameConversation?: true; byPerson?: true;
   webhookId?: string;
   deliveryId?: string;
   sourceThreadId?: string;
@@ -240,7 +239,7 @@ export interface RoutineManagerOptions {
   /** Every payload must be `{ kind, … }`: the server numbers and replays frames by it. */
   emit?: (payload: Record<string, unknown>) => void;
   botState: (botId: string) => "ready" | "busy" | "missing";
-  /** Why this bot takes no runs now, in the person's words (a Starter Cloud keeps only so many bots awake); null when it does. */ pausedText?: (botId: string) => string | null; /** The person paused this bot: its runs are let go quietly, not failed into To review. */ held?: (botId: string) => boolean; /** A reached usage cap: `capSkip` for a scheduled occurrence, which is counted on one `missed` row per cap and period and never switches the routine off; `capText` for a run already queued. */ capSkip?: (botId: string, routineId: string) => { behind: string; resetsAt: number; words(count: number): RoutineLine } | null; capText?: (botId: string, trigger: RoutineRunTrigger) => string | null;
+  pausedText?: (botId: string) => string | null; held?: (botId: string) => boolean; capSkip?: (botId: string, routineId: string) => { behind: string; resetsAt: number; words(count: number): RoutineLine } | null; capText?: (botId: string, trigger: RoutineRunTrigger) => string | null;
   goalState?: (groupId: string | undefined, coordinatorBotId: string) => "ready" | "busy" | "missing";
   createTask: (botId: string, title: string, run?: RoutineRun) => { threadId: string } | null;
   joinConversation?: (run: RoutineRun) => string | null;
@@ -273,7 +272,7 @@ export interface RoutineManagerOptions {
     outcome?: { status: "stopped" | "limit-reached"; detail: string },
   ) => Promise<void>;
   onRunChanged?: (run: RoutineRun) => void;
-  /** The thread's engine session will resume holding this message, so a second start need not send it again. */ promptSaid?: (threadId: string, prompt: string) => boolean;
+  promptSaid?: (threadId: string, prompt: string) => boolean;
   onRunFailed?: (run: RoutineRun, alert?: RoutineAlert | null) => void;
   onRunDeferred?: (run: RoutineRun, alert?: RoutineAlert) => void;
   /** A run a restart cut off, before it starts again or fails: its old turn's work must not resume as well. */
@@ -1051,7 +1050,7 @@ export class RoutineManager {
               const skip = recordSkip(this.runs, () => this.newRun(routine, plan.through, false, allocations), skipFor, plan.through, now, plan.count > 1 ? { count: plan.count - 1, scheduledFor: plan.first } : undefined);
               (skip.tell ? scheduledRuns : countedSkips).push(skip.row);
               if (!capped) { routine.skippedRuns = Math.min(Number.MAX_SAFE_INTEGER, (routine.skippedRuns ?? 0) + plan.count); routine.lastSkippedAt = plan.through; }
-              else if (once) { if (routine.schedule.type === "once") routine.schedule = { type: "once", at: capped.resetsAt }; routine.nextRunAt = capped.resetsAt; continue; } // a capped once-only run is not used up: it runs when the cap resets
+              else if (once) { if (routine.schedule.type === "once") routine.schedule = { type: "once", at: capped.resetsAt }; routine.nextRunAt = capped.resetsAt; continue; }
             }
             this.advancePastOccurrence(routine, now, plan.through);
           }

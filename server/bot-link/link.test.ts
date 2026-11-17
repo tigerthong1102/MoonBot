@@ -47,6 +47,7 @@ function place(label: string, bots: Bot[], version?: number) {
   const sent: Array<{ recipient: string; threadId: string; roomId?: string }> = [];
   const results: Array<{ thread: string; name: string; status: string; result: string }> = [];
   const requests: string[] = [];
+  const dialErrors: string[] = [];
   const issued = new Map<string, string>();
   /** The attachment store and the hand-off file ledger, as handoff-files.ts keeps them. */
   const attachments = join(dir, "attachments");
@@ -120,7 +121,7 @@ function place(label: string, bots: Bot[], version?: number) {
       },
     };
     coordinator = createCoordinator({ dataDir: dir, host: link.host(inner), now: options.now, log: () => {}, ...(options.limits ? { runtimeLimits: options.limits } : {}) });
-    dialer = createDialer({ link, holdMs: 400, firstRetryMs: 20, ...(version ? { level: version } : {}) });
+    dialer = createDialer({ link, log: (line) => { dialErrors.push(line); if (dialErrors.length > 10) dialErrors.shift(); }, holdMs: 400, firstRetryMs: 20, ...(version ? { level: version } : {}) });
     ticker = setInterval(() => coordinator.tick(), 15);
     return api;
   }
@@ -179,7 +180,7 @@ function place(label: string, bots: Bot[], version?: number) {
   }
 
   const api = {
-    dir, bots, runs, sent, results, requests, boot, listen, unplug, shutdown, handOff, keep, ledger,
+    dir, bots, runs, sent, results, requests, dialErrors, boot, listen, unplug, shutdown, handOff, keep, ledger,
     failOnce: (match: RegExp, status = 500) => { failing.push({ match, status }); },
     /** What an assignment here carries one way: who it is from and each file's name and words. */
     carries: (id: string, way: "sent" | "returned") => { const batch = ledger.get(`${id}:${way}`); return batch ? { from: batch.from.name, files: batch.files.map((file) => [file.name, readFileSync(file.path, "utf8")]) } : undefined; },
@@ -236,7 +237,16 @@ async function pair(computer: ReturnType<typeof place>, cloud: ReturnType<typeof
   expect(paired.status).toBe(200);
   const on = await computer.fetch("PUT", STATE_PATH, { on: true, origin: cloudOrigin, token: paired.body.token, name: as.name, cloud: paired.body.place, account: "account-1" });
   expect(on.status).toBe(200);
-  await until(() => computer.link.online() && cloud.link.online(peerKey(as.id)) && computer.link.agents().length > 0 && cloud.link.agents().some((bot) => bot.id.startsWith(`link-${peerKey(as.id)}-`)), "the two places meet");
+  try {
+    await until(() => computer.link.online() && cloud.link.online(peerKey(as.id)) && computer.link.agents().length > 0 && cloud.link.agents().some((bot) => bot.id.startsWith(`link-${peerKey(as.id)}-`)), "the two places meet");
+  } catch (cause) {
+    throw new Error(JSON.stringify({
+      computerOnline: computer.link.online(), cloudOnline: cloud.link.online(peerKey(as.id)),
+      computerAgents: computer.link.agents().map((bot) => bot.id), cloudAgents: cloud.link.agents().map((bot) => bot.id),
+      dialer: computer.dialer.state(), dialErrors: computer.dialErrors,
+      computerRequests: computer.requests.slice(-10), cloudRequests: cloud.requests.slice(-10),
+    }), { cause });
+  }
   return paired.body.token as string;
 }
 

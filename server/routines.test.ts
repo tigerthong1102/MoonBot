@@ -4175,7 +4175,6 @@ describe("a reached usage cap", () => {
     expect(h.manager.listRuns().map((run) => [run.status, run.error])).toEqual([["cancelled", "Ada is paused, so it takes no new work."]]);
   });
 
-  /** The harness wired to the real cap gate over a ledger whose day of 2026-09-13 already used the server's 1-token cap. */
   async function cappedHarness() {
     const h = harness(start);
     const dataDir = mkdtempSync(join(tmpdir(), "omb-routine-caps-"));

@@ -1,25 +1,21 @@
-// Ports for suites that boot real servers: probe first, so two suites at once never lose an unchecked bind.
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 
 import { mcpOAuthRedirectUri } from "../mcp-oauth.ts";
 import { forWorker } from "./worker-port.ts";
 
-const isFree = (port: number): Promise<boolean> =>
+const isFree = (port: number, host = "127.0.0.1"): Promise<boolean> =>
   new Promise((resolve) => {
     const probe = createServer();
     probe.once("error", () => resolve(false));
-    probe.listen(port, "127.0.0.1", () => probe.close(() => resolve(true)));
+    probe.listen(port, host, () => probe.close(() => resolve(true)));
   });
 
-/** A base of this worker where every `base + offset` is free (the harness also opens a webhook receiver one above
- * itself). A probe, not a reservation: the ports are released before they are returned. A range too narrow to share is
- * one a suite keeps to itself. */
-export async function freePortBlock(offsets: number[], from = 19_600, span = 3_000): Promise<number> {
+export async function freePortBlock(offsets: number[], from = 19_600, span = 3_000, host = "127.0.0.1"): Promise<number> {
   for (let attempt = 0; attempt < 40; attempt++) {
     const picked = from + Math.floor(Math.random() * span);
     const base = span < 64 ? picked : forWorker(picked);
-    const checks = await Promise.all(offsets.map((offset) => isFree(base + offset)));
+    const checks = await Promise.all(offsets.map((offset) => isFree(base + offset, host)));
     if (checks.every(Boolean)) return base;
   }
   throw new Error(`no free port block for offsets ${offsets.join(",")} in ${from}..${from + span}`);
@@ -34,9 +30,7 @@ function ephemeralFloor(): number {
   }
 }
 
-/** A pre-registered sign-in app returns to one loopback port derived from the URL (mcpOAuthRedirectUri).
- * On Linux the top of 20000-39999 is the ephemeral range, held by client connections and TIME_WAIT, so
- * a query moves the derived port below it. */
+/** On Linux, 20000-39999 can overlap the ephemeral port range and TIME_WAIT sockets. */
 export async function withFreeSignInPort(url: string): Promise<string> {
   const floor = ephemeralFloor();
   for (let attempt = 0; attempt < 200; attempt++) {

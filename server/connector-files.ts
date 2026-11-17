@@ -1,0 +1,336 @@
+// Composio reads uploaded files by { name, mimetype, s3key }, not from the caller's disk.
+// File uploads require the final authorization and approval checks to succeed.
+import { createHash } from "node:crypto";
+import { realpath } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { connectorCallsIn } from "../shared/outbound.ts";
+import { FILE_MAX_BYTES, limitMegabytes } from "../shared/upload-limits.ts";
+import { guestWorkspaceToHost } from "./bot-attachment.ts";
+import type { BrokerAccess } from "./composio-broker-access.ts";
+import { requestFileUpload } from "./composio-files.ts";
+import type { AppConfig } from "./config.ts";
+import { withFailedCallHint } from "./connector-scope-hint.ts";
+import { serviceSlugFor, serviceSlugForCandidates } from "./connector-verdict.ts";
+import { openMessageFile, type OpenedMessageFile } from "./message-file.ts";
+
+type Json = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is Json => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Fields Composio's tools take a file in, besides any `{ s3key }` object. */
+const FILE_FIELDS = new Set(["file_to_upload", "file", "files", "file_upload", "upload", "attachment", "attachments", "document", "image", "media"]);
+const PATH_KEYS = ["s3key", "path", "file_path", "local_path", "filepath"] as const;
+const LOCAL_PATH = /^(?:[A-Za-z]:[\\/]|\\\\[^\\]|\/(?!\/)|~[\\/]|file:\/\/)/;
+const MIME = /^[A-Za-z0-9][\w.+-]*\/[\w.+-]+$/;
+const MAX_FILES_PER_REQUEST = 10;
+const MAX_DEPTH = 6;
+
+export interface StagedFile {
+  name: string;
+  mimetype: string;
+  s3key: string;
+}
+
+export interface OpenedLocalFile {
+  name: string;
+  mime: string;
+  bytes: Uint8Array;
+}
+
+export interface FileStagingDeps {
+  /** Files outside the bot's authorized folders must not be uploaded. */
+  open(path: string, maxBytes?: number): Promise<OpenedLocalFile | null>;
+  requestUpload(request: { toolkit_slug: string; tool_slug: string; filename: string; mimetype: string; md5: string }): Promise<{ key: string; url: string }>;
+  toolkitFor(tool: string): string;
+  appFor(tool: string): string;
+  put?(url: string, bytes: Uint8Array, mimetype: string, signal?: AbortSignal): Promise<void>;
+}
+
+interface FileReference {
+  tool: string;
+  field: string;
+  path: string;
+  name?: string;
+  mimetype?: string;
+  source: unknown;
+  replace(staged: StagedFile): void;
+}
+
+export interface CardFile {
+  name: string;
+  path: string;
+  bytes: number;
+}
+
+function localPath(value: unknown): value is string {
+  return typeof value === "string" && !/[\r\n]/.test(value) && LOCAL_PATH.test(value.trim());
+}
+
+function referenceIn(owner: Json | unknown[], key: string | number, field: string, call: { slug: string; source: unknown }, value: unknown, found: FileReference[]): boolean {
+  const set = (staged: StagedFile) => { (owner as Record<string | number, unknown>)[key] = staged; };
+  const base = { tool: call.slug, field, source: call.source, replace: set };
+  if (FILE_FIELDS.has(field.toLowerCase()) && localPath(value)) {
+    found.push({ ...base, path: value.trim() });
+    return true;
+  }
+  if (!isRecord(value)) return false;
+  const pathKey = PATH_KEYS.find((candidate) => localPath(value[candidate]));
+  if (!pathKey || (pathKey !== "s3key" && !FILE_FIELDS.has(field.toLowerCase()))) return false;
+  const name = typeof value.name === "string" && value.name.trim() ? basename(value.name.trim().replace(/\\/g, "/")) : undefined;
+  const given = typeof value.mimetype === "string" ? value.mimetype : typeof value.mime_type === "string" ? value.mime_type : undefined;
+  found.push({ ...base, path: (value[pathKey] as string).trim(), ...(name ? { name } : {}), ...(given && MIME.test(given.trim()) ? { mimetype: given.trim() } : {}) });
+  return true;
+}
+
+function collect(node: unknown, field: string, call: { slug: string; source: unknown }, found: FileReference[], depth: number): void {
+  if (depth > MAX_DEPTH) return;
+  if (Array.isArray(node)) {
+    node.forEach((item, index) => {
+      if (!referenceIn(node, index, field, call, item, found)) collect(item, field, call, found, depth + 1);
+    });
+    return;
+  }
+  if (!isRecord(node)) return;
+  for (const [key, value] of Object.entries(node)) {
+    if (!referenceIn(node, key, key, call, value, found)) collect(value, key, call, found, depth + 1);
+  }
+}
+
+export function localFileReferences(frame: unknown): { frame: unknown; references: FileReference[] } {
+  if (!isRecord(frame) || frame.method !== "tools/call" || !isRecord(frame.params) || typeof frame.params.name !== "string") return { frame, references: [] };
+  const copy = structuredClone(frame) as Json & { params: { name: string; arguments?: unknown } };
+  const sent = connectorCallsIn(frame.params.name, frame.params.arguments);
+  const references: FileReference[] = [];
+  connectorCallsIn(copy.params.name, copy.params.arguments).forEach((call, index) => {
+    if (call.slug === "COMPOSIO_PROXY_EXECUTE" || call.arguments === undefined) return;
+    collect(call.arguments, "", { slug: call.slug, source: sent[index]?.arguments }, references, 0);
+  });
+  return { frame: copy, references };
+}
+
+/** Where a bot's files may come from: its folders (never the attachment store as a whole), this conversation's own
+ * attachments by path, never the app's own data or a hidden folder, its Local VM folder. */
+export interface BotFileScope {
+  roots: readonly string[];
+  /** This conversation's attachments, each allowed by its exact path. */
+  attachments: readonly string[];
+  /** The app's own data folders: a file in one goes out only from a folder of the bot's inside it (its workspace). */
+  refuse: readonly string[];
+  guest?: { root: string; host: string } | undefined;
+  /** The home folder, whose hidden folders (.ssh, .aws, .config…) never go out. */
+  home?: string;
+}
+
+const SENSITIVE = "it is in a hidden folder or in the app's own data, which is never sent to an app";
+
+const within = (root: string, path: string) => {
+  const rel = relative(root, path);
+  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+};
+const hiddenBelow = (root: string, path: string) => relative(root, path).split(/[\\/]/).some((part) => part.startsWith("."));
+const real = (path: string) => realpath(path).catch(() => null);
+
+/** File uploads require realpath containment, no-follow checks, excluded secret folders and the 100 MB size limit. */
+export async function openBotFile(path: string, scope: BotFileScope, maxBytes = FILE_MAX_BYTES): Promise<OpenedLocalFile | null> {
+  const target = (scope.guest ? guestWorkspaceToHost(path, scope.guest.root, scope.guest.host) : null) ?? path;
+  const canonical = await real(target);
+  const attachments = (await Promise.all(scope.attachments.map(real))).filter((one): one is string => one !== null);
+  const attached = canonical !== null && attachments.includes(canonical);
+  const roots = attached ? [dirname(canonical)] : scope.guest ? [scope.guest.host, ...scope.roots] : scope.roots;
+  let file: OpenedMessageFile;
+  try {
+    file = await openMessageFile(target, roots, maxBytes);
+  } catch (error) {
+    const { status, code } = (error ?? {}) as { status?: unknown; code?: unknown };
+    if (code === "outside_workspace" || code === "directory" || status === 404) return null;
+    if (code === "file_too_large") throw new Error(`it is larger than the remaining ${limitMegabytes(maxBytes)} MB upload allowance`);
+    throw error;
+  }
+  try {
+    const realRoots = (await Promise.all(roots.map(real))).filter((one): one is string => one !== null);
+    const root = realRoots.filter((one) => within(one, file.path)).sort((a, b) => b.length - a.length)[0] ?? dirname(file.path);
+    const appData = (await Promise.all(scope.refuse.map(real))).filter((one): one is string => one !== null);
+    const ownAppFolder = appData.some((data) => within(data, root));
+    const home = await real(scope.home ?? homedir());
+    if (hiddenBelow(root, file.path)
+      || (!ownAppFolder && appData.some((data) => data === file.path || within(data, file.path)))
+      || (!ownAppFolder && home !== null && within(home, file.path) && hiddenBelow(home, file.path))) {
+      throw new Error(SENSITIVE);
+    }
+    const bytes = Buffer.allocUnsafe(file.bytes + 1);
+    let used = 0;
+    while (used < bytes.length) {
+      const read = await file.handle.read(bytes, used, bytes.length - used, used);
+      if (!read.bytesRead) break;
+      used += read.bytesRead;
+    }
+    if (used > file.bytes) throw new Error("it changed while it was being read; try again");
+    return { name: file.name, mime: file.mime, bytes: bytes.subarray(0, used) };
+  } finally {
+    await file.handle.close().catch(() => undefined);
+  }
+}
+
+export function connectorFileScope(input: {
+  roots: readonly string[];
+  attachmentStore: string;
+  messages: ReadonlyArray<{ attachments?: ReadonlyArray<{ path: string }> | undefined }>;
+  appData: ReadonlyArray<string | undefined>;
+  vm?: { workspaceDir: string } | undefined;
+  guestRoot: string;
+}): BotFileScope {
+  return {
+    roots: input.roots.filter((root) => root !== input.attachmentStore),
+    attachments: input.messages.flatMap((message) => (message.attachments ?? []).map((file) => file.path)),
+    refuse: input.appData.filter((dir): dir is string => Boolean(dir)),
+    ...(input.vm ? { guest: { root: input.guestRoot, host: input.vm.workspaceDir } } : {}),
+  };
+}
+
+export function connectorFileDeps(options: {
+  scope: BotFileScope;
+  via: readonly [AppConfig, BrokerAccess?];
+  serviceSlugs: readonly string[];
+  appFor(tool: string): string | null;
+}): FileStagingDeps {
+  const toolkit = (tool: string) => serviceSlugForCandidates(tool, options.serviceSlugs) ?? serviceSlugFor(tool);
+  return {
+    open: (path, maxBytes) => openBotFile(path, options.scope, maxBytes),
+    requestUpload: (request) => requestFileUpload(options.via[0], request, options.via[1]),
+    toolkitFor: (tool) => toolkit(tool) ?? tool.toLowerCase(),
+    appFor: (tool) => options.appFor(tool) ?? toolkit(tool) ?? "the app",
+  };
+}
+
+function onDisk(path: string): string {
+  if (/^~[\\/]/.test(path)) return join(homedir(), path.slice(2));
+  if (/^file:\/\//i.test(path)) {
+    try { return fileURLToPath(path); } catch { return path; }
+  }
+  return path;
+}
+
+async function putBytes(url: string, bytes: Uint8Array, mimetype: string, signal?: AbortSignal): Promise<void> {
+  const body = new Uint8Array(bytes.byteLength);
+  body.set(bytes);
+  // The link is Composio's own storage: a redirect elsewhere is refused, never followed with the file.
+  const timeout = AbortSignal.timeout(5 * 60_000);
+  const response = await fetch(url, { method: "PUT", body, redirect: "error", headers: { "content-type": mimetype }, signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+  await response.body?.cancel().catch(() => undefined);
+  if (!response.ok) throw new Error(`the upload was refused (HTTP ${response.status})`);
+}
+
+const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim().slice(0, 240);
+
+export function unreadableFileText(reference: Pick<FileReference, "tool" | "field" | "path">, app: string, reason: string): string {
+  return `OpenMausBot did not run ${reference.tool}: it could not send ${reference.path} to ${app} (${reason}). `
+    + `Nothing was written to ${app}. Give ${reference.field || "the file field"} the full path of a file in your working folder or one `
+    + "attached to this conversation, and OpenMausBot uploads it for the call. For plain text, a tool that takes the text itself, "
+    + "such as GOOGLEDRIVE_CREATE_FILE_FROM_TEXT, needs no file.";
+}
+
+export function uploadFailedText(reference: Pick<FileReference, "tool">, name: string, app: string, reason: string): string {
+  return `OpenMausBot did not run ${reference.tool}: uploading ${name} for ${app} failed (${reason}). Nothing was written to ${app}. `
+    + "This is usually brief: try the call once more. If it fails again, tell the person the upload to "
+    + `${app} failed and why, and do not keep retrying.`;
+}
+
+export interface PreparedFiles {
+  files: Array<CardFile & { tool: string; source: unknown }>;
+  upload?: (options?: { check?: () => void; signal?: AbortSignal }) => Promise<unknown>;
+  cardCalls<T extends { arguments?: unknown }>(calls: T[]): Array<T & { files?: CardFile[] }>;
+}
+
+/** Only a bot's authorized local files may be uploaded. */
+export async function prepareConnectorFiles(frame: unknown, deps: FileStagingDeps): Promise<PreparedFiles | { refusal: string }> {
+  const found = localFileReferences(frame);
+  const ready: Array<{ reference: FileReference; file: OpenedLocalFile; name: string; mimetype: string }> = [];
+  let totalBytes = 0;
+  for (const reference of found.references) {
+    let file: OpenedLocalFile | null;
+    try {
+      file = await deps.open(onDisk(reference.path), FILE_MAX_BYTES - totalBytes);
+    } catch (error) {
+      return { refusal: unreadableFileText(reference, deps.appFor(reference.tool), reasonOf(error)) };
+    }
+    if (!file) continue;
+    totalBytes += file.bytes.byteLength;
+    if (totalBytes > FILE_MAX_BYTES) return { refusal: `OpenMausBot did not run this call: the files exceed ${limitMegabytes(FILE_MAX_BYTES)} MB in total. Send them in smaller batches.` };
+    if (ready.length === MAX_FILES_PER_REQUEST) {
+      return { refusal: `OpenMausBot did not run this call: it names more than ${MAX_FILES_PER_REQUEST} files, and one call can upload at most ${MAX_FILES_PER_REQUEST}. Send them in smaller batches.` };
+    }
+    ready.push({ reference, file, name: reference.name ?? file.name, mimetype: reference.mimetype ?? file.mime.split(";")[0]!.trim() });
+  }
+  const files = ready.map(({ reference, file, name }) => ({ tool: reference.tool, source: reference.source, name, path: reference.path, bytes: file.bytes.byteLength }));
+  const cardCalls = <T extends { arguments?: unknown }>(calls: T[]) => calls.map((call) => {
+    const mine = files.filter((one) => one.source !== undefined && one.source === call.arguments).map(({ name, path, bytes }) => ({ name, path, bytes }));
+    return mine.length ? { ...call, files: mine } : call;
+  });
+  if (!ready.length) return { files, cardCalls };
+  const put = deps.put ?? putBytes;
+  const upload = async (options: { check?: () => void; signal?: AbortSignal } = {}) => {
+    const permitted = () => {
+      if (options.signal?.aborted) throw options.signal.reason ?? new Error("Upload cancelled");
+      options.check?.();
+      if (options.signal?.aborted) throw options.signal.reason ?? new Error("Upload cancelled");
+    };
+    for (const { reference, file, name, mimetype } of ready) {
+      const app = deps.appFor(reference.tool);
+      try {
+        permitted();
+        const md5 = createHash("md5").update(file.bytes).digest("hex");
+        const link = await deps.requestUpload({ toolkit_slug: deps.toolkitFor(reference.tool), tool_slug: reference.tool, filename: name, mimetype, md5 });
+        permitted();
+        await put(link.url, file.bytes, mimetype, options.signal);
+        permitted();
+        reference.replace({ name, mimetype, s3key: link.key });
+      } catch (error) {
+        throw new Error(uploadFailedText(reference, name, app, reasonOf(error)));
+      }
+    }
+    return found.frame;
+  };
+  return { files, upload, cardCalls };
+}
+
+/** Keep connected-app transfer permission current throughout a potentially slow file upload. */
+export async function uploadWithPermissionChecks(upload: NonNullable<PreparedFiles["upload"]>, check: () => void): Promise<unknown> {
+  check();
+  const controller = new AbortController();
+  const recheck = () => {
+    try { check(); }
+    catch (error) { controller.abort(error); }
+  };
+  const monitor = setInterval(recheck, 100);
+  monitor.unref?.();
+  try { return await upload({ check, signal: controller.signal }); }
+  finally { clearInterval(monitor); }
+}
+
+export async function stageConnectorFiles(frame: unknown, deps: FileStagingDeps): Promise<{ frame: unknown } | { refusal: string }> {
+  const prepared = await prepareConnectorFiles(frame, deps);
+  if ("refusal" in prepared) return prepared;
+  if (!prepared.upload) return { frame };
+  try {
+    return { frame: await prepared.upload() };
+  } catch (error) {
+    return { refusal: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+const MISSING_STAGED_FILE = /Failed to download file|storage returned HTTP 404|invalid s3key|s3key (?:was )?not found/i;
+
+export function missingFileHint(): string {
+  return "OpenMausBot note: Composio could not get the file this call named. Composio runs the tool on its own servers, so it "
+    + "never reads this computer's disk and an s3key cannot be made up. Give the file field the full path of a file in your "
+    + 'working folder or attached to this conversation, for example {"file_to_upload": "C:\\\\Users\\\\you\\\\report.pdf"} '
+    + "or a path starting with /, and OpenMausBot uploads it for the call. For plain text, use a tool that takes the text itself, "
+    + "such as GOOGLEDRIVE_CREATE_FILE_FROM_TEXT.";
+}
+
+export function withMissingFileHint(bytes: Uint8Array, contentType: string, slugs: readonly string[]): Uint8Array {
+  return withFailedCallHint(bytes, contentType, MISSING_STAGED_FILE, missingFileHint, slugs);
+}

@@ -89,6 +89,16 @@ describe("createOutboundHold", () => {
     expect(rows[0]).toMatchObject({ threadId: "t1", botId: "b1", botName: "Scout", tool: "GMAIL_SEND_EMAIL" });
   });
 
+  it("rechecks transfer authorization without recording an approval for every poll", async () => {
+    const held = setup(bot({ policy: "allow" }));
+    for (let poll = 0; poll < 5; poll++) held.hold.beforeDispatch({ ...held.input, approved: false, record: false });
+    await flushDecisionLog(held.dataDir);
+    expect(readDecisions(held.dataDir, 10)).toEqual([]);
+    held.hold.beforeDispatch({ ...held.input, approved: false });
+    await flushDecisionLog(held.dataDir);
+    expect(readDecisions(held.dataDir, 10)).toHaveLength(1);
+  });
+
   it("ignores a daily cap an older app stored on the rule", async () => {
     const held = setup(bot({ policy: "allow", dailyCap: 2 } as HoldBot["outbound"]));
     for (let sent = 0; sent < 5; sent++) await expect(send(held)).resolves.toEqual({ ok: true, approved: false });

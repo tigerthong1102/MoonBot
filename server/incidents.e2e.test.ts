@@ -523,7 +523,7 @@ it("tells the person of a failure whose report waited and was then refused", asy
   }
 }, 150_000);
 
-it("reports a routine that keeps failing the same way once, and again when the failure changes", async () => {
+it("reports a routine that keeps failing the same way once, again when it is spaced out, and again when the failure changes", async () => {
   const { dataDir, api, control, messages, useCli, incidentsThread, close } = await launch();
   try {
     const chief = (await control(["new-bot", "--name", "Clive", "--section", "Ops"])).bot;
@@ -536,7 +536,7 @@ it("reports a routine that keeps failing the same way once, and again when the f
     }, undefined, 201)).routine;
     const runFails = async () => {
       const { id } = (await api("POST", `/api/routines/${routine.id}/run`, undefined, undefined, 201)).run;
-      await expect.poll(async () => ((await api("GET", "/api/routines")).runs as any[]).find((run) => run.id === id)?.status, { timeout: 30_000 }).toBe("failed");
+      await expect.poll(async () => ((await api("GET", "/api/routines")).runs as any[]).find((run) => run.id === id)?.status, { timeout: 45_000 }).toBe("failed");
     };
     const reports = async (incidents: string) => (await messages(incidents))
       .filter((m) => m.kind === "activity" && (m.tool?.name ?? "").startsWith("Ada hit a problem: its scheduled routine")).map((m) => m.tool.name as string);
@@ -546,13 +546,15 @@ it("reports a routine that keeps failing the same way once, and again when the f
     await expect.poll(() => reports(incidents), { timeout: 20_000 }).toHaveLength(1);
     await runFails();
     await runFails();
+    await expect.poll(() => reports(incidents), { timeout: 20_000 }).toHaveLength(2);
     writeFileSync(changedFlag, "changed");
     await runFails();
-    await expect.poll(() => reports(incidents), { timeout: 20_000 }).toHaveLength(2);
-    const [crashed, changed] = await reports(incidents);
+    await expect.poll(() => reports(incidents), { timeout: 20_000 }).toHaveLength(3);
+    const [crashed, spaced, changed] = await reports(incidents);
     expect(crashed).toContain("simulated crash before result");
+    expect(spaced).toContain("3 runs in a row failed. It stays on, and tries again less often until a run completes.");
     expect(changed).not.toContain("simulated crash before result");
   } finally {
     await close();
   }
-}, 150_000);
+}, 240_000);

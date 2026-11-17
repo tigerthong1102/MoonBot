@@ -41,7 +41,7 @@ it("Clive sets up multi-provider teams at Ask with no card, keeps existing threa
       await control("send", "--bot", chief.id, "--task", chief.threadId, "--text", text);
       await expect.poll(() => {
         if (!existsSync(fixture.fixtureDumpPath)) return false;
-        return JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")).pid !== previousPid;
+        return JSON.stringify(JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")).prompt).includes(text);
       }, { timeout: 15_000 }).toBe(true);
       const dump = JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")); previousPid = dump.pid;
       return dump.mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN as string;

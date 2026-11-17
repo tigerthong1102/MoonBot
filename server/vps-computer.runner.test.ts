@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
 import type { ChildProcess } from "node:child_process";
 import { PassThrough, Writable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +17,11 @@ vi.mock("./procs.ts", async () => ({
 
 import { defaultRunner, dockerCliInstallCommand } from "./vps-computer.ts";
 import { resolveCliSpawn } from "./env-path.ts";
+
+function processState(pid: number): string {
+  if (process.platform !== "linux") return "process state unavailable";
+  try { return readFileSync(`/proc/${pid}/stat`, "utf8"); } catch { return "process state unavailable"; }
+}
 
 type FakeChild = EventEmitter & {
   stdin: Writable;
@@ -118,7 +124,7 @@ describe("default VPS command runner", () => {
     const master = realSpawn(process.execPath, ["-e", idle], { detached: true, stdio: "ignore" });
     const masterClosed = new Promise<void>((resolve) => master.once("close", () => resolve()));
     let helper = 0;
-    const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+    const alive = (pid: number) => { if (process.platform === "linux" && /\) [ZX] /.test(processState(pid))) return false; try { process.kill(pid, 0); return true; } catch { return false; } };
     const result = defaultRunner(["info"], { timeoutMs: failure === "timeout" ? 1_000 : 20_000 });
     const rejected = expect(result).rejects.toThrow(failure === "timeout" ? "command timed out" : "stdin failed");
     try {
@@ -126,7 +132,7 @@ describe("default VPS command runner", () => {
       expect(alive(helper)).toBe(true);
       if (failure === "stdin") docker.stdin!.emit("error", new Error("write EPIPE"));
       await rejected;
-      expect(alive(helper)).toBe(false);
+      expect(alive(helper), processState(helper)).toBe(false);
       expect(docker.exitCode !== null || docker.signalCode !== null).toBe(true);
       expect(docker.stdin!.destroyed && docker.stdout!.destroyed && docker.stderr!.destroyed).toBe(true);
       expect(alive(master.pid!)).toBe(true);

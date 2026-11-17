@@ -1,0 +1,161 @@
+import { readFileSync } from "node:fs";
+// cgroup paths use POSIX separators.
+import { posix } from "node:path";
+import { boxMemory } from "./box-memory.ts";
+
+const BROWSER_THREADS = 160;
+const BROWSER_BYTES = 400 * 1024 * 1024;
+const BROWSER_SHARE = 0.4;
+const MOST_BROWSERS = 16;
+const ROOM_WAIT_MS = 30_000;
+
+type Read = (path: string) => string | null;
+const readText: Read = (path) => { try { return readFileSync(path, "utf8"); } catch { return null; } };
+
+function tightest(read: Read, root: string, from: string): number | null {
+  let limit: number | null = null;
+  for (let at = from.trim(); ; at = posix.dirname(at)) {
+    const value = Number(read(posix.join(root, at, "pids.max"))?.trim());
+    if (Number.isInteger(value) && value > 0) limit = Math.min(limit ?? value, value);
+    if (at === "/" || at === ".") return limit;
+  }
+}
+
+/** Linux cgroup v2 uses pids.max; v1 uses the pids controller. Hybrid hosts can enforce limits in either hierarchy. */
+export function pidsLimit(read: Read = readText): number | null {
+  const membership = read("/proc/self/cgroup");
+  if (membership === null) return null;
+  const v2 = /^0::(\/.*)$/m.exec(membership)?.[1];
+  const v1 = /^\d+:(?:[^:]*,)?pids(?:,[^:]*)?:(\/.*)$/m.exec(membership)?.[1];
+  const limits = [
+    ...(v2 !== undefined ? [tightest(read, "/sys/fs/cgroup", v2), tightest(read, "/sys/fs/cgroup/unified", v2)] : []),
+    ...(v1 !== undefined ? [tightest(read, "/sys/fs/cgroup/pids", v1)] : []),
+  ].filter((limit): limit is number => limit !== null);
+  return limits.length > 0 ? Math.min(...limits) : null;
+}
+
+/** How many agent-browser browsers run at once: `OMB_BROWSER_MAX_RUNNING` (a whole number of at least 1), else what fits
+ * in the browsers' share of the task limit and of the memory this server may use. Any other value, 0 included, is not a
+ * way to turn browsers off (a bot's own browser switch is): it is refused with a log line and the computed size is used. */
+export function browserRoomSize(limits: { override?: string; pids: number | null; memoryBytes: number }, warn: (line: string) => void = () => undefined): number {
+  const override = limits.override?.trim() ? Number(limits.override) : undefined;
+  if (override !== undefined && Number.isInteger(override) && override > 0) return override;
+  if (override !== undefined) warn(`OMB_BROWSER_MAX_RUNNING=${JSON.stringify(limits.override)} is not a whole number of at least 1, so it is ignored; set it to 1 or more, or unset it to size the browsers by this server's limits`);
+  const byMemory = Math.floor((limits.memoryBytes * BROWSER_SHARE) / BROWSER_BYTES);
+  const byTasks = limits.pids === null ? MOST_BROWSERS : Math.floor((limits.pids * BROWSER_SHARE) / BROWSER_THREADS);
+  return Math.max(1, Math.min(MOST_BROWSERS, byMemory, byTasks));
+}
+
+let size: number | undefined;
+export function defaultBrowserRoomSize(env: NodeJS.ProcessEnv = process.env): number {
+  size ??= browserRoomSize({ override: env.OMB_BROWSER_MAX_RUNNING, pids: pidsLimit(), memoryBytes: boxMemory().bytes }, (line) => console.warn(`browser: ${line}`));
+  return size;
+}
+
+export function spareForRoom(spare: { idleMs: number; savesSignIns: boolean } | null, turn: { holds: boolean; idleMs: number }): number | null {
+  if (spare === null) return null;
+  if (!turn.holds) return spare.idleMs;
+  return spare.savesSignIns && spare.idleMs >= turn.idleMs ? spare.idleMs : null;
+}
+
+export interface BrowserRoomOptions {
+  max(): number;
+  spare(session: string): number | null;
+  close(session: string): Promise<boolean>;
+  admit?(session: string, admitted?: (rollback: () => void) => void): Promise<string | null>;
+  waitMs?: number;
+  pollMs?: number;
+}
+
+export class BrowserRoom {
+  readonly #open = new Set<string>();
+  readonly #provisional = new Map<string, symbol>();
+  readonly #options: BrowserRoomOptions;
+
+  constructor(options: BrowserRoomOptions) { this.#options = options; }
+
+  get open(): number { return this.#open.size; }
+
+  async enter(session: string, deadline: number, onAdmitted?: (release: () => void) => void): Promise<string | null> {
+    const until = Math.min(deadline, Date.now() + (this.#options.waitMs ?? ROOM_WAIT_MS));
+    for (;;) {
+      if (this.#open.has(session)) return null;
+      const others = [...this.#open];
+      if (others.length < Math.max(1, this.#options.max())) {
+        let rollback: (() => void) | undefined;
+        const refused = await this.#options.admit?.(session, undo => { rollback = undo; }) ?? null;
+        if (refused !== null) {
+          if (await this.#closeOneSpare(others)) continue;
+          return refused;
+        }
+        if (this.#open.has(session)) { rollback?.(); return null; }
+        if (this.#open.size >= Math.max(1, this.#options.max())) { rollback?.(); continue; }
+        this.#open.add(session);
+        const token = Symbol();
+        this.#provisional.set(session, token);
+        onAdmitted?.(() => { if (this.#provisional.get(session) === token) { this.left(session); rollback?.(); } });
+        return null;
+      }
+      if (await this.#closeOneSpare(others)) continue;
+      if (Date.now() >= until) return `${others.length === 1 ? "1 browser is" : `${others.length} browsers are`} already open on this computer, the most it runs at once. Wait for another bot to finish with its browser, then try again.`;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(this.#options.pollMs ?? 500, Math.max(1, until - Date.now()))));
+    }
+  }
+
+  async #closeOneSpare(others: readonly string[]): Promise<boolean> {
+    const spare = others.flatMap((other) => { const idle = this.#options.spare(other); return idle === null ? [] : [{ other, idle }]; })
+      .sort((a, b) => b.idle - a.idle);
+    for (const { other } of spare) {
+      if (!this.#open.has(other) || this.#options.spare(other) === null) continue;
+      if (await this.#options.close(other).catch(() => false)) {
+        this.left(other);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  entered(session: string): void { this.#open.add(session); this.#provisional.delete(session); }
+
+  left(session: string): void { this.#open.delete(session); this.#provisional.delete(session); }
+}
+
+export async function prepareBrowserRoom<T>(room: BrowserRoom | undefined, session: string, deadline: number, prepare: () => Promise<T>): Promise<{ entry: T } | { refusal: string }> {
+  let release: (() => void) | undefined;
+  const refusal = await room?.enter(session, deadline, (undo) => { release = undo; });
+  if (refusal) return { refusal };
+  try { return { entry: await prepare() }; } catch (error) { release?.(); throw error; }
+}
+
+const REFUSED = new WeakSet<object>();
+export function slotRefusal(text: string): { isError: true; content: Array<{ type: "text"; text: string }> } {
+  const refusal = { isError: true as const, content: [{ type: "text" as const, text }] };
+  REFUSED.add(refusal);
+  return refusal;
+}
+export function refusedSlot(result: unknown): boolean { return typeof result === "object" && result !== null && REFUSED.has(result); }
+
+type ListedSpec = { command: string; args: readonly string[] };
+const listKey = (spec: ListedSpec) => JSON.stringify([spec.command, ...spec.args]);
+
+export class SharedToolLists {
+  readonly #lists = new Map<string, Promise<unknown>>();
+  readonly #known = new Map<string, unknown>();
+
+  get(spec: ListedSpec, load: () => Promise<unknown>, check?: () => void): Promise<unknown> {
+    try { check?.(); } catch (error) { return Promise.reject(error); }
+    const key = listKey(spec);
+    let list = this.#lists.get(key);
+    if (!list) {
+      list = load().then((result) => {
+        if (Array.isArray((result as { tools?: unknown } | null)?.tools)) this.#known.set(key, result);
+        else this.#lists.delete(key);
+        return result;
+      }, (error: unknown) => { this.#lists.delete(key); throw error; });
+      this.#lists.set(key, list);
+    }
+    return list;
+  }
+
+  known(spec: ListedSpec): unknown { return this.#known.get(listKey(spec)); }
+}

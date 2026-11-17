@@ -1,6 +1,6 @@
 // The HTTPS backchannel is injected, never redirected to a real portal.
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { request, type IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -91,6 +91,7 @@ async function restart(env: NodeJS.ProcessEnv = {}) {
   }, { timeout: 20_000 }).toBe(200);
 }
 
+describe.skipIf(!existsSync(join(ROOT, "enterprise/server/workspace-access.ts")))("Enterprise adapter", () => {
 beforeAll(async () => {
   PORT = await freePortBlock([0, 1], 35_000, 5_000);
   home = mkdtempSync(join(tmpdir(), "omb-hosted-server-"));
@@ -435,4 +436,6 @@ describe("hosted bridge in the full server", () => {
     expect(config.membership).toEqual({ authority: "portal", pairingCodes: false, peopleUrl: "https://admin.example.test/people?workspace=acme" });
     policyEvidence.push({ loopbackTrust: "service", refused: refused.map(([method, path]) => `${method} ${path}`), membership: config.membership });
   }, 30_000);
+});
+
 });

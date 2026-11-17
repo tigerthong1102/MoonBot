@@ -4,14 +4,17 @@ export interface GracefulShutdownOptions {
   timeoutMs?: number;
 }
 
+/** Docker uses a 10-second stop timeout by default. */
+export const SHUTDOWN_DEADLINE_MS = 8_000;
+
 /** A wedged provider cannot keep the child alive, and a normal stop clears browser capabilities so no turn bearer outlives it. */
 export function createGracefulShutdown({
   cleanup,
   exit,
-  timeoutMs = 6_000,
-}: GracefulShutdownOptions): () => void {
+  timeoutMs = SHUTDOWN_DEADLINE_MS,
+}: GracefulShutdownOptions): (code?: number) => void {
   let started = false;
-  return () => {
+  return (code = 0) => {
     if (started) return;
     started = true;
 
@@ -25,7 +28,7 @@ export function createGracefulShutdown({
 
     void Promise.race([settled, deadline]).finally(() => {
       if (timer) clearTimeout(timer);
-      exit(0);
+      exit(code);
     });
   };
 }

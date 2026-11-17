@@ -47,3 +47,16 @@ export function protectSupervisor(file: ScoreFile = procFile): boolean {
     return false;
   }
 }
+
+/** Linux containers exit when their PID 1 exits. */
+export function protectInit(parent: number = process.ppid, file: ScoreFile = procFile): boolean {
+  if (process.platform !== "linux") return false;
+  try {
+    if (file.read(`/proc/${parent}/comm`).trim() !== "tini") return false;
+    const score = `/proc/${parent}/oom_score_adj`;
+    file.write(score, String(OOM_SCORE.supervisor));
+    return file.read(score).trim() === String(OOM_SCORE.supervisor);
+  } catch {
+    return false;
+  }
+}

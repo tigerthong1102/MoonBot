@@ -45,6 +45,7 @@ const EXCLUDED = new Set([
   "claude-user-skills",
   // The bot box's live sockets and seccomp filter (bot-box/box.ts), made again each time the server starts.
   "box",
+  "engine-runs",
   // A Team Cloud's engine homes (engine-homes/layout.ts): CLI login homes, each audience's own transcripts and the held
   // folder, which no admin reads.
   "engine-homes",

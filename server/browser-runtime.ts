@@ -7,6 +7,7 @@ import { SECRET_ON_PAGE, SecretHolds, type SecretHold } from "./browser-secret-h
 import type { BrowserSteps, StepCall, StepContext } from "./browser-steps.ts";
 import { HARNESS_CALL_BUDGET_MS } from "./harness-budget.ts";
 import { launchSettingsKey } from "./browser-launch-key.ts";
+import { prepareBrowserRoom, refusedSlot, SharedToolLists, slotRefusal, type BrowserRoom } from "./browser-room.ts";
 
 export interface BrowserSpawnSpec {
   command: string;
@@ -290,6 +291,7 @@ export type ApplyViewport = (spec: BrowserSpawnSpec, size: PageSize) => Promise<
 type LaunchSpec = { command: string; env?: Record<string, string | undefined> };
 /** The browser the engine starts, prepared by OMB. */
 export interface BrowserLaunch {
+  starting?(session: string, spec: LaunchSpec): void;
   /** Before the engine may start the browser; rejects with a message for the bot while it cannot start yet. */
   ready(spec: LaunchSpec): Promise<void>;
   /** Once the engine runs the browser, again after every start. */
@@ -333,12 +335,13 @@ export class BrowserRuntime {
   private gates = new Map<string, Gate>();
   private clients = new Map<string, ClientEntry>();
   private recoveries = new Map<string, Promise<string | null>>();
-  private toolLists = new Map<string, unknown>();
   private idleCloseListeners = new Set<(session: string) => void>();
   private options: { requestTimeoutMs: number; takeoverTimeoutMs: number; idleMs: number; maxPending: number; resultBudget: number; recoveryCheckMs: number; laneWaitMs: number; callBudgetMs: number; followUpReserveMs: number };
   private closeBrowser: CloseBrowser;
   private applyViewport?: ApplyViewport;
   private launch?: BrowserLaunch;
+  private room?: BrowserRoom;
+  private listings = new SharedToolLists();
   private relayCommand?: RelayCommand;
   private steps?: Pick<BrowserSteps, "before" | "after" | "signIn" | "note" | "forget" | "recentFrame" | "personTook">;
   private lanes = new BrowserLanes();
@@ -353,11 +356,11 @@ export class BrowserRuntime {
   private scrub: (text: string) => string;
   private onTiming?: (timing: BrowserTiming) => void;
 
-  constructor({ closeBrowser, applyViewport, launch, relayCommand, steps, scrub, onTiming, ...options }: Partial<BrowserRuntime["options"]> & { closeBrowser?: CloseBrowser; applyViewport?: ApplyViewport; launch?: BrowserLaunch; relayCommand?: RelayCommand; steps?: BrowserRuntime["steps"]; scrub?: (text: string) => string; onTiming?: (timing: BrowserTiming) => void } = {}) {
+  constructor({ closeBrowser, applyViewport, launch, room, relayCommand, steps, scrub, onTiming, ...options }: Partial<BrowserRuntime["options"]> & { closeBrowser?: CloseBrowser; applyViewport?: ApplyViewport; launch?: BrowserLaunch; room?: BrowserRoom; relayCommand?: RelayCommand; steps?: BrowserRuntime["steps"]; scrub?: (text: string) => string; onTiming?: (timing: BrowserTiming) => void } = {}) {
     this.options = { ...BROWSER_CALL_DEFAULTS, takeoverTimeoutMs: 15_000, idleMs: 60_000, maxPending: 16, resultBudget: DEFAULT_BROWSER_RESULT_BUDGET, recoveryCheckMs: 30_000, ...options };
     this.closeBrowser = closeBrowser ?? (async () => false);
     this.applyViewport = applyViewport;
-    this.launch = launch;
+    this.launch = launch; this.room = room;
     this.relayCommand = relayCommand;
     this.steps = steps;
     this.scrub = scrub ?? scrubHeldSecrets;
@@ -464,7 +467,7 @@ export class BrowserRuntime {
     } finally { gate.calls--; gate.lastUsed = Date.now(); }
     if (method !== "tools/call") return result;
     if (result === null || result === undefined) return scrubBrowserResult({ isError: true, content: [{ type: "text", text: LANE_BUSY }] }, this.scrub);
-    if (!gate.reopened) return scrubBrowserResult(result, this.scrub);
+    if (!gate.reopened || refusedSlot(result)) return scrubBrowserResult(result, this.scrub);
     const note = gate.reopened === "restart" ? PERSON_RESTARTED : idleClosedNote(spec.env.AGENT_BROWSER_RESTORE_SAVE !== "never");
     gate.reopened = null;
     const content = (result as { content?: unknown } | null)?.content;
@@ -498,7 +501,7 @@ export class BrowserRuntime {
     const toolName = toolNameOf(params);
     const gate = this.gate(session);
     if (gate.uncertain) {
-      if (method === "tools/list") return withOmbTools(this.toolLists.get(session) ?? { tools: [] });
+      if (method === "tools/list") return withOmbTools(this.listings.known(spec) ?? { tools: [] });
       if (gate.owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
       const lostCall = gate.lostCall;
       if (lostCall === null) return stuckBrowserToolError();
@@ -513,9 +516,9 @@ export class BrowserRuntime {
     const invoke = async () => {
       const launchStarted = performance.now();
       let dispatched = false;
-      if (method === "tools/call") await this.launchReady(spec);
-      const entry = this.connect(session, spec);
-      await entry.client.ready;
+      const prepared = await prepareBrowserRoom(method === "tools/call" && toolName !== "agent_browser_close" && !attachesToChrome(spec.env) ? this.room : undefined, session, deadline - this.options.followUpReserveMs, async () => { if (method === "tools/call") await this.launchReady(spec); const entry = this.connect(session, spec); await entry.client.ready; return entry; });
+      if ("refusal" in prepared) return slotRefusal(prepared.refusal);
+      const entry = prepared.entry;
       beforeDispatch?.();
       if (method === "tools/call" && this.gate(session).owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
       if (method === "tools/call" && await this.pageSizes.beforeCall(session)) {
@@ -572,12 +575,11 @@ export class BrowserRuntime {
         let result = relayed
           ? await this.relayTool(session, spec, relayed, args, engineTimeoutMs)
           : await entry.client.rpc(method, request, engineTimeoutMs);
+        if (toolName === "agent_browser_close" && result && typeof result === "object" && (result as { isError?: boolean }).isError !== true) this.browserStopped(session);
         phases.engineMs = performance.now() - engineStarted;
         beforeDispatch?.();
         if (method === "tools/list") {
-          const tools = withOmbTools(slimBrowserToolList(result));
-          this.toolLists.set(session, tools);
-          return tools;
+          return withOmbTools(slimBrowserToolList(result));
         }
         if (before && result && typeof result === "object" && (result as { isError?: boolean }).isError !== true &&
             this.gate(session).owner === null) {
@@ -640,7 +642,7 @@ export class BrowserRuntime {
       }
       finally { if (dispatched) gate.dispatched--; }
     };
-    if (method !== "tools/call") return invoke();
+    if (method !== "tools/call") return this.listings.get(spec, invoke, () => this.sameLaunch(session, spec));
     try {
       return await this.timed(session, toolName ?? "unknown", phases, () => this.withAgentAction(session, invoke));
     } catch (error) {
@@ -666,10 +668,14 @@ export class BrowserRuntime {
     }
   }
 
-  private connect(session: string, spec: BrowserSpawnSpec): ClientEntry {
+  private sameLaunch(session: string, spec: BrowserSpawnSpec): string {
     const key = launchSettingsKey(spec);
+    if (this.clients.get(session) && this.clients.get(session)!.key !== key) throw new Error("Browser launch settings changed. Close the browser before reconnecting.");
+    return key;
+  }
+  private connect(session: string, spec: BrowserSpawnSpec): ClientEntry {
+    const key = this.sameLaunch(session, spec);
     const existing = this.clients.get(session);
-    if (existing && existing.key !== key) throw new Error("Browser launch settings changed. Close the browser before reconnecting.");
     if (existing) return existing;
     const client = new BrowserClient(spec, this.options.requestTimeoutMs, this.options.idleMs, this.options.maxPending, () => {
       if (this.clients.get(session)?.client === client) this.clients.delete(session);
@@ -830,8 +836,13 @@ export class BrowserRuntime {
 
   /** Told just before an idle close stops a session's browser. */
   onIdleClose(listener: (session: string) => void): void { this.idleCloseListeners.add(listener); }
+  private browserStopped(session: string): void { this.launch?.stopped(session); this.room?.left(session); }
+  spare(session: string): { idleMs: number; savesSignIns: boolean } | null {
+    const gate = this.gates.get(session);
+    return !gate?.spec || gate.watchers > 0 || this.working(session) ? null : { idleMs: Date.now() - gate.lastUsed, savesSignIns: gate.spec.env.AGENT_BROWSER_RESTORE_SAVE === "auto" };
+  }
 
-  launchReady(spec: LaunchSpec): Promise<void> { return this.launch?.ready(spec) ?? Promise.resolve(); }
+  launchReady(spec: LaunchSpec, personSession?: string): Promise<void> { if (personSession) this.launch?.starting?.(personSession, spec); return this.launch?.ready(spec) ?? Promise.resolve(); }
 
   /** A browser without its identity still browses, so a failure here never fails the call. */
   launched(session: string, spec: LaunchSpec): Promise<void> { return this.launch?.started(session, spec).catch(() => undefined) ?? Promise.resolve(); }
@@ -852,7 +863,7 @@ export class BrowserRuntime {
       for (const listener of this.idleCloseListeners) listener(session);
       if (!await this.closeBrowser(session, launch)) return false;
       this.steps?.forget(session);
-      this.launch?.stopped(session);
+      this.browserStopped(session);
       await this.clients.get(session)?.client.stop();
       await this.clients.get(session)?.client.stop();
       gate.uncertain = false;
@@ -883,7 +894,7 @@ export class BrowserRuntime {
     try {
       await closeBrowser();
       this.steps?.forget(session);
-      this.launch?.stopped(session);
+      this.browserStopped(session);
       await this.clients.get(session)?.client.stop();
       // A tools/list admitted before closing can register a client during this stop; registration is synchronous, so one re-check suffices.
       await this.clients.get(session)?.client.stop();
@@ -914,7 +925,7 @@ export class BrowserRuntime {
     try {
       if (!await closeBrowser()) throw new Error("The browser could not be closed. Ask the person to press Restart in the Browser panel of OpenMausBot on their computer, or to restart OpenMausBot.");
       this.steps?.forget(session);
-      this.launch?.stopped(session);
+      this.browserStopped(session);
       await this.clients.get(session)?.client.stop();
       await this.clients.get(session)?.client.stop();
       gate.uncertain = false;
@@ -936,7 +947,7 @@ export class BrowserRuntime {
     gate.closing = true;
     gate.ready = false;
     this.steps?.forget(session);
-    this.launch?.stopped(session);
+    this.browserStopped(session);
     // Clear before the awaited stop: any uncertain latch after this point must win.
     gate.uncertain = false;
     gate.lostCall = null;
@@ -944,7 +955,7 @@ export class BrowserRuntime {
     await this.clients.get(session)?.client.stop();
     gate.closing = false;
     this.changed(gate);
-    if (!gate.owner && !gate.agents && !gate.humans && !gate.watchers && !gate.calls) { this.gates.delete(session); this.toolLists.delete(session); }
+    if (!gate.owner && !gate.agents && !gate.humans && !gate.watchers && !gate.calls) this.gates.delete(session);
   }
 
   async closeAll(): Promise<void> {

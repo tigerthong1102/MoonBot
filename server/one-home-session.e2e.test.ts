@@ -31,7 +31,9 @@ function throughAdmin(fx: CloudSendFixture, device: string) {
 
 let laptop: CloudSendFixture, desk: CloudSendFixture;
 beforeAll(async () => {
-  [laptop, desk] = await Promise.all([launchCloudSendFixture({ onePasswordToken: TOKEN }), launchCloudSendFixture({ onePasswordToken: TOKEN })]);
+  laptop = await launchCloudSendFixture({ onePasswordToken: TOKEN });
+  desk = await launchCloudSendFixture({ onePasswordToken: TOKEN });
+  expect(new Set([laptop.desktopBase, laptop.cloudBase, desk.desktopBase, desk.cloudBase]).size).toBe(4);
   throughAdmin(laptop, "laptop");
   throughAdmin(desk, "desk");
 }, hostTimeout(180_000));

@@ -66,16 +66,23 @@ export class OutboundRequestService {
   }
 }
 
-/** What a "Send on your behalf?" card shows: each app action and its arguments, cut at 400 characters. */
-export function outboundCard(outboundCalls: ConnectorCall[]): { app: string | null; calls: { app: string | null; label: string }[]; summary: string } {
+export type CardCall = ConnectorCall & { files?: ReadonlyArray<{ name: string; path: string; bytes: number }> };
+
+function fileSize(bytes: number): string {
+  return bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Approval cards must disclose every file upload before truncated action arguments. */
+export function outboundCard(outboundCalls: CardCall[]): { app: string | null; calls: { app: string | null; label: string }[]; summary: string } {
   const calls = outboundCalls.map((call) => {
     const { app, label } = describeTool(call.slug);
     return { app, label };
   });
   const summary = outboundCalls.map((call, index) => {
     const described = calls[index];
+    const files = call.files?.length ? `\nUploads ${call.files.map((file) => `${file.name} (${file.path}, ${fileSize(file.bytes)})`).join("; ")}` : "";
     const argsText = call.arguments === undefined ? "" : JSON.stringify(call.arguments);
-    return `${described.app ? `${described.app} · ` : ""}${described.label}${argsText ? `\n${argsText.slice(0, 400)}${argsText.length > 400 ? "… [arguments truncated]" : ""}` : ""}`;
+    return `${described.app ? `${described.app} · ` : ""}${described.label}${files}${argsText ? `\n${argsText.slice(0, 400)}${argsText.length > 400 ? "… [arguments truncated]" : ""}` : ""}`;
   }).join("\n\n");
   return { app: calls[0]?.app ?? null, calls, summary };
 }

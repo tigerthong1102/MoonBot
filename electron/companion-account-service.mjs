@@ -95,13 +95,12 @@ const defaultSetTimer = (callback, milliseconds) => {
 
 /** Development must name an exact origin so an OTP or bearer never reaches an accidental host; an invalid override disables the feature. */
 export function resolveCompanionControlPlaneURL({
-  isPackaged,
   environment = process.env,
 } = {}) {
   if (Object.hasOwn(environment, "OMB_CONTROL_PLANE_URL")) {
     return normalizeControlPlaneURL(environment.OMB_CONTROL_PLANE_URL);
   }
-  return isPackaged ? DEFAULT_COMPANION_CONTROL_PLANE_URL : "";
+  return "";
 }
 
 /** Nothing this service returns may contain an account bearer, installation credential, connector token or Cloudflare resource id. */

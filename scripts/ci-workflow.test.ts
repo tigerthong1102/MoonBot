@@ -118,9 +118,10 @@ describe("CI concurrency", () => {
 
   it("keeps each PR to one macOS job", () => {
     const macosJobs = Object.entries(workflow.jobs as Record<string, { "runs-on": string; strategy?: { matrix?: { os?: unknown } } }>)
-      .filter(([, job]) => job["runs-on"] === "macos-latest" || JSON.stringify(job.strategy?.matrix?.os ?? "").includes("macos"))
+      .filter(([, job]) => String(job["runs-on"]).startsWith("macos-") || JSON.stringify(job.strategy?.matrix?.os ?? "").includes("macos"))
       .map(([name]) => name);
     expect(macosJobs.sort()).toEqual(["electron-smokes"]);
+    expect(workflow.jobs["electron-smokes"]["runs-on"]).toBe("macos-26-intel");
     const smokes = workflow.jobs["electron-smokes"].steps.map((step: { run?: string }) => step.run);
     expect(smokes).toContain("pnpm test:packaged-server");
   });
@@ -142,8 +143,14 @@ describe("CI concurrency", () => {
     expect(delegated).not.toContain("/tasks/${peerThread.threadId}`");
   });
 
+  it("keeps the inherited release workflow disabled", () => {
+    expect(existsSync(new URL("../.github/workflows/release.yml", import.meta.url))).toBe(false);
+    expect(existsSync(new URL("../.github/workflows/release.yaml", import.meta.url))).toBe(false);
+    expect(existsSync(new URL("../.github/workflows/release.yml.disabled", import.meta.url))).toBe(true);
+  });
+
   it("makes a release wait for its commit's CI gate before any draft", () => {
-    const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+    const release = parse(readFileSync(new URL("../.github/workflows/release.yml.disabled", import.meta.url), "utf8"));
     expect(release.jobs.assemble.needs).toContain("ci");
     expect(release.jobs.ci.needs).toBe("prepare");
     expect(release.jobs.ci.permissions).toEqual({ actions: "write", contents: "write" });
@@ -157,7 +164,7 @@ describe("CI concurrency", () => {
   });
 
   it("checks out every module the release gate imports", () => {
-    const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+    const release = parse(readFileSync(new URL("../.github/workflows/release.yml.disabled", import.meta.url), "utf8"));
     const checkout = release.jobs.ci.steps.find((step: { uses?: string }) => step.uses?.startsWith("actions/checkout@"));
     const sparse = (checkout.with["sparse-checkout"] as string).split("\n").map((line) => line.trim()).filter(Boolean);
     const imports = [...readFileSync(new URL("./release-ci.mjs", import.meta.url), "utf8").matchAll(/^import .* from "\.\/([^"]+)";$/gm)]
@@ -167,7 +174,7 @@ describe("CI concurrency", () => {
   });
 
   it("builds the Windows Defender check's installer exactly as the release's Windows job does", () => {
-    const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+    const release = parse(readFileSync(new URL("../.github/workflows/release.yml.disabled", import.meta.url), "utf8"));
     const check = parse(readFileSync(new URL("../.github/workflows/windows-defender-check.yml", import.meta.url), "utf8"));
     type Step = { uses?: string; with?: unknown; run?: string; shell?: string };
     const toolchainToInstaller = (steps: Step[]) => steps.slice(1, steps.findIndex((step) => step.run === "pnpm package:win") + 1)

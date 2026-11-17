@@ -13,6 +13,7 @@ export interface BurstRecord {
   threadId: string;
   cardMessageId?: string;
   phase: BurstPhase;
+  mergeRestarts?: number;
   task: string;
   instructions: string;
   model: ModelSelection;
@@ -33,6 +34,7 @@ export interface BurstChild {
   status: BurstChildStatus;
   threadId?: string;
   attempts: number;
+  restarts?: number;
   result?: string;
   error?: string;
 }
@@ -164,7 +166,7 @@ export function openBurstStore(dataDir: string) {
     active(): BurstRecord[] {
       return rows.activeBursts.all().map(parseBurst);
     },
-    update(id: string, patch: Partial<Pick<BurstRecord, "phase" | "cardMessageId">>): BurstRecord | undefined {
+    update(id: string, patch: Partial<Pick<BurstRecord, "phase" | "cardMessageId" | "mergeRestarts">>): BurstRecord | undefined {
       return transaction(() => {
         const burst = getBurst(id);
         if (!burst) return undefined;
@@ -216,8 +218,10 @@ export function openBurstStore(dataDir: string) {
     requeue(burstId: string, seq: number): BurstChild | undefined {
       return move(burstId, seq, "queued");
     },
-    requeueRunning(burstId: string): BurstChild[] {
-      return moveAll(burstId, "running", "queued");
+    requeueRunning(burstId: string, maxRestarts = Infinity, stopped = ""): BurstChild[] {
+      const requeued = moveAll(burstId, "running", "queued", (child) => { child.restarts = (child.restarts ?? 0) + 1; });
+      for (const child of requeued) if (child.restarts! > maxRestarts) move(burstId, child.seq, "failed", (failed) => { failed.error = stopped; });
+      return requeued.filter((child) => child.restarts! <= maxRestarts);
     },
     /** Failed children go back in line, with their reason cleared. */
     requeueFailed(burstId: string): BurstChild[] {

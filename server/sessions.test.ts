@@ -682,6 +682,20 @@ describe("sessions", () => {
     expect(daysMs("3650", 30)).toBe(3650 * day);
   });
 
+  it("bounds a renewable browser cookie by the absolute lifetime while the server keeps its idle deadline", () => {
+    const issued = pair();
+    expect(cookieMaxAgeSeconds(issued.session, clock)).toBe(Math.floor(SESSION_MAX_AGE_MS / 1000));
+    expect(issued.session.expiresAt).toBe(clock + SESSION_TTL_MS);
+    clock += SESSION_TTL_MS + 1;
+    expect(registry.authenticate(issued.token)).toBeNull();
+    expect(registry.renew(issued.session.id)).toBe(false);
+    expect(cookieMaxAgeSeconds({ createdAt: clock - SESSION_MAX_AGE_MS, expiresAt: clock + SESSION_TTL_MS }, clock)).toBe(1);
+  });
+
+  it("never extends a fixed-term token's cookie beyond its own expiry", () => {
+    expect(cookieMaxAgeSeconds({ createdAt: 0, expiresAt: 10_500, token: true }, 500)).toBe(10);
+  });
+
   it("gives a cookie whole seconds, never less than one", () => {
     expect(cookieMaxAgeSeconds({ expiresAt: 10_500 }, 0)).toBe(10);
     expect(cookieMaxAgeSeconds({ expiresAt: 100 }, 0)).toBe(1);

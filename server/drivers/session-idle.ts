@@ -42,9 +42,8 @@ export function sessionIdlePolicy(
   return { idleMs: Math.max(minimumMs, configured), minimumMs };
 }
 
-/** On a small box with less than half of it free, a second idle engine would leave no room for a turn's own engine. */
-export function idleEnginesAllowed(box: Pick<BoxMemory, "bytes">, availableBytes: number): number {
-  return box.bytes <= SMALL_BOX_BYTES && availableBytes < box.bytes / 2 ? 1 : Infinity;
+export function idleEnginesAllowed(box: Pick<BoxMemory, "bytes">, availableBytes: number, fits: number = Infinity): number {
+  return Math.min(fits, box.bytes <= SMALL_BOX_BYTES && availableBytes < box.bytes / 2 ? 1 : Infinity);
 }
 
 export interface WarmEngine {
@@ -58,12 +57,13 @@ const warmEngines = new Map<string, WarmEngine>();
 
 /** An engine went idle: when the box allows fewer idle engines than are up, the ones idle longest close now. */
 export function keepWarm(key: string, engine: WarmEngine, box: Pick<BoxMemory, "bytes"> = boxMemory(),
-  available: () => number = availableMemory): void {
-  if (box.bytes > SMALL_BOX_BYTES) return;
+  available: () => number = availableMemory, fits: () => number = () => engineMemory.idleEnginesAllowed()): void {
+  const most = fits();
+  if (box.bytes > SMALL_BOX_BYTES && most === Infinity) return;
   warmEngines.delete(key);
   warmEngines.set(key, engine);
   for (const [other, warm] of warmEngines) if (other !== key && !warm.idle()) warmEngines.delete(other);
-  const extra = warmEngines.size - idleEnginesAllowed(box, available());
+  const extra = warmEngines.size - idleEnginesAllowed(box, available(), most);
   if (extra <= 0) return;
   for (const [other, warm] of [...warmEngines].slice(0, extra)) {
     warmEngines.delete(other);
@@ -93,14 +93,11 @@ const WATCHED_MS = 30 * 60_000;
 /** A thread nobody has in front of them (a teammate's delegated work, a routine) keeps its engine this long. */
 export const UNWATCHED_IDLE_MS = 30_000;
 
-/**
- * How long one thread's idle engine stays up after a turn. On a Cloud home: briefly for a thread no person has had in
- * front of them lately, and for the one they have, the configured time scaled by the memory left (down to a tenth).
- * Elsewhere the configured time.
- */
 export function engineIdleMs(threadId: string, policy: SessionIdlePolicy, memory: Pick<EngineMemory, "enabled" | "headroom"> = engineMemory,
   now: number = Date.now()): number {
   if (!memory.enabled) return policy.idleMs;
   if (!seenWithin(threadId, WATCHED_MS, now)) return Math.max(policy.minimumMs, Math.min(policy.idleMs, UNWATCHED_IDLE_MS));
   return Math.max(policy.minimumMs, Math.round(policy.idleMs * memory.headroom()));
 }
+
+export const stoppedForRoom = (threadId: string, pid?: number): boolean => engineMemory.stoppedForRoom(threadId, pid);

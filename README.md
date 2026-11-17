@@ -1,51 +1,15 @@
 <div align="center">
 
-# OpenMausBot
+# StartupBot
 
-**The open-source Grok Bot alternative: your own team of AI bots, in a chat app.**
+**A local-first chat app for a team of AI agents.**
 
-[**openmausbot.com**](https://www.openmausbot.com) &nbsp;·&nbsp; [Download](https://www.openmausbot.com/download) &nbsp;·&nbsp; [Open source Grok Bot alternative, compared](https://www.openmausbot.com/blog/grok-bot-vs-openmausbot)
+[startupbot.ai](https://startupbot.ai) · [Source](https://github.com/tigerthong1102/MoonBot)
 
-<sub>OpenMausBot is an open-source Grok Bot alternative: an independent project inspired by **Grok Bot**, and the open-source alternative to **Meta Muse**, **OpenAI dots** and **Cue by Manus** — bring-your-own-agent, local-first, on the models you already have. Also known as **MausBot**; formerly **OpenGrokBot**. Not affiliated with xAI, Meta, OpenAI or Manus.</sub>
+StartupBot is an open-source fork of [OpenMausBot](https://github.com/milind-soni/OpenMausBot).
+It retains the upstream OSS features while the StartupBot branding and distribution are being developed.
+StartupBot releases are not yet available from this repository.
 
-Every bot in the sidebar is a real agent — Claude or Codex running locally under the hood — with its own
-personality, its own model, its own cloud computer, and its own connected apps.
-Talk to them like contacts. Watch them work. Approve what matters.
-
-![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![Electron](https://img.shields.io/badge/Electron-macOS%20%C2%B7%20Windows%20%C2%B7%20Ubuntu-2B2E3A?logo=electron&logoColor=9FEAF9)
-![Agents](https://img.shields.io/badge/agents-Claude%20·%20Codex-d97757)
-[![Release](https://img.shields.io/github/v/release/milind-soni/OpenMausBot?label=release&color=1084fe&cacheSeconds=300)](https://github.com/milind-soni/OpenMausBot/releases/latest)
-![PRs](https://img.shields.io/badge/PRs-welcome-38d591)
-
-<br>
-
-<a href="https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot.dmg">
-  <img src="https://img.shields.io/github/v/release/milind-soni/OpenMausBot?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20%20Download%20for%20Mac%20%28Apple%20silicon%29&labelColor=070707&color=1084fe&cacheSeconds=300" alt="Download the latest OpenMausBot for Mac with Apple silicon (.dmg)" height="40">
-</a>
-&nbsp;
-<a href="https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-intel.dmg">
-  <img src="https://img.shields.io/github/v/release/milind-soni/OpenMausBot?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20%20Download%20for%20Mac%20%28Intel%29&labelColor=070707&color=2a9d8f&cacheSeconds=300" alt="Download the latest OpenMausBot for Intel Macs (.dmg)" height="40">
-</a>
-&nbsp;
-<a href="https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-setup.exe">
-  <img src="https://img.shields.io/github/v/release/milind-soni/OpenMausBot?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20%20Download%20for%20Windows&labelColor=070707&color=4cc2ff&cacheSeconds=300" alt="Download the latest OpenMausBot for Windows (.exe)" height="40">
-</a>
-&nbsp;
-<a href="https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-amd64.deb">
-  <img src="https://img.shields.io/github/v/release/milind-soni/OpenMausBot?style=for-the-badge&label=%E2%AC%87%EF%B8%8F%20%20Download%20for%20Ubuntu&labelColor=070707&color=e95420&cacheSeconds=300" alt="Download the latest OpenMausBot for Ubuntu (.deb)" height="40">
-</a>
-
-<sub>[latest release](https://github.com/milind-soni/OpenMausBot/releases/latest) &nbsp;·&nbsp; macOS: Apple silicon & Intel · signed & notarized .dmg &nbsp;·&nbsp; Windows: x64 installer &nbsp;·&nbsp; Ubuntu 24.04 x64: .deb or AppImage beta &nbsp;·&nbsp; [all releases](https://github.com/milind-soni/OpenMausBot/releases)</sub>
-
-<br>
-
-<a href="https://github.com/sponsors/milind-soni">
-  <img src="https://img.shields.io/badge/%E2%9D%A4%EF%B8%8F%20%20Support%20OpenMausBot-GitHub%20Sponsors-38d591?style=for-the-badge&labelColor=070707" alt="Support OpenMausBot via GitHub Sponsors" height="40">
-</a>
-
-<br>
 <br>
 
 <sub>Powered by <a href="https://boat.dev">boat.dev</a></sub>
@@ -72,7 +36,7 @@ Talk to them like contacts. Watch them work. Approve what matters.
 <br>
 <br>
 
-<img src="docs/screenshots/hero.png" alt="OpenMausBot — a Telegram-style chat app where every chat is a real AI agent" width="900">
+<img src="branding/startupbot-original.png" alt="StartupBot" width="240">
 
 </div>
 
@@ -340,14 +304,16 @@ See [Run OpenMausBot from scripts and CI](docs/headless-cli.md).
 
 ## Quick start
 
-**Released builds ([latest release](https://github.com/milind-soni/OpenMausBot/releases/latest)):** the harness server is embedded, so no separate server setup is required.
+StartupBot installers have not passed the release gates yet. No public StartupBot download is available from this repository. Upstream installers are separate products and must not be presented as StartupBot builds.
 
-| | Download | Install |
-|---|---|---|
-| **macOS** (Apple silicon) | [OpenMausBot.dmg](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot.dmg) | Drag it to Applications, open it. Signed & notarized. |
-| **macOS** (Intel) | [OpenMausBot-intel.dmg](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-intel.dmg) | Same app, built for Intel Macs. Signed & notarized. |
-| **Windows** (x64) | [OpenMausBot-setup.exe](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-setup.exe) | Run it — one-click, per-user, no admin rights. The installer isn't code-signed yet, so SmartScreen shows "unknown publisher": **More info → Run anyway**. |
-| **Ubuntu 24.04** (x64) | [OpenMausBot-amd64.deb](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-amd64.deb) · [OpenMausBot.AppImage](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot.AppImage) | Install the `.deb` with APT (recommended), or make the AppImage executable and run it. Beta; GNOME is the supported desktop. |
+| Platform | StartupBot availability |
+|---|---|
+| macOS Apple Silicon / Intel | Not released; internal package and clean-machine verification pending. |
+| Windows | Not released; installer and clean-machine verification pending. |
+| Linux | Not released; package and restricted-host sandbox verification pending. |
+| iOS / Android | Not released; native builds and device validation pending. |
+
+See [release readiness](RELEASE_READINESS.md) for build evidence and blockers. Only link downloadable StartupBot artifacts after they exist and are approved.
 
 See the [Ubuntu Desktop guide](docs/linux-desktop.md) for installation, capabilities, and troubleshooting.
 Any desktop build can also open the bots of another Windows, macOS, or Ubuntu computer over Tailscale; see [open one computer's bots from another computer](docs/desktop-companion.md).
@@ -356,7 +322,7 @@ Any desktop build can also open the bots of another Windows, macOS, or Ubuntu co
 **From source:**
 
 ```sh
-git clone https://github.com/milind-soni/OpenMausBot && cd OpenMausBot
+git clone https://github.com/tigerthong1102/MoonBot && cd MoonBot
 pnpm install
 
 pnpm dev:server    # harness server → 127.0.0.1:8799

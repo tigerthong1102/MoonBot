@@ -142,14 +142,14 @@ describe("a thread named in the web app's address", () => {
 
   it("becomes the chat link it stands for and leaves the address with everything else", () => {
     const replaceState = at("?lang=fr&thread=t%201&bot=scout", "#top");
-    expect(takeThreadLinkFromLocation()).toBe("openmausbot://thread/t%201?bot=scout");
+    expect(takeThreadLinkFromLocation()).toBe("startupbot://thread/t%201?bot=scout");
     expect(replaceState).toHaveBeenCalledWith(null, "", "/?lang=fr#top");
     expect(parseThreadRefUrl("openmausbot://thread/t%201?bot=scout")).toEqual({ threadId: "t 1", botId: "scout" });
   });
 
   it("works without a bot, and does nothing when no thread is named", () => {
     at("?thread=t-1");
-    expect(takeThreadLinkFromLocation()).toBe("openmausbot://thread/t-1");
+    expect(takeThreadLinkFromLocation()).toBe("startupbot://thread/t-1");
     const untouched = at("?bot=scout");
     expect(takeThreadLinkFromLocation()).toBeNull();
     expect(untouched).not.toHaveBeenCalled();
@@ -164,7 +164,7 @@ describe("canonical thread links", () => {
 
   it("copies and parses one spelling, and rejects near-misses", () => {
     const link = threadRefUrl({ botId: "scout", threadId: uuid });
-    expect(link).toBe(`openmausbot://thread/${uuid}?bot=scout`);
+    expect(link).toBe(`startupbot://thread/${uuid}?bot=scout`);
     expect(parseThreadRefUrl(link)).toEqual({ threadId: uuid, botId: "scout" });
     expect(parseThreadRefUrl(`openmausbot://thread/${uuid}`)).toEqual({ threadId: uuid });
     for (const miss of [
@@ -194,7 +194,7 @@ describe("canonical thread links", () => {
     const sent = `Already [Release notes](${link}) and [Gone](openmausbot://thread/dead?bot=ada)`;
     expect(serializeThreadRefs(sent + " plus #Nothing", threads)).toBe(sent + " plus #Nothing");
     const bracketed = [scout("b", "QA [PR] 245")];
-    expect(serializeThreadRefs("see #QA [PR] 245", bracketed)).toBe("see [QA \\[PR\\] 245](openmausbot://thread/b?bot=scout)");
+    expect(serializeThreadRefs("see #QA [PR] 245", bracketed)).toBe("see [QA \\[PR\\] 245](startupbot://thread/b?bot=scout)");
   });
 
   it("displays canonical links as title chips and dead links as raw text", () => {

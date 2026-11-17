@@ -80,12 +80,16 @@ async function connect(url: string) {
       return value.result.value;
     };
     await request("Page.enable");
-    await request("Page.addScriptToEvaluateOnNewDocument", { source: "localStorage.setItem('omb-analytics-opt-out','1');localStorage.setItem('omb-email-gate','skipped');localStorage.setItem('grok-move-2026-11','1');localStorage.setItem('modelgo-offer-2026-11','1');" });
+    await request("Page.addScriptToEvaluateOnNewDocument", { source: "localStorage.setItem('omb-language','en');localStorage.setItem('omb-analytics-opt-out','1');localStorage.setItem('omb-email-gate','skipped');localStorage.setItem('grok-move-2026-11','1');localStorage.setItem('modelgo-offer-2026-11','1');" });
     await request("Runtime.enable");
     await request("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
     await request("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await request("Page.navigate", { url });
+    try {
     await expect.poll(() => evaluate("document.querySelector('textarea[aria-label^=\"Message\"]') !== null"), { timeout: 20_000 }).toBe(true);
+    } catch (error) {
+      throw new Error(`Phone UI did not reach chat: ${await evaluate("document.body.innerText.slice(0, 1500)")}`, { cause: error });
+    }
     // iOS automatically zooms small form text on focus, leaving a standalone
     // window shifted after the keyboard closes. Keep the mention mirror aligned.
     const touchText = await evaluate(`(() => {
@@ -98,6 +102,8 @@ async function connect(url: string) {
     const parsed = await request("Page.getAppManifest");
     expect(parsed.url).toBe(`${url}/manifest.webmanifest`);
     expect(parsed.errors).toEqual([]);
+    expect(JSON.parse(parsed.data)).toMatchObject({ name: "StartupBot", short_name: "StartupBot" });
+    expect(await evaluate("document.title")).toBe("StartupBot");
     const installability = await request("Page.getInstallabilityErrors");
     expect(installability.installabilityErrors).toEqual([]);
     await expect.poll(() => evaluate("document.querySelector('textarea[aria-label^=\"Message\"]') !== null"), { timeout: 20_000 }).toBe(true);

@@ -22,10 +22,10 @@ describe("managed Composio desktop registration", () => {
     expect(managedComposioAccess("", { composioBrokerToken: TOKEN })).toBeNull();
   });
 
-  it("uses the default service only in a shipped build (the packaged app, a Cloud home's image); an explicit URL wins", () => {
+  it("requires an explicit service URL in shipped and development builds", () => {
     expect(DEFAULT_MANAGED_COMPOSIO_BROKER_URL).toMatch(/^https:\/\//);
-    expect(managedComposioBrokerUrl(undefined, true)).toBe(DEFAULT_MANAGED_COMPOSIO_BROKER_URL);
-    expect(managedComposioBrokerUrl("  ", true)).toBe(DEFAULT_MANAGED_COMPOSIO_BROKER_URL);
+    expect(managedComposioBrokerUrl(undefined, true)).toBe("");
+    expect(managedComposioBrokerUrl("  ", true)).toBe("");
     expect(managedComposioBrokerUrl(undefined, false)).toBe("");
     expect(managedComposioBrokerUrl(" http://127.0.0.1:8787/ ", false)).toBe("http://127.0.0.1:8787");
     expect(managedComposioBrokerUrl("http://broker.example", true)).toBe("");
@@ -206,6 +206,6 @@ describe("keeping the desktop app off the managed service", () => {
 
   it("any other value of the switch leaves the service on", () => {
     vi.stubEnv("OMB_COMPOSIO_BROKER", "on");
-    expect(managedComposioBrokerUrl(undefined, true)).toBe(DEFAULT_MANAGED_COMPOSIO_BROKER_URL);
+    expect(managedComposioBrokerUrl(undefined, true)).toBe("");
   });
 });

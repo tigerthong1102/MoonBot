@@ -590,6 +590,43 @@ describe("waiting on a conversation's job", () => {
     expect(result).toMatchObject({ status: "timed-out", state: "timed-out", job: { state: "running" } });
   });
 
+  it.each(["later-message", "later-card", "no-tail"])("preserves a failed job's outcome across %s", async (later) => {
+    const tail = later !== "no-tail" ? [
+      { id: "u1", at: 1, role: "user", kind: "text", text: "Reply briefly" },
+      { id: "error", at: 2, role: "bot", kind: "activity", tool: { name: "error: upstream HTTP 429", ok: false, terminal: true } },
+      { id: "retry", at: 4, role: "user", kind: "text", text: "Automatic retry" },
+      ...(later === "later-card" ? [{ id: "approval", at: 5, role: "bot", kind: "options", card: { requestId: "new-request", title: "Approve retry?" } }] : []),
+    ] : [];
+    const failed = server({ fleet: bot({ busy: true, activity: "working" }), tail, jobs: [{
+      state: "failed", version: "v1", now: 3, roots: ["original"],
+      nodes: [{ id: "original", status: "failed", outcome: "provider_error" }],
+      conversation: { kind: "bot", busy: false, activity: "idle", queued: 0 },
+    }] });
+    expect(await handleToolCall("wait_for_conversation", { target_type: "bot", target_id: "bot-1", timeout_seconds: 1 }, failed.fetcher))
+      .toMatchObject({ status: "failed", state: "failed", target: { busy: true } });
+  });
+
+  it("keeps the legacy partial-reply outcome while pinning the ended job ahead of a later retry", async () => {
+    const partial = server({ fleet: bot(), tail: [
+      { id: "user", at: 1, role: "user", kind: "text", text: "Work" },
+      { id: "answer", at: 2, role: "bot", kind: "text", text: "Partial result" },
+      { id: "error", at: 3, role: "bot", kind: "activity", tool: { name: "error: provider failed", ok: false } },
+      { id: "retry", at: 4, role: "user", kind: "text", text: "Automatic retry" },
+    ], jobs: [{ state: "failed", version: "v1", now: 3, roots: ["original"], nodes: [{ id: "original", status: "failed", outcome: "provider_error", finishedAt: 3 }] }] });
+    expect(await handleToolCall("wait_for_conversation", { target_type: "bot", target_id: "bot-1", timeout_seconds: 1 }, partial.fetcher))
+      .toMatchObject({ status: "settled", state: "failed" });
+  });
+
+  it.each([
+    ["failed", "cancelled", "stopped", "original"],
+    ["failed", "failed", "stopped", "original"],
+    ["completed", "failed", "provider_error", "child"],
+  ])("preserves settled semantics for %s work ending as %s/%s", async (state, status, outcome, id) => {
+    const settled = server({ fleet: bot(), jobs: [{ state, version: "v1", roots: ["original"], nodes: [{ id, status, outcome }] }] });
+    expect(await handleToolCall("wait_for_conversation", { target_type: "bot", target_id: "bot-1", timeout_seconds: 1 }, settled.fetcher))
+      .toMatchObject({ status: "settled", state });
+  });
+
   it("waits past a state it was already told about, and keeps the job it was given", async () => {
     const { fetcher, reads } = server({ fleet: bot(), jobs: [{ state: "needs-input", version: "v1" }, { state: "running", version: "v2" }, { state: "completed", version: "v3" }] });
     const result: any = await handleToolCall("wait_for_conversation", {

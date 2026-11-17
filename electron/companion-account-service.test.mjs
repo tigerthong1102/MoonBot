@@ -113,10 +113,8 @@ function signedCredentials(overrides = {}) {
 }
 
 describe("Companion account service", () => {
-  it("uses the packaged hosted default and only explicit safe development origins", () => {
-    expect(resolveCompanionControlPlaneURL({ isPackaged: true, environment: {} })).toBe(
-      "https://accounts.openmausbot.com",
-    );
+  it("requires an explicit safe control plane origin", () => {
+    expect(resolveCompanionControlPlaneURL({ isPackaged: true, environment: {} })).toBe("");
     expect(resolveCompanionControlPlaneURL({
       isPackaged: false,
       environment: { OMB_CONTROL_PLANE_URL: "http://127.0.0.1:8787/" },

@@ -50,8 +50,7 @@ export interface WarmSummaryDeps {
   plan(target: WarmSummaryTarget, contextTokens: number | undefined): WarmSummaryPlan | null;
   /** Why not now. `retry`: it may pass in minutes (a busy bot, a routine due); otherwise the next turn here arms it again. */
   hold(target: WarmSummaryTarget): { reason: string; retry: boolean } | null;
-  /** Writes and applies the summary. `awaited()`: a turn is waiting for it, so the turn's own setup is no reason to drop it. */
-  run(target: WarmSummaryTarget, plan: WarmSummaryPlan, control: { signal: AbortSignal; awaited(): boolean }): Promise<WarmSummaryOutcome>;
+  run(target: WarmSummaryTarget, plan: WarmSummaryPlan, control: { signal: AbortSignal; awaited(): boolean; stale(): { reason: string; retry: boolean } | null }): Promise<WarmSummaryOutcome>;
   log?(line: string): void;
 }
 
@@ -124,7 +123,8 @@ export function createWarmSummary(deps: WarmSummaryDeps) {
     run.done = (async () => {
       let outcome: WarmSummaryOutcome;
       try {
-        outcome = await deps.run(p.target, p.plan, { signal: controller.signal, awaited: () => run.awaited });
+        outcome = await deps.run(p.target, p.plan, { signal: controller.signal, awaited: () => run.awaited, stale: () => deps.now() - p.turnEndedAt >= giveUpMs
+          ? { reason: "the prompt cache has gone cold", retry: false } : deps.hold(p.target) });
       } catch (error) {
         outcome = { ok: false, reason: error instanceof Error ? error.message : String(error) };
       }

@@ -5,6 +5,7 @@ export type BotHome = "computer" | "cloud";
 export interface PlaceBotRow {
   home: BotHome;
   id: string;
+  address?: string;
   threadId: string;
   name: string;
   title?: string;

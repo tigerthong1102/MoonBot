@@ -9,15 +9,23 @@ import type { Coordinator, HandoffView } from "../coordinator.ts";
 import { redactSecretsInText } from "../redact.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { createBotLinkRoutes, linkSessionUser } from "../routes/bot-link.ts";
+import { isLinkedId } from "../bot-link/protocol.ts";
 import type { Level } from "../runtime/types.ts";
 import type { BotRecord, Store } from "../store.ts";
 import type { HandoffFiles, PassedFile } from "./handoff-files.ts";
 import { sentRow, teammateResultRow } from "./handoff-sent.ts";
+import { createLinkedRooms, type LinkedRoomsDeps } from "./bot-link-rooms.ts";
 
 export interface BotLinkHostDeps {
   dataDir: string;
   environmentId: string;
-  store: Pick<Store, "bots" | "bot" | "createTask" | "taskByThread" | "appendMessage" | "patchTask" | "onChange" | "group" | "groupTaskByThread" | "markGroupThreadUnread">;
+  store: Pick<Store, "bots" | "bot" | "standIns" | "createTask" | "taskByThread" | "appendMessage" | "patchTask" | "onChange" | "group" | "groups" | "groupTaskByThread" | "markGroupThreadUnread" | "activePath" | "messagesFor" | "patchGroup">;
+  roomLine: LinkedRoomsDeps["line"];
+  roomFollow?: LinkedRoomsDeps["follow"];
+  roomWindow: LinkedRoomsDeps["window"];
+  roomOpener?: LinkedRoomsDeps["opener"];
+
+  roomChanged?(groupId: string): void;
   coordinator(): Coordinator;
   kick(): void;
   level(bot: BotRecord): Level;
@@ -36,8 +44,32 @@ export interface BotLinkHostDeps {
 
 export function createBotLinkHost(deps: BotLinkHostDeps) {
   const { store } = deps;
+  const syncStandIns = () => {
+    const next = new Map<string, BotRecord>();
+    for (const { id, peer, place, kind, bot } of link.linked()) {
+      next.set(id, { id, name: bot.name, color: bot.color ?? "blue", threadId: "", tasks: [], resumeCursors: {}, modelSelection: { instanceId: "", model: bot.model ?? "" },
+        home: { place: peer, placeName: place.name, botId: bot.id, kind }, ...(bot.title ? { title: bot.title } : {}), ...(bot.description ? { description: bot.description } : {}),
+        ...(bot.mascotBody ? { mascotBody: bot.mascotBody } : {}), ...(bot.mascotFaceColor ? { mascotFaceColor: bot.mascotFaceColor } : {}) } as unknown as BotRecord);
+    }
+    rooms.sync();
+    for (const { id, gone, name, color, place, placeName, botId, kind, title, mascotBody, mascotFaceColor } of rooms.absent()) {
+      next.set(id, { id, name, color: color ?? "blue", threadId: "", tasks: [], resumeCursors: {}, modelSelection: { instanceId: "", model: "" },
+        home: { place, placeName, botId, ...(kind ? { kind } : {}), gone }, ...(title ? { title } : {}), ...(mascotBody ? { mascotBody } : {}), ...(mascotFaceColor ? { mascotFaceColor } : {}) } as unknown as BotRecord);
+    }
+    store.standIns.clear();
+    for (const [id, record] of next) if (isLinkedId(id)) store.standIns.set(id, record);
+    for (const group of store.groups) {
+      const far = group.dm || !group.memberIds.some(isLinkedId) ? "" : JSON.stringify(rooms.far(group));
+      if ((farTold.get(group.id) ?? "") === far) continue;
+      if (far) farTold.set(group.id, far); else farTold.delete(group.id);
+      deps.roomChanged?.(group.id);
+    }
+  };
+  const farTold = new Map<string, string>();
+  const rooms = createLinkedRooms({ dataDir: deps.dataDir, store, coordinator: deps.coordinator, on: () => link.on(), linked: (peer) => link.has(peer), online: (peer) => link.online(peer), linkedBots: () => link.linked(), selfName: () => link.selfName(), wanted: () => link.wanted(),
+    personName: deps.personName, line: deps.roomLine, window: deps.roomWindow, log: deps.log, ...(deps.roomOpener ? { opener: deps.roomOpener } : {}), ...(deps.roomFollow ? { follow: deps.roomFollow } : {}) });
   const link = createBotLink({
-    dataDir: deps.dataDir, coordinator: deps.coordinator, kick: deps.kick, log: deps.log, revoke: (sessionId) => { deps.sessions.revoke(sessionId); },
+    dataDir: deps.dataDir, coordinator: deps.coordinator, kick: deps.kick, log: deps.log, rooms, directoryChanged: () => { syncStandIns(); }, revoke: (sessionId) => { deps.sessions.revoke(sessionId); },
     bots: () => store.bots, bot: (id) => store.bot(id),
     refusal: (bot) => deps.refusal(bot as BotRecord),
     model: (bot) => (bot as BotRecord).modelSelection.model,
@@ -77,10 +109,13 @@ export function createBotLinkHost(deps: BotLinkHostDeps) {
   /** While the link is on: bot changes reach the other places, and old records and stray file bytes are cleared hourly. */
   const watch = () => {
     stopWatching ??= store.onChange((change) => { if (change.type.startsWith("bot.")) link.botsChanged(); });
+    watchRooms();
     if (upkeep) return;
     upkeep = setInterval(() => link.tidy(), 60 * 60_000);
     upkeep.unref?.();
   };
+  let stopWatchingRooms: (() => void) | undefined;
+  const watchRooms = () => { stopWatchingRooms ??= store.onChange((change) => { if (change.type === "group" && (store.standIns.size > 0 || rooms.any())) syncStandIns(); }); };
   const routes = createBotLinkRoutes({ link, dialer, turnedOn: watch, environmentId: deps.environmentId, local: deps.local, owner: deps.owner, power: deps.power,
     // A personal Cloud issues no session without its owner's scopes, so the link's carries them; `linkSessionRefusal`
     // (wired where requests are admitted) keeps it to the link's own routes.
@@ -90,14 +125,15 @@ export function createBotLinkHost(deps: BotLinkHostDeps) {
     },
     revoke: (sessionId) => { deps.sessions.revoke(sessionId); } });
   return {
-    link, routes,
+    link, routes, rooms,
     /** Once the server is up. Off: nothing. On, on the computer: it starts asking the Cloud. */
     start(): void {
-      if (!link.on()) return;
+      if (!link.on()) { if (rooms.any()) { syncStandIns(); watchRooms(); } return; }
+      syncStandIns();
       watch();
       link.tidy();
       if (link.role() === "dialer") dialer.start({ gentle: true });
     },
-    close(): void { if (upkeep) clearInterval(upkeep); stopWatching?.(); dialer.close(); link.close(); },
+    close(): void { if (upkeep) clearInterval(upkeep); stopWatching?.(); stopWatchingRooms?.(); dialer.close(); link.close(); },
   };
 }

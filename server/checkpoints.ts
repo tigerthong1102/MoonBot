@@ -15,6 +15,8 @@ import { homedir } from "node:os";
 import { isAbsolute, join, parse, resolve } from "node:path";
 
 import { DATA_DIR } from "./config.ts";
+import { execFileInGroup } from "./group-exec.ts";
+import { checkpointGitSlots } from "./job-slots.ts";
 
 export const CHECKPOINTS_DIR = join(DATA_DIR, "checkpoints");
 
@@ -198,7 +200,6 @@ function gitEnv(shadow: string, cwd: string): NodeJS.ProcessEnv {
   return env;
 }
 
-/** execFile reports its own timeout as a killed child; a `signal` cancellation arrives as an AbortError instead. */
 function gitFailure(command: string, err: Error & { killed?: boolean }, stderr: string, signal?: AbortSignal): Error {
   if (err.killed && err.name !== "AbortError" && !signal?.aborted) {
     return new GitTimeoutError(`git ${command} timed out after ${GIT_TIMEOUT_MS / 1000} s`);
@@ -207,12 +208,16 @@ function gitFailure(command: string, err: Error & { killed?: boolean }, stderr: 
 }
 
 function runGit(args: string[], cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal, input?: string): Promise<string> {
+  return checkpointGitSlots.run(() => startGit(args, cwd, env, signal, input), { signal });
+}
+
+function startGit(args: string[], cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal, input?: string): Promise<string> {
   return new Promise((resolvePromise, rejectPromise) => {
     signal?.throwIfAborted();
-    const child = execFile(
+    const child = execFileInGroup(
       "git",
       args,
-      { cwd, env, signal, windowsHide: true, encoding: "utf8", timeout: GIT_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+      { cwd, env, signal, encoding: "utf8", timeout: GIT_TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err) rejectPromise(gitFailure(args[0]!, err, stderr, signal));
         else resolvePromise(stdout);

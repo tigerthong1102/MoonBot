@@ -1,0 +1,121 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
+import type { ProviderInstance } from "./contracts.ts";
+import { CRASH_EXIT_CODE } from "./restart.ts";
+
+export interface TurnScope { botId: string; threadId: string; executionId?: symbol; isCurrent?: () => boolean }
+
+const scope = new AsyncLocalStorage<TurnScope>();
+const activeExecutions = new Map<string, { scope: TurnScope; turnId?: string }>();
+let watchedIdentity: ((threadId: string) => object | undefined) | undefined;
+
+export const runInTurn = <T>(turn: TurnScope, run: () => T): T => scope.run(turn, run);
+export const currentTurn = (): TurnScope | undefined => scope.getStore();
+export const outsideTurn = <T>(run: () => T): T => scope.exit(run);
+
+export function withTurnScope<I extends Pick<ProviderInstance, "adapter">>(instance: I): I {
+  const adapter = instance.adapter;
+  const active = activeExecutions;
+  (instance as { adapter: ProviderInstance["adapter"] }).adapter = {
+    ...adapter,
+    sendTurn: (input) => {
+      const turn: TurnScope = { botId: input.botId ?? "", threadId: input.threadId, executionId: Symbol() };
+      const entry = { scope: turn, turnId: undefined as string | undefined };
+      const watched = watchedIdentity?.(input.threadId);
+      turn.isCurrent = () => active.get(input.threadId) === entry &&
+        (!watchedIdentity || (watched !== undefined && watchedIdentity(input.threadId) === watched));
+      active.set(input.threadId, entry);
+      return runInTurn(turn, () => adapter.sendTurn(input).then(result => { entry.turnId = result.turnId; return result; }, error => {
+        if (active.get(input.threadId) === entry) active.delete(input.threadId);
+        throw error;
+      }));
+    },
+    onEvent: (listener) => adapter.onEvent((event) => {
+      const entry = active.get(event.threadId), origin = currentTurn();
+      if (event.type === "turn.completed" && entry &&
+          (origin?.executionId ? origin.executionId === entry.scope.executionId : event.turnId !== undefined && event.turnId === entry.turnId)) active.delete(event.threadId);
+      return outsideTurn(() => listener(event));
+    }),
+  };
+  return instance;
+}
+
+export const SERVER_ERROR_CAUSE = "turn stopped — the server hit an unexpected error (details in the server log)";
+
+export const STORM_LIMIT = 10;
+export const STORM_WINDOW_MS = 60_000;
+export const FATAL_EXIT_DEADLINE_MS = 20_000;
+
+const PEER_GONE = new Set(["EPIPE", "ECONNRESET", "ECONNABORTED", "ENOTCONN", "ETIMEDOUT", "ERR_STREAM_DESTROYED", "ERR_STREAM_WRITE_AFTER_END", "ERR_STREAM_PREMATURE_CLOSE"]);
+
+export type CrashVerdict = "fail-turn" | "keep" | "exit";
+
+const codeOf = (error: unknown): string | undefined => {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : undefined;
+};
+
+export function crashVerdict(kind: "exception" | "rejection", error: unknown, turn: TurnScope | undefined, inWindow: number): CrashVerdict {
+  if (inWindow > STORM_LIMIT) return "exit";
+  if (error instanceof RangeError && /call stack/i.test(error.message)) return "exit";
+  if (codeOf(error) === "ERR_INTERNAL_ASSERTION") return "exit";
+  if (turn) return "fail-turn";
+  if (kind === "rejection") return "keep";
+  return PEER_GONE.has(codeOf(error) ?? "") ? "keep" : "exit";
+}
+
+export function crashLine(kind: "exception" | "rejection", error: unknown, turn: TurnScope | undefined, verdict: CrashVerdict, redact: (text: string) => string): string {
+  const name = error instanceof Error ? error.name : typeof error;
+  const message = error instanceof Error ? error.message : String(error);
+  const where = turn ? `in the turn of bot ${turn.botId} thread ${turn.threadId}` : "outside any turn";
+  const what = verdict === "exit" ? "the server closes and starts again" : verdict === "fail-turn" ? "that turn is stopped, the server stays up" : "the server stays up";
+  const stack = error instanceof Error && error.stack ? `\n${error.stack.split("\n").slice(1, 9).join("\n")}` : "";
+  return redact(`crash guard: ${kind === "exception" ? "uncaught exception" : "unhandled rejection"} ${where}${codeOf(error) ? ` [${codeOf(error)}]` : ""}: ${name}: ${message.slice(0, 500)} — ${what}${stack}`);
+}
+
+export interface CrashGuardDeps {
+  turnIdentity?: (threadId: string) => object | undefined;
+  failTurn(turn: TurnScope, detail: string): boolean;
+  shutdown(code: number): void;
+  log?: (line: string) => void;
+  redact?: (text: string) => string;
+  now?: () => number;
+  exit?: (code: number) => void;
+  on?: (event: "uncaughtException" | "unhandledRejection", listener: (error: unknown) => void) => void;
+}
+
+export function installCrashGuard(deps: CrashGuardDeps) {
+  watchedIdentity = deps.turnIdentity;
+  const log = deps.log ?? ((line: string) => console.error(line)), redact = deps.redact ?? ((text: string) => text);
+  const now = deps.now ?? Date.now, exit = deps.exit ?? ((code: number) => process.exit(code));
+  const recent: number[] = [];
+  let closing = false;
+  const handle = (kind: "exception" | "rejection") => (error: unknown) => {
+    try {
+      const at = now();
+      while (recent.length && at - recent[0]! > STORM_WINDOW_MS) recent.shift();
+      recent.push(at);
+      const turn = currentTurn();
+      let verdict = closing ? "exit" : crashVerdict(kind, error, turn, recent.length);
+      log(crashLine(kind, error, turn, verdict, redact));
+      if (verdict === "fail-turn" && turn) {
+        let stopped = false;
+        try { stopped = turn.isCurrent?.() !== false && deps.failTurn(turn, error instanceof Error ? error.name : "error"); } catch (failure) { log(redact(`crash guard: stopping the turn failed: ${String(failure)}`)); }
+        if (stopped) return;
+        log(`crash guard: no running turn of thread ${turn.threadId} to stop — the server closes and starts again`);
+        verdict = "exit";
+      }
+      if (verdict !== "exit") return;
+      if (closing) { exit(CRASH_EXIT_CODE); return; }
+      closing = true;
+      setTimeout(() => exit(CRASH_EXIT_CODE), FATAL_EXIT_DEADLINE_MS);
+      deps.shutdown(CRASH_EXIT_CODE);
+    } catch {
+      exit(CRASH_EXIT_CODE);
+    }
+  };
+  const on = deps.on ?? ((event, listener) => { process.on(event, listener); });
+  on("uncaughtException", handle("exception"));
+  on("unhandledRejection", handle("rejection"));
+  return { closing: () => closing };
+}

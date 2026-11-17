@@ -393,7 +393,8 @@ it("says in the main chat, once per run of failures, that an automation could no
   })]);
   const second = await s.runNow(routineId);
   await s.settled(second, "failed");
-  expect((await s.run(second)).error).toBe((await s.run(first)).error);
+  const withoutSentTime = (error: string) => error.replace(/Current time when this message was sent: [^\n]+/g, "Current time when this message was sent: <time>");
+  expect(withoutSentTime((await s.run(second)).error)).toBe(withoutSentTime((await s.run(first)).error));
   expect(await s.lines()).toHaveLength(1);
 }, 120_000);
 

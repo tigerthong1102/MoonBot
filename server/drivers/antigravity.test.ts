@@ -1,4 +1,5 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -193,8 +194,10 @@ describe("Antigravity sign-in lifecycle", () => {
       await instance.signOut!();
     } finally {
       await instance.dispose();
-      rmSync(profile, { recursive: true, force: true });
-      rmSync(antigravityProfileDirectory("antigravity-other"), { recursive: true, force: true });
+      for (const directory of [profile, antigravityProfileDirectory("antigravity-other")]) {
+        await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+        expect(existsSync(directory)).toBe(false);
+      }
     }
   });
 

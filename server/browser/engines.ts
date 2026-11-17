@@ -50,6 +50,8 @@ export interface ChromeEngineOptions {
   held?(session: string): boolean;
   egressNotice(key: string): string | null;
   language?(): string | undefined;
+  starting?(session: string): void;
+  stopped?(session: string): void;
   log?: (line: string) => void;
 }
 
@@ -99,6 +101,8 @@ export class ChromeEngine {
       maxRunning,
       idleMs: options.idleMs,
       held: options.held,
+      starting: options.starting,
+      stopped: options.stopped,
       egressNotice: options.egressNotice,
       ...(options.log ? { log: options.log } : {}),
     });
@@ -186,6 +190,7 @@ export class ChromeEngine {
 export interface RuntimeRouterOptions {
   /** What a tool call is told instead of reaching either engine, or null to run it. */
   refusal?(session: string, spec: BrowserSpawnSpec, params: unknown): string | null;
+  room?(session: string, spec: BrowserSpawnSpec, params: unknown): Promise<string | null>;
   /** Asked each time beforeDispatch ran, so after it claimed the session for this call's turn and before anything reaches
    * the engine: what a refusal that depends on who is calling tells the call, or null to run it. */
   afterClaim?(session: string, spec: BrowserSpawnSpec): string | null;
@@ -203,6 +208,7 @@ export class RuntimeRouter {
   readonly #old: BrowserRuntime;
   readonly #chrome: ChromeEngine;
   readonly #refusal: RuntimeRouterOptions["refusal"];
+  readonly #room: RuntimeRouterOptions["room"];
   readonly #afterClaim: RuntimeRouterOptions["afterClaim"];
   readonly #annotate: RuntimeRouterOptions["annotate"];
   readonly #afterCall: RuntimeRouterOptions["afterCall"];
@@ -211,6 +217,7 @@ export class RuntimeRouter {
     this.#old = old;
     this.#chrome = chrome;
     this.#refusal = options.refusal;
+    this.#room = options.room;
     this.#afterClaim = options.afterClaim;
     this.#annotate = options.annotate;
     this.#afterCall = options.afterCall;
@@ -219,13 +226,15 @@ export class RuntimeRouter {
   async agentRpc(session: string, spec: BrowserSpawnSpec, method: "tools/list" | "tools/call", params: unknown, beforeDispatch?: () => void, ctx?: StepContext): Promise<unknown> {
     const refusal = method === "tools/call" ? this.#refusal?.(session, spec, params) : null;
     if (refusal) return { isError: true, content: [{ type: "text", text: refusal }] };
+    const target = chromeTarget(session, spec);
+    const full = method === "tools/call" && target ? await this.#room?.(session, spec, params) : null;
+    if (full) return { isError: true, content: [{ type: "text", text: full }] };
     const afterClaim = method === "tools/call" ? this.#afterClaim : undefined;
     const dispatch = afterClaim ? () => {
       beforeDispatch?.();
       const text = afterClaim(session, spec);
       if (text) throw new ClaimRefused(text);
     } : beforeDispatch;
-    const target = chromeTarget(session, spec);
     let result: unknown;
     try {
       result = await (target ? this.#chrome.service.agentRpc(target, method, params, dispatch) : this.#old.agentRpc(session, spec, method, params, dispatch, ctx));

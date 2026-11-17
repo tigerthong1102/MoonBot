@@ -1,6 +1,11 @@
 // Opt-in size cap for per-thread NDJSON logs: keep the newest half, cut on a line boundary, same filename.
 import { closeSync, fstatSync, openSync, readSync, renameSync, rmSync, statSync, writeSync } from "node:fs";
 
+/** Event-log retention must never trim conversation transcripts. */
+export const DEFAULT_THREAD_EVENT_LOG_MAX_BYTES = 256 * 1024 * 1024;
+
+export const threadLogCapOrDefault = (cap: number | null): number => cap ?? DEFAULT_THREAD_EVENT_LOG_MAX_BYTES;
+
 let capProvider: () => number | null = () => null;
 
 export function bindThreadLogCapProvider(provider: () => number | null): void {

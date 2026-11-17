@@ -1,18 +1,16 @@
-// What an unattended routine run's failure turns into: a failure starts the run once more after a short wait, unless a
-// second start could only repeat or undo it (a stall the turn watchdog stopped, a stop someone pressed or typed, a
-// refusal, a spent cap); a busy target is waited for, a usage limit with a known reset is waited out, and what only the
-// owner can fix fails at once and is told to them once per bot and cause, until one of that bot's runs completes.
-// A teammate's failed thread takes the same verdict (host/chief-notices.ts).
 import type { RuntimeEvent } from "../shared/runtime-events.ts";
 import type { ServerText } from "../shared/server-text.ts";
 import { isCountedSkip, type RoutineRetryCause } from "../shared/routines.ts";
 import { engineFailureKind } from "./drivers/engine-errors.ts";
 import { classifyError } from "./drivers/retry.ts";
+import { hostFaultOf, retryCannotFix } from "./host-fault.ts";
+import { outOfProcesses } from "./process-shortage.ts";
 import { nextOccurrence } from "./routine-schedules.ts";
 import type { Routine, RoutineRun } from "./routines.ts";
 import { codedLine, fittedLine, type RoutineLine, type RoutineLineKey } from "./routine-lines.ts";
 import { hostTimeZone } from "./turn-clock.ts";
 import { classifyContinuable } from "./turn-continuation.ts";
+import { selectReplay } from "./context-rebuild.ts";
 
 export type RoutineOwnerCause = "signed_out" | "credits" | "usage_limit" | "setup";
 
@@ -37,6 +35,8 @@ export interface RoutineFailureFacts {
   partial?: boolean;
 }
 
+export interface RoutineOwnerMark { ownerCause?: RoutineOwnerCause }
+
 export type RoutineFailureClass =
   | { kind: "retry"; cause: Exclude<RoutineRetryCause, "usage_limit"> }
   | { kind: "busy" }
@@ -50,7 +50,7 @@ export interface RoutineOwnerNotice { botId: string; cause: RoutineOwnerCause; a
 
 export type RoutineRecovery = { queued: true; alert?: RoutineAlert } | { queued: false; error: string; alert?: RoutineAlert | null };
 
-const RETRY_MS = 15_000;
+export const ROUTINE_RETRY_MS = 15_000;
 const RATE_LIMIT_RETRY_MS = 60_000;
 export const ROUTINE_BUSY_RECHECK_MS = 30_000;
 export const ROUTINE_BUSY_WAIT_MS = 60 * 60_000;
@@ -84,12 +84,15 @@ const FIRST_START: Record<RoutineRetryCause, string> = {
 };
 
 /** Any failure gets one automatic retry, except a stall the turn watchdog stopped (its Chief hears instead), a
- * stop someone pressed or typed, a refusal, and a spent cap. Routine runs and teammate threads both judge by this. */
+ * stop someone pressed or typed, a refusal, a spent cap, and a fault a second start would meet again (no process could
+ * start, a full disk, a tool server that is down). Routine runs and teammate threads both judge by this. */
 export function classifyRoutineFailure(failure: string, facts: RoutineFailureFacts = {}): RoutineFailureClass {
-  if (facts.cause === "busy") return { kind: "busy" };
+  if (facts.cause === "busy" || outOfProcesses(failure)) return { kind: "busy" };
   if (facts.cause === "stalled" || facts.cause === "cap") return { kind: "final" };
   if (facts.stopReason && NOT_RETRIED_STOPS.has(facts.stopReason)) return { kind: "final" };
   if (classifyContinuable(facts.stopReason, failure) === "cap") return { kind: "final" };
+  const fault = hostFaultOf(failure, facts.stopReason);
+  if (fault && fault !== "signed_out" && retryCannotFix(fault)) return { kind: "final" };
   if (facts.stalled) return { kind: "retry", cause: "stalled" };
   const engine = engineFailureKind(failure);
   const { reason, transient } = classifyError({ text: failure });
@@ -144,7 +147,7 @@ function attend(run: RoutineRun, line: RoutineLine): void {
 
 /** Queues the run's one second start; false when it already had it or is not a bot's run. */
 export function requeueOnce(run: RoutineRun, cause: RoutineRetryCause, failure: string, now: number,
-  at = now + (cause === "rate_limited" ? RATE_LIMIT_RETRY_MS : RETRY_MS)): boolean {
+  at = now + (cause === "rate_limited" ? RATE_LIMIT_RETRY_MS : ROUTINE_RETRY_MS)): boolean {
   if (run.target !== "bot" || run.retried !== undefined) return false;
   run.status = "queued";
   run.retried = cause;
@@ -162,6 +165,29 @@ export function retryNote(cause: RoutineRetryCause): string {
     "check what it did (files, messages sent, anything started) so nothing is done twice; then finish the routine.]";
 }
 
+export function continueNote(cause: RoutineRetryCause): string {
+  return `[OpenMausBot: this run's first start ${FIRST_START[cause]} before it finished. The routine's instructions are in the message above ` +
+    "and are not repeated here. Check what the first start already did (files, messages sent, anything started) so nothing is done twice; then finish the routine.]";
+}
+
+export function sessionHolds(input: { resumes: boolean; messages: ReadonlyArray<{ role: string; text?: string }>; prompt: string; budgetBytes: number; maxMessages?: number }): boolean {
+  const at = input.messages.findLastIndex((message) => message.role === "user" && message.text === input.prompt);
+  if (at < 0) return false;
+  if (input.resumes) return true;
+  const history = input.messages.map((message, index) => ({ id: String(index), role: message.role === "user" ? "user" as const : "assistant" as const, text: message.text ?? "" }));
+  const selected = selectReplay(history, { budgetBytes: input.budgetBytes, maxMessages: input.maxMessages });
+  return selected.transcript.some((entry) => entry.id === String(at) && entry.text === input.prompt);
+}
+
+const startsAfresh = (run: Pick<RoutineRun, "retried" | "attentionCode">, prompt: string): boolean =>
+  run.retried === "usage_limit" || run.attentionCode === "routines.server.backupSignedOut" || run.attentionCode === "routines.server.backupAi"
+  || /(?:^|\s)\/[A-Za-z][\w:-]*/.test(prompt);
+
+export function startPrompt(run: Pick<RoutineRun, "retried" | "attentionCode">, prompt: string, first: string, said: (first: string) => boolean): string {
+  if (!run.retried) return first;
+  return !startsAfresh(run, prompt) && said(first) ? continueNote(run.retried) : `${first}\n\n${retryNote(run.retried)}`;
+}
+
 function firstNotice(notices: RoutineOwnerNotice[], botId: string, cause: RoutineOwnerCause, at: number): boolean {
   if (notices.some((notice) => notice.botId === botId && notice.cause === cause)) return false;
   notices.push({ botId, cause, at });
@@ -177,9 +203,11 @@ export function recoverRun(run: RoutineRun, failure: string, facts: RoutineFailu
     return { queued: false, error: line.text, ...(alert === undefined ? {} : { alert }) };
   };
   if (verdict.kind === "busy") {
+    const noRoom = outOfProcesses(failure);
+    if (noRoom && run.roomWaited) return failed(again);
+    if (noRoom) run.roomWaited = true;
     run.deferredAt ??= now;
-    // A run of checked items waits as long as it takes: its bot is busy with the person, which is not a failure.
-    if (now - run.deferredAt >= ROUTINE_BUSY_WAIT_MS && run.checkKey === undefined) return failed(codedLine("error", "routines.server.stillBusy", { minutes: ROUTINE_BUSY_WAIT_MS / 60_000, failure }));
+    if (now - run.deferredAt >= ROUTINE_BUSY_WAIT_MS && (run.checkKey === undefined || noRoom)) return failed(codedLine("error", "routines.server.stillBusy", { minutes: ROUTINE_BUSY_WAIT_MS / 60_000, failure }));
     run.status = "queued";
     run.retryAt = now + ROUTINE_BUSY_RECHECK_MS;
     attend(run, codedLine("attention", "routines.server.waitingToStart", { failure }));
@@ -188,12 +216,12 @@ export function recoverRun(run: RoutineRun, failure: string, facts: RoutineFailu
   }
   if (verdict.kind === "retry") return requeueOnce(run, verdict.cause, failure, now) ? { queued: true } : failed(again);
   if (verdict.kind === "final") return failed(again);
-  if (verdict.cause === "usage_limit" && facts.backupReady && requeueOnce(run, "usage_limit", failure, now, now + RETRY_MS)) {
+  if (verdict.cause === "usage_limit" && facts.backupReady && requeueOnce(run, "usage_limit", failure, now, now + ROUTINE_RETRY_MS)) {
     attend(run, codedLine("attention", "routines.server.backupAi"));
     return { queued: true };
   }
   // A signed-out AI's run starts again on the backup the person chose; its start there says once that it needs signing in.
-  if (verdict.cause === "signed_out" && facts.backupReady && requeueOnce(run, "failed", failure, now, now + RETRY_MS)) {
+  if (verdict.cause === "signed_out" && facts.backupReady && requeueOnce(run, "failed", failure, now, now + ROUTINE_RETRY_MS)) {
     attend(run, codedLine("attention", "routines.server.backupSignedOut"));
     return { queued: true };
   }
@@ -204,6 +232,7 @@ export function recoverRun(run: RoutineRun, failure: string, facts: RoutineFailu
   if (reset && !nextCovers && reset > now && reset - now <= LIMIT_WAIT_MS && requeueOnce(run, "usage_limit", failure, now, reset + AFTER_RESET_MS)) {
     return { queued: true, ...(first ? { alert: { detail: `This bot's AI reached its usage limit. This run starts again at ${when(reset + AFTER_RESET_MS)}.` } } : {}) };
   }
+  run.ownerCause = verdict.cause;
   const action = verdict.cause === "setup" ? failure : verdict.cause === "credits" && facts.trialCredit ? TRIAL_ACTION : OWNER_ACTION[verdict.cause];
   return failed(verdict.cause === "signed_out" ? codedLine("error", "routines.server.signedOut", { failure }) : fittedLine("error", failure, verdict.cause === "setup" ? undefined : facts.text),
     first ? { detail: action } : null);

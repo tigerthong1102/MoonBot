@@ -13,6 +13,7 @@
 import type { IdleCompactResult } from "../contracts.ts";
 import { isContextMessage, type HandedState } from "../delta-context.ts";
 import { sinceFreshStart } from "../fresh-start.ts";
+import { backgroundTextSlots, type JobSlots } from "../job-slots.ts";
 import { wakeHoldOf } from "../routine-due.ts";
 import type { Routine, RoutineRun } from "../routines.ts";
 import { serverLine } from "../server-lines.ts";
@@ -33,6 +34,7 @@ export const PRESENCE_HOLD_MS = 10 * 60_000;
 type CompactFn = (threadId: string, options: { instructions: string; session?: string; signal?: AbortSignal }) => Promise<IdleCompactResult>;
 
 export interface WarmSummaryHostDeps {
+  slots?: JobSlots;
   store: Pick<Store, "taskByThread" | "botByThread" | "groupByThread" | "activePath" | "appendMessage" | "setResumeCursor" | "setHandedMessages">;
   instance(instanceId: string): { adapter: { cacheKeepWarm?: { compact?: CompactFn; hold(threadId: string, until: number | null): boolean } } } | null | undefined;
   /** Off with `context.autoCompact: false` or OMB_WARM_SUMMARY=0. */
@@ -144,9 +146,14 @@ export function createWarmSummaryHost(deps: WarmSummaryHostDeps) {
       }
       return null;
     },
-    run: async (target, plan, control) => {
-      if (plan.way === "native") return native(target, control);
-      return await deps.fold(target, control.signal) ? { ok: true } : { ok: false, reason: "the conversation does not need a summary yet" };
+    run: (target, plan, control) => {
+      let waited = false;
+      return (deps.slots ?? backgroundTextSlots).run(async () => {
+        const stale = waited && !control.awaited() ? control.stale() : null;
+        if (stale) return { ok: false, reason: `${stale.reason} (after waiting for a free slot)`, retry: stale.retry };
+        if (plan.way === "native") return native(target, control);
+        return await deps.fold(target, control.signal) ? { ok: true } : { ok: false, reason: "the conversation does not need a summary yet" };
+      }, { signal: control.signal, urgent: control.awaited, onWait: () => { waited = true; } });
     },
     log: deps.log,
   });

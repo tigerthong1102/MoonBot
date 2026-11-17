@@ -62,6 +62,7 @@ export const VITEST_SUBSETS = {
       "scripts/generate-locale.test.mjs",
       "scripts/testing/bot-tools-ui.e2e.test.ts",
       "scripts/testing/key-readback.e2e.test.ts",
+      "scripts/testing/one-workspace-navigation.test.ts",
       "scripts/testing/one-workspace-ui.e2e.test.ts",
       "scripts/testing/rail-profile-ui.e2e.test.ts",
       "scripts/testing/secret-card-descriptions.test.ts",
@@ -191,7 +192,7 @@ export const VITEST_SUBSETS = {
   },
   "docs-tests": {
     part: "docs tests",
-    files: ["scripts/testing/analytics-docs.test.ts", "server/model-providers-docs.test.ts", "src/locales/vocabulary.test.ts"],
+    files: ["scripts/startupbot-branding.test.mjs", "scripts/testing/analytics-docs.test.ts", "server/model-providers-docs.test.ts", "src/locales/vocabulary.test.ts"],
     shards: 1,
     nodeTests: false,
   },

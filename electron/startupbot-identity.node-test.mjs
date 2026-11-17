@@ -1,0 +1,39 @@
+import assert from "node:assert/strict";
+import path from "node:path";
+import test from "node:test";
+import { configureStartupBotIdentity, internalDeepLink, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
+
+test("desktop identity uses its own application and data directories", () => {
+  const state = {};
+  const app = { setName: (name) => { state.name = name; }, setPath: (key, value) => { state[key] = value; }, getPath: () => path.join("root", "appdata") };
+  configureStartupBotIdentity(app);
+  assert.equal(state.name, "StartupBot");
+  assert.equal(state.userData, path.join("root", "appdata", "StartupBot"));
+  assert.equal(startupBotDataDir("home", ""), path.join("home", ".startupbot"));
+  assert.equal(startupBotDataDir("home", path.join("custom", "data")), path.join("custom", "data"));
+});
+
+test("the unconfigured cloud client cannot contact an upstream service", async () => {
+  await assert.rejects(unavailableStartupBotCloud(), /StartupBot Cloud is not configured/);
+});
+
+test("maps only StartupBot deep links to the existing protocol handlers", () => {
+  assert.equal(internalDeepLink("startupbot://team/abc"), "openmausbot://team/abc");
+  assert.equal(internalDeepLink("https://startupbot.ai"), "https://startupbot.ai");
+  assert.equal(internalDeepLink("STARTUPBOT://team/abc"), "openmausbot://team/abc");
+  for (const scheme of ["startupbot", "StartupBot", "STARTUPBOT"]) {
+    assert.equal(internalDeepLink(`${scheme}://bot/AbC?code=FiXtUrE#ToKeN`), "openmausbot://bot/AbC?code=FiXtUrE#ToKeN");
+  }
+  assert.equal(internalDeepLink("startupbot.ai://bot/abc"), "startupbot.ai://bot/abc");
+  assert.equal(internalDeepLink("openmausbot://bot/AbC"), "openmausbot://bot/AbC");
+  assert.equal(internalDeepLink(null), null);
+});
+
+test("only parsed chat links are queued and delivered", () => {
+  const events = [];
+  const handlers = { parse: value => value === "valid" ? "parsed" : null, store: value => events.push(value), reveal: () => events.push("reveal"), deliver: () => events.push("deliver") };
+  assert.equal(queueIncomingChatLink("invalid", handlers), false);
+  assert.deepEqual(events, []);
+  assert.equal(queueIncomingChatLink("valid", handlers), true);
+  assert.deepEqual(events, ["parsed", "reveal", "deliver"]);
+});

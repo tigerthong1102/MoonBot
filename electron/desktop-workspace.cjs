@@ -7,15 +7,17 @@ function isLoopbackHostname(hostname) {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
-/** The noVNC endpoint must stay on this host. view_only sits in noVNC's hash beside its short-lived password: change only that bit. */
+/** noVNC reads view_only at page load. Chromium (Electron 43) does not reload for fragment-only navigation.
+ * Viewer endpoints must remain on this host, and short-lived passwords must remain in the fragment. */
 function desktopWorkspaceUrl(rawUrl, interactive = false) {
   const url = desktopViewerUrl(rawUrl);
   if (!isLoopbackHostname(url.hostname)) {
     throw new Error("Local VM desktops must use a loopback address");
   }
   const fragment = new URLSearchParams(url.hash.slice(1));
-  fragment.set("view_only", interactive ? "false" : "true");
+  fragment.delete("view_only");
   url.hash = fragment.toString();
+  url.searchParams.set("view_only", interactive ? "false" : "true");
   return url;
 }
 

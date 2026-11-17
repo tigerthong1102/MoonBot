@@ -69,9 +69,9 @@ beforeAll(async () => {
   WEBHOOK_PORT = base + 1;
   BASE = `http://127.0.0.1:${PORT}`;
   home = mkdtempSync(join(tmpdir(), "omb-shared-computer-gate-"));
-  mkdirSync(join(home, ".openmausbot"), { recursive: true });
+  mkdirSync(join(home, ".startupbot"), { recursive: true });
   // No `features` block at all: the shipped default.
-  writeFileSync(join(home, ".openmausbot", "config.json"), JSON.stringify({
+  writeFileSync(join(home, ".startupbot", "config.json"), JSON.stringify({
     instances: { claude: { driver: "claudeAgent", displayName: "Gate fixture", config: { cli: FAKE_CLAUDE_CLI } } },
   }));
   child = spawn(process.execPath, [join(SERVER_DIR, "index.ts")], {
@@ -94,6 +94,7 @@ beforeAll(async () => {
     if (Date.now() > deadline) throw new Error(`server never came up. stderr:\n${stderr}`);
     await new Promise((wake) => setTimeout(wake, 150));
   }
+  expect((await api("GET", "/api/instances")).body.instances).toEqual(expect.arrayContaining([expect.objectContaining({ instanceId: "claude", driverKind: "claudeAgent", displayName: "Gate fixture", cli: FAKE_CLAUDE_CLI })]));
   botId = String(((await api("POST", "/api/bots", { name: "Gate fixture bot" })).body.bot as { id: string }).id);
 }, 60_000);
 
@@ -189,7 +190,7 @@ it("features.sharedComputers true brings the whole surface back, for every paire
 
   const listed = await internal("GET", "/api/internal/shared-computers");
   expect(listed.status).toBe(200);
-  expect(listed.body).toEqual({ computers: [] });
+  expect(listed.body).toEqual({ computers: [], thisComputer: expect.stringContaining("This computer itself is never in this list") });
   expect(await api("GET", "/api/shared-computers")).toEqual({ status: 200, body: { computers: [], known: [] } });
 
   expect(await descriptorCapabilities()).toMatchObject({ sharedComputers: true });

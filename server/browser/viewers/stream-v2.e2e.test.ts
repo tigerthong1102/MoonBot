@@ -168,6 +168,24 @@ suite("the v2 stream on real Chrome", () => {
     await until(pageSize, same([1280, 800, 2]));
   }, hostTimeout(90_000));
 
+  it("keeps tall emulation through rapid transitions back to a fitted window", async () => {
+    await opened("/resize-cycle", ANIMATED);
+    const frames: Array<{ width: number; height: number }> = [];
+    const view = await real.service.attachViewer(target, { owner: "local-owner", canOperate: true, size: { width: 1600, height: 1000 }, maxWidth: 3200, maxHeight: 2000 }, (output) => {
+      if (output.type === "frame") { frames.push(jpegSize(output.data)); output.ack(); }
+    });
+    try {
+      for (let cycle = 0; cycle < 32; cycle++) {
+        for (const [width, height, pageWidth, pageHeight] of [[1600, 1000, 1600, 1000], [1200, 900, 1280, 960], [400, 750, 1280, 2400]]) {
+          await view.input({ type: "resize", width, height });
+          await until(pageSize, same([pageWidth, pageHeight, 2]));
+        }
+      }
+      await until(() => frames.at(-1), (frame) => frame?.height === 2000 && Math.abs(frame.width - 1067) <= 1);
+    } finally { await view.close(); }
+    await until(pageSize, same([1280, 800, 2]));
+  }, hostTimeout(90_000));
+
   it("ends every drag of the panel on a sharp frame of the final size, on a page that never repaints by itself", async () => {
     await opened("/still", STILL);
     const client = await connect("width=1200&height=800&maxWidth=3200&maxHeight=2000");

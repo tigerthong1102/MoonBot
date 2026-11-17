@@ -78,7 +78,7 @@ describe("spend against a monthly cap", () => {
     expect(monthToDateSpend(dataDir, new Date(end.getTime() + 60_000))).toBeCloseTo(1.2, 9);
   });
 
-  it("never counts a booked turn twice when a re-read already sees its row, and drops one whose write failed", async () => {
+  it("never counts a booked turn twice and keeps billed usage when its ledger write fails", async () => {
     const onDisk = row("2026-09-15T11:00:00.000Z", 0.5);
     await appendUsage(dataDir, onDisk);
     noteSpend(dataDir, onDisk, new Promise<boolean>(() => {}));
@@ -88,9 +88,9 @@ describe("spend against a monthly cap", () => {
     expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.8, 9);
     await Promise.resolve();
     await Promise.resolve();
-    expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.5, 9);
+    expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.8, 9);
     noteSpend(dataDir, row("2026-09-15T11:06:00.000Z", null), new Promise<boolean>(() => {}));
-    expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.5, 9);
+    expect(monthToDateSpend(dataDir, now)).toBeCloseTo(0.8, 9);
   });
 
   it("counts estimated costs against the cap exactly like reported ones", async () => {
@@ -113,7 +113,7 @@ describe("spend against a monthly cap", () => {
     expect(spendState({ budgets: { monthlyUsd: 10, warnAtPercent: 90 } }, dataDir, now, yes)?.warn).toBe(false);
     expect(() => assertWithinBudget({ budgets: { monthlyUsd: 10 } }, dataDir, now, yes)).not.toThrow();
     expect(() => assertWithinBudget({ budgets: { monthlyUsd: 8 } }, dataDir, now, yes)).toThrow(
-      expect.objectContaining({ status: 409, code: "spend_cap", message: expect.stringContaining("$8.00") }),
+      expect.objectContaining({ status: 409, code: "spend_cap", message: expect.stringContaining("$8.00"), resetsAt: Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1) }),
     );
     expect(() => assertWithinBudget({ budgets: { monthlyUsd: 8 } }, dataDir, now, no)).not.toThrow();
   });
@@ -164,6 +164,6 @@ describe("spend notices", () => {
       body: "$81.50 of $100.00 spent this month (2026-09). New turns stop when the limit is reached.",
     });
     expect(spendAlertText("cap", state({ spentUsd: 100.004, percent: 100, exceeded: true })).body)
-      .toBe("$100.00 of $100.00 spent this month (2026-09). New turns are refused until an admin raises the limit under Settings → Usage.");
+      .toBe("$100.00 of $100.00 spent this month (2026-09). New turns are refused until an admin raises the limit under Settings → Spending.");
   });
 });

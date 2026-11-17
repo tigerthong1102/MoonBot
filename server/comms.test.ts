@@ -120,7 +120,7 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
           name: candidate.name, busy: candidate.busy,
           tail: (candidate.messages ?? []).slice(-6).map((m: any) => ({ role: m.role, kind: m.kind, text: m.text?.slice(0, 300), tool: m.tool?.name, from: m.from?.name })),
         }));
-        const rows = readHandoffs(join(home, ".openmausbot")).map(({ id, parentId, botId, status, outcome, mode, result }) => ({ id, parentId, botId, status, outcome, mode, result: result.slice(0, 200) }));
+        const rows = readHandoffs(join(home, ".startupbot")).map(({ id, parentId, botId, status, outcome, mode, result }) => ({ id, parentId, botId, status, outcome, mode, result: result.slice(0, 200) }));
         throw new Error(`${what}.\nbots: ${JSON.stringify(tails)}\nrows: ${JSON.stringify(rows)}\nstderr: ${stderr.slice(-1500)}`);
       }
       await new Promise((r) => setTimeout(r, 250));
@@ -136,7 +136,7 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
   };
   const bot = async (botId: string): Promise<any> => (await api("GET", "/api/bots")).body.bots.find((candidate: any) => candidate.id === botId);
   const threadMessages = async (threadId: string): Promise<any[]> => (await api("GET", `/api/threads/${threadId}/messages?limit=200`)).body.messages ?? [];
-  const rows = () => readHandoffs(join(home, ".openmausbot"));
+  const rows = () => readHandoffs(join(home, ".startupbot"));
   const assignments = (helperId: string, askerId: string) => rows().filter((node) => node.botId === helperId && node.parentId
     && rows().find((parent) => parent.id === node.parentId)?.botId === askerId);
   const helperPrompt = (): string => {
@@ -208,7 +208,7 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
     }
     const antigravityProfile = join(
       home,
-      ".openmausbot",
+      ".startupbot",
       "providers",
       "antigravity",
       createHash("sha256").update("geminiAsker").digest("hex"),
@@ -238,9 +238,9 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
     });
     await new Promise<void>((resolve) => compat.listen(0, "127.0.0.1", resolve));
     compatUrl = `http://127.0.0.1:${(compat.address() as AddressInfo).port}/v1`;
-    mkdirSync(join(home, ".openmausbot"), { recursive: true });
+    mkdirSync(join(home, ".startupbot"), { recursive: true });
     writeFileSync(
-      join(home, ".openmausbot", "config.json"),
+      join(home, ".startupbot", "config.json"),
       JSON.stringify({
         threads: { maxConcurrentPerBot: 3 },
         openaiCompat: { key: "comms-compat-key", url: compatUrl },
@@ -286,6 +286,11 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
           askerDelegate: {
             driver: "grokAgent",
             environment: { FAKE_ACP_MODE: "delegate-peer" },
+            config: { cli: FAKE_CLI, fullAuto: true },
+          },
+          askerResume: {
+            driver: "grokAgent",
+            environment: { FAKE_ACP_MODE: "delegate-peer", FAKE_ACP_RPC_APPEND_FILE: join(home, "asker-resume-rpc.jsonl") },
             config: { cli: FAKE_CLI, fullAuto: true },
           },
           // The resume is a fresh fake process that learns its agents server only from session/new, so it replays into a new session.
@@ -611,6 +616,33 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
       expect(envelope).toContain("@Asker is resumed with your reply when your turn ends");
       expect(envelope).toContain("Brief from @Asker:\ndelegated task");
       expect(envelope).not.toMatch(/asked: "|outside content|hey @Helper please pick this up/);
+    },
+    45_000,
+  );
+
+  it(
+    "keeps the asker's session when the teammate's result lands instead of rebuilding it",
+    async () => {
+      await hideAll();
+      await named("Helper", { modelSelection: HELPER });
+      const asker = await named("Asker", { modelSelection: { instanceId: "askerResume", model: "fake-model" } });
+
+      const send = await startRoutine(asker.id, "hey @Helper please pick this up");
+      expect(send.status).toBe(201);
+
+      let askerBot: any;
+      await waitUntil(async () => {
+        askerBot = await bot(asker.id);
+        const delegated = askerBot.messages.some((m: any) => m.kind === "text" && m.role === "bot" && m.text?.startsWith("delegated:"));
+        const woke = lastText(askerBot.messages)?.text === WOKE_WITH_RESULT;
+        return delegated && woke && !askerBot.busy;
+      }, 30_000, "the hand-off never settled");
+
+      const sessions = readFileSync(join(home, "asker-resume-rpc.jsonl"), "utf8").trim().split("\n")
+        .map((line) => JSON.parse(line) as { method: string })
+        .map((call) => call.method)
+        .filter((method) => ["session/new", "session/load", "session/prompt"].includes(method));
+      expect(sessions).toEqual(["session/new", "session/prompt", "session/prompt"]);
     },
     45_000,
   );

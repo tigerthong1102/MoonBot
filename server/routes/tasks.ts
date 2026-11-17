@@ -65,8 +65,8 @@ export interface TaskRouteDeps {
   checkedTaskModelSwitch(current: BotRecord, raw: unknown, updateBotDefault: boolean, resetApprovalToAsk: boolean, requireAvailableModel?: boolean):
     | { ok: true }
     | ({ ok: false; status: number } & ServerErrorBody);
-  threadTitleGate(bot: Pick<BotRecord, "modelSelection">): { ok: true; instance: ProviderInstance } | { ok: false; refusal: string };
-  generateThreadTitle(provider: ProviderInstance, text: string, source: ThreadTitleSource): Promise<string | null>;
+  threadTitleGate(bot: Pick<BotRecord, "id" | "modelSelection">): { ok: true; instance: ProviderInstance } | { ok: false; refusal: string };
+  generateThreadTitle(provider: ProviderInstance, text: string, source: ThreadTitleSource, botId: string): Promise<string | null>;
   settleDirectFollowup(generation: string | undefined): void;
   clearTurnDigestState(threadId: string): void;
   revokeInternalCapabilitiesForThread(threadId: string): void;
@@ -432,7 +432,7 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler & { deleteTa
       const startedFrom = store.taskByThread(m[1], m[2])!.title;
       titleRegenerations.add(m[2]);
       try {
-        const title = await generateThreadTitle(gate.instance, excerpt, "conversation");
+        const title = await generateThreadTitle(gate.instance, excerpt, "conversation", current.id);
         if (!title) return json(res, 502, { error: "couldn't generate a title — try again, or rename the thread" });
         const task = store.retitleTask(m[1], m[2], startedFrom, title) ?? store.taskByThread(m[1], m[2]);
         if (!task) return json(res, 404, { error: "no such task" });

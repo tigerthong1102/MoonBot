@@ -1,6 +1,11 @@
 const HOSTS_WITH_LOCAL_CONTROL = new Set<NodeJS.Platform>(["darwin", "win32", "linux"]);
 const HOSTS_WITH_AUTO_LOCAL = new Set<NodeJS.Platform>(["darwin", "win32"]);
 
+export function newBotWorksOn(input: { desktopApp: boolean; platform: NodeJS.Platform; providerSupportsLocal: boolean }): "local" | undefined {
+  return input.desktopApp && shouldMountLocalComputer({ requested: undefined, hostPlatform: input.platform, providerSupportsLocal: input.providerSupportsLocal })
+    ? "local" : undefined;
+}
+
 export function shouldMountLocalComputer({
   requested,
   hostPlatform = process.platform,

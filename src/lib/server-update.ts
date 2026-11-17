@@ -13,6 +13,7 @@ export interface ServerUpdateCheck {
   channel?: "stable" | "newest";
   latest?: string;
   available: boolean;
+  disabled?: boolean;
   releaseUrl?: string;
   command?: string;
   restart?: boolean;
@@ -38,6 +39,7 @@ export function serverUpdateRow(
   bundle = appVersion(),
   otherServer: string | null = null,
 ): { label: string; subtitle?: string } {
+  if (check?.disabled) return { label: t("update.error.unavailable") };
   if (phase === "checking") return { label: t("sidebar.update.checking") };
   if (phase === "error") return { label: t("sidebar.update.checkFailed") };
   if (check?.install === "desktop") return { label: t("sidebar.update.howDesktop") };
@@ -152,6 +154,7 @@ export function serverUpdateView(input: {
   waitedMs?: number;
 }): ServerUpdateView {
   const { check, status } = input;
+  if (check?.disabled) return { label: t("update.error.unavailable"), action: null, busy: false };
   const bundle = input.bundle ?? appVersion();
   const outcome = status?.run?.outcome;
   if (input.pressed || outcome === "requested" || outcome === "running") {

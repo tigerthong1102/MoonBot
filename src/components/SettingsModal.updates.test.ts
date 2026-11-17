@@ -24,7 +24,13 @@ it("shows this app's update where the desktop app answers, with no Download step
   expect(downloading).toContain("Downloading 40%");
   expect(downloading).toContain("disabled");
   const ready = render({ status: "downloaded", version: "0.2.0" });
-  expect(ready).toContain("MausBot 0.2.0 is ready. Restart the app to apply it.");
+  expect(ready).toContain("StartupBot 0.2.0 is ready. Restart the app to apply it.");
   expect(ready).toContain("Restart and install");
-  expect(render({ status: "downloaded", version: "0.2.0", installMode: "handoff" })).toContain("MausBot 0.2.0 is ready. Install it in a terminal.");
+  expect(render({ status: "downloaded", version: "0.2.0", installMode: "handoff" })).toContain("StartupBot 0.2.0 is ready. Install it in a terminal.");
+});
+
+it("shows a disabled updater without offering a check", () => {
+  const html = render({ status: "idle", disabled: true });
+  expect(html).toContain("updater unavailable");
+  expect(html).not.toContain("Check for updates");
 });

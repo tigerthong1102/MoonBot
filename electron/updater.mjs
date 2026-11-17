@@ -13,6 +13,7 @@ import {
 import { canInstallElevated, installPackageElevated } from "./elevated-install.mjs";
 import { releaseSingleInstanceLock } from "./single-instance.mjs";
 import { openBlankTerminal } from "./terminal-launch.mjs";
+import { STARTUPBOT_UPDATES_ENABLED } from "./updater-config.mjs";
 import { UPDATE_TEXT } from "./update-errors.mjs";
 import { createUpdaterCoordinator } from "./updater-coordinator.mjs";
 import { createQuietInstall, installFailed, launchAfter, LOOK_EVERY_MS, updateSeen } from "./update-when-quiet.mjs";
@@ -182,9 +183,14 @@ export function attachUpdaterWindow(mainWindow) {
 
 /** `signals` (quietSignals): what tells a quiet moment; without them a downloaded update installs only on Restart or quit. */
 export function startUpdater(signals = null) {
+  if (!STARTUPBOT_UPDATES_ENABLED) {
+    updaterCoordinator = null;
+    setState({ status: "idle", disabled: true });
+    return;
+  }
   if (!app.isPackaged) {
     updaterCoordinator = null;
-    setState({ status: "idle" });
+    setState({ status: "error", message: UPDATE_TEXT.unavailable, messageCode: "unavailable" });
     return;
   }
   try {

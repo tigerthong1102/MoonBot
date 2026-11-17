@@ -58,7 +58,7 @@ beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), "omb-one-on-one-goal-"));
   slowGate = join(home, "slow-finish");
   patientGate = join(home, "patient-finish");
-  const data = join(home, ".openmausbot");
+  const data = join(home, ".startupbot");
   mkdirSync(data, { recursive: true });
   const fixture = (name: string, environment: Record<string, string>) => ({
     driver: "claudeAgent",
@@ -192,11 +192,12 @@ describe("one-on-one goal runs (a room of one)", () => {
     expect((await api("POST", `/api/bots/${bot.id}/interrupt`, { threadId: bot.threadId })).status).toBe(200);
     await expect.poll(() => cardIn(bot.threadId)).toMatchObject({ status: "stopped", detail: "Stopped by you.", turnCount: 1 });
     await expect.poll(() => busy(bot.id), { timeout: hostTimeout(10_000) }).toBe(false);
+    const stoppedMessages = await messagesIn(bot.threadId);
     writeFileSync(slowGate, "stopped");
     await new Promise((resolve) => setTimeout(resolve, 1_500));
     expect(await busy(bot.id)).toBe(false);
     expect(await cardIn(bot.threadId)).toMatchObject({ status: "stopped", turnCount: 1 });
-    expect(JSON.stringify(await messagesIn(bot.threadId))).not.toContain("Halfway");
+    expect(await messagesIn(bot.threadId)).toEqual(stoppedMessages);
   });
 
   it("waits for the chat's current turn without spending a goal turn, then runs on the same card", async () => {

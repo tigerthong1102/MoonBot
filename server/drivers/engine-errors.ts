@@ -7,7 +7,15 @@ import { redactSecretsInText } from "../redact.ts";
 import { hostTimeZone } from "../turn-clock.ts";
 import { toolCountLimitFromError } from "../tool-count-limit.ts";
 import { MODEL_NO_ROUTE, USAGE_LIMIT } from "./retry.ts";
-import { usageLimitWait } from "./acp/quiet-status.ts";
+
+export const DEFAULT_LIMIT_QUIET_MS = 2 * 60_000;
+export const limitQuietMs = (): number => {
+  const ms = Number(process.env.OMB_ACP_LIMIT_QUIET_MS);
+  return Number.isFinite(ms) && ms > 0 ? ms : DEFAULT_LIMIT_QUIET_MS;
+};
+
+export const usageLimitWait = (status: number | null | undefined, waitMs: number | null | undefined): boolean =>
+  status === 429 && (waitMs ?? 0) > limitQuietMs();
 
 export type EngineFailureKind = "credits" | "usage_limit" | "rate_limit" | "overloaded" | "server" | "tool_schema" | "tool_count" | "model_no_route" | "refused";
 

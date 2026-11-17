@@ -23,6 +23,7 @@ import { createServer as createViteServer, type ViteDevServer } from "vite";
 import { appPermissionHandlers } from "../../electron/app-permissions.mjs";
 import capabilities from "../../electron/capabilities.cjs";
 import { chatLinkFrom } from "../../electron/chat-link.mjs";
+import { internalDeepLink, queueIncomingChatLink } from "../../electron/startupbot-identity.mjs";
 import { createCleanWorkspace } from "../../electron/clean-workspace.mjs";
 import { createLocalProfiles, createProfileRegistry } from "../../electron/local-profiles.mjs";
 import { parsePairingGrant, withCloudHome } from "../../electron/cloud-home.mjs";
@@ -86,7 +87,7 @@ async function connectCdp(url: string) {
       listeners.get(method)!.add(listener);
       return () => listeners.get(method)!.delete(listener);
     },
-    close() { for (const waiting of pending.values()) waiting.reject(new Error("closed")); socket.close(); },
+    close() { for (const listener of listeners.get("Fixture.closed") ?? []) listener({}); for (const waiting of pending.values()) waiting.reject(new Error("closed")); socket.close(); },
   };
 }
 
@@ -141,6 +142,7 @@ export class TabWindow extends EventEmitter {
     const { targetId } = await cdp.request("Target.createTarget", { url: "about:blank" });
     const { sessionId } = await cdp.request("Target.attachToTarget", { targetId, flatten: true });
     for (const domain of ["Page.enable", "Runtime.enable", "Network.enable"]) await cdp.request(domain, {}, sessionId);
+    await cdp.request("Page.setLifecycleEventsEnabled", { enabled: true }, sessionId);
     if (init) await cdp.request("Page.addScriptToEvaluateOnNewDocument", { source: init }, sessionId);
     return new TabWindow(cdp, targetId, sessionId);
   }
@@ -152,8 +154,36 @@ export class TabWindow extends EventEmitter {
   }
 
   async loadURL(url: string): Promise<void> {
-    const answer = await this.cdp.request("Page.navigate", { url }, this.sessionId);
-    if (answer.errorText) throw new Error(answer.errorText);
+    const loaded = new Set<string>(), failed = new Map<string, string>(), requests = new Map<string, string>();
+    let settle = () => {}, closed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const offLoad = this.cdp.on("Page.lifecycleEvent", ({ name, loaderId }, from) => {
+      if (from === this.sessionId && name === "load") { loaded.add(loaderId); settle(); }
+    });
+    const offRequest = this.cdp.on("Network.requestWillBeSent", ({ type, requestId, loaderId }, from) => {
+      if (from === this.sessionId && type === "Document") requests.set(requestId, loaderId);
+    });
+    const offFailure = this.cdp.on("Network.loadingFailed", ({ type, requestId, errorText }, from) => {
+      if (from === this.sessionId && type === "Document") { failed.set(requests.get(requestId) ?? requestId, errorText); settle(); }
+    });
+    const offClose = this.cdp.on("Fixture.closed", () => { closed = true; settle(); });
+    try {
+      const answer = await this.cdp.request("Page.navigate", { url }, this.sessionId);
+      if (answer.errorText) throw new Error(answer.errorText);
+      if (!answer.loaderId) return;
+      await new Promise<void>((resolve, reject) => {
+        timer = setTimeout(() => reject(new Error("Fixture Chrome document load timed out")), 60_000);
+        settle = () => {
+          if (closed) reject(new Error("Fixture Chrome closed"));
+          else if (failed.has(answer.loaderId)) reject(new Error(failed.get(answer.loaderId)));
+          else if (loaded.has(answer.loaderId)) resolve();
+        };
+        settle();
+      });
+    } finally {
+      clearTimeout(timer);
+      offLoad(); offRequest(); offFailure(); offClose();
+    }
   }
 
   async screenshot(file: string): Promise<void> {
@@ -297,7 +327,7 @@ export async function welcomed(fx: CloudSendFixture): Promise<void> {
 async function vite(cacheDir: string, port: number, host: string, plugin: (server: ViteDevServer) => void, proxy: Record<string, unknown>): Promise<ViteDevServer> {
   const server = await createViteServer({
     root: REPO_ROOT, cacheDir, logLevel: "warn", clearScreen: false,
-    server: { host, port, strictPort: true, proxy: proxy as never, hmr: { port: port + 1 } },
+    server: { host, port, strictPort: true, proxy: proxy as never, hmr: { port } },
     plugins: [{ name: "one-workspace-edge", configureServer: plugin }],
   });
   await server.listen();
@@ -308,10 +338,10 @@ export async function launchHomeWorld(fx: CloudSendFixture, { chrome, versionEve
   chrome: string; versionEveryMs?: number; quietMs?: number; profiles?: boolean;
 }): Promise<HomeWorld> {
   const [cloudPort, localPort, ipcPort, teamPort] = await Promise.all([
-    freePortBlock([0, 1], 19_616, 768),
-    freePortBlock([0, 1], 20_384, 768),
+    freePortBlock([0], 19_616, 768, "localhost"),
+    freePortBlock([0], 20_384, 768),
     freePortBlock([0], 21_152, 768),
-    freePortBlock([0, 1], 21_920, 768),
+    freePortBlock([0], 21_920, 768, "::1"),
   ]);
   const cloudOrigin = `http://localhost:${cloudPort}`;
   const localOrigin = `http://127.0.0.1:${localPort}`;
@@ -622,7 +652,7 @@ export async function launchHomeWorld(fx: CloudSendFixture, { chrome, versionEve
     homeWindow: home, rendererOrigin: () => localOrigin, activeRemote: () => null, environmentsState: { environments: [], activeId: "local" },
     showHome: () => homeRef!.show(), workspaceMenuAction: (action: () => unknown) => action(), switchEnvironment: () => {}, LOCAL_ID: "local",
     mainWindow: win, desktopTray: null, startupScreen: null, BrowserWindow: { getAllWindows: () => [win] }, activateExistingWindow: () => true,
-    chatLinkFrom, packageUrlFromDeepLink, pendingChatLink: null, pendingPackageInstallUrl: null, URL,
+    chatLinkFrom, queueIncomingChatLink, packageUrlFromDeepLink, pendingChatLink: null, pendingPackageInstallUrl: null, URL,
   });
   vm.runInContext(`${MAIN.slice(start, end)}; this.queueChatLink = queueChatLink; this.deliverChatLink = deliverChatLink;`, linkContext);
   win.webContents.on("did-stop-loading", () => linkContext.deliverChatLink(win));
@@ -738,7 +768,7 @@ export async function launchHomeWorld(fx: CloudSendFixture, { chrome, versionEve
       startup.attach(win as never, { maximized: false });
       await homeRef!.show();
     },
-    openLink: (link) => linkContext.queueChatLink(link),
+    openLink: (link) => linkContext.queueChatLink(internalDeepLink(link)),
     async cloudCookies() { return (await cdp.request("Network.getCookies", { urls: [cloudOrigin] }, win.sessionId)).cookies; },
     async close() { for (const step of cleanup) await Promise.resolve().then(step).catch(() => {}); },
   };

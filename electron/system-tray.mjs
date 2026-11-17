@@ -3,7 +3,7 @@ import nativeText from "./native-text.cjs";
 // Retain the Windows notification-area identity across app restarts.
 export function createSystemTray({ Tray, Menu, nativeImage, iconPath, getWindow, onQuit, t = nativeText.englishText.t }) {
   const tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 20, height: 20 }),
-    "889af657-21b5-4ec9-b5d0-cb798cbdfd30");
+    "6bfe8781-27df-4a2b-a7dd-49872ae8ea43");
   let hidden = false;
   const show = () => {
     const win = getWindow();
@@ -20,7 +20,7 @@ export function createSystemTray({ Tray, Menu, nativeImage, iconPath, getWindow,
     { type: "separator" },
     { label: t("native.tray.quit"), click: onQuit },
   ]));
-  tray.setToolTip("OpenMausBot");
+  tray.setToolTip("StartupBot");
   label();
   tray.on("click", show);
   tray.on("double-click", show);

@@ -10,6 +10,7 @@ import { cloudPageSenderAllowed } from "./cloud-home.mjs";
 import { otherOwnClouds, ownCloud } from "./cloud-list.mjs";
 import environments from "./environments.cjs";
 import localOriginModule from "./local-origin.cjs";
+import { unavailableStartupBotCloud } from "./startupbot-identity.mjs";
 
 const LOCAL = "http://127.0.0.1:8799";
 const CLOUD = "https://home-7f3k2.fly.dev";
@@ -47,6 +48,7 @@ function mainRule() {
   // The bot link hears every change of the sign-in (bot-link-main.mjs ends a link whose account or Cloud changed).
   const botLink = { look: vi.fn(async () => {}) };
   const context = vm.createContext({
+    unavailableStartupBotCloud,
     ipcMain: { handle: () => {}, on: (channel, listener) => listeners.set(channel, listener) },
     senderIsLocal: localOriginModule.isLocalSender, workspaceSenderAllowed: environments.workspaceSenderAllowed, cloudPageSenderAllowed, myCloudOrigin, otherOwnClouds,
     activeEnvironment: environments.activeEnvironment, rendererOrigin: () => LOCAL, desktopRemoteAccess: false,
@@ -98,6 +100,7 @@ function mainRule() {
 
 async function load(pageAllowed, serverPage = undefined, confirmRestart = undefined) {
   vi.resetModules();
+  vi.doMock("./updater-config.mjs", () => ({ STARTUPBOT_UPDATES_ENABLED: true }));
   fixture.handlers.clear();
   const autoUpdater = new EventEmitter();
   autoUpdater.checkForUpdates = vi.fn(async () => {
@@ -127,6 +130,7 @@ beforeEach(() => {
   vi.useFakeTimers();
 });
 afterEach(() => {
+  vi.doUnmock("./updater-config.mjs");
   vi.clearAllTimers();
   vi.useRealTimers();
   rmSync(fixture.home, { recursive: true, force: true });
@@ -459,4 +463,20 @@ it("a server's page the window shows may ask for the app's own update: it learns
   expect(await ask(other.event)).toBe("installing");
   expect(confirmRestart).toHaveBeenLastCalledWith("2.0.0", OTHER);
   expect(autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1);
+});
+
+
+it("keeps packaged updates disabled in the shipped configuration", async () => {
+  vi.resetModules();
+  vi.doUnmock("./updater-config.mjs");
+  fixture.handlers.clear();
+  const updater = await import("./updater.mjs");
+  const autoUpdater = new EventEmitter();
+  autoUpdater.checkForUpdates = vi.fn();
+  fixture.autoUpdater = autoUpdater;
+  updater.registerUpdaterIpc({ pageAllowed: () => true });
+  updater.startUpdater();
+  const state = await fixture.handlers.get("update:get-state")(page(LOCAL).event);
+  expect(state).toMatchObject({ status: "idle", disabled: true });
+  expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
 });

@@ -243,8 +243,9 @@ describe("the connector's connection to MausBot", () => {
     admin.drop();
     await until(() => Object.keys(record.current.adminKeys).length === 2);
     admin.signingKid = "k2";
+    const before = admin.connections.length;
     admin.drop();
-    await until(() => admin.connections.length === 3 && agent.connected);
+    await until(() => admin.connections.length > before && admin.connected && agent.connected);
     expect((await admin.job("host-health", {})).ok).toBe(true);
   });
 

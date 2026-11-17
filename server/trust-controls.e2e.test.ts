@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { launchVerificationServer, verificationServerEnvironment, type VerificationServer } from "../scripts/control-omb.ts";
@@ -10,6 +10,9 @@ import { waitForExit } from "./testing/cleanup.ts";
 import { readRegistry, writeRegistry } from "./testing/registry.ts";
 
 const key = "isolated-trust-capability";
+let uploadEntered = false;
+let releaseUpload: (() => void) | undefined;
+let blockUpload = false;
 let fixture: VerificationServer;
 let child: ChildProcess;
 let broker: Server;
@@ -24,6 +27,7 @@ let sandboxBot: any;
 const gmailDrafts = new Map<string, Record<string, unknown>>();
 let brokerOrigin = "";
 const relayed: unknown[] = [];
+const uploads: Array<{ request: unknown; bytes?: string }> = [];
 const evidence: unknown[] = [];
 let blockSession: (() => void) | undefined;
 let sessionEntered = false;
@@ -66,8 +70,18 @@ beforeAll(async () => {
   broker = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
+    const put = req.method === "PUT" ? /^\/upload\/(\d+)$/.exec(req.url ?? "") : null;
+    if (put) {
+      uploads[Number(put[1]) - 1]!.bytes = raw;
+      if (blockUpload) { uploadEntered = true; await new Promise<void>((resolve) => { releaseUpload = resolve; }); }
+      return res.end();
+    }
     const body = raw ? JSON.parse(raw) : {};
     res.setHeader("content-type", "application/json");
+    if (req.url === "/api/files/upload/request") {
+      uploads.push({ request: body });
+      return res.end(JSON.stringify({ key: `fixture-files/${uploads.length}`, new_presigned_url: `${brokerOrigin}/upload/${uploads.length}` }));
+    }
     if (req.url === "/v1/connectors/connected") return res.end(JSON.stringify({ services: { gmail: { connected: true }, slack: { connected: true } } }));
     if (req.url === "/api/tool_router/session/fixture-session") {
       if (blockSession) {
@@ -424,6 +438,23 @@ it("shows each outbound batch recipient and amount with explicit preview truncat
   expect(relayed).toHaveLength(before);
 });
 
+it("refuses a send when its write scope is revoked during attachment upload", async () => {
+  const b = await bot("Upload scope race");
+  const file = join(fixture.info.dataDir, "workspaces", b.id, "report.pdf");
+  mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, "%PDF-1.4 report");
+  const token = await mint(b.id, b.threadId), before = relayed.length;
+  blockUpload = true; uploadEntered = false;
+  const held = relay(token, "GMAIL_SEND_EMAIL", { to: "owner@fixture.test", attachment: file });
+  try {
+    const card = await pending(b.threadId);
+    await api("POST", `/api/threads/${b.threadId}/respond`, { requestId: card.card.requestId, behavior: "allow" });
+    await expect.poll(() => uploadEntered, { timeout: 5_000 }).toBe(true);
+    expect((await api("PATCH", `/api/bots/${b.id}`, { connectorScopes: { apps: { gmail: "read" } } })).status).toBe(200);
+  } finally { blockUpload = false; releaseUpload?.(); releaseUpload = undefined; }
+  expect((await held).body.result.isError).toBe(true);
+  expect(relayed).toHaveLength(before);
+});
+
 it.each(["scope", "turn"])("rechecks %s revocation after project-session metadata and before the actual send", async (revocation) => {
   const b = await bot("Session race " + revocation);
   const token = await mint(b.id, b.threadId);
@@ -442,6 +473,42 @@ it.each(["scope", "turn"])("rechecks %s revocation after project-session metadat
   if (revocation === "scope") expect(result.body.result.isError).toBe(true);
   else expect(result.status).toBe(401);
   expect(relayed).toHaveLength(before);
+});
+
+it.each(["scope", "turn"])("lists a send's file on its card and uploads nothing when %s revocation lands before the send", async (revocation) => {
+  const b = await bot("File upload race " + revocation);
+  const file = join(fixture.info.dataDir, "workspaces", b.id, "board deck.pdf");
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, "%PDF-1.4 deck");
+  const token = await mint(b.id, b.threadId);
+  const before = relayed.length, uploaded = uploads.length;
+  const send = () => relay(token, "GMAIL_SEND_EMAIL", { to: "board@fixture.test", body: "y".repeat(600), attachment: file });
+  const held = send();
+  const card = await pending(b.threadId);
+  expect(card.card.subtitle).toContain(`Uploads board deck.pdf (${file}, 13 B)`);
+  expect(card.card.subtitle.indexOf(file)).toBeLessThan(card.card.subtitle.indexOf("[arguments truncated]"));
+  expect(uploads, "nothing is uploaded while the card waits").toHaveLength(uploaded);
+  sessionEntered = false;
+  blockSession = () => {};
+  await api("POST", `/api/threads/${b.threadId}/respond`, { requestId: card.card.requestId, behavior: "allow" });
+  await expect.poll(() => sessionEntered, { timeout: 5_000 }).toBe(true);
+  if (revocation === "scope") await api("PATCH", `/api/bots/${b.id}`, { connectorScopes: { apps: { gmail: "read" } } });
+  else await mint(b.id, b.threadId);
+  blockSession();
+  blockSession = undefined;
+  const result = await held;
+  if (revocation === "scope") expect(result.body.result.isError).toBe(true);
+  else expect(result.status).toBe(401);
+  expect(uploads, "a revoked send uploads nothing").toHaveLength(uploaded);
+  expect(relayed).toHaveLength(before);
+  if (revocation === "turn") return;
+  await api("PATCH", `/api/bots/${b.id}`, { connectorScopes: null });
+  const allowed = send();
+  await api("POST", `/api/threads/${b.threadId}/respond`, { requestId: (await pending(b.threadId)).card.requestId, behavior: "allow" });
+  expect((await allowed).body.result.isError).not.toBe(true);
+  expect(uploads).toHaveLength(uploaded + 1);
+  expect(uploads.at(-1)).toMatchObject({ request: { toolkit_slug: "gmail", tool_slug: "GMAIL_SEND_EMAIL", filename: "board deck.pdf", mimetype: "application/pdf" }, bytes: "%PDF-1.4 deck" });
+  expect((relayed.at(-1) as any).params.arguments.attachment).toEqual({ name: "board deck.pdf", mimetype: "application/pdf", s3key: `fixture-files/${uploaded + 1}` });
 });
 
 it("does not consume a Gmail draft reservation when the fresh scope check refuses dispatch", async () => {

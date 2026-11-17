@@ -16,6 +16,7 @@ import { DATA_DIR, type AppConfig } from "../config.ts";
 import type { Store } from "../store.ts";
 import { TurnResources, type TurnOwner } from "../turn-resources.ts";
 import { BrowserRuntime } from "../browser-runtime.ts";
+import { processBudget, ProcessBudget } from "../process-room.ts";
 import { LentChromeDoors, type ChromeLender } from "../browser/lent-chrome.ts";
 import { audienceBrowserSuffix } from "../browser/audience.ts";
 import { chromeLauncher } from "../browser/chrome/launcher.ts";
@@ -45,10 +46,10 @@ afterEach(async () => { await Promise.all(hosts.splice(0).map((host) => host.bro
 
 const turn = { threadId: "thread-1", generation: "gen-1" };
 
-function setup(engine: "chrome" | "agent-browser" | undefined, { cloudHome = false, server = false, hosted = false, device, lendRefusal, holder, audienceOf, bots: botIds = ["scout"], browserBox, lentChrome, turnResources }: {
-  cloudHome?: boolean; server?: boolean; hosted?: boolean; device?: BrowserHostDeps["device"]; lendRefusal?: BrowserHostDeps["lendRefusal"]; holder?: (resource: string) => TurnOwner | undefined;
+function setup(engine: "chrome" | "agent-browser" | undefined, { cloudHome = false, server = false, hosted = false, selfHosted = false, device, lendRefusal, holder, audienceOf, bots: botIds = ["scout"], browserBox, lentChrome, turnResources, browsersAtOnce }: {
+  cloudHome?: boolean; server?: boolean; hosted?: boolean; selfHosted?: boolean; device?: BrowserHostDeps["device"]; lendRefusal?: BrowserHostDeps["lendRefusal"]; holder?: (resource: string) => TurnOwner | undefined;
   audienceOf?: BrowserHostDeps["audienceOf"]; bots?: string[]; browserBox?: BrowserHostDeps["browserBox"];
-  lentChrome?: BrowserHostDeps["lentChrome"]; turnResources?: BrowserHostDeps["turnResources"];
+  lentChrome?: BrowserHostDeps["lentChrome"]; turnResources?: BrowserHostDeps["turnResources"]; browsersAtOnce?: BrowserHostDeps["browsersAtOnce"];
 } = {}) {
   const cfg = {
     features: { browser: true },
@@ -75,6 +76,8 @@ function setup(engine: "chrome" | "agent-browser" | undefined, { cloudHome = fal
     audienceOf,
     browserBox,
     lentChrome,
+    browsersAtOnce,
+    engineMemory: { useBrowsers: () => {}, selfHosted: () => selfHosted },
   });
   hosts.push(host);
   return { cfg, host, minted, bots };
@@ -100,6 +103,40 @@ describe("the bots' browser host and the engine memory guard", () => {
 });
 
 describe("the bots' browser host with browserEngine.engine set to chrome", () => {
+  it.each(["tool", "unused", "all", "crash", "startup-failure"])("releases the Chrome process reservation on %s before its startup grace expires", async (kind) => {
+    const budget = new ProcessBudget({ read: () => ({ max: 400, current: 100 }), browserTasks: () => 0, log: () => {} });
+    const room = vi.spyOn(processBudget, "browserRoom").mockImplementation((runs, pid) => budget.browserRoom(runs, pid));
+    const reserve = vi.spyOn(processBudget, "reserveBrowser").mockImplementation((session) => budget.reserveBrowser(session));
+    const release = vi.spyOn(processBudget, "releaseBrowser").mockImplementation((session) => budget.releaseBrowser(session));
+    const backend = new FakeBackend();
+    const open = vi.spyOn(LocalBackend.prototype, "open").mockImplementation(async (request) => ({ ...await backend.open(request), pid: 2_000_000_001 }));
+    const { host } = setup("chrome", { server: true, selfHosted: true });
+    try {
+      const browser = (await host.browserIntegration("scout", undefined, turn))!;
+      if (kind === "startup-failure") open.mockRejectedValueOnce(new Error("fixture startup failed"));
+      const result = await host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_status", arguments: {} });
+      expect(room.mock.calls[0]![1]?.(browser.session)).toBe(kind === "startup-failure" ? null : 2_000_000_001);
+      expect(room.mock.calls[0]![1]?.("unrelated-browser")).toBeNull();
+      if (kind === "startup-failure") expect(result).toHaveProperty("isError", true);
+      else {
+        expect(result).not.toHaveProperty("isError", true);
+        expect(budget.short(170, 0)).toBe(true);
+        if (kind === "tool") await host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_close", arguments: {} });
+        else if (kind === "unused") expect(await host.browserRuntime.closeUnused(browser.session, browser.spec)).toBe(true);
+        else if (kind === "all") await host.browserRuntime.closeAll();
+        else backend.chromes.at(-1)!.exit();
+      }
+      await expect.poll(() => budget.short(170, 0)).toBe(false);
+      await host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_status", arguments: {} });
+      expect(budget.short(170, 0)).toBe(true);
+      await expect(host.browserRuntime.agentRpc(browser.session, browser.spec, "tools/call", { name: "agent_browser_status", arguments: {} }, () => { throw new Error("fixture caller refused"); })).rejects.toThrow("fixture caller refused");
+      expect(budget.short(170, 0)).toBe(true);
+    } finally {
+      await host.browserRuntime.closeAll();
+      open.mockRestore(); room.mockRestore(); reserve.mockRestore(); release.mockRestore();
+    }
+  });
+
   it("keeps Chrome open between browser calls until the host's whole-turn claim is released", async () => {
     const backend = new FakeBackend();
     const open = vi.spyOn(LocalBackend.prototype, "open").mockImplementation((request) => backend.open(request));
@@ -619,6 +656,89 @@ describe("a deleted bot's browser", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(closed()).toEqual([]);
     await host.browserSweep.closeAll();
+  });
+});
+
+describe("a running turn's agent-browser browser", () => {
+  const ENGINE = "/usr/local/bin/agent-browser";
+  const HOUR = 3_600_000;
+  const folders: string[] = [];
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.mocked(Date.now).mockRestore?.();
+    for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
+  });
+  function ready() {
+    vi.mocked(browserEngineStatus).mockImplementation(() => ({ kind: "ready", binaryPath: ENGINE, version: "0.37.0", managed: false }));
+    vi.mocked(closeBrowserSession).mockClear().mockResolvedValue(true);
+    vi.mocked(runningBrowserSessionNames).mockClear();
+  }
+  function daemons(sessions: string[]) {
+    const folder = mkdtempSync(join(tmpdir(), "omb-host-room-"));
+    folders.push(folder);
+    mkdirSync(join(folder, "agent-browser"));
+    for (const session of sessions) writeFileSync(join(folder, "agent-browser", `${session}.pid`), "0");
+    vi.stubEnv("XDG_RUNTIME_DIR", folder);
+    vi.mocked(runningBrowserSessionNames).mockResolvedValue(sessions);
+  }
+  function anHourLater() {
+    const real = Date.now.bind(Date);
+    vi.spyOn(Date, "now").mockImplementation(() => real() + HOUR);
+  }
+  const holding = (sessions: string[]): BrowserHostDeps["turnResources"] => ({
+    free: (resource) => !sessions.some((session) => resource === `browser:${session}`), holder: () => undefined, onClaim: () => () => {},
+  });
+  const closedSessions = () => vi.mocked(closeBrowserSession).mock.calls.map(([, env]) => env.AGENT_BROWSER_SESSION);
+  const keepsSignIns = { command: ENGINE, env: { AGENT_BROWSER_RESTORE_SAVE: "auto" } };
+  const temporary = { command: ENGINE, env: { AGENT_BROWSER_RESTORE_SAVE: "never" } };
+
+  it("is never closed by the idle sweep, however long it sat unused, while one no turn holds is", async () => {
+    for (const held of [true, false]) {
+      ready();
+      daemons(["bot-scout"]);
+      const { host } = setup(undefined, { cloudHome: true, turnResources: holding(held ? ["bot-scout"] : []) });
+      host.usedBrowserSessions.set("bot-scout", keepsSignIns);
+      expect(await host.browserRuntime.closeIfIdle("bot-scout", HOUR * 1_000, keepsSignIns)).toBe(false);
+      anHourLater();
+      host.browserSweep.start();
+      if (held) {
+        await vi.waitFor(() => expect(runningBrowserSessionNames).toHaveBeenCalled());
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(closedSessions()).toEqual([]);
+      } else {
+        await vi.waitFor(() => expect(closedSessions()).toEqual(["bot-scout"]));
+      }
+      vi.mocked(Date.now).mockRestore();
+      vi.mocked(closeBrowserSession).mockClear();
+      await host.browserSweep.closeAll();
+    }
+  });
+
+  it("is closed for a bot waiting on a full limit only once it sat unused for the idle time and keeps its sign-ins", async () => {
+    ready();
+    const { host } = setup(undefined, { cloudHome: true, turnResources: holding(["bot-a", "bot-t"]), browsersAtOnce: () => 2 });
+    for (const [session, spec] of [["bot-a", keepsSignIns], ["bot-t", temporary]] as const) {
+      expect(await host.browserRoom.enter(session, Date.now() + 1_000)).toBeNull();
+      expect(await host.browserRuntime.closeIfIdle(session, HOUR * 1_000, spec)).toBe(false);
+    }
+    expect(await host.browserRoom.enter("bot-b", Date.now() + 100)).toMatch(/^2 browsers are already open/);
+    expect(closedSessions()).toEqual([]);
+    anHourLater();
+    expect(await host.browserRoom.enter("bot-b", Date.now() + 1_000)).toBeNull();
+    expect(closedSessions()).toEqual(["bot-a"]);
+    expect(host.browserRoom.open).toBe(2);
+  });
+
+  it("counts toward the limit when a person's view started it, but not the person's own Chrome", async () => {
+    ready();
+    const { host } = setup(undefined, { cloudHome: true, browsersAtOnce: () => 1 });
+    const closing = vi.spyOn(BrowserRuntime.prototype, "closeIfIdle");
+    await host.browserRuntime.closeIfIdle("bot-viewed", 1);
+    const agentBrowser = closing.mock.contexts[0] as BrowserRuntime;
+    closing.mockRestore();
+    await agentBrowser.launched("bot-viewed", keepsSignIns);
+    await agentBrowser.launched("bot-mine", { command: ENGINE, env: { AGENT_BROWSER_CDP: "http://127.0.0.1:9222" } });
+    expect(host.browserRoom.open).toBe(1);
   });
 });
 

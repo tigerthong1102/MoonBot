@@ -200,6 +200,48 @@ const REPORT_BACK = "tell the bot that gave you this job which place you need an
 const SURFACE_AUTHORITY =
   ` For browser and computer tasks, use OpenMausBot's mounted browser/computer tools first: inspect the target, perform the action, and verify its result before claiming success. Discover deferred tools by their server/name when needed. Do not substitute the provider's own desktop, a shell-launched browser, or another automation path for the selected OpenMausBot surface. Ordinary code and file tasks may still use their normal tools. Announcing an action is not performing it. A request naming another place does not move these tools: this computer is the user's host, Local VM is an isolated desktop, the cloud computer is remote, and the built-in browser is a separate browser. If the requested place differs from the mounted one, ${ASK_TO_SWITCH}; never act on a different computer or describe a host window as a VM.`;
 
+export function whereWorksControl(bot: string): string {
+  return `open Bot's screen in this chat and choose This computer under “Where ${bot} works”`;
+}
+
+const PLACE_NAMES: Record<Surface, string> = {
+  cloud: "its Cloud desktop", vm: "its Private desktop", local: "This computer", browser: "the built-in Browser",
+};
+
+export function thisComputerSwitch(input: { place: Surface | null; bot: string; canSelect: boolean; botId?: string }): string {
+  const where = input.place && input.place !== "local"
+    ? `This bot works on ${PLACE_NAMES[input.place]}, not on this computer.` : "This bot does not work on this computer this turn.";
+  const how = input.canSelect
+    ? `say so in one line, call select_computer with surface "local", then end your turn; the request continues on this computer by itself, and the person allows it with one tap unless they gave you Full access. If select_computer refuses, ask the person to ${whereWorksControl(input.bot)}`
+    : `ask the person to ${whereWorksControl(input.bot)}`;
+  const keep = input.canSelect && input.botId
+    ? ` When the person asks you to keep using this computer, also keep it there: app_settings set, id "bots.settings", value {"botId":"${input.botId}","computer":"local"}; it applies at once with Undo.`
+    : "";
+  return `${where} To use files on this computer, switch it to This computer: ${how}.${keep} No other setting or menu does this, so never name one.`;
+}
+
+/** A local host path must not authorize access to another place's disk. */
+const HOST_PATHS: Partial<Record<NodeJS.Platform, { pattern: RegExp; example: string }>> = {
+  win32: { pattern: /(?:^|[\s"'`=(,;|>])(?:[A-Za-z]:[\\/]|\\\\[^\\\s]+\\|%(?:USERPROFILE|HOMEPATH|OneDrive\w*)%)/i, example: "C:\\Users\\…" },
+  darwin: { pattern: /(?:^|[\s"'`=(,;|>])\/Users\/[^/\s"']/, example: "/Users/…" },
+  linux: { pattern: /(?:^|[\s"'`=(,;|>])\/home\/(?!cua(?![\w.-]))[\w.-]/, example: "/home/…" },
+};
+
+/** Commands referencing this host's disk must not be routed to a private desktop. */
+export function namesHostPath(command: unknown, platform: NodeJS.Platform = process.platform): boolean {
+  return typeof command === "string" && Boolean(HOST_PATHS[platform]?.pattern.test(command));
+}
+
+export function failedOnHostPath(command: unknown, result: { exitCode?: unknown; timedOut?: unknown }, platform: NodeJS.Platform = process.platform): boolean {
+  return Number(result.exitCode ?? 0) !== 0 && result.timedOut !== true && namesHostPath(command, platform);
+}
+
+/** Host-disk access must not be redirected to a mounted remote place. */
+function ownFilesSentence(own: { bot: string; botId?: string; platform: NodeJS.Platform }, place: Surface | null, canSelect: boolean): string {
+  const example = HOST_PATHS[own.platform]?.example;
+  return ` A file or folder on the person's own computer (${example ? `a path such as ${example}, ` : ""}their Desktop, Documents, Downloads or OneDrive, or "my PC") is on this computer${place ? `, which ${surfaceLabel(place)} cannot reach` : ""}, and it is never one of the shared computers. ${thisComputerSwitch({ place, bot: own.bot, canSelect, ...(own.botId ? { botId: own.botId } : {}) })}`;
+}
+
 /** A Cloud home without the shared-computer tools cannot reach the person's own computer at all. */
 const UNREACHABLE_OWN = "the user's own computer cannot be reached from here";
 
@@ -231,7 +273,8 @@ function ownComputerSentence(lent: ReadonlyArray<{ name: string; platform: LentP
 export function surfacePrompt(
   mounted: MountedSurfaces,
   opts: { pinned?: Surface | null; note?: string; canSelect?: boolean; cloudHome?: boolean; botOpened?: boolean;
-    ownComputer?: ReadonlyArray<{ name: string; platform: LentPlatform | null }> } = {},
+    ownComputer?: ReadonlyArray<{ name: string; platform: LentPlatform | null }>;
+    thisComputer?: { bot: string; botId?: string; platform: NodeJS.Platform } } = {},
 ): string {
   const reportBack = opts.botOpened && !opts.canSelect;
   const computer = mounted.computer ? surfaceLabel(mounted.computer) : null;
@@ -271,6 +314,9 @@ export function surfacePrompt(
     // What this turn's places reach, never every screen: their own computer is reachable too, through shared_computer.
     for (const [nowhere, places] of OWN_COMPUTER_WORDING) text = text.replace(nowhere, places);
     text = text.replace(UNREACHABLE_OWN, `${theirComputer(opts.ownComputer).theirs} is not one of these places`) + ownComputerSentence(opts.ownComputer, computer);
+  }
+  if (opts.thisComputer && !opts.cloudHome && !reportBack && mounted.computer !== "local") {
+    text += ownFilesSentence(opts.thisComputer, mounted.computer, Boolean(opts.canSelect));
   }
   return text + (opts.note ?? "");
 }

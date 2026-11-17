@@ -25,9 +25,9 @@ describe("openmausbot sentinel", () => {
     dir = mkdtempSync(join(tmpdir(), "omb-sentinel-cli-"));
     fixture = fixtureDataDir(join(dir, "data"), [{ id: "b1", name: "Probe", threadId: "t1" }]);
   });
-  afterEach(() => {
+  afterEach(async () => {
     fixture.close();
-    removeTempDir(dir);
+    await removeTempDir(dir);
   });
 
   it("scans a live data dir from the command line, keeps references only, and does nothing when nothing changed", () => {
@@ -86,7 +86,7 @@ describe("openmausbot sentinel", () => {
 
   it("parses its options and defaults the output to a folder of its own, outside the data", () => {
     const parsed = parseSentinelArgs(["--data-dir", "/data/omb"], {});
-    expect(parsed).toMatchObject({ dataDir: expect.stringMatching(/omb$/), out: expect.stringMatching(/openmausbot-sentinel[\\/]data-[0-9a-f]{12}$/), json: false });
+    expect(parsed).toMatchObject({ dataDir: expect.stringMatching(/omb$/), out: expect.stringMatching(/startupbot-sentinel[\\/]data-[0-9a-f]{12}$/), json: false });
     expect("out" in parsed && parsed.out.includes(join("data", "omb"))).toBe(false);
     expect(parseSentinelArgs(["--queue-wait", "600", "--cost", "2.5", "--json"], { OMB_DATA_DIR: "/d" })).toMatchObject({ queueWaitMs: 600_000, costUsd: 2.5, json: true });
     expect(parseSentinelArgs(["--cost", "-1"], {})).toEqual({ error: expect.stringContaining("--cost"), json: false });

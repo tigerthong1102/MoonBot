@@ -13,11 +13,11 @@ export function ownComposioKey(credentials, environment = process.env) {
   return Boolean((typeof saved === "string" && saved.trim()) || environment.COMPOSIO_API_KEY?.trim());
 }
 
-/** An explicit URL wins; otherwise the default, only for a shipped build, so development and tests never register. */
-export function managedComposioBrokerUrl(configured, shipped) {
+/** A separately operated broker must be configured explicitly. */
+export function managedComposioBrokerUrl(configured, _shipped) {
   if (managedComposioBrokerOff()) return "";
   const explicit = typeof configured === "string" ? configured.trim() : "";
-  return normalizeManagedComposioBrokerUrl(explicit || (shipped ? DEFAULT_MANAGED_COMPOSIO_BROKER_URL : ""));
+  return normalizeManagedComposioBrokerUrl(explicit);
 }
 
 export function normalizeManagedComposioBrokerUrl(value) {

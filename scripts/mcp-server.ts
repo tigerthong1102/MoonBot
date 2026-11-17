@@ -4,6 +4,7 @@
 import readline from "node:readline";
 import { allowedServerOrigin, EXAMPLE_ADDRESS } from "../electron/server-address.mjs";
 import { isRecord, projectMessage } from "./mcp-message-projection.ts";
+import { jobStatus } from "./mcp-job-status.ts";
 
 /** A server's base URL: https anywhere, http only on loopback or a private network (LAN, Tailscale). */
 export function validateBaseUrl(url: string): string {
@@ -648,34 +649,7 @@ function taskBelongsTo(owner: Record<string, any>, taskId: string): boolean {
   return owner.threadId === taskId || records(owner.tasks).some((task) => task.threadId === taskId);
 }
 
-function messageNeedsInput(message: Record<string, any>): boolean {
-  const card = isRecord(message.card) && message.card.requestId && !message.card.answered && !message.card.dismissed && !message.card.expired && !message.card.quotaSwitch; // a quota-switch offer follows a turn that already failed
-  const connector = isRecord(message.connector) &&
-    !message.connector.dismissed &&
-    !message.connector.resumed &&
-    message.connector.status !== "connected";
-  const secret = isRecord(message.secret) && !message.secret.provided && !message.secret.dismissed && !message.secret.superseded;
-  const signIn = isRecord(message.signIn) && !message.signIn.done && !message.signIn.cancelled && !message.signIn.superseded && !message.signIn.answeredInChat;
-  return Boolean(card || connector || secret || signIn);
-}
 
-function dispatchFailedAfterLatestUser(messages: Array<Record<string, any>>): boolean {
-  const lastUser = messages.findLastIndex((message) => message.role === "user");
-  const turnMessages = messages.slice(lastUser + 1);
-  // Only an explicit terminal receipt overrides prose. Existing providers
-  // also emit diagnostics on intentional cancellation, which remain settled.
-  if (turnMessages.some((message) => message.tool?.terminal === true && message.tool.ok === false)) return true;
-  if (turnMessages.some((message) => message.role === "bot" && message.kind === "text" && message.text?.trim())) {
-    return false;
-  }
-  return turnMessages.some(
-    (message) =>
-      message.kind === "activity" &&
-      message.tool?.ok === false &&
-      typeof message.tool?.name === "string" &&
-      /^error:/i.test(message.tool.name.trim()),
-  );
-}
 
 async function conversationTail(
   fetcher: (path: string, options?: RequestInit) => Promise<any>,
@@ -1080,9 +1054,7 @@ export async function handleToolCall(
       // settled unless an open card waits on the person, its engine died or
       // went silent, or its dispatch failed after the last message. `state`
       // is the job's own reading (a lead whose work failed is failed there).
-      const activity = job.conversation?.activity;
-      const status = job.state === "needs-input" || tail.raw.some(messageNeedsInput) ? "needs-user" : timedOut ? "timed-out"
-        : activity === "dead" ? "failed" : activity === "no-signal" ? "stalled" : dispatchFailedAfterLatestUser(tail.raw) ? "failed" : "settled";
+      const status = jobStatus(job, tail.raw, timedOut);
       const jobState = status === "needs-user" ? "needs-input" : status === "timed-out" ? "timed-out"
         : status !== "settled" && (job.state === "completed" || job.state === "idle") ? status : job.state;
       return {

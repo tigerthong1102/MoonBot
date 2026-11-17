@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
 import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -111,6 +112,7 @@ async function expectCatalog(grants: Grants) {
   expect(JSON.stringify(response.body)).not.toContain(TOKEN);
 }
 
+describe.skipIf(!existsSync(join(ROOT, "enterprise/server/workspace-access.ts")))("Enterprise adapter", () => {
 beforeAll(async () => {
   layer = mkdtempSync(join(tmpdir(), "omb-hosted-model-layer-"));
   mkdirSync(join(layer, "server"));
@@ -373,4 +375,6 @@ describe("hosted model policy in the full runtime", () => {
     expect(defaultBot.status).toBeGreaterThanOrEqual(400);
     expect((await api("GET", `/api/threads/${primary.threadId}/messages?limit=50`)).body).toEqual(history);
   }, 30_000);
+});
+
 });

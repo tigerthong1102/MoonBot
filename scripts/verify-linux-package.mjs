@@ -72,8 +72,8 @@ function requireUpdaterTarget(resources, label) {
   const updateFile = path.join(resources, "app-update.yml");
   requireFile(updateFile);
   const update = readFileSync(updateFile, "utf8");
-  if (!/^owner: milind-soni$/m.test(update) || !/^repo: OpenMausBot$/m.test(update)) {
-    fail(`${label} app-update.yml does not point at milind-soni/OpenMausBot`);
+  if (!/^owner: tigerthong1102$/m.test(update) || !/^repo: StartupBot$/m.test(update)) {
+    fail(`${label} app-update.yml does not point at tigerthong1102/StartupBot`);
   }
 }
 
@@ -434,7 +434,7 @@ for (const expected of [
 const extracted = mkdtempSync(path.join(tmpdir(), "omb-deb-verify-"));
 try {
   execFileSync("dpkg-deb", ["--extract", deb, extracted]);
-  const debAppRoot = path.join(extracted, "opt", "OpenMausBot");
+  const debAppRoot = path.join(extracted, "opt", "StartupBot");
   requireDirectoryMode(debAppRoot, 0o755);
   const debResources = path.join(debAppRoot, "resources");
   // Routes the in-app updater to the package-manager hand-off.
@@ -449,35 +449,35 @@ try {
     const packaged = path.join(debResources, "cua-linux-x64", path.basename(unpackedFile));
     if (debHashes.get(packaged) !== expected) fail(`DEB and linux-unpacked CUA hashes differ`);
   }
-  const desktopFile = path.join(
-    extracted,
-    "usr",
-    "share",
-    "applications",
-    "com.openmausbot.app.desktop",
-  );
-  const scalableIcon = path.join(
-    extracted,
-    "usr",
-    "share",
-    "icons",
-    "hicolor",
-    "scalable",
-    "apps",
-    "openmausbot.svg",
-  );
+  const desktopDir = path.join(extracted, "usr", "share", "applications");
+  const desktopEntries = readdirSync(desktopDir).filter((name) => name.endsWith(".desktop"));
+  if (desktopEntries.length !== 1) fail(`expected one desktop entry, found ${desktopEntries.length}`);
+  const desktopFile = path.join(desktopDir, desktopEntries[0]);
   requireFile(desktopFile);
-  requireFile(scalableIcon);
   const desktop = readFileSync(desktopFile, "utf8");
+  const desktopName = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).desktopName;
   for (const expected of [
-    "Name=OpenMausBot",
-    "Exec=/opt/OpenMausBot/openmausbot %U",
-    "Icon=openmausbot",
-    "StartupWMClass=com.openmausbot.app",
+    "Name=StartupBot",
+    "Exec=/opt/StartupBot/openmausbot %U",
+    `StartupWMClass=${desktopName.replace(/\.desktop$/, "")}`,
     "Categories=Utility;",
   ]) {
     if (!desktop.includes(expected)) fail(`desktop entry is missing ${JSON.stringify(expected)}`);
   }
+  const icon = desktop.match(/^Icon=([A-Za-z0-9._-]+)$/m)?.[1];
+  if (!icon) fail("desktop entry has no valid icon name");
+  const iconRoot = path.join(extracted, "usr", "share", "icons", "hicolor");
+  const installedIcons = readdirSync(iconRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .flatMap((entry) => {
+      const directory = path.join(iconRoot, entry.name, "apps");
+      if (!statSync(directory, { throwIfNoEntry: false })?.isDirectory()) return [];
+      return readdirSync(directory)
+        .filter((name) => name === `${icon}.png` || name === `${icon}.svg`)
+        .map((name) => path.join(directory, name));
+    });
+  if (installedIcons.length === 0) fail(`desktop icon ${icon} was not installed`);
+  for (const installedIcon of installedIcons) requireFile(installedIcon);
   execFileSync("desktop-file-validate", [desktopFile], { stdio: "inherit" });
 } finally {
   rmSync(extracted, { recursive: true, force: true });

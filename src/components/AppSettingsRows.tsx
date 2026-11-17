@@ -28,6 +28,7 @@ export function UpdatesRow({ title = t("settings.updates.title") }: { title?: st
   const s = useUpdaterState();
   const updater = window.ogb?.updater;
   if (!s || !updater) return null;
+  if (s.disabled) return <SettingRow title={title} subtitle={t("update.error.unavailable")}>{null}</SettingRow>;
   const label =
     s.status === "checking"
       ? t("settings.updates.checking")

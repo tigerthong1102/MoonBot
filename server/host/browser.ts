@@ -14,6 +14,7 @@ import { RelayTimeout, relay, relayCommand, relayInput } from "../browser-relay.
 import { browserSteps } from "../browser-steps.ts";
 import { BrowserLive } from "../browser-live.ts";
 import { browserEgress, type EgressSetup } from "../browser/egress/registry.ts";
+import { releaseEndedGates } from "../browser/egress/release-ended.ts";
 import {
   agentBrowserIntegration,
   BUILT_IN_BROWSER_SYSTEM_PROMPT,
@@ -28,6 +29,7 @@ import {
   noteBrowserEngineUnavailable,
   setBrowserViewport,
 } from "../browser-engine.ts";
+import { BrowserRoom, defaultBrowserRoomSize, spareForRoom } from "../browser-room.ts";
 import { BrowserSweep, browserIdleMs, type BrowserCleanupWireRequest } from "../browser-lifecycle-cleanup.ts";
 import { AudienceBrowsers, audienceBrowserSuffix } from "../browser/audience.ts";
 import type { BrowserSitesTarget } from "../browser-sites.ts";
@@ -44,6 +46,7 @@ import { passkeyAnnotation } from "../browser/passkey-notice.ts";
 import { LentChromeDoors, lentChromeGuidance, type ChromeLender } from "../browser/lent-chrome.ts";
 import type { ChromeRoute } from "../device-links.ts";
 import type { EngineBrowsers } from "../engine-memory.ts";
+import { processBudget } from "../process-room.ts";
 import { augmentedPath } from "../env-path.ts";
 import { harnessMcpTokenEnv } from "../harness-mcp-token.ts";
 import type { FillLoginDeps } from "../login-fill.ts";
@@ -76,12 +79,13 @@ export interface BrowserHostDeps {
   /** My Cloud's way to the person's own Chrome on the computer that lends it, and which computer that is. */
   lentChrome?: { route(): ChromeRoute | null; lender(): ChromeLender | null };
   /** The engine memory guard, told which browsers each thread's turn starts or holds. */
-  engineMemory?: { useBrowsers(browsers: EngineBrowsers): void };
+  engineMemory?: { useBrowsers(browsers: EngineBrowsers): void; selfHosted?(): boolean };
   /** Whose browser a conversation's turns use on a Team Cloud: the member's, the group chat's or the team's. Every
    * browser is the bot's own without it. */
   audienceOf?(threadId: string): Audience;
   /** The box every Chrome of the bots' browsers runs in (a Team Cloud's), or none. */
   browserBox?(seccompFd: number, ro: readonly string[]): LauncherBox | null;
+  browsersAtOnce?(): number;
 }
 
 /** The lent computer's connection for a browser's pages, under the rule for everything it lends: only while the last
@@ -105,10 +109,26 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   const store: Pick<Store, "bots" | "bot" | "botByThread"> = { get bots() { return deps.store().bots; }, bot: (id: string) => deps.store().bot(id),
     botByThread: (threadId: string) => deps.store().botByThread(threadId) };
 
+  const processRoom = deps.engineMemory?.selfHosted?.() ? processBudget.browserRoom((session) => browserRunning(session, usedBrowserSessions.get(session)), browserProcessPid) : null;
+  const browserRoom = new BrowserRoom({
+    max: deps.browsersAtOnce ?? (() => defaultBrowserRoomSize()),
+    spare: (session) => spareForRoom(agentBrowserRuntime.spare(session), { holds: !turnResources.free(`browser:${session}`), idleMs: idleMs() }),
+    close: (session) => agentBrowserRuntime.closeIfIdle(session, 1),
+    ...(processRoom ? { admit: (session: string, admitted?: (rollback: () => void) => void) => processRoom.enter(session, admitted) } : {}),
+  });
   const agentBrowserRuntime = new BrowserRuntime({
     closeBrowser: (session, spec) => closeBrowserSession(spec.command, browserRuntimeEnv({ ...spec.env, AGENT_BROWSER_SESSION: session })),
     applyViewport: (spec, size) => setBrowserViewport(spec.command, spec.env, size),
-    launch: chromeLauncher,
+    launch: {
+      starting: (session, spec) => { if (processRoom && !attachesToChrome(spec.env ?? {})) processBudget.reserveBrowser(session); },
+      ready: (spec) => chromeLauncher.ready(spec),
+      started: (session, spec) => {
+        if (!attachesToChrome(spec.env ?? {})) browserRoom.entered(session);
+        return chromeLauncher.started(session, spec);
+      },
+      stopped: (session) => { processBudget.releaseBrowser(session); chromeLauncher.stopped(session); },
+    },
+    room: browserRoom,
     relayCommand: (spec, session, command, timeoutMs) => relayCommand(spec, session, command, timeoutMs).catch((error: unknown) => {
       throw error instanceof RelayTimeout ? new TransportError(error.message) : error;
     }),
@@ -131,6 +151,8 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     idleMs,
     language: deps.language,
     held: (session) => !turnResources.free(`browser:${session}`),
+    starting: (session) => { if (processRoom) processBudget.reserveBrowser(session); },
+    stopped: (session) => processBudget.releaseBrowser(session),
     log: (line) => console.warn(line),
   });
   const lendRefusal = deps.lendRefusal ?? ((): LendRefusal => "unproven");
@@ -176,6 +198,8 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   // person's own, outside the egress gate too; on My Cloud a call that can't reach it now says why instead.
   const browserRuntime = new RuntimeRouter(agentBrowserRuntime, chromeEngine, {
     refusal: (_session, spec, params) => (attachesToChrome(spec.env) ? null : browserEgress.callRefusal(params)),
+    room: (session, spec, params) => (!processRoom || attachesToChrome(spec.env) || (params as { name?: unknown } | null)?.name === "agent_browser_close"
+      ? Promise.resolve(null) : processRoom.enter(session)),
     // After beforeDispatch's claim the holder is this call's own turn, so the verdict is the caller's, not the last
     // holder's. Only a caller who may use the computer learns whether it lends Chrome or is online.
     afterClaim: (session, spec) => {
@@ -230,13 +254,21 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     held: (session) => !turnResources.free(`browser:${session}`),
     closeIdle: (session) => browserRuntime.closeIfIdle(session, idleMs(), usedBrowserSessions.get(session)),
   });
+  const releaseGates = () => releaseEndedGates({ sessions: () => browserEgress.sessions(), release: async (session) => { usedBrowserSessions.delete(session); await browserEgress.release(session); },
+    env: (session) => { const spec = usedBrowserSessions.get(session); return spec && !chromeTarget(session, spec) ? spec.env : null; },
+    running: (session) => browserRunning(session, usedBrowserSessions.get(session)),
+    inUse: (session) => !turnResources.free(`browser:${session}`) || agentBrowserRuntime.working(session) });
+  let gateTimer: ReturnType<typeof setInterval> | undefined;
   const browserSweep = {
     start() {
+      gateTimer = setInterval(() => void releaseGates().catch(() => undefined), 60_000);
+      gateTimer.unref?.();
       agentBrowserSweep.start();
       chromeEngine.start({ inUse: browserEngineKind(cfg) === "chrome", prepare: builtInBrowserEnabled(cfg) });
       return browserSweep;
     },
     closeAll: () => {
+      clearInterval(gateTimer);
       doors?.close();
       doorUrls.clear();
       leftovers.clear();
@@ -425,6 +457,11 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     if (browserEngineKind(cfg) !== "chrome") void chromeEngine.service.closeAll().catch(() => undefined);
     chromeEngine.start({ inUse: browserEngineKind(cfg) === "chrome", prepare: builtInBrowserEnabled(cfg) });
   }
+  function browserProcessPid(session: string): number | null {
+    if (!chromeTarget(session, usedBrowserSessions.get(session))) return null;
+    const run = chromeEngine.service.profiles().find((profile) => profile.session === session)?.run;
+    return run?.browser.connected ? run.opened.pid : null;
+  }
   function browserRunning(session: string, spec: Spec | undefined): boolean {
     if (chromeTarget(session, spec)) return chromeEngine.service.runs(session);
     return existsSync(browserDaemonFile(browserRuntimeEnv({ ...spec?.env, AGENT_BROWSER_SESSION: session }), ".pid"));
@@ -561,7 +598,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   }
 
   return {
-    browserRuntime, browserLive, usedBrowserSessions, browserSweep, temporaryBrowserSessions, browserIdleMs: idleMs,
+    browserRuntime, browserLive, browserRoom, usedBrowserSessions, browserSweep, temporaryBrowserSessions, browserIdleMs: idleMs,
     currentBrowserSession, forgetTemporaryBrowser, myChromeAvailable, lentChromeSummary, usesMyChrome, browserSessionSpec, browserIntegration,
     browserReady, currentBrowserSpec, loginInput, browserSystemPrompt, signedInSitesRefusal, closeBrowser, browserEngineSwitched,
     eraseDeletedBrowser, engineSummary, engineBrowsers, browserAudience, browserSessionsOf, signedInSitesTarget, uploadPaths,

@@ -1,12 +1,6 @@
-// "This computer and My Cloud together" (Settings → MausBot Cloud, an early feature that starts off): the sidebar of this
-// computer's page and of My Cloud's page lists the other one's bots too. A page can only talk to its own place, so main
-// reads the other place's bots as the signed-in person, keeps the list, and opens that place at a bot when its row is
-// clicked. With the switch off nothing here reads, keeps or sends anything.
-//
-// Security: the list goes only to this computer's own page and to My Cloud's own page (`asking`, which main works out from
-// the sender), never to a team's Cloud or a server saved by hand. A row is a name, a look and a state: no message, address
-// or token. A page names a bot by an id main listed itself; main opens only such an id, in a place of its own choosing.
-// A sleeping Cloud is never asked, since any request would wake it; it keeps the list it gave last.
+// Only this computer's own page and its personal Cloud may receive the linked-bot list.
+// The list must not expose messages, addresses or credentials, or authorize arbitrary destinations.
+// Background lookups must not wake a sleeping Cloud and incur usage charges.
 import { asleepAnswer, BACKGROUND_HEADERS } from "./cloud-power.mjs";
 
 /** The switch, kept in `places-together.json` as `{ v: 1, on }`. Everything that joins the two places reads this one key. */
@@ -91,6 +85,7 @@ const needsSignIn = (response) => response?.status === 401 || response?.status =
  *   local(route: string, init?: RequestInit): Promise<Response>,
  *   cloudFetch(url: string, init?: RequestInit): Promise<Response>,
  *   napped?(): void,
+ *   address?(home: "computer" | "cloud", botId: string): string | null,
  *   shown(): "computer" | "cloud" | "waking" | "other" | null,
  *   focused(): boolean,
  *   openPlace(home: "computer" | "cloud"): unknown,
@@ -108,14 +103,15 @@ const needsSignIn = (response) => response?.status === 401 || response?.status =
  * wakes, "other" for any other place or screen, null while a page loads.
  * `focused()`: the window is the one the person is using: in front, and the screen not locked. `openPlace(home)`: main's
  * own switch to that place, waking My Cloud as opening it always does. `send`: to the page on screen. `changed()`: the
- * list or the switch changed, so a page that draws it asks again.
+ * list or the switch changed, so a page that draws it asks again. `address(home, botId)`: the address the link between
+ * the two places gives that bot, or null while no link of this Cloud and account is on.
  *
  * Security: My Cloud is never asked while it sleeps, since any request would wake it and run up its hours. It is asked
  * only right after the Admin said it is awake, at most once a minute, and only while the person is using the window. What
  * remains is a Cloud that fell asleep in the seconds since the Admin answered; one that only agreed to sleep answers so
  * itself and is left alone. Rows are kept for the Cloud and account they came from, and dropped the moment either changes.
  */
-export function createPlacesTogether({ pref, cloud, powerChecked, computer, local, cloudFetch, napped = () => {}, shown, focused, openPlace, send, changed, now = Date.now,
+export function createPlacesTogether({ pref, cloud, powerChecked, computer, local, cloudFetch, napped = () => {}, address = () => null, shown, focused, openPlace, send, changed, now = Date.now,
   setTimer = setInterval, clearTimer = clearInterval, later = setTimeout, cancelLater = clearTimeout }) {
   /** What each place gave last: its rows, when, and how the last read went. */
   const kept = new Map();
@@ -264,11 +260,17 @@ export function createPlacesTogether({ pref, cloud, powerChecked, computer, loca
     }, over);
   }
 
+  function addressed(row) {
+    let linked = null;
+    try { linked = address(row.home, row.id); } catch {}
+    return typeof linked === "string" && linked ? { ...row, address: linked } : row;
+  }
+
   function otherOf(asking) {
     const home = otherHome(asking), known = kept.get(home);
     const state = home === "cloud" && pending?.home === home && (cloud().asleep || known?.state !== "ready") ? "waking"
       : home === "cloud" && cloud().asleep ? "asleep" : known?.state ?? "loading";
-    return { home, state, bots: known?.bots ?? [], ...(typeof known?.newBot === "boolean" ? { newBot: known.newBot } : {}) };
+    return { home, state, bots: (known?.bots ?? []).map((row) => addressed(row)), ...(typeof known?.newBot === "boolean" ? { newBot: known.newBot } : {}) };
   }
 
   return {
@@ -294,6 +296,7 @@ export function createPlacesTogether({ pref, cloud, powerChecked, computer, loca
     refresh,
     /** The signed-in account or My Cloud's address may have changed: lists that belong to another are dropped now. */
     scopeChanged: sameScope,
+    linkChanged() { if (active() && kept.size > 0) tell(); },
     /** A row's click: the other place opens at that bot. Only a bot main listed itself, for this Cloud and account, opens. */
     open(asking, botId) {
       sameScope();

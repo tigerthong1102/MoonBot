@@ -116,16 +116,23 @@ suite("S4 pages, tabs and page state on real Chrome", () => {
 
   it("goes back and forward through documents and fragments, and reloads", async () => {
     const first = await open("<p>first</p>");
-    const second = await open(`<p id="n">second</p><script>document.getElementById("n").dataset.loads = String(Number(sessionStorage.loads = (Number(sessionStorage.loads || 0) + 1)))</script>`);
+    const second = await open(`<p id="n">second</p><script>
+      const marker = document.getElementById("n");
+      marker.dataset.loads = String(sessionStorage.loads = Number(sessionStorage.loads || 0) + 1);
+      addEventListener("pageshow", (event) => { marker.dataset.persisted = String(event.persisted); });
+    </script>`);
     await page.navigate(`${second}#part`);
     expect(page.url()).toBe(`${second}#part`);
     expect((await page.back()).url).toBe(second);
     expect((await page.back()).url).toBe(first);
     expect((await page.forward()).url).toBe(second);
-    // Restored from the back-forward cache: the document was kept, its script did not run again.
-    expect(await read(`document.getElementById("n").dataset.loads`)).toBe("1");
+    // Chrome can evict BFCache entries under memory pressure: https://web.dev/articles/bfcache.
+    const persisted = await read<string>(`document.getElementById("n").dataset.persisted`);
+    expect(persisted).toMatch(/^(true|false)$/);
+    const loads = persisted === "true" ? 1 : 2;
+    expect(await read(`document.getElementById("n").dataset.loads`)).toBe(String(loads));
     await page.reload();
-    expect(await read(`document.getElementById("n").dataset.loads`)).toBe("2");
+    expect(await read(`document.getElementById("n").dataset.loads`)).toBe(String(loads + 1));
     await page.navigate("about:blank");
     await expect(page.forward()).rejects.toThrow(/no later page/);
   });

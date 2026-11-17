@@ -225,6 +225,7 @@ describe("authenticated browser viewer relay", () => {
     execute.mockImplementation(async (_command: string, args: string[]) => { order.push(args[0] === "stream" ? `stream ${args[1]}` : args[0]!); return output({ ...ready, connected: false }); });
     await open();
     expect(order).toEqual(["ready", "stream status", "open", "launched"]);
+    expect(runtime.launchReady).toHaveBeenCalledWith(expect.objectContaining({ command: "/trusted/agent-browser" }), "profile-a");
     expect(runtime.launched).toHaveBeenCalledWith("profile-a", expect.objectContaining({ command: "/trusted/agent-browser" }));
   });
   it("tells the viewer why the browser cannot start yet, and starts nothing", async () => {

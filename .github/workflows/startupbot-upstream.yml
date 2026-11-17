@@ -1,0 +1,41 @@
+name: StartupBot upstream report
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compare upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --no-tags https://github.com/milind-soni/OpenMausBot.git main:refs/remotes/upstream/main
+          base=$(git merge-base HEAD upstream/main)
+          {
+            echo '## Upstream changes'
+            echo "Common ancestor: $base"
+            echo "Commits ahead of this branch: $(git rev-list --count HEAD..upstream/main)"
+            echo '### Commits'
+            git log --oneline "$base"..upstream/main
+            echo '### License and dependency changes'
+            git diff --stat "$base" upstream/main -- LICENSE LICENSING.md NOTICE third_party enterprise pnpm-lock.yaml package.json
+            echo '### Merge conflict preview'
+            if preview=$(git merge-tree --write-tree HEAD upstream/main); then
+              echo 'No merge conflicts detected.'
+            else
+              status=$?
+              if [ "$status" -ne 1 ]; then exit "$status"; fi
+              printf '%s\n' "$preview"
+            fi
+            echo '### Recent releases'
+            gh api repos/milind-soni/OpenMausBot/releases --jq '.[0:5][] | [.tag_name,.published_at,.html_url] | @tsv'
+          } >> "$GITHUB_STEP_SUMMARY"

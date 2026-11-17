@@ -86,7 +86,7 @@ describe("useExternalChatLinks", () => {
     vi.stubGlobal("window", { location: { pathname: "/", search: "?thread=scout-main&bot=scout", hash: "" }, history: { replaceState } });
     const dispatch = vi.fn();
     render(loading, dispatch);
-    expect(fixture.link).toBe("openmausbot://thread/scout-main?bot=scout");
+    expect(fixture.link).toBe("startupbot://thread/scout-main?bot=scout");
     expect(replaceState).toHaveBeenCalledWith(null, "", "/");
     expect(dispatch).not.toHaveBeenCalled();
 

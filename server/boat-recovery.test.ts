@@ -473,7 +473,9 @@ describe("a cloud computer that is ready, silent, and still restoring its disk",
     resumeAnswers.add(box.id);
     await boat.findBoat(cfg, botId);
     stopsAnswering(box.id);
-    await until(() => recovery.status(botId)?.state === "restarted");
+    await until(() => recovery.status(botId)?.state === "restarted").catch((cause) => {
+      throw new Error(`restore recovery timed out: ${JSON.stringify({ status: recovery.status(botId), verdict: recovery.verdict(botId), requests: requests.map(({ method, path }) => ({ method, path })) })}`, { cause });
+    });
     expect(stops().map((request) => request.path)).toEqual([`/boxes/${box.id}/stop`]);
     expect(deletes()).toHaveLength(0);
   });

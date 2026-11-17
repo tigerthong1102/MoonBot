@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classifyProcesses, parseCgroupCpuMs, parseProcStat, parsePsLine, parsePsTime, parseReapedChildrenMs, type ProcessRow } from "./process-buckets.ts";
-import { createProcessSampler, linuxProcessList, type ProcessList } from "./process-sampler.ts";
+import { createProcessSampler, linuxProcessList, MAX_SAMPLED_PROCESSES, type ProcessList } from "./process-sampler.ts";
 
 const SERVER = 100;
 const row = (pid: number, ppid: number, name: string, cpuMs = 0, rssBytes = 1_048_576): ProcessRow => ({ pid, ppid, name, cpuMs, rssBytes, start: `s${pid}` });
@@ -41,7 +41,7 @@ describe("process buckets, from the executable's name and parent only", () => {
   });
 
   it("parses /proc stat lines (a comm with spaces and parentheses), ps lines and CPU counters", () => {
-    expect(parseProcStat(42, statLine(42, "Web Content (x)", 7, 150, 50))).toEqual({ pid: 42, ppid: 7, name: "web content (x)", cpuMs: 2_000, rssBytes: 256 * 4096, start: "5555" });
+    expect(parseProcStat(42, statLine(42, "Web Content (x)", 7, 150, 50))).toEqual({ pid: 42, ppid: 7, name: "web content (x)", cpuMs: 2_000, rssBytes: 256 * 4096, start: "5555", threads: 1, state: "S" });
     expect(parseProcStat(1, "garbage")).toBeNull();
     expect(parseReapedChildrenMs(statLine(1, "node", 0, 0, 0, 1, 300, 200))).toBe(5_000);
     expect(parsePsTime("1:02.50")).toBe(62_500);
@@ -65,9 +65,39 @@ describe("process buckets, from the executable's name and parent only", () => {
     expect(list).toMatchObject({ reapedMs: 100, totalMs: 9_000 });
     expect(read.every((path) => /^\/proc\/(\d+|self)\/stat$|^\/sys\/fs\/cgroup\//.test(path))).toBe(true);
   });
+
+  it("keeps the server process when a large process list is truncated", () => {
+    const names = Array.from({ length: MAX_SAMPLED_PROCESSES + 1 }, (_, index) => String(index + 100_000));
+    const list = linuxProcessList((path) => {
+      if (path === "/proc/self/stat") return statLine(process.pid, "server", 1, 1, 1);
+      const match = /^\/proc\/(\d+)\/stat$/.exec(path);
+      return match ? statLine(Number(match[1]), "worker", 1, 1, 1) : null;
+    }, () => names);
+    expect(list.rows).toHaveLength(MAX_SAMPLED_PROCESSES);
+    expect(list.truncated).toBe(true);
+    expect(list.rows.some((entry) => entry.pid === process.pid)).toBe(true);
+  });
 });
 
 describe("the sampler", () => {
+  it("marks a truncated process list in the report", async () => {
+    const sampler = createProcessSampler({ list: () => ({ rows: [row(SERVER, 1, "node")], reapedMs: null, totalMs: null, truncated: true }), intervalMs: 60_000, scope: "tree", serverPid: SERVER });
+    await sampler.sampleNow();
+    expect(sampler.report().truncated).toBe(true);
+  });
+  it("keeps the incomplete warning while an affected CPU interval is in the hour", async () => {
+    let clock = 1_800_000_000_000;
+    let truncated = true;
+    const sampler = createProcessSampler({ list: () => ({ rows: [row(SERVER, 1, "node")], reapedMs: null, totalMs: null, truncated }), intervalMs: 60_000, scope: "tree", serverPid: SERVER, now: () => clock, monotonic: () => clock });
+    await sampler.sampleNow();
+    truncated = false;
+    clock += 60_000;
+    await sampler.sampleNow();
+    expect(sampler.report().truncated).toBe(true);
+    clock += 60 * 60_000;
+    await sampler.sampleNow();
+    expect(sampler.report().truncated).toBeUndefined();
+  });
   it("answers who used the CPU in the last five and sixty minutes, with each bucket's peak", async () => {
     let clock = 1_800_000_000_000, mono = 0;
     let lists: ProcessList[] = [];

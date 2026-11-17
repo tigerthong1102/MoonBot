@@ -52,7 +52,8 @@ it("a key the provider rejects stops showing Ready until it changes or works aga
     };
 
     chat = "limit";
-    expect((await turn()).status).toBe("failed");
+    const limited = await turn();
+    expect(limited.status, JSON.stringify(limited)).toBe("failed");
     expect(await snapshot()).toMatchObject({ state: "available", authenticated: true });
     const afterLimit = await control(["messages", "--bot", bot.id, "--limit", "1"]);
     expect(afterLimit.bot.tasks.map((task: { title: string }) => task.title)).toHaveLength(1);
@@ -65,7 +66,7 @@ it("a key the provider rejects stops showing Ready until it changes or works aga
     // The renderer refetches /api/instances on a config event.
     await sse.until((frame) => frame.kind === "config" && frame.seq > seq);
     expect(await snapshot()).toEqual(expect.objectContaining({
-      state: "available", authenticated: false, reason: "The provider rejected this key. Change it in Settings → API keys.",
+      state: "available", authenticated: false, reason: "The provider rejected this key. Change it in Settings → AI.",
     }));
 
     await api("PUT", "/api/config", { openaiCompat: { key: BAD } });

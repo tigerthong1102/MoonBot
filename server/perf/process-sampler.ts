@@ -18,18 +18,20 @@ const BUCKETS_SHOWN = 12;
 
 export interface ProcessList {
   rows: ProcessRow[];
+  truncated?: boolean;
   /** CPU time of children the server waited for, so far (Linux), ms. */
   reapedMs: number | null;
   /** The whole home's CPU time so far (its cgroup, or the machine), ms. */
   totalMs: number | null;
 }
 
-interface Sample { at: number; windowMs: number; cpu: Partial<Record<ProcessBucket, number>>; total: number | null; driftMs: number; elu: number | null }
+interface Sample { at: number; windowMs: number; cpu: Partial<Record<ProcessBucket, number>>; total: number | null; driftMs: number; elu: number | null; truncated: boolean }
 
 export interface BucketReport { bucket: ProcessBucket; procs: number; cpu5mS: number; cpu60mS: number; peakPct: number; rssMB: number }
 export interface ProcessReport {
   at: number | null;
   intervalS: number;
+  truncated?: boolean;
   /** "all": every process this server can see (a Cloud home's machine is all its own); "tree": the server and what it started. */
   scope: "all" | "tree";
   samples: number;
@@ -42,19 +44,26 @@ export interface ProcessReport {
 
 const readText = (path: string): string | null => { try { return readFileSync(path, "utf8"); } catch { return null; } };
 
-/** Every process /proc shows, read synchronously: one stat file each. */
+export const MAX_SAMPLED_PROCESSES = 8_192;
+
 export function linuxProcessList(read: (path: string) => string | null = readText, list: () => string[] = () => readdirSync("/proc")): ProcessList {
   const rows: ProcessRow[] = [];
+  let truncated = false;
   let names: string[] = [];
   try { names = list(); } catch {}
   for (const name of names) {
     if (!/^\d+$/.test(name)) continue;
+    if (rows.length >= MAX_SAMPLED_PROCESSES) { truncated = true; break; }
     const text = read(`/proc/${name}/stat`);
     const row = text === null ? null : parseProcStat(Number(name), text);
     if (row) rows.push(row);
   }
   const self = read("/proc/self/stat");
-  return { rows, reapedMs: self === null ? null : parseReapedChildrenMs(self), totalMs: parseCgroupCpuMs(read("/sys/fs/cgroup/cpu.stat"), read("/sys/fs/cgroup/cpuacct/cpuacct.usage")) };
+  if (truncated && self !== null && !rows.some((row) => row.pid === process.pid)) {
+    const row = parseProcStat(process.pid, self);
+    if (row) rows[rows.length - 1] = row;
+  }
+  return { rows, ...(truncated ? { truncated: true } : {}), reapedMs: self === null ? null : parseReapedChildrenMs(self), totalMs: parseCgroupCpuMs(read("/sys/fs/cgroup/cpu.stat"), read("/sys/fs/cgroup/cpuacct/cpuacct.usage")) };
 }
 
 /** One `ps` over every process: the fallback where there is no /proc (macOS). */
@@ -83,6 +92,7 @@ export interface ProcessSamplerOptions {
   engines?: () => ReadonlyMap<number, string>;
   /** After each timed sample: other once-a-sample checks ride the same timer. */
   afterSample?: () => void;
+  seen?: (rows: readonly ProcessRow[], buckets: ReadonlyMap<number, ProcessBucket>, truncated: boolean) => void;
 }
 
 export function nodeUtilization(): () => number | null {
@@ -99,13 +109,14 @@ export function createProcessSampler(options: ProcessSamplerOptions) {
   const now = options.now ?? Date.now, monotonic = options.monotonic ?? (() => performance.now());
   const serverPid = options.serverPid ?? process.pid;
   const samples: Sample[] = [];
-  let previous: { at: number; rows: Map<number, { start: string; cpuMs: number; bucket: ProcessBucket; ppid: number }>; reapedMs: number | null; totalMs: number | null } | null = null;
-  let latest: { at: number; procs: Partial<Record<ProcessBucket, number>>; rss: Partial<Record<ProcessBucket, number>>; browsers: number } | null = null;
+  let previous: { at: number; rows: Map<number, { start: string; cpuMs: number; bucket: ProcessBucket; ppid: number }>; reapedMs: number | null; totalMs: number | null; truncated: boolean } | null = null;
+  let latest: { at: number; procs: Partial<Record<ProcessBucket, number>>; rss: Partial<Record<ProcessBucket, number>>; browsers: number; truncated?: boolean } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null, due = 0, running = false;
 
   const take = (list: ProcessList, driftMs: number) => {
     const at = monotonic();
     const buckets = classifyProcesses(list.rows, serverPid, options.scope === "tree", options.engines?.());
+    try { options.seen?.(list.rows, buckets, list.truncated === true); } catch {}
     const cpu: Partial<Record<ProcessBucket, number>> = {}, procs: Partial<Record<ProcessBucket, number>> = {}, rss: Partial<Record<ProcessBucket, number>> = {};
     const rows = new Map<number, { start: string; cpuMs: number; bucket: ProcessBucket; ppid: number }>();
     let browsers = 0;
@@ -128,11 +139,11 @@ export function createProcessSampler(options: ProcessSamplerOptions) {
     }
     if (previous) {
       const total = list.totalMs !== null && previous.totalMs !== null ? Math.max(0, list.totalMs - previous.totalMs) : null;
-      samples.push({ at: now(), windowMs: Math.max(1, at - previous.at), cpu, total, driftMs, elu: options.utilization?.() ?? null });
+      samples.push({ at: now(), windowMs: Math.max(1, at - previous.at), cpu, total, driftMs, elu: options.utilization?.() ?? null, truncated: list.truncated === true || previous.truncated });
       while (samples.length && samples[0]!.at <= now() - HOUR) samples.shift();
     } else options.utilization?.();
-    previous = { at, rows, reapedMs: list.reapedMs, totalMs: list.totalMs };
-    latest = { at: now(), procs, rss, browsers };
+    previous = { at, rows, reapedMs: list.reapedMs, totalMs: list.totalMs, truncated: list.truncated === true };
+    latest = { at: now(), procs, rss, browsers, ...(list.truncated ? { truncated: true } : {}) };
   };
 
   const tick = async () => {
@@ -178,6 +189,7 @@ export function createProcessSampler(options: ProcessSamplerOptions) {
       const elus = hour.flatMap((sample) => (sample.elu === null ? [] : [sample.elu]));
       return {
         at: latest?.at ?? null, intervalS: Math.round(options.intervalMs / 1000), scope: options.scope, samples: hour.length, buckets,
+        ...(latest?.truncated || hour.some((sample) => sample.truncated) ? { truncated: true } : {}),
         browsers: latest?.browsers ?? 0, unseen60mS: unseen === null ? null : round1(unseen / 1000),
         loop: { eluPct: elus.length ? Math.round(elus.at(-1)! * 100) : null, eluMaxPct: elus.length ? Math.round(Math.max(...elus) * 100) : null,
           driftP95Ms: Math.round(exactQuantile(drifts, 0.95)), driftMaxMs: Math.round(drifts.at(-1) ?? 0) },

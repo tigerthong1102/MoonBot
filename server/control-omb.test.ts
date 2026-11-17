@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type TestContext } from "vitest";
 
 import {
   controlResultSucceeded,
@@ -14,6 +14,34 @@ import {
 } from "../scripts/control-omb.ts";
 import { installedChrome, UI_MUTATING } from "../scripts/testing/control-omb-ui.ts";
 import { removeTempDir } from "./testing/cleanup.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
+import { request as mcpRequest } from "../scripts/mcp-server.ts";
+
+async function ownedVerification(context: TestContext, parentEnv: NodeJS.ProcessEnv = process.env) {
+  const owner = new AbortController();
+  const signal = AbortSignal.any([context.signal, owner.signal]);
+  const commands = new Set<Promise<unknown>>();
+  const launching = launchVerificationServer(parentEnv, signal);
+  context.onTestFinished(async () => {
+    owner.abort();
+    const session = await launching.catch(() => undefined);
+    await session?.close();
+    await Promise.allSettled(commands);
+  });
+  const session = await launching;
+  const request: typeof mcpRequest = (path, init = {}, baseUrl) => mcpRequest(path, {
+    ...init, signal: init.signal ? AbortSignal.any([signal, init.signal]) : signal,
+  }, baseUrl);
+  return {
+    session,
+    run(args: string[]) {
+      const command = runControlOmb(args, { env: { OPENMAUSBOT_URL: session.info.url }, request });
+      commands.add(command);
+      void command.then(() => commands.delete(command), () => commands.delete(command));
+      return command;
+    },
+  };
+}
 
 describe("control-omb command mapping", () => {
   it("treats unhealthy doctor and non-settled waits as command failures", () => {
@@ -64,7 +92,7 @@ describe("control-omb command mapping", () => {
     }
   });
 
-  it("finds the newest Chrome for Testing that agent-browser install unpacked", () => {
+  it("finds the newest Chrome for Testing that agent-browser install unpacked", async () => {
     const dir = mkdtempSync(join(tmpdir(), "omb-ui-tools-"));
     try {
       expect(installedChrome(dir, "linux")).toBeNull();
@@ -80,8 +108,7 @@ describe("control-omb command mapping", () => {
       writeFileSync(join(app, "Google Chrome for Testing"), "");
       expect(installedChrome(dir, "darwin")).toBe(join(app, "Google Chrome for Testing"));
     } finally {
-      // synchronous removal is fine here: nothing spawned inside the directory
-      void removeTempDir(dir);
+      await removeTempDir(dir);
     }
   });
 
@@ -245,7 +272,7 @@ describe("control-omb isolated verification loop", () => {
     })).rejects.toThrow("explicit loopback Podman machine");
   });
 
-  it("launches, drives a real fake-engine turn, and removes only its test data", async () => {
+  it("launches, drives a real fake-engine turn, and removes only its test data", async (context) => {
     const parentEnv = {
       ...process.env,
       COMPOSIO_API_KEY: "must-not-reach-the-fixture",
@@ -253,19 +280,18 @@ describe("control-omb isolated verification loop", () => {
       XAI_API_KEY: "must-not-reach-the-fixture",
       FAKE_CLAUDE_PROBE: "fixture-scripting-knob",
     };
-    const session = await launchVerificationServer(parentEnv);
-    const env = { OPENMAUSBOT_URL: session.info.url };
+    const { session, run } = await ownedVerification(context, parentEnv);
     try {
-      const doctor = await runControlOmb(["doctor"], { env }) as any;
+      const doctor = await run(["doctor"]) as any;
       expect(doctor.ok).toBe(true);
       expect(doctor.availableEngines).toEqual(["claude"]);
 
-      const created = await runControlOmb(["new-bot", "--name", "Verification Probe"], { env }) as any;
+      const created = await run(["new-bot", "--name", "Verification Probe"]) as any;
       const botId = created.bot.id as string;
-      await runControlOmb(["send", "--bot", botId, "--text", "hello from the verification test"], { env });
-      const settled = await runControlOmb(["wait", "--bot", botId, "--timeout", "20"], { env }) as any;
+      await run(["send", "--bot", botId, "--text", "hello from the verification test"]);
+      const settled = await run(["wait", "--bot", botId, "--timeout", "20"]) as any;
       expect(settled.status).toBe("settled");
-      const transcript = await runControlOmb(["messages", "--bot", botId, "--limit", "10"], { env }) as any;
+      const transcript = await run(["messages", "--bot", botId, "--limit", "10"]) as any;
       expect(transcript.messages.some((message: { role?: string }) => message.role === "bot")).toBe(true);
       const fixtureEnv = JSON.parse(readFileSync(session.fixtureDumpPath, "utf8")).env as Record<string, string>;
       expect(fixtureEnv).not.toHaveProperty("COMPOSIO_API_KEY");
@@ -278,9 +304,9 @@ describe("control-omb isolated verification loop", () => {
     }
     expect(existsSync(session.info.dataDir)).toBe(false);
     expect(existsSync(session.info.logPath)).toBe(true);
-  }, 30_000);
+  }, hostTimeout(30_000));
 
-  it("allows slow starter reads and renames within the fixture launch deadline", async () => {
+  it("allows slow starter reads and renames within the fixture launch deadline", async (context) => {
     const fetch = globalThis.fetch;
     const delayed: string[] = [];
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -293,7 +319,7 @@ describe("control-omb isolated verification loop", () => {
     });
     let session: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
     try {
-      session = await launchVerificationServer();
+      session = (await ownedVerification(context)).session;
       expect(delayed).toEqual(["/api/bots", expect.stringMatching(/^\/api\/bots\/[^/]+\/profile$/)]);
       const response = await fetch(`${session.info.url}/api/bots`);
       const body = await response.json() as { bots: Array<{ name: string }> };
@@ -302,21 +328,20 @@ describe("control-omb isolated verification loop", () => {
       spy.mockRestore();
       await session?.close();
     }
-  }, 30_000);
+  }, hostTimeout(30_000));
 
-  it("scripts the fake engine's tool calls from the launcher's environment", async () => {
-    const session = await launchVerificationServer({
+  it("scripts the fake engine's tool calls from the launcher's environment", async (context) => {
+    const { session, run } = await ownedVerification(context, {
       ...process.env,
       FAKE_CLAUDE_TOOL_CALLS: '[{"name":"Bash","input":{"command":"pnpm control:omb doctor","password":"fixture-secret"},"output":{"text":"fixture healthy","api_key":"fixture-output-secret"},"ok":true},{"name":"Bash","input":{"command":"false"},"output":"fixture command failed","ok":false}]',
     });
-    const env = { OPENMAUSBOT_URL: session.info.url };
     try {
-      const created = await runControlOmb(["new-bot", "--name", "Tool Script Probe"], { env }) as any;
+      const created = await run(["new-bot", "--name", "Tool Script Probe"]) as any;
       const botId = created.bot.id as string;
-      await runControlOmb(["send", "--bot", botId, "--text", "run both commands"], { env });
-      const settled = await runControlOmb(["wait", "--bot", botId, "--timeout", "20"], { env }) as any;
+      await run(["send", "--bot", botId, "--text", "run both commands"]);
+      const settled = await run(["wait", "--bot", botId, "--timeout", "20"]) as any;
       expect(settled.status).toBe("settled");
-      const transcript = await runControlOmb(["messages", "--bot", botId, "--limit", "10"], { env }) as any;
+      const transcript = await run(["messages", "--bot", botId, "--limit", "10"]) as any;
       const tools = transcript.messages
         .filter((message: { kind?: string }) => message.kind === "activity")
         .map((message: { tool?: { name?: string; ok?: boolean } }) => ({ name: message.tool?.name, ok: message.tool?.ok }));
@@ -347,5 +372,16 @@ describe("control-omb isolated verification loop", () => {
     } finally {
       await session.close();
     }
-  }, 30_000);
+  }, hostTimeout(30_000));
 });
+
+
+it("joins an in-flight fixture close before reporting a second close complete", async (context) => {
+  const { session } = await ownedVerification(context);
+  const first = session.close();
+  const second = session.close();
+  await second;
+  expect(existsSync(session.info.dataDir)).toBe(false);
+  expect(session.child.exitCode !== null || session.child.signalCode !== null).toBe(true);
+  await first;
+}, hostTimeout(30_000));

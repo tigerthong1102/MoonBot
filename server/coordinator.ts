@@ -1,5 +1,6 @@
 import { RuntimeCoordinator } from "./runtime-coordinator.ts";
 import type { WorkOrigin } from "./peer-provenance.ts";
+import type { RuntimeStore } from "./runtime/store.ts";
 import type { LegacyThreadResolver } from "./runtime/import-legacy.ts";
 import type { Answerer, Assignment, EnvelopeNames, Level, Limits, Mode, Origin, Outcome, Owner, Reply, Requester, StatusView, TurnEvidence } from "./runtime/types.ts";
 import type { ModelSelection } from "../shared/wire.ts";
@@ -101,6 +102,8 @@ export interface HostTurnResult {
   /** The host's stall watchdog stopped the turn, including a room turn a stall ended during setup, before it had an
    * outcome: it failed as `stalled`, not as a provider error. */
   stalled?: boolean;
+  /** A failed turn's cause in the system's own words and the engine's stop reason, apart from anything the bot said. */
+  failure?: { text: string; stopReason?: string | null };
 }
 
 export interface HandoffOpener {
@@ -244,12 +247,13 @@ export interface Coordinator {
 /** A plan's limit on handing out work. */
 export interface HandoffLimit {
   /** Why handing work to this bot is refused now, in words for the model that asked; null when it may go. `open` counts the
-   * hand-offs not yet ended. */
-  refusal(botId: string, open: () => number): string | null;
+   * hand-offs not yet ended; `origin` is whether the work traces to a person's own typed line. */
+  refusal(botId: string, open: () => number, origin?: "user" | "outside"): string | null;
 }
 
 export interface CoordinatorOptions {
   dataDir: string;
+  runtimeStore?: RuntimeStore;
   host: CoordinatorHost;
   handoffLimit?: HandoffLimit;
   now?: () => number;

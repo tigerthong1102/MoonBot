@@ -6,8 +6,19 @@ export function outcomesNewestFirst<T extends Outcome>(runs: readonly T[], routi
     .sort((a, b) => (b.finishedAt ?? b.createdAt) - (a.finishedAt ?? a.createdAt) || b.createdAt - a.createdAt);
 }
 
+const TIME = /\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g;
+const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+const PATH = /(?:\b[A-Za-z]:)?(?:[\\/][\w.@~+-]+){2,}[\\/]?/g;
+const PREFIXED_ID = /\b[a-z]{2,8}_[A-Za-z0-9]{8,}\b|\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{12,}\b/g;
+const LONG_NUMBER = /(?<![\w.-])\d{4,}(?![\w-]|\.\d)/g;
+
+export function failureShape(text: string): string {
+  return text.replace(TIME, "<time>").replace(PATH, "<path>").replace(UUID, "<id>").replace(PREFIXED_ID, "<id>")
+    .replace(LONG_NUMBER, "#").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 /** The run failed the same way the routine's previous outcome did. */
 export function failsLikeLastOutcome<T extends Outcome>(runs: readonly T[], run: T): boolean {
   const last = outcomesNewestFirst(runs, run.routineId, run.id)[0];
-  return last?.status === "failed" && last.error === run.error;
+  return last?.status === "failed" && failureShape(last.error ?? "") === failureShape(run.error ?? "");
 }

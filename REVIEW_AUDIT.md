@@ -1,5 +1,13 @@
 # Review audit — 2026-11-17
 
+## Latest Codex follow-up: 4da4eddd8
+
+- CONFIRMED: fatal-shutdown implementation overview, discussion 4600265635 / thread PRRT_kwDOVwGsl864dDaA. Remove the reported inline block and nine equivalent added internal comments in server/index.ts. Retain the owner-authority security invariants and external Composio fact. Complete comment-free TypeScript syntax, declarations and embedded program strings are unchanged.
+- Local validation: 91 crash-guard/watchdog/engine-record/restart/graceful-shutdown/room-recovery/routine-recovery/size tests and lint PASS. The focused current-head linked-member/Claude-approval tests also pass on Node 24.22.2 (four tests).
+- The previously confirmed linked-origin and complete-JSON-log findings are fixed by 4da4eddd8. No test, assertion, timeout, auth boundary or updater/release setting changes in this comment follow-up.
+- CI 44090707362 attempt 1 on 4da4eddd8: 32 jobs PASS; required macOS smoke CANCELED without executing steps because no hosted runner acquired the job; aggregate FAIL; deployment SKIPPED. Both native S4 jobs, all Ubuntu/Windows shards and installed Linux package smoke PASS. Windows shards 3/8 and 6/8 now pass without a production Boat change; their earlier transport failure/timeout cause was not reproduced and is not labeled flaky. GitHub check annotations explicitly identify macOS arm64 runner capacity as the current infrastructure blocker.
+- Only the abandoned macOS smoke and its dependent aggregate were retried on that SHA (attempt 2); previously passed jobs were retained. Docker 44090707377, connector 44090707364, docs 44090707342 and website 44090707352 PASS on 4da4eddd8. The next comment-only head requires its own checks and completed clean Codex review. No manual full matrix, gate bypass, main merge or release is performed. Qodo remains excluded at the owner's request.
+
 ## Latest Codex and CI follow-up: 522da6b64
 
 | Finding | Classification | Evidence |

@@ -1,5 +1,11 @@
 # Release readiness
 
+## Current Codex follow-up: 4da4eddd8
+
+The completed Codex review of `4da4eddd88c78dd1273c892c235fa7e3ef968abc` reports one confirmed fatal-shutdown comment-policy finding (discussion 4600265635). Remove that overview and nine equivalent added internal comments from server/index.ts. Complete comment-free TypeScript syntax, declarations and embedded strings are identical to the reviewed head; shutdown, engine cleanup, lease ordering, restart and usage-cap behavior do not change. All 91 focused crash/watchdog/engine-record/restart/graceful-shutdown/room-recovery/routine-recovery/size tests and lint pass.
+
+[CI 44090707362](https://github.com/tigerthong1102/MoonBot/actions/runs/44090707362), attempt 1, passed 32 jobs including every Ubuntu/Windows shard, both S4 jobs and the installed Ubuntu package smoke. The required macOS smoke never acquired a runner, and the aggregate correctly failed. GitHub's job annotations explicitly report hosted macOS arm64 capacity constraints. Only the abandoned macOS job and its dependent aggregate were retried on the same SHA; attempt 2 remains queued at this snapshot, retaining the passed jobs. Docker 44090707377, connector 44090707364, docs 44090707342 and website 44090707352 pass on 4da4eddd8. The follow-up head still requires its own required checks and completed clean Codex review. Source review readiness remains separate from commercial distribution and platform qualification.
+
 ## Latest PR #1 validation
 
 The reviewed head `522da6b64927b06a5ba7df5569845626913e0025` fixes the connector-helper comment finding and makes the descendant fixture wait for its PID before aborting. Its [CI run 44083246218](https://github.com/tigerthong1102/MoonBot/actions/runs/44083246218) failed the Linux container S4 resize regression; Docker, connector, docs and website passed on that SHA. The earlier [23542a6db CI](https://github.com/tigerthong1102/MoonBot/actions/runs/44080404476) was canceled with a real Ubuntu shard 7/8 fixture failure and is not a green baseline.

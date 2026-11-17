@@ -664,7 +664,7 @@ const STATIC_DIR = process.env.OMB_STATIC_DIR || null;
 
 dataFormatAtStart("check", DATA_DIR, serverVersion()); ensureDirs();
 // Acquire before any durable identity, sessions, config or Store state is loaded.
-const dataDirLease = acquireDataDirLeaseForProcess(DATA_DIR); void startEngineRecords(DATA_DIR); // stops what an earlier server left
+const dataDirLease = acquireDataDirLeaseForProcess(DATA_DIR); void startEngineRecords(DATA_DIR);
 const releaseDataDirLeaseAtExit = releaseOnceAtExit(dataDirLease);
 process.once("exit", releaseDataDirLeaseAtExit);
 // Restore before constructing any long-lived config, Store, session or provider objects.
@@ -2232,7 +2232,7 @@ function canAdmitDirectTurn(botId: string, threadId: string): boolean {
 }
 
 function unattendedDispatchState(botId: string): "ready" | "busy" | "missing" {
-  const found = store.bot(botId), bot = found?.home ? null : found; // A stand-in takes no automation here: its bot lives in another place.
+  const found = store.bot(botId), bot = found?.home ? null : found;
   const decision = admit("unattended", {}, {
     botPresent: Boolean(bot),
     atCapacity: Boolean(bot) && botAtThreadCapacity(botId),
@@ -3521,7 +3521,7 @@ type GroupTurnOperation = {
   queuedQueueIds?: string[];
   line?: RoomRoundLine;
   /** The person's room line this run answers (its member turns, mentions included, act for whoever wrote it), or the handed-on work it does. */
-  requestMessageId?: string; handedFor?: HandedRun; /** Whether a person's own line started this run, or the work handed on to it traces to one. */ personStarted?: boolean; /** A coordinated run that already started carries on: no usage cap refuses it. */ continuesRun?: boolean;
+  requestMessageId?: string; handedFor?: HandedRun; personStarted?: boolean; continuesRun?: boolean;
   origin?: WorkOrigin;
   goalRun?: LiveGoalRun; /** What the person pointed at in a member's page; taken once by the page's bot (takeRoomPick). */ pick?: RoomPick;
 };
@@ -7542,7 +7542,7 @@ async function beginTurn(
     /** A one-on-one goal step: a card continuation that is still its own turn, as a room goal step is. */
     goalRunId?: string;
     coordination?: { id: string; resumed: boolean; settle: (outcome: HostTurnResult) => void };
-    /** Carries on a run already started (a hand-off's result, an answered card, a restart): usage caps never refuse it. */ continuesRun?: boolean;
+    continuesRun?: boolean;
     /** A person's own send: it may run beside a room turn on another thread. */ allowRoomTurnElsewhere?: boolean;
   },
 ) {
@@ -8499,7 +8499,7 @@ async function beginTurn(
       let e = cause; perf.noteNotStarted(threadId, cause instanceof TurnNotStartedError ? cause.turnId : null, cause instanceof TurnUsageLimitRefusedError ? { limit: cause.scope, engine: registry.get(instanceId)?.driverKind ?? null, resetsAt: cause.resetsAt } : cause instanceof TurnAuthenticationRefusedError ? { signedOut: true } : {});
       // Only the driver can prove a task was never submitted; an error string is not that proof.
       const claimed = e instanceof TurnNotStartedError && directTurnClaimIsCurrent(bot.id, dispatchClaimId, threadId);
-      const mayRecover = claimed && !outOfProcesses((e as Error).message); // the server had no room: no backup AI is tried
+      const mayRecover = claimed && !outOfProcesses((e as Error).message);
       if (e instanceof TurnNotStartedError) {
         retireProviderTurn(e.turnId);
         if (e instanceof TurnUsageLimitRefusedError && !e.known) { if (e.scope === "engine") limitClock.noteLimit(instanceId, e.resetsAt); else limitTakeover.holdModel({ instanceId, model }, e.scope, e.resetsAt); } else if (e instanceof TurnAuthenticationRefusedError && !e.known) limitTakeover.noteSignedOut(instanceId);
@@ -9618,7 +9618,7 @@ async function runClaimedGroupMemberTurn(
   const ownsThread = group?.dm
     ? group.threadId === threadId
     : Boolean(group && store.groupTaskByThread(group.id, threadId));
-  if (!group || !bot || !ownsThread) return Boolean(group && ownsThread && botId.startsWith("link-")); // A member from another place that no record answers to is passed over; the round goes on.
+  if (!group || !bot || !ownsThread) return Boolean(group && ownsThread && botId.startsWith("link-"));
   if (roomHeld(group, bot.id) || botHolds.held(bot.id)) {
     noteHeldSkip(group.id, threadId, bot, latestRoomTextId(threadId));
     if (orchestration) {
@@ -15409,7 +15409,7 @@ const gracefulShutdown = createGracefulShutdown({
       }
       flushLaterSaves(); closeMessageDb();
       mcpOAuth.dispose();
-      markEngineRunClean(); releaseDataDirLeaseAtExit(); // before the lease: the next server must not sweep this run
+      markEngineRunClean(); releaseDataDirLeaseAtExit();
       process.exit(restartRequested && exitCode === 0 ? RESTART_EXIT_CODE : exitCode);
     };
     // Streamed text and lines queued after the cleanup flush reach disk before exit; the deadline already elapsed, so the wait is short.
@@ -15424,4 +15424,4 @@ const gracefulShutdown = createGracefulShutdown({
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => gracefulShutdown());
-installCrashGuard({ turnIdentity: threadId => watchdog.identity(threadId), failTurn: (turn) => watchdog.fail(turn.threadId), redact: redactSecretsInText, shutdown: (code) => { /* Fatal: no flush of what memory holds (ledgers, journals, sessions, bus, registries); running turns stay "running" in the runtime store, so the next start reruns them. Engines are stopped so none is orphaned. */ companyShutdown = true; try { noteTurnsCutByShutdown(); } catch { /* best effort */ } void Promise.race([registry.disposeAll(), new Promise((done) => setTimeout(done, 5_000))]).catch(() => {}).finally(() => { releaseDataDirLeaseAtExit(); process.exit(code); }); } }); threadMaps.start(keepThreadEntry(store, threadBusy));
+installCrashGuard({ turnIdentity: threadId => watchdog.identity(threadId), failTurn: (turn) => watchdog.fail(turn.threadId), redact: redactSecretsInText, shutdown: (code) => { companyShutdown = true; try { noteTurnsCutByShutdown(); } catch {} void Promise.race([registry.disposeAll(), new Promise((done) => setTimeout(done, 5_000))]).catch(() => {}).finally(() => { releaseDataDirLeaseAtExit(); process.exit(code); }); } }); threadMaps.start(keepThreadEntry(store, threadBusy));

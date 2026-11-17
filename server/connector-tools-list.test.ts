@@ -213,6 +213,35 @@ describe("paginated tools/list fallback", () => {
     expect(await currentFallback.json()).toMatchObject({ result: { tools: [{ name: "write" }] } });
   });
 
+  it("does not fall back to a page retired while an unsuccessful request was pending", async () => {
+    const backend = "retired-fallback";
+    await withToolsListFallback(backend, page("first"), async () => reply("first", "read", "old"));
+    await withToolsListFallback(backend, page("second", "old"), async () => reply("second", "write"));
+    const held = deferredResponse();
+    const pending = withToolsListFallback(backend, page("held", "old"), () => held.promise);
+
+    await withToolsListFallback(backend, page("new-first"), async () => reply("new-first", "read", "new"));
+    held.resolve(new Response("unavailable", { status: 503 }));
+
+    const failed = await pending;
+    expect(failed.status).toBe(503);
+    expect(await failed.text()).toBe("unavailable");
+  });
+
+  it("bounds cached continuation pages while retaining the first page", async () => {
+    const backend = "bounded-page-cache";
+    await withToolsListFallback(backend, page("first"), async () => reply("first", "read", "1"));
+    for (let i = 1; i <= 40; i += 1) {
+      const id = String(i);
+      await withToolsListFallback(backend, page(id, id), async () => reply(id, "read", String(i + 1)));
+    }
+
+    const unavailable = async () => new Response(null, { status: 503 });
+    expect((await withToolsListFallback(backend, page("oldest", "1"), unavailable)).status).toBe(503);
+    expect((await withToolsListFallback(backend, page("recent", "40"), unavailable)).status).toBe(200);
+    expect((await withToolsListFallback(backend, page("retry-first"), unavailable)).status).toBe(200);
+  });
+
   it("retains concurrent continuation pages when clients resume against an empty cache", async () => {
     const backend = "cold-concurrent-pages";
     const heldA = deferredResponse();

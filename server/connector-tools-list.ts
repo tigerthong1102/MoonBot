@@ -34,6 +34,7 @@ export function parseMcpResponse(text: string, id: unknown): Record<string, unkn
   return frames.filter(candidate).at(-1) ?? frames.map(diagnostic).filter((frame) => frame !== null).at(-1) ?? null;
 }
 
+const MAX_CACHED_CONTINUATIONS = 32;
 const lastToolsLists = new Map<string, Map<string | undefined, unknown>>();
 
 function toolsListId(payload: unknown): { id: unknown; cursor: string | undefined } | null {
@@ -66,14 +67,18 @@ export async function withToolsListFallback(
   const request = toolsListId(payload);
   if (!request) return send();
   const pagesAtStart = lastToolsLists.get(backend);
-  const cached = pagesAtStart?.get(request.cursor);
-  const fallback = () => Response.json({ jsonrpc: "2.0", id: request.id, result: cached });
+  const fallback = () => {
+    if (lastToolsLists.get(backend) !== pagesAtStart) return undefined;
+    const cached = pagesAtStart?.get(request.cursor);
+    return cached === undefined ? undefined : Response.json({ jsonrpc: "2.0", id: request.id, result: cached });
+  };
   let response: Response;
   try {
     response = await send();
   } catch (error) {
-    if (cached === undefined) throw error;
-    return fallback();
+    const cachedResponse = fallback();
+    if (cachedResponse) return cachedResponse;
+    throw error;
   }
   if (response.ok) {
     const result = toolsResult(await response.clone().text(), request.id);
@@ -85,13 +90,20 @@ export async function withToolsListFallback(
         if (pages === pagesAtStart || (pagesAtStart === undefined && !pages?.has(undefined))) {
           const current = pages ?? new Map<string | undefined, unknown>();
           current.set(request.cursor, result);
+          if (current.size > MAX_CACHED_CONTINUATIONS + Number(current.has(undefined))) {
+            const oldest = [...current.keys()].find((cursor) => cursor !== undefined);
+            current.delete(oldest);
+          }
           lastToolsLists.set(backend, current);
         }
       }
     }
-  } else if (cached !== undefined && (response.status >= 500 || response.status === 429)) {
-    await response.body?.cancel();
-    return fallback();
+  } else if (response.status >= 500 || response.status === 429) {
+    const cachedResponse = fallback();
+    if (cachedResponse) {
+      await response.body?.cancel();
+      return cachedResponse;
+    }
   }
   return response;
 }

@@ -45,16 +45,26 @@ export class ProcessBudget {
   private forceKilled = 0;
   private lateReaped = 0;
   private refused: (() => void) | null = null;
-  private readonly browserTasks: (sessions: readonly string[]) => number | null;
+  private readonly measureBrowserTasks: (sessions: readonly string[]) => ReadonlyMap<string, number | null>;
   private readonly pollMs: number;
   private readonly browsers = new Map<string, { since: number }>();
   private browserRuns: ((session: string) => boolean) | null = null;
   private browserPid: ((session: string) => number | null) | null = null;
-  private seenBrowsers: { at: number; tasks: number | null; reservations: ReadonlyMap<string, { since: number }> } | null = null;
+  private seenBrowsers: { at: number; tasks: ReadonlyMap<string, number | null>; reservations: ReadonlyMap<string, { since: number }> } | null = null;
 
   constructor(options: ProcessBudgetOptions = {}) {
     this.read = options.read ?? (() => readPids());
-    this.browserTasks = options.browserTasks ?? ((sessions) => browserTasksNow(sessions, { pid: (session) => this.browserPid?.(session) ?? null }));
+    const measure = options.browserTasks;
+    this.measureBrowserTasks = (sessions) => {
+      const rows = measure ? [] : linuxProcessList().rows;
+      const identities = new Map<number, string | null>();
+      const sessionOf = (pid: number) => {
+        if (!identities.has(pid)) identities.set(pid, agentBrowserSession(pid));
+        return identities.get(pid) ?? null;
+      };
+      return new Map<string, number | null>(sessions.map((session) => [session, measure ? measure([session])
+        : browserTasksNow([session], { rows, pid: (id) => this.browserPid?.(id) ?? null, sessionOf })]));
+    };
     this.now = options.now ?? Date.now;
     this.log = options.log ?? ((line) => console.warn(`processes: ${line}`));
     this.pollMs = options.pollMs ?? 1_000;
@@ -74,8 +84,11 @@ export class ProcessBudget {
 
   short(tasks: number, held: number): boolean {
     if (this.now() < this.holdUntil) return true;
-    const { max, current } = this.state(), limit = this.limitFor(max);
-    return limit !== null && current !== null && current + held + this.browsersHeld() + tasks > limit - margin(limit);
+    const initial = this.state();
+    if (this.limitFor(initial.max) === null || initial.current === null) return false;
+    const sampled = this.seenBrowsers, browserHeld = this.browsersHeld();
+    const { max, current } = this.seenBrowsers === sampled ? initial : this.state(), limit = this.limitFor(max);
+    return limit !== null && current !== null && current + held + browserHeld + tasks > limit - margin(limit);
   }
 
   private browsersHeld(): number {
@@ -87,9 +100,9 @@ export class ProcessBudget {
     const cached = this.seenBrowsers;
     const same = cached?.reservations.size === reservations.size && [...reservations].every(([session, reservation]) => cached.reservations.get(session) === reservation);
     if (!same || !cached || at - cached.at >= 1_000 || at < cached.at) {
-      this.seenBrowsers = { at, tasks: this.browserTasks([...reservations.keys()]), reservations };
+      this.seenBrowsers = { at, tasks: this.measureBrowserTasks([...reservations.keys()]), reservations };
     }
-    return starting + Math.max(0, reservations.size * BROWSER_TASKS - (this.seenBrowsers?.tasks ?? 0));
+    return starting + [...reservations.keys()].reduce((held, session) => held + Math.max(0, BROWSER_TASKS - (this.seenBrowsers?.tasks.get(session) ?? 0)), 0);
   }
 
   browserRoom(runs: (session: string) => boolean, pid?: (session: string) => number | null): { enter(session: string, admitted?: (rollback: () => void) => void): Promise<string | null> } {

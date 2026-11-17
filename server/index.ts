@@ -12648,6 +12648,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       loopbackTrust: LOOPBACK.trust,
       cliOwnerToken, trustLocalBrowser: LOOPBACK.localBrowsers, restricted: (session, m, p, u) => linkSessionRefusal(session, m, p) ?? (CLOUD_TEAM ? moveInRefusal(session, m, p, u) : null), scopeRefusal: (m, p) => liveScopeRefusal(cfg, m, p),
     });
+    if (gate.auth?.kind === "session") res.setHeader("cache-control", "private, no-store");
     // Public reachability probe: a stranger learns only the app name; pid and the static flag stay behind the gate.
     if (method === "GET" && path === "/api/health" && !gate.auth) {
       return json(res, 200, { app: "openmausbot" });

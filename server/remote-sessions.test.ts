@@ -326,19 +326,19 @@ describe("pairing", () => {
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("SameSite=Lax");
     expect(setCookie).toContain("Secure");
+    expect(setCookie).toMatch(/Max-Age=\d+/);
     const cookie = setCookie.split(";")[0];
 
     const sameOrigin = await call("/api/bots", { headers: remote("10.0.0.4", { cookie, origin: `http://${REMOTE_HOST}` }) });
     expect(sameOrigin.status).toBe(200);
-    const refreshed = header(sameOrigin.headers, "set-cookie");
-    expect(refreshed.split(";")[0]).toBe(cookie);
-    expect(refreshed).toMatch(/Max-Age=\d+/);
-    expect(refreshed).toContain("HttpOnly");
+    expect(header(sameOrigin.headers, "set-cookie")).toBe("");
+    expect(header(sameOrigin.headers, "cache-control")).toBe("private, no-store");
     const stranger = await call("/api/bots", { headers: remote("10.0.0.4", { cookie: `${cookie.split("=")[0]}=omb_sess_nope`, origin: `http://${REMOTE_HOST}` }) });
     expect(stranger.status).toBe(401);
     expect(header(stranger.headers, "set-cookie")).toBe("");
     const noOrigin = await call("/api/auth/session", { headers: remote("10.0.0.4", { cookie }) });
     expect(noOrigin.body).toMatchObject({ kind: "session", via: "cookie", label: "iPad in the kitchen" });
+    expect(noOrigin.body.id).toBe(res.body.session.id);
     const csrf = await call("/api/bots", { method: "POST", headers: remote("10.0.0.4", { cookie, origin: "https://evil.example" }), body: "{}" });
     expect(csrf.status).toBe(403);
     expect(csrf.body.error).toBe("forbidden: cross-origin request");

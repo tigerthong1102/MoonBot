@@ -79,6 +79,7 @@ describe("a browser on a self-hosted server's own machine", () => {
       const old = await pair();
       const late = await raw(url, "/api/auth/session", { ...fromPage(url), cookie: old.cookie });
       expect(late.status).toBe(200);
+      expect(late.headers["cache-control"]).toBe("private, no-store");
       const fresh = await pair();
       let cookie = fresh.cookie;
       const lateCookies = late.headers["set-cookie"];
@@ -87,6 +88,9 @@ describe("a browser on a self-hosted server's own machine", () => {
       const current = await raw(url, "/api/auth/session", { ...fromPage(url), cookie });
       expect(current.status).toBe(200);
       expect(JSON.parse(current.body)).toMatchObject({ kind: "session", id: fresh.session.id });
+      const bots = await raw(url, "/api/bots", { ...fromPage(url), cookie });
+      expect(bots.status).toBe(200);
+      expect(bots.headers["cache-control"]).toBe("private, no-store");
       expect(late.headers["set-cookie"]).toBeUndefined();
       expect((await raw(url, "/api/auth/session", { ...fromPage(url), cookie: old.cookie })).status).toBe(401);
       expect((await raw(url, "/api/bots", { ...otherPage, cookie })).status).toBe(403);

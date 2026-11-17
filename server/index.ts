@@ -3522,6 +3522,7 @@ type GroupTurnOperation = {
   line?: RoomRoundLine;
   /** The person's room line this run answers (its member turns, mentions included, act for whoever wrote it), or the handed-on work it does. */
   requestMessageId?: string; handedFor?: HandedRun; /** Whether a person's own line started this run, or the work handed on to it traces to one. */ personStarted?: boolean; /** A coordinated run that already started carries on: no usage cap refuses it. */ continuesRun?: boolean;
+  origin?: WorkOrigin;
   goalRun?: LiveGoalRun; /** What the person pointed at in a member's page; taken once by the page's bot (takeRoomPick). */ pick?: RoomPick;
 };
 
@@ -3798,7 +3799,7 @@ function noteQueuedBehindPerson(node: HandoffView): void {
 function runRoomNode(node: HandoffView, group: GroupRecord, bot: BotRecord, signal: AbortSignal, parent: HandoffView | undefined,
   turn: (operation: GroupTurnOperation, result: GroupTurnOrchestration["result"], coordination: NonNullable<GroupTurnOrchestration["coordination"]>) => Promise<unknown>, continuesRun = false,
 ): Promise<HostTurnResult> {
-  const operation = Object.assign(beginGroupTurnOperation(group.id, node.threadId, [bot.id]), { handedFor: actingPeople.handedRun(node.id), speaking: false, personStarted: node.origin?.kind === "user", continuesRun });
+  const operation = Object.assign(beginGroupTurnOperation(group.id, node.threadId, [bot.id]), { handedFor: actingPeople.handedRun(node.id), speaking: false, personStarted: node.origin?.kind === "user", origin: node.origin ?? OUTSIDE, continuesRun });
   return new Promise<HostTurnResult>(resolve => {
     let done = false;
     const finish = (outcome: HostTurnResult) => {
@@ -9626,7 +9627,7 @@ async function runClaimedGroupMemberTurn(
     }
     return true;
   }
-  heldInterrupts.delete(`${threadId}:${bot.id}`); if (botLink.rooms.forwards(bot)) { noteGroupTurn(spoken, botId); if (!orchestration) return botLink.rooms.memberTurn(group, threadId, bot, hop); orchestration.result.outcome = "unavailable"; orchestration.result.stopReason = botMoveRefusal(bot)!; return true; }
+  heldInterrupts.delete(`${threadId}:${bot.id}`); if (botLink.rooms.forwards(bot)) { noteGroupTurn(spoken, botId); if (!orchestration) return botLink.rooms.memberTurn(group, threadId, bot, hop, operation?.origin ?? (operation?.personStarted === false ? OUTSIDE : undefined)); orchestration.result.outcome = "unavailable"; orchestration.result.stopReason = botMoveRefusal(bot)!; return true; }
   if (bot.approvalGrant) {
     onDispatchError?.(`${bot.name}'s approval level is still being confirmed — skipped this round`);
     return true;
@@ -14388,7 +14389,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         }
         const opaque = connectorCalls.some(call => call.slug === "COMPOSIO_PROXY_EXECUTE");
         if (opaque && currentSender.connectorTools !== undefined && !sandbox.open(currentSender)) return refuseOutbound(sandbox.refusal);
-        // Files the call names on this computer are read now and listed on its card; they go to Composio's storage (Composio runs the tool, never reading this disk) only after the last check below.
+        // Composio runs tools remotely and cannot read files on this computer.
         const files = await prepareConnectorFiles(body, connectorFileDeps({ scope: connectorFileScope({ roots: messageFileRootsForThread(currentSender.id, internalCapability.threadId), attachmentStore: ATTACHMENTS_DIR, messages: store.messagesFor(internalCapability.threadId), appData: [DATA_DIR, process.env.OMB_USER_DATA], vm: localVmThreadTargets.get(internalCapability.threadId), guestRoot: VM_WORKSPACE_GUEST }), via: teamConnections.via(actor.access), serviceSlugs, appFor: (tool) => describeTool(tool).app })); if ("refusal" in files) return refuseOutbound(files.refusal);
         const fullAccess = outboundTool !== null && sendsFreely();
         const held: OutboundHoldAnswer = outboundTool

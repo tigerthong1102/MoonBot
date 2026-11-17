@@ -17,7 +17,8 @@ import { createDialer } from "./dial.ts";
 import { createBotLink, SPOOL_KEEP_MS, type BotLink } from "./link.ts";
 import { createBotLinkRoutes as routesOf, linkSessionRefusal } from "../routes/bot-link.ts";
 import { createLinkedRooms, followRoomMentions, type LinkedRooms } from "../host/bot-link-rooms.ts";
-import type { BotRecord } from "../store.ts";
+import type { WorkOrigin } from "../peer-provenance.ts";
+import type { BotRecord, GroupRecord } from "../store.ts";
 import { createRoomTranscript } from "../host/room-transcript.ts";
 import { EXCHANGE_BYTES, LINK_EXPIRES_MS, PAIR_PATH, STATE_PATH, SYNC_PATH, linkedId, peerKey, type Frame } from "./protocol.ts";
 
@@ -186,7 +187,7 @@ function place(label: string, bots: Bot[], version?: number) {
     attach: (id: string, name: string, words: string) => { const batch = ledger.get(`${id}:returned`) ?? { from: { botId: "x", name: "x" }, files: [] }; batch.files.push(keep(name, Buffer.from(words))); ledger.set(`${id}:returned`, batch); },
     /** The files still waiting in this place's spool folder. */
     spooled: () => { const root = join(dir, "bot-link-files"); return existsSync(root) ? readdirSync(root, { recursive: true }).map(String).filter((entry) => /[\\/](?:sent|returned)[\\/]/.test(entry)) : []; },
-    followed, followedSources, followedOrigins, routineThreads, get rooms() { return rooms; },
+    followed, followedSources, followedOrigins, routineThreads, member, get rooms() { return rooms; },
     /** A line in a room that takes no turn by itself: a bot's, an outside app's. */
     post(groupId: string, line: Omit<Line, "id">) { roomStore.appendMessage(groups.find((one) => one.id === groupId)!.threadId, line); },
     /** A room of this place; its members may live in either. */
@@ -1089,4 +1090,26 @@ it.each(["user", "outside", "unknown"] as const)("preserves %s provenance when a
     { id: "assignment", origin: kind === "unknown" ? undefined : kind === "user" ? { kind, request: "Please check" } : { kind } } as HandoffView);
   await queue.get("thread");
   expect(attended).toBe(kind === "user");
+});
+
+
+it.each(["user", "outside", "unknown"] as const)("preserves %s provenance when a linked reply mentions another linked member", async (kind) => {
+  const { computer, cloud } = await two();
+  const room = computer.room("Follow", ["local-writer", onCloud("cloud-analyst")]);
+  computer.post(room.id, { role: "user", kind: "text", text: "Old human request" });
+  computer.post(room.id, { role: "bot", kind: "text", text: "@Analyst please continue" });
+  const member = computer.member(onCloud("cloud-analyst")) as BotRecord;
+  const operation: { cancelled: boolean; personStarted?: boolean; origin?: WorkOrigin } = { cancelled: false };
+  const queue = new Map<string, Promise<void>>();
+  const follow = followRoomMentions({
+    members: () => [member], mentioned: () => [member], begin: () => operation,
+    finish: () => {}, queue, wait: async () => "run",
+    run: async (_group, thread, _bot, hop, _spoken, op) => computer.rooms.memberTurn(room as GroupRecord, thread, member, hop, op.origin),
+  });
+  const origin: WorkOrigin | undefined = kind === "unknown" ? undefined : kind === "user" ? { kind, request: "Current human request" } : { kind };
+  follow(room.id, room.threadId, { id: "remote-speaker" } as BotRecord, "@Analyst please continue", 0, { id: "assignment", origin } as HandoffView);
+  await queue.get(room.threadId);
+  await until(() => cloud.runs.length === 1, "linked follow-up reaches the recipient");
+  expect(cloud.runs[0]!.origin).toEqual(origin ?? { kind: "outside" });
+  expect(operation.personStarted).toBe(kind === "user");
 });

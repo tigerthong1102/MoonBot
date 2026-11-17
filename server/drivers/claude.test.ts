@@ -1178,6 +1178,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
 
   it("shows an MCP server's question as an approval card and answers it on stdin", async () => {
     const log = join(scratch, "control.ndjson");
+    writeFileSync(log, "");
     await create("hang", {
       FAKE_CLAUDE_ELICIT: JSON.stringify({ mcp_server_name: "github", message: "Allow access to your repos?", mode: "form", requested_schema: { type: "object", properties: {} } }),
       FAKE_CLAUDE_CONTROL_LOG: log,
@@ -1186,8 +1187,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     const opened = await recorder.until((e) => e.type === "request.opened");
     expect(opened).toMatchObject({ requestId: "elicitation:elicit-1", requestType: "permission", tool: "mcp__github", summary: "github: Allow access to your repos?", requiresExplicitApproval: true });
     await expect(instance.adapter.respondToRequest("t-elicit", "elicitation:elicit-1", { behavior: "allow" })).resolves.toBe("allowed-once");
-    await vi.waitFor(() => expect(existsSync(log)).toBe(true));
-    expect(JSON.parse(readFileSync(log, "utf8"))).toEqual({ type: "control_response", response: { subtype: "success", request_id: "elicit-1", response: { action: "accept", content: {} } } });
+    await vi.waitFor(() => expect(JSON.parse(readFileSync(log, "utf8"))).toEqual({ type: "control_response", response: { subtype: "success", request_id: "elicit-1", response: { action: "accept", content: {} } } }));
     await recorder.until((e) => e.type === "request.resolved" && e.requestId === "elicitation:elicit-1");
     await expect(instance.adapter.respondToRequest("t-elicit", "elicitation:elicit-1", { behavior: "allow" })).resolves.toBe("unavailable");
     await instance.adapter.interruptTurn("t-elicit");

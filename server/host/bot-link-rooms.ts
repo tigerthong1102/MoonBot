@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { writeFileAtomic } from "../atomic.ts";
 import { isLinkedId, parseLinked } from "../bot-link/protocol.ts";
 import type { Coordinator, HandoffOpener, HandoffView } from "../coordinator.ts";
-import { workOrigin } from "../peer-provenance.ts";
+import { OUTSIDE, workOrigin, type WorkOrigin } from "../peer-provenance.ts";
 import { redactSecretsInText } from "../redact.ts";
 import type { ServerLineKey } from "../server-lines.ts";
 import type { BotRecord, GroupRecord, Store } from "../store.ts";
@@ -153,7 +153,7 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
   return {
     forwards: (bot: Pick<BotRecord, "id" | "home"> | null | undefined): boolean => Boolean(bot?.home) && isLinkedId(bot!.id),
 
-    memberTurn(group: GroupRecord, threadId: string, member: BotRecord, hop: number): boolean {
+    memberTurn(group: GroupRecord, threadId: string, member: BotRecord, hop: number, suppliedOrigin?: WorkOrigin): boolean {
       const address = parseLinked(member.id);
       if (member.home?.gone || !deps.on() || !address || !deps.linked(address.peer)) {
         note(threadId, member.id, member.home?.gone === "missing" ? "server.rooms.linkedMissing" : "server.rooms.linkedGone");
@@ -172,7 +172,7 @@ export function createLinkedRooms(deps: LinkedRoomsDeps) {
         const path = store.activePath(threadId);
         const latest = path.findLast((message) => message.kind === "text" && Boolean(message.text))?.text ?? "";
         const opener = deps.opener?.(seatHere.botId, threadId);
-        const origin = workOrigin(path.findLast((message) => message.role === "user" && message.kind === "text" && Boolean(message.text)));
+        const origin = suppliedOrigin ?? workOrigin(path.findLast((message) => message.role === "user" && message.kind === "text" && Boolean(message.text)));
         try {
           coordinator.beginTurn({ id: root, address: seatHere, brief: latest.slice(0, 2_000), level: "full", ...(opener ? { opener } : {}), origin });
           const { node } = coordinator.enqueue(seatHere, root, undefined, { botId: member.id, threadId: thread }, latest.slice(0, 2_000) || `Your turn in the room ${group.name}`, { mode: "work", reply: "poll", thread: "standing" });
@@ -299,7 +299,7 @@ export function followRoomMentions<Operation extends { cancelled: boolean }>(por
   return (groupId, threadId, speaker, text, hop, source) => {
     const next = ports.mentioned(text, ports.members(groupId).filter((member) => member.id !== speaker.id));
     if (!next.length) return;
-    const operation = Object.assign(ports.begin(groupId, threadId, next.map((member) => member.id), source), { personStarted: source.origin?.kind === "user" });
+    const operation = Object.assign(ports.begin(groupId, threadId, next.map((member) => member.id), source), { personStarted: source.origin?.kind === "user", origin: source.origin ?? OUTSIDE });
     const turns = (ports.queue.get(threadId) ?? Promise.resolve()).then(async () => {
       const spoken = new Set<string>([speaker.id]);
       for (const member of next) {

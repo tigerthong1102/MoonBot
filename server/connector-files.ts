@@ -329,7 +329,6 @@ export async function uploadWithPermissionChecks(upload: NonNullable<PreparedFil
   finally { clearInterval(monitor); }
 }
 
-/** prepareConnectorFiles and its upload at once: the frame to send, or the refusal. */
 export async function stageConnectorFiles(frame: unknown, deps: FileStagingDeps): Promise<{ frame: unknown } | { refusal: string }> {
   const prepared = await prepareConnectorFiles(frame, deps);
   if ("refusal" in prepared) return prepared;
@@ -352,7 +351,6 @@ export function missingFileHint(): string {
     + "such as GOOGLEDRIVE_CREATE_FILE_FROM_TEXT.";
 }
 
-/** Adds missingFileHint to a failed result whose error is Composio not finding the call's file. */
 export function withMissingFileHint(bytes: Uint8Array, contentType: string, slugs: readonly string[]): Uint8Array {
   return withFailedCallHint(bytes, contentType, MISSING_STAGED_FILE, missingFileHint, slugs);
 }

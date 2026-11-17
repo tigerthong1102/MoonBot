@@ -21,8 +21,8 @@ function script(): { file: string; args: string[] } {
   folders.push(dir);
   return { file: "/bin/sh", args: ["-c", `sleep 30 & echo $! > "$0"; wait`, join(dir, "child.pid")] };
 }
-const childOf = async (path: string) => {
-  await vi.waitFor(() => expect(existsSync(path) && readFileSync(path, "utf8").trim()).toBeTruthy());
+const childOf = async (path: string, timeout = 1_000) => {
+  await vi.waitFor(() => expect(existsSync(path) && readFileSync(path, "utf8").trim()).toBeTruthy(), { timeout });
   return Number(readFileSync(path, "utf8").trim());
 };
 
@@ -60,13 +60,20 @@ describe.skipIf(!posix)("a child in a group of its own", () => {
     folders.push(dir);
     const pidFile = join(dir, "descendant.pid");
     const descendant = `process.on("SIGTERM", () => {}); require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setInterval(() => {}, 1000);`;
-    const command = `require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}], { stdio: "ignore" }); setInterval(() => {}, 1000);`;
-    const done = execFileInGroupAsync(process.execPath, ["-e", command], { timeout: 500 });
-    const pid = await childOf(pidFile);
+    const command = `setTimeout(() => require("node:child_process").spawn(process.execPath, ["-e", ${JSON.stringify(descendant)}], { stdio: "ignore" }), 800); setInterval(() => {}, 1000);`;
+    const abort = new AbortController();
+    const done = execFileInGroupAsync(process.execPath, ["-e", command], { signal: abort.signal }).then(() => null, error => error);
+    let pid: number | undefined;
     try {
-      await expect(done).rejects.toMatchObject({ killed: true });
-      await vi.waitFor(() => expect(alive(pid)).toBe(false));
-    } finally { try { process.kill(pid, "SIGKILL"); } catch {} }
+      pid = await childOf(pidFile, 5_000);
+      abort.abort();
+      expect(await done).toMatchObject({ killed: true });
+      await vi.waitFor(() => expect(alive(pid!)).toBe(false));
+    } finally {
+      abort.abort();
+      await done;
+      if (pid) { try { process.kill(pid, "SIGKILL"); } catch {} }
+    }
   });
 
   it("preserves a command spawn error through the group supervisor", async () => {

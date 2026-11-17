@@ -176,7 +176,7 @@ jobs:
         env:
           OMB_SMOKE_DIST: ${{ github.workspace }}/release/internal/mac/StartupBot.app/Contents/Resources/server
         run: |
-          node scripts/smoke-browser-bundle.mjs --resources release/internal/mac/StartupBot.app/Contents/Resources
+          node scripts/smoke-browser-bundle.mjs --resources "$PWD/release/internal/mac/StartupBot.app/Contents/Resources"
           node scripts/smoke-packaged-server.mjs --browser-bundle "$PWD/release/internal/mac/StartupBot.app/Contents/Resources/browser-engine"
       - run: node scripts/internal-build-metadata.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -233,7 +233,7 @@ jobs:
         env:
           OMB_SMOKE_DIST: ${{ github.workspace }}/release/internal/win-unpacked/resources/server
         run: |
-          node scripts/smoke-browser-bundle.mjs --resources release/internal/win-unpacked/resources
+          node scripts/smoke-browser-bundle.mjs --resources "$env:GITHUB_WORKSPACE/release/internal/win-unpacked/resources"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged browser smoke failed' }
           node scripts/smoke-packaged-server.mjs --browser-bundle "$env:GITHUB_WORKSPACE/release/internal/win-unpacked/resources/browser-engine"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged server smoke failed' }

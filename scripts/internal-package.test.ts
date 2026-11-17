@@ -15,6 +15,7 @@ describe("StartupBot internal distribution boundary", () => {
       expect(job.if).toBe("inputs.desktop");
       expect(JSON.stringify(job)).not.toMatch(/secrets\.|gh release|packages:\s*write|contents:\s*write/);
       expect(job.steps.find((step: { run?: string }) => step.run?.includes("electron-builder")).run).toContain("--publish never");
+      expect(job.steps.find((step: { run?: string }) => step.run?.includes("smoke-browser-bundle.mjs")).run).not.toContain("--resources release/");
       const smoke = job.steps.findIndex((step: { run?: string }) => step.run?.includes("smoke-internal-desktop.mjs"));
       const metadata = job.steps.findIndex((step: { run?: string }) => step.run?.includes("internal-build-metadata.mjs"));
       const upload = job.steps.findIndex((step: { uses?: string }) => step.uses?.startsWith("actions/upload-artifact"));

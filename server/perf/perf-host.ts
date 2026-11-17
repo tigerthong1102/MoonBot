@@ -89,7 +89,7 @@ export function createPerfHost(deps: PerfHostDeps) {
     list: linux ? () => linuxProcessList() : psProcessList, intervalMs: linux ? LINUX_SAMPLE_MS : OTHER_SAMPLE_MS,
     scope: deps.wholeMachine && linux ? "all" : "tree", utilization: nodeUtilization(), now, engines: enginePids,
     stalled: (ms) => say("loop", `event loop stalled: the ${linux ? 60 : 300}s sampler fired ${duration(ms)} late`), afterSample: watchHolds,
-    seen: (rows, buckets) => processes.sample(rows, buckets),
+    seen: (rows, buckets, truncated) => processes.sample(rows, buckets, truncated),
   });
   if (deps.timer !== false && !windows) sampler.start();
   const stalls = deps.stalls ?? createLoopStalls();

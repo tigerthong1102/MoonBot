@@ -30,6 +30,12 @@ const quiet = { running: 0, queued: 0, longestWaitMs: 0, most: null, queuedEver:
 const none = { limit: null, spawnFailed: { EAGAIN: 0, EMFILE: 0, ENFILE: 0, ENOMEM: 0, ENOENT: 0, other: 0 }, forceKilled: 0, lateReaped: 0 };
 
 describe("the process-room record", () => {
+  it("marks process counts from an incomplete sample", () => {
+    const health = createProcessHealth({ platform: "linux", limits: () => limits(), memoryLimitBytes: () => null, fds: () => 0, turns: () => quiet, counts: () => none });
+    health.sample(rows(), new Map(), true);
+    expect(health.report().sampleIncomplete).toBe(true);
+    expect(processHealthLines(health.report()).join("\n")).toContain("incomplete sample");
+  });
   it("accounts for engine kinds beyond the display limit", () => {
     const kinds = [...ENGINE_PROCESS_KINDS, ...CHAT_RUNTIME_KINDS].slice(0, 10);
     const list = kinds.map((_, i) => row(i + 100, SERVER, "engine"));
@@ -163,6 +169,7 @@ describe("the process-room record", () => {
     let reads = 0;
     const list = linuxProcessList((path) => { if (/^\/proc\/\d+\/stat$/.test(path)) { reads += 1; return `${path.split("/")[2]} (node) S 1 1 1 0 -1 0 0 0 0 0 1 1 0 0 20 0 7 0 5 0 10 0`; } return null; }, () => names);
     expect(list.rows).toHaveLength(MAX_SAMPLED_PROCESSES);
+    expect(list.truncated).toBe(true);
     expect(reads).toBe(MAX_SAMPLED_PROCESSES);
   });
 

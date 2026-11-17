@@ -34,6 +34,7 @@ export interface ProcessTally {
 }
 
 export interface ProcessHealth {
+  sampleIncomplete?: boolean;
   pid1: ProcessLimits["pid1"];
   reaper: ProcessLimits["reaper"];
   serverIsPid1: boolean;
@@ -115,7 +116,7 @@ export function createProcessHealth(deps: ProcessHealthDeps = {}) {
   const fds = deps.fds ?? (() => (platform === "linux" ? openDescriptors() : "unknown"));
   const turns = deps.turns ?? (() => engineMemory.counts());
   const counts = deps.counts ?? (() => processBudget.counts());
-  let now: ProcessTally | null = null, peak: ProcessTally | null = null;
+  let now: ProcessTally | null = null, peak: ProcessTally | null = null, incomplete = false;
   const told = new Set<string>();
 
   const report = (): ProcessHealth => {
@@ -124,7 +125,7 @@ export function createProcessHealth(deps: ProcessHealthDeps = {}) {
       pid1: read.pid1, reaper: read.reaper, serverIsPid1: (deps.pid ?? process.pid) === 1,
       limits: { pids: read.pidsMax, memMB: memory === undefined ? "unknown" : memory === null ? "none" : Math.round(memory / MB), nproc: read.nproc,
         shmMB: read.shmBytes === "unknown" ? "unknown" : Math.round(read.shmBytes / MB), gate: count.limit ?? "none" },
-      now: now ?? "unknown", peak: peak ?? "unknown",
+      now: now ?? "unknown", peak: peak ?? "unknown", ...(incomplete ? { sampleIncomplete: true } : {}),
       kernelPeak: { pids: kernel.pids ?? "unknown", memMB: kernel.memoryBytes === null ? "unknown" : Math.round(kernel.memoryBytes / MB) },
       turns: { running: turn.running, queued: turn.queued, longestWaitS: Math.round(turn.longestWaitMs / 1000), most: turn.most ?? "none" },
       since: { queued: turn.queuedEver, starved: turn.starvedEver, spawnFailed: count.spawnFailed, forceKilled: count.forceKilled, lateReaped: count.lateReaped },
@@ -133,8 +134,9 @@ export function createProcessHealth(deps: ProcessHealthDeps = {}) {
 
   return {
     /** After each of the sampler's process lists: nothing here on a platform that has none. */
-    sample(rows: readonly ProcessRow[], buckets: ReadonlyMap<number, ProcessBucket>): void {
+    sample(rows: readonly ProcessRow[], buckets: ReadonlyMap<number, ProcessBucket>, truncated = false): void {
       const read = limits();
+      incomplete = truncated;
       now = tally(rows, buckets, fds(), read.pidsCurrent);
       peak = peakOf(peak, now);
       const limit = counts().limit ?? (typeof read.pidsMax === "number" ? read.pidsMax : null);
@@ -167,7 +169,7 @@ export function processHealthLines(health: ProcessHealth): string[] {
   const failed = Object.entries(health.since.spawnFailed).filter(([, n]) => n > 0).map(([code, n]) => `${code} ${n}`).join(", ") || "none";
   return [
     `Process room: ${limitsLine(health)}; new engines kept below ${words(health.limits.gate)} processes and threads`,
-    `  Now: ${health.now === "unknown" ? "unknown (no process list on this system)" : tallyLine(health.now)}`,
+    `  Now${health.sampleIncomplete ? " (incomplete sample)" : ""}: ${health.now === "unknown" ? "unknown (no process list on this system)" : tallyLine(health.now)}`,
     `  Most since start (sampled): ${health.peak === "unknown" ? "unknown" : tallyLine(health.peak)}`,
     `  Most since start (kernel): ${words(health.kernelPeak.pids)} processes and threads, ${words(health.kernelPeak.memMB, " MB")} memory`,
     `  Turns: ${health.turns.running} running, ${health.turns.queued} waiting for room (longest ${health.turns.longestWaitS}s), at most ${words(health.turns.most)} at once`,

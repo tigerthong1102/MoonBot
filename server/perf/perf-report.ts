@@ -124,7 +124,7 @@ export function perfLines(sources: PerfSources, recent: readonly TurnTiming[], r
     `bot ${turn.botId ?? "?"} thread ${turn.threadId ?? "?"} ${turn.engine ?? "?"} ${duration(turn.ageMs)}, ${turn.state}${turn.tool ? ` (${turn.tool})` : ""} for ${duration(turn.stateMs)}`).join("; ") : "no turn"}`);
   const proc = sources.process;
   if (proc && proc.samples) {
-    lines.push(`Processes, last hour (${proc.scope === "all" ? "every process here" : "this app's own"}, sampled every ${proc.intervalS}s): ${proc.buckets.map((bucket) =>
+    lines.push(`Processes, last hour (${proc.scope === "all" ? "every process here" : "this app's own"}, sampled every ${proc.intervalS}s${proc.truncated ? "; latest sample incomplete" : ""}): ${proc.buckets.map((bucket) =>
       `${bucket.bucket} ${bucket.cpu60mS}s CPU (5 min ${bucket.cpu5mS}s, peak ${bucket.peakPct}% of a core, ${bucket.procs} running, ${bucket.rssMB} MB)`).join("; ")}`);
     lines.push(`  Browsers running: ${proc.browsers}${proc.unseen60mS !== null ? `; CPU no sample accounts for: ${proc.unseen60mS}s` : ""}`);
     lines.push(`Event loop: busy ${proc.loop.eluPct ?? "?"}% (max ${proc.loop.eluMaxPct ?? "?"}%), sampler timer late p95 ${duration(proc.loop.driftP95Ms)}, max ${duration(proc.loop.driftMaxMs)} (one reading per sample)`);

@@ -79,7 +79,6 @@ test("the address of a bot of the other place is the link's own, only while the 
   t.after(() => h.link.close());
   assert.equal(h.link.address("cloud", "scout"), null, "not linked yet");
   await h.link.look();
-  // sha256("cloud-1") and sha256 of this computer's id, cut to eight: server/bot-link/address.test.ts holds both sides to it.
   assert.equal(h.link.address("cloud", "scout"), linkedAddress("cloud-1", "scout"));
   assert.equal(h.link.address("computer", "scout"), linkedAddress("11111111-1111-4111-8111-111111111111", "scout"));
   assert.match(h.link.address("cloud", "scout"), /^link-[0-9a-f]{8}-scout$/);

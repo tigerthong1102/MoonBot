@@ -1,8 +1,3 @@
-// A routine whose runs keep failing is never turned off for it. Each failed run spent the bot's AI, so after a few in a
-// row its scheduled runs are spaced out as for a cloud computer that does not start, and every occurrence held back is
-// counted on one `missed` row. The first run that completes, turning the routine on again, or any change to it ends the
-// spacing, and so does a run only the owner's AI account stopped (signed out, out of credit, a usage limit). A run that
-// never started work counts for nothing here.
 import { envWhole } from "./env-limits.ts";
 import { afterSpacing, noStartSpacing } from "./routine-no-start.ts";
 import { outcomesNewestFirst } from "./routine-outcomes.ts";

@@ -1,8 +1,3 @@
-// A real Cloud home and its agents tools: a bot asks for two secrets StartupBot does not keep, the person types each
-// into its card, and the bot uses them. Each recognisable value is then searched for in everything the server wrote (the
-// data folder, its events, transcripts, usage spans and logs), every answer it gave, every tool result and its own log.
-// Both are saved to the Vault for the bot, sealed, so asking again needs no card. The file secret is found only in its
-// private files; the ref secret only in the MCP server settings it was saved into.
 import { randomBytes } from "node:crypto";
 import { type ChildProcess, spawn } from "node:child_process";
 import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";

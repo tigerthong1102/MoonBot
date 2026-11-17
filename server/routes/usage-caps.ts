@@ -1,5 +1,4 @@
-// The usage caps as the owner sets them: GET /api/usage/caps answers with the saved caps, what the environment sets
-// and each cap's use now; PUT replaces the saved caps. Admin scope only: on a self-hosted server that is its owner.
+// Usage-cap configuration is restricted to the server owner or an authorized administrator.
 import { CAP_FIELDS, usageCapsSchema, type CapLimits, type UsageCapsConfig } from "../usage-caps.ts";
 import type { UsageCapView } from "../host/usage-cap-gate.ts";
 import { schemaIssue } from "../schema.ts";

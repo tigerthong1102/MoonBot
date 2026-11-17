@@ -1,8 +1,4 @@
-// OpenMausBot's own MCP servers (agents, browser, computer, data, email, device) reached by URL instead of a stdio proxy
-// process each: every engine process otherwise starts one Node helper per server, about 7 threads each, all counted
-// against a container's pids limit. The URL form is the endpoint those proxies forward to (routes/own-mcp-http.ts), with
-// the same capability token, so identity and permissions are the stdio form's. The permission prompt server (ogb, over the
-// turn's broker socket), the Android phone tools (which run adb themselves) and the person's own servers stay as they are.
+// HTTP and stdio transports must enforce the same capability identity and permissions.
 import { botBox } from "../bot-box/box.ts";
 import { ownMcpOverHttp } from "./turn-mcp.ts";
 

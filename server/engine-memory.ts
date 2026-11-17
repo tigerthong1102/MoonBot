@@ -1,5 +1,4 @@
-// Each engine process and the MCP servers it starts take hundreds of MB, and a Linux machine without swap that runs out
-// keeps reclaiming, unresponsive, long before its OOM killer acts; in a container the kernel stops engines instead.
+// Linux memory pressure can stall a host before the OOM killer terminates a process.
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ChildProcess } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
@@ -650,10 +649,6 @@ export class EngineMemory {
     return this.idle() ?? (this.othersBusy(threadId) === 0 ? "admit" : "wait");
   }
 
-  /** Whether this start's processes would not fit under the server's pids limit. A browser starts on a bot's first browser
-   * call, not with its engine, and itself waits for room before it opens (browser-room.ts): room for one more
-   * is kept while any start pending may open one, rather than one for every such start, which would let one turn in at a
-   * time. Browsers already running count in the limit's own count. */
   private crowded(start: "process" | "session", threadId: string, heldTasks: number, heldBrowser: boolean): boolean {
     if (!this.processes) return false;
     const browser = heldBrowser || this.browserStarts(threadId) ? BROWSER_TASKS : 0;

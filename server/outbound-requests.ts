@@ -66,7 +66,7 @@ export class OutboundRequestService {
   }
 }
 
-/** One app action on a card, with the files of this computer it will upload (server/connector-files.ts). */
+/** One app action on a card, with the files of this computer it will upload. */
 export type CardCall = ConnectorCall & { files?: ReadonlyArray<{ name: string; path: string; bytes: number }> };
 
 function fileSize(bytes: number): string {

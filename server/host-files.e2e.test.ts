@@ -164,8 +164,6 @@ describe("file tools on this computer, through its bridge", () => {
     const gate = await controlServer();
     const controller = new AbortController();
     const sessions: ChatToolSession[] = [];
-    // The first start gets the whole start budget, so a slow runner lists the real tools instead of the stand-in
-    // (computer_tools_status, chat-host-computer.ts); a later turn waits only briefly and goes on with the list remembered.
     const mount = async (env: Record<string, string>, startupMs: number) => {
       const turn = withHostFileTools({ localComputer: gatedLocalComputer(driver(env), gate.control) });
       const localComputer = { ...turn!.localComputer!, env: { ...turn!.localComputer!.env, HOME: home, USERPROFILE: home } };

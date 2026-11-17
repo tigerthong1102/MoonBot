@@ -1,8 +1,4 @@
-// Dated copies of the settings file, and the rule that a save never replaces a file it could not read.
-//
-// config.json holds every credential and connection of the install. A save that starts from a failed read writes
-// only the patched sections over the whole file and the rest is gone: the dated copies are what make that
-// recoverable, and the refusal is what keeps it from happening.
+// A failed read of config.json must never authorize overwriting credentials or connections.
 import { existsSync, readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 

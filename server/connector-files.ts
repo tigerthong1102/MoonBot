@@ -1,8 +1,5 @@
-// A connected-app tool that takes a file (GOOGLEDRIVE_UPLOAD_FILE's file_to_upload, a Gmail attachment) reads it from
-// Composio's file storage by `s3key`: Composio runs the tool on its own servers and never sees this computer's disk. A
-// bot that names a file in its working folder (C:\Users\…\report.pdf) gets the file uploaded here first, and the call
-// carries the `{ name, mimetype, s3key }` Composio asks for. Files are read before the call's checks and approval card,
-// and uploaded only after its last check, right before it goes out.
+// Composio reads uploaded files by { name, mimetype, s3key }, not from the caller's disk.
+// File uploads require the final authorization and approval checks to succeed.
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -49,7 +46,7 @@ export interface FileStagingDeps {
   /** The file at `path` when the bot may send it; null when there is no such file there, or it is outside the bot's
    * folders: the value is then not one of its files and is left as it is. Throws why a file there may not be sent. */
   open(path: string, maxBytes?: number): Promise<OpenedLocalFile | null>;
-  /** Composio's upload link and key for the file (server/composio-files.ts). */
+  /** Composio's upload link and key for the file. */
   requestUpload(request: { toolkit_slug: string; tool_slug: string; filename: string; mimetype: string; md5: string }): Promise<{ key: string; url: string }>;
   /** The toolkit a tool belongs to (GOOGLEDRIVE_UPLOAD_FILE → googledrive). */
   toolkitFor(tool: string): string;

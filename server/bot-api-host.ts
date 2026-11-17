@@ -1,7 +1,3 @@
-// The Bot API's two sides. Outside: `POST /hooks/api/bots/<id>/messages` on the webhook receiver, a bearer key, a
-// message in, the bot's reply out; the turn it starts is outside work (the "api" trigger), so it never acts for the
-// person, is told the message came from outside, and anything that needs an approval waits for the person in the thread.
-// Inside: the app's routes to switch it on, mint a key and switch it off, open only to whoever may edit the bot.
 // Security: the owner may mark a key as acting for them (`acts-as-owner`, off by default, owner only, never on a team's
 // Cloud or a hosted workspace without the operator's policy). A thread such a key opens runs at the bot's own level with
 // its saved allowances, as the owner's work, and is not outside; the never-list, the safety floor and the level's own

@@ -164,7 +164,7 @@ export interface SendTurnInput {
   systemStable?: string;
   systemVolatile?: string;
   /** The team roster as it appears in systemStable. It changes whenever a bot is added, renamed or removed, so a per-thread
-   * process keys on systemStable without it and a warm one gets a changed roster as a note (prompt-split.ts). */
+   * process keys on systemStable without it and a warm one gets a changed roster as a note. */
   systemRoster?: string;
   /** The message tags teammates, so digest-based delivery must not suppress the mentions note even when it is unchanged. */
   mentionTurn?: boolean;

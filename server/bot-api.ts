@@ -32,7 +32,7 @@ const recordSchema = z.object({
   keyCreatedAt: z.number().finite().nonnegative(),
   callCount: z.number().int().nonnegative(),
   lastCalledAt: z.number().finite().nonnegative().optional(),
-  /** The owner marked this key as acting for them (bot-api-host.ts): a thread it opens runs at the bot's own level. A new
+  /** The owner marked this key as acting for them: a thread it opens runs at the bot's own level. A new
    * key starts without it. */
   actsAsOwner: z.literal(true).optional(),
 });

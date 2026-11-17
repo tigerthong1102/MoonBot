@@ -1,5 +1,4 @@
-// What bounds how many processes this server may hold, read from Linux's own files. Everything is "unknown" where the
-// file is not there (macOS, Windows, a sandbox that hides /sys): callers treat unknown as no information, never as zero.
+// Linux cgroup limits may be unavailable on other platforms or inside restricted sandboxes.
 import { readFileSync, readdirSync, statfsSync } from "node:fs";
 
 export type Unknown = "unknown";

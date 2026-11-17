@@ -141,7 +141,6 @@ describe("the process-room record", () => {
     expect(JSON.stringify(trimmedProcessHealth(processes)).length).toBeLessThan(alone / 2 + 200);
     expect(trimmedProcessHealth(processes)).toMatchObject({ peak: "unknown", since: processes.since, turns: processes.turns });
     expect(Object.keys((trimmedProcessHealth(processes).now as { engines: object }).engines)).toHaveLength(4);
-    // The rest of the report at its fullest, as perf-privacy.test.ts builds it, leaves room for it.
     let clock = 1_800_000_000_000;
     const big = createTurnTimings({ now: () => clock });
     const kinds = ["mcp__browser__a", "mcp__computer__a", "Bash", "Read", "WebSearch", "WebFetch", "mcp__x__y", "remember", "routine", "publish_page", "show_widget", "delegate", "phone_tap", "TodoWrite", "generate_image", "mcp__data__q", "GMAIL_SEND_EMAIL", "anything"];

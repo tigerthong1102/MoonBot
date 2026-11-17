@@ -1,7 +1,4 @@
-// A turn nobody is watching (a routine's, a webhook's or an app event's, work a bot handed on from one of those) has an
-// upper bound on the time it works, the requests it makes to its AI and the permission requests it has denied: past
-// one, the turn is stopped with one line saying which. Silence is the turn watchdog's to judge; these bound a turn that
-// keeps going. A turn a person started in a chat is never counted.
+// Unattended work is bounded by duration, model requests and permission denials.
 import type { ServerTextParams } from "../../shared/server-text.ts";
 import type { RuntimeEvent } from "../contracts.ts";
 import { chatNotice, failedNoticeTool, type ChatNoticeKey } from "../chat-notices.ts";

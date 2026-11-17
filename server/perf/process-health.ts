@@ -1,7 +1,4 @@
-// How close this server is to the limits on what it may run, for the next report of "out of processes": what process 1 is,
-// the container's limits, how many processes, threads, zombies and open files there are now and at their most, and how
-// often turns had to wait or a spawn was refused. Privacy invariant: numbers and the fixed words below only. Never a
-// command line, an argument, a path, a name or anything a bot or a person wrote.
+// Privacy: report only counts and fixed labels, never command lines, arguments, paths or user content.
 import { boxMemory } from "../box-memory.ts";
 import { CHAT_RUNTIME_KINDS, ENGINE_PROCESS_KINDS, engineMemory } from "../engine-memory.ts";
 import { openDescriptors, readCgroupMemory, readCgroupPeaks, readProcessLimits, type ProcessLimits, type Unknown } from "../process-limits.ts";

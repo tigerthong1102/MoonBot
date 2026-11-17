@@ -1,6 +1,3 @@
-// Usage caps on a real server with the scripted engine, whose every turn books $0.01: a cap set through the owner's route
-// lets the turn that reaches it finish, then refuses a Bot API call and a webhook, counts a routine's scheduled run on one
-// skipped row, tells the owner once, still answers the owner's own message, and lets everything start again once raised.
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

@@ -1,9 +1,3 @@
-// What an unattended routine run's failure turns into: a failure starts the run once more after a short wait, unless a
-// second start could only repeat or undo it (a stall the turn watchdog stopped, a stop someone pressed or typed, a
-// refusal, a spent cap, a fault of this server or its tool servers that a retry cannot fix); a busy target is waited
-// for, a usage limit with a known reset is waited out, and what only the owner can fix fails at once and is told to them
-// once per bot and cause, until one of that bot's runs completes.
-// A teammate's failed thread takes the same verdict (host/chief-notices.ts).
 import type { RuntimeEvent } from "../shared/runtime-events.ts";
 import type { ServerText } from "../shared/server-text.ts";
 import { isCountedSkip, type RoutineRetryCause } from "../shared/routines.ts";

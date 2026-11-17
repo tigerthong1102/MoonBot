@@ -62,7 +62,7 @@ export interface LinkedRoomsDeps {
   wanted(): void;
   personName(threadId: string): string | undefined;
   line(threadId: string, key: ServerLineKey, params: Record<string, string>): string;
-  /** The room's lines as a member of it reads them (server/host/room-transcript.ts): each with the note that says who it
+  /** The room's lines as a member of it reads them: each with the note that says who it
    * is from when it is not the person's own, narration left out. `order` is every line of the room, oldest first. */
   window(threadId: string, readerBotId: string): { lines: ReadonlyArray<{ id: string; text: string }>; order: readonly string[]; readable: readonly string[] };
   /** Who stands behind what is being said in this room thread now when it is not the person: a routine, a webhook, a guest. */

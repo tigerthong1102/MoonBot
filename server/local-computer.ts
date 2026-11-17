@@ -49,7 +49,7 @@ export function gatedLocalComputer(
   };
 }
 
-/** This computer's bridge also answers file tools (host-file-tools.ts); the person's approval level gates each call. */
+/** The person's approval level gates each file-tool call. */
 export function withHostFiles<T extends { env: Record<string, string>; scope?: "local-computer"; platform?: LocalComputerConnection["platform"] }>(connection: T): T {
   if (connection.scope !== "local-computer" || !connection.env.OMB_CUA_COMMAND || !connection.platform) return connection;
   return { ...connection, env: { ...connection.env, OMB_HOST_FILES: "1" } };

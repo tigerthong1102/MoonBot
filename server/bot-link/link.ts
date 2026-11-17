@@ -132,7 +132,7 @@ export interface BotLinkDeps {
   };
   /** The teammate's result in the requester's conversation. */
   resultRow(parent: HandoffView, child: HandoffView, name: string): void;
-  /** The turns of a room member that lives in another place (server/host/bot-link-rooms.ts). Such a turn is a hand-off
+  /** The turns of a room member that lives in another place. Such a turn is a hand-off
    * like any other: sent once, queued while that place is away, stopped with the room. Absent: no room has such a member. */
   rooms?: {
     /** For a room turn, what its hand-off says, worked out as it is sent so that it holds everything said in the room up
@@ -170,7 +170,7 @@ export interface CoordinateContext {
 }
 type CoordinateResult = { status: number; body: Record<string, unknown> };
 type Remote = { peer: string; bot: LinkedBot };
-/** `level`: what that place's version reads (protocol.ts), 1 until it says more. `told`: the level its last hello was made for. */
+/** `level`: what that place's protocol version reads, 1 until it says more. `told`: the level its last hello was made for. */
 type Live = { online: boolean; seq: number; outbox: Numbered[]; level: number; told?: number };
 
 export type BotLink = ReturnType<typeof createBotLink>;

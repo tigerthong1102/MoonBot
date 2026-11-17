@@ -124,7 +124,7 @@ describe.skipIf(!posix)("engines an earlier server of this data folder left", ()
  * leaves for a session of its own (as an adb server, tmux or a dev server a bot starts on purpose). Both inherit the tag.
  * The daemon detaches as daemons do: a starter puts it in a new session and exits, so it is no longer below the engine.
  * (On Linux killCliTree stops every process still below the engine, whatever its session: sandbox helpers leave the
- * engine's group, procs.ts captureCliTree.) */
+ * engine's process group.) */
 const ENGINE = `
 const { spawn } = require("node:child_process");
 const wait = ["-e", "setTimeout(() => {}, 60000)"];

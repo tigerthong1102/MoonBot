@@ -1,8 +1,4 @@
-// OpenMausBot's own MCP servers (agents, browser, computer, data, Email, phone) over MCP's Streamable HTTP transport, for
-// engines that reach MCP servers by URL: one endpoint in this process instead of a stdio proxy process per server in
-// every session. The turn's capability rides the Authorization header, and the endpoints behind these answers check it,
-// as they check the stdio proxies'. Each capability gets the stdio proxy's limits: 16 requests in flight per server, and
-// no more than its output cap in one answer.
+// Every transport must enforce the same turn capability and permissions.
 import type { IncomingHttpHeaders, ServerResponse } from "node:http";
 
 import { agentsMcp } from "../drivers/agents-mcp.ts";
@@ -14,7 +10,6 @@ import { PASS, type RouteContext, type RouteHandler } from "./table.ts";
 
 import { AGENTS_ENV_HEADER, OWN_MCP_HTTP_PATH } from "./own-mcp-http-path.ts";
 
-/** As each stdio proxy allows (harness-mcp-proxy.ts). */
 const MAX_PENDING = 16;
 /** Well inside the 300 s an engine's HTTP client may wait between bytes, headers included (Node's fetch, undici). */
 const KEEPALIVE_MS = 15_000;

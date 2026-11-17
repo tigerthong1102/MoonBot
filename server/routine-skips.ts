@@ -1,6 +1,3 @@
-// A scheduled occurrence that does not run always leaves a `missed` row saying why. Occurrences skipped for one cause
-// (the same earlier run still going, the same spacing after a cloud computer that did not start or after failed runs) share one row, which
-// counts them and keeps the first and last time: a schedule every minute behind a run of hours adds one row, not hundreds.
 import { ROUTINE_DEFERRAL_NOTICE_MS } from "./routine-execution.ts";
 import { codedLine, type RoutineLine, type RoutineLineKey } from "./routine-lines.ts";
 import type { RoutineRun } from "./routines.ts";

@@ -3747,7 +3747,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     process.env.FAKE_CLAUDE_RUN_BASH = "1";
     process.env.FAKE_CLAUDE_TOOL_CALLS = JSON.stringify([{ name: "Bash", input: { command: `"${process.execPath}" -e "setTimeout(() => {}, 60000)" >/dev/null 2>&1 & echo $! > "${marker}"` } }]);
     // An exited process its new parent has not collected yet still answers kill(pid, 0); on Linux it is gone once /proc
-    // says Z or X, as stopCliTree counts it (procs.ts linuxGroupOnlyExited).
+    // reports state Z or X.
     const alive = (value: number) => {
       try { process.kill(value, 0); } catch { return false; }
       if (process.platform !== "linux") return true;

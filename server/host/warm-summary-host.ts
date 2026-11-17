@@ -34,7 +34,6 @@ export const PRESENCE_HOLD_MS = 10 * 60_000;
 type CompactFn = (threadId: string, options: { instructions: string; session?: string; signal?: AbortSignal }) => Promise<IdleCompactResult>;
 
 export interface WarmSummaryHostDeps {
-  /** How many background engine jobs run at once, across bots (job-slots.ts). */
   slots?: JobSlots;
   store: Pick<Store, "taskByThread" | "botByThread" | "groupByThread" | "activePath" | "appendMessage" | "setResumeCursor" | "setHandedMessages">;
   instance(instanceId: string): { adapter: { cacheKeepWarm?: { compact?: CompactFn; hold(threadId: string, until: number | null): boolean } } } | null | undefined;

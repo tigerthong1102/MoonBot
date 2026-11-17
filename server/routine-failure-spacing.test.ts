@@ -1,6 +1,3 @@
-// A routine whose runs keep failing stays on, and stops spending its bot's AI on a start every few minutes: the audit's
-// scenario is a routine every 5 minutes whose tool server is dead, counted in turns started (each is at least one
-// request to the AI) over a day.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

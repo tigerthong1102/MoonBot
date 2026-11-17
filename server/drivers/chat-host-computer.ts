@@ -1,5 +1,3 @@
-// This desktop's own computer for the Chat Completions runtime: its tools are listed even when its helper is slow to
-// start, and a turn whose helper did not start says so through a tool instead of having no computer tools.
 import { noticeFailure, type ChatNoticeKey } from "../chat-notices.ts";
 import type { ServerText } from "../../shared/server-text.ts";
 

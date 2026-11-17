@@ -46,7 +46,7 @@ export const personWho = (name: string, role?: string): string => {
 export const relayedWho = (name: string | undefined): string => `${name?.trim() || "someone"} (person, relayed by another app)`;
 export const botWho = (name: string): string => `@${name} (bot)`;
 export const API_WHO = "an app, through the API";
-/** A Bot API key its owner marked as acting for them (bot-api.ts). */
+/** A Bot API key its owner marked as acting for them. */
 export const API_OWNER_WHO = "the owner, through the API with a key they marked as acting for them";
 export const HARNESS_WHO = "OpenMausBot";
 export const routineWho = (name: string | undefined): string => name?.trim() ? `routine ${JSON.stringify(name.trim())}` : "a routine";

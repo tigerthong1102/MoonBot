@@ -308,7 +308,6 @@ export function spawnCli(
   const { box: _box, engineHome: _engineHome, botWork, ...spawnOpts } = boxed ? options : outsideBoxOptions(resolved.command, options);
   // The box's extra descriptors (its seccomp filter) follow stdio; only a plain three-entry stdio can take them.
   const stdio = boxed?.extraFds.length && Array.isArray(spawnOpts.stdio) && spawnOpts.stdio.length === 3 ? [...spawnOpts.stdio, ...boxed.extraFds] : spawnOpts.stdio;
-  // A server that restarts in place stops what an earlier one left by this tag (engine-records.ts).
   const tag = process.platform === "win32" ? null : engineRunTag();
   const start = () => spawn(boxed?.command ?? resolved.command, boxed?.args ?? resolved.args, {
     ...spawnOpts,

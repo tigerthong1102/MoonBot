@@ -1,6 +1,3 @@
-// The one setting that fixes a failed turn, on its row: the bot's model picker when its AI is out of credits, limited,
-// overloaded or cannot run the model, and Spending when the workspace reached its spend limit. Sign-in has its own
-// control on the row already (EngineSetup).
 import type { ReactNode } from "react";
 
 import { t } from "@/lib/i18n";

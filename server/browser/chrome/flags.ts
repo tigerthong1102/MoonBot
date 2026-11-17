@@ -65,7 +65,7 @@ export interface ChromeFlagsInput {
   viewport?: { width: number; height: number } | null;
   /** False only when an operator explicitly turned Chrome's sandbox off. */
   sandbox?: boolean;
-  /** /dev/shm is too small for Chrome's shared memory (shm.ts). */
+  /** /dev/shm is too small for Chrome's shared memory. */
   smallShm?: boolean;
   /** Null when session restore reopens the profile's tabs. */
   startUrl?: string | null;

@@ -1,6 +1,3 @@
-// A routine's run that keeps going, through a real server and the fake Claude engine playing fourteen model calls, each
-// one shell command, 600 ms apart. With the limits for turns nobody is watching switched off the engine makes all
-// fourteen; with them set, the turn is stopped at the limit and the engine makes no call after it.
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

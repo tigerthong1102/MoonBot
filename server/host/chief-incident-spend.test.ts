@@ -1,5 +1,3 @@
-// What failing routines cost in requests to the AI, counted as the turns they start: the routine's own starts and the
-// Chief turns their failures start, wired as the host wires them (a failure the owner was already told of reaches no one).
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

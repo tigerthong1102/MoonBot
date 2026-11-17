@@ -1,7 +1,3 @@
-// A note on a bot's turn when its AI keeps failing in this conversation and another model would fix it: the bot says so
-// in one plain line and offers the switch. Only a current cause counts: failures since the bot last answered here, on
-// the model this turn runs. Said once per conversation (once a reply follows the note); the file keeps that across
-// restarts. A signed-out AI or a spend limit refuses the turn itself, so the failed row offers those fixes instead.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 

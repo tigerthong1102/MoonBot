@@ -1,17 +1,4 @@
-// The rule:
-// - A promise rejection nobody handled is survivable: the operation it belonged to is over, and what it changed before
-//   failing was written step by step. It is logged, and the turn it ran for (if any) is stopped.
-// - An exception thrown by an engine driver's own code while it runs a turn is that turn's: the turn is stopped and its
-//   resources freed, the server stays up. Only driver code runs in a turn's scope (withTurnScope wraps sendTurn); what a
-//   driver hands the server (its events) runs outside it, so an error in shared server code is never filed as a turn's.
-//   If that turn is no longer running (a warm process or timer outlived it), nothing can be stopped: that is fatal.
-// - An exception from a socket or pipe whose other end went away (EPIPE, ECONNRESET, ...) is survivable: it is logged.
-// - Anything else (an exception outside any turn, a stack overflow, an internal assertion) may have left shared state
-//   half-changed: the server marks its running turns cut (so the next start reruns them), flushes nothing else it
-//   holds in memory (the files keep their last whole state), and exits with CRASH_EXIT_CODE; its launcher starts it
-//   again after a pause.
-// - More than STORM_LIMIT errors within STORM_WINDOW_MS is treated as the last kind, so a failing loop cannot keep the
-//   server up and broken.
+// Unknown synchronous exceptions are fatal because state integrity cannot be established.
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { ProviderInstance } from "./contracts.ts";

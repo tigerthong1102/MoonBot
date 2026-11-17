@@ -1,5 +1,3 @@
-// Where a new bot works when nothing names a place: the route takes the place newBotComputer gives (This computer on the
-// desktop app), while a request, the New bot defaults, Approve for me, or a server without it keep their own.
 import { rmSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { beforeEach, describe, expect, it } from "vitest";

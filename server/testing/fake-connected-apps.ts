@@ -75,7 +75,6 @@ export async function startFakeConnectedApps(): Promise<FakeConnectedApps> {
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const raw = Buffer.concat(chunks).toString("utf8");
     res.setHeader("content-type", "application/json");
-    // Composio's upload link, then the bytes put to it (cloudflare/composio-broker/src/files.ts).
     if (req.method === "POST" && req.url === "/v1/files/upload") {
       const key = `fake-files/${fake.uploads.length + 1}`;
       fake.uploads.push({ request: JSON.parse(raw), key });

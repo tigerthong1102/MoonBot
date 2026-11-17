@@ -1,12 +1,6 @@
-// "This computer and My Cloud together" (Settings → MausBot Cloud, an early feature that starts off): the sidebar of this
-// computer's page and of My Cloud's page lists the other one's bots too. A page can only talk to its own place, so main
-// reads the other place's bots as the signed-in person, keeps the list, and opens that place at a bot when its row is
-// clicked. With the switch off nothing here reads, keeps or sends anything.
-//
-// Security: the list goes only to this computer's own page and to My Cloud's own page (`asking`, which main works out from
-// the sender), never to a team's Cloud or a server saved by hand. A row is a name, a look and a state: no message, address
-// or token. A page names a bot by an id main listed itself; main opens only such an id, in a place of its own choosing.
-// A sleeping Cloud is never asked, since any request would wake it; it keeps the list it gave last.
+// Only this computer's own page and its personal Cloud may receive the linked-bot list.
+// The list must not expose messages, addresses or credentials, or authorize arbitrary destinations.
+// Background lookups must not wake a sleeping Cloud and incur usage charges.
 import { asleepAnswer, BACKGROUND_HEADERS } from "./cloud-power.mjs";
 
 /** The switch, kept in `places-together.json` as `{ v: 1, on }`. Everything that joins the two places reads this one key. */
@@ -110,7 +104,7 @@ const needsSignIn = (response) => response?.status === 401 || response?.status =
  * `focused()`: the window is the one the person is using: in front, and the screen not locked. `openPlace(home)`: main's
  * own switch to that place, waking My Cloud as opening it always does. `send`: to the page on screen. `changed()`: the
  * list or the switch changed, so a page that draws it asks again. `address(home, botId)`: the address the link between
- * the two places gives that bot (electron/bot-link-main.mjs), or null while no link of this Cloud and account is on.
+ * the two places gives that bot, or null while no link of this Cloud and account is on.
  *
  * Security: My Cloud is never asked while it sleeps, since any request would wake it and run up its hours. It is asked
  * only right after the Admin said it is awake, at most once a minute, and only while the person is using the window. What

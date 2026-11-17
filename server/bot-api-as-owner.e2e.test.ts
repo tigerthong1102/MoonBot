@@ -1,6 +1,3 @@
-// A Bot API key the owner marked as acting for them, on a real server with the scripted engine: the thread it opens runs
-// at the bot's own level, unconfined and with OpenMausBot's tools, as the owner's request; the never-list still denies
-// what it names; once the mark is taken off the key can't go on in that thread; and a second admin switches it off.
 import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { connect, type Socket } from "node:net";

@@ -75,8 +75,6 @@ export interface BrowserRoomOptions {
   spare(session: string): number | null;
   /** Closes an unused browser; true once it is gone. */
   close(session: string): Promise<boolean>;
-  /** Asked once the count allows a new browser: the server's own room for its processes (process-room.ts, a self-hosted
-   * server's pids limit). Null once it fits; otherwise the refusal, after a spare browser is closed if one may go. */
   admit?(session: string, admitted?: (rollback: () => void) => void): Promise<string | null>;
   waitMs?: number;
   pollMs?: number;

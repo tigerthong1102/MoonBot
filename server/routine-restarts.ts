@@ -1,7 +1,3 @@
-// What a server start does to routines when the server may be crashing and starting again in a loop. A start with no
-// desktop launch (a headless server) runs its startup routines at most once in OMB_STARTUP_ROUTINE_GAP_MS, counted from
-// the start that last ran them, and each start it skips adds to one row per routine. Runs a restart cut off start again
-// one after another, OMB_ROUTINE_RESTART_STAGGER_MS apart, not all at the same moment.
 import { envWhole } from "./env-limits.ts";
 import { ROUTINE_RETRY_MS } from "./routine-recovery.ts";
 

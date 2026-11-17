@@ -1,5 +1,3 @@
-// Generated thread titles: automatic ones only when features.llmThreadTitles is on, "Regenerate title" whenever the person
-// asks. The engine's one-shot text call, given 10 seconds once it starts, its reply cleaned to a title or null.
 import type { BotRecord } from "./store.ts";
 import type { ProviderInstance } from "./contracts.ts";
 import type { AppConfig } from "./config.ts";

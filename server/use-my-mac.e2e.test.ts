@@ -227,8 +227,6 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
 `, { mode: 0o755 });
   // The bot's browser engine as the server finds it: it names the Chrome its turns would drive, through the gate.
   // It writes down the egress gate each command's Chrome would go through: the bot's own, for the life of the server.
-  // Its daemon's pid file (where browserDaemonFile looks) says that browser runs until it is closed, so the server's
-  // sweep of ended browsers (host/browser.ts, every minute) leaves its gate open while a case still uses it.
   writeFileSync(join(home, "agent-browser"), `#!${process.execPath}
 const fs = require("node:fs"), path = require("node:path");
 const args = process.argv.slice(2).filter((arg) => arg !== "--json" && arg !== "--no-webmcp");

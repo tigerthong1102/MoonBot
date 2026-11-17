@@ -1,7 +1,5 @@
 // The exit code a server uses to ask its launcher for a fresh start (after a restore commits).
 export const RESTART_EXIT_CODE = 75;
-/** The exit code a server uses after an error it could not survive (server/crash-guard.ts): it logged why and closed
- * cleanly, and its launcher starts it again after a pause. */
 export const CRASH_EXIT_CODE = 70;
 export const MAX_RESTARTS = 5;
 export const STABLE_RUN_MS = 60_000;

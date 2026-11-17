@@ -29,7 +29,6 @@ function fixture(dataDir = mkdtempSync(join(tmpdir(), "nudges-"))) {
   const asks = () => add({ role: "user", text: "and now?" });
   const replies = () => add({ text: "Here it is." });
   const nudges = createSettingNudges({ dataDir, store: { messagesFor: () => rows } });
-  /** One turn: the note it carries, as index.ts asks for it when the turn starts. */
   const turn = (over: Partial<NudgeTurn> = {}) => nudges.note("t", { ...OWNER, ...over });
   return { dataDir, rows, add, failed, asks, replies, turn };
 }

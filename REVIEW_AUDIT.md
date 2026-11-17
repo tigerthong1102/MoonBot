@@ -1,5 +1,10 @@
 # Review audit — 2026-11-18
 
+## Preflight selection follow-up from a5c89f26b
+
+[CI 44146696282](https://github.com/tigerthong1102/MoonBot/actions/runs/44146696282) fails preflight before any matrix job runs: 246 cases pass and the import-graph completeness guard identifies one-workspace-navigation.test.ts as missing from locale-tests. Its real fixture import reaches the locale catalogs. Add that test to the existing execution subset and its exact-list contract; retain the graph assertion and every test. The same four-file preflight batch then passes all 247 cases locally. This is a confirmed CI selection gap in the new test registration, not a runtime failure or a reason to skip checks. New-head CI and completed clean Codex review remain required. [Codex completed review of a5c89f26b without major issues](https://github.com/tigerthong1102/MoonBot/pull/1#issuecomment-6957076611), and no Codex thread remains unresolved. The CI-selection follow-up still requires its own exact-head checks and review.
+
+
 ## CI and Codex follow-up from c73d96c63b
 
 Reviewed head: `c73d96c63b11de1b76093aeaa4c4d914d40eaa64`. [Main CI 44128549328](https://github.com/tigerthong1102/MoonBot/actions/runs/44128549328) completed with 30 successful jobs, three executable failures and the correctly failing aggregate. Both browser S4 jobs, installed Linux package smoke, every other Ubuntu/Windows shard and hosted macOS 26 Intel smoke passed. Docker 44128549310, connector 44128549576, Docs 44128549925 and website 44128549750 passed. These results belong to c73d96c63b, not its follow-up.

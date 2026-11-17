@@ -1,5 +1,9 @@
 # Release readiness
 
+## Preflight selection follow-up from a5c89f26b
+
+[CI 44146696282](https://github.com/tigerthong1102/MoonBot/actions/runs/44146696282) fails the import-graph completeness guard before the matrix: the newly added navigation test imports the real fixture and must be included in locale-tests. Register it in the execution subset and exact-list contract, retaining the guard unchanged. All 247 preflight cases pass locally afterward. These local results do not make the failed run green; final pushed-SHA checks and fresh completed Codex review remain pending. No passed job is manually rerun and no test or gate is removed. [Codex completed review of a5c89f26b without major issues](https://github.com/tigerthong1102/MoonBot/pull/1#issuecomment-6957076611), and no Codex thread remains unresolved. The CI-selection follow-up still requires its own exact-head checks and review.
+
 ## Current CI follow-up from c73d96c63b
 
 [CI 44128549328](https://github.com/tigerthong1102/MoonBot/actions/runs/44128549328) completed with 30 successful jobs and three failed executable jobs: Windows large-workspace fixture setup, Windows full-day durable routine simulation, and Ubuntu MCP shutdown-fixture readiness. The aggregate correctly failed. Hosted macOS 26 Intel smoke, both S4 jobs and installed Linux package smoke passed; Docker 44128549310, connector 44128549576, Docs 44128549925 and website 44128549750 also passed on that SHA.

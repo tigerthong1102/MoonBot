@@ -69,3 +69,5 @@ Focused validation: 356 passed, one platform skip across crash guard, watchdog, 
 ## CI fixture follow-up
 
 The secret-request Cloud fixture now supplies OMB_DATA_DIR explicitly, matching its generated StartupBot config instead of the Cloud launcher's default directory. Its original secret-redaction and one-use assertions remain. The room image-steer test now waits for the engine's actual Bash tool chip, not an unrelated activity such as resource admission waiting; steering, image, queue and timeout assertions remain. Running both complete files together passed all 25 tests. Qodo review is excluded from subsequent work at the owner's request.
+
+The completed older full CI run 44021257214 also exposed stale desktop-computer wording contracts. The plain readiness helper now returns the same coded-error message as the dispatch gate; the shared readiness prefix and exact assertions follow StartupBot. Focused follow-up: 134 desktop/local-VM/UI tests passed; VPS/Codex driver suites passed 369 tests with one platform skip. No desktop authorization check was relaxed. Final-head CI is still required.

@@ -273,7 +273,7 @@ function taskCountsAsBotUnread(task: { unread?: boolean; routineRunId?: string }
 }
 
 export class Store {
-  bots: BotRecord[] = []; /** Bots that live in another of the person's places (server/bot-link/), by their address here: found by id, never listed, counted, saved, moved or backed up. */ standIns = new Map<string, BotRecord>();
+  bots: BotRecord[] = []; standIns = new Map<string, BotRecord>();
   groups: GroupRecord[] = []; /** Told before a delete of these conversations is tried; "thread.deleted" follows only for those that went. Must not throw. */ threadsGoing: (threadIds: readonly string[]) => void = () => {};
   private threads = new ThreadCache(() => this.busyThreadIds());
   private defaultSelection: () => ModelSelection;
@@ -442,7 +442,7 @@ export class Store {
       g.busyBotId = null;
       delete g.turnStartedAt;
       if (botsLoaded && !g.dm && g.memberIds.some((id) => !botIds.has(id) && !id.startsWith("link-"))) {
-        g.memberIds = g.memberIds.filter((id) => botIds.has(id) || id.startsWith("link-")); // A member that lives in another of the person's places (server/bot-link/) is no bot of bots.json: the link, which starts later, says whether it is still there.
+        g.memberIds = g.memberIds.filter((id) => botIds.has(id) || id.startsWith("link-"));
         groupsMigrated = true;
       }
       const normalized = normalizeGroupDefaultResponder(g.defaultResponder, g.memberIds, Boolean(g.dm));

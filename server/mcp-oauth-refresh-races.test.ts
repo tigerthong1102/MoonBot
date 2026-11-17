@@ -140,3 +140,19 @@ it("signs out immediately and keeps a later sign-in when revocation completes", 
   await signingOut;
   expect(await manager.accessToken("docs", resource)).toBe("replacement-access");
 });
+
+it("does not reuse an in-flight refresh after the same grant is removed and restored", async () => {
+  const grant = manager.signInRecord("docs", resource)!;
+  const oldPending = manager.accessToken("docs", resource);
+  const oldRequest = await nextRequest();
+  manager.forget("docs");
+  manager.adopt("docs", resource, grant);
+  const newPending = manager.accessToken("docs", resource);
+
+  reply(oldRequest, 200, { access_token: "stale-access", expires_in: 3600 });
+  expect(await oldPending).toBeNull();
+  const newRequest = await nextRequest();
+  reply(newRequest, 200, { access_token: "restored-access", expires_in: 3600 });
+  expect(await newPending).toBe("restored-access");
+  expect(events).toEqual(["refreshed"]);
+});

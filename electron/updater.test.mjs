@@ -475,6 +475,6 @@ it("keeps packaged updates disabled in the shipped configuration", async () => {
   updater.registerUpdaterIpc({ pageAllowed: () => true });
   updater.startUpdater();
   const state = await fixture.handlers.get("update:get-state")(page(LOCAL).event);
-  expect(state).toMatchObject({ status: "error", messageCode: "unavailable" });
+  expect(state).toMatchObject({ status: "idle", disabled: true });
   expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
 });

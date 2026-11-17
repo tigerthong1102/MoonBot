@@ -1,13 +1,13 @@
 # Merge readiness
 
 Decision: **NOT READY**. PR #1 remains Draft. Source review baseline:
-`12c3933ab6f938c71dcf0a2e2125e9bea42008b8`; subsequent fixes must be tested
+`9bc1b653606efe13725e1624a540629ba8138789`; subsequent fixes must be tested
 on their final commit. Review classifications and remaining findings are in
 [REVIEW_AUDIT.md](REVIEW_AUDIT.md).
 
 | Gate | Status | Evidence or remaining work |
 | --- | --- | --- |
-| Full CI | FAIL on baseline; NOT RUN on final head | [CI on baseline](https://github.com/tigerthong1102/MoonBot/actions/runs/43988365957) failed because Settings rendered a translation missing from 12 catalogs. Those translations were added after that run; rerun CI on the final head. [Older CI](https://github.com/tigerthong1102/MoonBot/actions/runs/43985247644) was cancelled. |
+| Full CI | FAIL on baseline; NOT RUN on final head | [CI on baseline](https://github.com/tigerthong1102/MoonBot/actions/runs/43989891617) failed updater assertions on both OSes, a Linux routine recovery assertion and a Windows Cloud reconnect test. Subsequent test fixes and Windows verification require final-head CI. [Older CI](https://github.com/tigerthong1102/MoonBot/actions/runs/43988365957) failed on missing translations, which were subsequently added. |
 | Docker | IN PROGRESS on baseline | [Docker run](https://github.com/tigerthong1102/MoonBot/actions/runs/43988365924); rerun on final head. |
 | Focused tests | PASS locally | 376 tests across runtime, phone, process health, title generation, update routes and UI; additional checks and final CI remain. |
 | Security and review | NOT READY | Browser launch and process-budget patches require final-head CI; sampler ancestry and historical completeness and current-head review remain open; see audit. |

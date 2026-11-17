@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { resolveAgentBrowserBinary } from "../../server/browser-engine.ts";
+import { inChargeOfEvery } from "../../server/peer-roster.ts";
 import { waitForExit } from "../../server/testing/cleanup.ts";
 import { runControlOmb } from "../control-omb.ts";
 import { request } from "../mcp-server.ts";
@@ -82,7 +83,11 @@ describe("additive template imports in the real renderer", () => {
       await expect.poll(snapshot, { timeout: 10_000 }).toContain(`button "${section}"`);
       const current = await api("/api/bots");
       expect(current.bots.filter((bot: { section?: string }) => bot.section === section)).toHaveLength(2);
-      for (const bot of original.bots) expect(withoutReadState(current.bots.find((value: { id: string }) => value.id === bot.id))).toEqual(withoutReadState(bot));
+      for (const bot of original.bots) {
+        const added = source === "library" ? ["Sales crew"] : ["Sales crew", "Sales crew 2"];
+        const expected = inChargeOfEvery(bot, ["Existing work", "Personal"]) ? { ...bot, managedSections: [...(bot.managedSections ?? []), ...added] } : bot;
+        expect(withoutReadState(current.bots.find((value: { id: string }) => value.id === bot.id))).toEqual(withoutReadState(expected));
+      }
       expect(withoutReadState(await control("messages", "--bot", info!.botId, "--limit", "10"))).toEqual(withoutReadState(transcript));
       expect(await snapshot()).toContain('button "Existing work"');
       expect(await snapshot()).toContain('button "Personal"');

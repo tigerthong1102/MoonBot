@@ -107,6 +107,11 @@ it("sends events without any stored or current address, polls nothing, and sends
     const analytics = await import("./analytics");
     await analytics.initAnalytics();
     analytics.track("app_snapshot", { bots: 3 });
+    await minutes(1);
+    expect(sent).toEqual([]);
+    analytics.setAnalyticsEnabled(true);
+    await analytics.initAnalytics();
+    analytics.track("app_snapshot", { bots: 3 });
     await minutes(11);
     // posthog-js gzips each batch with the platform's CompressionStream, which finishes on the real clock, not the fake
     // one: on a busy machine the batches leave after the last tick. Wait for both events to have left, not for ticks.

@@ -58,6 +58,9 @@ extraResources:
     to: licenses/OpenMausBot-LICENSE.txt
   - from: NOTICE
     to: licenses/OpenMausBot-NOTICE.txt
+  # Cua Driver and its JS SDK are bundled from the 0.45.4 release.
+  - from: third_party/cua-driver/LICENSE.md
+    to: licenses/cua-driver-LICENSE.txt
   # cloudflared is distributed under Apache-2.0 as a separate executable.
   # OpenMausBot itself uses the same full license text; ship another named
   # copy so the third-party executable's terms remain unambiguous.

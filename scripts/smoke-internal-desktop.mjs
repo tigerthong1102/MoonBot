@@ -21,6 +21,11 @@ assert(existsSync(executable), "The packaged executable is missing");
 for (const entry of ["app.asar", "server/index.js", "ui/index.html", "browser-engine/manifest.json", "licenses/OpenMausBot-LICENSE.txt", "licenses/OpenMausBot-NOTICE.txt"]) {
   assert(existsSync(path.join(resources, entry)), `Missing packaged resource: ${entry}`);
 }
+assert.deepEqual(
+  readFileSync(path.join(resources, "licenses", "cua-driver-LICENSE.txt")),
+  readFileSync(path.join(root, "third_party", "cua-driver", "LICENSE.md")),
+  "The installed Cua Driver notice must match the pinned upstream license",
+);
 if (mac) {
   const info = path.join(app, "Contents", "Info.plist");
   const identity = Object.fromEntries(["CFBundleIdentifier", "CFBundleName", "CFBundleDisplayName"].map(key =>

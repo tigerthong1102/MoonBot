@@ -19,7 +19,7 @@ Download [Windows](https://github.com/tigerthong1102/MoonBot/actions/runs/442153
 or [macOS](https://github.com/tigerthong1102/MoonBot/actions/runs/44215347938/artifacts/14388328720).
 The local ARM64 v3 DMG builds and verifies its ad-hoc signature, but its launch
 smoke times out while the Mac is locked. Local ARM launch is **BLOCKED**, not
-PASS. A native ARM hosted acceptance lane is prepared for version 4.
+PASS. Version 4 closes the hosted ARM acceptance gap below.
 
 Version 3 fixes the StartupBot/legacy marker-security parsers and preserves
 hidden/private helper preferences. Version 4 additionally adopts unmarked,
@@ -47,9 +47,33 @@ speaker-color rules; 107 tests PASS across the final helper/settings/parser
 batch; 134 related UI/privacy/wire tests PASS; 98 regenerated catalog tests
 PASS without update mode; 39 package-format tests PASS; 30 packaging/icon/
 metadata gates PASS. Batches overlap. Earlier correct Node Electron runner:
-2,144 PASS / 13 platform skips; Electron Vitest: 603 PASS / 4 skips. Version 4
-must still pass fresh lint/typecheck/build, final-head CI/review and installed
-package acceptance. Do not transfer a version 3 PASS to version 4.
+2,144 PASS / 13 platform skips; Electron Vitest: 603 PASS / 4 skips.
+Version 4 lint, typecheck and production package preparation PASS locally.
+
+Version 4 at `edd8456ad4f8c1f0966f62b93ea49ae14b104e53`:
+[44221896486](https://github.com/tigerthong1102/MoonBot/actions/runs/44221896486)
+macOS job **PASS** on the native Apple Silicon runner. Both DMGs build;
+the ARM64 DMG installs/launches, completes real onboarding, shows the owned
+helper image/name, chats with the isolated fake engine, and passes data/auth
+and bundled browser/server smokes. [Qualified macOS artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44221896486/artifacts/14391792157).
+ARM64 DMG SHA256: `00ed648fe3e26a8885dab6ac93baf0b2b507d4fa860129d424b1028f745e197b`.
+Intel v4 is build-only; Intel installation/launch was verified at v3.
+The Windows v4 EXE builds, but its onboarding smoke **FAILS** waiting for the
+helper introduction; no qualified Windows v4 artifact is advertised.
+The smoke used a primary selector also matched by the AI sign-in action;
+it now waits for and clicks the actual Next action atomically. Sixteen welcome
+regressions pass, including distinct connected/sign-in action assertions.
+Failure evidence now includes renderer state and a screenshot.
+
+[Full CI 44221838977](https://github.com/tigerthong1102/MoonBot/actions/runs/44221838977)
+is incomplete at this snapshot. Known failures are the stale relay vector-copy
+pin and a Linux MCP process-existence assertion. Relay's generated vector copy
+and SHA are synchronized; all 97 relay tests PASS locally with crypto bytes
+unchanged. The MCP fixture distinguishes exited Linux zombies from running
+processes, retaining positive liveness checks before cancellation and dead-tree
+assertions afterward. An isolated Linux container reproduces state Z while
+kill(pid, 0) succeeds. All 156 related MCP/tree/welcome/package tests PASS locally
+with two platform skips. Final-head CI and exact-head Codex remain merge gates.
 
 Android [44215532499](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499)
 **PASS** at `5ac456cff0ff9027b9bc8ad76731b0ecadfb53a5`: native core/app tests,
@@ -58,13 +82,17 @@ The [actual artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/442
 is downloaded and its APK/AAB SHA256 verified locally. The APK is debug-signed;
 the AAB is unsigned. Physical desktop pairing and live models are NOT RUN.
 
-iOS 402 core tests and universal app compilation PASS. Simulator launch in
-44217472146 fails with `Taskgated Invalid Signature`: manually embedded iOS
-capabilities were treated as restricted macOS-host claims. Xcode-managed
-simulated entitlements replace that signing script; the real Keychain/App Group
-canary remains mandatory. The next run diagnoses a verifier's little-endian
-`otool` decoding; four parser tests now cover real tool output and malformed
-sections. No iOS artifact is qualified yet. Scope is Simulator only.
+iOS Simulator at `292e014dd9bebeb29d18ad21c15ba5128a015213`:
+[44220727356](https://github.com/tigerthong1102/MoonBot/actions/runs/44220727356)
+**PASS**. 402 core tests, universal arm64/x86_64 compilation and entitlement
+verification, real installation/launch on an ARM Simulator, Keychain/App Group
+canary and five native navigation tests PASS. [Qualified artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44220727356/artifacts/14391711034)
+was downloaded, SHA256 checked and its StartupBot welcome screenshot inspected.
+The Simulator ZIP SHA256 is `b6b9795d64878ad9dd4872e0d9fc75b7a276401e7cb9c8ec382a18f1678a2bc1`.
+The earlier invalid signature is fixed using Xcode-managed simulated
+entitlements with verified native Mach-O decoding, preserving real secure-store
+tests. Intel Simulator runtime, physical iPhone and TestFlight are NOT RUN.
+The Simulator bundle requires Xcode/runtime and cannot install on an iPhone.
 
 No public release, commercial clearance, real-provider acceptance, physical
 mobile pairing matrix, actual Computer Use operation or notarization is

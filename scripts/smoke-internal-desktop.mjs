@@ -74,6 +74,7 @@ child.stdout.on("data", bytes => { output += bytes; appendFileSync(launchLog, by
 child.stderr.on("data", bytes => { output += bytes; appendFileSync(launchLog, bytes); });
 child.on("error", error => { output += `\n${error.stack}\n`; });
 let socket;
+let captureFailure = async () => {};
 let report = { platform: process.platform, arch: process.arch, app, status: "FAIL" };
 try {
   const target = await until(async () => {
@@ -103,6 +104,12 @@ try {
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
     return result.result.value;
   };
+  captureFailure = async () => {
+    const snapshot = await evaluate(`({text: document.body.innerText, welcome: document.querySelector('[data-welcome]')?.getAttribute('data-welcome'), buttons: Array.from(document.querySelectorAll('[data-welcome] button')).map(button => ({text: button.innerText, disabled: button.disabled, signIn: button.getAttribute('data-sign-in')}))})`);
+    writeFileSync(path.join(evidence, "desktop-failure.json"), JSON.stringify(snapshot, null, 2) + "\n");
+    const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
+    writeFileSync(path.join(evidence, "desktop-failure.png"), Buffer.from(screenshot.data, "base64"));
+  };
   await until(() => evaluate("Boolean(window.ogb?.getCapabilities && document.readyState === 'complete')"), "the preload bridge");
   const request = (route, body) => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)},${JSON.stringify(body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })});return {status:r.status,body:await r.json()};})()`);
   const health = await request("/api/health");
@@ -114,9 +121,9 @@ try {
   const capabilities = await evaluate("window.ogb.getCapabilities()");
   const catalog = await request("/api/instances");
   assert.equal(catalog.status, 200); assert(JSON.stringify(catalog.body).includes("Internal package fixture"));
-  await until(() => evaluate("Boolean(document.querySelector('[data-welcome] [data-primary]:not([disabled])'))"), "the first-run welcome");
+  await until(() => evaluate("Boolean(document.querySelector('[data-welcome=meet]'))"), "the first-run welcome");
   assert.doesNotMatch(await evaluate("document.body.innerText"), /\b(?:OpenMausBot|MausBot)\b/);
-  await evaluate("document.querySelector('[data-welcome] [data-primary]').click()");
+  await until(() => evaluate(`(() => { const next = document.querySelector('[data-welcome=meet] [data-primary]:not([data-sign-in]):not([disabled])'); if (!next) return false; next.click(); return true; })()`), "the connected fixture's Next action");
   await until(() => evaluate("Boolean(document.querySelector('[data-chief-create]:not([disabled])'))"), "the StartupBot helper introduction");
   await new Promise(resolve => setTimeout(resolve, 400));
   await evaluate("document.querySelector('[data-chief-create]').click()");
@@ -155,6 +162,7 @@ try {
   await cdp("Browser.close").catch(() => {});
 } catch (error) {
   report.error = error.stack;
+  await captureFailure().catch(failure => { report.diagnosticsError = failure.message; });
   throw error;
 } finally {
   socket?.close();

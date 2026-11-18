@@ -1,5 +1,26 @@
 # Review audit — 2026-11-18
 
+## Internal desktop and native follow-up — 2026-11-18
+
+Desktop source baseline: `edd8456ad4f8c1f0966f62b93ea49ae14b104e53`, PR #3.
+The exact-head [Codex receipt](https://github.com/tigerthong1102/MoonBot/pull/3#issuecomment-6967023381)
+reports no major issue. This follow-up changes tests, diagnostics and audit
+records only; the qualified macOS v4 application source is unchanged.
+
+| Finding | Classification | Evidence and correction |
+| --- | --- | --- |
+| Codex 4608211170, unmarked recolored legacy helper is duplicated | CONFIRMED, corrected in edd8456ad | Two fixtures fail before adopting legacy factory names and pass afterward; all 35 helper tests pass. Existing IDs, private history, custom avatar/instructions and sidebar-hidden preference survive restart. |
+| Windows package smoke can click AI sign-in instead of Next | CONFIRMED selector ambiguity; final Windows runtime pending | MeetScreen and SignInPill both mark their action data-primary. Wait for the connected Next action excluding data-sign-in and click it atomically; keep helper/chat/auth/data assertions. Connected/sign-in selector regressions pass in the 16-test welcome suite. Failure screenshot and DOM state are captured for further diagnosis. |
+| Relay crypto fixture pin is stale | CONFIRMED test fixture drift | Copy the canonical generated vector artifact and update its SHA256 pin. Only the product-description header changes, no cryptographic byte changes. All 97 relay tests pass. |
+| Included-model relay rejects the branded key-check fixture | CONFIRMED test contract drift | Local reproduction: two failures, four passes. Pin the relay fixture's two fixed legacy wire strings independently of runtime; all six E2E cases then pass, retaining strict-body refusal, credential isolation, no-log/no-save and environment filtering checks. No remote service is enabled. |
+| MCP process liveness conflates zombies with running descendants | CONFIRMED probe-contract gap; remote rerun pending | An isolated Linux container demonstrates state Z with kill(pid, 0) succeeding. Exclude only exited Z/X states, assert parent/helper are alive before abort, and retain both dead-tree assertions afterward. Runtime termination is unchanged; 156 MCP/tree/welcome/package cases pass with two platform skips. |
+
+Full CI 44221838977 remains incomplete at this snapshot. New failures are read
+before the final PR-head batch is pushed; no passed job is manually rerun.
+Current platform artifact evidence and remaining acceptance limits are recorded
+in RELEASE_READINESS.md. Qodo is outside the owner's requested review scope.
+No merge, public release, production deployment or paid runner is authorized.
+
 ## Reservation and cookie-cache follow-up from f61a2b1fa
 
 [CI 44148427437](https://github.com/tigerthong1102/MoonBot/actions/runs/44148427437) completes with 31 successful jobs, two failed executable jobs and the failed aggregate. Ubuntu shard 7 and Windows shard 4 fail the same remote-sessions assertion requiring Set-Cookie on every authenticated response. All other shards, both S4 jobs, installed Linux package and hosted macOS smoke pass. Docker 44148427505, connector 44148427687, Docs 44148427787 and website 44148427471 pass on this SHA.

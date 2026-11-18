@@ -56,6 +56,12 @@ extraResources:
   # Ship the app's own license terms in every desktop distribution.
   - from: LICENSE
     to: licenses/OpenMausBot-LICENSE.txt
+  - from: node_modules/@fontsource-variable/geist/LICENSE
+    to: licenses/Geist-OFL.txt
+  - from: node_modules/@fontsource-variable/geist-mono/LICENSE
+    to: licenses/Geist-Mono-OFL.txt
+  - from: node_modules/@fontsource-variable/inter/LICENSE
+    to: licenses/Inter-OFL.txt
   - from: NOTICE
     to: licenses/OpenMausBot-NOTICE.txt
   # cloudflared is distributed under Apache-2.0 as a separate executable.

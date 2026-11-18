@@ -144,6 +144,9 @@ test("starting the phone link checks a stored address first and waits on it only
   const starts = [];
   const routesOn = new Set();
   const context = vm.createContext({
+    app: { isPackaged: true },
+    serverProc: {},
+    phoneSecretIdentity: { publicKey: "saved" },
     managedRemoteAccessRefusal: () => null,
     companionDesiredThisLaunch: false,
     companionLaunchGeneration: 0,
@@ -177,4 +180,49 @@ test("starting the phone link checks a stored address first and waits on it only
   assert.equal(typeof starts[0].check()?.then, "function");
   assert.equal(starts[0].start, context.startManagedCompanionConnection);
   assert.equal(starts[0].desired(), true);
+});
+
+test("concurrent starts share the encrypted key write and a stop during that write keeps the companion off", async () => {
+  const saving = Promise.withResolvers();
+  const persisted = Promise.withResolvers();
+  const starts = [];
+  const synced = [];
+  let writes = 0;
+  const context = vm.createContext({
+    app: { isPackaged: true }, serverProc: {}, desktopShutdownStarted: false,
+    phoneSecretIdentity: null, pendingPhoneSecretIdentity: null,
+    createPhoneSecretIdentity: async () => ({ publicKey: "fixture" }),
+    updateSecureCredentialDocument: async (derive) => {
+      assert.equal(derive({}).publicKey, "fixture");
+      writes++;
+      saving.resolve();
+      await persisted.promise;
+    },
+    withPhoneSecretIdentity: (_credentials, identity) => identity,
+    syncPhoneSecretKey: (proc) => synced.push(proc),
+    managedRemoteAccessRefusal: () => null, companionDesiredThisLaunch: false, companionLaunchGeneration: 0,
+    companionLaunchOptions: () => context.phoneSecretIdentity,
+    startCompanion: async (options) => { starts.push(options.publicKey); return { enabled: true }; },
+    stopCompanion: async () => {}, syncCompanionKeepAwake: () => {}, managedCompanionConnector: null,
+    phoneLinkRoutes: { touched: () => {} }, startCheckedManagedConnection: async () => {},
+    startManagedCompanionConnection: async () => {}, desktopCompanionState: async () => ({}),
+  });
+  vm.runInContext(`${slice("async function provisionPhoneSecretIdentity()", "function publicManagedCompanionState()")}
+    ${slice("async function startDesktopCompanion(", "const tailnetShare =")}
+    globalThis.start = startDesktopCompanion;
+    globalThis.stop = stopDesktopCompanion;`, context);
+  const options = { remember: false, routes: [] };
+  const first = context.start(options);
+  const second = context.start(options);
+  await saving.promise;
+  assert.equal(writes, 1);
+  assert.deepEqual(synced, []);
+  await context.stop({ remember: false });
+  persisted.resolve();
+  await Promise.all([first, second]);
+  assert.deepEqual(starts, []);
+  assert.deepEqual(synced, [context.serverProc]);
+  await context.start(options);
+  assert.deepEqual(starts, ["fixture"]);
+  assert.equal(writes, 1);
 });

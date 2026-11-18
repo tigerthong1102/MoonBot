@@ -171,7 +171,7 @@ try {
   assert.equal(createHash("sha256").update(readFileSync(sentinel)).digest("hex"), sentinelHash);
   assert(existsSync(path.join(data, "bots.json")), "The fixture must persist StartupBot's data");
   assert(existsSync(path.join(profile, "last-run-version.json")), "The explicit Electron profile must be used");
-  assert(existsSync(path.join(profile, "credentials.bin")), "The OS-backed credential file must stay in the isolated profile");
+  assert.equal(existsSync(path.join(profile, "credentials.bin")), false, "First launch must not provision phone credentials before pairing");
   if (mac) {
     const id = execFileSync("/usr/bin/plutil", ["-extract", "CFBundleIdentifier", "raw", path.join(app, "Contents", "Info.plist")], { encoding: "utf8" }).trim();
     assert.equal(id, "ai.startupbot.desktop");

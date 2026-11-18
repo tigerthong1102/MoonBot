@@ -5,42 +5,33 @@ import com.openmausbot.companion.core.Message
 import com.openmausbot.companion.core.Bot
 import com.openmausbot.companion.core.CompanionState
 
-/** Where a call is — `CallView.Phase` on iOS. */
 enum class CallPhase { LISTENING, SENDING, WORKING, SPEAKING }
 
-/** What the call does next, decided from what just changed. */
 sealed class CallAction {
-    /** A pending approval or question: announce it, then listen. */
     data class Announce(val text: String) : CallAction()
 
-    /** A reply landed: read it, then listen. */
     data class SayReply(val text: String) : CallAction()
 
-    /** An activity chip the harness phrased for a voice: read it, then keep working. */
     data class SayChip(val text: String) : CallAction()
 
-    /** The bot went busy while the mic was open: close it and wait. */
     data object StopListeningAndWork : CallAction()
 
-    /** The bot went idle with nothing to say: open the mic. */
     data object Listen : CallAction()
 
     data object None : CallAction()
 }
 
-/**
- * The call loop's decisions, with no audio in them — the rules half of
- * `ios/App/CallView.swift`.
- *
- * Half-duplex on purpose: the microphone is live only while the bot is not
- * speaking. A recognizer that hears even a little of the bot's own voice
- * sends it back as a message, and the two of them talk forever.
- */
+/** The microphone must stay closed during playback to prevent a speech feedback loop. */
 object CallRules {
     fun botForCall(state: CompanionState, original: Bot): Bot? =
         state.botForThread(original.threadId)?.takeIf { it.id == original.id }
 
-    /** The turn ends this long after the transcript last changed — the desktop's endpointer. */
+    fun failedSendAction(active: Boolean, busy: Boolean, speaking: Boolean): CallAction = when {
+        !active || speaking -> CallAction.None
+        busy -> CallAction.StopListeningAndWork
+        else -> CallAction.Listen
+    }
+
     const val ENDPOINT_GAP_MILLIS: Long = 850L
 
     fun phaseText(phase: CallPhase, name: String): String = when (phase) {
@@ -60,11 +51,6 @@ object CallRules {
     fun announcement(name: String, isPermission: Boolean): String =
         "$name ${if (isPermission) "is asking for permission" else "has a question"}. Open the chat to answer it."
 
-    /**
-     * `react()` in the Swift. [fresh] are the messages that arrived since the
-     * last look; [pendingCard] the newest unanswered card; [announced] the
-     * request ids already spoken.
-     */
     fun react(
         name: String,
         fresh: List<Message>,

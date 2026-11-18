@@ -14,6 +14,14 @@ import kotlin.test.assertTrue
 
 class CallRulesTest {
     @Test
+    fun `failed sends resume only the active idle half duplex call`() {
+        assertEquals(CallAction.Listen, CallRules.failedSendAction(active = true, busy = false, speaking = false))
+        assertEquals(CallAction.StopListeningAndWork, CallRules.failedSendAction(active = true, busy = true, speaking = false))
+        assertEquals(CallAction.None, CallRules.failedSendAction(active = false, busy = false, speaking = false))
+        assertEquals(CallAction.None, CallRules.failedSendAction(active = true, busy = false, speaking = true))
+    }
+
+    @Test
     fun `a call keeps its original task while the desktop selects another one`() {
         val original = com.openmausbot.companion.core.Bot(
             id = "bot", threadId = "a", name = "Fixture", title = "", description = "", notifications = true,
@@ -30,6 +38,12 @@ class CallRulesTest {
         assertEquals("Updated", CallRules.botForCall(state, original)?.name)
         assertNull(CallRules.botForCall(state.copy(bots = listOf(live.copy(id = "other"))), original))
         assertNull(CallRules.botForCall(state.copy(bots = emptyList()), original))
+    }
+
+    @Test
+    fun `failed sending recovers when concurrent playback finishes`() {
+        assertEquals(CallAction.None, react(phase = CallPhase.SENDING, speakerSpeaking = true))
+        assertEquals(CallAction.Listen, react(phase = CallPhase.SENDING, speakerSpeaking = false))
     }
 
     private fun text(id: String, role: Message.Role = Message.Role.BOT, body: String = "Done.") =

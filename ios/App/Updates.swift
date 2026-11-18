@@ -10,9 +10,7 @@ struct ChatUpdate: Identifiable, Hashable {
 
     let chat: Chat
     let kind: Kind
-    /// One line under the name — the question, what it is doing, or what it said.
     let line: String
-    /// The card to answer, when `kind == .needsYou`.
     let card: OptionCard?
 
     var id: String { chat.conversationID }
@@ -55,14 +53,16 @@ extension CompanionState {
             }
         }
         for room in rooms {
-            let chat = Chat.room(room)
-            guard !seen.contains(chat.conversationID) else { continue }
-            if room.busyBotId != nil {
-                seen.insert(chat.conversationID)
-                out.append(ChatUpdate(chat: chat, kind: .working, line: workingLine(threadId: room.threadId), card: nil))
-            } else if room.unread {
-                seen.insert(chat.conversationID)
-                out.append(ChatUpdate(chat: chat, kind: .toReview, line: lastLine(threadId: room.threadId), card: nil))
+            let threads = room.tasks?.map(\.threadId) ?? [room.threadId]
+            for thread in threads {
+                guard let projected = room.projected(forThread: thread) else { continue }
+                let chat = Chat.room(projected)
+                guard seen.insert(chat.conversationID).inserted else { continue }
+                if projected.busyBotId != nil {
+                    out.append(ChatUpdate(chat: chat, kind: .working, line: workingLine(threadId: thread), card: nil))
+                } else if projected.unread {
+                    out.append(ChatUpdate(chat: chat, kind: .toReview, line: lastLine(threadId: thread), card: nil))
+                }
             }
         }
         return out.sorted { $0.kind < $1.kind }

@@ -33,4 +33,35 @@ final class ChannelTaskUpdatesTests: XCTestCase {
         XCTAssertNil(first.projected(in: state, forThread: "foreign"))
         XCTAssertEqual(state.rooms.first?.threadId, "selected")
     }
+
+    @MainActor
+    func testUnreadChannelUpdatesOpenEachUnreadTaskAndDisappearWhenRead() throws {
+        let fleet = try JSONDecoder().decode(Fleet.self, from: Data(#"""
+        {"bots":[],"groups":[{"id":"channel","threadId":"selected","name":"Fixture","memberIds":[],
+          "defaultResponder":{"kind":"all"},"bulletin":"","unread":true,"createdAt":1,
+          "tasks":[{"threadId":"selected","title":"Current","createdAt":1,"unread":false},
+                   {"threadId":"first","title":"First","createdAt":2,"unread":true},
+                   {"threadId":"second","title":"Second","createdAt":3,"unread":true}]}]}
+        """#.utf8))
+        var state = CompanionState()
+        state.hydrate(fleet)
+        for thread in ["selected", "first", "second"] {
+            let message = try JSONDecoder().decode(Message.self, from: Data("""
+            {"id":"message-\(thread)","role":"bot","kind":"text","at":1,"text":"reply-\(thread)"}
+            """.utf8))
+            state.apply(.messagePatch(threadId: thread, message: message))
+        }
+        XCTAssertEqual(state.updates.map { $0.chat.threadId }, ["first", "second"])
+        XCTAssertEqual(state.updates.map(\.line), ["reply-first", "reply-second"])
+        XCTAssertTrue(state.updates.allSatisfy { $0.kind == .toReview && $0.chat.unread })
+        var room = try XCTUnwrap(fleet.groups.first)
+        room.tasks?[1].unread = false
+        state.hydrate(Fleet(bots: [], groups: [room]))
+        XCTAssertEqual(state.updates.map { $0.chat.threadId }, ["second"])
+        room.tasks?[2].unread = false
+        room.unread = false
+        state.hydrate(Fleet(bots: [], groups: [room]))
+        XCTAssertTrue(state.updates.isEmpty)
+    }
+
 }

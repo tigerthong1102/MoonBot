@@ -27,7 +27,8 @@ for architecture in ('arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86', 'universal', '
         'commit': commit, 'version': version, 'architecture': architecture, 'file': name,
         'bytes': original.stat().st_size, 'sha256': sha256,
         'signing': 'unsigned' if architecture == 'bundle' else 'ephemeral-debug-key',
-        'qualification': 'emulator-smoke-pass' if architecture == 'x86_64' else 'build-and-payload-verification-only',
+        'qualification': 'bundle-build-only' if architecture == 'bundle' else
+                         'emulator-smoke-pass' if architecture == 'x86_64' else 'build-and-payload-verification-only',
     }, indent=2) + '\n')
     shutil.copytree(evidence, destination / 'evidence')
     for file in ('android/LICENSE', 'android/NOTICE', 'docs/STARTUPBOT_MOBILE_INTERNAL.md'):

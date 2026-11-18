@@ -240,7 +240,7 @@ The review on `566cd142643d5acc0018678ba43713f6c0bc3f9d` confirmed three additio
 Android text-only sends use the same acknowledged, idempotent pipeline as attachments. Failed sends retain the draft, successful replies clear only the captured draft, newer edits survive, and a stale computer cannot receive the captured request or overwrite current state/errors. Regression tests cover draft outcomes, same send ID on retry, zero requests to a mismatched origin, channel cold recovery and reference review boundaries. iOS 0.1.2 build 10 includes the reference preview. Native builds/tests for these changed sources are required; the earlier Android 0.1.4 artifact is provisional and lacks these follow-ups. The Simulator install verifier also checks the debug dylib when present.
 
 
-## Compact internal candidates — Android 0.1.6 / iOS build 12
+## Compact internal candidates — Android 0.1.7 / iOS build 13
 
 Android produces four standalone CPU-specific APKs plus a universal fallback;
 AAB delivery remains available. The phone ARM64 APK omits only other CPUs'
@@ -308,3 +308,15 @@ approval share one captured client/runtime, rejected grants stop the sequence,
 and a changed runtime cannot submit the answer. SessionRequestTests adds
 request-level regressions for success, rejection and computer/runtime switches.
 New iOS acceptance is required; Android source remains 0.1.6 unchanged.
+
+
+Build 13 / Android 0.1.7 fixes confirmed review findings for task-specific
+channel unread updates, failed spoken sends leaving the mic stopped, and an
+iOS voice preview retaining its audio session. Channel updates now use each
+task's own unread state and transcript; legacy single-thread rooms remain
+supported. Calls resume listening only while their original context is still
+active and idle. Preview completion/failure/dismissal releases audio, and late
+fetches or old callbacks cannot restart or stop a replacement preview. These
+changes require fresh native tests; the smaller 0.1.6 APK remains a separately
+qualified fallback, not proof of the changed 0.1.7 source. Store signing and
+physical-device acceptance remain deferred gates.

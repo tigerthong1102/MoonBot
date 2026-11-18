@@ -26,6 +26,8 @@ Internal iOS build 12 separates ARM64 and Intel simulator packages without remov
 
 Internal build 12 pins permission remembering and approval to one captured client/runtime, stops after failed grants, and tests computer switches including a replacement runtime with the same connection ID.
 
+Internal Android 0.1.7 / iOS build 13 keeps channel unread updates scoped to individual tasks. Android calls recover listening after failed sends without reopening a hung-up or foreign call; iOS voice previews release audio on completion, failure, replacement and dismissal, and reject late preview data. New regression tests cover these lifecycles.
+
 Modified imported files:
 
 - `App/AgentProfileView.swift`

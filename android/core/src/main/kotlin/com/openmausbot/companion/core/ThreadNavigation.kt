@@ -1,7 +1,6 @@
 // Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
-/** A saved folder's visible threads, or the unfiled threads after the folders. */
 data class BotThreadGroup(val project: BotProject?, val tasks: List<BotTask>) {
     val id: String get() = project?.let { "project:${it.id}" } ?: "unfiled"
 }
@@ -9,21 +8,13 @@ data class BotThreadGroup(val project: BotProject?, val tasks: List<BotTask>) {
 val BotTask.displayTitle: String
     get() = title.trim().ifEmpty { "Untitled thread" }
 
-/** The thread's own turn is running — the desktop's isWorking exactly.
- * A run counts as work here exactly as its row labels it Working. */
 val BotTask.isWorking: Boolean
     get() = activity == "working" || activity == "running" || busy == true
 
 val BotTask.isWaitingOnTeammate: Boolean
     get() = waitingOnTeammate == true
 
-/** Running, needing the person, unread, or holding a queued send — client
- * state passed in, because the harness reports queues out-of-band, never as
- * task activity. */
 fun BotTask.demandsAttention(queued: Boolean = false): Boolean =
-    // The activity set is the BotActivity wire contract (working,
-    // waiting-on-you, waiting, idle, no-signal, dead) plus the queued wait;
-    // work states arrive through isWorking.
     isWaitingOnTeammate || isWorking || busy == true || unread == true || queued ||
         activity in setOf("waiting-on-you", "waiting", "queued")
 
@@ -34,12 +25,6 @@ fun nextSnoozeExpiry(tasks: List<BotTask>, now: Long = System.currentTimeMillis(
         .minOrNull()
         ?.toLong()
 
-/**
- * Attention rank for [orderedThreads]. The thread list does not use it:
- * the tree, the sheet, and the pickers use [listedThreads]. The inbox ranks
- * its own entries. waiting-on-you, then working/busy, then queued, then
- * unread, then the open thread, then idle. Equal ranks keep stored order.
- */
 fun attentionRank(task: BotTask, activeThreadId: String, queued: Boolean = false): Int = when {
     task.activity == "waiting-on-you" -> 0
     task.busy == true || task.activity == "working" -> 1
@@ -49,9 +34,6 @@ fun attentionRank(task: BotTask, activeThreadId: String, queued: Boolean = false
     else -> 5
 }
 
-/** Pin, then newest update. Equal stamps keep the caller's order. Attention
- * does not move a row. [orderedThreads] still ranks by attention, and no
- * screen calls it. */
 fun listedThreads(tasks: List<BotTask>): List<BotTask> =
     tasks.withIndex().sortedWith(
         compareByDescending<IndexedValue<BotTask>> { it.value.pinned == true }
@@ -59,8 +41,6 @@ fun listedThreads(tasks: List<BotTask>): List<BotTask> =
             .thenBy { it.index },
     ).map { it.value }
 
-/** Order, never filter: whatever the caller passes stays visible, only the
- * position changes. Sorting is stable, so equal ranks keep stored order. */
 fun orderedThreads(
     tasks: List<BotTask>,
     activeThreadId: String,
@@ -68,23 +48,13 @@ fun orderedThreads(
 ): List<BotTask> =
     tasks.sortedBy { attentionRank(it, activeThreadId, queued = it.threadId in queuedThreadIds) }
 
-/** Routine results are ordinary threads; only their internal per-run executions are hidden. */
 val Bot.visibleTasks: List<BotTask>
     get() = tasks.orEmpty().filter { it.routineRunId == null }
 
-/**
- * Preserve saved folder order. Threads inside a folder follow pin, then
- * newest update ([listedThreads]); attention does not reorder this list.
- * A missing folder leaves its threads unfiled. Search includes closed threads
- * and matches folder names. Those rows use the same pin-then-update order;
- * they are not the default list's row set.
- */
 fun Bot.threadGroups(
     matching: String = "",
     includingClosed: Boolean = false,
     now: Long = System.currentTimeMillis(),
-    /** Threads holding a queued send. A closed thread with a held send stays
-     * in the list the way a running one does (Sidebar.tsx 865). */
     queuedThreadIds: Set<String> = emptySet(),
 ): List<BotThreadGroup> {
     val search = matching.trim()
@@ -96,11 +66,6 @@ fun Bot.threadGroups(
             approvalMode = approvalMode, autoApprove = autoApprove, alwaysAllow = alwaysAllow,
         ))
         includingClosed || search.isNotEmpty() -> visibleTasks
-        // Closed, archived, and snoozed threads fold away with the same
-        // override: one that starts working, waits on the person, or turns
-        // unread is back; a snooze's sentinel sleeps only until activity and
-        // its clock only while it still runs (`visibleSidebarThreads` in
-        // `SidebarThreadRow.tsx`). A held queued send also brings it back.
         else -> visibleTasks.filter {
             it.pinned == true ||
                 (!it.isClosed && !it.isArchived && !it.isSnoozed(now)) ||
@@ -126,4 +91,16 @@ fun Bot.threadGroups(
         else group.tasks.filter { it.displayTitle.contains(search, ignoreCase = true) }
             .takeIf { it.isNotEmpty() }?.let { BotThreadGroup(group.project, it) }
     }
+}
+
+fun Room.forTask(selectedThreadId: String): Room? {
+    val task = tasks?.firstOrNull { it.threadId == selectedThreadId }
+    if (task == null && selectedThreadId != threadId) return null
+    return copy(
+        threadId = selectedThreadId,
+        unread = task?.unread ?: (tasks == null && selectedThreadId == threadId && unread),
+        busyBotId = busyBotId.takeIf { selectedThreadId == threadId },
+        messages = messages.takeIf { selectedThreadId == threadId },
+        hasMore = hasMore.takeIf { selectedThreadId == threadId },
+    )
 }

@@ -51,19 +51,6 @@ import com.openmausbot.companion.core.Message
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/**
- * Call mode — the bot on the line, on the phone. The port of
- * `ios/App/CallView.swift`, and deliberately HALF-DUPLEX for the same reason:
- * the microphone is live only while the bot is not speaking. Interrupting is
- * a tap instead.
- *
- * Turn-taking is the silence endpointer in [com.openmausbot.companion.dictation.SpeechDictation.listenForTurn]:
- * the turn ends [CallRules.ENDPOINT_GAP_MILLIS] after the transcript last
- * changed. Waiting is narrated — every activity chip the harness phrases for
- * a voice is read as it lands — so an agent turn of tool calls sounds like
- * someone working rather than a dropped call. Approvals and questions are
- * announced, not answered by voice; answering them happens in the chat.
- */
 @Composable
 internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
     val environment = LocalCompanion.current
@@ -86,18 +73,17 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
 
     var phase by remember { mutableStateOf(CallPhase.LISTENING) }
     var note by remember { mutableStateOf<String?>(null) }
-    // Everything already on screen when the call starts has been read or
-    // ignored — a call must not open by reciting the backlog.
     val spokenIds = remember { mutableSetOf<String>() }
     val announcedRequests = remember { mutableSetOf<String>() }
     var started by remember { mutableStateOf(false) }
+    var ended by remember { mutableStateOf(false) }
     var sayGeneration by remember { mutableStateOf(0) }
 
     LaunchedEffect(liveBot == null) {
         if (liveBot == null) { microphone.stop(); speaker.stop(); onDismiss() }
     }
 
-    fun activeCallBot(): Bot? = if (originConnectionId != null && session.connection.value?.id == originConnectionId)
+    fun activeCallBot(): Bot? = if (!ended && originConnectionId != null && session.connection.value?.id == originConnectionId)
         CallRules.botForCall(session.state.value, bot) else null
 
     fun listen() {
@@ -110,15 +96,22 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
                 listen()
             } else {
                 phase = CallPhase.SENDING
-                scope.launch { activeCallBot()?.let { session.send(said, Chat.BotChat(it)) } }
+                scope.launch {
+                    val destination = activeCallBot() ?: return@launch
+                    val sent = session.send(said, Chat.BotChat(destination))
+                    if (!sent && phase == CallPhase.SENDING) {
+                        val live = activeCallBot()
+                        when (CallRules.failedSendAction(live != null, live?.busy == true, speaker.isSpeaking.value)) {
+                            CallAction.Listen -> listen()
+                            CallAction.StopListeningAndWork -> { microphone.stop(); phase = CallPhase.WORKING }
+                            else -> Unit
+                        }
+                    }
+                }
             }
         }
     }
 
-    /**
-     * Speak with the microphone closed, then return whether this call is
-     * still the one that asked (an interrupt or hang-up bumps the generation).
-     */
     suspend fun say(text: String): Boolean {
         if (activeCallBot() == null) return false
         sayGeneration += 1
@@ -160,7 +153,7 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
         if (current.busy == true) phase = CallPhase.WORKING else listen()
     }
 
-    LaunchedEffect(messages, current.busy) {
+    LaunchedEffect(messages, current.busy, speaking) {
         if (!started) return@LaunchedEffect
         val fresh = messages.filter { it.id !in spokenIds }
         spokenIds += fresh.map { it.id }
@@ -195,6 +188,7 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
     LaunchedEffect(microphoneError) { microphoneError?.let { note = it } }
 
     fun hangUp() {
+        ended = true
         sayGeneration += 1
         microphone.stop()
         speaker.stop()
@@ -210,6 +204,7 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
 
     DisposableEffect(Unit) {
         onDispose {
+            ended = true
             microphone.stop()
             speaker.stop()
         }

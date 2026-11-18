@@ -1,5 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-import AVFAudio
 import CompanionCore
 import PhotosUI
 import SwiftUI
@@ -30,7 +29,7 @@ struct AgentProfileView: View {
     @State private var selectedEffort: String?
     @State private var savedModel: ModelSelection
     @State private var busy = false
-    @State private var player: AVAudioPlayer?
+    @StateObject private var voicePreview = VoicePreviewPlayer()
     @State private var baseline: ProfileFormSnapshot
 
     init(bot: Bot) {
@@ -104,9 +103,6 @@ struct AgentProfileView: View {
         let effortIsOffered = selectedEffort.map(effortLevels.contains) ?? true
         return modelIsOffered && effortIsOffered && modelDraft != savedModel
     }
-    /// Which engine's words to use. An unloaded status is ElevenLabs for the
-    /// same reason a missing `provider` is: that is the server's own fallback,
-    /// and the copy that shipped.
     private var usesSystemVoices: Bool { config?.voiceProvider == .system }
 
     var body: some View {
@@ -285,11 +281,6 @@ struct AgentProfileView: View {
                     Text("Voice")
                 } footer: {
                     if !voiceConfigured {
-                        // Under the built-in engine "not configured" is not a
-                        // missing credential — there is none — so the remedy
-                        // cannot be a key. `providerConfigured` in
-                        // `server/tts/index.ts` is reporting that this
-                        // computer has no built-in voices to speak with.
                         if usesSystemVoices {
                             Text("Built-in Mac voices need no key, and this computer has none available. Switch the voice engine to ElevenLabs in this agent's profile on the computer to keep using voice.")
                         } else {
@@ -317,6 +308,7 @@ struct AgentProfileView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
             }
             .overlay { if busy { ProgressView().controlSize(.large) } }
+            .onDisappear { voicePreview.stop() }
             .task {
                 async let status = session.configStatus()
                 async let options = session.voiceOptions()
@@ -340,8 +332,6 @@ struct AgentProfileView: View {
     private func profilePatch() -> BotProfilePatch {
         let savedSpeakReplies = config.map { $0.canSpeak(agentVoice: voice) && speakReplies } ?? speakReplies
         return BotProfilePatch(
-            // The shared server contract owns the 100/200/4000 limits. Do not
-            // silently apply narrower iOS-only limits to a user's profile.
             name: name == baseline.name ? nil : name.trimmingCharacters(in: .whitespacesAndNewlines),
             title: title == baseline.title ? nil : title.trimmingCharacters(in: .whitespacesAndNewlines),
             description: description == baseline.description
@@ -442,19 +432,12 @@ struct AgentProfileView: View {
     private func generateImage() async {
         busy = true
         defer { busy = false }
-        // What the selector said when the request went out. The desktop
-        // compares the same way (`latestCrop === cropAtStart` in
-        // `src/components/BotProfileAvatarCard.tsx`) so a selector moved
-        // mid-flight still wins over the server's pick.
         let cropAtStart = crop
         guard let generated = await session.generateAvatar(
             prompt: String(prompt.trimmingCharacters(in: .whitespacesAndNewlines).prefix(400)),
             for: current
         ) else { return }
 
-        // `AvatarCrop.afterGenerating` is the shared decision: the server's
-        // pick unless the selector moved while the request was in flight, in
-        // which case that newer explicit choice wins.
         let resolved = AvatarCrop.afterGenerating(
             cropAtStart: cropAtStart,
             latestCrop: crop,
@@ -467,17 +450,9 @@ struct AgentProfileView: View {
             return
         }
 
-        // The user moved the selector while the image was generating: an
-        // explicit choice made after the request, so persist it against the
-        // returned attachment rather than leaving UI and server out of sync.
         if let updated = await session.updateProfile(BotProfilePatch(avatarCrop: resolved), for: generated) {
             crop = updated.avatarCrop ?? resolved
         } else {
-            // Generation itself succeeded. Reflect its authoritative result
-            // rather than claiming the requested crop was persisted. A `nil`
-            // crop here matches `afterGenerating`'s own fallback: `.circle`,
-            // not `.mascot`, which would throw away the picture just
-            // generated.
             crop = generated.avatarCrop ?? .circle
         }
         baseline.crop = crop
@@ -488,25 +463,13 @@ struct AgentProfileView: View {
             session.actionError = "Pick an agent voice or configure a workspace default on your computer first."
             return
         }
+        let request = voicePreview.begin()
         busy = true
         defer { busy = false }
-        guard let data = await session.previewVoice(voice, for: current) else { return }
+        guard let data = await session.previewVoice(voice, for: current), voicePreview.isCurrent(request) else { return }
         do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .spokenAudio)
-            try audioSession.setActive(true)
-
-            let nextPlayer = try AVAudioPlayer(data: data)
-            guard nextPlayer.prepareToPlay(), nextPlayer.play() else {
-                try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-                player = nil
-                session.actionError = "The generated audio could not be played."
-                return
-            }
-            player = nextPlayer
+            try voicePreview.play(data, request: request)
         } catch {
-            player = nil
-            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             session.actionError = "The generated audio could not be played."
         }
     }

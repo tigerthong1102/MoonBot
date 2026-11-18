@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.BotTask
@@ -14,14 +15,28 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-/**
- * DELTA-02: the Updates derivation, pinned against `ios/App/Updates.swift`.
- *
- * Every expectation here is the literal value that file's rules produce — the
- * dedup order, the three kinds, and the two line functions, which are not the
- * roster's preview and must not drift into it.
- */
 class UpdatesTest {
+    @Test
+    fun `unread room updates use each task and clear independently`() {
+        val channel = room().copy(unread = true, tasks = listOf(
+            BotTask("thread-room-1", "Selected", 1.0, unread = false),
+            BotTask("background-a", "First", 2.0, unread = true),
+            BotTask("background-b", "Second", 3.0, unread = true),
+        ))
+        val state = CompanionState(rooms = listOf(channel), messages = mapOf(
+            "thread-room-1" to listOf(text("current", "read reply")),
+            "background-a" to listOf(text("a", "first unread")),
+            "background-b" to listOf(text("b", "second unread")),
+        ))
+        assertEquals(listOf("background-a", "background-b"), state.updates.map { it.chat.threadId })
+        assertEquals(listOf("first unread", "second unread"), state.updates.map { it.line })
+        assertTrue(state.updates.all { it.kind == UpdateKind.TO_REVIEW })
+        val readFirst = channel.copy(tasks = channel.tasks!!.map { if (it.threadId == "background-a") it.copy(unread = false) else it })
+        assertEquals(listOf("background-b"), state.copy(rooms = listOf(readFirst)).updates.map { it.chat.threadId })
+        val readAll = readFirst.copy(unread = false, tasks = readFirst.tasks!!.map { it.copy(unread = false) })
+        assertTrue(state.copy(rooms = listOf(readAll)).updates.isEmpty())
+    }
+
     @Test
     fun `a bot that is idle and read is not an update`() {
         val state = CompanionState(
@@ -93,9 +108,6 @@ class UpdatesTest {
 
     @Test
     fun `a hidden bot that stopped still needs you, as on iOS`() {
-        // The needs-you pass runs over pendingApprovals, which `:core` builds
-        // from every bot and room thread — hidden or not. Only the two passes
-        // below it skip hidden bots.
         val state = CompanionState(
             bots = listOf(bot().copy(hidden = true)),
             messages = mapOf("thread-bot-1" to listOf(options("m1", pendingCard()))),
@@ -136,8 +148,6 @@ class UpdatesTest {
 
     @Test
     fun `a queued activity string alone is not an update, only held sends are`() {
-        // the server never sends queued as activity; only the client's queue
-        // state makes the pill say Queued
         val dead = CompanionState(bots = listOf(bot(name = "Pepper").copy(
             tasks = listOf(BotTask("thread-bot-1", "Gmail", 0.0, activity = "queued")),
         )))
@@ -227,25 +237,17 @@ class UpdatesTest {
             bots = listOf(bot(busy = true)),
             streaming = mapOf("thread-bot-1" to live),
         )
-        // 151 characters in, the last 120 begin 31 'a's from the end of the run.
         assertEquals("a".repeat(69) + " " + "b".repeat(50), state.updates.single().line)
     }
 
     @Test
     fun `the tail is counted in characters, the way Swift counts them`() {
-        // A Swift String is a collection of Character — extended grapheme
-        // clusters — so `suffix(120)` of a 120-character line is that line back,
-        // whole. Counting UTF-16 units instead would drop the high surrogate and
-        // start the line on half an emoji.
-        // U+1F600 GRINNING FACE: one character, two code units.
         val grin = "\uD83D\uDE00"
         val emoji = grin + "a".repeat(119)
         assertEquals(emoji, workingLine(emoji))
 
-        // One character longer, and the emoji goes whole rather than in halves.
         assertEquals("a".repeat(120), workingLine(grin + "a".repeat(120)))
 
-        // e + U+0301: the combining acute belongs to the letter it sits on.
         val combining = "e\u0301" + "b".repeat(119)
         assertEquals(combining, workingLine(combining))
     }
@@ -279,7 +281,6 @@ class UpdatesTest {
         val quiet = CompanionState(bots = listOf(bot(busy = true)))
         assertEquals("Working…", quiet.updates.single().line)
 
-        // An activity without a tool is not a name, so it is not a line either.
         val toolless = CompanionState(
             bots = listOf(bot(busy = true)),
             messages = mapOf(
@@ -290,7 +291,6 @@ class UpdatesTest {
         )
         assertEquals("Working…", toolless.updates.single().line)
 
-        // The last message being text does not make it a working line either.
         val talked = CompanionState(
             bots = listOf(bot(busy = true)),
             messages = mapOf("thread-bot-1" to listOf(text("m1", "hello"))),
@@ -302,7 +302,6 @@ class UpdatesTest {
     fun `an unread bot reads out its last message, by kind`() {
         val cases = listOf(
             text("m1", "the invoice is filed") to "the invoice is filed",
-            // Answered: a card still pending would make this a needs-you instead.
             options("m1", pendingCard().copy(answered = "Allow")) to "Run a command",
             activity("m1", "Bash") to "Bash",
             screen("m1") to "Screenshot",
@@ -431,7 +430,6 @@ class UpdatesTest {
     }
 }
 
-/** The words the pill and the sheet put around the derivation. */
 class UpdatesSummaryTest {
     private fun update(kind: UpdateKind, name: String, line: String) = ChatUpdate(
         chat = Chat.BotChat(bot(name = name)),
@@ -498,8 +496,6 @@ class UpdatesSummaryTest {
         val reader = Locale.getDefault()
         Locale.setDefault(Locale.forLanguageTag("tr-TR"))
         try {
-            // Swift's `uppercased()` is the canonical transform; a localised one
-            // would put a dot on the capital I and read WORKİNG here.
             assertEquals("NEEDS YOU", UpdatesSummary.sectionLabel(UpdateKind.NEEDS_YOU))
             assertEquals("WORKING", UpdatesSummary.sectionLabel(UpdateKind.WORKING))
             assertEquals("TO REVIEW", UpdatesSummary.sectionLabel(UpdateKind.TO_REVIEW))

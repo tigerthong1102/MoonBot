@@ -23,6 +23,8 @@ Notification origin is scoped to the paired computer. Background channel task ap
 
 Internal Android 0.1.6 adds ABI-specific Gradle packages alongside the universal APK and AAB, preserving all shared bytecode/resources and each CPU’s native libraries. Signing and full runtime features are retained.
 
+Internal Android 0.1.7 / iOS build 13 keeps channel unread updates scoped to individual tasks. Android calls recover listening after failed sends without reopening a hung-up or foreign call; iOS voice previews release audio on completion, failure, replacement and dismissal, and reject late preview data. New regression tests cover these lifecycles.
+
 Modified imported files:
 
 - `.gitignore`
@@ -68,6 +70,7 @@ Modified imported files:
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ShareSheet.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/TasksRoutinesScreen.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/TranscriptCardViews.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/ui/Updates.kt`
 - `app/src/main/res/drawable/ic_launcher_foreground.xml`
 - `app/src/main/res/drawable/ic_launcher_monochrome.xml`
 - `app/src/main/res/values-night/themes.xml`
@@ -100,6 +103,7 @@ Modified imported files:
 - `app/src/test/kotlin/com/openmausbot/companion/ui/SettingsReconnectWiringTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/SharePolicyTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/TranscriptRunTest.kt`
+- `app/src/test/kotlin/com/openmausbot/companion/ui/UpdatesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/VoiceSectionWiringTest.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/AskQuestion.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/Client.kt`

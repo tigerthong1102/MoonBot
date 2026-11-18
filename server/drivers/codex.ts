@@ -1303,7 +1303,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
 
       try {
         const initialized = await request("initialize", {
-          clientInfo: { name: "openmausbot", title: "StartupBot", version: serverVersion() },
+          clientInfo: { name: "startupbot", title: "StartupBot", version: serverVersion() },
           // Named permission profiles are an experimental app-server field in Codex 0.151.
           capabilities: { experimentalApi: true },
         });

@@ -184,7 +184,7 @@ function applyUnreadBadge(win = mainWindow) {
 // A launch with --disable-gpu (a desktop entry or a user workaround) renders on the CPU too.
 const linuxSoftwareRendering = process.platform === "linux" && (linuxDisablesGpu() || app.commandLine.hasSwitch("disable-gpu"));
 if (linuxSoftwareRendering) app.disableHardwareAcceleration();
-if (process.platform === "linux") app.setDesktopName("com.openmausbot.app.desktop");
+if (process.platform === "linux") app.setDesktopName("ai.startupbot.desktop");
 
 if (!app.requestSingleInstanceLock()) {
   console.log("[desktop] StartupBot is already running — focusing that window");

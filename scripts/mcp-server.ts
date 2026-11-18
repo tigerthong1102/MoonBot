@@ -38,7 +38,7 @@ const DISCOVERY_URLS = configuredUrl
 let discoveredBaseUrl: string | undefined;
 
 export function log(msg: string) {
-  process.stderr.write(`[openmausbot-mcp] ${msg}\n`);
+  process.stderr.write(`[startupbot-mcp] ${msg}\n`);
 }
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -1247,7 +1247,7 @@ export async function processMcpMessage(
           tools: {},
         },
         serverInfo: {
-          name: "openmausbot-mcp",
+          name: "startupbot-mcp",
           version: "1.1.0",
         },
         instructions: "Use bounded read tools before mutating the StartupBot team. Approval grants, deletion, and computer lifecycle are intentionally unavailable.",

@@ -78,7 +78,7 @@ describe("the headless command line", () => {
     child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize",
       params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } } })}\n`);
     await vi.waitFor(() => expect(stdout).toContain('"id":1'), { timeout: 10_000 });
-    expect(JSON.parse(stdout.split("\n")[0]!)).toMatchObject({ id: 1, result: { serverInfo: { name: expect.stringContaining("openmausbot") } } });
+    expect(JSON.parse(stdout.split("\n")[0]!)).toMatchObject({ id: 1, result: { serverInfo: { name: expect.stringContaining("startupbot") } } });
     child.kill("SIGINT");
     const timer = setTimeout(() => child.kill("SIGKILL"), 5_000);
     const { signal } = await exited;

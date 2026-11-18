@@ -227,7 +227,7 @@ export class StdioMcp {
       {
         protocolVersion: "2024-11-05",
         capabilities: {},
-        clientInfo: { name: "openmausbot-pi", version: "1" },
+        clientInfo: { name: "startupbot-pi", version: "1" },
       },
       budget,
     );

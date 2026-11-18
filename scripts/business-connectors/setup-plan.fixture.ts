@@ -19,6 +19,10 @@ test("refusal, tampered installer, missing admin and uncertified targets cannot 
   const result = setupPlan({ ...evidence, installation:"requested", checks:{ signature:false, adminAvailable:false } });
   for (const item of ["signature","adminAvailable","certifiedTarget","independentChecksum"]) assert.ok(result.missing.includes(item));
   assert.throws(() => setupPlan({ ...evidence, certifiedTarget:"2005" }));
+  for (const malformed of [2022, ["2022"]]) assert.throws(() => setupPlan({ ...evidence, certifiedTarget:malformed }));
+  for (const conflicting of [{database:"identified"}, {access:"granted"}]) {
+    assert.equal(setupPlan({ ...evidence, ...conflicting }).scenario, "UNKNOWN");
+  }
   assert.throws(() => setupPlan({ ...evidence, checks:{ independentChecksum:"false" } }));
   assert.equal(setupPlan({ ...baseline, channel:"unsafe", access:"granted" }).scenario, "I");
   const checked = setupPlan({ ...evidence, installation:"requested", certifiedTarget:"2022", checks:{

@@ -27,7 +27,7 @@ function validate(raw: unknown): Evidence {
     if (!(values as readonly unknown[]).includes(obj[key])) throw new Error("invalid-evidence");
   }
   if (obj.observedVersion !== undefined && (typeof obj.observedVersion !== "string" || !/^\d{1,2}\.\d{1,2}(?:\.\d{1,5}){0,2}$/.test(obj.observedVersion))) throw new Error("invalid-evidence");
-  if (obj.certifiedTarget !== undefined && !["2022","2025"].includes(String(obj.certifiedTarget))) throw new Error("invalid-evidence");
+  if (obj.certifiedTarget !== undefined && obj.certifiedTarget !== "2022" && obj.certifiedTarget !== "2025") throw new Error("invalid-evidence");
   if (obj.checks !== undefined && (!obj.checks || typeof obj.checks !== "object" || Array.isArray(obj.checks) ||
       Object.entries(obj.checks).some(([key, value]) => !(checks as readonly string[]).includes(key) || typeof value !== "boolean"))) throw new Error("invalid-evidence");
   return obj as Evidence;
@@ -49,7 +49,7 @@ export function setupPlan(raw: unknown) {
   if (e.location !== "local") return plan("UNKNOWN", "Xác định máy chứa dữ liệu trong ứng dụng gốc.");
   if (e.engine === "stopped") return plan("B", "Báo người vận hành kiểm tra service đang dừng.");
   if (e.engine === "running") return plan("A", "Xác minh metadata, kênh truyền, quyền và công ty trước phép đọc.");
-  if (e.engine !== "absent" || e.vendor !== "new-required" || e.observedVersion) return plan("UNKNOWN", "Xác nhận nhu cầu instance mới và loại trừ server đang dùng.");
+  if (e.engine !== "absent" || e.vendor !== "new-required" || e.observedVersion || e.database === "identified" || e.access === "granted") return plan("UNKNOWN", "Xác nhận nhu cầu instance mới và loại trừ server đang dùng.");
   if (e.installation === "declined") return plan("F", "Người dùng đã từ chối cài đặt.");
   const missing: string[] = checks.filter(key => e.checks?.[key] !== true);
   if (!e.certifiedTarget) missing.push("certifiedTarget");

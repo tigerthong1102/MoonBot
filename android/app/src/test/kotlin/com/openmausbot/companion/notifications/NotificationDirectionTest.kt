@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.notifications
 
 import android.Manifest
@@ -394,6 +395,7 @@ class NotificationDirectionTest {
                 body = body,
             ),
             sequence = 1,
+            connectionId = "fixture",
         )
         val posted = shadowOf(manager).allNotifications.single()
         return posted.extras.getCharSequence(extra).toString()

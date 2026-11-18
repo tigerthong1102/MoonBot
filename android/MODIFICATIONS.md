@@ -75,6 +75,7 @@ Modified imported files:
 - `app/src/test/kotlin/com/openmausbot/companion/lifecycle/LingerTestSupport.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/lifecycle/SessionLingerTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/lifecycle/SessionLingerWiringTest.kt`
+- `app/src/test/kotlin/com/openmausbot/companion/notifications/NotificationDirectionTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/notifications/NotificationIntentsTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/notifications/NotificationMappingTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/AttachmentRulesTest.kt`

@@ -60,6 +60,7 @@ export const VITEST_SUBSETS = {
       "electron/menu.test.mjs",
       "electron/updater.test.mjs",
       "scripts/generate-locale.test.mjs",
+      "scripts/startupbot-runtime-branding.test.ts",
       "scripts/testing/bot-tools-ui.e2e.test.ts",
       "scripts/testing/key-readback.e2e.test.ts",
       "scripts/testing/one-workspace-navigation.test.ts",

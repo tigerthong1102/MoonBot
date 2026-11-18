@@ -171,10 +171,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Verify StartupBot branding and native icon assets
-        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
+        run: |
+          pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
+          node --test scripts/package-payload.node-test.mjs
       - run: pnpm package:prepare
       - run: pnpm build:speech && pnpm build:cua
       - run: pnpm exec electron-builder --config electron-builder.internal.yml --mac dmg --arm64 --x64 --publish never
+      - name: Compress DMGs and verify unchanged application payloads
+        run: node scripts/compress-mac-images.mjs
       - name: Test the installed DMG on its native host
         shell: bash
         run: |
@@ -190,6 +194,9 @@ jobs:
           trap 'hdiutil detach "$volume"' EXIT
           ditto "$volume/StartupBot.app" "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app"
           codesign --verify --deep --strict "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app"
+          case "$smoke_arch" in arm64) source_directory=mac-arm64 ;; x64) source_directory=mac ;; esac
+          mkdir -p release/internal/smoke
+          node scripts/package-payload.mjs --source "release/internal/$source_directory/StartupBot.app" --installed "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --report release/internal/smoke/payload-integrity.json
           node scripts/smoke-internal-desktop.mjs --app "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --output release/internal/smoke
       - name: Test the packaged browser and server
         shell: bash
@@ -203,15 +210,23 @@ jobs:
           node scripts/smoke-browser-bundle.mjs --resources "$resources"
           OMB_SMOKE_DIST="$resources/server" node scripts/smoke-packaged-server.mjs --browser-bundle "$resources/browser-engine"
       - run: node scripts/internal-build-metadata.mjs
+      - name: Stage separate verified architecture downloads
+        run: |
+          node scripts/stage-internal-arch.mjs --source release/internal --destination release/downloads/arm64 --arch arm64
+          node scripts/stage-internal-arch.mjs --source release/internal --destination release/downloads/x64 --arch x64
+          for arch in arm64 x64; do cp docs/STARTUPBOT_INTERNAL_TEST.md "release/downloads/$arch/STARTUPBOT_INTERNAL_TEST.md"; done
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: StartupBot-macOS-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: |
-            release/internal/*.dmg
-            release/internal/SHA256SUMS.txt
-            release/internal/build-metadata.json
-            release/internal/smoke/
-            docs/STARTUPBOT_INTERNAL_TEST.md
+          name: StartupBot-macOS-arm64-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: release/downloads/arm64/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-macOS-x64-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: release/downloads/x64/
+          compression-level: 0
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -241,7 +256,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Verify StartupBot branding and native icon assets
-        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
+        run: |
+          pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
+          node --test scripts/package-payload.node-test.mjs
       - run: pnpm package:prepare
       - run: pnpm build:cua:win
       - run: pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never
@@ -253,6 +270,9 @@ jobs:
           $destination = Join-Path $env:RUNNER_TEMP 'StartupBotInstalled'
           $install = Start-Process -FilePath $installer[0].FullName -ArgumentList '/S', "/D=$destination" -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
+          New-Item -ItemType Directory -Force release/internal/smoke | Out-Null
+          node scripts/package-payload.mjs --source release/internal/win-unpacked --installed "$destination" --report release/internal/smoke/payload-integrity.json
+          if ($LASTEXITCODE -ne 0) { throw 'Installed payload bytes differ' }
           node scripts/smoke-internal-desktop.mjs --app "$destination/StartupBot.exe" --output release/internal/smoke
           if ($LASTEXITCODE -ne 0) { throw 'Installed application smoke failed' }
       - name: Test the packaged browser and server
@@ -267,6 +287,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: StartupBot-Windows-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          compression-level: 0
           path: |
             release/internal/*-Setup.exe
             release/internal/SHA256SUMS.txt

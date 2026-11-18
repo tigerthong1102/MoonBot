@@ -68,3 +68,9 @@ Native interface translation coverage is inherited and incomplete; desktop's
 owner-supplied robot's commercial rights and historical Enterprise distribution
 obligations remain separate release gates. Internal build success does not
 clear commercial release, app-store distribution or the whole feature matrix.
+
+The simulator handover is ad-hoc signed locally without an Apple Development
+certificate. Its signature retains its own Keychain and App Group entitlements.
+A simulator-only canary writes, reads and deletes one synthetic Keychain item
+and one temporary App Group file; missing privileges fail the artifact gate.
+It does not use plaintext credential storage or touch desktop data.

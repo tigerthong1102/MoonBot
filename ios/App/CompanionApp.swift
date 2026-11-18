@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 // App entry, and the one place that decides when the event stream lives.
 //
 // A phone is not a desktop: the stream is torn down the moment the app
@@ -39,6 +40,9 @@ struct CompanionApp: App {
                 // on the App, not here, so the connection survives.
                 .id(language)
                 .onAppear {
+                    #if DEBUG && targetEnvironment(simulator)
+                    StartupBotInternalProbe.runIfRequested()
+                    #endif
                     OpenMausSharedInbox.removeDirectories(olderThan: 60 * 60)
                     session.connect()
                     liveActivities.attach(to: session)

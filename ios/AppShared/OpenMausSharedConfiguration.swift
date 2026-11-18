@@ -8,7 +8,7 @@ import Foundation
 /// project, where iOS verifies them against the provisioning profile.
 enum OpenMausSharedConfiguration {
     static let appGroupIdentifier = "group.ai.startupbot.shared"
-    static let legacyAppBundleIdentifier = "ai.startupbot.app"
+    static let legacyAppBundleIdentifier = "ai.startupbot.ios"
     static let keychainAccessGroupInfoKey = "OpenMausKeychainAccessGroup"
 
     /// The shared suite can be unavailable in unsigned previews and local

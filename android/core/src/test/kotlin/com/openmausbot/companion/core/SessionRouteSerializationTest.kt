@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -44,14 +45,6 @@ class SessionRouteSerializationTest {
         endpoints = listOf(hosted, tailnet),
     )
 
-    /**
-     * A promotion writes the route that carried the stream. It used to read
-     * `_connection`, write it, and only then suspend in the store with nothing
-     * held — so a manual address edit could take the whole of `gate` during that
-     * suspension, save its own address, and be overwritten a moment later by the
-     * promotion's older save. Memory said one address, the disk said another, and
-     * the next launch believed the disk.
-     */
     @Test
     fun `an address edit during the promotion save is what the phone comes back on`() = runTest {
         val park = CompletableDeferred<Unit>()
@@ -107,15 +100,6 @@ class SessionRouteSerializationTest {
         assertEquals("http://192.168.1.9:8899", onDisk)
     }
 
-    /**
-     * The other half of the same fact. A metadata refresh replaces `rotation`
-     * inside `gate`, and suspends in the store first. A stream failure landing in
-     * that window used to advance the *old* rotation and rebuild `client` for the
-     * route it picked — and then the refresh's next line threw that rotation
-     * away. `client` was left dialing one route while `rotation.currentEndpoint`
-     * named another, so the promotion that follows writes down the route that did
-     * not carry the stream.
-     */
     @Test
     fun `a failure during a metadata refresh leaves the walk and the client on the same route`() = runTest {
         val park = CompletableDeferred<Unit>()

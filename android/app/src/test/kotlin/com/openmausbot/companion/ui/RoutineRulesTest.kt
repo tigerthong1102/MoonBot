@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.runtime.saveable.SaverScope
@@ -554,10 +555,6 @@ class RoutineRulesTest {
 
     @Test
     fun `Next then cancelling the time leaves a routine that fired earlier today alone`() {
-        // The exact flow that used to lose a value: a one-time routine that
-        // already ran this morning, open the picker, change nothing, tap Next,
-        // cancel the clock. Carrying the time across used to pull it forward to
-        // the current minute — the bound belongs to the picker, not to the value.
         val now = Instant.parse("2026-03-03T10:30:45Z")
         val firedThisMorning = Instant.parse("2026-03-03T08:00:00Z").toEpochMilli()
         val draft = OnceDraft(firedThisMorning)
@@ -642,10 +639,6 @@ class RoutineRulesTest {
 
     @Test
     fun `choosing no agent survives a recreation instead of taking the first one`() {
-        // "Choose an agent" is the empty tag, and picking it is a decision. The
-        // seeding effect re-runs after every Activity recreation, so without the
-        // applied flag the restored empty would be replaced by the first agent —
-        // the one draft field that used to be lost.
         val chosen = AgentChoice("").withDefault("bot-1").choose("")
 
         assertEquals("", chosen.botId)

@@ -1,15 +1,9 @@
+// Modified for StartupBot; original copyright and license retained.
 import CoreGraphics
 import XCTest
 
 @testable import CompanionCore
 
-/// The body catalog and the path parser that turns it into geometry.
-///
-/// The parser used to live in `ios/App/MausAvatar.swift`, where `swift test`
-/// could not reach it, and it had exactly one path to get right. It now has
-/// ten, all of them generated — so a body that parses to nothing, or lands
-/// outside the face box the face is anchored in, has to fail here rather than
-/// on someone's phone.
 final class MausBodiesTests: XCTestCase {
     func testEveryBodyParsesToAClosedPathInsideTheFaceBox() {
         for id in MausBodies.order {

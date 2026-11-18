@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.ui.geometry.Rect
@@ -5,23 +6,6 @@ import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.PathParser
 
-/**
- * The mascot's body, as geometry: the per-body cache that turns [MausBodies] into
- * something a canvas can fill — the port of `MausSilhouette` in
- * `ios/Sources/CompanionCore/MausSilhouette.swift`.
- *
- * This used to carry one hardcoded path, copied verbatim from the desktop. It now
- * reads ten generated ones from the catalog `scripts/gen-mascot-bodies.ts` emits,
- * which is what stops the phone's placement drifting from the desktop's: the face
- * anchor per body is solved once and written into all three renderers.
- *
- * The caching is the point. These are multi-kilobyte strings and a
- * character-at-a-time parser, and the shape each one produces never changes — but
- * a roster is hundreds of avatars, each redrawn on scroll. What is left per draw is
- * the affine fit into the rect, which is the only part that depends on where the
- * avatar is. The face the body wears is [MausFaceData]; this is only the shape it is
- * painted on.
- */
 internal object MausSilhouette {
     /** The desktop's viewBox is `-15 -15 258.541 258.541`: room to bob and sway. */
     const val FACE_MARGIN: Float = 15f

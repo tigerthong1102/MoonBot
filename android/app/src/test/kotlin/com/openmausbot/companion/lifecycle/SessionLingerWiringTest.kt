@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.lifecycle
 
 import androidx.lifecycle.Lifecycle
@@ -94,16 +95,6 @@ class SessionLingerWiringTest {
         assertEquals("", service.getAttributeNS(ANDROID, "permission"))
         assertEquals(0, service.getElementsByTagName("intent-filter").length)
 
-        // The four assertEquals above are the actual invariant this test name
-        // promises: SessionLingerService itself declares no foregroundServiceType,
-        // no permission, no intent-filter, and stays exported=false/stopWithTask=true.
-        // A manifest-wide "contains FOREGROUND_SERVICE" ban used to stand in for
-        // that, back when this was the only service in the app; it stopped being a
-        // proxy for this test's own claim once AlwaysOnConnectionService — a
-        // separate, user-opt-in, Settings-toggled service for a different job
-        // (surviving the app being fully closed, not a 25s post-background grace
-        // window) — legitimately needed one. See AlwaysOnConnectionService's own
-        // kdoc for why that service does need FOREGROUND_SERVICE.
     }
 
     private val ANDROID = "http://schemas.android.com/apk/res/android"

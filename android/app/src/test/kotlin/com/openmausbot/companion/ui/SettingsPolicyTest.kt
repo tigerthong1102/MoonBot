@@ -182,8 +182,6 @@ class NotificationPermissionControllerTest {
         assertTrue(phone.asked(notifications), "launching a prompt must record it")
     }
 
-    // The finding: the root's multi-permission request is the common path, and it
-    // used to launch the prompt without recording that it had.
 
     @Test
     fun `a permanent denial through the root's request survives recreation`() {

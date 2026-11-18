@@ -1,9 +1,4 @@
-// Mid-turn sends: what the phone shows between posting a message and the
-// computer actually running it.
-//
-// The harness answers a mid-turn send in one of three ways, and only one of
-// them puts anything in the transcript. These are claims about the other
-// two — the ones that used to leave the screen blank.
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 @testable import CompanionCore
 

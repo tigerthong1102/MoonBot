@@ -172,9 +172,6 @@ struct ChatView: View {
 
                         if session.state.hasMore[threadId] == true {
                             Button("Load earlier messages") {
-                                // keep the reader where they were: after older
-                                // messages are prepended, sit back on the one
-                                // that used to be at the top
                                 let anchor = transcript.first?.id
                                 Task {
                                     await session.loadOlder(threadId: threadId)

@@ -53,27 +53,6 @@ import com.openmausbot.companion.discovery.toConnection
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * Pairing: scan the computer's QR, confirm its identity, and connect — the port
- * of `ios/App/PairingView.swift`.
- *
- * Three ways in, because discovery is allowed to fail. NSD finds the computer by
- * name when the network cooperates; when it does not — a guest network with
- * multicast off, a responder that could not take port 5353 — the address the
- * desktop panel prints is typed instead.
- *
- * Only the first of the three is on screen to begin with. The other two live
- * behind **Other ways to connect**, and opening that is what starts a browse and
- * what asks for the nearby-devices permission a browse needs — the port of
- * `.onChange(of: showingOtherWays)` in `ios/App/PairingView.swift`. This screen
- * used to browse from the moment it existed, so someone who only ever meant to
- * scan the QR code printed on their own computer paid for a local search they
- * never looked at, and met a permission dialog to make it work.
- *
- * A scan never pairs by itself. A scanned or deep-linked invite fills the form
- * and the user confirms the computer's name and address before anything is
- * redeemed (§6).
- */
 @Composable
 fun PairingScreen(onCancel: () -> Unit) {
     val environment = LocalCompanion.current

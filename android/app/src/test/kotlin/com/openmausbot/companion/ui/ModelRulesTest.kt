@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Instance
@@ -12,11 +13,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * What the Model section decides. Every expectation is read off the section
- * `ios/App/AgentProfileView.swift` gained in #699 — `instanceChoices`,
- * `selectedModelChoices`, `effortLevels`, `canApplyModel`, `selectDefaults`.
- */
 class ModelRulesTest {
     private val codex = instance("codex", default = "gpt-5", options = listOf("gpt-5" to "GPT-5", "gpt-5-mini" to "GPT-5 mini"), efforts = listOf("low", "medium", "high", ""))
     private val claude = instance("claude", default = "opus", options = listOf("opus" to "Opus", "sonnet" to "Sonnet"))

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.audio
 
 import android.content.Context
@@ -35,16 +36,6 @@ data class VoiceNotePlayback(
  */
 data class VoiceNotePlaybackError(val key: String)
 
-/**
- * Plays one transcript voice note at a time — the audio-bubble half of the
- * desktop `VoiceNoteBubble` contract (#1744, B3 in #1801).
- *
- * Unlike [VoicePreviewPlayer] this player is app-scoped, not screen-bound:
- * a note keeps playing while its row scrolls away, and pause keeps the
- * position so the same button resumes in place. The one-voice rule rides the
- * same [AudioFocusGate] the TTS preview uses, so a preview (or another note)
- * interrupts by pausing, never by talking over it.
- */
 class VoiceNotePlayer internal constructor(
     private val controller: VoiceNoteController,
     processLifecycle: Lifecycle = ProcessLifecycleOwner.get().lifecycle,

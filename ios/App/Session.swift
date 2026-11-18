@@ -1,13 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// The app's one long-lived object: who we are paired with, what we know,
-// and the stream that keeps it current.
-//
-// The parsing and folding live in CompanionCore. What lives here is the
-// part that cannot be unit-tested and is the actual hard problem in a phone
-// client — lifecycle. A phone loses its connection constantly: it locks, it
-// backgrounds, it moves between wifi and cellular. So the stream is torn
-// down deliberately when the app leaves the screen, and on the way back the
-// server is asked what was missed rather than being asked for everything.
 import Foundation
 import OSLog
 import SwiftUI
@@ -67,10 +58,6 @@ final class Session: ObservableObject {
     /// Distinguishes a real `.notDetermined` result from the in-memory value
     /// used while notification settings are still loading at launch.
     @Published private(set) var notificationAuthorizationResolved = false
-    /// Engines that can take a message INTO a turn that is already running.
-    /// Loaded once per hydrate and only ever used to word the composer: an
-    /// empty set means "we do not know", and the wording falls back to the
-    /// weaker promise, which is the one that is always true.
     @Published private(set) var steeringInstanceIds: Set<String> = []
     /// A short-lived desktop handoff waiting for PairingView to present it.
     @Published private(set) var pairingInvite: PairingInvite?
@@ -160,6 +147,21 @@ final class Session: ObservableObject {
     }
 
     private var registry = CompanionConnectionRegistry()
+
+#if DEBUG && targetEnvironment(simulator)
+    init(fixtureClient: CompanionClient) {
+        client = fixtureClient
+        connection = fixtureClient.connection
+        status = .live
+    }
+
+    func replaceFixtureClient(_ replacement: CompanionClient) {
+        stopActiveRuntime()
+        client = replacement
+        connection = replacement.connection
+        status = .live
+    }
+#endif
     // MARK: - Pairing
 
     init() {
@@ -932,6 +934,7 @@ final class Session: ObservableObject {
     // is a phone that disagrees with the laptop.
 
     func send(_ text: String, to chat: Chat) async {
+        let generation = streamGeneration
         await perform { client in
             let receipt: SendReceipt
             switch chat {
@@ -940,6 +943,7 @@ final class Session: ObservableObject {
             case let .room(room):
                 receipt = try await client.send(text: text, toRoom: room.id)
             }
+            try self.requireCurrent(client, generation: generation)
             self.record(receipt, text: text, fallbackThreadId: chat.threadId)
         }
     }
@@ -968,6 +972,7 @@ final class Session: ObservableObject {
             actionError = "This computer is offline."
             return false
         }
+        let generation = streamGeneration
         actionError = nil
         do {
             try AttachmentPolicy.validate(attachments)
@@ -982,9 +987,11 @@ final class Session: ObservableObject {
                 do {
                     capable = try await client.imageCapableInstanceIDs()
                 } catch APIError.status(code: 404, message: _) {
+                    try requireCurrent(client, generation: generation)
                     actionError = "Update StartupBot on this computer before sending images."
                     return false
                 }
+                try requireCurrent(client, generation: generation)
                 guard imageSupported(by: chat, capableInstances: capable) else {
                     actionError = imageCompatibilityMessage(for: chat)
                     return false
@@ -1021,6 +1028,7 @@ final class Session: ObservableObject {
                         mime: mime,
                         uploadId: attachment.id.uuidString
                     )
+                    try requireCurrent(client, generation: generation)
                     uploaded.append(SharedAttachmentReference(
                         path: path,
                         kind: .image,
@@ -1033,6 +1041,7 @@ final class Session: ObservableObject {
                         mime: mime,
                         uploadId: attachment.id.uuidString
                     )
+                    try requireCurrent(client, generation: generation)
                     uploaded.append(SharedAttachmentReference(
                         path: file.path,
                         kind: .file,
@@ -1048,6 +1057,7 @@ final class Session: ObservableObject {
                 attachments: uploaded
             )
             let receipt = try await client.send(text: message, to: destination, sendId: sendID)
+            try requireCurrent(client, generation: generation)
             // The ghost shows what was typed, not what was sent: `message`
             // carries the <attached-file …> tags the harness reads, and a
             // held message is a person's own words waiting, not transport.
@@ -1063,10 +1073,12 @@ final class Session: ObservableObject {
         } catch is CancellationError {
             return false
         } catch let error as APIError where error.isUnauthorized {
+            guard isCurrent(client, generation: generation) else { return false }
             status = .unauthorized
             actionError = error.localizedDescription
             return false
         } catch {
+            guard isCurrent(client, generation: generation) else { return false }
             actionError = error.localizedDescription
             return false
         }
@@ -2070,13 +2082,26 @@ final class Session: ObservableObject {
 
     private func perform(quietly: Bool = false, _ body: (CompanionClient) async throws -> Void) async {
         guard let client else { return }
+        let generation = streamGeneration
         do {
             try await body(client)
+        } catch is CancellationError {
+            return
         } catch let error as APIError where error.isUnauthorized {
+            guard isCurrent(client, generation: generation) else { return }
             status = .unauthorized
         } catch {
+            guard isCurrent(client, generation: generation) else { return }
             if !quietly { actionError = error.localizedDescription }
         }
+    }
+
+    private func isCurrent(_ client: CompanionClient, generation: Int) -> Bool {
+        !Task.isCancelled && streamGeneration == generation && self.client?.connection.id == client.connection.id
+    }
+
+    private func requireCurrent(_ client: CompanionClient, generation: Int) throws {
+        guard isCurrent(client, generation: generation) else { throw CancellationError() }
     }
 }
 

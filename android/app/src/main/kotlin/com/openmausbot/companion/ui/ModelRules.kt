@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Instance
@@ -6,15 +7,6 @@ import com.openmausbot.companion.core.ModelSelection
 /** One row of the model picker. */
 data class ModelChoice(val id: String, val label: String)
 
-/**
- * The Model section of bot settings, as rules — the decision half of the
- * section `ios/App/AgentProfileView.swift` added in #699.
- *
- * The phone sees the catalog and the bot's current selection; provider
- * accounts and keys stay on the computer. What this decides is which rows the
- * pickers offer, what a provider change resets, and when "Apply model" is
- * allowed to send anything.
- */
 object ModelRules {
     const val FOOTER: String =
         "Provider accounts and API keys stay on your computer. Default sends no reasoning " +

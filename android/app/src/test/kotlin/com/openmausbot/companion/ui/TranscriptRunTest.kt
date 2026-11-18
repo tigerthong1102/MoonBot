@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.BotTask
@@ -95,14 +96,6 @@ class TranscriptRunTest {
     }
 }
 
-/**
- * What the composer's + offers, pinned against `plusActions` in
- * `ios/App/ChatView.swift`.
- *
- * The name pill is no longer a second door: for a bot it opens the agent
- * profile and for a room it opens this same sheet, so every action the pill's
- * menu used to carry has to be here — both export formats included.
- */
 class ChatActionsTest {
 
     @Test

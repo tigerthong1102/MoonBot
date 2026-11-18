@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.serialization.json.JsonObject
@@ -7,23 +8,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.Serializable
 
-/**
- * What the harness says it did with a message the moment it was posted.
- *
- * A send is not one outcome. When the bot is idle the line lands in the
- * transcript and a turn starts. When the bot is mid-turn there are two more:
- * an engine with a live session can take the words INTO the running turn
- * ([Sent.steered]), and one that cannot has the harness hold them
- * off-transcript until the turn settles ([Queued]) — deliberately
- * off-transcript, because a held line appended now would become the active
- * leaf and the rest of the running turn would hang off something the model
- * never saw.
- *
- * The distinction only exists in the POST's 202 body. A client that throws
- * that body away, as this one used to, shows nothing at all for a queued
- * send: the composer clears and the words reappear minutes later, or not at
- * all. So the receipt is the contract, and it is decoded, not ignored.
- */
 sealed interface SendReceipt {
     /**
      * In the transcript now. [steered] means it went into a turn that was

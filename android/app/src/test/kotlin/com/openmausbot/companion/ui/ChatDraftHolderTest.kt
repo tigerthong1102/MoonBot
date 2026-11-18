@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.runtime.saveable.SaverScope
@@ -160,7 +161,6 @@ class ChatDraftHolderTest {
         assertTrue(draft.contaminated)
         assertEquals("please", draft.saveableValue)
 
-        // Manual clear — the path that used to leave typedSnapshot forever.
         draft.onTypedChange("")
         assertNull(holder.get(chatId))
         assertEquals("", draft.saveableValue)

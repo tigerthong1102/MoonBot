@@ -656,7 +656,7 @@ final class ShareViewModel: ObservableObject {
                     subtitle: task.map { "Bot · \($0)" } ?? "Bot",
                     kind: .bot,
                     latestActivity: bot.messages?.map(\.at).max() ?? bot.createdAt,
-                    supportsImages: imageCapableInstances.contains(bot.modelSelection.instanceId)
+                    supportsImages: imageCapableInstances.contains(bot.currentTaskModelSelection.instanceId)
                 )
             }
         let channels = fleet.groups.map { room in

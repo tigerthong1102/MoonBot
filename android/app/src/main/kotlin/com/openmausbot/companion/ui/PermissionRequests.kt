@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 /** Where the "we have asked" flag lives. Not a secret; not backed up either. */
@@ -20,22 +21,6 @@ internal object PermissionPreferences {
     const val RECORD_AUDIO = "android.permission.RECORD_AUDIO"
 }
 
-/**
- * Every path that can put a runtime permission prompt on screen, and the flag
- * that records it happened, in one place.
- *
- * Two things launch the notification prompt: the root asks for whatever is
- * missing on first entry (notifications, nearby devices), and the Settings row
- * asks for notifications alone. Only the second used to record that it had asked,
- * so a permanent denial through the *first* — the common path, since it fires
- * before a person ever reaches Settings — was read as "never asked" after a
- * recreation, and the Settings button then performed a request the OS silently
- * drops.
- *
- * So the launch and the flag are the same call. Nothing else in the app holds a
- * launcher, which is what makes the invariant checkable rather than a convention:
- * **if a prompt was shown, the flag is set.**
- */
 internal class PermissionRequests(
     private val markAsked: (String) -> Unit,
     private val launchMultiple: (Array<String>) -> Unit,

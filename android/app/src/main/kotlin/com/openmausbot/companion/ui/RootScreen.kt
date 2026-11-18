@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.activity.compose.BackHandler
@@ -38,24 +39,6 @@ import com.openmausbot.companion.core.OnboardingRouter
 import com.openmausbot.companion.core.Session
 import kotlinx.coroutines.launch
 
-/**
- * Which of the six worlds the app is in — the port of `RootView` in
- * `ios/App/CompanionApp.swift`.
- *
- * The decision itself is not here. It is
- * [com.openmausbot.companion.core.OnboardingRouter], in `:core`, because the
- * orderings that matter are invisible until they are wrong: revocation has to
- * outrank a pending deep link, a deep link has to outrank the welcome, and a
- * pairing someone already had must never be handed first-pair education. This
- * file's job is to hand the router honest inputs and to render what it answers.
- *
- * **Nothing here asks the system for a permission.** It used to: the first frame
- * fired a batch request for notifications *and* nearby devices before the app
- * had said what it was, which made refusing both the reasonable answer. Each
- * permission now belongs to the moment it is earned — notifications to the
- * explained step after a first pairing ([NotificationOnboardingScreen]), nearby
- * devices to opening the list of computers ([PairingScreen]).
- */
 @Composable
 fun CompanionRoot(
     pendingNotification: NotificationTarget?,

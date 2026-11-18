@@ -241,38 +241,6 @@ private fun DiffLine(line: String) {
     )
 }
 
-/**
- * A table the reader can actually read across, and take away as CSV.
- *
- * Read across in the literal sense: heading row first, then one row at a time,
- * left to right, one row at a time. iOS no longer builds this card (issue
- * 1707). This used to be the transpose of a row of columns, a `Row` of
- * self-measuring `Column`s, and on an API 34 emulator TalkBack duly announced
- * *"LANGUAGE, Python, Java, Rust, YEAR, 1991, 1995, 2010"*: every value of the
- * first column before the second, so `Python`↔`1991` was not a row at all for
- * a reader who cannot see the screen. The composition decided that order, and
- * it built it the wrong way round.
- *
- * Composition order is not the whole of the answer:
- * `AndroidComposeViewAccessibilityDelegateCompat` runs its own traversal pass
- * over the merged tree, groups nodes by geometry and publishes
- * `traversalBefore`/`traversalAfter` relations from that grouping. Here the two
- * stages agree, because the children are emitted row-major and then placed
- * row-major, so neither has anything left to reorder. That agreement is the
- * reason the fix holds, not an excuse to skip the check: `TableReadingOrderTest`
- * pins the tree, and TalkBack on a device is what pins the reading.
- *
- * Holding both — the row order *and* columns that still line up — is why the
- * grid is its own [Layout] rather than a `Row` or a `Column` of anything. The
- * children arrive row-major, which is the order the reader gets; the measure
- * pass then widens each column to its widest cell, which is the alignment iOS
- * gives up by handing every cell the same `minWidth` and letting them drift.
- * The rules come last on purpose, and this is the point the old comment here
- * made and it still holds: inside a horizontal scroll the incoming width is
- * unbounded and `fillMaxWidth` against an unbounded constraint measures zero,
- * so a rule is only as wide as its column if something measures the column
- * first and then hands it that width.
- */
 @Composable
 fun DataTableCard(card: TranscriptCard.Table, modifier: Modifier = Modifier) {
     val copy = rememberCopy()
@@ -461,15 +429,6 @@ internal fun tableGridMeasurePolicy(
     }
 }
 
-/**
- * The bot thinking out loud, folded away until it is asked for.
- *
- * Closed by default: reasoning is not the answer, and a wall of it above an
- * empty bubble reads as the reply itself. Open, it is the last
- * [Reasoning.VISIBLE_CHARACTERS] characters as numbered lines in their own
- * scroller — 2,000 rather than the 400 this used to show, which was a quarter of
- * the thought with no way to reach the rest.
- */
 @Composable
 fun ThoughtChamber(
     reasoning: String,

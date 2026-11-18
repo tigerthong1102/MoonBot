@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.view.KeyCharacterMap
@@ -809,9 +810,6 @@ private fun LoadedChat(
                         item(key = LOAD_EARLIER_KEY) {
                             TextButton(
                                 onClick = {
-                                    // Keep the reader where they were: after older
-                                    // messages are prepended, sit back on the one
-                                    // that used to be at the top.
                                     val anchor = transcript.firstOrNull()?.id
                                     scope.launch {
                                         session.loadOlder(threadId)

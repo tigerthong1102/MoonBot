@@ -1,14 +1,4 @@
-// Bot replies, rendered.
-//
-// `Markdown.blocks` does the splitting; this draws each block and hands the
-// inline run to Foundation, which knows emphasis, code spans, strikethrough
-// and links. SwiftUI makes the links tappable on its own, which is most of
-// why this is worth doing at all — a reply full of sources was previously a
-// wall of bracketed URLs.
-//
-// Only bot messages get this. The desktop makes the same split: what you
-// typed is shown as you typed it, because markdown you did not intend is
-// worse than markdown you did.
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 

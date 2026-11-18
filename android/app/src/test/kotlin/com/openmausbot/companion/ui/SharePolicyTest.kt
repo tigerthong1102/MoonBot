@@ -18,6 +18,21 @@ import kotlin.test.assertTrue
 
 class SharePolicyTest {
     @Test
+    fun imageSupportFollowsTheDestinationThreadOverrideInBothDirections() {
+        val textDefault = bot("vision-thread").copy(
+            modelSelection = ModelSelection("text", "text-model"),
+            tasks = listOf(BotTask("thread-vision-thread", "Vision", 1.0, modelSelection = ModelSelection("vision", "vision-model"))),
+        )
+        val visionDefault = bot("text-thread").copy(
+            modelSelection = ModelSelection("vision", "vision-model"),
+            tasks = listOf(BotTask("thread-text-thread", "Text", 1.0, modelSelection = ModelSelection("text", "text-model"))),
+        )
+        val destinations = SharePolicy.destinations(Fleet(listOf(textDefault, visionDefault), emptyList()), setOf("vision"))
+        assertTrue(destinations.first { it.id == "bot:vision-thread" }.supportsImages)
+        assertFalse(destinations.first { it.id == "bot:text-thread" }.supportsImages)
+    }
+
+    @Test
     fun destinationsOmitHiddenBotsAndRequireEveryChannelMemberToSeeImages() {
         val vision = bot("vision").copy(modelSelection = ModelSelection("vision", "v"), createdAt = 3.0)
         val text = bot("text").copy(modelSelection = ModelSelection("text", "t"), createdAt = 2.0)

@@ -69,38 +69,62 @@ owner-supplied robot's commercial rights and historical Enterprise distribution
 obligations remain separate release gates. Internal build success does not
 clear commercial release, app-store distribution or the whole feature matrix.
 
-The simulator handover is ad-hoc signed locally without an Apple Development
-certificate. Its signature retains its own Keychain and App Group entitlements.
-A simulator-only canary writes, reads and deletes one synthetic Keychain item
+The simulator handover uses Xcode's ad-hoc Simulator signing without an Apple
+Development certificate. iOS capability claims are verified in the simulated
+Mach-O entitlements, not injected into the restricted macOS host signature.
+A Simulator-only canary writes, reads and deletes one synthetic Keychain item
 and one temporary App Group file; missing privileges fail the artifact gate.
 It does not use plaintext credential storage or touch desktop data.
 
-Native core compilation and protocol checks ran in workflow 44210771414.
-Android APK/AAB compilation and unit tests passed; emulator setup then failed
-while trying to re-resolve the already-used compile SDK from sdkmanager. The
-emulator setup now requests only its runtime and system image. Full artifact
-qualification remains conditional on a completed passing smoke run.
+## Qualified internal artifacts — 2026-11-18
 
-Android internal acceptance: workflow
-[44215532499](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499)
+Android [44215532499](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499)
 PASS at `5ac456cff0ff9027b9bc8ad76731b0ecadfb53a5`: core/app tests, APK/AAB,
 clean emulator installation, real launch and StartupBot onboarding/logo checks.
 The [actual artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499/artifacts/14387623543)
 contains the debug-signed APK, unsigned AAB, smoke evidence and checksums.
+The APK SHA256 is `f059e292164c96ea2fd1e853363204e3b7f2ae245c514234a921c6a1166da666`.
+The AAB SHA256 is `96453571df8110909077b84c9d3b4fd9ac9d9d6624a9c1ec6aa54314f1ce4c21`.
+
+iOS Simulator [44220727356](https://github.com/tigerthong1102/MoonBot/actions/runs/44220727356)
+PASS at `292e014dd9bebeb29d18ad21c15ba5128a015213`: 402 core tests,
+universal arm64/x86_64 app compilation and entitlement verification, installation
+and launch on ARM Simulator, actual Keychain/App Group canary and five native
+navigation tests. The [actual artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44220727356/artifacts/14391711034)
+contains `StartupBot-0.1.0-SIMULATOR.zip`; its SHA256 is
+`b6b9795d64878ad9dd4872e0d9fc75b7a276401e7cb9c8ec382a18f1678a2bc1`.
+Download checksums, smoke/security reports and the StartupBot screenshot were
+inspected. Unzip the app and drag it into an already booted Xcode Simulator.
+Intel Simulator runtime, physical iPhone and TestFlight are NOT RUN.
+
 Physical pairing, live model/chat and real desktop-mobile approvals remain
-NOT RUN. The desktop marker-parser changes do not ship in the Android APK.
+NOT RUN for both native platforms. Desktop source/test follow-ups do not modify
+the qualified APK or Simulator app. These are internal acceptance results,
+not general release or commercial clearance.
 
-iOS build and 402 core tests pass, but 44210771414 receives a SpringBoard launch
-denial. Its diagnostic successor 44214357661 waits for the simulator system app
-for 8m25s, then is canceled before application acceptance. The log does not
-establish who canceled it or why; no iOS app is qualified. Further runs use an owned disposable
-simulator matching the Xcode SDK, bounded simulator commands and diagnostic
-cleanup, retaining the real Keychain/App Group canary and navigation tests.
-Only standard public-repository runners are selectable, not paid larger runners.
+## Earlier diagnostic failures
 
-The ARM simulator crash in 44217472146 is confirmed `SIGKILL (Code Signature
-Invalid)`, `CODESIGNING / Taskgated Invalid Signature`: manual signing placed
-restricted iOS capability claims into the macOS-host code signature. The
-replacement uses Xcode's simulator signing pipeline, verifies Mach-O simulated
-entitlement sections for both architectures, and retains the real secure-store
-canary. Removing the Keychain/App Group acceptance test is not a remedy.
+The first Android emulator setup tried to re-fetch an unavailable compile SDK;
+the fixed lane requests only its runtime/system image and subsequently passes.
+Earlier iOS Simulator attempts failed launch or were canceled before acceptance.
+The ARM crash in 44217472146 is confirmed `SIGKILL (Code Signature Invalid)`,
+`CODESIGNING / Taskgated Invalid Signature`: manual signing placed restricted
+iOS capability claims into the macOS-host code signature. Xcode-managed
+Simulator signing and verified Mach-O decoding fix the issue while retaining
+secure-store and navigation acceptance tests. Only standard public-repository
+runners are selectable, not paid larger runners.
+
+## Native 0.1.1 review follow-up
+
+Codex findings 4608620008, 4608620018 and 4608620025 are confirmed: late send
+results can affect another selected computer, a working sibling can overwrite
+a pending bot approval in Live Activity, and image sharing can use the profile
+model instead of the destination thread model. Scope send success/error/queued
+receipts to runtime generation and connection; select one priority update per
+bot; select the destination thread model in both native share clients. Keep
+current-connection 401 handling and all server/credential boundaries. New
+Simulator-hosted Session/Activity tests and Android share regressions cover
+these changes. Local Swift core build, Swift syntax parsing and native
+identity/license/HPKE guards pass; full native acceptance is PENDING until
+new 0.1.1 runs complete. The older 0.1.0 artifact results above remain
+scoped to their original source; do not treat them as proof of this patch.

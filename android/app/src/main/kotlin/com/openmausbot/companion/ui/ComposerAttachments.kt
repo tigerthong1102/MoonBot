@@ -47,10 +47,6 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * What the composer decides about attachments, with no Android in it — the
- * rules half of the attachment code `ios/App/ChatView.swift` gained in #695.
- */
 object AttachmentImportRules {
     const val TOO_MANY: String = "Send up to ${AttachmentPolicy.MAXIMUM_ITEMS} items at a time."
 

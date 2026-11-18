@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.ui.geometry.Offset
@@ -9,10 +10,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * What the composer decides about attachments and downloaded files, read off
- * `ios/App/ChatView.swift` (#695) and `AttachmentViews.swift`.
- */
 class AttachmentRulesTest {
     private fun pending(bytes: Int, kind: PendingMessageAttachment.Kind = PendingMessageAttachment.Kind.FILE) =
         PendingMessageAttachment(data = ByteArray(bytes), name = "a.txt", mime = "text/plain", kind = kind)

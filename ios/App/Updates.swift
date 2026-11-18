@@ -1,9 +1,4 @@
-// What the Updates pill shows: only the chats doing something.
-//
-// Three kinds, in the order a person cares about them — a bot that has
-// stopped and needs an answer, a bot mid-turn, and a bot that finished with
-// something you have not read. A bot that is idle and read is not an update
-// and never appears here; that is what the roster below is for.
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import CompanionCore
 
@@ -24,6 +19,14 @@ struct ChatUpdate: Identifiable, Hashable {
 }
 
 extension CompanionState {
+    var liveActivityUpdates: [ChatUpdate] {
+        var seen = Set<String>()
+        return updates.filter { update in
+            guard update.kind != .toReview, case let .bot(bot) = update.chat else { return false }
+            return seen.insert(bot.id).inserted
+        }
+    }
+
     var updates: [ChatUpdate] {
         var out: [ChatUpdate] = []
         var seen = Set<String>()

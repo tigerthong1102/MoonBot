@@ -617,8 +617,6 @@ class PairingConfirmationTest {
 
     @Test
     fun `a discovered or typed computer shows the same name and address`() {
-        // The gap this pass closes: the six-digit path used to show the name as a
-        // section title and never repeat the address.
         val secrets = PairingSecretStore()
         val confirmation = PairingConfirmation.of(typed(secrets), secrets)
 

@@ -94,12 +94,6 @@ class Session(
     private val _state = MutableStateFlow(CompanionState())
     val state: StateFlow<CompanionState> = _state.asStateFlow()
 
-    /**
-     * Engines that can take a message INTO a turn that is already running.
-     * Loaded once per hydrate and only ever used to word the composer: an
-     * empty set means "we do not know", and the wording falls back to the
-     * weaker promise, which is the one that is always true.
-     */
     private val _steeringInstanceIds = MutableStateFlow<Set<String>>(emptySet())
     val steeringInstanceIds: StateFlow<Set<String>> = _steeringInstanceIds.asStateFlow()
 
@@ -929,21 +923,6 @@ class Session(
         }
     }
 
-    /**
-     * Advance the walk and rebuild the client for the route it landed on, as one
-     * step under [gate]. Null when there is no pairing to move.
-     *
-     * `rotation` and `client` are one fact in two fields — which route the next
-     * attempt uses, and the client that will make it. Every other writer of that
-     * pair ([updateAddress], [refreshConnectionMetadata], [unpairLocked]) already
-     * changes them under [gate], and each of those writers *suspends* on a store
-     * in the middle. `Dispatchers.Main.immediate` does not help there: a
-     * suspension is exactly where another coroutine on the same thread runs. A
-     * failure that advanced the walk in that window used to be overwritten a line
-     * later by a refresh that had read the old rotation, leaving `client` dialing
-     * one route while `rotation.currentEndpoint` named another — and
-     * [promoteWorkingRoute] then persists the one that did not carry the stream.
-     */
     private fun advanceRouteLocked(error: Throwable): RouteMove? {
         val connection = _connection.value ?: return null
         val failed = rotation.currentEndpoint
@@ -970,26 +949,6 @@ class Session(
         val next: String?,
     )
 
-    /**
-     * Persist the route that carried a live stream.
-     *
-     * A legacy host list promotes the winner for the next launch. A typed list is *not*
-     * reordered: the desktop's advertised priority keeps deciding which protected route leads,
-     * so a route that merely survived a failover does not outrank a hosted route the computer
-     * put first. The one thing recording a protected winner changes is that cleartext routes it
-     * superseded stop leading — see [Connection.orderedEndpoints].
-     *
-     * Under [gate], and that is the point rather than decoration. This used to read `_connection`,
-     * write it, and *then* suspend in [ConnectionStore.save] with nothing held. Every other writer
-     * of the stored connection — a manual address edit, a metadata refresh, a sign-out — runs
-     * inside [gate], so one of them could take the whole section during that suspension and save
-     * its own connection first; the promotion's older save then landed on top of it. The measured
-     * case is the address edit: the phone came back on the address the user had just replaced,
-     * because memory and disk disagreed and the next launch believes the disk.
-     *
-     * [gate] is safe to hold here: [runStream] is always its own coroutine and never enters this
-     * function holding the mutex.
-     */
     private suspend fun promoteWorkingRoute() = gate.withLock {
         val winner = rotation.currentEndpoint ?: return@withLock
         val updated = _connection.value ?: return@withLock

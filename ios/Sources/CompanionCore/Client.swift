@@ -1605,12 +1605,8 @@ public struct CompanionClient: Sendable {
     /// the harness's 25-second keepalive comment while still noticing a
     /// connection that genuinely died.
     ///
-    /// Emphatically NOT `request.timeoutInterval = .greatestFiniteMagnitude`,
-    /// which is what this used to be. It reads like "never time out", but
-    /// URLSession turns a timeout into a deadline by adding it to the current
-    /// time, and 1.8e308 does not survive that arithmetic: the request opens
-    /// and then never delivers a byte. The stream appeared to hang forever
-    /// with no error to show for it.
+    /// URLSession derives a deadline from the request timeout; an overflowing
+    /// deadline prevents event delivery.
     private static let streaming: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 90

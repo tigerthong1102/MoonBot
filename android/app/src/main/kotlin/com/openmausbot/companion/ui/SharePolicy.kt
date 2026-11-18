@@ -10,16 +10,9 @@ import com.openmausbot.companion.core.ConnectionAdvice
 import com.openmausbot.companion.core.Fleet
 import com.openmausbot.companion.core.MessageDestination
 import com.openmausbot.companion.core.Room
+import com.openmausbot.companion.core.forTask
 import java.net.URI
 
-/**
- * The portable rules of inbound share — the Android half of
- * `ios/ShareExtension/ShareViewModel.swift` and `ShareItemLoader.swift`.
- *
- * Copying bytes and talking to ContentResolver stay in the sharing package.
- * What may be sent, where it may go, and the words the user sees when it
- * cannot, live here so the tests do not have to construct an Intent.
- */
 object SharePolicy {
     const val MAXIMUM_ITEMS = 4
     const val MAXIMUM_TEXT_CHARACTERS = 100_000
@@ -177,7 +170,7 @@ object SharePolicy {
                 subtitle = task?.let { "Bot · $it" } ?: "Bot",
                 kind = ShareDestination.Kind.BOT,
                 latestActivity = bot.messages?.maxOfOrNull { it.at } ?: bot.createdAt,
-                supportsImages = bot.modelSelection.instanceId in imageCapableInstances,
+                supportsImages = bot.forTask(bot.threadId)?.modelSelection?.instanceId?.let(imageCapableInstances::contains) == true,
                 destination = MessageDestination.Bot(bot.id, bot.threadId),
             )
         }

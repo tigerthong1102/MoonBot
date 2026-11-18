@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.serialization.decodeFromString
@@ -113,8 +114,6 @@ class ThreadNavigationTest {
         assertFalse(wait.isWorking)
         assertTrue(wait.demandsAttention())
 
-        // The live #1228 wire paints busy+working+waitingOnTeammate together
-        // during a coordination wait: the flag outranks the painted work.
         val painted = wait.copy(busy = true, activity = "working")
         assertTrue(painted.isWorking)
         assertTrue(painted.isWaitingOnTeammate)

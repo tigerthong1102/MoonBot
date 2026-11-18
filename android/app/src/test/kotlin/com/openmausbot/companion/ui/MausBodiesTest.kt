@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import kotlin.test.Test
@@ -10,14 +11,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * The body catalog and the parser that turns it into geometry — the port of
- * `ios/Tests/CompanionCoreTests/MausBodiesTests.swift`.
- *
- * The silhouette used to be one hand-copied path. It is now ten generated ones,
- * so a body that parses to nothing, or lands outside the face box the face is
- * anchored in, has to fail here rather than on someone's phone.
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class MausBodiesTest {

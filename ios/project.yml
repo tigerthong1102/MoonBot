@@ -23,10 +23,12 @@ schemes:
     build:
       targets:
         StartupBot: all
+        StartupBotAppTests: [test]
         StartupBotUITests: [test]
     test:
       config: Debug
       targets:
+        - StartupBotAppTests
         - StartupBotUITests
 
 targets:
@@ -45,8 +47,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.startupbot.ios
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.1.1"
+        CURRENT_PROJECT_VERSION: "2"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
         # The catalog lives in App/, which is already a source path.
@@ -131,7 +133,23 @@ targets:
               NSIncludesSubdomains: true
               NSExceptionAllowsInsecureHTTPLoads: true
 
-  # Native navigation coverage uses bundled synthetic data and no pairing.
+  StartupBotAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: AppTests
+    dependencies:
+      - target: StartupBot
+      - package: CompanionCore
+        product: CompanionCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.startupbot.ios.apptests
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/StartupBot.app/StartupBot"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
   StartupBotUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -163,8 +181,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.startupbot.ios.share
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.1.1"
+        CURRENT_PROJECT_VERSION: "2"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
         APPLICATION_EXTENSION_API_ONLY: YES
@@ -223,8 +241,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.startupbot.ios.widgets
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.1.1"
+        CURRENT_PROJECT_VERSION: "2"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: true

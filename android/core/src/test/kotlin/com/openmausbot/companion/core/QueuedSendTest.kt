@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -6,14 +7,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 
-/**
- * Mid-turn sends: what the phone shows between posting a message and the
- * computer actually running it.
- *
- * The harness answers a mid-turn send in one of three ways, and only one of
- * them puts anything in the transcript. These are claims about the other two
- * — the ones that used to leave the screen blank.
- */
 class QueuedSendTest {
     private val json = Json { ignoreUnknownKeys = true }
 

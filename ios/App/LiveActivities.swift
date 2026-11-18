@@ -1,11 +1,5 @@
-// Keeping the Dynamic Island in step with the bots.
-//
-// One Live Activity per bot that is doing something — needs you, or working
-// — started, updated and ended from the same `updates` the pill reads. The
-// stream is foreground-only and there is no push path yet, so the island is
-// exact while the app is alive and goes quiet with it; iOS keeps the last
-// state on screen for a while, then the activity is ended on the next
-// launch if the bot has moved on.
+// Modified for StartupBot; original copyright and license retained.
+// Live Activities receive foreground updates only; no push channel is configured.
 import ActivityKit
 import Combine
 import Foundation
@@ -40,7 +34,7 @@ final class LiveActivityCoordinator {
 
     private func sync(_ state: CompanionState) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        let wanted = state.updates.filter { $0.kind != .toReview }
+        let wanted = state.liveActivityUpdates
         var wantedIds = Set<String>()
 
         for update in wanted {

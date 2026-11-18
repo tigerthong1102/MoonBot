@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.lifecycle
 
 import androidx.lifecycle.Lifecycle
@@ -32,25 +33,6 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
-/**
- * The measured defect: ask a bot, press Home about two seconds later, let the
- * turn finish — and no notification is posted, because `onStop` used to cancel
- * the stream that produces it.
- *
- * These tests are written to the criterion in the analysis (§5): not "was
- * `linger` called", but **a frame emitted after `ON_STOP` and before the
- * deadline still crosses the same SSE collection and reaches the notification
- * sink**. So they drive a real [androidx.lifecycle.LifecycleRegistry], hold a
- * real [Session] with a real `disconnect()`, and let the real
- * `SessionLingerController.WINDOW_MILLIS` delay run on virtual time. The single
- * fake is the process anchor — the one thing a JVM cannot have.
- *
- * `advanceTimeBy` moves the virtual clock against that same cancellable
- * `delay`; no timeout function is ever called by hand and the production
- * duration is never shortened.
- *
- * The clock cases below are the normative table in analysis §6.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionLingerTest {
 
@@ -333,13 +315,6 @@ class SessionLingerTest {
 
     // ------------------------------------------------------- always-on race
 
-    /**
-     * The race CodeRabbit flagged on PR #966: the always-on toggle is turned
-     * on and the app backgrounds before `AlwaysOnConnectionService.onStartCommand`
-     * runs, so this controller opens its own window first. Without the
-     * handoff, that window's 25s timer would call `session.disconnect()` out
-     * from under the service that now depends on the same connection.
-     */
     @Test
     fun `always-on starting after ON_STOP cancels the window without disconnecting`() = runTest {
         val stream = FakeStream()

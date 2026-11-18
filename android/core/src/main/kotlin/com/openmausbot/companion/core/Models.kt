@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.net.URI
@@ -314,8 +315,7 @@ data class BotTask(
     val modelSelection: ModelSelection? = null,
     val activity: String? = null,
     val busy: Boolean? = null,
-    /** This thread's own turn is done and a dispatched teammate has not
-     * settled yet (#1223): a wait, never work. Newer harnesses only. */
+    /** A dispatched teammate has not settled; the completed thread waits rather than works. */
     val waitingOnTeammate: Boolean? = null,
     val unread: Boolean? = null,
     val approvalMode: String? = null,

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.avatar
 
 import com.openmausbot.companion.core.AvatarCrop
@@ -188,7 +189,6 @@ class AvatarImageRulesTest {
         }
     }
 
-    /** Never ends — used to prove cancel stops the read loop early. */
     private class EndlessChunkStream(
         private val header: ByteArray,
     ) : InputStream() {

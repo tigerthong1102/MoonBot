@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 /** A saved folder's visible threads, or the unfiled threads after the folders. */
@@ -13,9 +14,6 @@ val BotTask.displayTitle: String
 val BotTask.isWorking: Boolean
     get() = activity == "working" || activity == "running" || busy == true
 
-/** Waiting on a dispatched teammate (#1223). The live #1228 wire paints busy
- * and working during a coordination wait, so the flag outranks the painted
- * work: the row shows the wait, never the work spinner. */
 val BotTask.isWaitingOnTeammate: Boolean
     get() = waitingOnTeammate == true
 
@@ -29,10 +27,6 @@ fun BotTask.demandsAttention(queued: Boolean = false): Boolean =
     isWaitingOnTeammate || isWorking || busy == true || unread == true || queued ||
         activity in setOf("waiting-on-you", "waiting", "queued")
 
-/** The soonest still-future timed snooze in a list, or null when nothing is
- * scheduled to wake: the 0 sentinel sleeps until activity and never ticks,
- * and a timestamp already in the past has nothing left to wait for
- * (`nextSnoozeExpiry` in `SidebarThreadRow.tsx`). */
 fun nextSnoozeExpiry(tasks: List<BotTask>, now: Long = System.currentTimeMillis()): Long? =
     tasks.asSequence()
         .mapNotNull { it.snoozedUntil }

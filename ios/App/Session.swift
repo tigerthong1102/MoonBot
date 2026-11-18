@@ -2222,7 +2222,7 @@ enum Chat: Identifiable, Hashable {
     static func == (left: Chat, right: Chat) -> Bool {
         switch (left, right) {
         case let (.bot(a), .bot(b)): return a.id == b.id && a.threadId == b.threadId
-        case let (.room(a), .room(b)): return a.id == b.id
+        case let (.room(a), .room(b)): return a.id == b.id && a.threadId == b.threadId
         default: return false
         }
     }
@@ -2236,6 +2236,18 @@ enum Chat: Identifiable, Hashable {
         case let .room(room):
             hasher.combine(1)
             hasher.combine(room.id)
+            hasher.combine(room.threadId)
+        }
+    }
+
+    func projected(in state: CompanionState, forThread threadId: String) -> Chat? {
+        switch self {
+        case let .bot(bot):
+            guard let view = state.bot(bot.id)?.projected(forThread: threadId) else { return nil }
+            return .bot(view)
+        case let .room(room):
+            guard let view = state.rooms.first(where: { $0.id == room.id })?.projected(forThread: threadId) else { return nil }
+            return .room(view)
         }
     }
 

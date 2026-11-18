@@ -50,6 +50,7 @@ Modified imported files:
 - `App/Session.swift`
 - `App/SettingsView.swift`
 - `App/SpeechDictation.swift`
+- `App/TaskManagerView.swift`
 - `App/TasksRoutinesView.swift`
 - `App/Updates.swift`
 - `AppShared/OpenMausSharedConfiguration.swift`

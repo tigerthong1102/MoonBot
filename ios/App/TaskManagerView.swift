@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 
@@ -248,6 +249,7 @@ struct TaskManagerView: View {
                 showError("Couldn't create the thread. Try again when the current reply finishes.")
                 return
             }
+            if let updated = session.state.rooms.first(where: { $0.id == room.id }) { onSelectThread(updated.threadId) }
         }
         dismiss()
     }
@@ -267,6 +269,7 @@ struct TaskManagerView: View {
                     return
                 }
             }
+            onSelectThread(task.threadId)
         }
         dismiss()
     }

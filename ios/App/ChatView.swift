@@ -88,17 +88,17 @@ struct ChatView: View {
 
     /// The live chat record, so busy/unread stay current as frames land.
     private var current: Chat {
+        if let view = chat.projected(in: session.state, forThread: selectedThreadId) { return view }
         switch chat {
-        case let .bot(bot):
-            if let view = session.state.bot(bot.id)?.projected(forThread: selectedThreadId) { return .bot(view) }
-            // Keep the exact target until a removed thread dismisses. Never
-            // briefly fall back to a sibling while the view is closing.
-            var removed = bot
-            removed.threadId = selectedThreadId
-            removed.busy = false
-            return .bot(removed)
-        case let .room(room):
-            return session.state.rooms.first { $0.id == room.id }.map(Chat.room) ?? chat
+        case var .bot(bot):
+            bot.threadId = selectedThreadId
+            bot.busy = false
+            return .bot(bot)
+        case var .room(room):
+            room.threadId = selectedThreadId
+            room.busyBotId = nil
+            room.messages = nil
+            return .room(room)
         }
     }
 
@@ -107,9 +107,7 @@ struct ChatView: View {
     private var threadId: String { current.threadId }
 
     private var selectedThreadWasRemoved: Bool {
-        guard case let .bot(bot) = chat else { return false }
-        guard let live = session.state.bot(bot.id) else { return true }
-        return live.tasks.map { !$0.contains { $0.threadId == selectedThreadId } } ?? false
+        chat.projected(in: session.state, forThread: selectedThreadId) == nil
     }
 
     /// A task changes a bot's thread, but it does not make it a new bot.
@@ -700,7 +698,12 @@ struct ChatView: View {
                 id: "task", systemImage: "plus.square.on.square", title: "New thread",
                 subtitle: "Start a fresh conversation in \(room.name)",
                 disabled: current.busy || hasPendingApproval
-            ) { Task { await session.createTask(for: room, title: nil) } })
+            ) { Task {
+                if await session.createTask(for: room, title: nil),
+                   let updated = session.state.rooms.first(where: { $0.id == room.id }) {
+                    selectedThreadId = updated.threadId
+                }
+            } })
             out.append(PlusAction(
                 id: "tasks", systemImage: "square.stack", title: "Threads",
                 subtitle: "Switch, rename or remove one"

@@ -1,4 +1,4 @@
-// Packaged: an embedded cua-driver daemon, so macOS TCC grants attribute to OpenMausBot; dev attaches to CuaDriver.app.
+// macOS TCC attributes the packaged embedded driver to StartupBot.
 // Agents use the stdio MCP proxy, which executes nothing; the host-owned daemon does.
 
 import { app, ipcMain } from "electron";

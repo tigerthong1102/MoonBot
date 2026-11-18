@@ -9,7 +9,7 @@ import { announcementConditions, announcementPlan, announcementPlatform, announc
   reportAnnouncement, SPONSOR_CARDS_FOR_TEAM_MEMBERS, useAnnouncementCards, type SeenRecord } from "@/lib/announcements";
 import { boatOfferRuns } from "@/lib/boat-offer";
 import { modelgoOfferable, reportModelgoOffer } from "@/lib/modelgo-offer";
-import { brandStatus } from "@/lib/brand";
+import { brandStatus, upstreamPromotionsEnabled } from "@/lib/brand";
 import { buyOfferAllowed, cloudNoticeKind, cloudPlanView, cloudTrialNotice, cloudTrialView, offerTrialDays } from "@/lib/cloud-plan";
 import { jobRoutine, useCloudIntent } from "@/lib/cloud-intent";
 import { CLOUD_INTENT_GIVEN, cloudSetupStage } from "@/lib/cloud-setup";
@@ -98,7 +98,7 @@ export function AppNotices({ quiet = false, viewer = null, now = Date.now }: { q
   const [grokShown, setGrokShown] = useState(false);
   const [grokOpen, setGrokOpen] = useState(false);
   const [grokLanded, setGrokLanded] = useState(false);
-  const consentHere = (local || viewer?.cloudHome === true) && brandStatus().source !== "file";
+  const consentHere = upstreamPromotionsEnabled() && (local || viewer?.cloudHome === true) && brandStatus().source !== "file";
   const consent = useUpdatesConsent(consentHere ? updatesConsentBridge() : undefined);
   const [consentDone, setConsentDone] = useState(false);
   const updater = useUpdaterState();
@@ -128,12 +128,12 @@ export function AppNotices({ quiet = false, viewer = null, now = Date.now }: { q
   }, []);
   const view = bridge ? cloudPlanView(account) : null;
   const record = state.config?.onboarding;
-  const introAllowed = Boolean(bridge) && brandStatus().source !== "file" && organization !== true && !onboardingCloudOffered(record);
+  const introAllowed = upstreamPromotionsEnabled() && Boolean(bridge) && brandStatus().source !== "file" && organization !== true && !onboardingCloudOffered(record);
   const stage = introStage(record, now());
   const trialDue = cloudTrialNotice(plan);
   // What's new: This computer's page of a desktop that sells MausBot Cloud, once per person; never on a branded build or a
   // desktop an organization runs.
-  const whatsNewHere = Boolean(bridge && desktop) && brandStatus().source !== "file";
+  const whatsNewHere = upstreamPromotionsEnabled() && Boolean(bridge && desktop) && brandStatus().source !== "file";
   const whatsNewSeen = noticeSeen(record, WHATS_NEW_NOTICE);
   const whatsNewDue = !whatsNewHere || whatsNewSeen || organization === true ? false : !desktopState || organization === null ? null
     : desktopState.cloud && !desktopState.seen.includes(WHATS_NEW_NOTICE);
@@ -166,7 +166,7 @@ export function AppNotices({ quiet = false, viewer = null, now = Date.now }: { q
   const simpleBlocked = useOtherDialogOpen(simpleDue) || Boolean(state.liveCall && state.liveCall.status !== "ended");
   // A sponsor's card is for whoever chooses a team's providers: its Owner and Admins, never its members.
   const sponsorsHere = SPONSOR_CARDS_FOR_TEAM_MEMBERS || !state.config?.team || viewer?.canSave === true;
-  const boatHere = sponsorsHere && boatOfferRuns(now()) && brandStatus().source !== "file";
+  const boatHere = upstreamPromotionsEnabled() && sponsorsHere && boatOfferRuns(now()) && brandStatus().source !== "file";
   const modelgoHere = sponsorsHere && modelgoOfferable(state.config?.managedPolicy);
 
   const trial = plan?.trial;
@@ -198,7 +198,7 @@ export function AppNotices({ quiet = false, viewer = null, now = Date.now }: { q
   const consentNow = consentWaits === true || consentFact === false ? false : consentWaits === null || mausBotFirst ? null : consentFact;
   // The Grok Bot popup: once for everyone who can add a bot, the one thing a first chat may be interrupted by. Nothing reads
   // this computer for it: GrokMoveDialog does that, once opened.
-  const grokDue = !remote && viewer?.canSave !== false && !state.config?.team && brandStatus().source !== "file" && organization !== true && moving !== true
+  const grokDue = upstreamPromotionsEnabled() && !remote && viewer?.canSave !== false && !state.config?.team && brandStatus().source !== "file" && organization !== true && moving !== true
     && launchDialogShown() !== "mausbot" && !noticeSeen(record, GROK_MOVE_NOTICE) && !desktopState?.seen.includes(GROK_MOVE_NOTICE);
   const grokBlocked = useOtherDialogOpen(grokDue) || Boolean(state.liveCall && state.liveCall.status !== "ended");
   const grokLanding = welcomeFinishedThisLaunch() && !grokLanded;
@@ -247,7 +247,7 @@ export function AppNotices({ quiet = false, viewer = null, now = Date.now }: { q
       : whatsNewDue === null || whatsNewState === "loading" || !viewer || afterWelcome === null || mausBotFirst || moving === null || whatsNewBlocked ? null : true,
     [UPDATES_CONSENT_NOTICE]: consentNow,
     [TWO_PLACES_NOTICE]: twoFact,
-    [PRODUCT_HUNT_NOTICE]: !cards || moving || firstChat === true || brandStatus().source === "file" || now() >= PRODUCT_HUNT_UNTIL ? false
+    [PRODUCT_HUNT_NOTICE]: !upstreamPromotionsEnabled() || !cards || moving || firstChat === true || brandStatus().source === "file" || now() >= PRODUCT_HUNT_UNTIL ? false
       : organization === null || moving === null || firstChat === null ? null : !organization,
     [CLOUD_INTRO]: moving ? false : moving === null ? null : introDue(),
     [CLOUD_TRIAL_NOTICE]: planBridge && plan === null ? null : Boolean(key && (trialDue || trialOpen === key)),
@@ -257,7 +257,7 @@ export function AppNotices({ quiet = false, viewer = null, now = Date.now }: { q
     [BOAT_OFFER_NOTICE]: !boatHere || moving || afterWelcome === true || !usedBefore(state.bots) || desktopState?.seen.includes(BOAT_OFFER_NOTICE) ? false
       : organization === null || moving === null || afterWelcome === null || mausBotFirst || (desktop && !desktopState) ? null : !organization,
     [ANNOUNCEMENT_NOTICE]: announcementNow,
-    [STAR_NOTICE]: !bridge || moving || brandStatus().source === "file" || !usedBefore(state.bots) ? false : moving === null ? null : true,
+    [STAR_NOTICE]: !upstreamPromotionsEnabled() || !bridge || moving || brandStatus().source === "file" || !usedBefore(state.bots) ? false : moving === null ? null : true,
   }, id => id === CLOUD_INTRO ? stage === "done" && !introOpen
     : id === STAR_NOTICE || id === PRODUCT_HUNT_NOTICE || id === BOAT_OFFER_NOTICE || id === MODELGO_OFFER_NOTICE ? noticeSeen(record, id) : false, launch, closed) : null;
 

@@ -14,7 +14,7 @@ import { createDesktopPrefs, registerDesktopPrefs } from "../../electron/desktop
 import { createUpdatesConsent, registerUpdatesConsent } from "../../electron/updates-consent.mjs";
 
 const f = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: [] as EffectCallback[], state: {} as any, updater: null as any, dispatch: null as any, brand: "default",
-  viewerEmail: undefined as string | null | undefined }));
+  promotions: true, viewerEmail: undefined as string | null | undefined }));
 vi.mock("./Layer", () => ({ Layer: ({ children }: { children: ReactNode }) => children, useIsTopLayer: () => () => true }));
 vi.mock("react", async original => ({ ...await original<typeof import("react")>(),
   useId: () => "test-id",
@@ -31,7 +31,7 @@ vi.mock("./cloud-buy/NightCard", () => ({ NightCard: ({ children }: { children: 
 vi.mock("./whats-new/TeamPicture", () => ({ TeamPicture: () => null }));
 // Who MausBot belongs to: unknown (as before the session answers) unless a test says otherwise.
 vi.mock("@/lib/default-bot", async original => ({ ...await original<typeof import("@/lib/default-bot")>(), useViewerEmail: () => f.viewerEmail }));
-vi.mock("@/lib/brand", () => ({ brandStatus: () => ({ brand: { name: "StartupBot" }, source: f.brand, file: "" }), productName: () => "StartupBot" }));
+vi.mock("@/lib/brand", () => ({ brandStatus: () => ({ brand: { name: "StartupBot" }, source: f.brand, file: "" }), productName: () => "StartupBot", upstreamPromotionsEnabled: () => f.promotions }));
 vi.mock("./Avatar", async original => ({ ...await original<typeof import("./Avatar")>(), MausAvatar: () => null }));
 vi.mock("./lazy-screens", async original => ({ ...await original<typeof import("./lazy-screens")>(), GrokMoveDialog: () => "THE MOVE DIALOG" }));
 vi.mock("@/components/EngineLibrary", () => ({ engineReady: (instance: { snapshot: { state: string; authenticated?: boolean } }) =>
@@ -46,6 +46,19 @@ import { SIMPLE_MODE_PROMPT_KEY } from "@/lib/simple-mode-prompt";
 import { ADVANCED_BACK_KEY } from "@/lib/new-look";
 import { api } from "@/state/store";
 import { forgetAnnouncementCards, seenKey } from "@/lib/announcements";
+
+it("StartupBot disables upstream sponsor campaigns without disabling the notice engine", async () => {
+  f.promotions = false;
+  launchCardsSeen();
+  storage.delete(MODELGO_OFFER_NOTICE);
+  storage.delete(BOAT_OFFER_NOTICE);
+  storage.delete(PRODUCT_HUNT_NOTICE);
+  storage.delete(STAR_NOTICE);
+  const output = await launch();
+  expect(output).not.toContain("ModelGo");
+  expect(output).not.toContain("Sponsor");
+  expect(output).not.toContain("Enjoying StartupBot?");
+});
 
 const DAY = 86_400_000, NOW = new Date(2026, 9, 9, 12).getTime();
 const plans = [
@@ -144,7 +157,7 @@ beforeEach(() => {
   // The page's announcement cards live beside the component for the session; no test inherits another's.
   forgetAnnouncementCards();
   vi.clearAllMocks(); vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
-  storage = new Map(); f.values = []; f.index = 0; f.effects = []; f.updater = null; f.brand = "default"; f.dispatch = vi.fn(); now = NOW; desk = desktopMachine();
+  f.promotions = true; storage = new Map(); f.values = []; f.index = 0; f.effects = []; f.updater = null; f.brand = "default"; f.dispatch = vi.fn(); now = NOW; desk = desktopMachine();
   setLocale("en"); viewer = LOCAL_VIEWER; account = signedOut; snapshot = { status: "none" }; offer = TRIAL_OFFER;
   session = new Map(); f.viewerEmail = undefined;
   vi.stubGlobal("sessionStorage", { getItem: (key: string) => session.get(key) ?? null, setItem: (key: string, value: string) => session.set(key, value) });
@@ -1365,7 +1378,7 @@ describe("bots in two places", () => {
 
 describe("ModelGo's sponsor card", () => {
   const TITLE = "ModelGo is now in StartupBot", LINE = "One API key, every model.";
-  const URL_EXACT = "https://modelgo.ai/?utm_source=openmausbot&utm_medium=sponsorship&utm_content=app&campaign_id=openmausbot&ad_group_id=app";
+  const URL_EXACT = "https://modelgo.ai/";
   const due = () => { storage.delete(MODELGO_OFFER_NOTICE); };
   const events = () => vi.mocked(track).mock.calls.filter(([name]) => name === "modelgo_offer").map(([, props]) => props);
   const escape = () => tree().find(node => node.type === "aside")!.props.onKeyDown({ key: "Escape", preventDefault() {}, stopPropagation() {} });
@@ -1564,6 +1577,19 @@ describe("cards from the announcements file", () => {
     forgetAnnouncementCards(); feed = [card("phone-app")];
     const config = vi.mocked(api).getMockImplementation()!;
     vi.mocked(api).mockImplementation(async (path, init) => path === "/api/announcements" ? { cards: feed } : config(path, init));
+  });
+
+  it("retains owner campaigns and their sponsor schedule with upstream promotions off", async () => {
+    f.promotions = false;
+    feed = [card("startupbot-cloud", {
+      kind: "sponsor", label: "StartupBot", title: "StartupBot Cloud preview",
+      primary: { label: "Read more", action: { open_url: "https://startupbot.ai" } },
+    })];
+    expect(await launch()).toContain("StartupBot Cloud preview");
+    press("Not now"); await flush();
+    expect(await relaunch()).not.toContain("StartupBot Cloud preview");
+    expect(hints()).toContain(seenKey("startupbot-cloud"));
+    expect(window.ogb!.openExternal).not.toHaveBeenCalled();
   });
 
   it("shows the first card for this person as a corner card: its label, title, body and button, and Not now", async () => {

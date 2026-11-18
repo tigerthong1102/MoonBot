@@ -7,7 +7,7 @@ import { useStore } from "@/state/store";
 
 import { loadAppCards } from "./bot-settings/useBotApps";
 import { preloadConnectedApps } from "@/lib/connected-apps";
-import type { ToolkitCard } from "./ServiceIcon";
+import { ServiceIcon, type ToolkitCard } from "./ServiceIcon";
 import { ELEVATED_CONTROL, ELEVATED_HOVER } from "./elevated";
 import { SIMPLE_TOP_BUTTON } from "./SidebarSimpleTop";
 
@@ -50,14 +50,9 @@ function useSidebarApps(): SidebarApps {
 }
 
 function AppFaceIcon({ face, className }: { face: AppFace; className?: string }) {
-  const sources = [face.logo, face.domain ? `https://www.google.com/s2/favicons?domain=${face.domain}&sz=64` : null].filter((src): src is string => Boolean(src));
-  const [failed, setFailed] = useState(0);
-  const src = sources[failed];
   return (
     <span data-app-face={face.slug} className={cn("flex size-[18px] shrink-0 items-center justify-center overflow-hidden rounded-md p-px motion-safe:transition-colors group-hover/apps:bg-white group-focus-visible/apps:bg-white", className)}>
-      {src
-        ? <img src={src} alt="" draggable={false} className="size-4 object-contain" onError={() => setFailed((count) => count + 1)} />
-        : <span className="text-[10px] font-semibold leading-none text-neutral-700">{face.label.slice(0, 1).toUpperCase()}</span>}
+      <ServiceIcon card={face} className="size-4 rounded-none bg-transparent text-[10px] leading-none text-neutral-700" />
     </span>
   );
 }

@@ -3,6 +3,11 @@ name: Internal package verification
 on:
   workflow_dispatch:
     inputs:
+      mobile:
+        description: "Build internal Android APK/AAB and iOS simulator app"
+        required: false
+        type: boolean
+        default: false
       desktop:
         description: "Build StartupBot internal macOS and Windows installers instead of Ubuntu"
         required: false
@@ -24,7 +29,7 @@ permissions:
 
 jobs:
   package:
-    if: ${{ !inputs.desktop }}
+    if: ${{ !inputs.desktop && !inputs.mobile }}
     name: DEB + AppImage (Ubuntu 24.04 x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -264,4 +269,101 @@ jobs:
         with:
           name: StartupBot-Windows-failure-${{ github.run_id }}-${{ github.run_attempt }}
           path: release/internal/smoke/
+          retention-days: 7
+
+  android:
+    if: inputs.mobile
+    name: StartupBot Android internal APK and AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - name: Select Java 17 and verify native boundaries
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          node scripts/verify-startupbot-mobile.mjs
+      - name: Build and test native Android code
+        working-directory: android
+        run: ./gradlew --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:bundleRelease
+      - name: Test APK on a clean emulator
+        run: |
+          sudo chmod a+rw /dev/kvm
+          bash scripts/smoke-android-internal.sh
+      - name: Prepare verified internal artifacts
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk mobile-artifacts/android/StartupBot-0.1.0-INTERNAL-debug.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab mobile-artifacts/android/StartupBot-0.1.0-UNSIGNED.aab
+          cp android/LICENSE android/NOTICE docs/STARTUPBOT_MOBILE_INTERNAL.md mobile-artifacts/android/
+          git rev-parse HEAD > mobile-artifacts/android/COMMIT.txt
+          cd mobile-artifacts/android
+          sha256sum *.apk *.aab > SHA256SUMS.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/android/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: failure()
+        with:
+          name: StartupBot-Android-diagnostics-${{ github.run_id }}
+          path: |
+            mobile-artifacts/android/
+            android/core/build/reports/tests/
+            android/app/build/reports/tests/
+          retention-days: 7
+
+  ios:
+    if: inputs.mobile
+    name: StartupBot iOS internal simulator
+    runs-on: macos-26-intel
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - name: Verify native boundaries and core protocol
+        run: |
+          node scripts/verify-startupbot-mobile.mjs
+          xcodebuild -version
+          swift test --package-path ios
+      - name: Generate StartupBot Xcode project
+        run: |
+          command -v xcodegen || brew install xcodegen
+          cd ios
+          xcodegen generate
+      - name: Build universal simulator app without store signing
+        run: |
+          xcodebuild build -project ios/StartupBot.xcodeproj -scheme StartupBot -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath mobile-artifacts/DerivedData ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO -jobs 2
+          mkdir -p mobile-artifacts/ios
+          ditto mobile-artifacts/DerivedData/Build/Products/Debug-iphonesimulator/StartupBot.app mobile-artifacts/ios/StartupBot.app
+          lipo -archs mobile-artifacts/ios/StartupBot.app/StartupBot | tee mobile-artifacts/ios/architectures.txt
+          grep -q arm64 mobile-artifacts/ios/architectures.txt
+          grep -q x86_64 mobile-artifacts/ios/architectures.txt
+      - name: Run the real app and navigation tests on simulator
+        run: bash scripts/smoke-ios-internal.sh
+      - name: Prepare verified simulator artifact
+        run: |
+          ditto -c -k --keepParent mobile-artifacts/ios/StartupBot.app mobile-artifacts/ios/StartupBot-0.1.0-SIMULATOR.zip
+          rm -rf mobile-artifacts/ios/StartupBot.app
+          cp ios/LICENSE ios/NOTICE docs/STARTUPBOT_MOBILE_INTERNAL.md mobile-artifacts/ios/
+          git rev-parse HEAD > mobile-artifacts/ios/COMMIT.txt
+          cd mobile-artifacts/ios
+          shasum -a 256 StartupBot-0.1.0-SIMULATOR.zip > SHA256SUMS.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-iOS-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/ios/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: failure()
+        with:
+          name: StartupBot-iOS-diagnostics-${{ github.run_id }}
+          path: mobile-artifacts/ios/
           retention-days: 7

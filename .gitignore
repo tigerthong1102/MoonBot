@@ -43,3 +43,13 @@ deploy/podman/.env
 deploy/podman/.env.*
 !deploy/podman/.env.example
 /.env
+
+android/.gradle/
+android/**/build/
+android/local.properties
+android/keystore.properties
+ios/.build/
+ios/.swiftpm/
+ios/*.xcodeproj/
+ios/build/
+mobile-artifacts/

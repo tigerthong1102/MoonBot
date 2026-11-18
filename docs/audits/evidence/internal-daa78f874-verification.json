@@ -1,0 +1,79 @@
+{
+  "run": "44346930538",
+  "commit": "daa78f874fb091b847b1270efbdbc410fbc6d133",
+  "source": "installer hashes checked against CI metadata and archive SHA-256 from GitHub Actions",
+  "enterpriseBlobsCompared": 26,
+  "builds": [
+    {
+      "platform": "windows-x64",
+      "installerSha256": "23e7670783dc901ee8ef3b91271c20ce401be1757e9c9b8c53ed0d1c0df26834",
+      "installerBytes": 227452321,
+      "ciQualification": "native-smoke-pass",
+      "localNativeSmoke": null,
+      "chromiumNetwork": null,
+      "filesChecked": 3301,
+      "matchingEnterpriseBlobs": [],
+      "enterprisePaths": [],
+      "electronNodeTestFiles": 0,
+      "fontNoticesMatched": 3,
+      "cuaNoticeMatched": true,
+      "cuaNoticeBytesEqualToGitBlob": false,
+      "cuaNoticeSha256": "d0a32419a44fa38d5023d1431dfcbedd1457eb5e7b2e6c7c87ca064facb41b41",
+      "syftComponents": 132,
+      "withoutLicenseField": 131,
+      "redactedGitleaks8301": {
+        "payloadMatches": 14,
+        "unpackedAsarMatches": 0
+      }
+    },
+    {
+      "platform": "macos-arm64",
+      "installerSha256": "8f7e4df87df68b9d356832d7d5bb2ec8a788a5b26ac72e0f7630447038151371",
+      "installerBytes": 240909066,
+      "ciQualification": "build-only",
+      "localNativeSmoke": null,
+      "chromiumNetwork": null,
+      "filesChecked": 3221,
+      "matchingEnterpriseBlobs": [],
+      "enterprisePaths": [],
+      "electronNodeTestFiles": 0,
+      "fontNoticesMatched": 3,
+      "cuaNoticeMatched": true,
+      "cuaNoticeBytesEqualToGitBlob": true,
+      "cuaNoticeSha256": "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9",
+      "syftComponents": 79,
+      "withoutLicenseField": 78,
+      "redactedGitleaks8301": {
+        "payloadMatches": 14,
+        "unpackedAsarMatches": 0
+      }
+    },
+    {
+      "platform": "macos-x64",
+      "installerSha256": "cab5b906c14ad36c46b9912d58bf6d79c25281dc5c4fe88d52101d19ec61a163",
+      "installerBytes": 273422804,
+      "ciQualification": "native-smoke-pass",
+      "localNativeSmoke": null,
+      "chromiumNetwork": {
+        "hosts": {
+          "127.0.0.1": 61
+        },
+        "faviconRequests": 0
+      },
+      "filesChecked": 3221,
+      "matchingEnterpriseBlobs": [],
+      "enterprisePaths": [],
+      "electronNodeTestFiles": 0,
+      "fontNoticesMatched": 3,
+      "cuaNoticeMatched": true,
+      "cuaNoticeBytesEqualToGitBlob": true,
+      "cuaNoticeSha256": "c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9",
+      "syftComponents": 79,
+      "withoutLicenseField": 78,
+      "redactedGitleaks8301": {
+        "payloadMatches": 14,
+        "unpackedAsarMatches": 0
+      }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Điều kiện phân phối thương mại StartupBot Desktop
 
-**NO-GO tại `263a8fa20`.** CI của main đã hoàn thành thành công. Bộ cài nội bộ được kiểm toán ở đây được dựng từ `960b66b33`. Hai SHA có phạm vi bằng chứng khác nhau. Có thể tiếp tục phát triển OSS và thử nghiệm bằng dữ liệu giả. Việc mở bán phụ thuộc vào quyền của từng thành phần phân phối, hoạt động mạng của bản cài cụ thể, bảo vệ dữ liệu và khả năng hỗ trợ những nghiệp vụ ghi trong hợp đồng. [CI main](https://github.com/tigerthong1102/MoonBot/actions/runs/44326874646) · [Bộ cài đã kiểm tra](https://github.com/tigerthong1102/MoonBot/actions/runs/44286893426)
+**NO-GO tại `263a8fa20`.** CI của main đã hoàn thành thành công. Bộ cài dùng làm đường cơ sở được dựng từ `960b66b33`. Đã kiểm lại cả ba installer của bản tích hợp cuối đợt `daa78f874` trong mục [Bộ cài cuối đợt kiểm toán](#bộ-cài-cuối-đợt-kiểm-toán). Mỗi SHA có phạm vi bằng chứng riêng. Có thể tiếp tục phát triển OSS và thử nghiệm bằng dữ liệu giả. Việc mở bán phụ thuộc vào quyền của từng thành phần phân phối, hoạt động mạng của bản cài cụ thể, bảo vệ dữ liệu và khả năng hỗ trợ những nghiệp vụ ghi trong hợp đồng. [CI main](https://github.com/tigerthong1102/MoonBot/actions/runs/44326874646) · [Bộ cài đã kiểm tra](https://github.com/tigerthong1102/MoonBot/actions/runs/44286893426)
 
 ## Quyền mã nguồn và lịch sử
 
@@ -93,7 +93,7 @@ Bộ cài nội bộ tại `76fd9bbbd` đã qua job Windows x64 và macOS Intel.
 - **macos-arm64**. Đã so 3408 tệp, có đủ ba notice font, 0 bản sao trùng byte với 26 blob Enterprise lịch sử. NetLog ghi 70 HTTP request tới 127.0.0.1 và 0 lượt favicon Google.
 - **macos-x64**. Đã so 3408 tệp, có đủ ba notice font, 0 bản sao trùng byte với 26 blob Enterprise lịch sử. NetLog ghi 63 HTTP request tới 127.0.0.1 và 0 lượt favicon Google.
 
-**Notice Cua Driver.** Trên Windows `960b66b33`, tìm chuỗi copyright của Cua AI trong payload và ASAR giải nén trả về 0 kết quả. SDK npm 0.45.4 khai MIT nhưng không kèm tệp LICENSE tại gốc package. [PR 23](https://github.com/tigerthong1102/MoonBot/pull/23) mang nguyên văn license từ tag khớp binary (SHA-256 `c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9`) vào resources/licenses và thêm phép so byte trên Windows/macOS đã cài. Cần signal từ bộ cài chứa PR 23 để đóng phát hiện này. Giấy phép của extension perception tùy chọn có phạm vi khác. [License gốc tại 0.45.4](https://github.com/trycua/cua/blob/cua-driver-rs-v0.45.4/LICENSE.md) · [Phân biệt driver và extension](https://github.com/trycua/cua/blob/cua-driver-rs-v0.45.4/libs/cua-driver/README.md)
+**Notice Cua Driver.** Trên Windows `960b66b33`, tìm chuỗi copyright của Cua AI trong payload và ASAR giải nén trả về 0 kết quả. SDK npm 0.45.4 khai MIT nhưng không kèm tệp LICENSE tại gốc package. [PR 23](https://github.com/tigerthong1102/MoonBot/pull/23) mang nguyên văn license từ tag khớp binary (SHA-256 `c0779290c1d4783169aa3dbfb55feb505e563ef8a004bbf55298ceffcfbda8d9`) vào resources/licenses và thêm phép so byte trên Windows/macOS đã cài. Đã kiểm lại trên bộ cài `daa78f874` ở cuối báo cáo. Giấy phép của extension perception tùy chọn có phạm vi khác. [License gốc tại 0.45.4](https://github.com/trycua/cua/blob/cua-driver-rs-v0.45.4/LICENSE.md) · [Phân biệt driver và extension](https://github.com/trycua/cua/blob/cua-driver-rs-v0.45.4/libs/cua-driver/README.md)
 
 **Các notice tìm thấy trên Windows.** Payload chứa license Apache cho cloudflared, LICENSE của ba package DuckDB, LICENSE.headless_shell trong Chrome headless shell và NOTICE.txt trong Android Platform Tools. Browser manifest còn tham chiếu một binary browser-engine trong GitHub Releases của upstream OSS. Cần nối từng binary với mã nguồn/quyền phân phối tương ứng, đặc biệt với Chrome và Platform Tools. Tệp NOTICE bên cạnh binary tự nó chưa đủ để xác nhận toàn bộ quyền.
 
@@ -102,3 +102,16 @@ Bộ cài nội bộ tại `76fd9bbbd` đã qua job Windows x64 và macOS Intel.
 **Phạm vi quan sát trên Mac.** Smoke arm64 của `c1d4e798b` trên máy phát triển timeout khi chờ renderer. Với bộ cài dựng cục bộ ở `daa78f874`, kiểm chữ ký ad-hoc và so 2.894 mục payload đạt, packaged browser/server chạy được. Mở GUI từ bản chép vào thư mục thử và từ DMG vẫn timeout. Lấy mẫu tiến trình ở lần cuối thấy một worker đang ở SecItemCopyMatching của macOS; dữ liệu này chưa xác định nguyên nhân duy nhất. Cần kiểm khởi động trên runner sạch và kiểm nâng cấp trên máy có Keychain cũ. Bản `76fd9bbbd` thực sự đã mở được trên chính máy này.
 
 Trong smoke của bản `76fd9bbbd`, helper CUA in nhắc có phiên bản mới kèm đường dẫn release trên GitHub. Log này chưa xác nhận helper nhận thông tin từ cache hay một kết nối mới. NetLog chỉ đo Chromium. Cần capture riêng tiến trình helper và kiểm chính sách kiểm tra phiên bản trước khi cam kết app chỉ kết nối những đích người dùng đã duyệt.
+
+
+## Bộ cài cuối đợt kiểm toán
+
+Commit tích hợp `daa78f874fb091b847b1270efbdbc410fbc6d133` chứa các thay đổi code của PR 13–17 và 19–23. GitHub Actions dựng EXE Windows x64 và hai DMG, cài và thử ứng dụng trên Windows x64 và macOS Intel. Đã tải ba ZIP, khớp digest của GitHub, khớp commit trong metadata nội bộ và tính lại SHA-256 của installer. Cả ba có đủ license font và Cua Driver. Notice CUA trên Windows dùng CRLF do checkout Windows; chuẩn hóa xuống dòng cho văn bản trùng toàn bộ với blob của tag 0.45.4. Hai bản Mac trùng byte. [Bộ cài và job](https://github.com/tigerthong1102/MoonBot/actions/runs/44346930538) · [Biên bản kiểm độc lập](evidence/internal-daa78f874-verification.json)
+
+| Installer | SHA-256 | Tệp đã đối chiếu | SBOM từ payload phát hành |
+|---|---|---:|---|
+| windows-x64 | `23e7670783dc901ee8ef3b91271c20ce401be1757e9c9b8c53ed0d1c0df26834` | 3301 | [132 thành phần](evidence/internal-daa78f874-windows-x64.cdx.json) |
+| macos-arm64 | `8f7e4df87df68b9d356832d7d5bb2ec8a788a5b26ac72e0f7630447038151371` | 3221 | [79 thành phần](evidence/internal-daa78f874-macos-arm64.cdx.json) |
+| macos-x64 | `cab5b906c14ad36c46b9912d58bf6d79c25281dc5c4fe88d52101d19ec61a163` | 3221 | [79 thành phần](evidence/internal-daa78f874-macos-x64.cdx.json) |
+
+Mỗi payload có 0 đường dẫn enterprise, 0 blob giống hệt 26 blob lịch sử và 0 tệp Electron node-test trong ASAR. Quét Gitleaks mặc định có 14 match trên mỗi payload và 0 match trong từng ASAR đã giải nén. Có match trong manifest Chrome và bundle đã minify; cần triage nguồn của các giá trị còn lại và xác minh quyền phân phối binary. Trên Intel, NetLog của smoke ghi 61 request loopback, 0 request favicon Google. Chữ ký ad-hoc của Mac và EXE Windows unsigned chỉ phù hợp thử nội bộ. Kết luận thương mại vẫn là **NO-GO**.

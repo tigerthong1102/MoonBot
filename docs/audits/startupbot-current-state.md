@@ -97,3 +97,16 @@ Chrome chạy lại HTML sinh từ commit `232fdea24`. Với CT01 kỳ 2025, hai
 
 
 **Test import ngoại tuyến.** Sau khi tải trang HTML độc lập, đã chuyển Chrome sang offline, chọn CSV UTF-8 BOM và workbook XLSX được tạo bằng openpyxl, ánh xạ cột tự động, điền QA01/2025 và tải báo cáo. File có thêm QA02 và năm 2024. Có bốn dòng nghiệp vụ khớp phạm vi, ba dòng đối chứng. Tổng 14.2500 so với 14.2400. Báo cáo nêu 0001 vừa lặp vừa lệch 0.0100, 0003 thiếu bên đối chứng và 0004 thiếu bên nghiệp vụ. Trong đoạn từ chọn tệp tới tải báo cáo, trình duyệt ghi 0 request. Dùng dữ liệu tổng hợp; số liệu này chỉ xác nhận đường import trong công cụ cục bộ.
+
+## Bàn giao theo giai đoạn
+
+| Giai đoạn | Kết quả bàn giao | Điều kiện còn lại |
+|---|---|---|
+| 0 · Kiểm kê | Khoanh SHA, quyền nguồn/asset, các PR đã merge, năng lực hiện hữu, test đã chạy và 36 quyết định ở trên. | Mốc mới cần đối chiếu lại với commit và installer mới. |
+| 1 · P0 thương mại | Có sửa opt-in, báo lỗi, icon mạng, license font/CUA, pin ADB, loại fixture và cập nhật HTTP client. [Bằng chứng và PR](commercial-readiness.md) | Còn quyền thương mại của asset/binary, phụ thuộc chưa phân loại, network ngoài Chromium, ký và hỗ trợ môi trường thật. |
+| 2 · Nền connector | Registry chạy trong renderer cho nghiệp vụ đối chiếu file, grant một lần, xử lý và test cách ly theo công ty/kỳ. | Ranh giới file-picker hiện hữu chỉ áp dụng với người đã được phép mở file. SQL, MCP và sidecar cần quyền được kiểm ngay ở tiến trình thực thi. |
+| 3 · SQL | Giữ collector và bộ thử LocalDB đã có. Đã chạy lại 35 fixture. [Ma trận SQL và môi trường thực](../startupbot/business-connectors/sql-compatibility.md) | Cài driver mới chỉ lập kế hoạch. SQL Server 2005, SQL Server 2019 instance thường của hãng và toàn luồng Windows 10/11 chưa đạt nghiệm thu. |
+| 4–5 · Smart Pro, MISA | Tạm dừng theo quyết định của founder. | Chờ founder mở lại. |
+| 6 · BHXH | Tài liệu ma trận xác định đường import và vai trò người duyệt. | Thiếu sandbox, mẫu hợp lệ và đối chứng của nhà cung cấp. Chưa có pilot đạt nghiệm thu. |
+| 7 · Tri thức, skill | Đã chạy lại test của memory, recall, skills và saved steps trong 1.018 test nền tảng. | Chưa có corpus nghiệp vụ có quyền sử dụng và bộ câu hỏi chuẩn theo phiên bản/ngày hiệu lực để nghiệm thu RAG hay skill sinh từ manual. |
+| 8 · Bộ cài | Đã dựng và thử Windows/macOS nội bộ. Xem số liệu theo SHA và kiến trúc. [Báo cáo artifact](commercial-readiness.md) | Quyết định bán và các phiên bản phần mềm khách hàng được hỗ trợ vẫn chờ các điều kiện P0. |

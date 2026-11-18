@@ -445,7 +445,7 @@ jobs:
       - name: Build and verify separate ARM and Intel simulator apps
         run: bash scripts/build-ios-simulators.sh
       - name: Run the real app and navigation tests on simulator
-        timeout-minutes: 25
+        timeout-minutes: 45
         run: bash scripts/smoke-ios-internal.sh
       - name: Prepare and verify separate simulator downloads
         run: bash scripts/stage-ios-simulators.sh
@@ -473,7 +473,7 @@ jobs:
   ios-device:
     if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')
     name: StartupBot iOS unsigned device Release archive
-    runs-on: macos-26
+    runs-on: ${{ inputs.ios_runner || 'macos-26' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

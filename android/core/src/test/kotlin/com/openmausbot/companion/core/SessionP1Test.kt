@@ -40,6 +40,29 @@ class SessionP1Test {
     }
 
     @Test
+    fun searchFocusRequiresAnUnbrokenRenderedBranch() = runTest {
+        fun page(range: IntRange) = ThreadPage(
+            messages = range.map { Message("m$it", Message.Role.BOT, Message.Kind.TEXT, it.toDouble(), text = "Message $it", parentId = if (it > 1) "m${it - 1}" else null) },
+            activeLeafId = "m200", hasMore = true,
+        )
+        val shown = bot("b1", "task-a", "task-a").copy(activeLeafId = "m200", messages = page(151..200).messages)
+        val session = session { Fleet(listOf(shown), emptyList()) }
+        session.openNotification(target("b1", "task-a"))
+        for (range in listOf(1..50, 101..200, 51..150)) server.enqueue(json(CompanionJson.encodeToString(page(range))))
+        val hit = SearchHit(threadId = "task-a", messageId = "m25", at = 25.0, role = Message.Role.BOT,
+            kind = Message.Kind.TEXT, snippet = "Message 25", matchStart = 0, matchLength = 7,
+            botId = "b1", name = "Fixture", onActivePath = true)
+        assertIs<Chat.BotChat>(session.open(hit))
+        assertEquals("m25", session.focusedMessageId.value)
+        assertTrue(session.state.value.visibleTranscript("task-a").any { it.id == "m25" })
+        assertEquals("m200", session.state.value.activeLeafIds["task-a"])
+        val requests = List(3) { server.takeRequest() }
+        assertTrue(requests.all { it.method == "GET" })
+        assertTrue(requests[1].path!!.contains("around=m150"))
+        assertTrue(requests[2].path!!.contains("around=m100"))
+    }
+
+    @Test
     fun capturedTaskPinsPlainMessagesStopReadGrantsEditsAndQueueCancellation() = runTest {
         val captured = bot("b1", "task-a", "task-a", "task-b")
         val elsewhere = captured.copy(threadId = "task-b")

@@ -358,4 +358,58 @@ final class SessionRequestTests: XCTestCase {
         XCTAssertNil(session.actionError)
     }
 
+
+    @MainActor
+    func testSearchFocusIsPublishedOnlyAfterTheHitJoinsTheRenderedBranch() async throws {
+        func page(_ range: ClosedRange<Int>) throws -> String {
+            let messages: [[String: Any]] = range.map { index in
+                var item: [String: Any] = ["id":"m\(index)", "role":"bot", "kind":"text", "at":index, "text":"Message \(index)"]
+                if index > 1 { item["parentId"] = "m\(index - 1)" }
+                return item
+            }
+            return String(decoding: try JSONSerialization.data(withJSONObject: ["messages":messages, "activeLeafId":"m200", "hasMore":true]), as: UTF8.self)
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [DeferredResponseProtocol.self]
+        let transport = URLSession(configuration: config)
+        defer { transport.invalidateAndCancel(); DeferredResponseProtocol.started = nil }
+        var shown = try bot()
+        shown.activeLeafId = "m200"
+        shown.messages = try JSONDecoder().decode(ThreadPage.self, from: Data(page(151...200).utf8)).messages
+        let connection = Connection(id: "fixture", name: "Fixture", host: "127.0.0.1", port: 19991)
+        let session = Session(fixtureClient: CompanionClient(connection: connection, token: "fixture-only", session: transport), fleet: Fleet(bots: [shown], groups: []))
+        let first = try page(1...50), second = try page(101...200), third = try page(51...150)
+        DeferredResponseProtocol.resetRequests()
+        DeferredResponseProtocol.started = {
+            let query = DeferredResponseProtocol.requests().last?.url?.query ?? ""
+            let body = query.contains("around=m150") ? second : query.contains("around=m100") ? third : first
+            try? DeferredResponseProtocol.finish(status: 200, body: body)
+        }
+        let hit = try JSONDecoder().decode(SearchHit.self, from: Data(#"""
+        {"threadId":"thread","messageId":"m25","at":25,"role":"bot","kind":"text","snippet":"Message 25","matchStart":0,"matchLength":7,"botId":"bot","name":"Fixture","onActivePath":true}
+        """#.utf8))
+        let opened = await session.open(hit)
+        XCTAssertNotNil(opened)
+        XCTAssertEqual(session.focusedMessageId, "m25")
+        XCTAssertTrue(session.state.visibleTranscript(forThread: "thread").contains { $0.id == "m25" })
+        XCTAssertEqual(session.state.activeLeafIds["thread"], "m200")
+        XCTAssertEqual(DeferredResponseProtocol.requests().count, 3)
+        XCTAssertTrue(DeferredResponseProtocol.requests().allSatisfy { $0.httpMethod == "GET" })
+    }
+
+    @MainActor
+    func testSearchLandingCannotFocusOrMergeIntoAReplacementRuntime() async throws {
+        let target = try bot()
+        let hit = try JSONDecoder().decode(SearchHit.self, from: Data(#"""
+        {"threadId":"thread","messageId":"old-hit","at":1,"role":"bot","kind":"text","snippet":"Old","matchStart":0,"matchLength":3,"botId":"bot","name":"Fixture","onActivePath":true}
+        """#.utf8))
+        let body = #"{"messages":[{"id":"old-hit","role":"bot","kind":"text","at":1,"text":"Old"}],"activeLeafId":"old-hit","hasMore":false}"#
+        let (session, opened) = try await exercise(status: 200, body: body, replace: true, sameID: true,
+            fleet: Fleet(bots: [target], groups: [])) { session, _ in await session.open(hit) }
+        XCTAssertNil(opened)
+        XCTAssertNil(session.focusedMessageId)
+        XCTAssertTrue(session.state.transcript(forThread: "thread").isEmpty)
+        XCTAssertEqual(session.actionError, "current connection notice")
+    }
+
 }

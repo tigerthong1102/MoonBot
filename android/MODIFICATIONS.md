@@ -25,6 +25,8 @@ Internal Android 0.1.6 adds ABI-specific Gradle packages alongside the universal
 
 Internal Android 0.1.7 / iOS build 13 keeps channel unread updates scoped to individual tasks. Android calls recover listening after failed sends without reopening a hung-up or foreign call; iOS voice previews release audio on completion, failure, replacement and dismissal, and reject late preview data. New regression tests cover these lifecycles.
 
+Internal Android 0.1.8 / iOS build 14 connects old search results to the rendered active branch with bounded history requests and retained live leaf updates. Regression coverage includes disconnected windows, malformed pages, byte/page budgets and real client requests.
+
 Modified imported files:
 
 - `.gitignore`

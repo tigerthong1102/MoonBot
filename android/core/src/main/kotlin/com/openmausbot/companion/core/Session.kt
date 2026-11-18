@@ -1601,8 +1601,11 @@ class Session(
         if (trimmed.length < 2) return emptyList()
         val activeClient = client ?: return emptyList()
         return try {
-            activeClient.search(trimmed)
+            val hits = activeClient.search(trimmed)
+            gate.withLock { if (client === activeClient) hits else emptyList() }
         } catch (error: Throwable) {
+            if (error is CancellationException) throw error
+            if (client !== activeClient) return emptyList()
             _actionError.value = error.message
             emptyList()
         }
@@ -1618,29 +1621,68 @@ class Session(
                     ?: throw APIError.Status(404, THREAD_GONE_MESSAGE)
                 if (!hit.onActivePath) {
                     val leaf = activeClient.setActiveBranch(bot.id, hit.messageId, hit.threadId)
-                    _state.update { it.apply(Frame.Thread(hit.threadId, leaf)) }
+                    gate.withLock {
+                        if (client !== activeClient) throw CancellationException("The originating computer changed")
+                        _state.update { it.apply(Frame.Thread(hit.threadId, leaf)) }
+                    }
                 }
-                val page = activeClient.messagesAround(hit.threadId, hit.messageId)
-                _state.update { it.merge(page, hit.threadId) }
-                _focusedMessageId.value = hit.messageId
-                return _state.value.chat(ChatTarget.Bot(bot.id, hit.threadId))
+                connectSearchHistory(hit, activeClient)
+                return gate.withLock {
+                    if (client !== activeClient) null else {
+                        _focusedMessageId.value = hit.messageId
+                        _state.value.chat(ChatTarget.Bot(bot.id, hit.threadId))
+                    }
+                }
             }
             val groupId = hit.groupId
             if (groupId != null) {
                 var room = _state.value.rooms.firstOrNull { it.id == groupId } ?: return null
                 if (room.threadId != hit.threadId) {
                     room = activeClient.switchRoomTask(room.id, hit.threadId)
-                    _state.update { it.apply(Frame.Room(room)) }
+                    gate.withLock {
+                        if (client !== activeClient) throw CancellationException("The originating computer changed")
+                        _state.update { it.apply(Frame.Room(room)) }
+                    }
                 }
-                val page = activeClient.messagesAround(hit.threadId, hit.messageId)
-                _state.update { it.merge(page, hit.threadId) }
-                _focusedMessageId.value = hit.messageId
-                return _state.value.chat(ChatTarget.Room(groupId, hit.threadId))
+                connectSearchHistory(hit, activeClient)
+                return gate.withLock {
+                    if (client !== activeClient) null else {
+                        _focusedMessageId.value = hit.messageId
+                        _state.value.chat(ChatTarget.Room(groupId, hit.threadId))
+                    }
+                }
             }
             null
         } catch (error: Throwable) {
+            if (client !== activeClient) return null
+            if (error is CancellationException) throw error
             _actionError.value = error.message
             null
+        }
+    }
+
+    private suspend fun connectSearchHistory(hit: SearchHit, activeClient: CompanionClient) {
+        val landing = SearchLanding(hit.threadId, hit.messageId)
+        var page = activeClient.messagesAround(hit.threadId, hit.messageId)
+        currentCoroutineContext().ensureActive()
+        gate.withLock {
+            if (client !== activeClient) throw CancellationException("The originating computer changed")
+            _state.update { landing.merge(page, it) }
+        }
+        while (true) {
+            val cursor = gate.withLock {
+                if (client !== activeClient) throw CancellationException("The originating computer changed")
+                landing.next(_state.value)
+            } ?: return
+            page = when (cursor) {
+                SearchHistoryCursor.Latest -> activeClient.messages(hit.threadId, limit = 200)
+                is SearchHistoryCursor.Around -> activeClient.messagesAround(hit.threadId, cursor.messageId, limit = 200)
+            }
+            currentCoroutineContext().ensureActive()
+            gate.withLock {
+                if (client !== activeClient) throw CancellationException("The originating computer changed")
+                _state.update { landing.merge(page, it) }
+            }
         }
     }
 

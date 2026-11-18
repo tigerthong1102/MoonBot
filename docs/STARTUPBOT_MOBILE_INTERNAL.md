@@ -331,3 +331,30 @@ changing any pixel color. Independent rendering before/after verifies all
 Native verification rejects alpha-channel static store icons, and encoder
 regressions check PNG CRCs, exact RGB samples and rejection of transparency.
 The in-app transparent robot artwork and all Android assets are unchanged.
+
+
+Internal Android 0.1.8 / iOS build 14 fixes disconnected search landing windows
+on both platforms. The client recovers the actual active leaf and missing
+parent segments before publishing focus. It keeps the live branch selection,
+rejects missing/repeated parent pages, and bounds automatic search hydration
+by 40 pages, 8 MiB of cached thread JSON and a 30-second operation deadline.
+An exceeded budget reports an explicit error with manual history navigation
+still available. Older HTTP pages cannot roll back a newer stream leaf.
+Native request/state updates remain scoped to the originating computer.
+
+The ARM runner jobs in 44280368166 were never acquired by hosted runners;
+GitHub annotations explicitly report macOS ARM64 capacity constraints. The
+standard Intel runner is an available internal fallback; both Simulator CPU
+builds remain mandatory. Only the runner's native CPU receives runtime PASS.
+Test compilation and test execution now have separate bounded 900-second
+phases; the test execution deadline is unchanged. The exact tested native app
+is recopied and signature/entitlement-verified before ZIP staging. No test is
+skipped to accommodate runner capacity. An unsigned device archive still does
+not authorize installation or TestFlight.
+
+A separate Ubuntu CI failure exposed file-number reuse in the Antigravity log
+replacement fixture. Replacement now retains the original file by rename,
+and production log identity additionally verifies creation generation before
+attributing a quota error. Unprovable identity contributes no log evidence;
+the runtime's typed refusal remains authoritative. Focused quota/identity
+regressions run without real provider accounts.

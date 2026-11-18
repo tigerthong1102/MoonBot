@@ -1639,8 +1639,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Resolve a SQLite search hit into the live task/branch, load a page
-    /// around it, and hand navigation the current chat record.
     func open(_ hit: SearchHit) async -> Chat? {
         let requestGeneration = runtimeGeneration
         guard let client else { return nil }
@@ -1654,8 +1652,7 @@ final class Session: ObservableObject {
                     let leaf = try currentResult(try await client.setActiveBranch(botId: bot.id, messageId: hit.messageId, threadId: hit.threadId), using: client, generation: requestGeneration)
                     state.apply(.thread(threadId: hit.threadId, activeLeafId: leaf))
                 }
-                let page = try currentResult(try await client.messages(threadId: hit.threadId, around: hit.messageId), using: client, generation: requestGeneration)
-                state.merge(page, intoThread: hit.threadId)
+                try await connectSearchHistory(hit, using: client, generation: requestGeneration)
                 focusedMessageId = hit.messageId
                 return state.bot(forThread: hit.threadId).map(Chat.bot)
             }
@@ -1665,13 +1662,27 @@ final class Session: ObservableObject {
                     room = try currentResult(try await client.switchTask(groupId: room.id, threadId: hit.threadId), using: client, generation: requestGeneration)
                     state.apply(.room(room))
                 }
-                let page = try currentResult(try await client.messages(threadId: hit.threadId, around: hit.messageId), using: client, generation: requestGeneration)
-                state.merge(page, intoThread: hit.threadId)
+                try await connectSearchHistory(hit, using: client, generation: requestGeneration)
                 focusedMessageId = hit.messageId
                 return state.rooms.first(where: { $0.id == groupId }).map(Chat.room)
             }
         } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription } }
         return nil
+    }
+
+    private func connectSearchHistory(_ hit: SearchHit, using client: CompanionClient, generation: Int) async throws {
+        var landing = SearchLanding(threadID: hit.threadId, messageID: hit.messageId)
+        var page = try currentResult(try await client.messages(threadId: hit.threadId, around: hit.messageId), using: client, generation: generation)
+        state = try landing.merge(page, into: state)
+        while let cursor = try landing.next(in: state) {
+            switch cursor {
+            case .latest:
+                page = try currentResult(try await client.messages(threadId: hit.threadId, limit: 200), using: client, generation: generation)
+            case let .around(parent):
+                page = try currentResult(try await client.messages(threadId: hit.threadId, around: parent, limit: 200), using: client, generation: generation)
+            }
+            state = try landing.merge(page, into: state)
+        }
     }
 
     func consumeFocus(_ messageId: String) {

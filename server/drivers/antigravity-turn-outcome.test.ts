@@ -2,7 +2,7 @@
 // T3 Tools Inc. (full text in third_party/t3-code/LICENSE); modified:
 //   - apps/server/src/provider/acp/AntigravityTurnOutcome.test.ts (the error
 //     payload fixtures and the cases of the two reader tests).
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -14,7 +14,7 @@ import type { ProviderInstance } from "../contracts.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
 import { recordEvents } from "../testing/events.ts";
 import { antigravityTokenPath } from "./antigravity-acp.ts";
-import { antigravityLimitFacts, antigravityQuotaFamily, watchAntigravityPromptOutcome } from "./antigravity-turn-outcome.ts";
+import { antigravityLimitFacts, antigravityQuotaFamily, sameAntigravityLogFile, watchAntigravityPromptOutcome } from "./antigravity-turn-outcome.ts";
 import { AntigravityDriver } from "./antigravity.ts";
 
 const USER_INPUT = 14;
@@ -173,6 +173,14 @@ describe("watchAntigravityPromptOutcome", () => {
     expect(antigravityLimitFacts(undefined, known)).toEqual({ limit: "model" });
   });
 
+  it("rejects a reused file number from a different or unprovable creation generation", () => {
+    const original = { dev: 1, ino: 42, birthtimeMs: 1234.125 };
+    expect(sameAntigravityLogFile(original, { ...original })).toBe(true);
+    expect(sameAntigravityLogFile(original, { ...original, birthtimeMs: 1234.25 })).toBe(false);
+    expect(sameAntigravityLogFile(original, { ...original, ino: 43 })).toBe(false);
+    expect(sameAntigravityLogFile({ ...original, birthtimeMs: 0 }, { ...original, birthtimeMs: 0 })).toBe(false);
+  });
+
   it("gives no failure for a session id that is no file name, a missing profile, or a log replaced during the prompt", async () => {
     const { directory, conversations } = profile();
     expect(await (await watchAntigravityPromptOutcome(NAME, directory, "../escape"))({ stopReason: "end_turn" })).toBeUndefined();
@@ -180,8 +188,7 @@ describe("watchAntigravityPromptOutcome", () => {
     const file = join(conversations, "session.db");
     append(file, [[USER_INPUT, "first"]]);
     const check = await watchAntigravityPromptOutcome(NAME, directory, "session");
-    rmSync(file);
-    append(join(conversations, "other.db"), [[USER_INPUT, "hold the inode"]]);
+    renameSync(file, join(conversations, "previous-session.db"));
     append(file, [[USER_INPUT, "second"], [USER_INPUT, "third"], [ERROR_MESSAGE, QUOTA_ERROR]]);
     expect(await check({ stopReason: "end_turn" })).toBeUndefined();
   });

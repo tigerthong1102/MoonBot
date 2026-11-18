@@ -2,7 +2,7 @@
 // asked (a note on its turn, and report_bug) to add a summary; when none comes, because its engine has no tools, its
 // turn failed, it never called report_bug or no bot answered, the server sends the report with its own facts once
 // nothing runs in the conversation any more. The person's message and that summary are the only words that go, never
-// the conversation. A report that cannot go yet waits in devs-reports.json and is sent again on its own.
+// the conversation. A report that cannot go yet waits in its recipient-specific outbox and is sent again on its own.
 //
 // Closing the loop: each report sent is followed (`tracked`, in the same file). The person's message shows its status
 // ("Got it, we're looking", then "Fixed in 0.1.x"), and this server asks the MausBot team about its open reports at each
@@ -10,6 +10,7 @@
 // and on a Cloud, so nothing ever has to reach this server, or wake a sleeping Cloud. Once it runs the fix's release, and
 // the team's answer says it may (never a former customer's Cloud), the person gets one line in the chat they reported in,
 // "Fixed in 0.1.x. Want to try again?", with one notification, and the bot's next turn there is told why. Never twice.
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { ServerResponse } from "node:http";
 import { arch, platform, release } from "node:os";
@@ -39,7 +40,10 @@ import type { BotRecord, Message, Store, StoreChange } from "../store.ts";
 import { droppedLine, fullLine, laterLine, notYetLine, refusedLine, sentLine } from "./devs-report-words.ts";
 import { clip } from "./text-clip.ts";
 
-export const DEVS_REPORTS_FILE = "devs-reports.json";
+/** Queued messages and status IDs belong exclusively to the recipient originally selected. */
+export function devsReportsFile(endpoint: string): string {
+  return `devs-reports-${createHash("sha256").update(endpoint).digest("hex")}.json`;
+}
 const TICK_MS = 2_000;
 /** No turn began this long after the message: no bot will write a summary. */
 export const NO_ANSWER_MS = 20_000;
@@ -113,9 +117,11 @@ export interface DevsReportsDeps {
   recentLog: RecentLog;
   /** Timing lines for these conversations and bots: numbers, fixed codes and opaque ids only. */
   performance?(filter: { threadIds: readonly string[]; botIds: readonly string[] }): string[];
-  send(payload: DevsReportPayload): Promise<SendOutcome>;
-  /** Asks the MausBot team about reports this app sent (devs-report-send.ts `askReportStatus`); null: no answer this time. */
-  askStatus(question: ReportStatusQuestion): Promise<ReportStatusAnswer | null>;
+  transport: {
+    endpoint: string;
+    send(payload: DevsReportPayload): Promise<SendOutcome>;
+    askStatus(question: ReportStatusQuestion): Promise<ReportStatusAnswer | null>;
+  } | null;
   /** One notification about a line in this conversation; `person`, on a Team Cloud, the only one it reaches. */
   tell(threadId: string, text: string, person?: string): void;
   /** How often to ask about open reports (tests and fixtures; STATUS_EVERY_MS otherwise). */
@@ -208,13 +214,13 @@ function health(snapshot: ProviderSnapshot | undefined): string {
 }
 
 export function createDevsReports(deps: DevsReportsDeps) {
-  const { store } = deps;
+  const { store, transport } = deps;
   const now = deps.now ?? Date.now;
-  const file = join(deps.dataDir, DEVS_REPORTS_FILE);
+  const file = transport && join(deps.dataDir, devsReportsFile(transport.endpoint));
   let waiting: Waiting[] = [];
   let outbox: Queued[] = [];
   let tracked: Tracked[] = [];
-  try {
+  if (file) try {
     const parsed = fileSchema.safeParse(JSON.parse(readFileSync(file, "utf8")));
     if (parsed.success) {
       outbox = parsed.data.outbox;
@@ -231,6 +237,7 @@ export function createDevsReports(deps: DevsReportsDeps) {
   const seen = new Set<string>();
 
   const save = () => {
+    if (!file) return;
     try {
       writeFileAtomic(file, `${JSON.stringify({ version: 1, waiting: waiting.map(({ answered: _a, offered: _o, restored: _r, ...entry }) => entry), outbox, tracked })}\n`, { mode: 0o600 });
     } catch (error) {
@@ -245,6 +252,8 @@ export function createDevsReports(deps: DevsReportsDeps) {
   const namesBeforeDevs = () => [...store.bots.map((bot) => bot.name), ...store.sections];
   const secrets = () => environmentSecrets();
   const languageFor = (person: string | undefined) => (deps.lineLanguage ? deps.lineLanguage(person) : deps.language());
+
+  const disabled = (person?: string): Told => ({ ok: false, line: serverLine(languageFor(person), "server.reports.disabled"), marker: FAILED_MARKER });
 
   /** The person's message shows its report's status; patched only when what it shows changes. */
   const view = (entry: Tracked): BugReportStatus => ({ id: entry.reportId, status: entry.status,
@@ -292,12 +301,13 @@ export function createDevsReports(deps: DevsReportsDeps) {
 
   /** One round of questions about the open reports, by the install that sent them; no answer leaves everything for the next round. */
   async function ask(): Promise<void> {
+    if (!transport) return;
     const byInstall = new Map<string, Tracked[]>();
     for (const entry of tracked) if (open(entry)) byInstall.set(entry.installId, [...(byInstall.get(entry.installId) ?? []), entry]);
     for (const [installId, entries] of byInstall) {
       for (let from = 0; from < entries.length; from += BUG_REPORT_STATUS_MAX_IDS) {
         const batch = entries.slice(from, from + BUG_REPORT_STATUS_MAX_IDS);
-        const answer = await deps.askStatus({ installId, ids: batch.map((entry) => entry.reportId) }).catch(() => null);
+        const answer = await transport.askStatus({ installId, ids: batch.map((entry) => entry.reportId) }).catch(() => null);
         if (!answer) return;
         for (const said of answer.reports) {
           const entry = batch.find((one) => one.reportId === said.id);
@@ -378,11 +388,12 @@ export function createDevsReports(deps: DevsReportsDeps) {
   }
 
   function deliver(entry: Waiting, author: Author): Promise<Told> {
+    if (!transport) return Promise.resolve(disabled(entry.sender?.id));
     const running = inFlight.get(entry.messageId);
     if (running) return running;
     const attempt = (async () => {
       const { payload, contact } = build(entry, author);
-      const outcome = await deps.send(payload).catch((): SendOutcome => ({ ok: false, retry: true, why: "offline" }));
+      const outcome = await transport.send(payload).catch((): SendOutcome => ({ ok: false, retry: true, why: "offline" }));
       waiting = waiting.filter((one) => one.messageId !== entry.messageId);
       const said = settle(entry, payload, outcome, contact);
       save();
@@ -404,8 +415,9 @@ export function createDevsReports(deps: DevsReportsDeps) {
   }
 
   async function retry(queued: Queued): Promise<void> {
+    if (!transport) return;
     retrying.add(queued);
-    const outcome = await deps.send(queued.payload).catch((): SendOutcome => ({ ok: false, retry: true, why: "offline" })).finally(() => retrying.delete(queued));
+    const outcome = await transport.send(queued.payload).catch((): SendOutcome => ({ ok: false, retry: true, why: "offline" })).finally(() => retrying.delete(queued));
     const contact = queued.payload.contactEmail ?? queued.payload.contact, language = languageFor(queued.person);
     if (outcome.ok) {
       outbox = outbox.filter((one) => one !== queued);
@@ -478,6 +490,7 @@ export function createDevsReports(deps: DevsReportsDeps) {
     const own = ownWords(line.text);
     seen.add(line.id);
     if (seen.size > 1_000) seen.delete(seen.values().next().value!);
+    if (!transport) return notice(threadId, disabled(line.sender?.id));
     if (waiting.length >= MAX_WAITING) return notice(threadId, { ok: false, line: fullLine(MAX_OUTBOX, languageFor(line.sender?.id)), marker: "" });
     const redact = (text: string) => clip(redactReportText(text, secrets()), 3_000);
     waiting.push({ messageId: line.id, threadId, at: line.at, text: redact(line.text), words: redact(own.map((part) => withoutDevsTags(part, names)).filter(Boolean).join("\n\n")),
@@ -498,10 +511,11 @@ export function createDevsReports(deps: DevsReportsDeps) {
     }
   });
   // A waiting @devs line polls whether its turn is still running; otherwise nothing is due before a retry or a status ask.
-  const timer = deps.timer === false ? null : startDueTimer({ run: tick, now, retryMs: TICK_MS,
+  const timer = !transport || deps.timer === false ? null : startDueTimer({ run: tick, now, retryMs: TICK_MS,
     next: () => waiting.length || told.length ? now() : Math.min(nextAskAt, ...outbox.map((queued) => queued.nextAt)) });
 
   return {
+    enabled: transport !== null,
     /** The note on a turn in this conversation while a @devs message waits for its summary (none for a turn without
      * OpenMausBot's tools); and, on the first turn after its line, that a report's fix runs here now. Empty otherwise. */
     note(threadId: string, tools: boolean): string {
@@ -526,6 +540,7 @@ export function createDevsReports(deps: DevsReportsDeps) {
     async internal(ctx: DevsReportContext): Promise<typeof PASS | void> {
       if (ctx.path !== DEVS_REPORT_PATH) return PASS;
       if (ctx.method !== "POST") return ctx.json(ctx.res, 405, { error: "method not allowed" });
+      if (!transport) return ctx.json(ctx.res, 503, { error: disabled().line });
       const body = bodySchema.safeParse(await ctx.readBody());
       if (!body.success) return ctx.json(ctx.res, 400, { error: "report_bug needs went_wrong (up to 2,000 characters), and may add you_saw and steps." });
       const { went_wrong: wentWrong, you_saw: seenByBot, steps } = body.data;

@@ -245,6 +245,7 @@
   "server.reports.when.minute": "em cerca de {count} minuto",
   "server.reports.when.minutes": "em cerca de {count} minutos",
   "server.reports.when.soon": "assim que possível",
+  "server.reports.disabled": "O envio de relatórios está desativado. Nenhum relatório de diagnóstico foi enviado.",
   "server.reports.refused": "O servidor da equipe do StartupBot recusou este relatório de problema, então nada foi enviado: {detail}.",
   "server.reports.full": "Não foi enviado: já há {count} relatórios de problemas na fila para a equipe do StartupBot. Aguarde o envio e digite @devs novamente.",
   "server.reports.dropped": "Um relatório de problema desta conversa ficou uma semana sem chegar à equipe do StartupBot e, por isso, foi descartado. Digite @devs novamente para enviar outro.",

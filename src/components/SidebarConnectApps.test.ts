@@ -8,9 +8,18 @@ vi.mock("@/state/store", async (original) => ({ ...await original<typeof import(
 
 import { APP_FACES, POPULAR_APPS, SidebarConnectApps, appFaces } from "./SidebarConnectApps";
 
+import { ServiceIcon } from "./ServiceIcon";
+
 const card = (slug: string) => ({ slug, label: slug, logo: `https://logos.example/${slug}.png`, domain: null });
 
 describe("the Connect apps faces", () => {
+  it("renders popular and connected app badges without requesting third-party images", () => {
+    expect(renderToStaticMarkup(createElement(SidebarConnectApps))).not.toContain("<img");
+    const connected = { ...card("private"), domain: "private.example" };
+    expect(renderToStaticMarkup(createElement(ServiceIcon, { card: connected }))).not.toContain("<img");
+    expect(renderToStaticMarkup(createElement(ServiceIcon, { card: { ...connected, logo: "/assets/local.png" } }))).toContain('src="/assets/local.png"');
+  });
+
   it("shows popular apps until something is connected", () => {
     expect(appFaces([], new Map()).map((face) => face.slug)).toEqual(POPULAR_APPS.map((app) => app.slug));
   });

@@ -94,6 +94,7 @@
   "server.reports.when.minute": "примерно через {count} минуту",
   "server.reports.when.minutes": "примерно через {count} мин",
   "server.reports.when.soon": "как только появится возможность",
+  "server.reports.disabled": "Отправка отчётов отключена. Диагностический отчёт не отправлен.",
   "server.reports.refused": "Сервер команды StartupBot отклонил этот отчёт об ошибке, поэтому ничего не отправлено: {detail}.",
   "server.reports.full": "Не отправлено: уже {count} отчётов об ошибках ждут отправки команде StartupBot. Напишите @devs ещё раз, когда они уйдут.",
   "server.reports.dropped": "Отчёт об ошибке из этого разговора неделю не мог дойти до команды StartupBot, поэтому он удалён. Напишите @devs ещё раз, чтобы отправить новый.",

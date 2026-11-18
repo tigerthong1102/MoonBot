@@ -1,0 +1,61 @@
+{
+  "run": "44340814305 (macOS), 44344919777 (Windows)",
+  "commit": "c1d4e798b94a14ff3a72c3095bee4120e3b2805a",
+  "source": "installer hashes checked against CI metadata and archive SHA-256 from GitHub Actions",
+  "enterpriseBlobsCompared": 26,
+  "builds": [
+    {
+      "platform": "windows-x64",
+      "installerSha256": "4435f882ef899c150fe66cf8d080471258a9e15c34d86b6cb7bfa9fcce676ee8",
+      "installerBytes": 227451890,
+      "ciQualification": "native-smoke-pass",
+      "localNativeSmoke": null,
+      "chromiumNetwork": null,
+      "filesChecked": 3300,
+      "matchingEnterpriseBlobs": [],
+      "enterprisePaths": [],
+      "electronNodeTestFiles": 0,
+      "fontNoticesMatched": 3,
+      "cuaNoticeMatched": false,
+      "syftComponents": 132,
+      "withoutLicenseField": 131
+    },
+    {
+      "platform": "macos-arm64",
+      "installerSha256": "33526e00a84f51eb0fff8d070195bc7b330fd78b4d456bfa1c4eb1f47a706a1c",
+      "installerBytes": 240911874,
+      "ciQualification": "build-only",
+      "localNativeSmoke": "FAIL",
+      "chromiumNetwork": null,
+      "filesChecked": 3220,
+      "matchingEnterpriseBlobs": [],
+      "enterprisePaths": [],
+      "electronNodeTestFiles": 0,
+      "fontNoticesMatched": 3,
+      "cuaNoticeMatched": false,
+      "syftComponents": 79,
+      "withoutLicenseField": 78
+    },
+    {
+      "platform": "macos-x64",
+      "installerSha256": "cbd9a2914797ca999ee5880e2af7f04c611bddc4f26ee0d9f93f9cd095267633",
+      "installerBytes": 273415520,
+      "ciQualification": "native-smoke-pass",
+      "localNativeSmoke": null,
+      "chromiumNetwork": {
+        "hosts": {
+          "127.0.0.1": 63
+        },
+        "faviconRequests": 0
+      },
+      "filesChecked": 3220,
+      "matchingEnterpriseBlobs": [],
+      "enterprisePaths": [],
+      "electronNodeTestFiles": 0,
+      "fontNoticesMatched": 3,
+      "cuaNoticeMatched": false,
+      "syftComponents": 79,
+      "withoutLicenseField": 78
+    }
+  ]
+}

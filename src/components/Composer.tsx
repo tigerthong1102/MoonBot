@@ -340,8 +340,10 @@ export function Composer({
       : bots
           .filter((member) => member.id !== bot?.id && !member.hidden && !hiddenFromSidebar(member, viewer))
           .map((member) => ({ id: member.id, name: member.name, bot: member }));
-    return mentionChoicesForQuery([...pool, ...teammateChoices(teammates.people), DEVS_CHOICE], mention.query);
-  }, [mention, dismissedAt, bots, bot?.id, group, members, teammates, viewer]);
+    pool.push(...teammateChoices(teammates.people));
+    if (state.config?.bugReportsEnabled) pool.push(DEVS_CHOICE);
+    return mentionChoicesForQuery(pool, mention.query);
+  }, [mention, dismissedAt, bots, bot?.id, group, members, teammates, viewer, state.config?.bugReportsEnabled]);
   const mentionEveryoneCount = (members ?? []).filter((member) => !member.hidden).length;
   const mentionPickerOpen = candidates.length > 0;
   const commandMotion = useMenuMotion(commandPickerOpen);

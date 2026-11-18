@@ -140,6 +140,7 @@
   "server.reports.when.minute": "約 {count} 分後に",
   "server.reports.when.minutes": "約 {count} 分後に",
   "server.reports.when.soon": "送れるようになり次第",
+  "server.reports.disabled": "報告機能は無効です。診断レポートは送信されていません。",
   "server.reports.refused": "StartupBot チームのサーバーがこのバグレポートを拒否したため、何も送信されていません：{detail}。",
   "server.reports.full": "送信していません：StartupBot チームへの送信を待っているバグレポートがすでに {count} 件あります。それらが送信されてから、もう一度 @devs と入力してください。",
   "server.reports.dropped": "この会話のバグレポートは 1 週間 StartupBot チームに届かなかったため、破棄されました。新しく送るには、もう一度 @devs と入力してください。",

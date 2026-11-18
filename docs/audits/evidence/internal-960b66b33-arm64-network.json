@@ -1,0 +1,58 @@
+{
+  "commit": "960b66b3364071c624c0ba1ddf98da216b83642a",
+  "platform": "macOS arm64",
+  "capture": "Chromium NetLog, isolated onboarding and fixture Agent turn",
+  "eventCount": 9051,
+  "urlRoutes": [
+    {
+      "host": "127.0.0.1",
+      "path": "loopback",
+      "queryKeys": []
+    },
+    {
+      "host": "t0.gstatic.com",
+      "path": "/faviconV2",
+      "queryKeys": [
+        "client",
+        "fallback_opts",
+        "size",
+        "type",
+        "url"
+      ]
+    },
+    {
+      "host": "t1.gstatic.com",
+      "path": "/faviconV2",
+      "queryKeys": [
+        "client",
+        "fallback_opts",
+        "size",
+        "type",
+        "url"
+      ]
+    },
+    {
+      "host": "t3.gstatic.com",
+      "path": "/faviconV2",
+      "queryKeys": [
+        "client",
+        "fallback_opts",
+        "size",
+        "type",
+        "url"
+      ]
+    },
+    {
+      "host": "www.google.com",
+      "path": "/s2/favicons",
+      "queryKeys": [
+        "domain",
+        "sz"
+      ]
+    }
+  ],
+  "limitations": [
+    "child Node processes, native tools, independent browser and OS traffic outside this capture",
+    "production credentials and vendor data not exercised"
+  ]
+}

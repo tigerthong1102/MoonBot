@@ -75,6 +75,7 @@ describe("what a saved key's check said", () => {
 });
 
 describe("what reaches PostHog", () => {
+  beforeEach(() => { store.set("omb-analytics-opt-out", "0"); });
   it("is exactly provider, via and result for a key save, with app_version and surface registered beside it", async () => {
     vi.resetModules();
     vi.doMock("posthog-js", () => ph.module());

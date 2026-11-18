@@ -1,5 +1,6 @@
 import { useRef, useState, type ComponentType, type SelectHTMLAttributes } from "react";
-import { checkMapping, compare, fields, guess, table, type Source } from "./compare";
+import { checkMapping, fields, guess, table, type Source } from "./compare";
+import { authorizeExportReconciliation, runBusinessOperation } from "./operations";
 import { readFileTable } from "./files";
 import { htmlReport, type Report } from "./report";
 import { errorText, ReconcileError, type Translate } from "./messages";
@@ -38,7 +39,8 @@ export default function ReconcileFiles({ close, dropdown: Dropdown, t }: { t: Tr
     try {
       const a = inputs[0].source, b = inputs[1].source;
       if (!a || !b || !company.trim() || !period.trim()) throw new ReconcileError("reconcile.scopeRequired");
-      setReport(compare(a, b, { company: company.trim(), period: period.trim() }));
+      const grant = authorizeExportReconciliation(a, b, { company: company.trim(), period: period.trim() });
+      setReport(runBusinessOperation(grant));
     } catch (e) { setError(errorText(e, t)); }
   }
   function demo() {

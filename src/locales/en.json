@@ -262,6 +262,7 @@
   "server.reports.when.minute": "in about {count} minute",
   "server.reports.when.minutes": "in about {count} minutes",
   "server.reports.when.soon": "as soon as it can",
+  "server.reports.disabled": "Reporting is disabled. No diagnostic report was sent.",
   "server.reports.refused": "The StartupBot team's server refused this bug report, so nothing was sent: {detail}.",
   "server.reports.full": "Not sent: {count} bug reports are already waiting to go to the StartupBot team. Type @devs again once they have gone.",
   "server.reports.dropped": "A bug report from this conversation could not reach the StartupBot team for a week, so it was dropped. Type @devs again to send a new one.",

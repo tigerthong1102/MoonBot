@@ -150,6 +150,7 @@
   "server.reports.when.minute": "sau khoảng {count} phút",
   "server.reports.when.minutes": "sau khoảng {count} phút",
   "server.reports.when.soon": "ngay khi có thể",
+  "server.reports.disabled": "Chức năng gửi báo cáo đang tắt. Ứng dụng chưa gửi báo cáo chẩn đoán.",
   "server.reports.refused": "Máy chủ của đội StartupBot đã từ chối báo cáo lỗi này nên chưa có gì được gửi: {detail}.",
   "server.reports.full": "Chưa gửi: đã có {count} báo cáo lỗi đang chờ gửi tới đội StartupBot. Hãy gõ lại @devs sau khi chúng đã được gửi.",
   "server.reports.dropped": "Một báo cáo lỗi từ cuộc trò chuyện này không thể tới được đội StartupBot trong một tuần nên đã bị bỏ. Hãy gõ lại @devs để gửi báo cáo mới.",

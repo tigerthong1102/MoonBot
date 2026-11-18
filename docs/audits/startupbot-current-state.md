@@ -1,6 +1,6 @@
 # StartupBot Desktop và tự động hóa nghiệp vụ Việt Nam
 
-**Mốc kiểm kê 18/11/2026.** Bản thử nội bộ có luồng Agent và công cụ đối chiếu tệp chạy được. Bán Desktop, công nhận tích hợp kế toán của một hãng và phát hành BHXH là ba quyết định riêng. Cả ba chưa đủ điều kiện. Có thể tiếp tục thử bộ đối chiếu với dữ liệu tổng hợp. Founder đã tạm dừng Smart Pro trong đợt này. [Điều kiện phát hành](commercial-readiness.md)
+**Mốc kiểm kê 18/11/2026.** Bản thử nội bộ có luồng Agent và công cụ đối chiếu tệp chạy được. Bán Desktop, công nhận tích hợp kế toán của một hãng và phát hành BHXH là ba quyết định riêng. Cả ba chưa đủ điều kiện. Có thể tiếp tục thử bộ đối chiếu với dữ liệu tổng hợp. Founder đã tạm dừng cả Smart Pro và MISA trong đợt này. [Điều kiện phát hành](commercial-readiness.md)
 
 ## Mã nguồn được kiểm tra
 
@@ -86,4 +86,11 @@
 
 ## Thứ tự tiếp tục
 
-P0 và xác minh nguồn phân phối đi trước RC. Cho phép demo file với dữ liệu giả. Đối với MISA SME, điều kiện để tiến lên pilot là phiên bản Rxx, môi trường demo được phép, hai report cùng kỳ và quyền tối thiểu. Chỉ khi đó mới cam kết nghiệp vụ cụ thể. Với BHXH, cần chọn nhà cung cấp và bản mẫu còn hiệu lực. Hợp đồng thử nghiệm nên tính chi phí cài đặt, đào tạo và hỗ trợ riêng để đo chi phí duy trì bằng số liệu khách hàng thật.
+P0 và xác minh nguồn phân phối đi trước RC. Cho phép demo file với dữ liệu giả. Pilot MISA đang tạm dừng theo quyết định của founder. Khi mở lại, điều kiện nghiệm thu gồm phiên bản Rxx, môi trường demo được phép, hai report cùng kỳ và quyền tối thiểu. Chỉ khi đó mới cam kết nghiệp vụ cụ thể. Với BHXH, cần chọn nhà cung cấp và bản mẫu còn hiệu lực. Hợp đồng thử nghiệm nên tính chi phí cài đặt, đào tạo và hỗ trợ riêng để đo chi phí duy trì bằng số liệu khách hàng thật.
+
+
+## Kết quả triển khai sau mốc kiểm kê
+
+Trong [PR 20](https://github.com/tigerthong1102/MoonBot/pull/20), Data và HTML độc lập gọi chung registry nội bộ. Sau khi người dùng chọn hai file, mã công ty và kỳ, adapter tạo bản tổng hợp cho đúng phạm vi và cấp quyền thực thi một lần. Ba test mới kiểm dữ liệu bị đổi sau lúc cấp, quyền giả hoặc bị dùng lại, và trường hợp thiếu dữ liệu phía đối chứng. Cả 11 test trong thư mục đối chiếu đều đạt. Tài khoản SQL, danh tính từ xa và quyền MCP liên tiến trình vẫn cần thiết kế riêng khi mở lại pilot có môi trường được cấp phép.
+
+Chrome chạy lại HTML sinh từ commit `232fdea24`. Với CT01 kỳ 2025, hai chứng từ mỗi bên cho tổng 140.0500 và 140.0400. Báo cáo liệt kê 00017 lệch tiền, 00018 thiếu bên đối chứng và 00019 thiếu bên nghiệp vụ. Mã CT02 trong dữ liệu giả không đi vào tổng. Đây là phép thử nghiệp vụ đã chạy được trên máy, chưa xác nhận mẫu xuất của bất kỳ hãng nào.

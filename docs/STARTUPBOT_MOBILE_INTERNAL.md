@@ -74,3 +74,9 @@ certificate. Its signature retains its own Keychain and App Group entitlements.
 A simulator-only canary writes, reads and deletes one synthetic Keychain item
 and one temporary App Group file; missing privileges fail the artifact gate.
 It does not use plaintext credential storage or touch desktop data.
+
+Native core compilation and protocol checks ran in workflow 44210771414.
+Android APK/AAB compilation and unit tests passed; emulator setup then failed
+while trying to re-resolve the already-used compile SDK from sdkmanager. The
+emulator setup now requests only its runtime and system image. Full artifact
+qualification remains conditional on a completed passing smoke run.

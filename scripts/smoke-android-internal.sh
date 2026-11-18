@@ -2,7 +2,7 @@
 set -euo pipefail
 mkdir -p mobile-artifacts/android
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-sdkmanager 'platforms;android-37' 'build-tools;37.0.0' 'system-images;android-35;google_apis;x86_64' 'emulator'
+sdkmanager 'system-images;android-35;google_apis;x86_64' 'emulator'
 printf 'no\n' | avdmanager create avd -n StartupBotInternal -k 'system-images;android-35;google_apis;x86_64' --force
 emulator -avd StartupBotInternal -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -camera-back none -camera-front none > mobile-artifacts/android/emulator.log 2>&1 &
 emulator_pid=$!

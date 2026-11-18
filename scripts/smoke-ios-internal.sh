@@ -14,7 +14,18 @@ raise SystemExit('No iPhone simulator runtime installed')
 PY
 )"
 xcrun simctl boot "$simulator_id"
-trap 'xcrun simctl shutdown "$simulator_id" || true' EXIT
+cleanup() {
+  outcome=$?
+  if [[ "$outcome" != 0 ]]; then
+    xcrun simctl spawn "$simulator_id" log show --last 10m --style compact --predicate 'process == "StartupBot" OR process == "SpringBoard" OR process == "runningboardd" OR process == "amfid" OR process == "launchd_sim"' > mobile-artifacts/ios/simulator-system.log 2>&1 || true
+    xcrun simctl io "$simulator_id" screenshot mobile-artifacts/ios/failed-launch.png || true
+    mkdir -p mobile-artifacts/ios/crashes
+    find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -name 'StartupBot*' -exec cp {} mobile-artifacts/ios/crashes/ \; 2>/dev/null || true
+  fi
+  xcrun simctl shutdown "$simulator_id" || true
+  exit "$outcome"
+}
+trap cleanup EXIT
 xcrun simctl bootstatus "$simulator_id" -b
 app="$PWD/mobile-artifacts/DerivedData/Build/Products/Debug-iphonesimulator/StartupBot.app"
 xcrun simctl install "$simulator_id" "$app"

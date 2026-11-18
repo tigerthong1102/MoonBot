@@ -1,0 +1,49 @@
+name: Smart Pro SQL 2005 installation media
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/business-connectors/lab/verify-sql2005-media.ps1
+      - .github/workflows/smartpro-sql2005-media.yml
+permissions:
+  contents: read
+jobs:
+  verify-media:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify catalog bytes and test Windows publisher trust without executing the installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP ([guid]::NewGuid().ToString()))
+          $outer = Join-Path $dir.FullName 'catalog.exe'
+          $cab = Join-Path $dir.FullName 'payload.cab'
+          $url = 'https://catalog.s.download.windowsupdate.com/msdownload/update/software/svpk/2011/01/sqlserver2005expresssp4-kb2463332-x86-enu_896d55b16d7d0978618378f6bbbb3b6ab23296cc.exe'
+          try {
+            Invoke-WebRequest -UseBasicParsing -Uri $url -MaximumRedirection 0 -TimeoutSec 90 -OutFile $outer
+            if ((Get-FileHash -LiteralPath $outer -Algorithm SHA256).Hash -ne '62118d3717bfd0dc9866dbbc4d602494f68ff4c94693236b51fa058b193b1b3e') {
+              throw 'Catalog package digest mismatch.'
+            }
+            $bytes = [IO.File]::ReadAllBytes($outer)
+            # The pinned Microsoft SFX contains one CAB at offset 38912; cbCabinet is at offset 8 of its header.
+            $offset = 38912
+            if ([Text.Encoding]::ASCII.GetString($bytes, $offset, 4) -ne 'MSCF') { throw 'Missing CAB.' }
+            $stream = [IO.File]::Create($cab)
+            try { $stream.Write($bytes, $offset, [BitConverter]::ToInt32($bytes, $offset + 8)) } finally { $stream.Dispose() }
+            & "$env:SystemRoot/System32/expand.exe" $cab '-F:*' $dir.FullName | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'CAB extraction failed.' }
+            $verify = './scripts/business-connectors/lab/verify-sql2005-media.ps1'
+            try {
+              & $verify -LiteralPath $outer
+              throw 'The outer update package was accepted as installation media.'
+            } catch {
+              if ($_.Exception.Message -ne 'File does not match SQL Server 2005 Express SP4 ENU installation media.') { throw }
+            }
+            & $verify -LiteralPath (Join-Path $dir.FullName 'hotfixexpress/files/sqlexpr.exe')
+          } finally {
+            Remove-Item -LiteralPath $dir.FullName -Recurse -Force
+          }

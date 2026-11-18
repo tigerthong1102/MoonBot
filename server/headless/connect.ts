@@ -79,7 +79,7 @@ export async function connectVerb(ctx: VerbContext): Promise<VerbOutcome> {
   if (described?.status !== 200 || typeof described.body.environmentId !== "string") {
     throw new HeadlessError(`no StartupBot server answers at ${origin}`, EXIT.unreachable, "check the address, and that the server is running with a way in (see openmausbot serve --help on the server)");
   }
-  const label = flag(ctx.flags, "label")?.trim() || "openmausbot CLI";
+  const label = flag(ctx.flags, "label")?.trim() || "StartupBot CLI";
   if (!code) {
     const minted = await call(origin, "/api/auth/pairing", { method: "POST", body: JSON.stringify({ label, ...(ctx.flags.client ? { scopes: ["client"] } : {}) }) });
     if (minted.status !== 200 || typeof minted.body.code !== "string") {

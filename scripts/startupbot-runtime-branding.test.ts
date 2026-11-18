@@ -7,8 +7,6 @@ import { locales } from "../src/locales/index.ts";
 const retired = /\b(?:OpenMausBot|MausBot|Mausbot)\b/;
 const exceptions: Record<string, readonly string[]> = {
   "electron/cloud-sync.mjs": ["MausBot"],
-  "server/extractor/contract.ts": ["OpenMausBot is checking that an extraction-model key works."],
-  "server/decider/relay.ts": ["OpenMausBot is checking that a decision-model key works."],
   "electron/cloud-sync-mark.mjs": [";OpenMausBot;"],
   "electron/desktop-server-auth.cjs": ["X-OpenMausBot-Desktop-Owner"],
   "electron/open-at-login.mjs": ["X-OpenMausBot-Lending=true"],

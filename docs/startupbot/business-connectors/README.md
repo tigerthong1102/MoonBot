@@ -5,6 +5,15 @@
 - [Hồ sơ sản phẩm, phiên bản, quyền và đường tích hợp](vendors.md)
 - [Ma trận SQL Server 2000–2025 và sổ kiểm thử legacy](sql-compatibility.md)
 
+## Hai tổ hợp ưu tiên cho pilot Windows
+
+| Sản phẩm | Máy thử đầu tiên | Tiêu chí nghiệm thu |
+|---|---|---|
+| Smart Pro | SQL Server 2005 (9.x), bản Smart Pro demo tương ứng trong VM cô lập | Xác minh engine sau cài, mở được công ty demo, khớp báo cáo gốc cùng kỳ. [Hướng dẫn cài thử](smartpro-sql2005-lab.md) |
+| MISA SME 2026 | Máy Windows 11 có SME 2026, ưu tiên instance SQL Server 2019 (15.x) mà MISA đang dùng, cục bộ hoặc trên LAN | Ghi build Rxx, máy chủ và instance hiển thị trong MISA. Trên đúng endpoint đã duyệt, xác minh ProductVersion, Edition và IsLocalDB bằng metadata chỉ đọc. Đối chiếu hai công ty demo và báo cáo cùng kỳ. |
+
+Đối với MISA, năm trong tên instance chỉ là tên do bộ cài hoặc quản trị viên đặt. Nếu máy trạm dùng máy chủ LAN, lấy phiên bản ở máy chủ. Lab hiện đã kiểm SQL Server 2019 Express LocalDB 15.0.4382.1; bước pilot còn thiếu là instance SQL thường, quyền SELECT giới hạn và số liệu khớp với MISA SME 2026 thật. Chỉ lập kế hoạch cài SQL 2019 mới khi bản MISA và hệ điều hành được xác nhận tương thích và thực sự cần máy chủ mới. [Tài liệu MISA về máy chủ SQL](https://helpsme.misa.vn/2026/kb/cau-hoi-thuong-gap-lien-quan-den-may-chu-sql/)
+
 ## Audit repository
 
 Cơ sở thiết kế là `origin/main@712adf52c215f3137fbb5a9bd108542e029d898d`. PR #1 (foundation) và #2 (OSS backport) đã merge. Các nhánh build desktop và mobile đang làm riêng. Không phụ thuộc artifact hoặc thay đổi chưa merge của chúng. [PR #1](https://github.com/tigerthong1102/MoonBot/pull/1) · [PR #2](https://github.com/tigerthong1102/MoonBot/pull/2)

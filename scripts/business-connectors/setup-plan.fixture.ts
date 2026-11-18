@@ -25,13 +25,21 @@ test("refusal, tampered installer, missing admin and uncertified targets cannot 
   }
   assert.throws(() => setupPlan({ ...evidence, checks:{ independentChecksum:"false" } }));
   assert.equal(setupPlan({ ...baseline, channel:"unsafe", access:"granted" }).scenario, "I");
-  const checked = setupPlan({ ...evidence, installation:"requested", certifiedTarget:"2022", checks:{
-    localHostConfirmed:true, hardwareAndOs:true, adminAvailable:true, license:true, officialInstaller:true,
-    signature:true, independentChecksum:true, instanceNameAvailable:true, recoveryPlan:true,
-  } });
-  assert.deepEqual(checked.missing, []);
-  assert.equal(checked.mode, "dry-run");
-  assert.match(checked.next,/duyệt/);
+  for (const target of ["2019", "2022", "2025"]) {
+    const local = { ...evidence, installation: "requested", certifiedTarget: target, checks: {
+      localHostConfirmed: true, hardwareAndOs: true, adminAvailable: true, license: true, officialInstaller: true,
+      signature: true, independentChecksum: true, instanceNameAvailable: true, recoveryPlan: true,
+    } };
+    const ready = setupPlan(local);
+    assert.equal(ready.mode, "dry-run");
+    assert.match(ready.next, /duyệt/);
+    assert.equal(ready.scenario, "F");
+    assert.deepEqual(ready.missing, []);
+    assert.ok(ready.next.includes(target));
+    assert.equal(setupPlan({ ...local, location: "lan" }).scenario, "C");
+    assert.equal(setupPlan({ ...local, engine: "running", observedVersion: "15.0.4382.1" }).scenario, "A");
+    assert.deepEqual(setupPlan({ ...local, checks: { ...local.checks, hardwareAndOs: false } }).missing, ["hardwareAndOs"]);
+  }
 });
 
 test("Smart Pro SQL 2005 installation is a manual plan for an explicitly approved isolated lab", () => {

@@ -13,8 +13,10 @@ const choices = {
   installation: ["requested", "declined", "unknown"],
 } as const;
 
+const certifiedTargets = ["2019", "2022", "2025"] as const;
+
 type Evidence = { [K in keyof typeof choices]: typeof choices[K][number] } & {
-  observedVersion?: string; certifiedTarget?: "2022" | "2025";
+  observedVersion?: string; certifiedTarget?: typeof certifiedTargets[number];
   checks?: Partial<Record<typeof checks[number], boolean>>;
   smartPro2005Lab?: Partial<Record<typeof labChecks[number], boolean>>;
 };
@@ -35,7 +37,7 @@ function validate(raw: unknown): Evidence {
     if (!(values as readonly unknown[]).includes(obj[key])) throw new Error("invalid-evidence");
   }
   if (obj.observedVersion !== undefined && (typeof obj.observedVersion !== "string" || !/^\d{1,2}\.\d{1,2}(?:\.\d{1,5}){0,2}$/.test(obj.observedVersion))) throw new Error("invalid-evidence");
-  if (obj.certifiedTarget !== undefined && obj.certifiedTarget !== "2022" && obj.certifiedTarget !== "2025") throw new Error("invalid-evidence");
+  if (obj.certifiedTarget !== undefined && !certifiedTargets.some(target => target === obj.certifiedTarget)) throw new Error("invalid-evidence");
   if (obj.checks !== undefined && !validChecks(obj.checks, checks)) throw new Error("invalid-evidence");
   if (obj.smartPro2005Lab !== undefined &&
       (!validChecks(obj.smartPro2005Lab, labChecks) || obj.certifiedTarget !== undefined)) throw new Error("invalid-evidence");

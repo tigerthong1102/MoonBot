@@ -21,6 +21,10 @@ assert(existsSync(executable), "The packaged executable is missing");
 for (const entry of ["app.asar", "server/index.js", "ui/index.html", "browser-engine/manifest.json", "licenses/OpenMausBot-LICENSE.txt", "licenses/OpenMausBot-NOTICE.txt"]) {
   assert(existsSync(path.join(resources, entry)), `Missing packaged resource: ${entry}`);
 }
+for (const [family, notice] of [["geist", "Geist"], ["geist-mono", "Geist-Mono"], ["inter", "Inter"]]) {
+  const original = readFileSync(path.join(root, "node_modules", "@fontsource-variable", family, "LICENSE"));
+  assert.deepEqual(readFileSync(path.join(resources, "licenses", `${notice}-OFL.txt`)), original, `Font notice mismatch: ${family}`);
+}
 if (mac) {
   const info = path.join(app, "Contents", "Info.plist");
   const identity = Object.fromEntries(["CFBundleIdentifier", "CFBundleName", "CFBundleDisplayName"].map(key =>

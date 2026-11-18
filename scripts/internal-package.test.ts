@@ -12,7 +12,7 @@ describe("StartupBot internal distribution boundary", () => {
     expect(workflow.jobs.package.if).toBe("${{ !inputs.desktop }}");
     for (const name of ["macos", "windows"]) {
       const job = workflow.jobs[name];
-      expect(job.if).toBe("inputs.desktop");
+      expect(job.if).toBe(`inputs.desktop && (inputs.desktop_os == 'all' || inputs.desktop_os == '${name}')`);
       expect(JSON.stringify(job)).not.toMatch(/secrets\.|gh release|packages:\s*write|contents:\s*write/);
       expect(job.steps.find((step: { run?: string }) => step.run?.includes("electron-builder")).run).toContain("--publish never");
       expect(job.steps.find((step: { run?: string }) => step.run?.includes("smoke-browser-bundle.mjs")).run).not.toContain("--resources release/");

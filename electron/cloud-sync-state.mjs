@@ -28,6 +28,7 @@ export function openSyncState(file) {
     cleared(folder, path) { db.prepare("DELETE FROM failures WHERE folder = ? AND path = ?").run(folder, path); },
     failures() { return db.prepare("SELECT folder, path, error FROM failures WHERE count >= 3 ORDER BY folder, path").all().map((row) => ({ folderId: row.folder, path: row.path, error: row.error })); },
     meta(key) { return db.prepare("SELECT value FROM meta WHERE key = ?").get(key)?.value ?? null; },
+    metaValues(prefix) { return db.prepare("SELECT value FROM meta WHERE substr(key, 1, ?) = ?").all(prefix.length, prefix).map((row) => row.value); },
     setMeta(key, value) { db.prepare("INSERT OR REPLACE INTO meta VALUES (?, ?)").run(key, value); },
     reset() { db.exec("DELETE FROM base; DELETE FROM places; DELETE FROM failures; DELETE FROM meta;"); },
     close() { db.close(); },

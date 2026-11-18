@@ -81,7 +81,7 @@ class NotificationTapCoordinatorTest {
         // callback that fired first would see an empty stack and fail below.
         val events = mutableListOf<String>()
         assertTrue(
-            coordinator.commit(held, navigator) { t ->
+            coordinator.commit(held, navigator, "fixture") { t ->
                 events.add("consume")
                 assertEquals(
                     listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("b1", "task-1"))),
@@ -117,7 +117,7 @@ class NotificationTapCoordinatorTest {
             coordinator.onPending(session, requireNotNull(navigation.pending.value), navigation::consume),
         )
         val held = requireNotNull(coordinator.resolution.value)
-        assertTrue(coordinator.commit(held, navigator, navigation::consume))
+        assertTrue(coordinator.commit(held, navigator, "fixture", navigation::consume))
         assertEquals(
             listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("old-bot", "old-task"))),
             navigator.stack,
@@ -149,7 +149,7 @@ class NotificationTapCoordinatorTest {
             ?: CompanionNavigator()
         assertEquals(listOf(Destination.Roster), restored.stack)
         // Stale commit from the previous bond must not reopen the chat.
-        assertFalse(coordinator.commit(held, restored, navigation::consume))
+        assertFalse(coordinator.commit(held, restored, "fixture", navigation::consume))
         assertEquals(listOf(Destination.Roster), restored.stack)
     }
 
@@ -186,7 +186,7 @@ class NotificationTapCoordinatorTest {
 
         val events = mutableListOf<String>()
         assertTrue(
-            coordinator.commit(held, navigator) { t ->
+            coordinator.commit(held, navigator, "fixture") { t ->
                 // Order pin: stack must already hold the chat when consume runs.
                 assertEquals(
                     listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("b1", "task-1"))),
@@ -206,7 +206,7 @@ class NotificationTapCoordinatorTest {
         navigation.offer("b2", "task-2", "fixture", fresh = true)
         assertEquals(target("b2", "task-2"), navigation.pending.value)
         assertFalse(
-            coordinator.commit(held, navigator) { t ->
+            coordinator.commit(held, navigator, "fixture") { t ->
                 events.add("consume:${t.botId}")
                 navigation.consume(t)
             },
@@ -242,13 +242,13 @@ class NotificationTapCoordinatorTest {
         assertTrue(heldB.generation > heldA.generation)
 
         assertFalse(
-            coordinator.commit(heldA, navigator, navigation::consume),
+            coordinator.commit(heldA, navigator, "fixture", navigation::consume),
             "stale generation must not navigate or consume",
         )
         assertEquals(listOf(Destination.Roster), navigator.stack)
         assertEquals(target("b1", "task-1"), navigation.pending.value)
 
-        assertTrue(coordinator.commit(heldB, navigator, navigation::consume))
+        assertTrue(coordinator.commit(heldB, navigator, "fixture", navigation::consume))
         assertEquals(
             listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("b1", "task-1"))),
             navigator.stack,
@@ -273,6 +273,21 @@ class NotificationTapCoordinatorTest {
         navigation.consume(b)
         assertNull(navigation.pending.value)
         assertNotNull(navigation.consumedToken())
+    }
+
+    @Test
+    fun switchedComputerCannotCommitAnAlreadyResolvedNotification() = runTest {
+        val coordinator = NotificationTapCoordinator()
+        val navigation = PendingThreadNavigation()
+        val navigator = CompanionNavigator()
+        val target = target("b1", "task-1")
+        navigation.offer(target)
+        coordinator.onPending(pairedSession(), target, navigation::consume)
+        val held = requireNotNull(coordinator.resolution.value)
+        assertFalse(coordinator.commit(held, navigator, "other", navigation::consume))
+        assertEquals(listOf(Destination.Roster), navigator.stack)
+        assertNull(coordinator.resolution.value)
+        assertNull(navigation.pending.value)
     }
 
     private suspend fun TestScope.pairedSession(

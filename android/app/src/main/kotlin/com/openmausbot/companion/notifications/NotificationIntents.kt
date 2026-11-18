@@ -17,7 +17,7 @@ fun Intent.notificationTarget(): NotificationTarget? =
 object NotificationIntents {
     const val ACTION_OPEN = "com.openmausbot.companion.OPEN_NOTIFICATION"
 
-        fun contentIdentity(botId: String, threadId: String, connectionId: String): String =
+    fun contentIdentity(botId: String, threadId: String, connectionId: String): String =
         "startupbot://notification/${encode(connectionId)}/${encode(botId)}/${encode(threadId)}"
 
     fun contentUri(botId: String, threadId: String, connectionId: String): Uri =
@@ -37,5 +37,5 @@ object NotificationIntents {
         putExtra(LocalNotificationPoster.EXTRA_CONNECTION_ID, connectionId)
     }
 
-        private fun encode(value: String): String = Uri.encode(value)
+    private fun encode(value: String): String = Uri.encode(value)
 }

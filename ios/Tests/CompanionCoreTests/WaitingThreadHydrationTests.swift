@@ -220,6 +220,26 @@ final class WaitingThreadHydrationTests: XCTestCase {
         } catch APIError.status(let code, _) { XCTAssertEqual(code, 503) }
     }
 
+    func testChannelHydrationIgnoresUnownedPagesAndCannotReviveAResolvedCard() async throws {
+        let snapshot = try await client.fleetForHydration()
+        let fleet = try JSONDecoder().decode(Fleet.self, from: Data(Self.channelFleetJSON.utf8))
+        var pages = snapshot.waitingThreads
+        pages["foreign-thread"] = pages["thread-a"]
+        var state = CompanionState()
+        state.hydrate(fleet, waitingThreads: pages)
+        XCTAssertNil(state.messages["foreign-thread"])
+        XCTAssertEqual(state.pendingApprovals.map(\.threadId), ["thread-a"])
+        state.resetCursor("stream:1")
+        let before = state.cursor
+        var resolved = try XCTUnwrap(state.pendingApprovals.first?.message)
+        resolved.card?.answered = "Allow"
+        state.apply(.messagePatch(threadId: "thread-a", message: resolved))
+        state.advance(to: 2)
+        XCTAssertFalse(state.hydrate(fleet, waitingThreads: pages, ifCursorMatches: before))
+        XCTAssertTrue(state.pendingApprovals.isEmpty)
+        XCTAssertEqual(state.cursor, "stream:2")
+    }
+
     private static let channelFleetJSON = #"""
     {"bots":[],"groups":[{
       "id":"channel-1","threadId":"thread-b","name":"Channel","memberIds":[],

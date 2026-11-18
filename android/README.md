@@ -3,16 +3,16 @@
 The Android counterpart to the iOS companion app: pair a phone with a computer
 running StartupBot, then read and answer from the phone.
 
-- `applicationId` — `com.openmausbot.companion`
+- `applicationId` — `ai.startupbot.android`
 - `minSdk` 26 (Android 8.0), `targetSdk` / `compileSdk` 37
-- Deep-link scheme — `openmausbot`
+- Deep-link schemes — `startupbot` and the legacy pairing alias `openmausbot`
 - Two modules: `:core` (protocol, ported from `ios/Sources/CompanionCore`) and
   `:app` (Compose UI, Android platform)
 
 ## Build and test
 
 Requires **JDK 17** and an Android SDK. Gradle arrives through the wrapper, so
-there is nothing to install for it.
+there is nothing to install for it. Set JAVA_HOME to an installed JDK 17; the build does not automatically provision a JDK.
 
 ```sh
 cd android
@@ -35,7 +35,7 @@ cd android
 ```
 
 Install `app/build/outputs/apk/preview/app-preview.apk`. Its launcher name is
-**StartupBot Preview**, its application ID is `com.openmausbot.companion.preview`,
+**StartupBot Preview**, its application ID is `ai.startupbot.android.preview`,
 and its version ends in `-threads-preview`. Gradle signs it with the local debug
 key, so no release signing material is needed. It installs beside the released
 app with separate pairing, preferences and messages; it does not update that app.

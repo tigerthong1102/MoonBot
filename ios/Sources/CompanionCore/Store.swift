@@ -255,7 +255,7 @@ public struct CompanionState: Sendable {
             messages[room.threadId] = room.messages ?? []
             if room.messages != nil { hasMore[room.threadId] = room.hasMore ?? false }
         }
-        for (threadId, page) in waitingThreads where bot(forThread: threadId) != nil {
+        for (threadId, page) in waitingThreads where bot(forThread: threadId) != nil || room(forThread: threadId) != nil {
             merge(page, intoThread: threadId)
         }
         // A hydrate can be the first thing this window sees after a turn

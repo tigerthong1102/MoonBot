@@ -150,10 +150,11 @@ final class Session: ObservableObject {
     private var registry = CompanionConnectionRegistry()
 
 #if DEBUG && targetEnvironment(simulator)
-    init(fixtureClient: CompanionClient) {
+    init(fixtureClient: CompanionClient, fleet: Fleet? = nil) {
         client = fixtureClient
         connection = fixtureClient.connection
         status = .live
+        if let fleet { state.hydrate(fleet) }
     }
 
     func replaceFixtureClient(_ replacement: CompanionClient) {

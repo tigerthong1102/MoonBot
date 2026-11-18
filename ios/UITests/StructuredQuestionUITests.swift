@@ -13,12 +13,9 @@ final class StructuredQuestionUITests: XCTestCase {
             "-companion.onboarding.notificationsSeen", "YES"
         ]
         app.launch()
-        let threads = app.buttons["threads-toggle.question-fixture"]
-        XCTAssertTrue(threads.waitForExistence(timeout: 10))
-        threads.tap()
-        let thread = app.buttons["thread.question-thread"]
-        XCTAssertTrue(thread.waitForExistence(timeout: 5))
-        thread.tap()
+        let agent = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Question fixture avatar, Question fixture,")).firstMatch
+        XCTAssertTrue(agent.waitForExistence(timeout: 10))
+        agent.tap()
         let submit = app.buttons["question-submit"]
         XCTAssertTrue(submit.waitForExistence(timeout: 5))
         XCTAssertFalse(submit.isEnabled)

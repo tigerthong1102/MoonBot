@@ -76,7 +76,12 @@ A Simulator-only canary writes, reads and deletes one synthetic Keychain item
 and one temporary App Group file; missing privileges fail the artifact gate.
 It does not use plaintext credential storage or touch desktop data.
 
-## Qualified internal artifacts — 2026-11-18
+## Historical qualified artifacts — 2026-11-18
+
+These results qualify only the source SHA named below. The later review found
+functional issues fixed in the 0.1.2 candidate; these older artifacts do not
+qualify that candidate. Prefer a newer successful internal artifact only after
+checking its COMMIT.txt, smoke evidence and SHA256SUMS.txt.
 
 Android [44215532499](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499)
 PASS at `5ac456cff0ff9027b9bc8ad76731b0ecadfb53a5`: core/app tests, APK/AAB,
@@ -136,3 +141,33 @@ stream reconnects but advances when the active runtime is replaced. Regression
 fixtures cover stale and current history, bot creation, connector URLs, sends,
 queued receipts and current-connection 401 handling. iOS build number is 3;
 the Android 0.1.1 source is unchanged by this additional Swift-only correction.
+
+## Native 0.1.2 candidate
+
+The iOS question-card gap is corrected with bounded structured payload decoding,
+single/multiple-choice and custom-answer inputs, all-question completion,
+retryable acknowledged submission and a real Simulator UI fixture. Questions
+never grant permissions, including cards that name AskUserQuestion as a tool.
+Both formatters use canonical generated wire vectors and JSON escaping when
+newlines could imitate question/answer headers. Android honors custom=false and
+keeps rejected submissions editable. Both suites read the same fixture; regenerate it with
+`node --experimental-strip-types scripts/generate-mobile-question-vectors.ts`.
+The earlier iOS 0.1.1 AppTests compilation failed on a duplicate fixture variable;
+that is corrected. No app launch or unit-test PASS is inferred from syntax-only
+validation. New native CI is required; physical cross-device tests remain NOT RUN.
+
+The first Android 0.1.2 run failed while copying test resources because a second
+copy of the shared question fixture had been added to Android's own resource
+directory. Keep one canonical fixture in the shared resource directory and
+verify regeneration in both native jobs. The fix does not ignore duplicate
+resources or weaken test assertions. Notification regressions also exercise
+current and stale bot/channel task-switch responses on the real iOS Session.
+The structured-question view also rejects a delayed submission acknowledgment
+after its computer or question payload changes, preserving the new form state.
+
+At `fe420656502ae0d915f1fe705591142ea8743f0a`, run 44233295362 passed 407
+iOS core tests, 12 Simulator-hosted AppTests, the secure-store canary and five
+navigation tests. The new structured-question UI test failed before opening
+chat: its expected thread row was absent after tapping the disclosure. It now
+opens the observed primary agent row and retains all form assertions. This
+correction and the additional notification regressions still need fresh CI.

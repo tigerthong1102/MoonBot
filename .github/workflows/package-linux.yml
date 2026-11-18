@@ -309,6 +309,13 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Verify canonical native question fixtures
+        run: |
+          node --experimental-strip-types scripts/generate-mobile-question-vectors.ts
+          git diff --exit-code -- ios/Tests/CompanionCoreTests/Fixtures/question-answer-v1.json
       - name: Select Java 17 and verify native boundaries
         run: |
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
@@ -355,6 +362,13 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Verify canonical native question fixtures
+        run: |
+          node --experimental-strip-types scripts/generate-mobile-question-vectors.ts
+          git diff --exit-code -- ios/Tests/CompanionCoreTests/Fixtures/question-answer-v1.json
       - name: Verify native boundaries and core protocol
         run: |
           node scripts/verify-startupbot-mobile.mjs

@@ -44,14 +44,14 @@ final class SessionRequestTests: XCTestCase {
     }
 
     @MainActor
-    private func exercise<Result: Sendable>(status: Int, body: String, replace: Bool, sameID: Bool = false, operation: @escaping @MainActor (Session, Bot) async -> Result) async throws -> (Session, Result) {
+    private func exercise<Result: Sendable>(status: Int, body: String, replace: Bool, sameID: Bool = false, fleet: Fleet? = nil, operation: @escaping @MainActor (Session, Bot) async -> Result) async throws -> (Session, Result) {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [DeferredResponseProtocol.self]
         let transport = URLSession(configuration: config)
         defer { transport.invalidateAndCancel(); DeferredResponseProtocol.started = nil }
         let old = Connection(id: "old", name: "Old fixture", host: "127.0.0.1", port: 19991)
         let client = CompanionClient(connection: old, token: "fixture-only", session: transport)
-        let session = Session(fixtureClient: client)
+        let session = Session(fixtureClient: client, fleet: fleet)
         let target = try bot()
         let started = expectation(description: "The old computer receives the request")
         DeferredResponseProtocol.started = { started.fulfill() }
@@ -188,6 +188,55 @@ final class SessionRequestTests: XCTestCase {
             }
             XCTAssertEqual(accepted, !replace)
             XCTAssertEqual(session.status, .live)
+        }
+    }
+
+    @MainActor
+    func testNotificationBotSwitchCannotPopulateAnotherComputersRoster() async throws {
+        let original = try bot()
+        var switched = original
+        switched.threadId = "notification-thread"
+        let payload = String(decoding: try JSONEncoder().encode(switched), as: UTF8.self)
+        let target = try XCTUnwrap(NotificationTarget(botId: original.id, threadId: switched.threadId))
+        for replace in [false, true] {
+            let (session, _) = try await exercise(status: 200, body: "{\"bot\":\(payload)}", replace: replace, fleet: Fleet(bots: [original], groups: [])) { session, _ in
+                await session.openNotification(target)
+            }
+            if replace {
+                XCTAssertNil(session.state.bot(original.id))
+                XCTAssertNil(session.notificationChat)
+                XCTAssertEqual(session.actionError, "current connection notice")
+            } else {
+                XCTAssertEqual(session.state.bot(original.id)?.threadId, switched.threadId)
+                XCTAssertEqual(session.notificationChat?.threadId, switched.threadId)
+                XCTAssertNil(session.actionError)
+            }
+        }
+    }
+
+    @MainActor
+    func testNotificationRoomSwitchCannotPopulateAnotherComputersRoster() async throws {
+        let original = try JSONDecoder().decode(Room.self, from: Data("""
+        {"id":"room","threadId":"room-old","name":"Room fixture","memberIds":["bot"],"defaultResponder":{"kind":"mentions"},"bulletin":"","unread":false,"createdAt":1,"tasks":[{"threadId":"room-new","title":"Other","createdAt":1}]}
+        """.utf8))
+        var switched = original
+        switched.threadId = "room-new"
+        let payload = String(decoding: try JSONEncoder().encode(switched), as: UTF8.self)
+        let target = try XCTUnwrap(NotificationTarget(botId: "bot", threadId: switched.threadId))
+        let fleet = Fleet(bots: [try bot()], groups: [original])
+        for replace in [false, true] {
+            let (session, _) = try await exercise(status: 200, body: "{\"group\":\(payload)}", replace: replace, fleet: fleet) { session, _ in
+                await session.openNotification(target)
+            }
+            if replace {
+                XCTAssertTrue(session.state.rooms.isEmpty)
+                XCTAssertNil(session.notificationChat)
+                XCTAssertEqual(session.actionError, "current connection notice")
+            } else {
+                XCTAssertEqual(session.state.rooms.first?.threadId, switched.threadId)
+                XCTAssertEqual(session.notificationChat?.threadId, switched.threadId)
+                XCTAssertNil(session.actionError)
+            }
         }
     }
 }

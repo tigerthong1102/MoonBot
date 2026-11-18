@@ -10,7 +10,6 @@ const cases: Array<[AskQuestion[], string[][]]> = [
   [[{ question: "Nothing?", options: [] }], [[]]],
 ];
 const vectors = cases.map(([questions, answers]) => ({ request: { version: 1, questions }, answers, formatted: formatQuestionAnswers(questions, answers) }));
-for (const file of ["ios/Tests/CompanionCoreTests/Fixtures/question-answer-v1.json", "android/core/src/test/resources/question-answer-v1.json"]) {
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(vectors, null, 2) + "\n");
-}
+const file = "ios/Tests/CompanionCoreTests/Fixtures/question-answer-v1.json";
+mkdirSync(dirname(file), { recursive: true });
+writeFileSync(file, JSON.stringify(vectors, null, 2) + "\n");

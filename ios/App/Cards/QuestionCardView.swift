@@ -9,6 +9,7 @@ struct StructuredQuestionCardView: View {
     @State private var form = QuestionAnswerForm()
     @State private var answering = false
     @State private var sent = false
+    @State private var submissionGeneration = UUID()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -55,8 +56,10 @@ struct StructuredQuestionCardView: View {
                 }
                 Button(sent ? "Answer sent" : "Send answers") {
                     answering = true
+                    let generation = submissionGeneration
                     Task {
                         let accepted = await session.answerQuestions(chat: chat, card: card, form: form)
+                        guard submissionGeneration == generation else { return }
                         answering = false
                         if accepted { sent = true }
                     }
@@ -73,5 +76,5 @@ struct StructuredQuestionCardView: View {
         .onChange(of: request) { _ in reset() }
     }
 
-    private func reset() { form = QuestionAnswerForm(); answering = false; sent = false }
+    private func reset() { submissionGeneration = UUID(); form = QuestionAnswerForm(); answering = false; sent = false }
 }

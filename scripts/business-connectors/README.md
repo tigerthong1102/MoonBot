@@ -19,3 +19,15 @@ Chạy lại fixture đa nền tảng bằng `node --test scripts/business-conne
 Chạy cả hai bộ fixture bằng `node --test scripts/business-connectors/*.fixture.ts`. Bộ thứ hai phân loại metadata engine và SQLSTATE/native code tổng hợp. Không suy ra quyền truy cập từ generation hay compatibility level của DB.
 
 Trên GitHub-hosted Windows runner, workflow còn tạo các khóa registry giả dưới HKCU để kiểm đường đọc kiểu SQL 2000 và 2005. Sau đó, nếu runtime LocalDB có sẵn, tạo instance tên ngẫu nhiên dành riêng cho lần chạy, mở Windows Integrated Authentication, kiểm transport cục bộ, chạy một SELECT cố định và xóa instance trong finally. Các giá trị decimal có scale, mã số 0 đầu và tiếng Việt được đối chiếu sau khi truyền tới Node. Đây là phiên LocalDB thuộc tài khoản dựng fixture. Chứng minh phân quyền read-only, TCP/TLS, dữ liệu của phần mềm gốc và hệ thống SQL 2005 thật cần các thí nghiệm khác.
+
+## Quyền đọc và Setup Assistant trong lab
+
+Bài thử LocalDB tạo hai database tổng hợp A/B trong đúng instance dùng một lần. Connection riêng vào A chuyển sang database user chỉ có SELECT trên một view bằng EXECUTE AS USER WITH NO REVERT. Kiểm việc đọc trực tiếp bảng, đọc B, ghi và đọc sau thu hồi đều bị SQL Server từ chối. Một giao dịch ở connection chủ tạo tranh chấp khóa để kiểm command timeout. Đây là bằng chứng phân quyền cấp database trong lab; cần kiểm login/SSPI thực của khách hàng, TLS, credential store và broker của desktop trước khi cho agent kết nối.
+
+Lệnh sau chỉ đọc JSON từ stdin rồi in kế hoạch. Các giá trị phải là bằng chứng cho cùng một endpoint. Chỉ dùng observedVersion cho engine đích, không lấy phiên bản LocalDB trên máy trạm để gán cho máy LAN. Trạng thái unknown là hợp lệ và ngăn suy diễn việc cần cài.
+
+~~~sh
+echo '{"consent":"granted","data":"sql","location":"local","engine":"running","observedVersion":"9.00.5000","access":"unknown","driver":"unknown","channel":"unknown","database":"unknown","vendor":"unknown","installation":"unknown"}' | node scripts/business-connectors/plan-setup.ts --dry-run
+~~~
+
+Các trường checks của phương án F ghi kết quả kiểm tra do người vận hành cung cấp. Công cụ không tải, xác minh hay chạy installer, không nhận password và không xin nâng quyền. Bundle thử dùng file xuất ngay cả khi người dùng chưa có môi trường SQL.

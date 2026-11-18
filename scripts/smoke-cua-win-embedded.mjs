@@ -16,7 +16,7 @@ if (process.platform !== "win32") {
   process.exit(1);
 }
 
-const stage = join(import.meta.dirname, "..", "dist-native", "cua-win32-x64");
+const stage = join(import.meta.dirname, "..", "dist-native", `cua-win32-${process.arch}`);
 const binary = join(stage, "cua-driver.exe");
 const background = join(stage, "cua-driver-background.exe");
 const bundle = join(stage, "cua-sdk", "cua-sdk.mjs");
@@ -29,7 +29,7 @@ for (const [label, file] of [["cua-driver.exe", binary], ["background daemon", b
   }
 }
 
-if (!createBackgroundExecutable(readFileSync(binary)).equals(readFileSync(background))) {
+if (!createBackgroundExecutable(readFileSync(binary), process.arch).equals(readFileSync(background))) {
   throw new Error("background daemon does not match the CLI's executable sections and derived PE headers");
 }
 

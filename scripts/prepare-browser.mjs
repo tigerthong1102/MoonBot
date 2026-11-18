@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep, win32 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { browserBundlePaths, browserBundleSpec } from "../server/browser-bundle-release.ts";
+import { bundledBrowserTarget, browserBundlePaths, browserBundleSpec } from "../server/browser-bundle-release.ts";
 import { executableTarget } from "./prepare-cloudflared.mjs";
 
 export const BROWSER_LICENSE_FILES = [
@@ -18,7 +18,7 @@ export const BROWSER_LICENSE_FILES = [
 const sourceRoot = fileURLToPath(new URL("../", import.meta.url));
 
 export function targetsForPreparation({ current = false, target, platform = process.platform, arch = process.arch } = {}) {
-  const targets = target ? [target] : current || platform !== "darwin" ? [`${platform}-${arch}`] : ["darwin-arm64", "darwin-x64"];
+  const targets = target ? [target] : current || platform !== "darwin" ? [bundledBrowserTarget(platform, arch)] : ["darwin-arm64", "darwin-x64"];
   for (const value of targets) browserBundleSpec(value);
   return targets;
 }

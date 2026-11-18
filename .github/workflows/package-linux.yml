@@ -25,6 +25,11 @@ on:
         required: false
         type: boolean
         default: false
+      windows_arch:
+        description: "Windows processor"
+        type: choice
+        options: [x64, arm64]
+        default: x64
       macos_runner:
         description: "Standard macOS runner for native DMG acceptance"
         required: false
@@ -256,7 +261,7 @@ jobs:
   windows:
     if: inputs.desktop && (inputs.desktop_os == 'all' || inputs.desktop_os == 'windows')
     name: StartupBot Windows internal EXE
-    runs-on: windows-latest
+    runs-on: ${{ inputs.windows_arch == 'arm64' && 'windows-11-arm' || 'windows-latest' }}
     timeout-minutes: 60
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -278,7 +283,18 @@ jobs:
           node --test scripts/package-payload.node-test.mjs
       - run: pnpm package:prepare
       - run: pnpm build:cua:win
-      - run: pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never
+      - name: Test ARM64 native modules and Computer Use driver
+        if: inputs.windows_arch == 'arm64'
+        run: |
+          node scripts/smoke-cua-win-embedded.mjs
+      - name: Build for the selected Windows architecture
+        env:
+          TARGET_ARCH: ${{ inputs.windows_arch || 'x64' }}
+        run: |
+          if ((node -p process.arch) -ne $env:TARGET_ARCH) { throw 'Expected a native Node.js build host' }
+          $options = @("--$env:TARGET_ARCH")
+          if ($env:TARGET_ARCH -eq 'arm64') { $options += '-c.nsis.artifactName=StartupBot-${version}-arm64-Setup.${ext}' }
+          pnpm exec electron-builder --config electron-builder.internal.yml --win nsis @options --publish never
       - name: Install EXE and test the installed application
         shell: pwsh
         run: |
@@ -288,22 +304,27 @@ jobs:
           $install = Start-Process -FilePath $installer[0].FullName -ArgumentList '/S', "/D=$destination" -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
           New-Item -ItemType Directory -Force release/internal/smoke | Out-Null
-          node scripts/package-payload.mjs --source release/internal/win-unpacked --installed "$destination" --report release/internal/smoke/payload-integrity.json
+          $unpacked = if ((node -p process.arch) -eq 'arm64') { 'win-arm64-unpacked' } else { 'win-unpacked' }
+          node scripts/package-payload.mjs --source "release/internal/$unpacked" --installed "$destination" --report release/internal/smoke/payload-integrity.json
           if ($LASTEXITCODE -ne 0) { throw 'Installed payload bytes differ' }
+          if ((node -p process.arch) -eq 'arm64') {
+            node scripts/smoke-windows-arm64.mjs "$destination"
+            if ($LASTEXITCODE -ne 0) { throw 'Installed ARM64 payload failed' }
+          }
           node scripts/smoke-internal-desktop.mjs --app "$destination/StartupBot.exe" --output release/internal/smoke
           if ($LASTEXITCODE -ne 0) { throw 'Installed application smoke failed' }
       - name: Test the packaged browser and server
         env:
-          OMB_SMOKE_DIST: ${{ github.workspace }}/release/internal/win-unpacked/resources/server
+          OMB_SMOKE_DIST: ${{ runner.temp }}/StartupBotInstalled/resources/server
         run: |
-          node scripts/smoke-browser-bundle.mjs --resources "$env:GITHUB_WORKSPACE/release/internal/win-unpacked/resources"
+          node scripts/smoke-browser-bundle.mjs --resources "$env:RUNNER_TEMP/StartupBotInstalled/resources"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged browser smoke failed' }
-          node scripts/smoke-packaged-server.mjs --browser-bundle "$env:GITHUB_WORKSPACE/release/internal/win-unpacked/resources/browser-engine"
+          node scripts/smoke-packaged-server.mjs --browser-bundle "$env:RUNNER_TEMP/StartupBotInstalled/resources/browser-engine"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged server smoke failed' }
       - run: node scripts/internal-build-metadata.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: StartupBot-Windows-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          name: StartupBot-Windows-${{ inputs.windows_arch || 'x64' }}-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
           compression-level: 0
           path: |
             release/internal/*-Setup.exe

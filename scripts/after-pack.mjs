@@ -6,6 +6,7 @@ import {
   verifyCloudflaredExecutable,
 } from "./prepare-cloudflared.mjs";
 import { fileURLToPath } from "node:url";
+import { bundledBrowserTarget } from "../server/browser-bundle-release.ts";
 import { verifyBrowserBundle } from "./prepare-browser.mjs";
 import { pinnedDuckdbVersion, pinnedOnePasswordVersion, pinnedResvgVersion, verifyDuckdbTree } from "./prepare-duckdb.mjs";
 import { LIPO_ARCH, isMachO, writeThinMachO } from "./mac-thin.mjs";
@@ -127,7 +128,7 @@ export default async function afterPack(context) {
   // must fail here, before signing, rather than silently ship without Chrome.
   if (hasBrowser || context.packager) {
     if (!arch) throw new Error(`Unsupported desktop browser package architecture: ${context.arch}`);
-    await verifyBrowserBundle(browserRoot, `${context.electronPlatformName}-${arch}`);
+    await verifyBrowserBundle(browserRoot, bundledBrowserTarget(context.electronPlatformName, arch));
   }
   await validateDuckdb(resources, context.electronPlatformName, arch, Boolean(context.packager));
   if (context.electronPlatformName === "darwin") await thinMacPlatformTools(resources, arch);

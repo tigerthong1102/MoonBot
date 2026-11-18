@@ -9,18 +9,22 @@ import { promisify } from "node:util";
 import { build } from "esbuild";
 import { createBackgroundExecutable } from "./cua-windows-background.mjs";
 
-if (process.platform !== "win32" || process.arch !== "x64") throw new Error("prepare-cua-win requires Windows x64");
+if (process.platform !== "win32" || !["x64", "arm64"].includes(process.arch)) throw new Error("prepare-cua-win requires 64-bit Windows");
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const run = promisify(execFile);
-const stage = join(root, "dist-native", "cua-win32-x64");
+const stage = join(root, "dist-native", `cua-win32-${process.arch}`);
 const sdkEntry = fileURLToPath(import.meta.resolve("@trycua/cua-driver"));
 const sdkRoot = realpathSync(join(dirname(sdkEntry), ".."));
 const dependencyRoot = join(sdkRoot, "..", "..");
 const sdkPackage = JSON.parse(await readFile(join(sdkRoot, "package.json"), "utf8"));
 const expectedVersion = String(sdkPackage.version);
 
-const release = {
+const release = process.arch === "arm64" ? {
+  version: "0.45.4",
+  file: "cua-driver-rs-0.45.4-windows-arm64-binary.zip",
+  sha256: "8bdd935ef6cf9679eb4d10f713b35e03f368ea60acb8b2c4d24ca867be182485",
+} : {
   version: "0.45.4",
   file: "cua-driver-rs-0.45.4-windows-x86_64-binary.zip",
   sha256: "949927b4cb0519c6fb1377878d67d79a8d6fae7bc56cbed17c7aa26448d82cb5",
@@ -51,7 +55,7 @@ async function binaryVersion(candidate) {
 }
 
 async function officialBinary() {
-  const cache = join(root, "node_modules", ".cache", "openmausbot", `cua-driver-${release.version}-win`);
+  const cache = join(root, "node_modules", ".cache", "openmausbot", `cua-driver-${release.version}-win-${process.arch}`);
   const cachedBinary = join(cache, "cua-driver.exe");
   if ((await binaryVersion(cachedBinary)) === expectedVersion) return cachedBinary;
 
@@ -93,10 +97,10 @@ if (process.env.CUA_DRIVER_PATH) {
   }
   binary = process.env.CUA_DRIVER_PATH;
 } else {
-  const nativePackage = join(dependencyRoot, "@trycua", "cua-driver-win32-x64-msvc");
+  const nativePackage = join(dependencyRoot, "@trycua", `cua-driver-win32-${process.arch}-msvc`);
   if (!existsSync(nativePackage)) {
     throw new Error(
-      `required CUA win32-x64 native package is missing — is pnpm.supportedArchitectures.cpu set in package.json?`,
+      `required CUA win32-${process.arch} native package is missing — is pnpm.supportedArchitectures.cpu set in package.json?`,
     );
   }
   const candidate = join(realpathSync(nativePackage), "cua_driver.exe");
@@ -118,13 +122,13 @@ if (!details.isFile()) {
 await rm(stage, { recursive: true, force: true });
 await mkdir(stage, { recursive: true });
 await copyFile(binary, join(stage, "cua-driver.exe"));
-await writeFile(join(stage, "cua-driver-background.exe"), createBackgroundExecutable(await readFile(binary)));
+await writeFile(join(stage, "cua-driver-background.exe"), createBackgroundExecutable(await readFile(binary), process.arch));
 
 const nativeDir = join(stage, "cua-sdk", "native");
-const winNativePackage = join(dependencyRoot, "@trycua", "cua-driver-win32-x64-msvc");
+const winNativePackage = join(dependencyRoot, "@trycua", `cua-driver-win32-${process.arch}-msvc`);
 if (!existsSync(winNativePackage)) {
   throw new Error(
-    `required CUA win32-x64 native package is missing`,
+    `required CUA win32-${process.arch} native package is missing`,
   );
 }
 await mkdir(nativeDir, { recursive: true });
@@ -170,4 +174,4 @@ await writeFile(
   ),
 );
 
-console.log(`Staged CUA for win32-x64 from ${binary}`);
+console.log(`Staged CUA for win32-${process.arch} from ${binary}`);

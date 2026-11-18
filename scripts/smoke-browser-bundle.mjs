@@ -12,7 +12,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";
 import { inflateSync } from "node:zlib";
-import { browserBundlePaths, browserBundleSpec } from "../server/browser-bundle-release.ts";
+import { bundledBrowserTarget, browserBundlePaths, browserBundleSpec } from "../server/browser-bundle-release.ts";
 import { executableTarget } from "./prepare-cloudflared.mjs";
 import { WINDOWS_VENDOR_VERSION, verifyVendorCandidate, verifyVendorPatch } from "./build-windows-browser-vendor.mjs";
 
@@ -26,7 +26,7 @@ if (values.help) {
   process.exit(0);
 }
 assert(values.resources && isAbsolute(values.resources), "--resources must be an absolute packaged Resources/resources directory");
-const target = values.target ?? `${process.platform}-${process.arch}`;
+const target = values.target ?? bundledBrowserTarget(process.platform, process.arch);
 const spec = browserBundleSpec(target);
 const paths = browserBundlePaths(join(resolve(values.resources), "browser-engine"), target);
 const manifest = JSON.parse(await readFile(paths.manifest, "utf8"));
@@ -66,7 +66,7 @@ if (values["check-only"]) {
   console.log(JSON.stringify({ ok: true, target, check: "structure-only", browserExecuted: false }));
   process.exit(0);
 }
-assert.equal(target, `${process.platform}-${process.arch}`, "A live smoke test must run on the target architecture; use --check-only for a structural cross-target check");
+assert.equal(target, bundledBrowserTarget(process.platform, process.arch), "A live smoke test must run on the target architecture; use --check-only for a structural cross-target check");
 assert(process.platform !== "linux" || process.getuid?.() !== 0, "Run this sandboxed browser test as an unprivileged user, never root");
 if (process.platform === "linux") {
   // agent-browser v0.36.0 chrome.rs:1512 automatically adds --no-sandbox for

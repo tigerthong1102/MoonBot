@@ -36,11 +36,12 @@ describe("pinned desktop browser preparation", () => {
   it("chooses host targets and rejects unsupported/cross-directory inputs", () => {
     expect(targetsForPreparation({ platform: "darwin", arch: "arm64" })).toEqual(["darwin-arm64", "darwin-x64"]);
     expect(targetsForPreparation({ platform: "darwin", arch: "arm64", current: true })).toEqual(["darwin-arm64"]);
+    expect(targetsForPreparation({ platform: "win32", arch: "arm64" })).toEqual(["win32-x64"]);
     expect(targetsForPreparation({ platform: "win32", arch: "x64" })).toEqual(["win32-x64"]);
     expect(targetsForPreparation({ target: "linux-x64" })).toEqual(["linux-x64"]);
     expect(targetsForPreparation({ platform: "linux", arch: "arm64" })).toEqual(["linux-arm64"]);
     for (const target of ["win32-arm64", "../darwin-arm64", "freebsd-x64"]) expect(() => browserBundleSpec(target)).toThrow(/Unsupported/);
-    expect(() => targetsForPreparation({ platform: "win32", arch: "arm64" })).toThrow(/Unsupported/);
+    expect(() => targetsForPreparation({ platform: "win32", arch: "ia32" })).toThrow(/Unsupported/);
   });
 
   it("has stable resource-relative paths on every platform", () => {

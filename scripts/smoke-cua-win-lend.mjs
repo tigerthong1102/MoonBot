@@ -22,7 +22,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 // git checks text out with CRLF on Windows unless .gitattributes says otherwise.
 const builder = readFileSync(join(root, "electron-builder.yml"), "utf8").replace(/\r\n/g, "\n");
 const winSection = /^win:\n([\s\S]*?)^\S/m.exec(builder)?.[1] ?? "";
-const resources = [...winSection.matchAll(/- from: (dist-native\/cua-win32-x64\/\S+)\s+to: (\S+)/g)].map(([, from, to]) => ({ from, to }));
+const resources = [...winSection.matchAll(/- from: (dist-native\/cua-win32-\$\{arch\}\/\S+)\s+to: (\S+)/g)].map(([, from, to]) => ({ from: from.replace("${arch}", process.arch), to }));
 if (resources.length < 3) throw new Error("electron-builder.yml no longer names the Windows CUA resources this smoke places");
 for (const { from } of resources) {
   if (!existsSync(join(root, from))) throw new Error(`${from} is missing: run pnpm build:cua:win first`);

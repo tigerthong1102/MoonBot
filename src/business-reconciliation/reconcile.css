@@ -1,0 +1,10 @@
+.reconciliation{box-sizing:border-box;width:100%;max-width:66rem;margin:0 auto;padding:clamp(1rem,3vw,2.5rem);min-height:0;overflow:auto;color:var(--color-ink,#192d29);background:var(--color-card,#fff);font:15px/1.5 system-ui,sans-serif}
+.reconciliation h1,.reconciliation h2{font-weight:650;line-height:1.25;margin:0}.reconciliation h1{font-size:1.65rem}.reconciliation h2{font-size:1.22rem}
+.reconciliation p{margin:.7rem 0 1rem}.reconciliation header,.reconcile-actions,.reconcile-scope{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}.reconciliation header{justify-content:space-between}
+.reconcile-pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:1rem}
+.reconciliation fieldset{min-width:0;border:1px solid var(--color-hairline,#bdcbc8);border-radius:.6rem;padding:1rem}.reconciliation legend{font-weight:650;padding:0 .35rem}
+.reconciliation label{display:grid;gap:.2rem;margin:.4rem 0;font-weight:550}.reconciliation input,.reconciliation select,.reconciliation button{font:inherit;color:inherit}
+.reconciliation input,.reconciliation select{width:100%;box-sizing:border-box;background:var(--color-card,#fff);border:1px solid var(--color-hairline,#bdcbc8);border-radius:.35rem;padding:.35rem}
+.reconciliation button{border:1px solid var(--color-hairline,#a6b6b1);border-radius:.4rem;padding:.4rem .75rem;cursor:pointer;background:var(--color-card,#fff)}
+.reconciliation button.primary{background:#17554b;color:white}.reconciliation button:disabled{opacity:.55;cursor:default}.reconcile-scope,.reconcile-actions,.reconciliation section{margin:1rem 0}
+.reconciliation [role=alert]{color:var(--color-danger,#a13129)}.reconcile-scroll{overflow:auto}.reconciliation table{width:100%;border-collapse:collapse;margin:.5rem 0}.reconciliation td,.reconciliation th{text-align:left;padding:.3rem .5rem;border-bottom:1px solid var(--color-hairline,#d7e0dd)}

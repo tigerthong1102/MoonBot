@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { ChevronDown, Database, History, Loader2, Maximize2, Minimize2, Pin } from "lucide-react";
 import { DATA_ROUTES, type DataRunRequest } from "../../../shared/data-surface";
 import { api, useStore, type Bot } from "@/state/store";
@@ -9,6 +9,8 @@ import { DataCard, RunningStatus } from "./DataCard";
 import { DataResultFooter } from "./DataGrid";
 import { SqlEditor } from "./SqlEditor";
 import { cardsLatestFirst } from "./data-format";
+
+const ReconcileFiles = lazy(() => import("../../business-reconciliation/ReconcileFiles"));
 
 const QUERY_MIN_HEIGHT = 128;
 const RESULT_MIN_HEIGHT = 180;
@@ -36,6 +38,7 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
   const [selection, setSelection] = useState<{ cardId: string } | null>(() => requestedCard ? { cardId: requestedCard.id } : null);
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
+  const [reconcileOpen, setReconcileOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
@@ -226,6 +229,7 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
   const empty = sheet && cards.length === 0 && !selection;
   const control = "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-secondary hover:bg-inset hover:text-ink";
   const controls = <>
+        <button type="button" className={control} onClick={() => setReconcileOpen(true)}>Đối chiếu chứng từ</button>
         <details className="relative" data-testid="data-history">
           <summary role="button" className={`${control} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} aria-label={t("data.history")} title={t("data.history")}>
             <History size={14} aria-hidden="true" /><span className="hidden @min-[460px]/data:inline">{t("data.history")}</span><ChevronDown size={12} aria-hidden="true" />
@@ -250,6 +254,10 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
 
   return (
     <div ref={panel} className="@container/data flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card text-ink fullscreen:h-full fullscreen:w-full" data-testid="data-panel">
+      {reconcileOpen && <dialog ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setReconcileOpen(false)}
+        className="m-auto max-h-[90vh] w-[min(64rem,96vw)] overflow-auto rounded-xl bg-card text-ink backdrop:bg-black/30" aria-label="Đối chiếu chứng từ">
+        <Suspense fallback={<button onClick={() => setReconcileOpen(false)}>Đóng</button>}><ReconcileFiles close={() => setReconcileOpen(false)} /></Suspense>
+      </dialog>}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden [container-type:size]" data-testid="data-result">
         {!sheet && !loadError && (
           <p className="flex items-center justify-center gap-2 py-10 text-[13px] text-ink-secondary" role="status">

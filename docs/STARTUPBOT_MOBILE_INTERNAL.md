@@ -97,3 +97,10 @@ establish who canceled it or why; no iOS app is qualified. Further runs use an o
 simulator matching the Xcode SDK, bounded simulator commands and diagnostic
 cleanup, retaining the real Keychain/App Group canary and navigation tests.
 Only standard public-repository runners are selectable, not paid larger runners.
+
+The ARM simulator crash in 44217472146 is confirmed `SIGKILL (Code Signature
+Invalid)`, `CODESIGNING / Taskgated Invalid Signature`: manual signing placed
+restricted iOS capability claims into the macOS-host code signature. The
+replacement uses Xcode's simulator signing pipeline, verifies Mach-O simulated
+entitlement sections for both architectures, and retains the real secure-store
+canary. Removing the Keychain/App Group acceptance test is not a remedy.

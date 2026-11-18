@@ -20,6 +20,9 @@ jobs:
           package-manager-cache: false
       - run: node --test scripts/business-connectors/discovery.fixture.ts
       - run: node --test scripts/business-connectors/compatibility.fixture.ts
+      - name: Check synthetic legacy registry layouts without a database service
+        shell: powershell
+        run: ./scripts/business-connectors/lab/legacy-registry.ps1
       - name: Verify accounting scalar types and metadata on a private LocalDB instance
         shell: powershell
         run: ./scripts/business-connectors/lab/localdb.ps1

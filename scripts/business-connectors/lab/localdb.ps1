@@ -30,7 +30,8 @@ SELECT CONVERT(varchar(32), SERVERPROPERTY('ProductVersion')),
        CONVERT(varchar(40), CONNECTIONPROPERTY('net_transport')),
        CONVERT(varchar(40), CONNECTIONPROPERTY('auth_scheme')),
        CONVERT(varchar(42), CAST(-12345678901234567890.1200 AS decimal(24,4))),
-       CAST(N'Đắk Lắk' AS nvarchar(32)), CAST('0000123456' AS varchar(10))
+       CAST(N'Đắk Lắk' AS nvarchar(32)), CAST('0000123456' AS varchar(10)),
+       CONVERT(nvarchar(128), SERVERPROPERTY('Edition'))
 '@
     $reader = $command.ExecuteReader()
     if (-not $reader.Read() -or $reader.GetInt32(1) -ne 1) { throw 'Unexpected instance identity.' }
@@ -39,9 +40,11 @@ SELECT CONVERT(varchar(32), SERVERPROPERTY('ProductVersion')),
     if ($version -notmatch '^\d+\.\d+\.\d+\.\d+$' -or $transport -notin 'Shared memory','Named pipe') { throw 'Unexpected engine metadata.' }
     $auth = $reader.GetString(3)
     if ($auth -notin 'NTLM','KERBEROS') { throw 'Expected Windows Integrated Authentication.' }
-    if ($reader.GetString(4) -cne '-12345678901234567890.1200' -or $reader.GetString(5) -cne 'Đắk Lắk' -or $reader.GetString(6) -cne '0000123456') {
-        throw 'Decimal, Unicode or identifier mismatch.'
-    }
+    $sample = @{ productVersion = $version; edition = $reader.GetString(7); amount = $reader.GetString(4);
+        description = $reader.GetString(5); code = $reader.GetString(6) }
+    $OutputEncoding = [Text.UTF8Encoding]::new($false)
+    $sample | ConvertTo-Json -Compress | node "$PSScriptRoot/verify-sample.ts"
+    if ($LASTEXITCODE -ne 0) { throw 'Accounting sample did not round-trip into Node.' }
     $reader.Dispose()
     $command.Dispose()
     Write-Host "Verified LocalDB $version, $transport, $auth; System.Data $([Data.SqlClient.SqlConnection].Assembly.GetName().Version), $([IntPtr]::Size * 8)-bit."

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { desktopSmokeNetwork } from "./desktop-smoke-network.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({ options: { app: { type: "string" }, output: { type: "string" } } });
@@ -76,6 +77,8 @@ const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERP
   ...(process.env.TEMP ? { TEMP: process.env.TEMP, TMP: process.env.TEMP } : {}),
 };
 const args = [`--user-data-dir=${profile}`, `--remote-debugging-port=${debug}`, "--remote-debugging-address=127.0.0.1", "--no-first-run"];
+const netLog = path.join(fixture, "chromium-netlog.json");
+if (mac) args.push(`--log-net-log=${netLog}`);
 const child = spawn(executable, args, { cwd: fixture, env, stdio: ["ignore", "pipe", "pipe"] });
 let output = "";
 const launchLog = path.join(evidence, "desktop-smoke.log");
@@ -178,9 +181,20 @@ try {
   socket?.close();
   if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
   await until(() => child.exitCode !== null || child.signalCode !== null, "application shutdown", 15_000).catch(() => child.kill("SIGKILL"));
+  if (mac && report.status === "PASS") {
+    try {
+      const network = desktopSmokeNetwork(JSON.parse(readFileSync(netLog, "utf8")));
+      writeFileSync(path.join(evidence, "chromium-network.json"), JSON.stringify(network, null, 2) + "\n");
+      assert.equal(network.faviconRequests, 0, "Service badges requested an external favicon");
+    } catch (error) {
+      report.status = "FAIL";
+      report.error = error.message;
+    }
+  }
   writeFileSync(path.join(evidence, "desktop-smoke.json"), JSON.stringify(report, null, 2) + "\n");
   const appLog = path.join(profile, "logs", "server.log");
   writeFileSync(launchLog, output + (existsSync(appLog) ? `\n${readFileSync(appLog, "utf8")}` : ""));
   rmSync(fixture, { recursive: true, force: true, maxRetries: 15, retryDelay: 200 });
 }
+assert.equal(report.status, "PASS", report.error);
 console.log(JSON.stringify(report, null, 2));

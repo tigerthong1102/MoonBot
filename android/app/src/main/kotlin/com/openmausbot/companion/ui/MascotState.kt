@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Bot
@@ -5,16 +6,7 @@ import com.openmausbot.companion.core.Chat
 import com.openmausbot.companion.core.CompanionState
 import com.openmausbot.companion.core.Message
 
-/**
- * Which face a bot wears — the desktop's `stateForBot`, ported from
- * `ios/App/MascotState.swift`.
- *
- * A pinned expression wins; then what the bot is doing right now; then a guess
- * from its role. Same rules, same order, so a bot looks the same on the phone as
- * on the laptop.
- */
 
-/** The desktop's legacy names, kept so an older bot record still resolves. */
 private val legacy: Map<String, MausState> = mapOf(
     "deadpan" to MausState.IDLE,
     "friendly" to MausState.HAPPY,
@@ -30,17 +22,12 @@ private val legacy: Map<String, MausState> = mapOf(
 
 private val byId: Map<String, MausState> = MausState.entries.associateBy(MausState::id)
 
-/**
- * A face a bot's description argues for, and the words that argue for it. Whole
- * words only: a "codebase" bot is not a coder, and "qa" must not match "aqua".
- */
 private class RoleFace(val state: MausState, words: List<String>) {
     private val patterns = words.map { Regex("\\b${Regex.escape(it)}\\b") }
 
     fun matches(profile: String): Boolean = patterns.any { it.containsMatchIn(profile) }
 }
 
-/** In order: the first that matches wins, as on the desktop. */
 private val roleFaces: List<RoleFace> = listOf(
     RoleFace(
         MausState.WORKING,
@@ -80,7 +67,6 @@ private val roleFaces: List<RoleFace> = listOf(
     ),
 )
 
-/** Resolves any stored value — current, legacy or junk — to a real state. */
 internal fun MausState.Companion.normalize(value: String?): MausState? {
     if (value.isNullOrEmpty()) return null
     return byId[value] ?: legacy[value]
@@ -101,14 +87,9 @@ internal fun MausState.Companion.forBot(bot: Bot, last: Message?): MausState {
     return MausState.IDLE
 }
 
-/**
- * The face for a chat as a whole: a bot's own, a room's is "happy" — which is what
- * the desktop draws for room avatars.
- */
 internal fun MausState.Companion.forChat(chat: Chat, state: CompanionState): MausState =
     forChat(chat, state.visibleTranscript(chat.threadId).lastOrNull())
 
-/** The same, for a caller that already walked the chat's visible transcript. */
 internal fun MausState.Companion.forChat(chat: Chat, last: Message?): MausState = when (chat) {
     is Chat.BotChat -> forBot(chat.bot, last)
     is Chat.RoomChat -> MausState.HAPPY

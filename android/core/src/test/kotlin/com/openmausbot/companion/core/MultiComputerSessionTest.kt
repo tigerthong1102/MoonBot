@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.util.concurrent.CountDownLatch
@@ -103,7 +104,6 @@ class MultiComputerSessionTest {
             eventsFn = { _, _, _ -> emptyFlow() },
         )
         session.awaitRestored()
-        // A conflated StateFlow can hide a value the assertion below would miss.
         val seen = mutableListOf<Session.Status>()
         backgroundScope.launch { session.status.collect(seen::add) }
         runCurrent()
@@ -117,7 +117,6 @@ class MultiComputerSessionTest {
         }
 
         assertEquals(401, refusal.code)
-        // 401 is not a gateway failure, so no second route is dialed for it.
         assertEquals(1, attempts)
         assertNotEquals(Session.Status.Unauthorized, session.status.value)
         assertFalse(

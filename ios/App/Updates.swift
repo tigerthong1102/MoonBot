@@ -29,8 +29,6 @@ extension CompanionState {
         var out: [ChatUpdate] = []
         var seen = Set<String>()
 
-        // Newest approval first, one per chat: the pill headlines the most
-        // recent thing that stopped, and the sheet lists the rest.
         for pending in pendingApprovals {
             guard let chat = chat(forThread: pending.threadId), seen.insert(chat.conversationID).inserted else { continue }
             let card = pending.message.card

@@ -1,16 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
-/**
- * The mascot's face, as data — the port of `ios/App/MausFaceData.swift`, which is
- * itself the Blob Studio export the desktop draws from (`MausMascotios/MausAvatar.tsx`;
- * the same tables ship in `src/components/CursorAvatar.tsx`). 25 expressions × 2 eye
- * rings × 48 points, a mouth per expression, and per-state pools, cadences, blink
- * rhythm and body motion.
- *
- * Same numbers as the desktop and the phone's other port, which is the whole point:
- * a bot has to wear the same face on every screen. The tables below are transcribed
- * from the Swift rather than redrawn — do not hand-edit them.
- */
 internal enum class MausState(val id: String) {
     SLEEPING("sleeping"),
     WAKING("waking"),
@@ -54,32 +44,24 @@ internal enum class MausState(val id: String) {
     POWERING_DOWN("powering-down"),
     ;
 
-    /** Empty on purpose: `MascotState.kt` hangs the resolution rules off it. */
     companion object
 }
 
-/** An oscillation: how far, and how long one cycle takes in milliseconds. */
 internal data class MausWave(val amplitude: Float, val periodMillis: Float)
 
-/** A span of milliseconds to pick a delay from. */
 internal data class MausRange(val minMillis: Float, val maxMillis: Float)
 
-/** The scale a state enters at, and how long it takes to reach its own size. */
 internal data class MausEnter(val from: Float, val durationMillis: Float)
 
-/** How the body itself moves in a state. Absent means still in that respect. */
 internal data class MausBodyMotion(
     val bob: MausWave? = null,
     val sway: MausWave? = null,
     val pulse: MausWave? = null,
     val circle: MausWave? = null,
     val jitter: MausWave? = null,
-    /** Degrees, held for as long as the state lasts. */
     val tilt: Float? = null,
-    /** How much a bob squashes the body as it lands. */
     val squash: Float? = null,
     val enter: MausEnter? = null,
-    /** The scale the body settles to, once, over 1.4s. */
     val settle: Float? = null,
 )
 
@@ -90,17 +72,14 @@ internal object MausFaceData {
     const val MOUTH_STROKE: Float = 7.5f
     const val EXPRESSION_COUNT: Int = 25
     const val POINTS_PER_RING: Int = 48
-    /** Interleaved x, y — so a ring is [POINTS_PER_RING] * 2 floats. */
     const val RING_STRIDE: Int = POINTS_PER_RING * 2
 
-    /** A mouth is four numbers: half-width, curve, gap below the eyes, skew. */
     const val MOUTH_STRIDE: Int = 4
     const val MOUTH_HALF_WIDTH: Int = 0
     const val MOUTH_CURVE: Int = 1
     const val MOUTH_GAP: Int = 2
     const val MOUTH_SKEW: Int = 3
 
-    /** expression → eye → point → (x, y), flattened; see [copyRing]. */
     private val expressionsFlat: FloatArray = floatArrayOf(
         89.2049f, 106.51f, 91.5549f, 106.72f, 93.8249f, 107.34f, 95.9549f, 108.36f,
         97.8149f, 109.81f, 99.3149f, 111.62f, 100.525f, 113.65f, 101.575f, 115.76f,
@@ -714,7 +693,6 @@ internal object MausFaceData {
         6.10729f, 20.5418f,
     )
 
-    /** Per expression: half-width, curve, gap, skew. */
     private val mouthsFlat: FloatArray = floatArrayOf(
         14f, 3f, 20f, 0f, 13f, 1f, 20f, 0f, 25f, 14f, 13f, 0f, 11f, 4f, 18f, 0f,
         16f, -2f, 22f, 0f, 15f, -3f, 20f, 6f, 12f, 2f, 20f, 0f, 17f, -7f, 18f, 0f,
@@ -725,24 +703,20 @@ internal object MausFaceData {
         11f, 6f, 20f, 0f,
     )
 
-    /** One eye ring of [RING_STRIDE] floats, into a caller-owned buffer. */
     fun copyRing(expression: Int, eye: Int, into: FloatArray) {
         val base = (expression * 2 + eye) * RING_STRIDE
         expressionsFlat.copyInto(into, 0, base, base + RING_STRIDE)
     }
 
-    /** Where an expression looks, in face units, at full strength. */
     fun gazeX(expression: Int): Float = gazeFlat[expression * 2]
 
     fun gazeY(expression: Int): Float = gazeFlat[expression * 2 + 1]
 
-    /** One mouth of [MOUTH_STRIDE] floats, into a caller-owned buffer. */
     fun copyMouth(expression: Int, into: FloatArray) {
         val base = expression * MOUTH_STRIDE
         mouthsFlat.copyInto(into, 0, base, base + MOUTH_STRIDE)
     }
 
-    /** The expressions a state drifts through. The first is its resting face. */
     val pools: Map<MausState, List<Int>> = mapOf(
         MausState.SLEEPING to listOf(22, 13, 4),
         MausState.WAKING to listOf(13),
@@ -786,7 +760,6 @@ internal object MausFaceData {
         MausState.POWERING_DOWN to listOf(22, 13),
     )
 
-    /** How long a state holds one expression before picking another. */
     val expressionCadence: Map<MausState, MausRange> = mapOf(
         MausState.SLEEPING to MausRange(6000f, 10000f),
         MausState.WAKING to MausRange(800f, 800f),
@@ -830,7 +803,6 @@ internal object MausFaceData {
         MausState.POWERING_DOWN to MausRange(6000f, 9000f),
     )
 
-    /** Blink cadence; a state that is absent never blinks. */
     val blink: Map<MausState, MausRange> = mapOf(
         MausState.IDLE to MausRange(6000f, 14000f),
         MausState.LISTENING to MausRange(3000f, 7000f),

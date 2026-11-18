@@ -1,13 +1,12 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
-/** Display projection only. Stored prompts keep their model-facing trust boundaries. */
 data class WebhookMessageContent(val task: String, val payload: String?) {
     companion object {
         private val taskMarkers = listOf(
             "AUTHENTICATED WEBHOOK TASK", "USER-CONFIGURED WEBHOOK INSTRUCTIONS", "DEFAULT WEBHOOK INSTRUCTIONS",
         )
 
-        /** Matches the desktop webhook-message parser. Incomplete envelopes remain ordinary text. */
         fun parse(text: String): WebhookMessageContent? {
             val eventStart = text.indexOf("[UNTRUSTED WEBHOOK EVENT DATA]\n").takeIf { it >= 0 } ?: return null
             val trustedPrefix = text.substring(0, eventStart)

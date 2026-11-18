@@ -1,22 +1,9 @@
 // Modified for StartupBot; original copyright and license retained.
-// One conversation: the transcript, the approval cards, and the composer.
-//
-// The transcript is whatever the harness folded — settled text, tool chips,
-// option cards, screenshots. This renders those and nothing else; it does
-// not re-derive anything from provider events, because the server already
-// did that and having two folds is how two clients start disagreeing.
 import SwiftUI
 import CompanionCore
 import PhotosUI
 import UniformTypeIdentifiers
 import ImageIO
-// Unconditional, because the uses below are: `Color(uiColor:)` and
-// `UIImage(data:)` are reached on every path through this file. A
-// `canImport` guard around the import alone does not make the file portable
-// — it only moves the failure from "no such module" to "no such type", and
-// hides that this view is iOS-only behind something that looks like it
-// isn't. The App target is iOS; CompanionCore is where the portable half
-// lives.
 import UIKit
 import AVFoundation
 
@@ -54,20 +41,11 @@ struct ChatView: View {
     @State private var fileDownloadRequestID: UUID?
     @State private var threadOpenTask: Task<Void, Never>?
     @State private var acceptsNextHardwareLineBreak = false
-    /// A Steer is done when there is nothing left waiting, or when the turn
-    /// it was fighting has ended — whichever the engine reaches first. Both
-    /// halves are needed: an interrupt that fails to stop the turn must not
-    /// leave the row spinning for ever either.
     private var steerSettled: Bool { queuedSends.isEmpty || !current.busy }
 
-    /// A Steer is in flight. Cleared when the queue drains or the turn ends,
-    /// whichever the engine gets to first.
     @State private var steering = false
     @FocusState private var composerFocused: Bool
     @StateObject private var dictation = SpeechDictation()
-    /// The opening beat: the island grows with the bot's face in it, then
-    /// shrinks away as the face settles into the header. `facePhase` is 1
-    /// with the face in the island, 0 with it home in the header.
     @State private var islandExpanded = false
     @State private var islandVisible = false
     @State private var facePhase: CGFloat = 0
@@ -82,11 +60,8 @@ struct ChatView: View {
         _selectedThreadId = State(initialValue: chat.threadId)
     }
 
-    /// The live bubble's scroll target. A constant because there is at most
-    /// one per chat and it has no message id to borrow.
     static let liveBubbleId = "companion.live"
 
-    /// The live chat record, so busy/unread stay current as frames land.
     private var current: Chat {
         if let view = chat.projected(in: session.state, forThread: selectedThreadId) { return view }
         switch chat {
@@ -102,17 +77,12 @@ struct ChatView: View {
         }
     }
 
-    /// Bot selection is local to this screen; another device's navigation
-    /// must not move a draft, approval, or Stop action to a different thread.
     private var threadId: String { current.threadId }
 
     private var selectedThreadWasRemoved: Bool {
         chat.projected(in: session.state, forThread: selectedThreadId) == nil
     }
 
-    /// A task changes a bot's thread, but it does not make it a new bot.
-    /// Intro history follows the chat itself so switching tasks cannot replay
-    /// a once-per-bot greeting.
     private var islandIntroID: String {
         switch current {
         case let .bot(bot): "bot.\(bot.id)"
@@ -124,48 +94,27 @@ struct ChatView: View {
         session.state.visibleTranscript(forThread: threadId)
     }
 
-    /// The transcript as the reader has asked to see it: every chip, folded
-    /// runs, or none at all.
     private var rows: [TranscriptRow] {
         transcriptRows(messages, detail: ActivityDetail(rawValue: activityDetail) ?? .full)
     }
 
-    /// The composer's chip row, as edited in Settings.
     private var storedChips: [ActionChipItem] {
         QuickReply.decode(quickReplies).map {
             ActionChipItem(id: $0.id, title: $0.title, icon: $0.icon, prompt: $0.prompt)
         }
     }
 
-    /// Unread elsewhere — what the back pill's badge counts, like Messages.
     private var unreadElsewhere: Int {
         let mine = current.unread ? 1 : 0
         return max(0, session.state.unreadCount - mine)
     }
 
     var body: some View {
-        // Read the transcript once for this render. Pagination changes the
-        // array as a unit; repeatedly reaching through ObservableObject for
-        // every row only recomputes the same value.
         let transcript = rows
-        // A VStack with the composer as a sibling, rather than a scroll view
-        // with `.safeAreaInset`. The inset version sized itself to its
-        // content, so a short transcript left the composer floating in the
-        // middle of the screen with black beneath it. Here the scroll area is
-        // explicitly told to take everything the composer does not.
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    // VStack, not LazyVStack. A lazy stack does not know how
-                    // tall it is until its rows have been built, so
-                    // `.defaultScrollAnchor(.bottom)` anchors against an
-                    // estimate and the chat opens somewhere in the middle of
-                    // the conversation. Building all of it up front makes the
-                    // height exact and the anchor land on the newest message.
-                    // A thread holds 50 messages until you ask for more, so
-                    // there is nothing here worth being lazy about.
                     VStack(alignment: .leading, spacing: 6) {
-                        // room for the floating face when scrolled to the top
                         Color.clear.frame(height: 72)
 
                         if session.state.hasMore[threadId] == true {
@@ -183,8 +132,6 @@ struct ChatView: View {
 
                         ForEach(Array(transcript.enumerated()), id: \.element.id) { index, row in
                             VStack(alignment: .leading, spacing: 6) {
-                                // a gap in time is worth marking; a timestamp
-                                // on every message is just noise
                                 if startsANewStretch(at: index, in: transcript) {
                                     Text(RelativeStamp.separator(row.head.date))
                                         .font(.system(size: 12, weight: .medium))
@@ -209,22 +156,10 @@ struct ChatView: View {
                             .id(row.id)
                         }
 
-                        // The reply as it is typed. It sits after the last
-                        // settled message and disappears the moment the real
-                        // one arrives — the store clears it on the same frame
-                        // that appends the message, so there is never a beat
-                        // where both are on screen.
-                        // Gated on `busy`, not merely on there being text:
-                        // a buffer left behind by a turn that died mid
-                        // sentence would otherwise render as a reply that
-                        // streams for ever.
                         if current.busy, let live = session.state.streaming[threadId], !live.isEmpty {
                             StreamingBubble(text: live, reasoning: nil, color: current.color)
                                 .id(Self.liveBubbleId)
                         } else if current.busy, let thinking = session.state.reasoning[threadId], !thinking.isEmpty {
-                            // Only while there is no answer yet. Once tokens
-                            // of the reply exist, the reasoning is behind us
-                            // and showing both is just noise.
                             StreamingBubble(text: nil, reasoning: thinking, color: current.color)
                                 .id(Self.liveBubbleId)
                         } else if current.busy {
@@ -239,24 +174,12 @@ struct ChatView: View {
                     .frame(maxWidth: CompanionLayout.chatWidth, alignment: .leading)
                     .frame(maxWidth: .infinity)
                 }
-                // The header lives in the scroll view's top safe area: the
-                // transcript starts below it and scrolls under it — that is
-                // what the glass is for. An inset rather than a content
-                // margin, because `.defaultScrollAnchor(.bottom)` anchored
-                // unreliably against a margin and opened chats mid-way.
-                // The blur is only the top strip — back, computer — the way
-                // a system bar is; the transcript starts on that line and
-                // scrolls under the face and name, which float over it.
                 .safeAreaInset(edge: .top, spacing: 0) { headerBar }
                 .overlay(alignment: .top) { headerFace }
                 .overlay(alignment: .top) {
-                    // One face, in one layer, measured from the screen's top
-                    // edge: it sits in the island while that is open and
-                    // glides into its header slot when the island lets go.
                     let topInset = IslandGeometry.topInset
                     let hasIsland = IslandGeometry.hasIsland(topInset: topInset)
                     let islandSide: CGFloat = 220
-                    // centred in the part of the square the hardware island does not cover
                     let islandFaceCentre = IslandGeometry.top + IslandGeometry.size.height + (islandSide - IslandGeometry.size.height) / 2
                     let headerFaceCentre = topInset + 26
                     let faceSize = 60 + 72 * facePhase
@@ -275,10 +198,7 @@ struct ChatView: View {
                     .ignoresSafeArea(edges: .top)
                 }
                 .task {
-                    // grow, hold a beat, shrink — the face rides along
                     guard CompanionLayout.supportsIslandPresentation, !reduceMotion else { return }
-                    // The intro is a greeting, and a greeting repeated every
-                    // time you open a chat stops being one.
                     let intro = IslandIntro(rawValue: islandIntro) ?? .oncePerBot
                     switch intro {
                     case .never:
@@ -297,31 +217,15 @@ struct ChatView: View {
                     try? await Task.sleep(for: .milliseconds(600))
                     islandVisible = false
                 }
-                // A conversation grows from the bottom: a transcript shorter
-                // than the screen rests at the bottom, and opening a chat
-                // starts on the newest message rather than the oldest.
                 .defaultScrollAnchor(.bottom)
-                // Tapping the transcript puts the keyboard away. The composer
-                // is a sibling of this scroll view rather than inside it, so
-                // nothing else here drops its focus — until this, the only way
-                // back to the whole conversation was to leave the chat.
-                // Simultaneous, not `.onTapGesture`: a tap that lands on a
-                // link, a card button or a selected word still reaches the row
-                // that owns it, and only also closes the keyboard.
                 .simultaneousGesture(TapGesture().onEnded {
                     if composerFocused { composerFocused = false }
                 })
-                // And a drag down over the transcript pushes it away, the way
-                // it does in Mail and Messages.
                 .scrollDismissesKeyboard(.interactively)
                 .onChange(of: transcript.last?.id) { _, _ in
                     guard let last = transcript.last else { return }
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
-                // Follow the text as it arrives. Keyed on length rather than
-                // the string so this fires once per delta batch, and without
-                // animation — animating every token turns a smooth stream
-                // into a stutter, because each scroll interrupts the last.
                 .onChange(of: session.state.streaming[threadId]?.count ?? 0) { _, length in
                     guard length > 0 else { return }
                     proxy.scrollTo(Self.liveBubbleId, anchor: .bottom)
@@ -357,13 +261,9 @@ struct ChatView: View {
             if selectedThreadWasRemoved { dismiss(); return }
             let openedChat = current
             await session.loadThreadIfNeeded(openedChat.threadId)
-            // opening a chat is what marks it read, exactly as on the desktop
             if openedChat.unread { await session.markRead(openedChat) }
 #if DEBUG
-            // `-open-plus`: the + sheet up, for the screenshot harness
             if ProcessInfo.processInfo.arguments.contains("-open-plus") { showingPlus = true }
-            // Profile parity screenshots without automating a tap through the
-            // animated island/header transition.
             if ProcessInfo.processInfo.arguments.contains("-open-profile") { showingProfile = true }
 #endif
         }
@@ -375,9 +275,6 @@ struct ChatView: View {
             if !loaded { Task { await session.loadThreadIfNeeded(requestedThread) } }
         }
         .onChange(of: current.unread) { _, unread in
-            // A message can arrive while this chat is already on screen. The
-            // initial task above will not run again, so clear that new unread
-            // bit here rather than leaving a badge on an open conversation.
             let readChat = current
             if unread { Task { await session.markRead(readChat) } }
         }
@@ -392,9 +289,6 @@ struct ChatView: View {
             acceptsNextHardwareLineBreak = false
             showCommandHUD = false
             showingPlus = false
-            // The local task picker changed threads. A download
-            // started in the previous task must not open a sheet (or surface
-            // its error) in the new one when the network reply arrives late.
             resetFilePreview()
             cancelThreadOpen()
         }
@@ -432,8 +326,6 @@ struct ChatView: View {
             }
         }
         .onChange(of: dictation.transcript) { _, spoken in
-            // Always join against the text frozen at capture start. A newer
-            // partial then replaces the older partial instead of duplicating it.
             draft = Dictation.draft(base: dictation.base, transcript: spoken)
         }
         .onChange(of: dictation.isListening) { _, listening in
@@ -474,10 +366,6 @@ struct ChatView: View {
         }
     }
 
-    // MARK: - Header
-
-    /// Back on the left with the rest-of-app unread count, the bot's
-    /// computer on the right — a blurred strip to the top edge.
     private var headerBar: some View {
         HStack(alignment: .top) {
             Button { dismiss() } label: {
@@ -534,16 +422,8 @@ struct ChatView: View {
         )
     }
 
-    /// The bot's face over its name pill, floating over the transcript
-    /// between the two buttons.
     private var headerFace: some View {
         VStack(spacing: 6) {
-            // Always here, following the island's face while that one is
-            // the source: when the island lets go, this one flies home.
-            // The face itself is drawn by the island layer above so there is
-            // still only one animated avatar. This transparent seat becomes
-            // its independent profile button once the opening transition has
-            // settled.
             if case .bot = current {
                 Button { showingProfile = true } label: {
                     Color.clear
@@ -592,11 +472,6 @@ struct ChatView: View {
         .padding(.top, -4)
     }
 
-    // MARK: - The + sheet
-
-    /// What the composer's + opens: a glass sheet of the things you can do
-    /// here, each with a line saying what it does. Rises above the composer;
-    /// tapping anywhere else, or the × the + became, puts it away.
     @ViewBuilder
     private var plusSheet: some View {
         if showingPlus {
@@ -738,22 +613,16 @@ struct ChatView: View {
         return out
     }
 
-    /// True when this message opens a fresh stretch of conversation — the
-    /// first one, or one that follows a gap of half an hour or more.
     private func startsANewStretch(at index: Int, in rows: [TranscriptRow]) -> Bool {
         guard index > 0 else { return true }
         return rows[index].at - rows[index - 1].endAt > 30 * 60 * 1000
     }
 
-    /// True when the next message is from someone else (or there is none),
-    /// which is where a run of bubbles gets its tail — one per run, like
-    /// every messaging app, rather than one per bubble.
     private func endsRun(at index: Int, in rows: [TranscriptRow]) -> Bool {
         guard index + 1 < rows.count else { return true }
         let this = rows[index], next = rows[index + 1]
         if this.role != next.role { return true }
         if this.senderName != next.senderName { return true }
-        // a card or a tool chip between two texts breaks the run visually
         return next.kind != .text
     }
 
@@ -789,25 +658,15 @@ struct ChatView: View {
         messages.contains { $0.card?.isPending == true }
     }
 
-    /// Words this computer is holding until the running turn settles.
     private var queuedSends: [QueuedSend] {
         session.state.pendingQueued[current.threadId] ?? []
     }
 
-    /// Whether this bot's engine can take a message INTO the running turn.
-    /// Unknown reads as false, which is the promise that is always safe to
-    /// make: the message will be sent, just not necessarily right now.
     private var engineCanSteer: Bool {
         guard case let .bot(bot) = current else { return false }
         return session.steeringInstanceIds.contains(bot.modelSelection.instanceId)
     }
 
-    /// Stop the running turn so the waiting words go now. The harness
-    /// deliberately does NOT drop its steer queue on an interrupt — that is
-    /// what makes stopping a send rather than a cancellation.
-    ///
-    /// nil where the phone cannot interrupt at all: a room. The button is
-    /// then simply not offered, rather than offered and broken.
     private var injectNow: (() -> Void)? {
         guard case let .bot(bot) = current else { return nil }
         return {
@@ -816,30 +675,19 @@ struct ChatView: View {
             steering = true
             Task {
                 await session.interrupt(bot: bot)
-                // A floor under the spinner. The two onChange hooks clear it
-                // as soon as the computer says the turn ended or the queue
-                // drained; this is what happens when neither frame arrives,
-                // because a control that spins for ever is worse than one
-                // that admits it does not know.
                 try? await Task.sleep(for: .seconds(20))
                 steering = false
             }
         }
     }
 
-    /// True when this send will wait rather than run — the bot is working
-    /// and its engine cannot take words into the turn.
     private var willQueue: Bool {
         current.busy && !engineCanSteer
     }
 
-    /// What the composer promises about the message being typed.
     private var composerPrompt: String {
         if sendingMessage { return "Sending…" }
         if dictation.isListening { return "Listening…" }
-        // The name is in the header a thumb's width above; spending the
-        // field's whole width repeating it truncates the part that says
-        // what pressing send will actually do.
         guard current.busy else { return "Ask \(current.name)" }
         if engineCanSteer { return "Sends into this turn" }
         return "Sends after this turn"
@@ -882,9 +730,6 @@ struct ChatView: View {
                 }
                 return
             }
-            // HUD commands expand `/diff` into a longer prompt. Compare with
-            // what was actually in the field at tap time, not the expanded
-            // text, so the command clears without erasing a newer edit.
             if draft == draftAtSend {
                 draft = ""
             }
@@ -1033,10 +878,6 @@ struct ChatView: View {
         if let fileSize = values.fileSize, fileSize > readLimit {
             throw AttachmentImportError.tooLarge(name, readLimit)
         }
-        // Some document providers do not report a size. Never let that turn
-        // into an unbounded read of a provider-controlled file: read one byte
-        // past the remaining allowance and reject it before it can become a
-        // large in-memory draft.
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
         let data = try handle.read(upToCount: readLimit + 1) ?? Data()
@@ -1048,8 +889,6 @@ struct ChatView: View {
         )
     }
 
-    /// A chip that opened a thread on this bot switches this screen in
-    /// place; one that opened a thread on a teammate pushes that chat.
     private func openThread(_ ref: ThreadRef) {
         cancelThreadOpen()
         let shownBotId: String? = current.isBot ? current.id : nil
@@ -1095,8 +934,6 @@ struct ChatView: View {
                 path: path
             )
             if let downloaded, let preview = FilePreviewItem(downloaded: downloaded) {
-                // Own the temporary file before checking cancellation so an
-                // old link tap cannot strand it between Session and the sheet.
                 guard !Task.isCancelled, fileDownloadRequestID == requestID else {
                     preview.cleanUp()
                     return
@@ -1122,7 +959,6 @@ struct ChatView: View {
         fileDownloadTask = task
     }
 
-    /// End the preview lifecycle owned by the task that just left the screen.
     private func resetFilePreview() {
         fileDownloadTask?.cancel()
         fileDownloadTask = nil
@@ -1133,9 +969,6 @@ struct ChatView: View {
         filePreview = nil
     }
 
-    // MARK: - Composer
-
-    /// A round + and a glass pill with dictation and send inside it.
     private var composer: some View {
         VStack(spacing: 6) {
             if preparingAttachments || sendingMessage {
@@ -1241,8 +1074,6 @@ struct ChatView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
-            // Everything the computer is holding, stacked straight above
-            // the chat bar in the order it was sent.
             ForEach(queuedSends) { send in
                 QueuedSendRow(
                     send: send,
@@ -1303,8 +1134,6 @@ struct ChatView: View {
                             .focused($composerFocused)
                             .accessibilityIdentifier("message-input")
                             .submitLabel(.send)
-                            // Partial transcripts rebuild from a frozen base;
-                            // prevent competing edits without dimming the text.
                             .allowsHitTesting(
                                 !dictation.isListening && !dictation.isStarting
                                     && !preparingAttachments && !sendingMessage
@@ -1347,10 +1176,6 @@ struct ChatView: View {
                         .padding(.bottom, 6)
                         .accessibilityLabel(dictation.isListening ? "Stop dictation" : "Start dictation")
 
-                        // One send key, one meaning, always an arrow. What
-                        // becomes of the message is said in words — in the
-                        // placeholder before it is sent, and on the waiting
-                        // bubble after — never in a glyph you have to decode.
                         Button { submit() } label: {
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 15, weight: .bold))
@@ -1387,15 +1212,12 @@ struct ChatView: View {
 struct MessageRow: View {
     let chat: Chat
     let message: Message
-    /// Last bubble of a run from the same side: the one that gets the tail.
     var endsRun = true
     let openLink: (URL, Message) -> OpenURLAction.Result
-    /// Where an "Opened thread" chip goes; nil leaves the chip a receipt.
     var openThread: ((ThreadRef) -> Void)? = nil
     @EnvironmentObject private var session: Session
     @State private var editingText = ""
     @State private var showingEdit = false
-    /// The text being selected, and the sheet's presentation in one value.
     @State private var selecting: SelectableText?
 
     private static let reactionChoices = ["👍", "❤️", "😂", "🎉", "👀"]
@@ -1404,8 +1226,6 @@ struct MessageRow: View {
         session.state.versions(of: message, inThread: chat.threadId)
     }
 
-    /// Transport tags contain paths on the paired computer. They belong in
-    /// attachment cards, never on the clipboard or in the text-selection UI.
     private var attachedContent: AttachedMessageContent {
         AttachedMessageContent.parse(message.text ?? "")
     }
@@ -1415,8 +1235,6 @@ struct MessageRow: View {
             content
 
             if let comm = message.comm {
-                // the chip already says what happened ("Posted in Standup");
-                // a linked chip is not always a message sent to someone
                 Label(message.tool?.name ?? "Messaged \(comm.withName)", systemImage: "arrow.up.right.bubble")
                     .font(.system(size: 12))
                     .foregroundStyle(Color.secondary)
@@ -1468,16 +1286,11 @@ struct MessageRow: View {
                     PlatformBridge.copyToPasteboard(visibleText)
                 }
             }
-            // Copy above takes the whole reply. Selection happens in a sheet
-            // because long-press on the bubble already opens this menu.
             if !visibleText.isEmpty {
                 Button("Select Text", systemImage: "selection.pin.in.out") {
                     selecting = SelectableText(text: visibleText)
                 }
             }
-            // An attachment edit cannot faithfully reconstruct the upload.
-            // Hiding this action is safer than silently dropping the file or
-            // sending its computer-local transport path back as prose.
             if message.role == .user,
                message.kind == .text,
                attachedContent.attachments.isEmpty,
@@ -1524,11 +1337,6 @@ struct MessageRow: View {
         case .screen:
             ScreenShot(threadId: chat.threadId, message: message)
         case .unknown:
-            // A message kind from a newer computer. Almost everything the
-            // harness sends carries `text`, so showing it is usually the
-            // whole message and always better than a gap in the transcript.
-            // When there is nothing to show, show nothing — a placeholder
-            // saying "unsupported" is a worse gap than the gap.
             if let text = message.text, !text.isEmpty {
                 TextBubble(message: message, chat: chat, tailed: endsRun, openLink: openLink)
             }
@@ -1547,7 +1355,6 @@ private struct ShareFile: Identifiable {
     var id: String { url.path }
 }
 
-/// A message's text on its way to the selection sheet.
 struct SelectableText: Identifiable {
     let id = UUID()
     let text: String
@@ -1648,10 +1455,7 @@ struct TextBubble: View {
     var body: some View {
         let mine = message.role == .user
         let customCard = parsedDiff != nil || parsedTable != nil
-        // rooms attribute each line to the member who said it
         let speaker = message.from
-        // No face beside the bubble: the bot's face is in the header, and in
-        // a room the name line says who spoke. The bubble sits at the edge.
         HStack(alignment: .bottom, spacing: 0) {
             if mine { Spacer(minLength: 56) }
 
@@ -1661,9 +1465,6 @@ struct TextBubble: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(MausPalette.color(speaker.color))
                 }
-                // Bots get markdown, you do not — the same split the desktop
-                // makes. Markdown you did not intend is worse than markdown
-                // you did: a message about `**` should show the asterisks.
                 if let diff = parsedDiff {
                     GitPRDiffCardView(filename: diff.filename, diffText: diff.diff)
                 } else if let table = parsedTable {
@@ -1692,9 +1493,6 @@ struct TextBubble: View {
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                // The engine took this line into a turn that was already
-                // running. Worth saying: it is why the reply above it can
-                // read as if the bot had not seen this yet.
                 if mine, message.steered == true {
                     Text("sent mid-turn")
                         .font(.system(size: 11))
@@ -1711,7 +1509,6 @@ struct TextBubble: View {
                     }
                 }
             )
-            // leave room for the tail below, so the next row does not sit on it
             .padding(.bottom, !customCard && tailed ? SpeechBubble.tailDrop() : 0)
 
             if !mine { Spacer(minLength: 44) }
@@ -1719,11 +1516,8 @@ struct TextBubble: View {
     }
 }
 
-/// A tool the bot ran. Deliberately quiet — these are the bulk of a busy
-/// transcript and they are context, not content.
 struct ActivityChip: View {
     let tool: ToolActivity?
-    /// The thread this chip opened, when it opened one.
     var threadRef: ThreadRef? = nil
     var openThread: ((ThreadRef) -> Void)? = nil
 
@@ -1736,8 +1530,6 @@ struct ActivityChip: View {
             .padding(.leading, 2)
 
             if let threadRef, let openThread {
-                // The receipt's own button has nothing to expand here, so the
-                // whole chip is the link to the thread it names.
                 Button {
                     Haptics.selection()
                     openThread(threadRef)
@@ -2059,16 +1851,9 @@ struct CredentialRequestCardView: View {
             if status != .live { suspendSensitiveEntry() }
         }
         .onChange(of: scenePhase) { _, phase in
-            // Password AutoFill and its Face ID sheet temporarily make the
-            // scene inactive. Removing the SecureField at that point breaks
-            // the very fill operation the user requested. A true background
-            // transition (including locking the phone) still scrubs it.
             if phase == .background { suspendSensitiveEntry() }
         }
         .onDisappear {
-            // The async request owns only ciphertext and is safe to finish.
-            // Its envelope stays in Session so returning to this card can
-            // retry the exact same operation after an ambiguous response.
             clearPlaintext()
             submissionError = nil
         }
@@ -2116,8 +1901,7 @@ struct CredentialRequestCardView: View {
                 Haptics.success()
             } catch {
                 guard !Task.isCancelled, activeSubmissionID == submissionID else { return }
-                // Keep only the exact ciphertext so Retry is the same
-                // idempotent operation. The cleartext field is already gone.
+                // Retry retains ciphertext only; cleartext credential input must already be discarded.
                 submissionError = error.localizedDescription
                 Haptics.notification(.error)
             }
@@ -2163,33 +1947,19 @@ struct CredentialRequestCardView: View {
 
 }
 
-/// An option card. When it still has a request behind it, this is the
-/// screen the companion exists for — a bot stopped, and only a person can
-/// let it continue.
 struct CardView: View {
     let chat: Chat
     let message: Message
     @EnvironmentObject private var session: Session
     @State private var answering = false
 
-    /// The option this card offers that means "go ahead".
-    ///
-    /// Deliberately not the literal string "Allow". `options` is whatever the
-    /// harness sent, and it only falls back to ["Allow", "Deny"] when the
-    /// provider event named no choices of its own (`server/index.ts`) — a card
-    /// is free to say "Yes", "Approve", "Allow once". Answering with a string
-    /// the card never offered writes the grant and then hands the harness a
-    /// choice it can reject, so the bot stays stopped with nothing on screen
-    /// to explain it. The conventional label wins when it is present, which
-    /// keeps the ordinary permission card behaving exactly as before.
+    // An approval answer must be one of the options offered by that card.
     private var allowChoice: String? {
         guard let options = message.card?.options else { return nil }
         return options.first { $0.caseInsensitiveCompare("Allow") == .orderedSame }
             ?? options.first { !Self.isRefusal($0) }
     }
 
-    /// One definition of "the refusal", shared by the button tint and the
-    /// choice above so the two cannot drift apart.
     private static func isRefusal(_ option: String) -> Bool { OptionCard.isRefusal(option) }
 
     private var tint: Color { MausPalette.color(chat.color) }
@@ -2348,8 +2118,6 @@ struct CardView: View {
     }
 }
 
-/// A frame of the bot's computer. In the paged shape the pixels are not in
-/// the transcript — they are fetched here, once, when the row appears.
 struct ScreenShot: View {
     let threadId: String
     let message: Message
@@ -2385,20 +2153,6 @@ struct ScreenShot: View {
     }
 }
 
-/// The reply as it is being typed, styled to match the settled bubble it is
-/// about to become — the handover should be invisible, and any difference in
-/// padding or corner radius reads as the message jumping on arrival.
-///
-/// A caret rather than a spinner: a spinner says "something is happening
-/// somewhere", which the reader already knows. A caret at the end of real
-/// text says how far along it is.
-///
-/// The caret does not blink, deliberately. The obvious way to blink it —
-/// `withAnimation(.repeatForever) { flag.toggle() }` in `onAppear` — animates
-/// the change once and then sits still, and a caret that blinks twice and
-/// stops looks more broken than one that never blinks. A correct version
-/// animates opacity on a separate view, which needs a device to get right;
-/// static is honest until then.
 struct StreamingBubble: View {
     let text: String?
     let reasoning: String?
@@ -2416,13 +2170,6 @@ struct StreamingBubble: View {
                     )
                 }
                 if let text, !text.isEmpty {
-                    // Same renderer as the settled bubble, for the same
-                    // reason as the padding: a live reply showing `**bold**`
-                    // that snaps to bold on arrival is the message jumping,
-                    // just in a different dimension. The parser tolerates the
-                    // half-finished markdown this is always holding — an
-                    // unclosed fence renders as code, an unclosed link as the
-                    // characters typed so far.
                     MarkdownText(source: text, caret: true)
                         .foregroundStyle(Color.primary)
                 }
@@ -2433,8 +2180,5 @@ struct StreamingBubble: View {
             .padding(.bottom, SpeechBubble.tailDrop())
             Spacer(minLength: 44)
         }
-        // No `.textSelection` on purpose: selecting text that is still growing
-        // fights the reader, and the settled bubble a frame later is
-        // selectable anyway.
     }
 }

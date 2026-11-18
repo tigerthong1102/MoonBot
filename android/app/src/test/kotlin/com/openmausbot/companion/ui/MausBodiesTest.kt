@@ -27,8 +27,6 @@ class MausBodiesTest {
             assertTrue(bounds.top >= -1f, "$id overflows the face box above")
             assertTrue(bounds.right <= MausSilhouette.FACE_BOX + 1f, "$id overflows the face box to the right")
             assertTrue(bounds.bottom <= MausSilhouette.FACE_BOX + 1f, "$id overflows the face box below")
-            // The catalog's tight bounds sit inside the parsed path's control hull,
-            // which is what proves they describe this path and not another.
             val hull = path.getBounds()
             assertTrue(hull.left <= bounds.left + 0.5f && hull.right >= bounds.right - 0.5f, "$id bounds do not match its path")
             assertTrue(hull.top <= bounds.top + 0.5f && hull.bottom >= bounds.bottom - 0.5f, "$id bounds do not match its path")
@@ -43,11 +41,6 @@ class MausBodiesTest {
         assertEquals(MausBodies.DEFAULT_ID, MausSilhouette.defaultBody)
     }
 
-    /**
-     * An unrecognised id must reach the *drawn* geometry as the cursor too, not
-     * just as a catalog entry — the fallback is only useful if the paint path
-     * honours it.
-     */
     @Test
     fun `an unknown body draws the cursor`() {
         assertEquals(MausSilhouette.faceBoxBounds("cursor"), MausSilhouette.faceBoxBounds("hexagram"))
@@ -70,16 +63,12 @@ class MausBodiesTest {
 
     @Test
     fun `every body wears the same size face`() {
-        // The generator clamps the catalog to the smallest face any body can hold,
-        // so the mascot reads as one character in different bodies.
         val scales = MausBodies.order.map { MausSilhouette.anchor(it).scale }.toSet()
         assertEquals(1, scales.size, "face scales differ across bodies: $scales")
     }
 
     @Test
     fun `the parser understands the catalog's path grammar`() {
-        // A unit square drawn with degenerate curves: four `C` segments in one
-        // command, the form the generated catalog actually emits.
         val square = MausSilhouette.parse(
             """
             M0 0 C0 0 10 0 10 0 C10 0 10 10 10 10
@@ -90,18 +79,11 @@ class MausBodiesTest {
         assertEquals(0f, square.top, 0.0001f)
         assertEquals(10f, square.right, 0.0001f)
         assertEquals(10f, square.bottom, 0.0001f)
-        // Negative numbers and exponents both appear in the cursor path.
         val negative = MausSilhouette.parse("M-2.5 0 C-2.5 0 1e1 -5 10 -5Z").getBounds()
         assertEquals(-2.5f, negative.left, 0.0001f)
         assertEquals(-5f, negative.top, 0.0001f)
     }
 
-    /**
-     * The cache exists because a roster redraws hundreds of avatars per frame and
-     * the parser is a character scanner over a four-kilobyte string. The same
-     * instance proves the second call did not re-parse; distinct instances
-     * across ids prove it is per body.
-     */
     @Test
     fun `each body is parsed once and cached separately`() {
         for (id in MausBodies.order) {

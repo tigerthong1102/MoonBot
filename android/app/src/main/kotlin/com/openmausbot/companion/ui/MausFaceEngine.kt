@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import kotlin.math.PI
@@ -5,20 +6,7 @@ import kotlin.math.max
 import kotlin.math.sin
 import kotlin.random.Random
 
-/**
- * The face, frame by frame — the port of `MausFaceEngine` in
- * `ios/App/MausAvatar.swift`, which is itself the desktop's frame loop: a state
- * picks a pool of expressions and drifts through them on its cadence, a spring
- * morphs the eyes and mouth between them, it blinks on its own rhythm, and the
- * body bobs, sways, breathes or jitters per state.
- *
- * One per drawn mascot, and no Compose in it: a roster is a list of these being
- * redrawn on every scroll frame, so the buffers below are filled in place rather
- * than reallocated, and the geometry stays testable on the JVM.
- *
- * A mascot that is never [advance]d rests on its state's first expression — which
- * is the still pose, and the whole of the face when animations are switched off.
- */
+
 internal class MausFaceEngine(private val random: Random = Random.Default) {
     var state: MausState = MausState.IDLE
         private set
@@ -63,7 +51,6 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
         stateStartNanos = nowNanos
         motion = MausFaceData.motion[next] ?: MausBodyMotion()
         select(MausFaceData.pools[next]?.firstOrNull() ?: 0)
-        // first frame: rest on it, no morph in
         if (lastNanos == UNSET) {
             morph = 1f
             velocity = 0f
@@ -73,12 +60,9 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
     }
 
     fun advance(nowNanos: Long) {
-        // A clock that jumped — a paused window, a restarted loop — must not run
-        // the spring backwards or in one huge step.
         val dt = if (lastNanos == UNSET) 0f else ((nowNanos - lastNanos) / NANOS_PER_SECOND).coerceIn(0f, 0.1f)
         lastNanos = nowNanos
 
-        // the spring towards morph == 1
         velocity += (-2f * SPRING * velocity - SPRING * SPRING * (morph - 1f)) * dt
         morph += velocity * dt
         if (!morph.isFinite()) {
@@ -96,21 +80,12 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
         }
     }
 
-    /**
-     * Settle on the state's own face at once, eyes open — the pose of a mascot that
-     * is not being advanced. Without it a face that stops mid-morph or mid-blink
-     * would hold that half-expression until it was advanced again.
-     */
     fun rest() {
         morph = 1f
         velocity = 0f
         blinkStartNanos = UNSET
     }
 
-    /**
-     * The ring one eye is wearing this frame, gaze included, as interleaved x, y.
-     * The buffer is the engine's own and is refilled by the next call.
-     */
     fun ring(eye: Int): FloatArray {
         val m = morph.coerceIn(0f, 1f)
         val current = currentRings[eye]
@@ -127,7 +102,6 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
         return out
     }
 
-    /** The mouth this frame; the engine's own buffer, as with [ring]. */
     fun mouth(): FloatArray {
         val m = morph.coerceIn(0f, 1f)
         for (i in displayedMouth.indices) {
@@ -136,7 +110,6 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
         return displayedMouth
     }
 
-    /** How much of its own height an eye has left: 1 open, 0.04 shut. */
     fun blinkScale(nowNanos: Long): Float {
         if (blinkStartNanos == UNSET) return 1f
         val t = (nowNanos - blinkStartNanos) / NANOS_PER_SECOND / BLINK_SECONDS
@@ -144,7 +117,6 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
             blinkStartNanos = UNSET
             return 1f
         }
-        // fast close, slower open
         return max(if (t < 0.42f) 1f - t / 0.42f else (t - 0.42f) / 0.58f, 0.04f)
     }
 
@@ -184,7 +156,6 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
         velocity = 0f
     }
 
-    /** Any expression in the state's pool but the one on show. */
     private fun nextExpression(): Int {
         val pool = MausFaceData.pools[state] ?: return 0
         var alternatives = 0
@@ -209,11 +180,9 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
     }
 
     companion object {
-        /** The desktop's `lookAround` default: how much of an expression's own look-direction to keep. */
         const val LOOK_AROUND = 0.35f
 
         private const val EYES = 2
-        /** Spring stiffness for the morph, the desktop's default. */
         private const val SPRING = 7f
         private const val BLINK_SECONDS = 0.320f
         private const val NANOS_PER_SECOND = 1_000_000_000f
@@ -222,7 +191,6 @@ internal class MausFaceEngine(private val random: Random = Random.Default) {
     }
 }
 
-/** Where the body sits this frame, relative to its resting place in the face box. */
 internal class MausBodyPose {
     var dx: Float = 0f
     var dy: Float = 0f
@@ -232,10 +200,6 @@ internal class MausBodyPose {
     var squashY: Float = 1f
 }
 
-/**
- * The desktop's `bodyTransform`, in face-box units. Written into [out] rather than
- * returned, so a scrolling list does not allocate one of these per avatar per frame.
- */
 internal fun MausBodyMotion.poseAt(elapsedMillis: Float, out: MausBodyPose) {
     out.dx = 0f
     out.dy = 0f

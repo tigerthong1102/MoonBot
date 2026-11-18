@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 
 /// The non-secret index of computers this iPhone knows about.
@@ -41,7 +42,6 @@ public struct CompanionConnectionRegistry: Codable, Equatable, Sendable {
         }
     }
 
-    /// Insert or refresh one computer and optionally make it the live one.
     public mutating func upsert(_ connection: Connection, makeActive: Bool = true) {
         if let index = connections.firstIndex(where: { $0.id == connection.id }) {
             connections[index] = connection
@@ -60,9 +60,6 @@ public struct CompanionConnectionRegistry: Codable, Equatable, Sendable {
         return true
     }
 
-    /// Remove one computer. When it was active, the oldest remaining saved
-    /// computer becomes active so the app never lands in a false unpaired
-    /// state while another valid pairing still exists.
     @discardableResult
     public mutating func remove(id: String) -> Connection? {
         guard let index = connections.firstIndex(where: { $0.id == id }) else { return nil }
@@ -96,8 +93,6 @@ public struct CompanionConnectionRegistryRestore: Equatable, Sendable {
     }
 }
 
-/// Decode the new registry or lift the previous single saved connection into
-/// it. Kept pure so upgrades can be tested without touching UserDefaults.
 public enum CompanionConnectionRegistryMigration {
     public static func restore(
         registryData: Data?,

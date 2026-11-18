@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.os.Build
@@ -9,22 +10,6 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Expectations read off the Swift and off §D3-06 of the delta audit, not off the
- * Kotlin:
- *
- * - `ios/App/ChatView.swift`, the `if let live = session.state.streaming …` /
- *   `else if let thinking = session.state.reasoning …` / `else if current.busy`
- *   chain and its `.accessibilityLabel("\(current.name) is working")`;
- * - `ios/App/Composer/TypingIndicatorView.swift`, whose dots hold still under
- *   `accessibilityReduceMotion` — `scaleEffect(reduceMotion ? 1 : …)`, a still
- *   dot rather than an absent one;
- * - `ios/App/ChatView.swift`'s `ActivityChip`, which is
- *   `tool.ok.map { $0 ? "success" : "error" } ?? "running"`;
- * - the audit's instruction to leave `SkillExecutionReceiptView`'s duration,
- *   parameters and output dormant, and to use Android's own feedback rather
- *   than Apple's sound ids.
- */
 class LiveTailTest {
     @Test
     fun `hidden reasoning keeps answer tokens and otherwise falls back to busy state`() {
@@ -63,8 +48,6 @@ class LiveTailTest {
             TranscriptTail.WORKING,
             LiveTail.of(streaming = null, reasoning = null, busy = true),
         )
-        // An opened stream that has not delivered a token yet is still nothing
-        // to show — the same as absent, on both branches.
         assertEquals(
             TranscriptTail.WORKING,
             LiveTail.of(streaming = "", reasoning = "", busy = true),
@@ -118,8 +101,6 @@ class WorkingDotsTest {
                 )
             }
         }
-        // Still, not gone: iOS draws the dots at full scale under Reduce Motion
-        // rather than dropping the row.
         assertTrue(WorkingDots.REST_ALPHA > WorkingDots.MIN_ALPHA)
     }
 
@@ -201,23 +182,9 @@ class ActivityReceiptTest {
     }
 }
 
-/**
- * What the selection cue has to be *true of*, whatever integer carries it.
- *
- * Every assertion here is a property, so a better constant that still describes
- * the gesture keeps this class green — swapping `CLOCK_TICK` for
- * `TEXT_HANDLE_MOVE`, or `SEGMENT_TICK` for `SEGMENT_FREQUENT_TICK`, would not
- * fail a single one. The particular integers this app ships today are pinned
- * deliberately and separately, in [HapticConstantPolicyTest].
- */
 class HapticSemanticsTest {
     @Test
     fun `a selection is one of the platform's ticks for a new discrete value`() {
-        // Not a family this test invented: `SEGMENT_FREQUENT_TICK`'s own javadoc
-        // calls CLOCK_TICK and TEXT_HANDLE_MOVE "specializations of this
-        // constant" and points across to SEGMENT_TICK. Every SELECT site is a
-        // move onto one of a set of choices, so the effect has to come from
-        // there and from nowhere else.
         for (sdk in EVERY_RELEASE) {
             val chosen = CompanionHaptics.constant(HapticCue.SELECT, sdkInt = sdk)
             assertTrue(
@@ -229,10 +196,6 @@ class HapticSemanticsTest {
 
     @Test
     fun `a selection is never the gesture Android reserves for a context click`() {
-        // Every SELECT site is a primary tap on one of a set of things. A context
-        // click is the secondary gesture — a stylus button, a right-click — and a
-        // long press is a third thing again. Naming either would be describing
-        // the wrong action to the platform.
         for (sdk in EVERY_RELEASE) {
             val chosen = CompanionHaptics.constant(HapticCue.SELECT, sdkInt = sdk)
             assertNotEquals(HapticFeedbackConstants.CONTEXT_CLICK, chosen, "API $sdk")
@@ -252,13 +215,8 @@ class HapticSemanticsTest {
     }
 
     private companion object {
-        /** minSdk, both guard edges, and either side of each. */
         val EVERY_RELEASE = listOf(26, 29, 30, 33, 34, 35, 37)
 
-        /**
-         * The platform's own soft ticks for landing on the next discrete value,
-         * as `HapticFeedbackConstants` groups them.
-         */
         val DISCRETE_CHOICE_TICKS = setOf(
             HapticFeedbackConstants.SEGMENT_TICK,
             HapticFeedbackConstants.SEGMENT_FREQUENT_TICK,
@@ -268,20 +226,6 @@ class HapticSemanticsTest {
     }
 }
 
-/**
- * The integers this app ships today, per API level, pinned on purpose.
- *
- * This class claims nothing about what a cue ought to be — [HapticSemanticsTest]
- * does that, and any replacement still has to satisfy it. What this class says is
- * narrower and worth saying out loud: *these* are the constants that were chosen,
- * and *these* are the release boundaries they switch on. Every assertion is an
- * exact value, so any change to the policy — an improvement included — turns this
- * red. That is the point. A red here means someone decided something; it should
- * be read, agreed with, and updated, never silently restored.
- *
- * The reasoning behind each choice, and the two constants deliberately refused,
- * are in `CompanionHaptics.constant`.
- */
 class HapticConstantPolicyTest {
     @Test
     fun `the chosen send effect is CONFIRM, from the release that introduced it`() {
@@ -296,8 +240,6 @@ class HapticConstantPolicyTest {
 
     @Test
     fun `the chosen send fallback below API 30 is KEYBOARD_TAP`() {
-        // CONFIRM arrived in R. Handing it to an older view is silence, which is
-        // worse than a plainer effect.
         for (sdk in 26..29) {
             assertEquals(
                 HapticFeedbackConstants.KEYBOARD_TAP,
@@ -342,8 +284,6 @@ class HapticConstantPolicyTest {
 
     @Test
     fun `the chosen selection fallback below API 34 is CLOCK_TICK`() {
-        // SEGMENT_TICK arrived in U; CLOCK_TICK is the pre-34 tick for landing on
-        // the next discrete value, and is what the framework's pickers play.
         for (sdk in 26..33) {
             assertEquals(
                 HapticFeedbackConstants.CLOCK_TICK,
@@ -354,7 +294,6 @@ class HapticConstantPolicyTest {
     }
 }
 
-/** Every audited tactile action, and the cue it plays, independently pinned. */
 class TactileActionTest {
     @Test
     fun `each audited action keeps its intended cue`() {
@@ -382,10 +321,6 @@ class TactileActionTest {
     }
 }
 
-/**
- * One gesture, one cue: which slash commands earn a selection of their own, and
- * which are felt as the send that `submit` already plays.
- */
 class CompanionHapticsTest {
     @Test
     fun `a command that sends is felt once, as a send`() {
@@ -408,14 +343,6 @@ class CompanionHapticsTest {
     }
 }
 
-/**
- * `PlatformBridge.copyToPasteboard` ends every copy with `Haptics.selection()`,
- * unconditionally — so both `Copy Diff` (`GitPRDiffCardView.swift:121`) and
- * Android's Copy CSV are confirmed by feel. iOS no longer has that SQL card
- * (issue 1707). Both cards
- * hold the same [CardClipboard], which is what stops one of them losing the tick
- * on its own.
- */
 class CardClipboardTest {
     private class Recorder : Haptics {
         val written = mutableListOf<String>()
@@ -459,8 +386,6 @@ class CardClipboardTest {
 
     @Test
     fun `a copy is confirmed as a selection, never as a send`() {
-        // iOS routes it through `Haptics.selection()`, not the send's impact —
-        // nothing left the phone.
         val recorder = Recorder()
         recorder.clipboard()("anything")
 
@@ -470,8 +395,6 @@ class CardClipboardTest {
 
     @Test
     fun `the write happens even when it is the only half that can`() {
-        // The clipboard is the point; the tick is the confirmation. A device with
-        // no vibrator plays nothing, and the text must still be copied.
         val recorder = Recorder()
         recorder.clipboard()("payload")
 

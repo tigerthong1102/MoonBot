@@ -24,23 +24,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
-/**
- * Stream lifecycle, pairing restore, and actions — port of `ios/App/Session.swift`.
- *
- * Pure JVM: storage, device name, notifications, and HTTP are injected so the
- * state machine can be unit-tested with virtual time (`kotlinx-coroutines-test`).
- */
+
 class Session(
     private val scope: CoroutineScope,
     private val connectionStore: ConnectionStore,
     private val tokenStore: TokenStore,
-    /**
-     * The durable first-pair education marker. Deliberately has no default: the
-     * marker is only useful if it outlives the process, and a default would let
-     * a wiring slip in `OpenMausApp` silently swap durability for an in-memory
-     * boolean that dies with the app — the exact failure the marker exists to
-     * prevent, and one no runtime assertion would ever notice.
-     */
     private val onboardingStore: OnboardingStore,
     private val deviceNameProvider: () -> String,
     private val notificationSink: NotificationSink = NoOpNotificationSink,
@@ -62,11 +50,9 @@ class Session(
     private val eventsFn: (CompanionClient, String?, Boolean) -> Flow<StreamFrame> = { client, since, screens ->
         client.events(since, screens)
     },
-    /** Test seam: override fleet hydrate. */
     private val hydrateFn: suspend (CompanionClient, Int?) -> Fleet = { client, messages ->
         client.fleet(messages)
     },
-    /** Test seam: override the engine list read for composer wording. */
     private val instancesFn: suspend (CompanionClient) -> List<Instance> = { client ->
         client.instances()
     },
@@ -74,7 +60,6 @@ class Session(
     private val metadataFn: suspend (CompanionClient) -> CompanionConnectionMetadata = { client ->
         client.connectionMetadata()
     },
-    /** Test seam for the handoff between a completed transfer and its caller. */
     private val afterAttachmentDownload: suspend () -> Unit = {},
 ) {
     sealed interface Status {
@@ -101,7 +86,6 @@ class Session(
     val connection: StateFlow<Connection?> = _connection.asStateFlow()
 
     private val _connections = MutableStateFlow<List<Connection>>(emptyList())
-    /** All locally paired computers. Only [connection] has an active runtime. */
     val connections: StateFlow<List<Connection>> = _connections.asStateFlow()
 
     private val _status = MutableStateFlow<Status>(Status.Unpaired)
@@ -123,7 +107,6 @@ class Session(
     val pairingInvite: StateFlow<PairingInvite?> = _pairingInvite.asStateFlow()
 
     private val _pairingRequested = MutableStateFlow(false)
-    /** Pairing may be opened while the current computer stays live. */
     val pairingRequested: StateFlow<Boolean> = _pairingRequested.asStateFlow()
 
     private var registry = ConnectionRegistry()
@@ -142,24 +125,11 @@ class Session(
     /** QR credentials authoritatively rejected or redeemed — never start a new request (§6). */
     private val spentQrCredentials = mutableSetOf<String>()
 
-    /**
-     * One pairing attempt at a time, plus the invite that arrived during it.
-     *
-     * [gate] already serialises the redemption, but it is a suspending Mutex and
-     * a deep link lands synchronously on whatever thread delivered the Intent.
-     * This monitor is the one both sides can hold, so "an attempt is in flight",
-     * "an invite is waiting", and the published invite are read and written as a
-     * single decision.
-     */
     private val inviteLock = Any()
     private var pairingInFlight = false
     private var deferredInvite: PairingInvite? = null
 
     init {
-        // No Exception other than cancellation leaves this launch: it is a root
-        // coroutine with no caller to catch for it, so [restoreLocked] reports a
-        // failed read instead of throwing it. An Error still propagates, on
-        // purpose — a fatal one is not this boundary's to swallow.
         scope.launch {
             try {
                 restore()
@@ -169,7 +139,6 @@ class Session(
         }
     }
 
-    /** Wait until the launch-time restore attempt has finished (tests / connect). */
     suspend fun awaitRestored() {
         restored.await()
     }
@@ -205,7 +174,6 @@ class Session(
         awaitRestored()
         gate.withLock {
             if (pairingInFlight) throw PairingInProgressException()
-            // An unsafe address has not submitted the code. Let the user correct it and retry.
             if (PairingInvite.normalizedServerCode(credential) != null) connection.requireServerTransport()
             if (isQrCredential(credential) && credential in spentQrCredentials) {
                 _actionError.value = SPENT_QR_MESSAGE
@@ -219,8 +187,6 @@ class Session(
             try {
                 val qr = isQrCredential(credential)
                 val deviceName = deviceNameProvider()
-                // A parsed QR already carries this policy. Manual/discovered entry establishes the
-                // same boundary here, before pairFirstReachable can probe or redeem on any route.
                 val invited = if (connection.allowedRouteKinds == null) {
                     connection.establishingRoutePolicyFromInvite()
                 } else {
@@ -245,11 +211,6 @@ class Session(
 
                 try {
                     tokenStore.save(stored.id, pairedToken)
-                    // The education marker goes down before the connection
-                    // becomes restorable. A process that stops between the two
-                    // leaves an orphan marker, which the router ignores while
-                    // unpaired; the reverse order would leave a restorable
-                    // pairing that skips first-pair education for good.
                     PairingCommitSequence.persist(
                         markNotificationOnboardingPending = {
                             if (firstPairing) onboardingStore.setNotificationOnboardingPending(true)
@@ -326,11 +287,6 @@ class Session(
         pairRequestId: String = UUID.randomUUID().toString(),
     ) = pair(invite.connection, invite.credential, pairRequestId)
 
-    /**
-     * Accept a deep-link invite after restore has settled. A paired phone can
-     * add another computer; the current runtime remains intact until that
-     * invitation commits successfully.
-     */
     fun receivePairingURL(url: String) {
         if (restored.isCompleted) {
             acceptPairingURL(url)
@@ -344,7 +300,6 @@ class Session(
 
     fun receivePairingURI(uri: URI) = receivePairingURL(uri.toString())
 
-    /** The screen took the published invite. A waiting one is not touched. */
     fun consumePairingInvite() = synchronized(inviteLock) {
         _pairingInvite.value = null
     }
@@ -384,16 +339,7 @@ class Session(
         }
     }
 
-    /**
-     * Close the single active attempt and answer for any invite that arrived
-     * while it was in flight.
-     *
-     * Port of the `defer` block of `submit(_:credential:)` in
-     * `ios/App/PairingView.swift`: the waiting invite is presented only while
-     * pairing is still requested (`pairingRequested`); a successful pairing
-     * clears that flag first and therefore consumes the waiting invite, because
-     * §6 gives a one-time credential no second life.
-     */
+    // A successfully redeemed one-time pairing credential cannot be offered again.
     private fun settlePairingAttempt() {
         synchronized(inviteLock) {
             pairingInFlight = false
@@ -409,7 +355,6 @@ class Session(
         }
     }
 
-    /** Hold the paired-but-unproven state and say why the phone is offline. */
     private fun markRestoreInconclusive(error: Throwable) {
         _restoreState.value = RestoreState.Pending
         _status.value = Status.Offline(storeFailureMessage(error))
@@ -418,11 +363,6 @@ class Session(
     private fun storeFailureMessage(error: Throwable): String =
         error.message?.takeIf { it.isNotBlank() } ?: STORAGE_UNAVAILABLE_MESSAGE
 
-    /**
-     * Held under [inviteLock] so adding to the spent set and dropping the invite
-     * are one step: an accept that had already read the set must not publish an
-     * invite this call is in the middle of burning.
-     */
     private fun burnQrCredential(credential: String) = synchronized(inviteLock) {
         spentQrCredentials += credential
         clearInviteIfCredential(credential)
@@ -450,7 +390,6 @@ class Session(
         }
     }
 
-    /** Suspending unpair for tests / callers that need completion. */
     suspend fun signOutAndAwait() {
         streamJob?.cancel()
         streamJob = null
@@ -458,7 +397,6 @@ class Session(
         connect()
     }
 
-    /** Remove only the selected computer. Other saved computers remain usable. */
     private suspend fun unpairLocked() {
         val id = _connection.value?.id ?: registry.activeConnectionId
         stopActiveRuntimeLocked()
@@ -467,9 +405,6 @@ class Session(
         _connections.value = registry.connections
         connectionStore.saveRegistry(registry)
         if (registry.connections.isEmpty()) {
-            // The pairing that earned the education step is gone, so its marker
-            // goes too. Removing one of several computers must not consume the
-            // first-pair marker for the others.
             onboardingStore.setNotificationOnboardingPending(false)
         }
         _connection.value = null
@@ -477,17 +412,12 @@ class Session(
         _restoreState.value = RestoreState.Unpaired
         restoreSelectedConnectionLocked()
         emptyInviteQueue()
-        // Two branches, matching iOS signOut:
-        // - Had a computer (id != null): forgetConnection — leave pairingRequested
-        //   alone. Pair again does signOut() then beginPairing(); a late clear
-        //   here would overwrite the new true after the first suspension above.
-        // - Nothing to forget (id == null): clearActiveConnection — zero the flag.
         if (id == null) {
             _pairingRequested.value = false
         }
     }
 
-    /** Switches active runtime only after the chosen computer's token is readable. */
+    // A runtime cannot switch to a computer whose credential is unreadable.
     fun switchComputer(id: String) {
         scope.launch {
             awaitRestored()
@@ -573,7 +503,6 @@ class Session(
         _pairingInvite.value = null
     }
 
-    /** Called when the app comes to the front, and once at launch. */
     fun connect() {
         scope.launch {
             restored.await()
@@ -585,14 +514,6 @@ class Session(
                 reconnectDelaySeconds = 0
                 streamGeneration += 1
                 val generation = streamGeneration
-                // Publish the handle while still holding `gate`, exactly as
-                // restartStreamLocked() does. On a scope that starts children
-                // eagerly or on another thread, a stream that fails without ever
-                // suspending can reach its `finally` before the launching
-                // coroutine's next line: it would clear a streamJob still null
-                // and the finished job would then be published behind it, after
-                // which connect() — which only tests `streamJob != null` — never
-                // reopens the stream. Holding the lock makes that `finally` wait.
                 streamJob = scope.launch {
                     try {
                         runStream()
@@ -608,20 +529,7 @@ class Session(
         }
     }
 
-    /**
-     * Rebuild the saved pairing, reporting a failed read instead of throwing it.
-     *
-     * Cancellation still propagates, and so does anything that is not an
-     * `Exception`: an `Error` is left to the handler it was always headed for.
-     *
-     * Two of the three callers are fire-and-forget launches, where a thrown
-     * failure has no one to catch it and reaches the uncaught handler. A read
-     * that could not complete is also inconclusive: it did not establish that
-     * this phone is unpaired, so the pairing is left standing (`Pending` keeps
-     * the session in a protected pending state) and the phone reads offline. That extends the
-     * answer `ios/App/Session.swift` already gives for a Keychain it cannot
-     * open, and that a locked token already gets here, to a store that throws.
-     */
+    // A failed credential-store read is inconclusive and must not discard an existing pairing.
     private suspend fun restoreLocked() {
         try {
             restoreFromStoresLocked()
@@ -637,23 +545,17 @@ class Session(
         registry = restoredRegistry.registry.normalized()
         _connections.value = registry.connections
         if (restoredRegistry.migratedLegacyConnection) {
-            // The old record is still intact until a v1 write succeeds. A
-            // read-only/transiently failing store must not turn an otherwise
-            // usable legacy pairing into an offline state merely because this
-            // optional migration could not be committed today.
             try {
                 connectionStore.saveRegistry(registry)
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
-                // Keep the in-memory registry; the next launch retries the
-                // one-way migration from the untouched legacy record.
             }
         }
         restoreSelectedConnectionLocked()
     }
 
-    /** Restore the selected record, dropping only records whose token is truly missing. */
+    // An unreadable credential must not be treated as an absent credential.
     private suspend fun restoreSelectedConnectionLocked() {
         while (true) {
             val saved = registry.activeConnection
@@ -706,7 +608,6 @@ class Session(
         _status.value = Status.Connecting
     }
 
-    /** Update only the active record; never overwrite the other saved computers. */
     private suspend fun persistActiveConnectionLocked(updated: Connection) {
         registry = registry.upsert(updated, makeActive = false)
         _connections.value = registry.connections
@@ -714,13 +615,6 @@ class Session(
         connectionStore.saveRegistry(registry)
     }
 
-    /**
-     * Pull-to-refresh: reopen the stream and wait until status leaves connecting
-     * or 10s — so the spinner means what it appears to mean.
-     *
-     * Restarts under the session mutex (not a fire-and-forget enqueue) so a
-     * caller on any dispatcher observes Connecting before the wait loop runs.
-     */
     suspend fun refresh() {
         awaitRestored()
         gate.withLock {
@@ -789,8 +683,6 @@ class Session(
         reconnectDelaySeconds = 0
         streamGeneration += 1
         val generation = streamGeneration
-        // Launch without holding the mutex across runStream — the job handle is
-        // published immediately so a concurrent connect() sees it.
         val job = scope.launch {
             try {
                 runStream()
@@ -805,7 +697,6 @@ class Session(
         streamJob = job
     }
 
-    /** Called when the app leaves the screen — deliberate disconnect so the cursor is known. */
     fun disconnect() {
         streamJob?.cancel()
         streamJob = null
@@ -851,9 +742,6 @@ class Session(
                             }
                         }
                     }
-                // A live stream may close normally and should reopen on the working route.
-                // An empty/comment-only response never connected: retrying it forever would
-                // strand the phone even when another advertised route can reach the computer.
                 if (!receivedHello) throw MissingStreamHelloException()
                 _status.value = Status.Offline("Lost the connection.")
             } catch (error: Throwable) {
@@ -891,11 +779,6 @@ class Session(
             _state.update { it.hydrate(fleet, waiting).resetCursor(cursor) }
             notificationSink.setBadge(_state.value.unreadCount)
         }
-        // Deliberately off hydrate's critical path: this only words the
-        // composer, and the cursor commit — and with it the whole stream —
-        // must not wait on a request that says nothing about the transcript.
-        // An older harness omits the flag and every engine reads as
-        // non-steering, which is the conservative wording.
         scope.launch {
             _steeringInstanceIds.value = try {
                 instancesFn(activeClient)
@@ -910,15 +793,6 @@ class Session(
         }
     }
 
-    /**
-     * Turn a stream failure into advice a person can act on and, when the failure belongs to the
-     * route rather than to the pairing, move the dial so the retry that follows tries somewhere
-     * new. The trust ratchet in [CandidateRotation] decides what "somewhere new" may be, so the
-     * banner only names a route the client was actually rebuilt for — it can no longer promise a
-     * switch a policy guard then refuses.
-     *
-     * A 401 never reaches here: the unauthorized path returns before this is called.
-     */
     private suspend fun failureMessage(error: Throwable): String {
         val moved = gate.withLock { advanceRouteLocked(error) }
             ?: return error.message?.takeIf { it.isNotBlank() } ?: "Could not reach the computer."
@@ -953,7 +827,6 @@ class Session(
         )
     }
 
-    /** What [advanceRouteLocked] decided, for the banner to describe. */
     private data class RouteMove(
         val failedAddress: String,
         val failedPort: Int,
@@ -996,16 +869,10 @@ class Session(
         val workingEndpoint = rotation.currentEndpoint ?: source.connection.activeEndpoint
         endpointRefreshJob?.cancel()
         endpointRefreshJob = scope.launch {
-            // Best-effort from end to end, and this is a root coroutine: a store that cannot
-            // write is as survivable here as a sidecar that answers 404, and neither has a
-            // caller left to catch for it.
             try {
                 val metadata = metadataFn(source)
                 gate.withLock {
                     val current = _connection.value ?: return@withLock
-                    // The stream that asked for this snapshot may already have been replaced by
-                    // a sign-out, a manual address edit or a route advance. Applying it then
-                    // would reorder a walk that no longer belongs to this client.
                     if (current.id != connectionId) return@withLock
                     if (client?.connection?.baseUrl != source.connection.baseUrl) return@withLock
                     val updated = current.reconciling(metadata)
@@ -1020,13 +887,6 @@ class Session(
         }
     }
 
-    /**
-     * [winner] first, then the stored policy order — the walk a live session may take without
-     * abandoning the route that is already carrying it.
-     *
-     * The head here is a transient cursor for one session, not a stored preference: what gets
-     * written down is [Connection.orderedEndpoints], where the desktop's priority governs.
-     */
     private fun liveRoutes(
         connection: Connection,
         winner: CompanionEndpoint?,
@@ -1035,7 +895,6 @@ class Session(
         return if (winner == null) routes else listOf(winner) + routes.filterNot { it.url == winner.url }
     }
 
-    /** Replace the stored address by hand, keeping the pairing and its token. */
     fun updateAddress(text: String): Boolean {
         val parsed = Connection.parse(text) ?: return false
         val current = _connection.value ?: return false
@@ -1076,28 +935,15 @@ class Session(
         return true
     }
 
-    // MARK: - Actions
 
     suspend fun send(text: String, to: Chat): Boolean = send(text, emptyList(), to)
 
-    /**
-     * A send the harness held rather than ran has to stay on screen, or the
-     * words simply vanish from the phone until the turn settles. [text] is
-     * what the person typed; the harness echoes back only an id.
-     */
-    private fun record(receipt: SendReceipt, text: String, fallbackThreadId: String) {
+    private fun record(receipt: SendReceipt, text: String, fallbackThreadId: String, botQueueRevision: Long?) {
         val queued = receipt as? SendReceipt.Queued ?: return
         val threadId = queued.threadId.ifEmpty { fallbackThreadId }
-        _state.update { it.rememberQueued(QueuedSend(queued.queueId, text), threadId) }
+        _state.update { it.rememberQueued(QueuedSend(queued.queueId, text), threadId, botQueueRevision) }
     }
 
-    /**
-     * Take back a held message before its turn settles. The row goes only
-     * once the harness confirms, so a failed cancel leaves the words on
-     * screen still waiting — which is what is actually true.
-     */
-    /** True only when the computer confirmed cancellation, so an
-     * edit never hands back words that already joined a turn. */
     suspend fun cancelQueued(send: QueuedSend, chat: Chat): Boolean {
         val activeClient = client ?: return false
         val destination = when (chat) {
@@ -1119,12 +965,6 @@ class Session(
         }
     }
 
-    /**
-     * Update Claude Code for the engine a failed turn ran on. The answer is
-     * for the card that asked, not the app-wide error banner: it shows the
-     * version on success and the harness's own words (already written for a
-     * person — "stop the running turn first") on failure.
-     */
     suspend fun updateClaude(instanceId: String): ClaudeUpdateResult {
         val activeClient = client ?: return ClaudeUpdateResult.Failed("This computer is offline.")
         return try {
@@ -1137,11 +977,6 @@ class Session(
         }
     }
 
-    /**
-     * An ambiguous network failure may happen after the server accepted a
-     * message. Reusing the id for the exact same retained draft makes Retry
-     * idempotent instead of sending the attachment twice.
-     */
     private data class AttachmentDraftKey(
         val destination: MessageDestination,
         val text: String,
@@ -1150,13 +985,6 @@ class Session(
 
     private val attachmentSendIds = LinkedHashMap<AttachmentDraftKey, String>()
 
-    /**
-     * Send a composer draft with app-owned attachments — the port of
-     * `Session.send(text:attachments:to:)`. The destination includes the exact
-     * active thread at tap time, so neither a desktop task switch nor an upload
-     * delay can move the message elsewhere. Callers only clear their draft when
-     * this returns true.
-     */
     suspend fun send(text: String, attachments: List<PendingMessageAttachment>, to: Chat, originConnectionId: String? = _connection.value?.id): Boolean {
         val activeClient = client ?: run {
             _actionError.value = "This computer is offline."
@@ -1215,17 +1043,18 @@ class Session(
                 attachments = uploaded,
             )
             if (client !== activeClient) return false
+            val queueRevision = if (to is Chat.BotChat) _state.value.botQueueRevision else null
             val receipt = activeClient.send(message, destination, sendId)
             currentCoroutineContext().ensureActive()
             if (client !== activeClient) return false
-            // The row shows what was typed, not what was sent: `message`
-            // carries the <attached-file …> tags the harness reads, and a
-            // held message is a person's own words waiting, not transport.
-            // An attachment-only send has no words, so it falls back.
-            record(receipt, text.trim().ifEmpty { message }, to.threadId)
-            attachmentSendIds.remove(key)
-            _actionError.value = null
-            true
+            gate.withLock {
+                if (client !== activeClient) false else {
+                    record(receipt, text.trim().ifEmpty { message }, to.threadId, queueRevision)
+                    attachmentSendIds.remove(key)
+                    _actionError.value = null
+                    true
+                }
+            }
         } catch (error: CancellationException) {
             throw error
         } catch (error: APIError) {
@@ -1261,11 +1090,6 @@ class Session(
             "Every bot that may answer in this channel must use a model that supports images."
     }
 
-    /**
-     * Download one desktop path through its originating transcript message.
-     * Where the bytes are kept for viewing is the app's business (it owns a
-     * cache directory); this only fetches and reports.
-     */
     suspend fun downloadFile(
         threadId: String,
         messageId: String,
@@ -1289,9 +1113,6 @@ class Session(
             }
             afterAttachmentDownload()
             currentCoroutineContext().ensureActive()
-            // A computer switch invalidates the meaning of every local path.
-            // The cache is cleared during the switch, but a transfer that won
-            // the completion race must still never surface old-computer bytes.
             if (_connection.value?.id != id) return null
             download
         } catch (error: CancellationException) {
@@ -1312,12 +1133,6 @@ class Session(
         }
     }
 
-    /**
-     * Executes one idempotent share operation against the selected computer.
-     * A network/gateway failure may advance only through [CandidateRotation],
-     * which retains the HTTPS trust ratchet. Callers supply stable upload/send
-     * ids, so replaying this lambda cannot create duplicate server objects.
-     */
     suspend fun <T> withShareClient(connectionId: String, action: suspend (CompanionClient) -> T): T {
         val first = client ?: throw IllegalStateException("Connect to the selected computer before sharing.")
         if (_connection.value?.id != connectionId) {
@@ -1724,7 +1539,6 @@ class Session(
         }
     }
 
-    /** Refresh only navigation metadata; keep already loaded scrollback and live tails. */
     private suspend fun refreshNavigationState(activeClient: CompanionClient): Boolean {
         val before = _state.value
         val fleet = hydrateFn(activeClient, 50)
@@ -1741,7 +1555,6 @@ class Session(
         }
     }
 
-    /** A room notification can name any channel task, not just the active one. */
     private suspend fun openRoomNotification(
         activeClient: CompanionClient,
         room: Room,
@@ -1759,16 +1572,6 @@ class Session(
         if (_focusedMessageId.value == messageId) _focusedMessageId.value = null
     }
 
-    /**
-     * A tapped "Opened thread #Title on Scout" chip. Lands on that thread by
-     * the route a thread row uses, which only changes what this phone is
-     * looking at — a bot mid-turn keeps working where it was. A thread the
-     * computer no longer has reports that it is gone, keeping the current
-     * conversation in place.
-     *
-     * @return the bot pinned to the exact thread; null when it is gone,
-     *   opening fails, or the connection changes.
-     */
     suspend fun openThread(ref: ThreadRef): Bot? {
         currentCoroutineContext().ensureActive()
         val activeClient = client
@@ -1793,15 +1596,6 @@ class Session(
         }
     }
 
-    /**
-     * The one policy behind every task mutation below: offline yields
-     * [offline], cancellation is not an error and propagates, and anything
-     * else is reported as the action error and also yields [offline]. Each
-     * method differs only in its endpoint and the frame that commits its
-     * result, so no Bot-versus-Room copy can drift again. Internal rather
-     * than private only so SessionTaskCrudTest can pin the cancellation
-     * contract directly.
-     */
     internal suspend fun <T> mutateTask(offline: T, mutation: suspend (CompanionClient) -> T): T {
         val activeClient = client ?: return offline
         return try {
@@ -1809,9 +1603,6 @@ class Session(
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             _actionError.value = error.message
-            // Cancellation that lands while the failure is being reported
-            // still wins: a cancelled caller throws instead of observing the
-            // offline value.
             currentCoroutineContext().ensureActive()
             offline
         }
@@ -1859,11 +1650,6 @@ class Session(
         }
     }
 
-    /**
-     * Snooze or wake one thread. The PATCH's bot frame also lands on the
-     * stream; the refresh keeps the sheet from waiting for it, exactly as
-     * rename does.
-     */
     suspend fun snoozeTask(task: BotTask, forBot: Bot, snoozedUntil: Long?): Boolean {
         val activeClient = client ?: return false
         return try {
@@ -1918,10 +1704,6 @@ class Session(
         }
     }
 
-    /**
-     * The model catalog lives on the paired computer because availability
-     * depends on which engines are installed and signed in there.
-     */
     suspend fun modelInstances(): List<Instance> {
         val activeClient = client ?: return emptyList()
         return try {
@@ -2018,11 +1800,6 @@ class Session(
         }
     }
 
-    /**
-     * A reply as utterances the computer can voice, or `ready = false` when it
-     * has no voice set up — so a call can say so rather than fall silent.
-     * Throws: a call reads the failure itself instead of an action banner.
-     */
     suspend fun prepareSpeech(text: String, voiceId: String?): PreparedSpeech {
         val activeClient = client ?: throw APIError.Transport("This computer is offline.")
         return activeClient.prepareSpeech(text, voiceId)
@@ -2033,7 +1810,6 @@ class Session(
         return activeClient.speak(text, voiceId)
     }
 
-    /** Save the ElevenLabs key on the computer. The server's reason when it refuses, null on success. */
     suspend fun updateVoiceKey(key: String): String? {
         val activeClient = client ?: return "This computer is offline."
         return try {
@@ -2065,10 +1841,6 @@ class Session(
         null
     }
 
-    /**
-     * Switch the workspace's voice engine. The sheet reloads the voice list
-     * afterwards, because every engine names its own voices.
-     */
     suspend fun switchVoiceProvider(provider: VoiceProvider): ConfigStatus? {
         val activeClient = client ?: return null
         return try {
@@ -2208,12 +1980,6 @@ class Session(
         }
     }
 
-    /**
-     * Edit and retry. The edited text replaces the old message on screen the
-     * moment it is sent, hiding the old answer, and the computer's fork takes
-     * over as soon as either its response or its stream frames land. A failed
-     * edit simply drops the stand-in, so the old branch returns.
-     */
     suspend fun edit(message: Message, forBot: Bot, text: String) {
         if (client == null) return
         val threadId = forBot.threadId
@@ -2283,20 +2049,18 @@ class Session(
             "That pairing code was already used. Start pairing again on your computer and rescan the new QR code."
         const val THREAD_GONE_MESSAGE = "That thread is no longer on your computer."
 
-        /** High-entropy QR token — distinct from a retryable six-digit code. */
+        // A high-entropy QR credential is distinct from a retryable six-digit pairing code.
         fun isQrCredential(credential: String): Boolean =
             credential.startsWith("omb_pair_") ||
                 !(credential.length == 6 && credential.all { it in '0'..'9' })
     }
 }
 
-/** Thrown only when another pairing redemption is already running. */
 class PairingInProgressException : IllegalStateException("Another pairing attempt is already in progress.")
 
 /** Thrown when a burned QR credential is presented again. */
 class SpentPairingCredentialException : IllegalStateException(Session.SPENT_QR_MESSAGE)
 
-/** What became of an in-chat Claude Code update. */
 sealed interface ClaudeUpdateResult {
     data class Updated(val version: String) : ClaudeUpdateResult
     data class Failed(val message: String) : ClaudeUpdateResult

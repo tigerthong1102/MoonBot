@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.clickable
@@ -20,18 +21,15 @@ import com.openmausbot.companion.core.BotTask
 import com.openmausbot.companion.core.CompanionState
 import com.openmausbot.companion.core.displayTitle
 
-/** One thread that needs the person, from any bot in the fleet. */
 @Immutable
 internal data class AttentionEntry(
     val botId: String,
     val botName: String,
     val task: BotTask,
-    /** A send of the person's is waiting behind the turn (client-side only). */
     val queued: Boolean,
 ) {
     val id: String get() = "$botId-${task.threadId}"
 
-    /** The one status word the row carries, in the order the person cares. */
     fun statusLine(): String = when {
         task.activity == "waiting-on-you" -> "Waiting on you"
         task.busy == true || task.activity == "working" -> "Working"
@@ -40,21 +38,10 @@ internal data class AttentionEntry(
     }
 }
 
-/**
- * The Needs attention section above the roster — the port of the desktop's
- * cross-bot SidebarBotActivity list. Attention is not history browsing: idle
- * conversations never enter, and each row reads the sibling thread's own
- * flags rather than the bot's aggregate busy/waiting.
- */
 internal fun CompanionState.crossBotAttention(exceptBotId: String? = null): List<AttentionEntry> {
     val entries = bots
-        // Hidden bots stay out entirely; the excluded bot is wherever the
-        // person already is.
         .filter { it.id != exceptBotId && it.hidden != true }
         .flatMap { bot ->
-            // A send waiting behind the turn counts as attention only once it
-            // is attached — the desktop filters on its client-side boolean the
-            // same way, so a queued-only thread enters the list.
             attentionTasks(bot)
                 .map { it to (pendingQueued[it.threadId].orEmpty().isNotEmpty()) }
                 .filter { (task, queued) ->
@@ -63,27 +50,19 @@ internal fun CompanionState.crossBotAttention(exceptBotId: String? = null): List
                 }
                 .map { (task, queued) -> AttentionEntry(bot.id, bot.name, task, queued) }
         }
-    // Flatten first, then order once (7fedb278): sorting each bot on its own
-    // would let the unread reply of an earlier bot outrank the waiting
-    // approval of a later one. Stable, so equal ranks keep fleet order.
     return entries.sortedBy(::attentionRank)
 }
 
-/** The bot's own addressable threads, legacy aggregate included. */
 private fun attentionTasks(bot: Bot): List<BotTask> {
-    // Old desktops expose only the selected conversation; new ones expose
-    // each task's own runtime flags.
     val tasks = bot.tasks ?: listOf(
         BotTask(
             threadId = bot.threadId, title = "", createdAt = bot.createdAt,
             busy = bot.busy, activity = bot.activity, unread = bot.unread,
         ),
     )
-    // Routine runs are reachable through their run receipt, never a menu.
     return tasks.filter { it.routineRunId == null }
 }
 
-/** Waiting needs the person most, then work, then a queued send, then unread. */
 private fun attentionRank(entry: AttentionEntry): Int = when {
     entry.task.activity == "waiting-on-you" -> 0
     entry.task.busy == true || entry.task.activity == "working" -> 1
@@ -91,7 +70,6 @@ private fun attentionRank(entry: AttentionEntry): Int = when {
     else -> 3
 }
 
-/** Selection only: the row jumps; menus and management stay in the sheet. */
 @Composable
 internal fun AttentionRow(entry: AttentionEntry, onOpen: () -> Unit) {
     Row(

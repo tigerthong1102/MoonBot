@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.audio
 
 import android.content.Context
@@ -41,10 +42,6 @@ class VoicePreviewPlayer internal constructor(
     processLifecycle: Lifecycle = ProcessLifecycleOwner.get().lifecycle,
 ) : DefaultLifecycleObserver {
 
-    /**
-     * Production constructor: builds a [MediaPlayerPreviewEngine] and
-     * [AudioFocusGate] from [context].
-     */
     constructor(
         context: Context,
         processLifecycle: Lifecycle = ProcessLifecycleOwner.get().lifecycle,
@@ -60,7 +57,6 @@ class VoicePreviewPlayer internal constructor(
 
     val playing: StateFlow<Boolean> = controller.playing
 
-    /** Late decode/playback failures after a successful [play] return. */
     val playbackErrors: SharedFlow<String> = controller.playbackErrors
 
     init {
@@ -71,14 +67,6 @@ class VoicePreviewPlayer internal constructor(
         })
     }
 
-    /**
-     * Attach to the profile screen. Replaces any previous screen bind and
-     * stops any in-flight preview so audio cannot outlive the prior owner
-     * (navigation swap or configuration change).
-     *
-     * Call from the composable that owns the preview button
-     * (`DisposableEffect(Unit) { player.bind(lifecycleOwner); onDispose { player.unbind(lifecycleOwner) } }`).
-     */
     fun bind(owner: LifecycleOwner) {
         val next = owner.lifecycle
         val previous = screenLifecycle.getAndSet(next)
@@ -99,11 +87,6 @@ class VoicePreviewPlayer internal constructor(
         }
     }
 
-    /**
-     * Start previewing [data]. Stops any current preview first.
-     * @return null on success, or the iOS action-error copy on synchronous failure.
-     * Asynchronous failures after start are emitted on [playbackErrors].
-     */
     fun play(data: ByteArray): String? = controller.play(data)
 
     fun stop() {
@@ -118,20 +101,7 @@ class VoicePreviewPlayer internal constructor(
     }
 }
 
-/**
- * Pure playback state machine — unit-tested without MediaPlayer.
- *
- * Transitions pinned to the iOS / PORT13 contract:
- * Idle → Playing on successful [play];
- * Playing → Playing on a replacing [play] (previous engine released first);
- * Playing → Idle on [stop], [onScreenDestroyed], [onAppBackgrounded],
- *           or audio-focus loss;
- * failure → Idle with [PLAYBACK_ERROR] (sync return or [playbackErrors]).
- *
- * All start/replace/complete/error transitions are serialized on [lock] and
- * tagged with a generation so a stale callback cannot resurrect a replaced
- * preview or leave a second MediaPlayer alive.
- */
+
 class VoicePreviewController(
     private val engineFactory: () -> PreviewAudioEngine,
     private val focus: PreviewAudioFocus,
@@ -155,9 +125,6 @@ class VoicePreviewController(
         val next = engineFactory()
         val gen = generation + 1
         generation = gen
-        // Install callbacks BEFORE start: the engine prepares/starts inside
-        // start() and may deliver an immediate error before start() returns.
-        // Assigning handlers afterward can drop that error.
         next.onCompletion = {
             synchronized(lock) {
                 if (gen != generation) return@synchronized
@@ -173,8 +140,6 @@ class VoicePreviewController(
         }
         return try {
             val started = next.start(data)
-            // If onError ran synchronously inside start(), stopInternal already
-            // bumped [generation] while [engine] was still null — do not publish.
             if (!started || gen != generation) {
                 next.release()
                 focus.abandon()
@@ -201,11 +166,6 @@ class VoicePreviewController(
 
     fun onAppBackgrounded() = synchronized(lock) { stopInternal(abandonFocus = true) }
 
-    /**
-     * Any focus loss / duck ends the preview. Short spoken clips are not
-     * resumed — matching iOS tearing down the player when the session is
-     * interrupted rather than ducking under other audio.
-     */
     private fun onFocusInterrupted() {
         synchronized(lock) {
             stopInternal(abandonFocus = true)
@@ -215,7 +175,6 @@ class VoicePreviewController(
     private fun stopInternal(abandonFocus: Boolean) {
         val current = engine
         engine = null
-        // Bump so an in-flight completion/error from [current] is ignored.
         generation += 1
         val hadPlayback = current != null
         current?.stop()
@@ -225,14 +184,12 @@ class VoicePreviewController(
     }
 
     companion object {
-        /** `AgentProfileView.previewVoice` failure copy. */
         const val PLAYBACK_ERROR: String = "The generated audio could not be played."
     }
 }
 
 interface PreviewAudioEngine {
     var onCompletion: (() -> Unit)?
-    /** Asynchronous decode/playback failure after a successful [start]. */
     var onError: (() -> Unit)?
     fun start(data: ByteArray): Boolean
     fun stop()
@@ -240,11 +197,6 @@ interface PreviewAudioEngine {
 }
 
 interface PreviewAudioFocus {
-    /**
-     * Request exclusive transient focus for spoken preview.
-     * [onInterrupted] runs on `LOSS`, `LOSS_TRANSIENT`, or
-     * `LOSS_TRANSIENT_CAN_DUCK` — the controller must stop and abandon.
-     */
     fun request(onInterrupted: () -> Unit): Boolean
     fun abandon()
 }

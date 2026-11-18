@@ -26,19 +26,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * Try reconnecting, measured where it can be measured.
- *
- * `Session.refresh()` returns nothing and leaves no flag behind; what it does is
- * open the event stream again. So the scene counts stream collections, the
- * stream this tap opens is held, and the assertions are: the tap opened one —
- * exactly one — and the button was dead while it was in flight. Asserting some
- * `refreshing` boolean would prove the boolean, and a button wired to nothing
- * would leave that green.
- *
- * The two pure helpers this screen gained are pinned here as well: they are read
- * off `ios/App/SettingsView.swift`, and this is the file about that screen.
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SettingsReconnectWiringTest {
@@ -51,9 +38,6 @@ class SettingsReconnectWiringTest {
 
     @Test
     fun `the reconnect button opens one stream and stays dead until it settles`() {
-        // Nothing else opens a stream in this scene: the Application is what
-        // calls connect(), and there is no Application here. So every collection
-        // counted below was started by the button.
         val hello = CompletableDeferred<Unit>()
         val scene = WiringScene(connection = mac) {
             flow {
@@ -74,7 +58,6 @@ class SettingsReconnectWiringTest {
         compose.waitForIdle()
         assertEquals(0, scene.streamStarts.get(), "mounting Settings must not dial anything")
 
-        // The section sits below the fold on a phone-sized screen.
         compose.onNodeWithText(reconnect).performScrollTo().assertIsEnabled().performClick()
         compose.waitUntil(5_000) { scene.streamStarts.get() == 1 }
 
@@ -104,7 +87,6 @@ class SettingsReconnectWiringTest {
             "This phone is not paired with a computer.",
             troubleshootingText(Session.Status.Unpaired),
         )
-        // Offline already carries advice written for the failure that caused it.
         assertEquals(
             "Could not reach the computer.",
             troubleshootingText(Session.Status.Offline("Could not reach the computer.")),
@@ -113,7 +95,6 @@ class SettingsReconnectWiringTest {
 
     @Test
     fun `a hidden address keeps both ends and loses its middle`() {
-        // Fourteen characters or fewer are shown whole; iOS draws the same line.
         assertEquals("192.168.1.42", shortenedAddress("192.168.1.42"))
         assertEquals("short.lan", shortenedAddress("short.lan"))
         assertEquals("192.168.1…2:8810", shortenedAddress("192.168.1.42:8810"))
@@ -125,7 +106,6 @@ class SettingsReconnectWiringTest {
         assertTrue(long.endsWith(short.substringAfter("…")), "the tail is the real tail")
     }
 
-    /** Disabled is a semantics property, so its absence is the honest question. */
     private fun reconnectEnabled(): Boolean =
         compose.onNodeWithText(reconnect).fetchSemanticsNode()
             .config.getOrNull(SemanticsProperties.Disabled) == null

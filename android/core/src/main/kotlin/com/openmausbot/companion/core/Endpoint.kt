@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.net.URI
@@ -51,8 +52,6 @@ data class CompanionEndpoint private constructor(
     val host: String
         get() {
             val parsed = baseUrl.host.orEmpty()
-                // URI exposes an IPv6 zone in its encoded form. Connection's scoped-DNS path
-                // needs the original '%' separator when it turns the host back into a socket.
                 .replace("%25", "%", ignoreCase = true)
             return Connection.urlHost(parsed)
         }

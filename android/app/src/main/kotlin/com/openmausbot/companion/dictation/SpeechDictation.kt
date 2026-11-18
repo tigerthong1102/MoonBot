@@ -23,28 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * On-device dictation for the composer — Android counterpart of
- * `ios/App/SpeechDictation.swift`.
- *
- * Prefer an on-device recognizer when API 31+ and the device offers it.
- * If creating, starting, or serving that engine fails, degrade to
- * [SpeechRecognizer.createSpeechRecognizer] (the platform default, which may
- * use the network) — the same shape as iOS leaving
- * `requiresOnDeviceRecognition` unset when on-device is unavailable.
- *
- * Locale candidates from [Dictation.localeCandidates] are tried in order;
- * a language error advances to the next candidate, then the next engine.
- *
- * Audio never touches disk. A generation counter discards late callbacks from
- * a previous session after stop/start; an attempt counter discards callbacks
- * from a superseded engine while the same session degrades.
- *
- * Bind to the chat screen's [LifecycleOwner] (the Activity). [onStop] covers
- * backgrounding — the Android shape of iOS `scenePhase != .active` — without
- * registering a permanent ProcessLifecycle observer that would leak across
- * Activity recreations.
- */
+// Android API 31+ may provide an on-device recognizer; the platform default recognizer may use the network.
+// Dictation audio remains in memory.
 class SpeechDictation internal constructor(
     private val engineFactory: SpeechEngineFactory,
     private val hasRecordAudio: () -> Boolean,
@@ -55,11 +35,9 @@ class SpeechDictation internal constructor(
     private val postMain: (() -> Unit) -> Unit = { block ->
         Handler(Looper.getMainLooper()).post(block)
     },
-    /** Runs [block] after a delay; the call endpointer below is a chain of these. */
     private val postDelayed: (delayMillis: Long, block: () -> Unit) -> Unit = { delayMillis, block ->
         Handler(Looper.getMainLooper()).postDelayed(block, delayMillis)
     },
-    /** Milliseconds from any fixed origin; only differences are read. */
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) : DefaultLifecycleObserver {
 
@@ -86,14 +64,6 @@ class SpeechDictation internal constructor(
     private var attempt: Int = 0
     private var stopping: Boolean = false
 
-    // Call mode. Composer dictation runs until the person taps stop; a call
-    // has to notice when they have finished a sentence. The same silence
-    // endpointer as the desktop helper: the turn ends [turnGapMillis] after the
-    // transcript last *changed* — a recognizer may re-emit an unchanged
-    // partial, and only a change counts. An empty turn never ends on the
-    // timer: a call may be quiet for as long as the person needs before they
-    // begin. (The platform recognizer does give up on prolonged silence; that
-    // ends the turn empty, and the call listens again.)
     private var turnGapMillis: Long? = null
     private var onTurnEnded: ((String) -> Unit)? = null
     private var lastTranscriptChange: Long = 0L
@@ -103,13 +73,11 @@ class SpeechDictation internal constructor(
     private val _transcript = MutableStateFlow("")
     private val _error = MutableStateFlow<String?>(null)
 
-    /** Composer text captured when listening started. Frozen for the session. */
     @Volatile
     var base: String = ""
         private set
 
     val isListening: StateFlow<Boolean> = _isListening.asStateFlow()
-    /** True from [toggle]/start until capture is running or the attempt fails. */
     val isStarting: StateFlow<Boolean> = _isStarting.asStateFlow()
     val transcript: StateFlow<String> = _transcript.asStateFlow()
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -119,7 +87,6 @@ class SpeechDictation internal constructor(
             if (_isListening.value || _isStarting.value) {
                 stopLocked()
             } else {
-                // Composer dictation, not a call: no endpointer, no callback.
                 turnGapMillis = null
                 onTurnEnded = null
                 startLocked(capturing)
@@ -131,19 +98,12 @@ class SpeechDictation internal constructor(
         synchronized(lock) { stopLocked() }
     }
 
-    /**
-     * One turn of a call: listen until [endpointGapMillis] of silence follows
-     * speech, then stop and hand the transcript to [onTurn]. A final result
-     * from the recognizer ends the turn too. Stopping any other way — hang up,
-     * an interruption — ends the turn without a callback.
-     */
     fun listenForTurn(endpointGapMillis: Long, onTurn: (String) -> Unit) {
         synchronized(lock) {
             if (_isListening.value || _isStarting.value) return
             turnGapMillis = endpointGapMillis
             onTurnEnded = onTurn
             startLocked("")
-            // A start that failed outright has already cleared the callback.
             if (onTurnEnded != null) scheduleEndpointCheckLocked(generation)
         }
     }
@@ -159,7 +119,6 @@ class SpeechDictation internal constructor(
         }
     }
 
-    /** Take the callback first — [stopLocked] clears it — and deliver it off the lock. */
     private fun endTurnLocked() {
         val callback = onTurnEnded ?: return
         val heard = _transcript.value
@@ -168,7 +127,6 @@ class SpeechDictation internal constructor(
         postMain { callback(heard) }
     }
 
-    /** True while starting or listening — the composer must not accept edits. */
     fun locksComposer(): Boolean = _isListening.value || _isStarting.value
 
     fun bind(owner: LifecycleOwner) {
@@ -186,14 +144,10 @@ class SpeechDictation internal constructor(
         if (screenLifecycle.compareAndSet(current, null)) {
             current.removeObserver(this)
             stop()
-            // Activity-scoped singleton: clear sticky error so conversation B
-            // does not inherit A's denial/failure (iOS owns one SpeechDictation
-            // per ChatView).
             _error.value = null
         }
     }
 
-    /** Backgrounding / leaving visibility — iOS `scenePhase != .active`. */
     override fun onStop(owner: LifecycleOwner) {
         if (screenLifecycle.get() === owner.lifecycle) stop()
     }
@@ -206,13 +160,7 @@ class SpeechDictation internal constructor(
         }
     }
 
-    /**
-     * Audio-focus interruption — the sixth stop trigger.
-     * [sessionGen] must be the generation that owned the focus request so a
-     * delayed runnable from session A cannot stop session B.
-     */
     fun onAudioInterrupted(sessionGen: Int) {
-        // Never take [lock] re-entrantly from inside focus.request().
         postMain {
             synchronized(lock) {
                 if (sessionGen != generation || stopping) return@synchronized
@@ -233,7 +181,6 @@ class SpeechDictation internal constructor(
         val gen = generation
 
         if (!hasRecordAudio()) {
-            // Leave the lock before the system sheet; the result posts back.
             postMain {
                 requestRecordAudio { granted ->
                     synchronized(lock) {
@@ -270,11 +217,6 @@ class SpeechDictation internal constructor(
         attemptLocked(openers, locales, openerIndex = 0, localeIndex = 0, gen = gen)
     }
 
-    /**
-     * Try [openers] × [locales] in order. On-device openers come first when the
-     * factory offers them; a create/start/language failure advances; a hard
-     * failure on an on-device opener advances to the default recognizer.
-     */
     private fun attemptLocked(
         openers: List<EngineOpener>,
         locales: List<Locale>,
@@ -300,7 +242,6 @@ class SpeechDictation internal constructor(
         val next = try {
             opener.open()
         } catch (_: Exception) {
-            // createOnDeviceSpeechRecognizer() can throw even when advertised.
             attemptLocked(openers, locales, openerIndex + 1, 0, gen)
             return
         }
@@ -317,8 +258,6 @@ class SpeechDictation internal constructor(
         engine = next
         val language = locales[localeIndex].toLanguageTag()
         try {
-            // Never force EXTRA_PREFER_OFFLINE on the default fallback — that
-            // would refuse the network path iOS keeps open when on-device is off.
             next.start(
                 RecognitionRequest(
                     languageTag = language,
@@ -342,7 +281,6 @@ class SpeechDictation internal constructor(
             _isListening.value = true
         } catch (_: Exception) {
             teardownLocked(abandonFocus = true)
-            // startListening threw — try the next locale, then the next engine.
             attemptLocked(openers, locales, openerIndex, localeIndex + 1, gen)
         }
     }
@@ -395,8 +333,6 @@ class SpeechDictation internal constructor(
             synchronized(lock) {
                 if (!live() || !_isListening.value) return
                 val updated = Dictation.updateTranscript(_transcript.value, text)
-                // Only a change restarts the silence clock: a recognizer may
-                // re-emit the same partial while the person is quiet.
                 if (updated != _transcript.value) {
                     _transcript.value = updated
                     lastTranscriptChange = clock()
@@ -408,9 +344,6 @@ class SpeechDictation internal constructor(
             synchronized(lock) {
                 if (!live() || !_isListening.value) return
                 if (text.isNotEmpty()) _transcript.value = Dictation.updateTranscript(_transcript.value, text)
-                // Composer dictation does not wait for a later final beyond
-                // this — matching iOS stopping when the recognizer finalizes;
-                // on a call, that is the turn ending.
                 if (onTurnEnded != null) endTurnLocked() else stopLocked()
             }
         }
@@ -425,7 +358,6 @@ class SpeechDictation internal constructor(
                         stopLocked()
                     }
                     SpeechEngine.ErrorKind.LANGUAGE -> {
-                        // Walk the ported locale list, then the next engine.
                         degradeLocked(
                             openers,
                             locales,
@@ -436,8 +368,6 @@ class SpeechDictation internal constructor(
                     }
                     SpeechEngine.ErrorKind.FAILED -> {
                         if (openerIndex + 1 < openers.size) {
-                            // On-device (or any earlier opener) failed at runtime —
-                            // degrade to the next factory opener (default recognizer).
                             degradeLocked(
                                 openers,
                                 locales,
@@ -446,8 +376,6 @@ class SpeechDictation internal constructor(
                                 gen = gen,
                             )
                         } else if (onTurnEnded != null) {
-                            // On a call, silence the recognizer gave up on is an
-                            // empty turn, not a failure: the call listens again.
                             endTurnLocked()
                         } else {
                             _error.value = TRANSCRIBE_FAILED_MESSAGE
@@ -460,7 +388,6 @@ class SpeechDictation internal constructor(
     }
 
     companion object {
-        /** Android has no separate Speech Recognition TCC — only the mic. */
         const val MIC_DENIED_MESSAGE: String =
             "Dictation needs Microphone access. Enable it in Settings → StartupBot."
         const val NO_RECOGNIZER_MESSAGE: String =
@@ -476,11 +403,6 @@ data class RecognitionRequest(
     val preferOffline: Boolean,
 )
 
-/**
- * One recognizer the controller may open. Factories return on-device first
- * when offered, then the platform default so create/start/runtime failure can
- * degrade without the controller knowing about SDK branching.
- */
 data class EngineOpener(
     val isOnDevice: Boolean,
     val open: () -> SpeechEngine,
@@ -510,10 +432,6 @@ interface DictationAudioFocus {
     fun abandon()
 }
 
-/**
- * Production factory: on-device when API ≥ 31 and the device offers it, then
- * the default recognizer as a degradation candidate (minSdk 26 fallback).
- */
 internal class AndroidSpeechEngineFactory(
     private val context: Context,
 ) : SpeechEngineFactory {
@@ -527,8 +445,6 @@ internal class AndroidSpeechEngineFactory(
                 )
             }
         }
-        // Always offer the default when the platform has any recognizer — even
-        // beside an on-device opener — so runtime failure can degrade.
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
             list += EngineOpener(isOnDevice = false) {
                 PlatformSpeechEngine(
@@ -558,7 +474,6 @@ internal class PlatformSpeechEngine(
         try {
             recognizer.cancel()
         } catch (_: Exception) {
-            // Destroyed or never started.
         }
     }
 
@@ -567,7 +482,6 @@ internal class PlatformSpeechEngine(
         try {
             recognizer.destroy()
         } catch (_: Exception) {
-            // Already destroyed.
         }
     }
 

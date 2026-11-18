@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.net.InetAddress
@@ -437,8 +438,6 @@ class PortP104IntegratedTest {
                 eventually(timeoutMillis = 2_000) {
                     sidecar.requests(TAILNET, "/api/events").isNotEmpty()
                 }
-                // Observe the attempt after the live 2s backoff instead of racing it with a fixed
-                // sleep. The protected-only set wraps to hosted; a broadened set reaches LAN.
                 eventually(timeoutMillis = 5_000) {
                     sidecar.requests(HOSTED, "/api/events").size >= 2 ||
                         sidecar.requests(LEGACY_LAN, "/api/events").isNotEmpty()
@@ -476,8 +475,6 @@ class PortP104IntegratedTest {
                     if (status == 401) {
                         eventually { running.session.status.value == Session.Status.Unauthorized }
                     } else {
-                        // Wait for the next real attempt after the 1s backoff. A fixed delay could
-                        // assert before a slow CI worker had actually dialed the wrong route.
                         eventually(timeoutMillis = 4_000) {
                             sidecar.requests(path = "/api/events").size >= 2
                         }
@@ -594,8 +591,6 @@ class PortP104IntegratedTest {
         const val INVALID_TLS = "invalid.p104.companion.example"
         const val TAILNET = "mac.p104-tailnet.ts.net"
         const val OLD_TAILNET = "old-mac.p104-tailnet.ts.net"
-        // These are DNS authorities classified as LAN (not .ts.net/.local), which lets the
-        // harness route them to loopback while preserving the exact policy the client sees.
         const val LEGACY_LAN = "legacy-lan.p104.test"
         const val EXPLICIT_LAN = "explicit-lan.p104.test"
 
@@ -804,7 +799,6 @@ private fun jsonResponse(body: String, code: Int = 200): MockResponse = MockResp
     .setHeader("Content-Type", "application/json")
     .setBody(body)
 
-/** Delivers a hello immediately, then keeps the real socket occupied until the Session cancels. */
 private fun liveStream(): MockResponse = MockResponse()
     .setResponseCode(200)
     .setHeader("Content-Type", "text/event-stream")

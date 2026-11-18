@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -17,17 +18,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 
-/**
- * The lifecycle of a one-time pairing invite while an attempt is in flight —
- * the port of `OnboardingTests.swift:164-237`, played through the real
- * [Session] so a deep link arriving mid-redemption is an actual concurrent
- * call rather than a policy table.
- *
- * §6 is what makes this a correctness question and not a nicety. A pairing
- * credential is redeemable once. If a link that arrives during a commit takes
- * the credential slot, the attempt that finishes erases a QR that was never
- * used, and the user has to walk back to the computer for a third one.
- */
+// Pairing credentials are redeemable once and cannot be replaced by a concurrent unconfirmed invite.
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionInviteLifecycleTest {
     private val first = "omb_pair_" + "1".repeat(43)
@@ -36,7 +27,6 @@ class SessionInviteLifecycleTest {
     private fun link(credential: String, host: String) =
         "openmausbot://pair?address=$host:8810&token=$credential"
 
-    /** A six-digit invite: retryable, and never burned by a redemption. */
     private fun codeLink(code: String, host: String) =
         "openmausbot://pair?address=$host:8810&code=$code"
 
@@ -82,9 +72,6 @@ class SessionInviteLifecycleTest {
         release.complete(Unit)
         attempt.await()
 
-        // The first attempt is over and this phone is still unconnected, so the
-        // link that waited is presented now — with its own computer, not the one
-        // that just failed.
         val released = assertNotNull(session.pairingInvite.value)
         assertEquals(second, released.credential)
         assertEquals("192.168.1.9", released.connection.host)
@@ -134,8 +121,6 @@ class SessionInviteLifecycleTest {
     fun aSuccessfulPairingEmptiesTheQueueBeforeStatusEverCatchesUp() = runTest {
         val session = session(pairOutcomeFn = { connection, _, _, _ -> paired(connection) })
         session.awaitRestored()
-        // A six-digit invite: nothing burns it, so only the end of the attempt
-        // can take it out of the queue.
         session.receivePairingURL(codeLink("123456", "192.168.1.2"))
         val invite = assertNotNull(session.pairingInvite.value)
 
@@ -145,8 +130,6 @@ class SessionInviteLifecycleTest {
             session.pairingInvite.value,
             "a successful pairing left its one-time invite in the queue",
         )
-        // The stream has not started yet, so `status` still says unpaired. The
-        // binding is already published, and that alone has to close the race.
         assertIs<Session.Status.Unpaired>(session.status.value)
         assertNotNull(session.connection.value)
 
@@ -209,26 +192,12 @@ class SessionInviteLifecycleTest {
         assertNotNull(session.pairingInvite.value)
 
         session.signOut()
-        // `signOut` unpairs from a launched coroutine, and `backgroundScope` work
-        // only runs while the test body is suspended.
         yield()
         advanceUntilIdle()
 
         assertNull(session.pairingInvite.value, "unpairing left a one-time invite in the queue")
     }
 
-    /**
-     * The sequence that makes the *ordering* of sign-out load-bearing.
-     *
-     * A link arrives while an attempt is redeeming, so it waits in memory. The
-     * unpair is started while that attempt still holds `gate`, so its critical
-     * section queues behind it. The attempt then fails — the one moment a
-     * waiting invite is published — and only after that does the unpair get the
-     * lock. Emptying the queue anywhere earlier than inside that lock would
-     * leave the released invite on a phone with no pairing at all: the user
-     * would be shown a one-time QR belonging to the binding they just gave up,
-     * and be sent back to the computer when it fails.
-     */
     private suspend fun TestScope.aDeferredInviteBehindAFailingAttempt(): DeferredInviteScene {
         val redeeming = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
@@ -246,8 +215,6 @@ class SessionInviteLifecycleTest {
 
         val attempt = backgroundScope.async { runCatching { session.pair(invite, "request-1") } }
         redeeming.await()
-        // Waits in memory; `aLinkArrivingDuringAnAttemptWaits…` is what proves
-        // this one really is released when the attempt ends.
         session.receivePairingURL(link(second, "192.168.1.9"))
         return DeferredInviteScene(session, attempt, release)
     }
@@ -257,7 +224,6 @@ class SessionInviteLifecycleTest {
         val scene = aDeferredInviteBehindAFailingAttempt()
 
         val unpaired = backgroundScope.async { scene.session.signOutAndAwait() }
-        // Let the unpair reach `gate` and queue behind the attempt.
         yield()
         assertFalse(unpaired.isCompleted, "the unpair did not queue behind the running attempt")
 
@@ -276,8 +242,6 @@ class SessionInviteLifecycleTest {
         val scene = aDeferredInviteBehindAFailingAttempt()
 
         scene.session.signOut()
-        // `signOut` unpairs from a launched coroutine, and `backgroundScope` work
-        // only runs while the test body is suspended.
         yield()
 
         scene.release.complete(Unit)
@@ -310,7 +274,6 @@ class SessionInviteLifecycleTest {
     )
 }
 
-/** An attempt still redeeming, with a link already waiting behind it. */
 private class DeferredInviteScene(
     val session: Session,
     val attempt: Deferred<Result<Unit>>,

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.coroutines.runBlocking
@@ -11,7 +12,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-/** The in-chat Claude Code update route. */
 class ClaudeUpdateClientTest {
     private lateinit var server: MockWebServer
     private lateinit var client: CompanionClient

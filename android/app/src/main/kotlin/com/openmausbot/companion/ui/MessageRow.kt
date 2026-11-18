@@ -103,26 +103,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** What the clipboard shows this came from. */
 private const val MESSAGE_CLIP_LABEL = "StartupBot message"
 
-/**
- * One row of the transcript — the port of `MessageRow` in `ios/App/ChatView.swift`.
- *
- * [endsRun] is the last bubble of a run from the same side: the one that gets the
- * tail. [TranscriptLayout.endsRun] decides it, over the whole transcript, so a row
- * never has to look at its neighbours.
- */
 @Composable
 fun MessageRow(
     chat: Chat,
     message: Message,
     endsRun: Boolean = true,
-    /** Where a tapped link in a bot reply goes; null leaves it to the system. */
     openLink: ((String, Message) -> Unit)? = null,
     /** Open one exact user attachment through the authenticated computer route. */
     openAttachment: ((DisplayedMessageAttachment, Message, DownloadedFile?) -> Unit)? = null,
-    /** Where an "Opened thread" chip goes; null leaves the chip a receipt. */
     openThread: ((ThreadRef) -> Unit)? = null,
 ) {
     val session = LocalCompanion.current.session
@@ -138,8 +128,6 @@ fun MessageRow(
     val bot = (chat as? Chat.BotChat)?.bot
     val versions = remember(state, message.id) { state.versions(message, chat.threadId) }
     val versionIndex = versions.indexOfFirst { it.id == message.id }
-    // The stand-in for an edit the computer has not answered yet. It has no
-    // server identity, so nothing may react to it or edit it again.
     val editPending = state.pendingEdits[chat.threadId]
     val isPendingEdit = editPending?.placeholderId == message.id
     val mine = message.role == Message.Role.USER
@@ -147,8 +135,6 @@ fun MessageRow(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            // Long-press is the context menu; a plain tap must stay inert, so no
-            // ripple is drawn for it.
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -205,7 +191,6 @@ fun MessageRow(
                 }
             }
 
-            // Versions are a bot idea: a room has no branch to switch (§12).
             if (versions.size > 1 && versionIndex >= 0 && bot != null) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -291,8 +276,6 @@ fun MessageRow(
                     },
                 )
             }
-            // Attachment messages cannot be reconstructed by a text-only edit.
-            // The policy also keeps their private transport paths out of the UI.
             val editableText = MessageActions.editableText(message)
             if (editableText != null && bot != null && !isPendingEdit) {
                 HorizontalDivider()
@@ -326,10 +309,6 @@ fun MessageRow(
             },
             confirmButton = {
                 TextButton(
-                    // `bot` is re-read from the collected state on every frame,
-                    // so a bot that starts running while this dialog is open
-                    // disables Send rather than sending an edit the harness will
-                    // refuse with 409.
                     enabled = bot.busy != true && editText.isNotBlank(),
                     onClick = {
                         val text = editText.trim()
@@ -350,11 +329,6 @@ fun MessageRow(
     }
 }
 
-/**
- * Raw message text in a separate surface where Android can own the long-press
- * selection gesture. The bubble's long press is intentionally reserved for
- * reactions and message actions.
- */
 @Composable
 private fun SelectableTextDialog(text: String, onDismiss: () -> Unit) {
     val clipboard = LocalClipboard.current
@@ -386,8 +360,6 @@ private fun SelectableTextDialog(text: String, onDismiss: () -> Unit) {
             TextButton(
                 onClick = {
                     scope.launch {
-                        // "Copied" after the clipboard has it, not before: the
-                        // label is a report, and `setClipEntry` suspends.
                         clipboard.setClipEntry(
                             ClipEntry(ClipData.newPlainText(MESSAGE_CLIP_LABEL, text)),
                         )
@@ -412,8 +384,6 @@ private fun MessageContent(
 ) {
     when (message.kind) {
         Message.Kind.TEXT -> TextBubble(chat.threadId, message, endsRun, openLink, openAttachment)
-        // A structured ask draws its own card: its answers are the model's
-        // questions, not an allow/deny a tap could stand for.
         Message.Kind.OPTIONS -> if (QuestionCardRules.drawsQuestionCard(message)) {
             QuestionCardView(chat, message, haptics)
         } else {
@@ -421,8 +391,6 @@ private fun MessageContent(
         }
         Message.Kind.ACTIVITY -> {
             ActivityChip(message.tool, message.threadRef, openThread)
-            // Claude Code too old for the model: offer the update on the
-            // engine this bot's thread runs on. Rooms have no single engine.
             val claudeInstance = (chat as? Chat.BotChat)?.bot
                 ?.let { it.forTask(chat.threadId) ?: it }
                 ?.modelSelection?.instanceId
@@ -435,14 +403,7 @@ private fun MessageContent(
             detail = message.compaction?.summary ?: message.text.orEmpty(),
         )
         Message.Kind.SCREEN -> ScreenShot(chat.threadId, message)
-        // Turn-audit chip (tool list + reply preview). Desktop shows it only
-        // behind a "show tool calls" setting Android doesn't have; hide it.
         Message.Kind.DIGEST -> {}
-        // A message kind from a newer computer. Almost everything the harness
-        // sends carries `text`, so showing it is usually the whole message and
-        // always better than a gap in the transcript. When there is nothing to
-        // show, show nothing — a placeholder saying "unsupported" is a worse gap
-        // than the gap.
         Message.Kind.UNKNOWN -> if (!message.text.isNullOrEmpty()) {
             TextBubble(chat.threadId, message, endsRun, openLink, openAttachment)
         }
@@ -459,32 +420,20 @@ private fun TextBubble(
 ) {
     val mine = message.role == Message.Role.USER
     val tail = TranscriptLayout.tail(message, endsRun)
-    // A reply that is *entirely* a patch or a table is drawn as one. The gate is
-    // in `:core` and it is strict: anything with a sentence in it stays a
-    // paragraph, because a card around a paragraph hides the paragraph.
     val card = remember(message.id, message.role, message.text) { TranscriptCards.of(message) }
-    // Shared attachments are protocol tags in stored user text. They are not
-    // prose, and a server-controlled path must never be presented as a link.
     val attached = remember(message.id, message.text) { AttachedMessageContent.parse(message.text.orEmpty()) }
     val webhook = remember(message) { message.webhookContent }
-    // A card brings its own surface, so it drops the bubble — and with it the
-    // tail, which is a bubble's chin and not a card's.
     val bubble = card == null
-    // No face beside the bubble: the bot's face is in the header, and in a room
-    // the name line says who spoke. The bubble sits at the edge.
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Bottom,
     ) {
-        // iOS spaces the far side with `Spacer(minLength:)`; a non-filling weight
-        // lets the bubble shrink to its text while never crossing that gutter.
         if (mine) Spacer(Modifier.width(56.dp))
         Column(
             modifier = Modifier
                 .weight(1f, fill = false)
                 .widthIn(max = 640.dp)
-                // Room for the tail below, so the next row does not sit on it.
                 .padding(bottom = if (bubble && endsRun) SpeechBubble.tailDrop() else 0.dp)
                 .then(
                     if (bubble) {
@@ -500,8 +449,6 @@ private fun TextBubble(
                 ),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Rooms attribute each line to the member who said it. Only theirs:
-            // your own bubble is already on your side.
             if (!mine) {
                 message.from?.let {
                     Text(
@@ -512,20 +459,12 @@ private fun TextBubble(
                     )
                 }
             }
-            // Voice notes sit above the attachment gallery, as they do on the
-            // desktop transcript: the note is the message, not an appendix to it.
             message.voiceNotes.forEach { note ->
                 VoiceNoteAttachmentView(threadId, message, note)
             }
             message.generatedImages.forEach { attachment ->
                 SharedAttachmentView(threadId, message, attachment, openAttachment)
             }
-            // Bots get markdown, you do not — the same split the desktop makes.
-            // Markdown you did not intend is worse than markdown you did: a
-            // message about `**` should show the asterisks.
-            // Settled text is selectable, so a command, a URL or a paragraph can
-            // be copied — as it can on iOS. The live bubble below is deliberately
-            // left out: selecting text that is still growing fights the reader.
             when (card) {
                 is TranscriptCard.Diff -> DiffCard(card)
                 is TranscriptCard.Table -> DataTableCard(card)
@@ -625,8 +564,6 @@ private fun SharedImageAttachment(
     }
     LaunchedEffect(threadId, message.id, attachment.path, attempt) {
         state = AttachmentThumbnailState.Loading
-        // A failed inline preview owns its own retry UI; it must not replace an
-        // unrelated composer or account alert while this row scrolls on screen.
         val downloaded = session.downloadFile(
             threadId,
             message.id,
@@ -704,7 +641,6 @@ private fun AttachmentLoadFailure(label: String, foreground: Color = BubbleColor
     }
 }
 
-/** Where the bubble's clip bytes are: fetched on first play, then kept for replay. */
 private sealed interface VoiceNoteClipState {
     data object NotLoaded : VoiceNoteClipState
     data object Loading : VoiceNoteClipState
@@ -712,7 +648,6 @@ private sealed interface VoiceNoteClipState {
     data object Failed : VoiceNoteClipState
 }
 
-/** The desktop bubble's clock: m:ss, and 0:00 for anything not yet audible. */
 private fun voiceNoteClock(ms: Long): String {
     if (ms <= 0) return "0:00"
     val wholeSeconds = ms / 1000

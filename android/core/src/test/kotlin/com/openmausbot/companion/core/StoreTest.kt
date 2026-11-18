@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -199,7 +200,6 @@ class StoreTest {
         assertEquals(listOf("root", "fork", "tail"), state.visibleTranscript(bot.threadId).map(Message::id))
     }
 
-    /** root → question → old answer, with the old answer visible. */
     private fun editableConversation(): Pair<CompanionState, String> {
         val hydrated = hydrated()
         val threadId = hydrated.bots.first().threadId
@@ -220,9 +220,7 @@ class StoreTest {
         assertEquals(listOf("root", pending.placeholderId), visible.map(Message::id))
         assertEquals("second try", visible.last().text)
         assertEquals("root", visible.last().parentId)
-        // nothing was folded: the computer's transcript is untouched
         assertEquals(listOf("root", "q1", "a1"), state.transcript(threadId).map(Message::id))
-        // a failed edit only drops the stand-in, so the old branch returns
         assertEquals(listOf("root", "q1", "a1"), state.copy(pendingEdits = emptyMap()).visibleTranscript(threadId).map(Message::id))
     }
 
@@ -231,9 +229,7 @@ class StoreTest {
         val (base, threadId) = editableConversation()
         val fork = message("q2", 4.0, "second try").copy(parentId = "root")
         val state = base.copy(pendingEdits = mapOf(threadId to PendingEdit("q1", "second try", 4.0)))
-            // the message frame alone is a sibling, not a child of the leaf...
             .apply(Frame.Message(threadId, fork))
-            // ...and the leaf frame moves the branch, which retires the stand-in
             .apply(Frame.Thread(threadId, fork.id))
         assertEquals(listOf("root", "q2"), state.visibleTranscript(threadId).map(Message::id))
     }

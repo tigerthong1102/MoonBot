@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.sharing
 
 import android.content.ContentResolver
@@ -39,7 +40,6 @@ data class LoadedShareItems(
  */
 object ShareItemLoader {
     private const val COPY_CHUNK_BYTES = 64 * 1_024
-    /** iOS copy ceiling for both image and file branches (`ShareItemLoader.swift:268`). */
     private const val COPY_LIMIT_MB = 25
     private const val COPY_LIMIT_BYTES = COPY_LIMIT_MB * 1_024L * 1_024L
     private const val THUMBNAIL_MAX_PIXELS = 3_072
@@ -82,7 +82,6 @@ object ShareItemLoader {
         val extraText = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()
             .takeIf(String::isNotEmpty)
         val streams = streamUris(intent)
-        // EXTRA_TEXT is a caption, not an attachment — iOS counts only providers.
         if (streams.isEmpty() && extraText == null) {
             throw ShareLoadException(SharePolicy.nothingSupported())
         }
@@ -248,11 +247,6 @@ object ShareItemLoader {
         return attachment(target, displayName, resolvedMime, size.toInt(), LocalShareAttachment.Kind.FILE)
     }
 
-    /**
-     * Stream into our own file and enforce the ceiling on bytes actually read.
-     * A provider can change its temporary file after a metadata check, so a
-     * pre-copy length alone is not a limit.
-     */
     private fun copyBounded(
         resolver: ContentResolver,
         uri: Uri,
@@ -294,7 +288,6 @@ object ShareItemLoader {
         kind = kind,
     )
 
-    // Two full-size 48 MP bitmaps would blow the process budget.
     private fun transcodeJpeg(source: File, inbox: File): LocalShareAttachment? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(source.absolutePath, bounds)

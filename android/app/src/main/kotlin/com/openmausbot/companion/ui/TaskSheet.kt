@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.clickable
@@ -53,13 +54,6 @@ import com.openmausbot.companion.core.isSnoozed
 import com.openmausbot.companion.core.threadGroups
 import com.openmausbot.companion.core.isArchived
 
-/**
- * Separate contexts for an agent or channel — the port of
- * `ios/App/TaskManagerView.swift`.
- *
- * A compact dialog rather than a screen, because tasks are conversation
- * navigation, not host configuration.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskSheet(
@@ -73,7 +67,6 @@ fun TaskSheet(
     val scope = rememberCoroutineScope()
     val state by session.state.collectAsState()
 
-    // The live record, so busy and the task list stay current as frames land.
     val current = remember(state, chat) {
         when (chat) {
             is Chat.BotChat -> state.bots.firstOrNull { it.id == chat.id }?.let {
@@ -83,7 +76,6 @@ fun TaskSheet(
         }
     }
     if (current == null) {
-        // Deleted while the sheet was open.
         LaunchedEffect(chat.id) { onDismiss() }
         return
     }
@@ -102,8 +94,6 @@ fun TaskSheet(
         session.actionError = null
     }
 
-    // The person's own filing folds to the sheet's tail, out of the folders:
-    // an archived thread that starts demanding attention is back above.
     val (groups, archived) = when (current) {
         is Chat.BotChat -> {
             val all = current.bot.threadGroups(
@@ -139,7 +129,6 @@ fun TaskSheet(
         saving = true
         error = null
         scope.launch {
-            // A null clears the stamp — the server treats it as unarchive.
             val stamped = if (task.isArchived) null else System.currentTimeMillis().toDouble()
             val ok = archiveTask(session, task, current, stamped)
             saving = false
@@ -147,8 +136,6 @@ fun TaskSheet(
         }
     }
 
-    // A timed snooze can end while the sheet is open; the rows and the Stop
-    // snoozing offer must notice without waiting for the next snapshot.
     val now = rememberSnoozeNow(groups.flatMap { it.tasks })
 
     BasicAlertDialog(
@@ -329,8 +316,6 @@ fun TaskSheet(
             title = title,
             onTitleChange = { title = it },
             confirmText = "Save",
-            // An empty rename is allowed: the server labels it the untitled task,
-            // and iOS submits the field as typed.
             confirmEnabled = !saving && TaskDialogRules.renameEnabled(current, title),
             error = error,
             onConfirm = {
@@ -395,9 +380,6 @@ fun TaskSheet(
                                 enabled = !saving,
                                 onClick = {
                                     val bot = (current as? Chat.BotChat)?.bot ?: return@TextButton
-                                    // Re-resolved at click time — the composition can be a frame
-                                    // behind the update that started this thread working, and the
-                                    // PATCH has no server-side working check to catch it.
                                     val live = snoozeTarget(bot, threadId) ?: return@TextButton
                                     if (TaskRules.isWorking(live)) return@TextButton
                                     saving = true
@@ -443,11 +425,6 @@ fun TaskSheet(
     }
 }
 
-/**
- * The live task behind an open snooze dialog, resolved from the bot's current
- * task list rather than the snapshot the bell was tapped on. A deleted thread
- * resolves to nothing and closes the dialog; a routine run was never a row.
- */
 internal fun snoozeTarget(bot: Bot?, threadId: String): BotTask? =
     bot?.tasks.orEmpty().firstOrNull { it.threadId == threadId && it.routineRunId == null }
 

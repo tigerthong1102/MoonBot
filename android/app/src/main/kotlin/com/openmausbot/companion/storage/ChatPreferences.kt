@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.storage
 
 import android.content.Context
@@ -35,16 +36,11 @@ class ChatPreferences(
 
     fun setActivityDetail(detail: ActivityDetail) {
         if (_activityDetail.value == detail && prefs.contains(ACTIVITY_DETAIL)) return
-        // The value is small and changed only from Settings. Commit makes a
-        // selection durable before a process recreation can observe it.
         prefs.edit().putString(ACTIVITY_DETAIL, detail.wireValue).commit()
         _activityDetail.value = detail
     }
 
     fun setQuickReplies(replies: List<QuickReply>) {
-        // An encoded empty list is meaningful: it hides the chip row. Do not
-        // turn it into an absent key, which QuickReply.decode correctly treats
-        // as a first-run default.
         val encoded = QuickReply.encode(replies)
         if (_quickReplies.value == replies && prefs.getString(QUICK_REPLIES, null) == encoded) return
         prefs.edit().putString(QUICK_REPLIES, encoded).commit()
@@ -62,7 +58,6 @@ class ChatPreferences(
         prefs.edit().putString(key, destinationId).commit()
     }
 
-    /** Only a generic roster tap restores this preference; explicit links keep their target. */
     fun restoringThread(chat: Chat, connectionId: String?): Chat {
         if (chat !is Chat.BotChat || connectionId == null) return chat
         val threadId = prefs.getString(threadKey(connectionId, chat.id), null) ?: return chat

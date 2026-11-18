@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion
 
 import android.app.Activity
@@ -58,8 +59,6 @@ class PairingLinkActivity : Activity() {
                 )
             },
             markFinishing = ::finish,
-            // Session decides whether the invite may be accepted at all — an
-            // already-paired phone rejects it (§6).
             deliver = { url -> (application as OpenMausApp).session.receivePairingURL(url) },
         )
     }

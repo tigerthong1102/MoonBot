@@ -66,8 +66,6 @@ fun ConnectedAppsScreen(onBack: () -> Unit) {
 
     var catalog by remember { mutableStateOf<ConnectorCatalog?>(null) }
     var inventory by remember { mutableStateOf(ConnectedAppsInventory()) }
-    // Everything typed, and the dialog holding it, outlive a rotation: this
-    // Activity is recreated on one, and the catalog behind them is re-fetched.
     var query by rememberSaveable { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var refreshing by remember { mutableStateOf(false) }
@@ -91,9 +89,6 @@ fun ConnectedAppsScreen(onBack: () -> Unit) {
         scope.launch {
             val url = session.authorizeConnector(slug, accountAlias) ?: return@launch
             try {
-                // The core client accepts only a well-formed HTTPS URL. ACTION_VIEW
-                // keeps provider cookies, redirects and account choice in the
-                // browser instead of placing them in our process.
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url.toASCIIString())))
             } catch (_: ActivityNotFoundException) {
                 session.actionError = "This phone has no browser available to open the authorization page."
@@ -113,12 +108,7 @@ fun ConnectedAppsScreen(onBack: () -> Unit) {
         }
     }
 
-    // Authorization finishes in the browser, so the answer arrives while this
-    // screen is away — iOS re-reads on `scenePhase == .active`
-    // (`ios/App/ConnectedAppsView.swift:90-92`), without the full-screen
-    // spinner its `load` uses. The first resume is this screen's own entry,
-    // which the effect above already loaded, so it is skipped rather than
-    // asking twice.
+    // Browser authorization may finish while the app is in the background.
     var entered by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
         if (entered) scope.launch { refresh() } else entered = true
@@ -142,8 +132,6 @@ fun ConnectedAppsScreen(onBack: () -> Unit) {
         }
         HorizontalDivider()
 
-        // The same gesture the roster uses for the same question (RosterScreen.kt:167),
-        // and iOS's `.refreshable` (ConnectedAppsView.swift:89).
         PullToRefreshBox(
             isRefreshing = refreshing,
             onRefresh = { scope.launch { refresh(showProgress = true) } },
@@ -315,9 +303,6 @@ private fun ConnectorCardView(
                 }
                 else -> {
                     accounts.forEach { account -> ConnectorAccountRow(account) }
-                    // Kept and disabled at the limit, so the limit is legible
-                    // (`ios/App/ConnectedAppsView.swift:159-163`); hiding the
-                    // button leaves the ceiling to be guessed at.
                     TextButton(
                         onClick = onAddAccount,
                         enabled = ConnectedAppsRules.canAddAnotherAccount(accounts),
@@ -340,7 +325,6 @@ private fun ConnectorAccountRow(account: ConnectorAccount) {
     }
 }
 
-/** Pure state transition so an unavailable store can never erase a known inventory. */
 data class ConnectedAppsInventory(
     val statuses: Map<String, ConnectorStatus>? = null,
     val credentialStoreUnreadable: Boolean = false,
@@ -354,12 +338,6 @@ object ConnectedAppsPolicy {
             previous.copy(credentialStoreUnreadable = true)
         }
 
-    /**
-     * The provider's own wire word, made readable —
-     * `status.replacingOccurrences(of: "_", with: " ").capitalized` in
-     * `ios/App/ConnectedAppsView.swift:144`. Case is fixed, not the phone's
-     * locale: these are ASCII protocol words, not prose.
-     */
     fun statusLabel(status: String): String =
         status.replace('_', ' ').split(' ').joinToString(" ") { word ->
             word.lowercase().replaceFirstChar(Char::uppercaseChar)

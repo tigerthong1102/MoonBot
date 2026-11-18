@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.content.ActivityNotFoundException
@@ -74,20 +75,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** How a downloaded file is shown — `FilePreviewItem.Kind` in `AttachmentViews.swift`. */
 enum class FilePreviewKind {
-    /** Full-window, zoomable image preview. */
     IMAGE,
-    /** Rendered in the app, the way a bot reply is. */
     MARKDOWN,
-    /** Monospace, in the app. */
     TEXT,
-    /** Handed to whatever app opens it — Android's Quick Look. */
     OTHER,
 }
 
 object FilePreviewRules {
-    /** iOS reads 2 MB of a text file into the preview and says so. */
     const val TEXT_LIMIT_BYTES: Int = 2 * 1_024 * 1_024
     const val TRUNCATED_NOTE: String = "\n\n— Preview truncated. Share or open the file to read the rest. —"
 
@@ -108,21 +103,18 @@ object FilePreviewRules {
         return if (data.size > TEXT_LIMIT_BYTES) decoded + TRUNCATED_NOTE else decoded
     }
 
-    /** The name a bot's link points at, for the "Opening…" line. */
     fun nameForOpening(path: String): String =
         path.split('/', '\\').lastOrNull { it.isNotEmpty() }?.take(180) ?: "file"
 
     fun noViewer(filename: String): String = "No app on this phone can open $filename."
 }
 
-/** Bounds shared by sent-image thumbnails, full-screen previews, and screenshots. */
 object AttachmentImageRules {
     const val THUMBNAIL_EDGE: Int = 768
     const val FULL_SCREEN_EDGE: Int = 3_072
     const val LEGACY_INTERMEDIATE_PIXELS: Long = 12_000_000
     const val LEGACY_NEAR_TARGET_MAX_PIXELS: Long = 14_000_000
 
-    /** Largest power-of-two sample whose decoded edge still reaches the requested size. */
     fun sampleSize(width: Int, height: Int, maximumEdge: Int): Int {
         if (width <= 0 || height <= 0 || maximumEdge <= 0) return 1
         var sample = 1
@@ -186,7 +178,6 @@ object AttachmentImageRules {
     }
 }
 
-/** Decode budget for a screen frame, derived from its rendered width and aspect. */
 object ScreenShotImageRules {
     private const val MAXIMUM_EDGE = 4_096
 
@@ -219,7 +210,6 @@ internal fun decodeAttachmentImage(data: ByteArray, maximumEdge: Int): ImageBitm
     }
 }
 
-/** Read the frame's source aspect first, then spend pixels on its actual on-screen width. */
 internal fun decodeScreenShotImage(data: ByteArray, renderedWidthPixels: Int): ImageBitmap? {
     if (data.isEmpty()) return null
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -294,7 +284,6 @@ private fun decodeLegacyOrientedBitmap(data: ByteArray, maximumEdge: Int): andro
             .also { if (it !== oriented) oriented.recycle() }
     }
 
-/** A downloaded file, on disk and in memory, ready to show. */
 class FilePreviewItem(
     val file: File,
     val filename: String,
@@ -317,13 +306,8 @@ class FilePreviews(private val context: Context) {
     private var current: File? = null
     private var generation: Long = 0
 
-    /** Register synchronously before cancelling the previous coroutine. */
     fun beginRequest(): Long = synchronized(lock) { ++generation }
 
-    /**
-     * Serialised with [beginRequest]: a stale request can finish its disk write,
-     * but can never replace or delete the newer request's directory.
-     */
     suspend fun store(download: DownloadedFile, requestGeneration: Long): FilePreviewItem? {
         staleCleanupComplete.await()
         if (!isCurrent(requestGeneration)) return null
@@ -352,11 +336,6 @@ class FilePreviews(private val context: Context) {
 
     fun isCurrent(requestGeneration: Long): Boolean = synchronized(lock) { requestGeneration == generation }
 
-    /**
-     * Invalidate an in-flight request and remove the preview it may already
-     * have published. A request racing this call either loses before publish
-     * and deletes its own directory, or is captured here after publish.
-     */
     fun invalidateCurrent() {
         val discarded = synchronized(lock) {
             ++generation
@@ -365,7 +344,6 @@ class FilePreviews(private val context: Context) {
         discarded?.deleteRecursively()
     }
 
-    /** Delete only the dismissed item's directory, never a replacement preview. */
     fun dismiss(item: FilePreviewItem) {
         val directory = item.file.parentFile ?: return
         synchronized(lock) {
@@ -382,7 +360,6 @@ class FilePreviews(private val context: Context) {
         root.deleteRecursively()
     }
 
-    /** Hand the file to the system. Returns the sentence to show when nothing will take it. */
     fun openWithSystem(item: FilePreviewItem): String? {
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(contentUri(item), item.contentType)
@@ -422,7 +399,6 @@ class FilePreviews(private val context: Context) {
         private val staleCleanupStarted = AtomicBoolean(false)
         private val staleCleanupComplete = CompletableDeferred<Unit>()
 
-        /** One cleanup per process; stores share its barrier across instances. */
         fun startStaleCleanup(context: Context, scope: CoroutineScope) {
             if (!staleCleanupStarted.compareAndSet(false, true)) return
             val job = scope.launch(Dispatchers.IO) {
@@ -433,7 +409,6 @@ class FilePreviews(private val context: Context) {
     }
 }
 
-/** One native, full-window home for an image, readable document, or downloaded file. */
 @Composable
 internal fun FilePreviewSheet(
     item: FilePreviewItem,
@@ -593,7 +568,6 @@ private fun ZoomableImage(image: ImageBitmap, name: String) {
     }
 }
 
-/** Translation bounds for a ContentScale.Fit image after zoom. */
 object ImagePanRules {
     fun clamp(offset: Offset, scale: Float, viewport: IntSize, image: IntSize): Offset {
         if (viewport.width <= 0 || viewport.height <= 0 || image.width <= 0 || image.height <= 0) {

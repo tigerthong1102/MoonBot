@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.AfterTest
@@ -19,12 +20,6 @@ import kotlinx.serialization.encodeToString
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 
-/**
- * The task-CRUD surface is one policy: offline yields the operation's offline
- * value, cancellation propagates (it is not an error), and failures land in
- * actionError. Every Bot and Room overload rides the same path, so these tests
- * drive all of them: a reintroduced per-side copy fails here first.
- */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class SessionTaskCrudTest {
     private lateinit var server: MockWebServer
@@ -77,14 +72,12 @@ class SessionTaskCrudTest {
         val switchedRoom = initialRoom.copy(threadId = "task-2")
         val session = session { Fleet(emptyList(), listOf(initialRoom)) }
 
-        // Success: the room switch commits Frame.Room through the shared path.
         server.enqueue(json("""{"group":${CompanionJson.encodeToString(switchedRoom)}}"""))
         assertEquals("task-2", session.switchTask(BotTask("task-2", "Task 2", 2.0), initialRoom)?.threadId)
         assertEquals("task-2", session.state.value.rooms.single().threadId)
         assertEquals("POST /api/groups/r1/tasks/task-2", server.takeRequest().let { "${it.method} ${it.path}" })
         assertNull(session.actionError)
 
-        // Failure: a create reports the server's error and leaves the fleet alone.
         server.enqueue(json("""{"error":"Create failed"}""", code = 500))
         assertNull(session.createTask(bot("b1", "task-1", "task-1"), null))
         assertEquals("Create failed", session.actionError)
@@ -97,13 +90,6 @@ class SessionTaskCrudTest {
         val caller = Job()
         val callerScope = CoroutineScope(coroutineContext + caller)
 
-        // The failure is real and reported, but the caller's job is cancelled
-        // mid-mutation with no suspension between the two — exactly the
-        // window mutateTask must close. The await alone cannot tell the two
-        // apart (a cancelled async discards a normal result), so the test
-        // also proves the policy itself threw instead of returning offline.
-        // Null until mutateTask returns: the policy must throw, so this must
-        // still be null after the cancellation surfaces.
         var offlineValueObserved: Boolean? = null
         val deferred = callerScope.async(start = CoroutineStart.UNDISPATCHED) {
             offlineValueObserved = session.mutateTask(offline = false) {

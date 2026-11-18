@@ -19,9 +19,7 @@ enum OpenMausSharedKeychain {
         )
     }
 
-    /// The stored token: nil only when there genuinely is not one.
-    /// Locked or misconfigured keychains throw so callers never turn a
-    /// temporary inability to read protected data into an accidental unpair.
+    // A locked or unavailable Keychain does not establish that a saved credential is absent.
     static func token(for connectionID: String) throws -> String? {
         let accessGroup = try requiredAccessGroup()
         return try readToken(for: connectionID, accessGroup: accessGroup)
@@ -51,9 +49,6 @@ enum OpenMausSharedKeychain {
         return legacy
     }
 
-    /// Remove both generations when called by the main app. Deleting the
-    /// legacy item as well prevents an interrupted earlier migration from
-    /// reviving a pairing the user explicitly forgot.
     @discardableResult
     static func removeIncludingLegacyItem(_ connectionID: String) -> Bool {
         let sharedRemoved = remove(connectionID)

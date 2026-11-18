@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.border
@@ -43,15 +44,6 @@ import com.openmausbot.companion.core.CompanionState
 import com.openmausbot.companion.core.Room
 import kotlinx.coroutines.launch
 
-/**
- * Make a room from the phone — the port of `ios/App/NewGroupSheet.swift`.
- *
- * A name, and which bots are in it. The harness names it after the first member
- * if the name is left blank, which is what the desktop's dialog does too — one
- * rule, two screens. That rule lives in `:core`'s `Client.createRoom`, which
- * drops a blank name from the body; this screen hands the field over as typed and
- * does not second-guess it.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun NewGroupSheet(onCreated: (Room) -> Unit, onDismiss: () -> Unit) {
@@ -64,10 +56,6 @@ internal fun NewGroupSheet(onCreated: (Room) -> Unit, onDismiss: () -> Unit) {
     var members by remember { mutableStateOf(emptySet<String>()) }
     var creating by remember { mutableStateOf(false) }
 
-    // Live: the fleet keeps arriving while the sheet is open, so a bot deleted
-    // mid-pick leaves the list. Its id stays in `members`, as it does on iOS, and
-    // is filtered out only when the request is built — so it comes back selected
-    // if the bot does.
     val bots = remember(state) { NewGroupRules.selectable(state) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -91,8 +79,6 @@ internal fun NewGroupSheet(onCreated: (Room) -> Unit, onDismiss: () -> Unit) {
                         scope.launch {
                             val ordered = NewGroupRules.members(bots, members)
                             val room = session.createRoom(name, ordered)
-                            // A failure leaves the sheet open with the picks
-                            // intact; `Session` raises the error dialog itself.
                             if (room != null) {
                                 haptics.play(TactileAction.CREATE_GROUP_SUCCESS)
                                 onCreated(room)
@@ -112,8 +98,6 @@ internal fun NewGroupSheet(onCreated: (Room) -> Unit, onDismiss: () -> Unit) {
                 onValueChange = { name = it },
                 label = { Text("Group name (optional)") },
                 singleLine = true,
-                // A room's name is a label, not prose; iOS turns autocorrect off
-                // here for the same reason.
                 keyboardOptions = KeyboardOptions(
                     autoCorrectEnabled = false,
                     imeAction = ImeAction.Done,
@@ -155,7 +139,6 @@ internal fun BotPickRow(bot: Bot, selected: Boolean, onToggle: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // A list of many, and a picker is not a place anything is happening.
         BotAvatar(bot = bot, size = 36.dp, state = MausState.IDLE, animated = false)
 
         Column(
@@ -180,8 +163,6 @@ internal fun BotPickRow(bot: Bot, selected: Boolean, onToggle: () -> Unit) {
             }
         }
 
-        // The row itself carries the checked state to the reader; the mark is
-        // the same tick and empty ring iOS draws.
         if (selected) {
             Icon(
                 imageVector = Icons.Filled.CheckCircle,
@@ -199,34 +180,12 @@ internal fun BotPickRow(bot: Bot, selected: Boolean, onToggle: () -> Unit) {
     }
 }
 
-/**
- * Who a group can be made from, in what order, and when Create is live.
- *
- * The name is not a rule of this screen: `:core` decides that a blank one is
- * left out of the request so the harness can name the room after its first
- * member.
- */
 internal object NewGroupRules {
-    /** Roster order, hidden bots left out — the order the picker offers them in. */
     fun selectable(state: CompanionState): List<Bot> = state.bots.filter { it.hidden != true }
 
-    /**
-     * Members in the order the picker listed them rather than the order they were
-     * tapped, so a room the harness has to name follows the list, not the taps.
-     * Anything [bots] no longer offers is dropped on the way out.
-     */
     fun members(bots: List<Bot>, selected: Set<String>): List<String> =
         bots.mapNotNull { bot -> bot.id.takeIf { it in selected } }
 
-    /**
-     * One bot is a room the harness will make; none is not, and neither is a
-     * second press.
-     *
-     * Gated on the raw selection, as `NewGroupSheet.swift:67` is, not on what
-     * [members] resolves it to: when a picked bot leaves the fleet mid-sheet both
-     * ports keep Create lit and can send an empty member list. Mirrored rather
-     * than quietly improved — the fix belongs to the source first.
-     */
     fun canCreate(selected: Set<String>, creating: Boolean): Boolean =
         selected.isNotEmpty() && !creating
 }

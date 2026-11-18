@@ -1,10 +1,10 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import java.util.Calendar
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** The clock presets, worded and ordered as the desktop words them. */
 class SnoozeRulesTest {
     private fun at(month: Int, day: Int, hour: Int, minute: Int = 0): Long =
         Calendar.getInstance().apply {

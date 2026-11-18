@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion
 
 import android.app.Application
@@ -27,10 +28,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-/**
- * Application entry: owns the long-lived [Session] and wires
- * [ProcessLifecycleOwner] the way iOS `scenePhase` drives connect and linger.
- */
 class OpenMausApp : Application() {
     private val appJob = SupervisorJob()
     val appScope = CoroutineScope(appJob + Dispatchers.Main.immediate)
@@ -44,11 +41,6 @@ class OpenMausApp : Application() {
     lateinit var permissions: CompanionPermissions
         private set
 
-    /**
-     * One instance for the whole process: [Session] writes the first-pair
-     * education marker into it as part of committing a pairing, and the root
-     * router reads it to decide whether that step is due.
-     */
     lateinit var onboarding: OnboardingPreferences
         private set
     lateinit var avatars: AvatarImageStore
@@ -68,8 +60,6 @@ class OpenMausApp : Application() {
         super.onCreate()
         shareInbox = ShareInbox()
         ShareInbox.cleanStale(cacheDir)
-        // Launch stays non-blocking. The preview store awaits the shared
-        // completion barrier on its own IO coroutine before writing anything.
         FilePreviews.startStaleCleanup(this, appScope)
         notifications = LocalNotificationPoster(this)
         discovery = NsdDiscovery(this)
@@ -92,8 +82,6 @@ class OpenMausApp : Application() {
         voicePreview = VoicePreviewPlayer(this)
         voiceNotes = VoiceNotePlayer(this)
 
-        // iOS resets the avatar cache inside signOut. Observe Unpaired here so
-        // the platform cache cannot outlive the pairing that minted its URLs.
         appScope.launch {
             session.status
                 .map { it is Session.Status.Unpaired }
@@ -103,10 +91,6 @@ class OpenMausApp : Application() {
                 }
         }
 
-        // Foreground reconnects; background lingers. Cutting the stream at
-        // onStop would drop a turn that completes seconds after Home — the
-        // notification is produced by this stream and nothing else.
-        // `session.linger()` on iOS (`ios/App/CompanionApp.swift:26`).
         linger = installSessionLinger(
             lifecycle = ProcessLifecycleOwner.get().lifecycle,
             session = session,
@@ -116,11 +100,6 @@ class OpenMausApp : Application() {
         )
 
         alwaysOn = AlwaysOnPreferences(this)
-        // Covers the case where the process was relaunched (not booted) while
-        // the setting was on — e.g. the OS killed the whole app under memory
-        // pressure and the user (or a notification tap) reopened it. A device
-        // reboot is covered separately by AlwaysOnBootReceiver, which can run
-        // before anything ever constructs this Application's Activity.
         if (alwaysOn.enabled.value) {
             AlwaysOnConnectionService.start(this)
         }

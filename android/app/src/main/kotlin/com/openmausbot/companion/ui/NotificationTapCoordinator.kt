@@ -25,8 +25,6 @@ class NotificationTapCoordinator {
         consume: (NotificationTarget) -> Unit,
     ): Boolean {
         val result = NotificationOpen.open(session, target)
-        // Always advance the generation so an in-flight commit for a previous
-        // tap cannot succeed after this pending entry replaced it.
         nextGeneration += 1
         _resolution.value = result.chat?.let { chat ->
             Resolution(generation = nextGeneration, chat = chat, target = target)

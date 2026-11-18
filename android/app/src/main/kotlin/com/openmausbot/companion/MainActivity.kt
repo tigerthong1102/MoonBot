@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion
 
 import android.Manifest
@@ -48,7 +49,6 @@ class MainActivity : ComponentActivity() {
     private val app: OpenMausApp
         get() = application as OpenMausApp
 
-    /** Notification tap → `(botId, threadId)`; delivered to the UI once. */
     private lateinit var notificationNavigation: PendingThreadNavigation
 
     private lateinit var camera: CameraPermissionController
@@ -64,8 +64,6 @@ class MainActivity : ComponentActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { results ->
-        // Re-read platform state instead of treating the launcher result map as
-        // a second source of truth.
         app.permissions.refresh()
         permissionRequests.onResults(results)
     }
@@ -157,11 +155,6 @@ class MainActivity : ComponentActivity() {
             requestRecordAudio = { onResult -> mic.ensure(onResult) },
             preferredLanguages = ::preferredLanguageTags,
         )
-        // Process memory only — outlives ChatScreen when Computer is on top,
-        // dies with the Activity so rotation never restores spoken text.
-        // Built once here and handed into CompanionEnvironment for the
-        // Activity lifetime; LoadedChat still keys its saver on this instance
-        // so a future environment swap cannot restore into a stale holder.
         chatDrafts = ChatDraftHolder()
 
         val sharing = TranscriptSharing(this)
@@ -211,8 +204,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        // A tap that arrives while the app is already up is always a new request,
-        // even for a target that was opened from a notification before.
         handleIntent(intent, fresh = true)
     }
 
@@ -227,8 +218,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        // Activity teardown releases the recognizer; process-background stop is
-        // already handled inside SpeechDictation via ProcessLifecycleOwner.
         if (isFinishing && ::dictation.isInitialized) dictation.stop()
         super.onDestroy()
     }
@@ -245,9 +234,6 @@ class MainActivity : ComponentActivity() {
     private fun handleIntent(intent: Intent?, fresh: Boolean = false) {
         if (intent == null) return
 
-        // The extras deliberately stay on the Intent: PendingThreadNavigation
-        // remembers what has already been opened, so a rotation before the
-        // composition consumed it still navigates, and one after it does not.
         notificationNavigation.offer(intent.notificationTarget(), fresh = fresh)
     }
 
@@ -288,9 +274,6 @@ class MainActivity : ComponentActivity() {
     private fun toggleAlwaysOn() {
         val enabling = !app.alwaysOn.enabled.value
         if (enabling && notifications.access.value != NotificationAccess.GRANTED) {
-            // A background connection whose notifications can't post is a
-            // foreground service and battery cost for nothing — send the user
-            // to fix that first instead of turning this on silently broken.
             notifications.act()
             return
         }

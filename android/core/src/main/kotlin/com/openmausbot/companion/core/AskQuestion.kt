@@ -9,34 +9,20 @@ import kotlinx.serialization.json.JsonPrimitive
 @Serializable
 data class AskQuestionOption(
     val label: String,
-    /**
-     * The model's one-line gloss under the label. Named `detail` because
-     * `description` collides with nothing here but reads as a Kotlin
-     * `toString` hook to anyone arriving from the Swift twin.
-     */
     @SerialName("description") val detail: String? = null,
 )
 
 @Serializable
 data class AskQuestion(
     val question: String,
-    /** The short tab label the model gave this question ("Schedule", "Model"). */
     val header: String? = null,
     val multiSelect: Boolean? = null,
-    /**
-     * A question with no options is still answerable — the card always offers
-     * free text — so a missing list is empty, not a failure.
-     */
     val options: List<AskQuestionOption> = emptyList(),
     val custom: Boolean? = null,
 ) {
     val allowsMultiple: Boolean get() = multiSelect == true
     val allowsCustom: Boolean get() = options.isEmpty() || custom != false
 
-    /**
-     * What the tab shows. The model names most questions; a numbered fallback
-     * keeps the tabs distinguishable when it does not.
-     */
     fun tabLabel(position: Int): String = header?.takeIf { it.isNotEmpty() } ?: "Question $position"
 }
 
@@ -44,11 +30,6 @@ data class AskQuestion(
 data class QuestionRequestCardData(
     val version: Int = 1,
     val questions: List<AskQuestion> = emptyList(),
-    /**
-     * Where the ask came from: a tool call (null) or a block the harness parsed
-     * out of model-authored output ("output"). Badge data only — it never
-     * changes how a card is answered.
-     */
     val origin: String? = null,
 )
 
@@ -75,7 +56,6 @@ object AskQuestionAnswer {
         return "$PREAMBLE\n\n${pairs.joinToString("\n\n") { "Q: ${it[0]}\nA: ${it[1]}" }}"
     }
 
-    /** The same answer without the model-facing lead-in, for a settled card. */
     fun withoutPreamble(answer: String): String {
         val lead = "$PREAMBLE\n\n"
         if (!answer.startsWith(lead)) return answer

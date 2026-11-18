@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.io.IOException
@@ -107,7 +108,6 @@ class ServerSessionPairingTest {
             val saved = public.copy(serverEnvironmentId = "env-fixture")
             assertFailsWith<APIError.Transport> { CompanionClient(saved, "saved-bearer", f.http).fleet() }
             assertTrue(f.requests.isEmpty(), "No identity probe, pairing code or bearer may reach public HTTP")
-            // The rejected local preflight must not spend a code that never reached the server.
             f.session.pair(f.invite, "corrected-origin")
             assertNotNull(f.store.saved)
         }

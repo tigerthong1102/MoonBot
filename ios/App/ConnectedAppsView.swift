@@ -13,14 +13,7 @@ struct ConnectedAppsView: View {
     @EnvironmentObject private var session: Session
     @Environment(\.scenePhase) private var scenePhase
     @State private var catalog: ConnectorCatalog?
-    /// The last inventory the computer vouched for, or `nil` if it never has.
-    /// An empty dictionary is a real answer — "nothing is connected". `nil` is
-    /// the absence of an answer, and drawing the two the same way is the whole
-    /// bug: it turns "we could not find out" into "you are disconnected".
     @State private var statuses: [String: ConnectorStatus]?
-    /// Whether the newest answer withdrew its own authority. `PluginsPanel.tsx`
-    /// keeps the same flag for the same reason: silence makes a remembered
-    /// list indistinguishable from a confirmed one.
     @State private var credentialStoreUnreadable = false
     @State private var query = ""
     @State private var aliasCard: ConnectorCard?
@@ -55,12 +48,6 @@ struct ConnectedAppsView: View {
                 }
             }
 
-            // Two notices about one fact is one too many, and only the banner
-            // above is true during a failed read: `configured` comes from
-            // `composio.configured(cfg)` (server/index.ts:4993), which an
-            // unreadable store also drives to false, so "needs setup" would be
-            // advice for someone who never set this up. Same rule the panel on
-            // the computer applies — `!configured && !stale`.
             if catalog?.configured == false, !credentialStoreUnreadable {
                 Section {
                     ContentUnavailableView(
@@ -119,9 +106,6 @@ struct ConnectedAppsView: View {
 
         Section {
             if statuses == nil {
-                // No inventory has ever been confirmed, so this app's state is
-                // not known. "Connect" would assert that it is disconnected —
-                // the one claim we are in no position to make.
                 Label("Connection unknown", systemImage: "questionmark.circle")
                     .foregroundStyle(.secondary)
             } else if accounts.isEmpty, !isConnected, !isPending {

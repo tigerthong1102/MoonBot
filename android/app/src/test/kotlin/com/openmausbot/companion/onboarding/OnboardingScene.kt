@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.onboarding
 
 import android.Manifest
@@ -65,7 +66,6 @@ class OnboardingScene(
     savedToken: String? = null,
     /** The computer answers 401: the token was revoked on the other side. */
     private val revoked: Boolean = false,
-    /** When set, a redemption suspends here — an attempt held in flight. */
     private val pairSuspendsUntil: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
     notificationOnboardingPending: Boolean = false,
     welcomeSeen: Boolean = false,
@@ -77,7 +77,6 @@ class OnboardingScene(
     /** Every permission launch, in order, flattened to the names asked for. */
     val permissionRequests = mutableListOf<List<String>>()
 
-    /** How many times something started a browse. */
     val discovery = FakeDiscovery()
 
     var notificationsAreEnabled = notificationsEnabled
@@ -121,9 +120,6 @@ class OnboardingScene(
                 c,
             )
         },
-        // A 401 straight out of the stream is the shortest deterministic path
-        // to Unauthorized: `runStream` catches it and stops, with no reconnect
-        // delay for a test to wait out.
         eventsFn = { _, _, _ ->
             if (revoked) flow<StreamFrame> { throw APIError.Status(401, "revoked") } else emptyFlow()
         },
@@ -179,14 +175,8 @@ class OnboardingScene(
         permissionRequests += permissions
     }
 
-    /** Everything asked for so far, flattened. */
     fun asked(): List<String> = permissionRequests.flatten()
 
-    /**
-     * The same durable file, read by a store that has never seen this process —
-     * the shape a relaunch has. Anything this reports is on disk, not in a
-     * StateFlow the composition happened to leave behind.
-     */
     fun relaunchedOnboarding() = OnboardingPreferences(
         prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE),
         io = EmptyCoroutineContext,
@@ -195,14 +185,6 @@ class OnboardingScene(
     private fun runBlockingWrite(block: suspend () -> Unit) =
         kotlinx.coroutines.runBlocking { block() }
 
-    /**
-     * A discovery that never finds anything, and remembers being asked.
-     *
-     * [starts] counts collections, not calls to [discover]: the production flow
-     * is cold, so building it costs nothing and only collecting it browses.
-     * [active] says whether a browse is running right now, which is how a test
-     * can see a panel being closed tear one down.
-     */
     class FakeDiscovery : CompanionDiscovery {
         val starts = MutableStateFlow(0)
         val active = MutableStateFlow(0)
@@ -245,7 +227,6 @@ class OnboardingScene(
     }
 
     companion object {
-        /** One preferences file per scene, so scenes cannot read each other. */
         private val SCENES = AtomicInteger(0)
 
         val MAC = Connection(id = "c1", name = "Mac", host = "127.0.0.1", port = 8810)

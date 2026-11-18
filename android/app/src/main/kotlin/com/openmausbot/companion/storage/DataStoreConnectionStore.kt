@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.storage
 
 import android.content.Context
@@ -31,9 +32,6 @@ class DataStoreConnectionStore(
     }
 
     override suspend fun save(connection: Connection) {
-        // Never write KEY: a legacy record left beside a later-corrupt v1
-        // would resurrect a computer the user may have removed. One edit so
-        // the upsert and the KEY wipe commit together.
         dataStore.edit { prefs ->
             writeRegistry(prefs, restoreFrom(prefs).registry.upsert(connection))
         }
@@ -91,14 +89,10 @@ class DataStoreConnectionStore(
         } else {
             prefs[REGISTRY_KEY] = CompanionJson.encodeToString(normalized)
         }
-        // Once a registry has been written it is authoritative: preserving
-        // the legacy record would make a future corrupt v1 decode silently
-        // resurrect a computer the user had removed.
         prefs.remove(KEY)
     }
 
     companion object {
-        /** Previous single-computer record, kept only for one-way migration. */
         val KEY = stringPreferencesKey("companion.connection")
         val REGISTRY_KEY = stringPreferencesKey("companion.connections.v1")
     }

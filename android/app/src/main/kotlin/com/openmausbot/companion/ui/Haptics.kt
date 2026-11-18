@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.os.Build
@@ -6,36 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalView
 
-/**
- * The two things this app has to say through the motor — the Android half of
- * what `Haptics` and `SoundEffects` do in `ios/App/PlatformBridge.swift`.
- *
- * Android's own constants, not Apple's generators, and no sound at all. iOS
- * pairs its send impact with `AudioServicesPlaySystemSound(1004)`; those ids
- * name Apple's sounds, there is no equivalent id here, and an app that invents a
- * send chime on a platform whose keyboard already owns that job is an app that
- * gets muted. The feedback constants are the right register: they are one call,
- * they respect the system's touch-feedback setting for free, and a device with
- * no vibrator simply does nothing.
- */
 enum class HapticCue {
-    /** A message left the phone. */
     SEND,
 
-    /** Something was picked from a list of things. */
     SELECT,
 
-    /** The computer confirmed that something new was made. */
     SUCCESS,
 }
 
-/**
- * The audited taps — the iOS actions added in 910822a, and the ones checked
- * against the Swift since — named here instead of left as an anonymous tick at
- * the call site. Keeping this small mapping separate makes the parity reviewable
- * without turning every composable callback into a test seam, and each entry
- * added after that first audit cites the line that plays the cue on iOS.
- */
 internal enum class TactileAction(val cue: HapticCue) {
     OPEN_SEARCH_RESULT(HapticCue.SELECT),
     START_NEW_GROUP(HapticCue.SELECT),
@@ -48,26 +27,16 @@ internal enum class TactileAction(val cue: HapticCue) {
     CHOOSE_APPROVAL(HapticCue.SELECT),
     GRANT_APPROVAL(HapticCue.SELECT),
 
-    /**
-     * Opening the organizer. Both iOS entry points — the bar button
-     * (`ChatListView.swift:419`) and the compact menu item (`:385`) — are the one
-     * `openNewSection()`, which ticks before it presents (`:434-435`).
-     */
     START_NEW_SECTION(HapticCue.SELECT),
 
-    /** The disclosure on a folded activity run (`ActivityRunChip.swift:30`). */
     TOGGLE_ACTIVITY_RUN(HapticCue.SELECT),
 
-    /** An "Opened thread" chip going to its thread (`ChatView.swift` `ActivityChip`). */
     OPEN_THREAD_CHIP(HapticCue.SELECT),
 
-    /** Moving the phone to another paired computer (`SettingsView.swift:250`). */
     SWITCH_COMPUTER(HapticCue.SELECT),
 
-    /** Starting the pairing for a second computer (`SettingsView.swift:283`). */
     CONNECT_ANOTHER_COMPUTER(HapticCue.SELECT),
 
-    /** Picking the mark a quick reply carries (`QuickRepliesEditor.swift:138`). */
     CHOOSE_QUICK_REPLY_ICON(HapticCue.SELECT),
 }
 
@@ -133,35 +102,18 @@ object CompanionHaptics {
             }
     }
 
-    /**
-     * The cue a slash command earns, or none.
-     *
-     * iOS fires both for a command that sends: `onSelectCommand` runs `submit`,
-     * which plays the sent sound and a medium impact before it even creates its
-     * `Task`, and then the HUD adds its own `Haptics.selection()` — both
-     * synchronously, on the one gesture's stack. On a phone that has only the
-     * motor, two effects back to back are one muddled buzz — so a command that
-     * sends is felt as a send, and only a command that navigates is felt as a
-     * selection. One gesture, one cue.
-     */
     fun forCommand(effect: SlashEffect): HapticCue? = when (effect) {
         is SlashEffect.Send -> null
         SlashEffect.OpenComputer, SlashEffect.OpenTasks -> HapticCue.SELECT
     }
 }
 
-/** One cue, played on the window this composition is in. */
 fun interface Haptics {
     fun play(cue: HapticCue)
 }
 
-/** Play the tactile feedback earned by one audited interaction. */
 internal fun Haptics.play(action: TactileAction) = play(action.cue)
 
-/**
- * The view is the thing that can vibrate, and it does not change under a screen;
- * this is remembered against it so a tap handler is not rebuilding the lookup.
- */
 @Composable
 fun rememberHaptics(): Haptics {
     val view = LocalView.current

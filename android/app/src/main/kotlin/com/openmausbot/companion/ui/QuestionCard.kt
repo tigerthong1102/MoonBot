@@ -55,15 +55,11 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
 
     val session = LocalCompanion.current.session
     val scope = rememberCoroutineScope()
-    // Per question: the option labels ticked, the free-text reply, and whether
-    // "Other" is open. An open field with nothing in it is not an answer.
     val picked = remember(message.id, card.requestId, card.questionRequest) { mutableStateMapOf<Int, Set<String>>() }
     val custom = remember(message.id, card.requestId, card.questionRequest) { mutableStateMapOf<Int, String>() }
     val other = remember(message.id, card.requestId, card.questionRequest) { mutableStateMapOf<Int, Boolean>() }
     var active by remember(message.id, card.requestId, card.questionRequest) { mutableStateOf(0) }
     var answering by remember(message.id, card.requestId, card.questionRequest) { mutableStateOf(false) }
-    // The harness settles the card, but only after a round trip. Holding the
-    // sent answer closes the window where the buttons are still live.
     var sent by remember(message.id, card.requestId, card.questionRequest) { mutableStateOf<String?>(null) }
 
     fun answersFor(position: Int): List<String> {
@@ -87,12 +83,8 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
             picked[index] = if (label in chosen) chosen - label else chosen + label
             return
         }
-        // Single-select is a radio group: picking replaces, and picking an
-        // option means the free-text answer was not the one they wanted.
         picked[index] = setOf(label)
         other[index] = false
-        // Move to the next question they still owe an answer to. The last one
-        // stays put so the submit button is under the thumb that just chose.
         questions.indices
             .firstOrNull { it != index && answersFor(it).isEmpty() }
             ?.let { active = it }
@@ -288,7 +280,6 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
     }
 }
 
-/** One option row. The whole row is the target, not the 16 dp glyph on it. */
 @Composable
 private fun ChoiceRow(
     label: String,
@@ -316,26 +307,17 @@ private fun ChoiceRow(
     }
 }
 
-/** What the tabs and the answer share, kept here so a test can reach it. */
 internal object QuestionCardRules {
-    /** A structured ask draws the question card; everything else the ordinary one. */
     fun drawsQuestionCard(message: Message): Boolean =
         message.kind == Message.Kind.OPTIONS && message.card?.questions?.isNotEmpty() == true
 
-    /** The tab labels, in order, exactly as the card shows them. */
     fun tabLabels(questions: List<AskQuestion>): List<String> =
         questions.mapIndexed { index, question -> question.tabLabel(index + 1) }
 
-    /** An ask the harness parsed out of model output rather than a tool call. */
     fun agentComposed(message: Message): Boolean =
         message.card?.questionRequest?.origin == "output"
 }
 
-/**
- * The radio dot / checkbox tick, drawn rather than taken from the icon set:
- * the app bundles material-icons-core only, and pulling in the extended pack
- * for four glyphs would cost more than the twelve lines below.
- */
 @Composable
 private fun Marker(checked: Boolean, multi: Boolean) {
     val accent = MaterialTheme.colorScheme.primary

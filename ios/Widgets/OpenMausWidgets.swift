@@ -1,8 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// The widget extension: the bot's Live Activity, in the Dynamic Island and
-// on the lock screen. The face is the mascot engine's resting face for the
-// state — the system renders a snapshot, so it cannot move here, but it
-// changes with every update.
 import ActivityKit
 import SwiftUI
 import WidgetKit
@@ -35,7 +31,6 @@ struct BotActivityWidget: Widget {
                             .font(.system(size: 13))
                             .foregroundStyle(.white.opacity(0.7))
                             .lineLimit(2)
-                        // the one clock iOS keeps ticking for us
                         Text(timerInterval: context.state.since...context.state.since.addingTimeInterval(86_400), countsDown: false)
                             .font(.system(size: 12, weight: .medium).monospacedDigit())
                             .foregroundStyle(.white.opacity(0.5))
@@ -108,7 +103,6 @@ private struct LockScreenView: View {
     }
 }
 
-/// The card's options, as pills — exactly the options the card offered.
 private struct AnswerButtons: View {
     let context: ActivityViewContext<BotActivityAttributes>
     let threadId: String
@@ -143,10 +137,6 @@ private struct AnswerButtons: View {
     }
 }
 
-/// The face with comets around it and a rainbow ring filling up behind it.
-/// The system renders a snapshot, so the comets are a frame — a different
-/// one each update — and the ring is a timer-driven `ProgressView`, which is
-/// the one kind of motion iOS keeps animating in a Live Activity on its own.
 private struct OrbitingFace: View {
     let context: ActivityViewContext<BotActivityAttributes>
     let size: CGFloat

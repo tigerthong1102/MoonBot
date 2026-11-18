@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.lifecycle
 
 import android.content.Context
@@ -34,7 +35,6 @@ class ServiceProcessAnchor(context: Context) : SessionLingerController.ProcessAn
         try {
             appContext.stopService(Intent(appContext, SessionLingerService::class.java))
         } catch (error: IllegalStateException) {
-            // Already gone; the coordinator's own bookkeeping is the truth.
         } catch (error: SecurityException) {
         }
     }

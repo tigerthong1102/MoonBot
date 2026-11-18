@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.lifecycle
 
 import android.app.Service
@@ -44,10 +45,6 @@ class SessionLingerService : Service() {
         if (destroyed != NO_TOKEN) watcher.get()?.onAnchorDestroyed(destroyed)
     }
 
-    /**
-     * Told whenever the service goes away, whether the coordinator asked for it
-     * or the system reclaimed it. The coordinator tells the two apart by token.
-     */
     fun interface Watcher {
         fun onAnchorDestroyed(token: Long)
     }
@@ -56,9 +53,6 @@ class SessionLingerService : Service() {
         const val EXTRA_TOKEN = "com.openmausbot.companion.linger.TOKEN"
         const val NO_TOKEN = 0L
 
-        // Android constructs Services itself, so the hand-off has to be
-        // process-static. It holds one application-scoped coordinator, which
-        // outlives every window anyway.
         private val watcher = AtomicReference<Watcher?>(null)
 
         fun watch(watcher: Watcher?) {

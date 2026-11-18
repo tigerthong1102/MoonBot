@@ -28,8 +28,6 @@ class LocalNotificationPoster(
     override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) {
         if (!canPost()) return
         val channelId = NotificationMapping.channelId(notification)
-        // Identity lives in Intent data (botId + threadId), not a hashed
-        // requestCode — extras alone cannot distinguish PendingIntents.
         val intent = NotificationIntents.contentIntent(appContext, notification, connectionId)
         val pending = PendingIntent.getActivity(
             appContext,
@@ -37,12 +35,9 @@ class LocalNotificationPoster(
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        // The shade is SystemUI's window, so the app's reading-direction policy
-        // has to travel inside the string. See NotificationText.
         val title = NotificationText.anchored(notification.title)
         val body = NotificationText.anchored(notification.body)
         val builder = NotificationCompat.Builder(appContext, channelId)
-            // The app's own mark, monochrome as the status bar requires.
             .setSmallIcon(R.drawable.ic_startupbot_status)
             .setContentTitle(title)
             .setContentText(body)
@@ -70,9 +65,6 @@ class LocalNotificationPoster(
     }
 
     override fun setBadge(count: Int) {
-        // No universal launcher-badge API without a posted notification. Unread
-        // count is attached via setNumber on real notify posts; badge-only updates
-        // are a no-op so we never leave a phantom notification in the shade.
         lastBadge = maxOf(0, count)
     }
 
@@ -84,7 +76,6 @@ class LocalNotificationPoster(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val system = appContext.getSystemService(NotificationManager::class.java) ?: return
 
-        // Existing channels preserve the user's sound and importance choices.
         if (system.getNotificationChannel(NotificationMapping.CHANNEL_BLOCKING) == null) {
             system.createNotificationChannel(
                 NotificationChannel(
@@ -98,26 +89,12 @@ class LocalNotificationPoster(
         }
 
         if (system.getNotificationChannel(NotificationMapping.CHANNEL_DONE) == null) {
-            // The legacy channel could only ever be at DEFAULT or something the
-            // user explicitly lowered it to in system settings (Android caps a
-            // channel at what the app first declared, so DEFAULT is the
-            // ceiling). A lower importance is therefore a deliberate mute, not
-            // a default — starting fresh at HIGH would silently override that
-            // choice. Carry it forward; only a fresh install or an untouched
-            // legacy channel gets the HIGH bump Kate asked for. This whole
-            // branch only runs the one time `bot_messages` doesn't exist yet,
-            // so it can't re-fire on every launch and re-decide anything.
             val legacyDone = system.getNotificationChannel(LEGACY_CHANNEL_DONE)
             val doneImportance = if (legacyDone != null &&
                 legacyDone.importance < NotificationManager.IMPORTANCE_DEFAULT
             ) {
                 legacyDone.importance
             } else {
-                // HIGH so this pops up (heads-up banner + lock screen) with sound,
-                // the way a normal messaging app does — DEFAULT only shows quietly
-                // in the shade. Kate's ask (2026-09-08): every bot message, not just
-                // approvals, should read as "interesting app noise" rather than sit
-                // unnoticed until she happens to pull the shade down.
                 NotificationManager.IMPORTANCE_HIGH
             }
             system.createNotificationChannel(
@@ -127,13 +104,6 @@ class LocalNotificationPoster(
                     doneImportance,
                 ).apply {
                     description = appContext.getString(R.string.notification_channel_done_desc)
-                    // Importance isn't the only thing a person can customize on a
-                    // channel — a picked sound, an intentionally silent one
-                    // (sound=null), vibration, and lock-screen visibility all
-                    // deserve the same carry-forward as importance above: copy
-                    // them straight off the legacy channel rather than letting
-                    // this constructor's plain defaults silently win. A fresh
-                    // install has no legacy channel, so this is a no-op there.
                     if (legacyDone != null) {
                         setSound(legacyDone.sound, legacyDone.audioAttributes)
                         enableVibration(legacyDone.shouldVibrate())
@@ -143,10 +113,6 @@ class LocalNotificationPoster(
                 },
             )
         }
-        // The old channel this replaced. Deleting it (rather than leaving it
-        // orphaned) keeps Settings -> App notifications from showing a dead
-        // "Finished work" entry alongside the new one; harmless no-op once
-        // it's already gone.
         system.deleteNotificationChannel(LEGACY_CHANNEL_DONE)
 
         if (system.getNotificationChannel(NotificationMapping.CHANNEL_ROUTINE_FAILED) == null) {

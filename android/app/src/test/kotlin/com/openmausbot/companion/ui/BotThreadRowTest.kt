@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.BotTask
@@ -5,7 +6,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** The row's status line is wording only — these tests keep the split honest. */
 class BotThreadRowTest {
     private fun task(id: String, activity: String? = null, busy: Boolean? = null, waiting: Boolean? = null) =
         BotTask(threadId = id, title = id, createdAt = 0.0, activity = activity, busy = busy, waitingOnTeammate = waiting)

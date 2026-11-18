@@ -39,7 +39,6 @@ internal class PairingSecretStore {
     private var credential: String? = null
     private var code: String = ""
     private var pairRequestId: String? = null
-    /** The handle of the attempt currently redeeming, if there is one. */
     private var attempting: String? = null
 
     /**
@@ -66,17 +65,7 @@ internal class PairingSecretStore {
         return minted
     }
 
-    /**
-     * Mark this slot's credential as being redeemed — the port of
-     * `CompanionPairingSubmissionState.begin()` in
-     * `ios/Sources/CompanionCore/Onboarding.swift`. It lives here rather than in
-     * the screen because the thing that must not be replaced is the slot, and
-     * this is the only object that can refuse to replace it.
-     *
-     * False when the caller does not own the slot, or when a redemption is
-     * already running: a second submit must not overtake a request the computer
-     * may already have persisted.
-     */
+    // A one-time credential cannot be replaced while its redemption may already be committed.
     @Synchronized
     fun beginAttempt(handle: String?): Boolean {
         if (!owns(handle) || attempting != null) return false
@@ -84,7 +73,6 @@ internal class PairingSecretStore {
         return true
     }
 
-    /** The attempt is over, whatever its outcome. */
     @Synchronized
     fun endAttempt(handle: String?) {
         if (attempting == handle) attempting = null
@@ -100,7 +88,6 @@ internal class PairingSecretStore {
     @Synchronized
     fun isRedeeming(): Boolean = attempting != null && attempting == handle
 
-    /** True when this store is the one that minted [handle] and still holds it. */
     @Synchronized
     fun owns(handle: String?): Boolean = handle != null && handle == this.handle
 
@@ -120,7 +107,6 @@ internal class PairingSecretStore {
         if (owns(handle)) code = value
     }
 
-    /** A server rejection ends one logical code attempt without changing the chosen computer. */
     @Synchronized
     fun resetAttempt(handle: String?) {
         if (!owns(handle)) return
@@ -146,7 +132,6 @@ internal class PairingSecretStore {
     }
 }
 
-/** Process-wide instance: a class initialiser runs once per process. */
 internal val PairingSecrets = PairingSecretStore()
 
 /**
@@ -167,7 +152,6 @@ internal val PairingSecrets = PairingSecretStore()
 @Serializable
 internal class PendingPairing private constructor(
     val connection: Connection,
-    /** True when this came from a QR or deep link rather than the list or a typed address. */
     val fromScan: Boolean,
     val handle: String,
 ) {
@@ -192,11 +176,6 @@ internal class PendingPairing private constructor(
         "PendingPairing(connection=$connection, fromScan=$fromScan, handle=$handle)"
 
     companion object {
-        /**
-         * Open a slot for this computer and hold on to what it minted, or null
-         * when the store refuses — which it does while the slot it would replace
-         * is being redeemed (§6).
-         */
         fun opening(
             secrets: PairingSecretStore,
             connection: Connection,
@@ -265,22 +244,6 @@ internal fun PairingSecretStore.takeInvite(
     return opened
 }
 
-/**
- * Release the slot this attempt claimed and, in the same step, take any invite
- * that is waiting for it.
- *
- * This is the other half of [takeInvite] and it exists because of one narrow
- * window. Between the screen claiming the slot and `Session` marking its own
- * attempt in flight, a deep link is still *published* rather than deferred: it
- * reaches the screen, [takeInvite] refuses it, and it stays in the queue. If
- * ending the attempt did not go looking for it, the invitation would sit there
- * unseen until the user left the pairing screen and came back — a one-time QR
- * that expires while it is on the phone (§6).
- *
- * Order is the rule: the attempt has to end *before* the open is tried, or the
- * store refuses its own release. Returns what the screen should show, which is
- * [current] when there was nothing waiting.
- */
 internal fun PairingSecretStore.endAttemptTaking(
     handle: String?,
     current: PendingPairing?,
@@ -307,16 +270,6 @@ internal val PendingPairingSaver: Saver<PendingPairing?, String> = Saver(
     },
 )
 
-/**
- * What the confirmation says about a [PendingPairing], worked out before any of
- * it is drawn so the wording itself can be pinned by a test.
- *
- * The port of `confirmationView(for:)` in `ios/App/PairingView.swift`. There the
- * name and display authority sit *above* the branch, so they are on screen whether the
- * user is confirming a scan or about to type the six digits the desktop shows.
- * That placement is §6 substance, not layout: a scan never pairs by itself, and
- * what the user is confirming is which computer, at which address.
- */
 internal data class PairingConfirmation(
     val name: String,
     /** Complete normalized origin, without any path, query or credential. */
@@ -328,10 +281,8 @@ internal data class PairingConfirmation(
         /** A scan whose one-time credential is still in this process: one tap pairs. */
         data class Confirm(val credential: String) : Step
 
-        /** A discovered or typed computer: six digits, read off the desktop. */
         data object EnterCode : Step
 
-        /** The process died between the scan and the confirmation; §6 forbids the retry. */
         data object Rescan : Step
     }
 
@@ -350,10 +301,6 @@ internal data class PairingConfirmation(
             val connection = pending.connection
             val address = connection.pairingConsentOrigin
             return PairingConfirmation(
-                // A discovered service is named by whatever it advertised, so a
-                // blank name is possible in a way `Connection.parse` and
-                // `PairingInvite.parse` are not. The address is then the honest
-                // heading, and the confirmation never opens without one.
                 name = connection.name.ifBlank { address },
                 address = address,
                 usesHttps = connection.activeEndpoint?.isSecure == true,
@@ -375,24 +322,13 @@ internal object PairingCopy {
         "Only continue if this is the computer whose QR code you just scanned. " +
             "Confirming establishes an authenticated HTTPS companion connection."
 
-    /**
-     * Mirrors `ios/App/PairingView.swift`, which says of a scanned computer:
-     * "Confirm this computer to establish an authenticated companion connection.
-     * Use a trusted Wi-Fi network or a tailnet; StartupBot does not encrypt
-     * local Wi-Fi traffic."
-     *
-     * The pairing handshake authenticates the phone to the computer; the session
-     * that follows is plain HTTP on the local network. Those are different
-     * claims and the user is the one who has to choose the network, so both are
-     * said out loud.
-     */
+    // LAN HTTP pairing authenticates devices but does not encrypt traffic; use a trusted network or tailnet.
     const val CONFIRM_SCAN: String =
         "Only continue if this is the computer whose QR code you just scanned. " +
             "Confirming establishes an authenticated companion connection. Use a " +
             "trusted Wi-Fi network or a tailnet; StartupBot does not encrypt " +
             "local Wi-Fi traffic."
 
-    /** Both the desktop companion and headless server show pairing codes. */
     const val ENTER_CODE: String = "Enter the pairing code shown on your computer or server:"
 
     /**

@@ -1,12 +1,5 @@
 // Modified for StartupBot; original copyright and license retained.
-// The companion API client.
-//
-// Everything the phone can do to the harness, in one place. The rules it
-// encodes come from the default-deny policy in `companion/src/routes.ts`: a
-// paired phone may chat, answer approvals, and read rooms. Credential values
-// are the narrow exception: this client can transport an HPKE envelope whose
-// plaintext only the QR-paired Electron process can open. Pairing management
-// and the Local VM remain absent rather than failing at runtime.
+// Credential plaintext is restricted to the QR-paired Electron process; phones transport only its HPKE envelope.
 import Foundation
 
 /// Where a companion connects, and with what. The token is *not* held here
@@ -14,7 +7,6 @@ import Foundation
 /// so a `Connection` can be written to disk without writing a credential.
 public struct Connection: Codable, Hashable, Identifiable, Sendable {
     public var id: String
-    /// What the computer calls itself, e.g. "Ada Lovelace's computer".
     public var name: String
     public var host: String
     public var port: Int
@@ -52,10 +44,6 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
     /// say what the app may administer. Absent on connections saved before
     /// servers could be paired directly.
     public var serverEnvironmentId: String?
-    /// The scopes the server granted this session at pairing, kept so the
-    /// app can tell an owner's phone (`admin`) from a chat-only one
-    /// (`client`) without asking. Absent on server connections saved by
-    /// builds that did not record them, which the app treated as chat-only.
     public var serverScopes: [String]?
 
     public init(
@@ -88,33 +76,13 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
         self.serverScopes = serverScopes
     }
 
-    /// Paired with a server directly rather than through the companion
-    /// sidecar. What the phone may do there is for the session's scopes to
-    /// say: see `canAdminister`.
     public var pairedWithServer: Bool { serverEnvironmentId != nil }
 
-    /// Whether this pairing may administer the workspace: create bots and
-    /// sections, change models, generate avatars, connect apps, open cloud
-    /// desktops. A companion pairing always may — the sidecar applies its
-    /// own policy to each request. A server session may only with the
-    /// `admin` scope (`openmausbot pair` grants it; `--client` does not);
-    /// the server answers 403 otherwise, so the app hides those controls
-    /// instead of offering buttons that can only fail.
     public var canAdminister: Bool {
         guard pairedWithServer else { return true }
         return serverScopes?.contains("admin") == true
     }
 
-    /// The representation `URLComponents.host` accepts for a literal IPv6
-    /// address. It adds brackets exactly once and leaves DNS/IPv4 names alone.
-    /// A scope zone on a link-local IPv6 address is intentionally retained;
-    /// URLComponents percent-encodes it when it builds the URL.
-    ///
-    /// An interface zone on anything *else* is dropped. `NWEndpoint.Host`
-    /// describes a resolved IPv4 address with the interface it arrived on
-    /// ("192.168.1.3%en0"); the zone carries no meaning there and
-    /// URLComponents refuses it as a host, which made a Bonjour-discovered
-    /// computer fail with "that address doesn't look right".
     public static func urlHost(_ host: String) -> String {
         var bare: String
         if host.hasPrefix("["), host.hasSuffix("]") {
@@ -127,9 +95,6 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
         return bare
     }
 
-    /// Parse a manually entered companion address. A bare IPv6 literal uses
-    /// the default port; an explicit IPv6 port must use `[address]:port`, the
-    /// same unambiguous form browsers and command-line tools use.
     public static func parse(_ text: String, defaultPort: Int = 8810) -> Connection? {
         var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let lowercased = trimmed.lowercased()
@@ -262,10 +227,6 @@ public struct PairingInvite: Equatable, Sendable {
             }
             if !cleaned.isEmpty { connection.name = String(cleaned.prefix(80)) }
         }
-        // The desktop's ordered fallback list, comma-joined. Advisory rather
-        // than load-bearing: a bad entry costs one failed dial when its turn
-        // comes, so unusable candidates are dropped instead of failing the
-        // whole invite. 253 bytes is the DNS name ceiling.
         if let list = values["hosts"] {
             let candidates = list.split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -347,26 +308,13 @@ public struct PairingInvite: Equatable, Sendable {
         return PairingInvite(connection: connection, credential: code)
     }
 
-    /// The 32 symbols a server draws pairing codes from: digits and capitals
-    /// without 0, O, 1 and I, which read alike in most fonts.
     public static let serverCodeAlphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
-    /// What the server does to a typed code before comparing it
-    /// (`normalizePairingCode` in `server/sessions.ts`): uppercase, drop
-    /// dashes, spaces and anything else that is not a letter or digit, then
-    /// read 0 as O and 1 as I. Identical here so the app and the server
-    /// never disagree about which code was entered.
     public static func normalizePairingCode(_ raw: String) -> String {
         String(raw.uppercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) }
             .map { $0 == "0" ? "O" : $0 == "1" ? "I" : $0 })
     }
 
-    /// A server pairing code, normalized: exactly 12 symbols from the
-    /// server's alphabet, dashes optional. Six-digit codes and `omb_pair_`
-    /// tokens are the companion's and return nil. So does a code with a
-    /// character the alphabet does not have — the server would refuse it
-    /// and count the attempt towards its lockout, so it is refused here,
-    /// where the person can still fix it.
     public static func normalizedServerCode(_ raw: String) -> String? {
         let code = normalizePairingCode(raw)
         guard code.count == 12, code.allSatisfy(serverCodeAlphabet.contains) else { return nil }
@@ -392,9 +340,6 @@ public struct PairingInvite: Equatable, Sendable {
     }
 }
 
-/// The server response together with the endpoint that actually answered.
-/// Pairing has to persist the winner, not merely the first address printed in
-/// a QR code, or the next launch repeats the same dead route.
 public struct PairingOutcome: Sendable {
     public let response: PairResponse
     public let connection: Connection
@@ -405,9 +350,6 @@ public struct PairingOutcome: Sendable {
     }
 }
 
-/// None of the addresses advertised for a computer answered the companion
-/// health check. Kept distinct from a pairing rejection: this invite is still
-/// valid and the UI can offer Retry without making someone scan it again.
 public struct PairingRouteError: Error, LocalizedError, Equatable, Sendable {
     public let attemptedHosts: [String]
 
@@ -422,9 +364,7 @@ public struct PairingRouteError: Error, LocalizedError, Equatable, Sendable {
 }
 
 public enum APIError: Error, LocalizedError, Sendable {
-    /// The harness answered, and said no.
     case status(code: Int, message: String?)
-    /// Could not reach it at all.
     case transport(String)
     case badURL
 
@@ -446,17 +386,12 @@ public enum APIError: Error, LocalizedError, Sendable {
         }
     }
 
-    /// The one error that means "stop retrying and send them back to
-    /// pairing" rather than "try again in a moment".
     public var isUnauthorized: Bool {
         if case let .status(code, _) = self { return code == 401 }
         return false
     }
 }
 
-/// The exact conversation a retriable send belongs to. Carrying the thread
-/// as well as the bot/room id prevents a Share Extension retry from landing
-/// in a different task if the desktop switches tasks while iOS is suspended.
 public enum MessageDestination: Hashable, Sendable {
     case bot(id: String, threadId: String)
     case room(id: String, threadId: String)
@@ -467,8 +402,6 @@ public enum SharedAttachmentKind: Hashable, Sendable {
     case file
 }
 
-/// A file which has already crossed to the Mac. The path is deliberately the
-/// server's absolute path rather than the phone's temporary provider URL.
 public struct SharedAttachmentReference: Hashable, Sendable {
     public let path: String
     public let kind: SharedAttachmentKind
@@ -586,7 +519,6 @@ public struct CompanionClient: Sendable {
         self.requestTimeout = min(max(requestTimeout, 1), 150)
     }
 
-    // MARK: - Requests
 
     private func makeRequest(_ method: String, _ path: String, query: [URLQueryItem] = [], body: [String: Any]? = nil) throws -> URLRequest {
         guard let base = connection.baseURL,
@@ -598,10 +530,6 @@ public struct CompanionClient: Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = method
-        // Short on purpose. These are calls to a computer on the same
-        // network; if it does not answer in twenty seconds it is not going
-        // to. The default sixty leaves someone watching a spinner long
-        // enough to assume the app is broken rather than the address wrong.
         request.timeoutInterval = requestTimeout
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -613,9 +541,6 @@ public struct CompanionClient: Sendable {
         return request
     }
 
-    /// Encodable request bodies are used for contracts where omitted and null
-    /// have different meanings. JSONSerialization cannot preserve that type
-    /// distinction without rebuilding the object by hand at every call site.
     private func makeRequest<Body: Encodable>(
         _ method: String,
         _ path: String,
@@ -643,10 +568,6 @@ public struct CompanionClient: Sendable {
         try Self.check(response, data)
     }
 
-    /// A send, and what the harness did with it. Unlike `send(_:as:)` an
-    /// unreadable body is not an error here: the request succeeded, and an
-    /// older harness that answers with a shape this build has never seen
-    /// still made a plain send. Only the extra mid-turn detail is lost.
     private func sendForReceipt(_ request: URLRequest) async throws -> SendReceipt {
         let (data, response) = try await perform(request)
         try Self.check(response, data)
@@ -664,10 +585,6 @@ public struct CompanionClient: Sendable {
         }
     }
 
-    /// Turn a non-2xx into an `APIError` carrying the harness's own message.
-    /// Those messages are written for people, so passing them through beats
-    /// inventing a different client-side explanation here. Captured fixtures
-    /// intentionally preserve the current server contract verbatim.
     static func check(_ response: URLResponse, _ data: Data) throws {
         guard let http = response as? HTTPURLResponse else { return }
         guard !(200...299).contains(http.statusCode) else { return }
@@ -700,8 +617,6 @@ public struct CompanionClient: Sendable {
             "/api/pair",
             body: body
         )
-        // Pairing is allowed to move to another advertised route. One dead
-        // address must not consume the default twenty-second API deadline.
         pairRequest.timeoutInterval = 8
         return try await client.send(pairRequest, as: PairResponse.self)
     }
@@ -727,13 +642,10 @@ public struct CompanionClient: Sendable {
         return try await client.send(request, as: ServerPairResponse.self)
     }
 
-    /// The server's public descriptor: reachable before pairing, and the way
-    /// to notice that the address now belongs to a different server.
     public func environment() async throws -> ServerEnvironment {
         try await send(makeRequest("GET", "/.well-known/openmausbot/environment"), as: ServerEnvironment.self)
     }
 
-    /// End this session on the server (server-paired connections only).
     public func logout() async throws {
         try await send(makeRequest("POST", "/api/auth/logout"))
     }
@@ -784,8 +696,6 @@ public struct CompanionClient: Sendable {
                 if ConnectionAdvice.shouldTryAnotherRoute(after: error) { continue }
                 throw error
             } catch {
-                // URL loading and decoding failures are likewise ambiguous.
-                // Keep the logical request id and try another verified route.
                 continue
             }
         }
@@ -857,18 +767,11 @@ public struct CompanionClient: Sendable {
         )
     }
 
-    /// Hydrate. `messages` opts into the paged shape — the newest n per
-    /// thread, with screen captures reduced to a flag.
     public func fleet(messages: Int? = 50) async throws -> Fleet {
         let query = messages.map { [URLQueryItem(name: "messages", value: String($0))] } ?? []
         return try await send(try makeRequest("GET", "/api/bots", query: query), as: Fleet.self)
     }
 
-    /// The fleet includes only each bot's selected transcript. Recover the
-    /// other threads currently awaiting a person before committing a cold
-    /// snapshot, so their approval cards do not depend on opening the chat.
-    /// Fail the whole refresh on a failed page: advancing the replay cursor
-    /// with a partial snapshot could permanently miss that request.
     public func fleetForHydration(messages limit: Int = 50) async throws -> (
         fleet: Fleet, waitingThreads: [String: ThreadPage]
     ) {
@@ -888,14 +791,12 @@ public struct CompanionClient: Sendable {
         return (fleet, waitingThreads)
     }
 
-    /// Scrollback: the page before a message already held.
     public func messages(threadId: String, before: String? = nil, limit: Int = 50) async throws -> ThreadPage {
         var query = [URLQueryItem(name: "limit", value: String(limit))]
         if let before { query.append(URLQueryItem(name: "before", value: before)) }
         return try await send(try makeRequest("GET", "/api/threads/\(threadId)/messages", query: query), as: ThreadPage.self)
     }
 
-    /// A page containing one exact message, for landing on a search hit.
     public func messages(threadId: String, around messageId: String, limit: Int = 50) async throws -> ThreadPage {
         let query = [
             URLQueryItem(name: "limit", value: String(limit)),
@@ -941,9 +842,6 @@ public struct CompanionClient: Sendable {
         try await send(try makeRequest("GET", "/api/instances"), as: InstanceList.self).instances
     }
 
-    /// The image capability is intentionally queried independently from the
-    /// general Instance model: older servers omit it, which must mean false
-    /// for a share that would otherwise send an unreadable image prompt.
     public func imageCapableInstanceIDs() async throws -> Set<String> {
         let response = try await send(
             try makeRequest("GET", "/api/instances"),
@@ -962,8 +860,6 @@ public struct CompanionClient: Sendable {
         try await send(try makeRequest("GET", "/api/connectors/catalog"), as: ConnectorCatalog.self)
     }
 
-    /// Complete account-aware status in one request. This is the inventory
-    /// source for the phone; a catalog page is not an account list.
     public func allConnectorStatuses() async throws -> ConnectorStatuses {
         try await send(
             try makeRequest("GET", "/api/connectors/connected"),
@@ -971,7 +867,6 @@ public struct CompanionClient: Sendable {
         )
     }
 
-    /// The pixels of one screen message.
     public func image(threadId: String, messageId: String) async throws -> Data {
         let imageRequest = try makeRequest("GET", "/api/threads/\(threadId)/messages/\(messageId)/image")
         let (data, response) = try await perform(imageRequest)
@@ -1044,9 +939,6 @@ public struct CompanionClient: Sendable {
         return shortened.isEmpty || shortened == "." || shortened == ".." ? "file" : shortened
     }
 
-    /// APFS limits one path component by bytes, not Swift characters. Keep
-    /// enough room for the preview cache's own suffix and retain a useful
-    /// extension whenever it fits.
     private static func boundedFilename(_ value: String, maximumUTF8Bytes: Int = 180) -> String {
         guard value.utf8.count > maximumUTF8Bytes else { return value }
         let pathExtension = (value as NSString).pathExtension
@@ -1091,8 +983,6 @@ public struct CompanionClient: Sendable {
         guard let dot = name.lastIndex(of: "."), dot != name.startIndex else { return false }
         let stem = name[..<dot]
         let ext = name[name.index(after: dot)...]
-        // Match shared/bot-avatar.ts rather than trusting URL normalization:
-        // one bare ASCII filename, one extension separator, and no dot segment.
         let validStem = !stem.isEmpty && stem.utf8.allSatisfy { byte in
             (48...57).contains(byte)
                 || (65...90).contains(byte)
@@ -1111,18 +1001,11 @@ public struct CompanionClient: Sendable {
         return (response.routines, response.runs)
     }
 
-    /// A read-only summary of one bot: who it is, what it does and won't do,
-    /// and its recent activity. No settings, no transcript.
     public func overview(botId: String) async throws -> BotOverview {
         guard Self.validRouteID(botId) else { throw APIError.badURL }
         return try await send(try makeRequest("GET", "/api/bots/\(botId)/overview"), as: BotOverview.self)
     }
 
-    // MARK: - Doing
-
-    /// Make a new bot. The harness picks its name, colour and greeting — the
-    /// phone deliberately does not, so a bot created here is indistinguishable
-    /// from one created on the desktop.
     public func createBot() async throws -> Bot {
         try await send(try makeRequest("POST", "/api/bots"), as: CreatedBot.self).bot
     }
@@ -1137,8 +1020,6 @@ public struct CompanionClient: Sendable {
         ).bot
     }
 
-    /// A captured thread uses the task route, which cannot change siblings or
-    /// the profile default. Omitting it retains the legacy narrow model API.
     public func updateModel(botId: String, selection: ModelSelection, threadId: String? = nil) async throws -> Bot {
         guard Self.validRouteID(botId) else { throw APIError.badURL }
         if let threadId {
@@ -1157,8 +1038,6 @@ public struct CompanionClient: Sendable {
         ).bot
     }
 
-    /// Upload raw image bytes and return the path the agent can open on its
-    /// Mac. This is also the primitive used by avatar upload and sharing.
     public func uploadImage(
         data: Data,
         mime: String,
@@ -1192,8 +1071,6 @@ public struct CompanionClient: Sendable {
         return "/api/attachments/\(name)"
     }
 
-    /// Upload an ordinary document as raw bytes. The filename is display
-    /// metadata only; the server chooses the generated path on the Mac.
     public func uploadFile(
         data: Data,
         name: String,
@@ -1255,9 +1132,6 @@ public struct CompanionClient: Sendable {
             "POST", "/api/bots/\(botId)/avatar/generate",
             body: ["prompt": String(prompt.prefix(400))]
         )
-        // The server gives its image provider 120 seconds. Leave room for the
-        // server to return its bounded timeout error instead of replacing it
-        // with the client's normal 20-second transport timeout.
         request.timeoutInterval = 150
         return try await send(
             request,
@@ -1327,18 +1201,12 @@ public struct CompanionClient: Sendable {
         return body
     }
 
-    /// Make a room. The harness names it after the first member when `name`
-    /// is empty, exactly as the desktop's dialog does.
     public func createRoom(name: String?, memberIds: [String]) async throws -> Room {
         var body: [String: Any] = ["memberIds": memberIds]
         if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty { body["name"] = name }
         return try await send(try makeRequest("POST", "/api/groups", body: body), as: CreatedRoom.self).group
     }
 
-    /// File several bots under one shared desktop/mobile sidebar heading.
-    /// This uses a narrow batch route instead of the desktop's general bot
-    /// PATCH, so a paired phone can change organization without gaining any
-    /// execution-policy controls and without leaving a half-created section.
     public func assignSection(name: String, botIds: [String]) async throws -> [Bot] {
         try await send(
             try makeRequest(
@@ -1364,17 +1232,8 @@ public struct CompanionClient: Sendable {
         return try await sendForReceipt(try makeRequest("POST", "/api/groups/\(groupId)/messages", body: body))
     }
 
-    /// The harness's own answer when the entry is not in its queue. Matched
-    /// positively, and never by status alone: the sidecar answers 404 with
-    /// "no route" for a route it does not allow, so a computer too old to
-    /// have this route looks identical to a drained entry. Reading those as
-    /// the same thing takes the message off the phone while it is still
-    /// queued on the computer, and it then arrives anyway.
     static let alreadyDrained = "no such queued message"
 
-    /// Drop a message the harness is still holding, before the turn it is
-    /// waiting behind settles. An entry that drained a moment ago is not an
-    /// error worth showing — that is the outcome the caller wanted.
     public func cancelQueued(_ queueId: String, to destination: MessageDestination) async throws {
         guard Self.validRouteID(queueId) else { throw APIError.badURL }
         let route: String
@@ -1402,9 +1261,6 @@ public struct CompanionClient: Sendable {
         }
     }
 
-    /// Retry-safe send used by short-lived clients such as Share Extensions.
-    /// `sendId` names the logical send, while `threadId` freezes the selected
-    /// task so a retry can never drift to a newly active conversation.
     @discardableResult
     public func send(
         text: String,
@@ -1442,11 +1298,6 @@ public struct CompanionClient: Sendable {
         (16...80).contains(value.utf8.count) && validRouteID(value)
     }
 
-    /// Answer an approval or a question.
-    ///
-    /// Addressed by thread rather than by bot on purpose: a request raised
-    /// inside a room belongs to whichever member is speaking, and the
-    /// harness already knows which that is.
     public func respond(
         threadId: String,
         requestId: String,
@@ -1618,23 +1469,10 @@ public struct CompanionClient: Sendable {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 90
         configuration.waitsForConnectivity = true
-        // no caching for an event stream — it would only ever be wrong
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: configuration)
     }()
 
-    /// The event stream, resuming from `cursor` when there is one.
-    ///
-    /// `screens` defaults off, and should stay off unless something is
-    /// actually showing them: the harness pushes a base64 desktop capture
-    /// every few seconds to every client that asks, which is a poor thing to
-    /// send a phone on cellular. The computer panel turns it on for exactly
-    /// as long as it is open, which costs a reconnect — cheap, because the
-    /// stream resumes from its cursor and loses nothing.
-    ///
-    /// `streamingSession` is for tests, which need to see the request the
-    /// stream is opened with; the app leaves it nil and gets the session
-    /// tuned above.
     public func events(
         since cursor: String?,
         screens: Bool = false,
@@ -1644,14 +1482,6 @@ public struct CompanionClient: Sendable {
         if let cursor { query.append(URLQueryItem(name: "since", value: cursor)) }
         var streamRequest = try makeRequest("GET", "/api/events", query: query)
         streamRequest.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        // `makeRequest` stamps every request with the 20 seconds that suit a
-        // call-and-answer API, and a per-request timeout *overrides* the
-        // session's `timeoutIntervalForRequest` rather than deferring to it —
-        // so the 90 seconds configured just above was never in effect here.
-        // The harness sends a keepalive comment every 25 seconds, which is
-        // already past 20: a stream with nothing to say would time out on its
-        // first quiet gap and reconnect, forever, looking like a flaky network
-        // rather than a number in the wrong place.
         streamRequest.timeoutInterval = 90
         return eventStream(request: streamRequest, session: streamingSession ?? Self.streaming)
     }

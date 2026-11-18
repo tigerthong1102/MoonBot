@@ -238,9 +238,6 @@ final class ShareViewModel: ObservableObject {
         }
         phase = .sending
         errorMessage = nil
-        // Every upload and the final message receives only the time left in
-        // this one budget. Four attachments therefore cannot each consume a
-        // fresh 90 seconds while a system extension is kept alive.
         let sendDeadline = ContinuousClock.now.advanced(by: .seconds(90))
 
         do {
@@ -377,9 +374,6 @@ final class ShareViewModel: ObservableObject {
     ) async {
         phase = .sending
         do {
-            // The share sheet is gone before a turn could settle, so the
-            // harness's receipt — sent, steered, or held — has nowhere to
-            // land here. The app shows it in the chat instead.
             _ = try await withFailover(deadline: deadline) { client in
                 try await client.send(
                     text: delivery.text,
@@ -404,8 +398,6 @@ final class ShareViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             let preserve = shouldPreservePreparedDelivery(error)
             if preserve {
-                // The exact prepared body is sufficient for an ambiguous
-                // retry; release its no-longer-needed local source copies.
                 ShareItemLoader.cleanUp(items)
                 items = nil
             }
@@ -439,9 +431,6 @@ final class ShareViewModel: ObservableObject {
                     try await client.imageCapableInstanceIDs()
                 }
             } catch APIError.status(let code, _) where code == 404 || code == 403 {
-                // 404: a harness from before the capability existed. 403: a
-                // server session without the admin scope, which may not read
-                // the instance list at all. Neither can say where images go.
                 throw ShareExtensionError.imageSupportUnavailable
             }
         } else {
@@ -558,8 +547,6 @@ final class ShareViewModel: ObservableObject {
             var results = [FleetAttempt?](repeating: nil, count: endpoints.count)
             for try await attempt in group {
                 results[attempt.index] = attempt
-                // A lower-priority route may win only after every route
-                // before it has conclusively failed in a way failover repairs.
                 for index in results.indices {
                     guard let resolved = results[index] else { break }
                     switch resolved.result {
@@ -667,9 +654,6 @@ final class ShareViewModel: ObservableObject {
                 subtitle: task.map { "Channel · \($0)" } ?? "Channel",
                 kind: .channel,
                 latestActivity: room.messages?.map(\.at).max() ?? room.createdAt,
-                // The share extension has no mention editor. Requiring every
-                // possible member avoids sending an image to a text-only bot
-                // when channel routing changes based on shared text.
                 supportsImages: !room.memberIds.isEmpty && room.memberIds.allSatisfy { id in
                     guard let bot = botByID[id] else { return false }
                     return imageCapableInstances.contains(bot.modelSelection.instanceId)

@@ -110,7 +110,6 @@ extension Frame: Decodable {
         case "runtime":
             self = .runtime(try container.decode(RuntimeEvent.self, forKey: .event))
         default:
-            // routines, and whatever the harness adds next
             self = .unknown(kind: kind)
         }
     }

@@ -42,19 +42,16 @@ import okhttp3.Response
 
 internal data class ConnectionEndpoint(val baseUrl: HttpUrl, val dns: Dns)
 
-/** The durable pairing result together with the route that actually redeemed it. */
 data class PairingOutcome(
     val response: PairResponse,
     val connection: Connection,
 )
 
-/** No automatically permitted route identified itself and completed the logical pairing. */
 class PairingRouteError(val attemptedRoutes: List<String>) : IOException(
     "Couldn't reach this computer through any available route " +
         "(${attemptedRoutes.joinToString()}). Keep Phone access turned on in StartupBot, then try again.",
 )
 
-/** Keep the same code and request id after an uncertain redemption or rate-limit refusal. */
 class ServerPairingRetryError(cause: IOException) : IOException(
     if (cause is APIError.Status && cause.code == 429) cause.message
     else "Could not finish connecting to the server. Try again with the same code.", cause,
@@ -140,11 +137,6 @@ class CompanionClient(
         .writeTimeout(ACTION_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
-    /**
-     * Share uploads can be tens of MB. A wall-clock [callTimeout] would abort a
-     * steady transfer; iOS uses an idle `timeoutInterval` that resets on bytes.
-     * Connect/read/write idle limits, no overall call deadline.
-     */
     private val uploadClient = baseClient.newBuilder()
         .followRedirects(baseClient.followRedirects && !connection.pairedWithServer)
         .followSslRedirects(baseClient.followSslRedirects && !connection.pairedWithServer)
@@ -175,10 +167,6 @@ class CompanionClient(
         .writeTimeout(AVATAR_GENERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .build()
 
-    /**
-     * Claude Code's own updater can take minutes on the computer, so this
-     * route gets its own deadline instead of the twenty-second action one.
-     */
     private val claudeUpdateClient = baseClient.newBuilder()
         .followRedirects(baseClient.followRedirects && !connection.pairedWithServer)
         .followSslRedirects(baseClient.followSslRedirects && !connection.pairedWithServer)
@@ -201,7 +189,6 @@ class CompanionClient(
 
     suspend fun health(): JsonObject = send(makeRequest("GET", "/api/health"))
 
-    /** Wire support for P1-03; applying the snapshot to a live session is deliberately later. */
     suspend fun connectionMetadata(): CompanionConnectionMetadata =
         send(makeRequest("GET", "/api/companion/endpoints"))
 
@@ -258,19 +245,13 @@ class CompanionClient(
         makeRequest("GET", "/api/instances"),
     ).instances
 
-    /** Missing capability data fails closed: image prompts must be readable by the selected model. */
     suspend fun imageCapableInstanceIds(): Set<String> = instances()
         .filter { it.capabilities?.images == true }
         .mapTo(mutableSetOf(), Instance::instanceId)
 
     suspend fun config(): ConfigStatus = send(makeRequest("GET", "/api/config"))
 
-    /**
-     * The engine is a setting, not a secret, so it rides the ordinary config
-     * write — the same one `VoiceSettings.tsx` sends from its Voice engine
-     * group. Only the provider field is written; keys and server addresses
-     * stay on the computer.
-     */
+    // Synthesis-provider selection does not transport provider credentials.
     suspend fun updateVoiceProvider(provider: VoiceProvider): ConfigStatus = send(
         makeRequest(
             "PUT",
@@ -344,11 +325,6 @@ class CompanionClient(
 
     suspend fun createBot(): Bot = send<CreatedBot>(makeRequest("POST", "/api/bots")).bot
 
-    /**
-     * Atomically file visible bots under one shared sidebar heading. This is
-     * narrower than the desktop's general bot patch: pairing a phone grants
-     * organization, never execution-policy edits.
-     */
     suspend fun assignSection(name: String, botIds: List<String>): List<Bot> = send<SidebarSectionResponse>(
         makeRequest(
             "POST",
@@ -367,10 +343,6 @@ class CompanionClient(
         ).bot
     }
 
-    /**
-     * A captured task changes only that task's model. The optional legacy form
-     * retains the narrow profile/default model route for older callers.
-     */
     suspend fun updateModel(botId: String, selection: ModelSelection, threadId: String? = null): Bot {
         val model = CompanionJson.encodeToJsonElement(ModelSelection.serializer(), selection).jsonObject
         val path = if (threadId == null) "/api/bots/${segment(botId)}/model"
@@ -384,7 +356,6 @@ class CompanionClient(
         ).bot
     }
 
-    /** Upload a shared image as raw bytes; [uploadId] makes an interrupted retry idempotent. */
     suspend fun uploadImage(data: ByteArray, mime: String, uploadId: String? = null): String {
         if (!validUploadId(uploadId)) throw APIError.BadUrl
         val normalized = mime.lowercase()
@@ -413,7 +384,6 @@ class CompanionClient(
         return "/api/attachments/$name"
     }
 
-    /** Upload a supported document. The server picks its storage path; [name] is display metadata. */
     suspend fun uploadFile(data: ByteArray, name: String, mime: String, uploadId: String? = null): UploadedFile {
         if (!validUploadId(uploadId)) throw APIError.BadUrl
         val displayName = name.substringAfterLast('/').substringAfterLast('\\').trim()
@@ -451,11 +421,6 @@ class CompanionClient(
             avatarGenerationClient,
         ).bot
 
-    /**
-     * Run Claude Code's updater for one engine on the computer and return the
-     * version it now reports. The harness refuses while a Claude turn is
-     * running, and its refusal is already worded for a person.
-     */
     suspend fun updateClaude(instanceId: String): String {
         if (!isSafeInstanceId(instanceId)) throw APIError.BadUrl
         return send<ClaudeUpdateResponse>(
@@ -470,11 +435,6 @@ class CompanionClient(
 
     suspend fun previewVoice(text: String, voiceId: String): ByteArray = speak(text, voiceId)
 
-    /**
-     * One utterance, synthesized on the paired computer. The server caps this
-     * at 500 characters; [prepareSpeech] splits a reply into pieces that fit.
-     * An empty [voiceId] means the workspace default.
-     */
     suspend fun speak(text: String, voiceId: String?): ByteArray {
         val raw = perform(makeRequest(
             "POST",
@@ -488,11 +448,6 @@ class CompanionClient(
         return raw.data
     }
 
-    /**
-     * Split a reply into utterances the way the desktop does — on the server,
-     * next to the transform that shapes replies — and learn whether the
-     * computer can voice them at all.
-     */
     suspend fun prepareSpeech(text: String, voiceId: String?): PreparedSpeech = send(
         makeRequest(
             "POST",
@@ -504,12 +459,6 @@ class CompanionClient(
         ),
     )
 
-    /**
-     * Store (or, with an empty string, remove) the workspace's ElevenLabs key.
-     * The companion forwards only this shape, and the server checks a
-     * non-empty key against the provider before saving it; the key itself
-     * never comes back in any response.
-     */
     suspend fun updateVoiceKey(key: String) {
         val trimmed = key.trim()
         if (trimmed.toByteArray().size > 512 || trimmed.any(Char::isISOControl)) {
@@ -520,7 +469,6 @@ class CompanionClient(
         }))
     }
 
-    /** Pick the voice engine: "elevenlabs" or "system". */
     suspend fun updateVoiceProvider(provider: String) {
         sendUnit(makeRequest("PUT", "/api/config", body = buildJsonObject {
             put("tts", buildJsonObject { put("provider", provider) })
@@ -579,19 +527,6 @@ class CompanionClient(
             makeRequest("POST", "/api/groups/${segment(groupId)}/messages", body = jsonBody("text" to text, "threadId" to threadId)),
         )
 
-    /**
-     * Drop a message the harness is still holding, before the turn it is
-     * waiting behind settles.
-     *
-     * An entry that drained a moment ago is not an error worth showing — that
-     * is the outcome the caller wanted. But that is matched positively on the
-     * harness's own wording and never on the status alone: the sidecar answers
-     * 404 "no route" for a route it does not allow, so a computer too old to
-     * have this route looks identical to a drained entry. Reading those as the
-     * same thing takes the message off the phone while it is still queued on
-     * the computer, and it then arrives anyway.
-     */
-    // A drained row can disappear, but only a confirmed cancellation permits Edit to restore it.
     suspend fun cancelQueued(queueId: String, to: MessageDestination): Boolean {
         if (!isSafeRouteId(queueId)) throw APIError.BadUrl
         val route = when (to) {
@@ -603,8 +538,6 @@ class CompanionClient(
             return true
         } catch (error: APIError.Status) {
             if (error.code != 404) throw error
-            // The harness's own words, not Throwable.message, which falls
-            // back to generic text for a 404 and would swallow everything.
             if (error.serverMessage?.contains(ALREADY_DRAINED, ignoreCase = true) == true) return false
             throw APIError.Status(
                 404,
@@ -613,7 +546,6 @@ class CompanionClient(
         }
     }
 
-    /** Retry-safe send: [threadId] is fixed at destination selection, never inferred on retry. */
     suspend fun send(text: String, to: MessageDestination, sendId: String): SendReceipt {
         val route = when (to) {
             is MessageDestination.Bot -> "/api/bots/${safeRouteId(to.id)}/messages"
@@ -673,11 +605,6 @@ class CompanionClient(
             body = jsonBody("emoji" to emoji),
         )).message
 
-    /**
-     * Fork the conversation at a user message. Returns the computer's new
-     * message when the response carries one. [sendId] makes a retry of the same
-     * edit answer with the existing fork instead of forking twice.
-     */
     suspend fun edit(
         botId: String,
         messageId: String,
@@ -691,8 +618,6 @@ class CompanionClient(
             body = jsonBody("text" to text, "threadId" to threadId, "sendId" to sendId),
         ))
         check(raw)
-        // The fork already happened; an unreadable body only costs the early
-        // swap, and the event stream still delivers the same fork.
         return runCatching {
             CompanionJson.decodeFromString<EditResponse>(raw.data.toString(Charsets.UTF_8)).message
         }.getOrNull()
@@ -724,12 +649,6 @@ class CompanionClient(
         ))
     }
 
-    /**
-     * 0 sleeps until new activity, a timestamp until it passes, and null — a
-     * real JSON null, not an omitted field — wakes the thread now. Long
-     * milliseconds, never Double: the stamp must not travel in scientific
-     * notation, and an omitted field would leave the snooze untouched.
-     */
     suspend fun snoozeTask(botId: String, threadId: String, snoozedUntil: Long?) {
         sendUnit(makeRequest(
             "PATCH",
@@ -738,9 +657,6 @@ class CompanionClient(
         ))
     }
 
-    /** The unarchive PATCH carries an explicit null, so jsonBody's skip-nulls
-     * rule cannot be used here. Stamps are whole milliseconds: a Double would
-     * serialize large ones in scientific notation. */
     suspend fun setTaskPinned(botId: String, threadId: String, pinned: Boolean) {
         sendUnit(makeRequest(
             "PATCH",
@@ -749,7 +665,6 @@ class CompanionClient(
         ))
     }
 
-    /** Title is echoed so an older server does not rename the thread to empty. */
     suspend fun setRoomTaskPinned(groupId: String, threadId: String, pinned: Boolean, title: String) {
         sendUnit(makeRequest(
             "PATCH",
@@ -870,12 +785,6 @@ class CompanionClient(
         check(raw)
     }
 
-    /**
-     * A send, and what the harness did with it. Unlike [send] an unreadable
-     * body is not an error here: the request succeeded, and an older harness
-     * answering with a shape this build has never seen still made a plain
-     * send. Only the extra mid-turn detail is lost.
-     */
     private suspend fun sendForReceipt(request: Request): SendReceipt {
         val raw = perform(request)
         check(raw)
@@ -948,27 +857,16 @@ class CompanionClient(
     private data class RawResponse(val code: Int, val headers: Headers, val data: ByteArray)
 
     companion object {
-        /**
-         * The harness's own answer when the entry is not in its queue.
-         * Matched positively, never by status alone — see [cancelQueued].
-         */
         const val ALREADY_DRAINED = "no such queued message"
 
         private const val ACTION_TIMEOUT_SECONDS = 20L
         private const val AVATAR_GENERATION_TIMEOUT_SECONDS = 150L
-        /** The harness allows the updater three minutes; leave room to hear back. */
         private const val CLAUDE_UPDATE_TIMEOUT_SECONDS = 200L
         private const val STREAM_IDLE_TIMEOUT_SECONDS = 90L
         private const val AVATAR_MAX_BYTES = 10 * 1_024 * 1_024
         const val SHARE_FILE_MAX_BYTES = 25 * 1_024 * 1_024
         const val MAXIMUM_FILE_DOWNLOAD_BYTES = AttachmentPolicy.MAXIMUM_FILE_BYTES
 
-        /**
-         * The name to show a downloaded file under: `filename*=` first, then
-         * `filename=`, then the last segment of the requested path — reduced to
-         * a basename, with control and bidi-override characters blanked so a
-         * server-chosen name cannot disguise itself.
-         */
         internal fun downloadFilename(disposition: String?, fallbackPath: String): String {
             val parameters = disposition.orEmpty().split(';').map(String::trim)
             val encoded = parameters.firstOrNull { it.startsWith("filename*=", ignoreCase = true) }
@@ -1060,11 +958,6 @@ class CompanionClient(
 
         private fun safeRouteId(value: String): String = if (isSafeRouteId(value)) value else throw APIError.BadUrl
 
-        /**
-         * Engine instance ids are `[\w.-]+` on the harness — dots allowed, which
-         * [isSafeRouteId] rightly refuses everywhere else. ASCII only, and never
-         * a bare dot segment.
-         */
         private fun isSafeInstanceId(value: String): Boolean =
             value != "." && value != ".." && INSTANCE_ID.matches(value)
 
@@ -1228,8 +1121,6 @@ class CompanionClient(
                     if (ConnectionAdvice.shouldRetryPairingOnAnotherRoute(error)) continue
                     throw error
                 } catch (_: Exception) {
-                    // An unreadable/lost response is ambiguous. A newer sidecar replays the
-                    // result for this exact request id through the next verified route.
                     continue
                 }
             }

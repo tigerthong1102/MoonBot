@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.AskQuestion
@@ -10,13 +11,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Which card a transcript row draws.
- *
- * The mistake this guards is the one the desktop shipped: a structured ask
- * routed to the approval card, offering Deny / Always allow / Allow once over
- * a question that has no such answer.
- */
 class QuestionCardRulesTest {
     private fun message(card: OptionCard?): Message = Message(
         id = "m-1",

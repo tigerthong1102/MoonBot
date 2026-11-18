@@ -1,15 +1,4 @@
-// A bot's computer, live.
-//
-// The harness already screenshots a working bot every few seconds and pushes
-// the frame to any client that asked for it. This is that, and nothing more:
-// no clicking, no typing, no control. Watching is the useful half on a phone
-// — you want to know what it is doing, not to do it yourself on a screen the
-// size of a playing card.
-//
-// Frames are expensive (hundreds of kilobytes of base64 each), so they are
-// off unless this view is on screen. `watchScreen` reopens the stream asking
-// for them and `stopWatchingScreen` reopens it asking not to; both resume
-// from the cursor, so the reconnect costs nothing but a round trip.
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 // Unconditional for the same reason as ChatView: `UIImage` is used below
@@ -28,8 +17,6 @@ struct ComputerView: View {
 
     private var frame: ScreenFrame? { session.state.screens[bot.id] }
 
-    /// The bot as the stream last described it — `busy` is what tells us
-    /// whether more frames are coming or this is the last one.
     private var current: Bot { session.state.bot(bot.id) ?? bot }
 
     var body: some View {
@@ -40,9 +27,6 @@ struct ComputerView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-                    // The desktop is wider than the phone, so it lands as a
-                    // letterbox. Pinch-to-zoom would be the obvious next
-                    // thing; scaledToFit is the honest starting point.
                     .accessibilityLabel("\(current.name)'s computer")
             } else {
                 waiting
@@ -52,19 +36,12 @@ struct ComputerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                // Busy is the difference between "the picture is a moment old"
-                // and "the picture is however it was left" — worth saying,
-                // because a still frame looks identical either way.
                 Text(current.busy == true ? "Preview" : "Idle")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(current.busy == true ? Color.green : Color.secondary)
             }
         }
         .safeAreaInset(edge: .bottom) {
-            // A VPS-backed bot is "cloud" too, but the server refuses to mint
-            // an interactive desktop for it — no button beats a dead one. An
-            // older harness never sends cloudBackend, so nil keeps the button.
-            // Minting a desktop session is admin-only on a server, too.
             if current.computer == "cloud" && current.cloudBackend != "vps" && session.canAdminister {
                 VStack(spacing: 8) {
                     if let desktopError {
@@ -128,8 +105,6 @@ struct ComputerView: View {
             Text(current.busy == true ? "Waiting for a frame…" : "Nothing to show yet")
                 .font(.system(size: 15))
                 .foregroundStyle(Color.white.opacity(0.7))
-            // An idle bot is not being screenshotted at all, so this would
-            // otherwise be an indefinite spinner with no explanation.
             if current.busy != true {
                 Text("This bot's computer is only captured while it is working.")
                     .font(.system(size: 13))

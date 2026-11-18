@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.notifications
 
 import android.os.Build
@@ -122,15 +123,12 @@ import android.text.TextDirectionHeuristics
  */
 internal object NotificationText {
 
-    /** U+200E LEFT-TO-RIGHT MARK: strong L, invisible, zero width. */
     private const val LEFT_TO_RIGHT_MARK = '\u200E'
 
-    /** The only break the shade's own segmentation splits paragraphs on. */
     private const val PARAGRAPH_BREAK = '\n'
 
     private const val CARRIAGE_RETURN = '\r'
 
-    /** `NotificationCompat.Builder.limitCharSequenceLength`, on every level. */
     private const val COMPAT_KEEPS = 5120
 
     /** `Notification.MAX_CHARSEQUENCE_LENGTH` on API 26–30. */
@@ -139,23 +137,9 @@ internal object NotificationText {
     /** `Notification.MAX_CHARSEQUENCE_LENGTH` from API 31. */
     private const val FRAMEWORK_KEEPS_FROM_S = 1024
 
-    /**
-     * [text] with an LTR anchor in front of every paragraph that would otherwise
-     * take the shade's base direction, truncated to what the shade keeps.
-     *
-     * Never reorders a character and never removes one; the only loss is off the
-     * tail, where the truncation the platform was going to apply anyway lands one
-     * character earlier for each anchor written before it. An empty paragraph — a
-     * blank line, including the blank line of a CRLF pair, or the stub after a
-     * trailing feed — takes no anchor: it has nothing to order.
-     */
     fun anchored(text: String): String =
         anchored(text, mostTheShadeKeeps(Build.VERSION.SDK_INT))
 
-    /**
-     * How many characters of one notification string reach the shade on
-     * [sdkInt] — the tighter of the two cuts documented on this class.
-     */
     internal fun mostTheShadeKeeps(sdkInt: Int): Int = minOf(
         COMPAT_KEEPS,
         if (sdkInt >= Build.VERSION_CODES.S) FRAMEWORK_KEEPS_FROM_S else FRAMEWORK_KEEPS_BEFORE_S,
@@ -163,26 +147,15 @@ internal object NotificationText {
 
     private fun anchored(text: String, keeps: Int): String {
         if (text.isEmpty()) return text
-        // For any text longer than the window, this is the final capacity: the
-        // result cannot exceed `keeps`, so the builder never grows.
         val anchored = StringBuilder(minOf(keeps, text.length + 1))
         var start = 0
         while (anchored.length < keeps) {
             val room = keeps - anchored.length
-            // The shade cannot be handed anything at or past here, so nothing at
-            // or past here is read: not the search for the break, not the
-            // first-strong pass. This one bound is the whole policy — decide
-            // over the delivered prefix — and the whole cost bound with it.
             val reach = minOf(text.length, start + room)
             val breakAt = firstBreakIn(text, start, reach)
             val end = if (breakAt < 0) reach else breakAt
-            // A CR before the feed is half of the break, not the last letter of
-            // the line it ends — otherwise a blank CRLF line looks non-empty.
             val content =
                 if (breakAt > start && text[breakAt - 1] == CARRIAGE_RETURN) breakAt - 1 else end
-            // Anchoring shortens the delivered content by one, but an anchored
-            // paragraph is settled by the anchor itself, so the question is only
-            // ever asked about the unanchored form and stops here.
             if (content > start && room > 1 && !settlesItsOwnDirection(text, start, content)) {
                 anchored.append(LEFT_TO_RIGHT_MARK)
             }
@@ -194,7 +167,6 @@ internal object NotificationText {
         return anchored.toString()
     }
 
-    /** First [PARAGRAPH_BREAK] in [text] from [from] until [until], or -1. */
     private fun firstBreakIn(text: String, from: Int, until: Int): Int {
         var i = from
         while (i < until) {
@@ -204,11 +176,6 @@ internal object NotificationText {
         return -1
     }
 
-    /**
-     * True when [text] from [start] until [end] settles its own base direction —
-     * that is, when the platform's own first-strong pass finds a strong character
-     * in it and the fallback never comes into play.
-     */
     private fun settlesItsOwnDirection(text: String, start: Int, end: Int): Boolean {
         val count = end - start
         return TextDirectionHeuristics.FIRSTSTRONG_LTR.isRtl(text, start, count) ==

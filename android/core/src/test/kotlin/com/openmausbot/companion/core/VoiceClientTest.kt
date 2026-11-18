@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.coroutines.runBlocking
@@ -14,7 +15,6 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** The calls a call makes — the voice half of `Client.swift` on the call-mode branch. */
 class VoiceClientTest {
     private lateinit var server: MockWebServer
     private lateinit var client: CompanionClient

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.audio
 
 import androidx.lifecycle.Lifecycle
@@ -20,8 +21,6 @@ class VoicePreviewPlayerTest {
 
     @Test
     fun `replacing the screen owner stops the previous preview`() {
-        // Would fail against bind-that-only-swaps-observers: audio kept playing
-        // for the new owner without an explicit stop.
         val focus = FakeFocus(grant = true)
         val engines = ArrayDeque<FakeEngine>()
         val controller = VoicePreviewController(
@@ -47,7 +46,6 @@ class VoicePreviewPlayerTest {
         assertEquals(1, engines.single().releases)
         assertEquals(1, focus.abandons)
 
-        // Unbind of the replaced owner must not double-stop or crash.
         player.unbind(first)
         assertEquals(1, focus.abandons)
     }

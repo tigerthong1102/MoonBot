@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 
 public struct ActionChipItem: Identifiable {

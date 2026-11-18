@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import XCTest
 @testable import CompanionCore
@@ -74,7 +75,6 @@ final class ServerPairingTests: XCTestCase {
     }
 
     private func fixture(_ name: String) throws -> Data {
-        // `.copy("Fixtures")` keeps the directory; a stale local build may flatten it
         let url = try XCTUnwrap(
             Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures")
                 ?? Bundle.module.url(forResource: name, withExtension: "json")
@@ -98,17 +98,16 @@ final class ServerPairingTests: XCTestCase {
 
     func testOnlyAWellFormedServerLinkIsAccepted() throws {
         for bad in [
-            "https://mini.example/pair", // no code
-            "https://mini.example/pair#code=ABCD-EFGH", // too short
-            "https://mini.example/pair#code=123456789012", // digits only is not a server code
-            "https://mini.example/other#code=ABCDEFGHJKLM", // wrong path
-            "https://mini.example/pair?code=ABCDEFGHJKLM", // in the query, not the fragment
-            "https://mini.example/pair#code=ABCDEFGHJKLM&code=ABCDEFGHJKLM", // duplicated
+            "https://mini.example/pair",
+            "https://mini.example/pair#code=ABCD-EFGH",
+            "https://mini.example/pair#code=123456789012",
+            "https://mini.example/other#code=ABCDEFGHJKLM",
+            "https://mini.example/pair?code=ABCDEFGHJKLM",
+            "https://mini.example/pair#code=ABCDEFGHJKLM&code=ABCDEFGHJKLM",
             "ftp://mini.example/pair#code=ABCDEFGHJKLM",
         ] {
             XCTAssertNil(PairingInvite.parse(try XCTUnwrap(URL(string: bad))), bad)
         }
-        // the companion's own invites still parse
         XCTAssertNotNil(PairingInvite.parse(try XCTUnwrap(URL(string: "openmausbot://pair?address=192.168.1.9:8810&code=123456"))))
     }
 
@@ -181,16 +180,12 @@ final class ServerPairingTests: XCTestCase {
     }
 
     func testCodeNormalizationMatchesTheServers() throws {
-        // what the server does before comparing: uppercase, strip, 0→O, 1→I
         XCTAssertEqual(PairingInvite.normalizePairingCode(" abcd-efgh jklm "), "ABCDEFGHJKLM")
         XCTAssertEqual(PairingInvite.normalizePairingCode("ab0d-1fgh-jklm"), "ABODIFGHJKLM")
         XCTAssertEqual(PairingInvite.normalizedServerCode("2345-6789-abcd"), "23456789ABCD")
-        // the alphabet has neither O nor I, so a code with 0, 1, O or I can
-        // only be a mistake: refused here, before an attempt is spent
         XCTAssertNil(PairingInvite.normalizedServerCode("ab0d-1fgh-jklm"))
         XCTAssertNil(PairingInvite.normalizedServerCode("ABCD-EFGH-JKLO"))
-        XCTAssertNil(PairingInvite.normalizedServerCode("ABCDEFGHJKLMN")) // thirteen
-        // in a link too, whatever case the link came in
+        XCTAssertNil(PairingInvite.normalizedServerCode("ABCDEFGHJKLMN"))
         let invite = PairingInvite.parse(try XCTUnwrap(URL(string: "HTTPS://Mini.Example:8443/pair#code=abcd-efgh-jklm")))
         XCTAssertEqual(invite?.credential, "ABCDEFGHJKLM")
         XCTAssertEqual(invite?.connection.activeEndpoint?.url, "https://mini.example:8443")
@@ -215,7 +210,6 @@ final class ServerPairingTests: XCTestCase {
                 XCTAssertEqual(error.localizedDescription, message)
                 XCTAssertFalse(error.isUnauthorized, "only a 401 sends the person back to pairing")
             }
-            // 415 is what the server answers when this header is missing
             let request = try XCTUnwrap(ServerRequestStub.captured().first)
             XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
         }
@@ -237,15 +231,12 @@ final class ServerPairingTests: XCTestCase {
         XCTAssertEqual(round.serverScopes, ["admin", "client"])
         XCTAssertTrue(round.canAdminister)
 
-        // saved by a build that paired with servers but recorded no scopes:
-        // it treated every such pairing as chat-only, and so does this one
         let earlier = Data(#"{"id":"s1","name":"cab mini","host":"c-7f3a9c.openmausbot.com","port":443,"serverEnvironmentId":"env_7f3a9c"}"#.utf8)
         let decoded = try JSONDecoder().decode(Connection.self, from: earlier)
         XCTAssertTrue(decoded.pairedWithServer)
         XCTAssertNil(decoded.serverScopes)
         XCTAssertFalse(decoded.canAdminister)
 
-        // the pair response is where the scopes come from
         let admin = try JSONDecoder().decode(ServerPairResponse.self, from: Data(#"""
         {"token":"omb_sess_x","session":{"id":"s","label":"iPhone","scopes":["admin","client"],"createdAt":1,"expiresAt":2},
          "environment":{"environmentId":"env","label":"mini","platform":"darwin","version":"0.1.66",

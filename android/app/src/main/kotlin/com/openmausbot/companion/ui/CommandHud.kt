@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.background
@@ -37,21 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * The slash-command HUD and the predictive chips — the port of
- * `ios/App/Composer/CommandSkillHUDView.swift` and
- * `ios/App/Composer/PredictiveActionChipsView.swift`.
- *
- * What each control *does* is [SlashCommands] and [PredictiveChips]; this file
- * only draws them, and draws them as Material rather than as SwiftUI. The iOS
- * HUD is a gradient over `.ultraThinMaterial` with a hairline stroke and a
- * per-command SF Symbol; Android has neither the blur (see `Chrome.kt`) nor
- * honest counterparts for `arrow.triangle.pull` or `steeringwheel` in the core
- * icon set. Inventing a glyph for a command is worse than not drawing one — a
- * wrench beside `/diff` tells the reader something untrue — so the cards carry a
- * coloured rail instead, in the same five accents the iOS cards outline
- * themselves with, and the chips are Material assist chips.
- */
+
 @Composable
 fun CommandSkillHud(
     commands: List<SlashCommand>,
@@ -92,8 +79,6 @@ fun CommandSkillHud(
             }
         }
 
-        // Five cards at most, so a scrolling Row rather than a LazyRow: the lazy
-        // machinery would cost more than it saves at this size.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -119,8 +104,6 @@ private fun CommandCard(command: SlashCommand, onSelect: () -> Unit) {
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
             .clickable(role = Role.Button, onClick = onSelect),
     ) {
-        // The rail is the card's only ornament, and it is decoration: the title
-        // beside it already says which command this is.
         Box(
             modifier = Modifier
                 .width(3.dp)
@@ -149,18 +132,6 @@ private fun CommandCard(command: SlashCommand, onSelect: () -> Unit) {
     }
 }
 
-/**
- * Four standing prompts under an empty composer, each sent on the tap.
- *
- * `AssistChip` rather than a hand-rolled capsule: it is the Material control for
- * exactly this — a suggested action beside a text field — and it carries the
- * `Role.Button` semantics and the 48 dp touch expansion that a 32 dp pill drawn
- * by hand would not.
- *
- * [chips] carries no default. These are the reader's own quick replies, which the
- * composer always passes; a default of [PredictiveChips.ALL] would let a future
- * call site render the four factory ones instead — silently, and always wrongly.
- */
 @Composable
 fun PredictiveChipsRow(
     chips: List<PredictiveChip>,
@@ -189,13 +160,6 @@ fun PredictiveChipsRow(
     }
 }
 
-/**
- * Small platform-neutral marks for the icon choices stored with a reply.
- *
- * One table, drawn by the composer's chips and offered by `QuickRepliesEditor`:
- * a mark someone picks in Settings is the mark that appears above the composer
- * because it is literally the same branch, not a copy that agrees today.
- */
 internal fun quickReplyGlyph(icon: String): String = when (icon) {
     "next" -> "→"
     "diff" -> "±"
@@ -216,7 +180,6 @@ private val HUD_RADIUS = 16.dp
 private val COMMAND_CARD_WIDTH = 168.dp
 private val COMMAND_CARD_HEIGHT = 62.dp
 
-/** The five accents `CommandSkillHUDView` outlines its cards with. */
 private fun accent(id: SlashCommandId): Color = when (id) {
     SlashCommandId.COMPUTER -> Color(0xFF38BDF8)
     SlashCommandId.TASKS -> Color(0xFFA855F7)

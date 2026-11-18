@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Bot
@@ -53,7 +54,6 @@ class SectionRulesTest {
     fun `a chief moving beside a different incumbent is a conflict`() {
         val bots = listOf(chief("moving"), chief("incumbent").copy(section = "Research"))
         assertTrue(SectionRules.hasChiefConflict(bots, setOf("moving"), "Research"))
-        // A different destination has no incumbent, so the same move is fine.
         assertFalse(SectionRules.hasChiefConflict(bots, setOf("moving"), "Ops"))
     }
 
@@ -62,7 +62,6 @@ class SectionRulesTest {
         val bots = listOf(chief("only"), bot("plain"))
         assertFalse(SectionRules.hasChiefConflict(bots, setOf("only"), "Research"))
         assertFalse(SectionRules.hasChiefConflict(bots, setOf("plain"), "Research"))
-        // The incumbent moving into the section it already occupies is one id.
         val settled = listOf(chief("only").copy(section = "Research"))
         assertFalse(SectionRules.hasChiefConflict(settled, setOf("only"), "Research"))
     }
@@ -77,7 +76,6 @@ class SectionRulesTest {
     fun `the destination is matched on the trimmed name, and an empty one has no incumbent`() {
         val bots = listOf(chief("moving"), chief("incumbent").copy(section = "  Research  "))
         assertTrue(SectionRules.hasChiefConflict(bots, setOf("moving"), "  Research "))
-        // Nothing typed yet: an unfiled chief is not the incumbent of "nothing".
         val unfiled = listOf(chief("moving"), chief("floating"))
         assertFalse(SectionRules.hasChiefConflict(unfiled, setOf("moving"), "   "))
     }
@@ -87,7 +85,6 @@ class SectionRulesTest {
         val bots = listOf(bot("plain"), bot("pinned").copy(pinned = true), chief("chief").copy(pinned = true))
         assertFalse(SectionRules.hasPinnedSelection(bots, setOf("plain")))
         assertTrue(SectionRules.hasPinnedSelection(bots, setOf("pinned")))
-        // A pinned Chief is drawn as the Chief, so it is not what this note is about.
         assertFalse(SectionRules.hasPinnedSelection(bots, setOf("chief")))
     }
 
@@ -106,9 +103,6 @@ class SectionRulesTest {
 
     @Test
     fun `a heading only a hidden bot carries is not one this sheet knows`() {
-        // The sheet cannot show, select, or file that bot, so telling the typist
-        // the name "adds to an existing section" would point at a section that
-        // never appears. iOS reads its already-filtered `bots` for exactly this.
         val state = CompanionState(bots = listOf(bot("ghost").copy(hidden = true, section = "Archive")))
 
         assertEquals(emptySet<String>(), SectionRules.existingSections(state))
@@ -120,8 +114,6 @@ class SectionRulesTest {
 
     @Test
     fun `a visible bot in the same state still carries its heading`() {
-        // The filter is about hidden bots, not about the lookup: the same call
-        // must still find a heading someone can actually see.
         val state = CompanionState(
             bots = listOf(bot("ghost").copy(hidden = true, section = "Archive"), bot("seen").copy(section = "Ops")),
         )
@@ -132,8 +124,6 @@ class SectionRulesTest {
 
     @Test
     fun `leaving is refused only while a save is in flight`() {
-        // `assignSection` cannot be recalled once it is sent, so the scrim, the
-        // drag and the Cancel button all ask this before they let the sheet go.
         assertFalse(SectionRules.canDismiss(saving = true))
         assertTrue(SectionRules.canDismiss(saving = false))
     }

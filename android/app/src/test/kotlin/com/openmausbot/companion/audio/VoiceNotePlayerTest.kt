@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.audio
 
 import kotlin.test.Test
@@ -8,12 +9,6 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 
-/**
- * Voice-note lifecycle pinned to the desktop VoiceNoteBubble contract: the
- * one-voice rule, pause-in-place with resume, seek, completion parking the
- * clip at its end, focus loss and app background pausing rather than
- * stopping, and failure surfacing the retry copy.
- */
 class VoiceNotePlayerTest {
 
     @Test
@@ -124,7 +119,6 @@ class VoiceNotePlayerTest {
         controller.seek("a", 999_999L)
         assertEquals(3999L, controller.playback.value?.positionMs)
 
-        // A seek for another row's note never touches this engine.
         controller.seek("other", 10L)
         assertEquals(3999L, controller.playback.value?.positionMs)
         assertEquals(2, engine.seeks)
@@ -164,7 +158,6 @@ class VoiceNotePlayerTest {
         assertEquals(1, focus.abandons)
         assertFalse(controller.resumable("a"))
 
-        // Playing again restarts from the beginning, like an ended audio element.
         assertNull(controller.play("a", byteArrayOf(1)))
         assertEquals(0L, controller.playback.value?.positionMs)
     }
@@ -214,7 +207,6 @@ class VoiceNotePlayerTest {
         assertEquals(VoiceNoteController.PLAYBACK_ERROR, controller.play("a", byteArrayOf(1)))
         assertEquals(0, engines)
         assertNull(controller.playback.value)
-        // The refused request is still cleared.
         assertEquals(1, focus.abandons)
     }
 

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.background
@@ -47,7 +48,6 @@ import com.openmausbot.companion.core.ThreadRef
 import com.openmausbot.companion.core.TranscriptRow
 import com.openmausbot.companion.core.WebhookMessageContent
 
-/** Reversible completed narration; tools still follow the activity preference. */
 @Composable
 fun AssistantTurnChip(
     turn: TranscriptRow.AssistantTurn,
@@ -87,7 +87,6 @@ fun AssistantTurnChip(
                 val requester = remember { BringIntoViewRequester() }
                 LaunchedEffect(revealMessageId) {
                     if (revealMessageId == message.id) {
-                        // Let the expanded child receive layout coordinates.
                         withFrameNanos { }
                         requester.bringIntoView()
                         onRevealed(message.id)

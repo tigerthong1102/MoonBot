@@ -56,20 +56,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
-/**
- * The Android surface of `ios/ShareExtension/ShareRootView.swift`.
- *
- * The trampoline has already copied shared bytes into app-private storage.
- * This screen chooses the computer and conversation, uploads those copies
- * with stable ids, and sends one composed message.
- */
 @Composable
 fun ShareSheet(
     pending: ShareInbox.PendingShare,
     onDismiss: () -> Unit,
 ) {
-    // One composition tree per generation: a send from A cannot clean B's files,
-    // and preview/instruction reset when a newer share arrives.
     key(pending.generation) {
         ShareSheetContent(pending = pending, onDismiss = onDismiss)
     }
@@ -190,7 +181,6 @@ private fun ShareSheetContent(
 
     LaunchedEffect(pending.generation) {
         if (sheet.bootstrapped) {
-            // Recreation mid-send lost the Job; keep the prepared delivery for Retry.
             if (phase == ShareSheetPhase.SENDING) {
                 phase = ShareSheetPhase.FAILED
                 if (errorMessage == null) errorMessage = SharePolicy.generic()

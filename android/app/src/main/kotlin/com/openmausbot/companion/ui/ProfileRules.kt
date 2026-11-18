@@ -8,26 +8,16 @@ import com.openmausbot.companion.core.ConfigStatus
 import com.openmausbot.companion.core.Voice
 import com.openmausbot.companion.core.VoiceProvider
 
-/**
- * The paired-safe agent profile, as rules — the decision half of
- * `ios/App/AgentProfileView.swift`.
- *
- * Identity, avatar, notifications and voice preferences, and nothing else: the
- * shared provider keys stay on the computer, so this form has no field that
- * could carry one.
- */
 data class ProfileForm(
     val name: String,
     val title: String,
     val description: String,
     val notifications: Boolean,
     val crop: AvatarCrop,
-    /** Empty is the server's "use the workspace default", not "no value". */
     val voice: String,
     val speakReplies: Boolean,
 ) {
     companion object {
-        /** `ProfileFormSnapshot(bot:)`, and the initial value of every field. */
         fun of(bot: Bot): ProfileForm = ProfileForm(
             name = bot.name,
             title = bot.title,
@@ -40,7 +30,6 @@ data class ProfileForm(
     }
 }
 
-/** One row of the voice picker. */
 data class VoiceChoice(
     val id: String,
     val label: String,
@@ -49,15 +38,8 @@ data class VoiceChoice(
 )
 
 object ProfileRules {
-    /** `String(prompt.trimming….prefix(400))` in `generateImage`. */
     const val GENERATE_PROMPT_LIMIT: Int = 400
 
-    // Visibility here is a rule, not a habit. A string that is one *arm* of a
-    // state-dependent choice is private, so the selector below it is the only
-    // way to reach it: a screen cannot draw the wrong arm, because it cannot
-    // name one. A string with no alternative — nothing to pick between — stays
-    // public and is drawn directly. Adding a second arm to any of those means
-    // making it private and giving it a selector, in the same edit.
 
     const val AVATAR_FOOTER: String =
         "PNG, JPEG, GIF, or WebP, up to 10 MB. Images are stored on your paired computer " +
@@ -80,16 +62,8 @@ object ProfileRules {
 
     private const val TTS_UNCONFIGURED: String = "ElevenLabs is not configured"
 
-    /**
-     * The same slot under the built-in provider, where `configured = false`
-     * means the computer reports no voices it can use — not that a key is
-     * missing, because this engine has none to miss.
-     */
     private const val SYSTEM_TTS_UNCONFIGURED: String = "Your computer's built-in voices are unavailable"
 
-    // iOS ends this sentence with "never returned to iOS"; the platform word is
-    // the only edit, for the same reason SettingsPolicy does not offer to open
-    // iPhone Settings.
     private const val VOICE_UNCONFIGURED_FOOTER: String =
         "Add the shared ElevenLabs key in this agent's profile on the computer. The key is " +
             "never returned to this phone."
@@ -118,7 +92,6 @@ object ProfileRules {
         "No workspace default voice is selected. Choose an agent-specific voice above; " +
             "synthesis still uses Fish Audio on your computer."
 
-    /** The same sentence with the clause that would be a lie replaced. */
     private const val SYSTEM_VOICE_NO_DEFAULT_FOOTER: String =
         "No workspace default voice is selected. Choose an agent-specific voice above; " +
             "synthesis still uses your computer's built-in voices."
@@ -144,27 +117,12 @@ object ProfileRules {
         "The voice choice belongs to this agent. Workspace default uses the shared voice " +
             "selected on your computer."
 
-    // Private because it is reached through [pickAVoiceHint], for the reason
-    // given there: as a bare Boolean its selector was swappable with the
-    // toggle's own predicate. PREVIEW_REFUSED below has no alternative arm and
-    // no selector, so it stays public and is drawn directly.
     private const val PICK_A_VOICE: String =
         "Pick a voice for this agent before enabling speech."
 
     const val PREVIEW_REFUSED: String =
         "Pick an agent voice or configure a workspace default on your computer first."
 
-    /**
-     * Only the fields the sheet owns and the user changed.
-     *
-     * Dirtiness compares the field as typed; the value sent is trimmed. That is
-     * how the Swift reads, and it means a trailing space submits a field whose
-     * trimmed value is unchanged — mirrored rather than tidied.
-     *
-     * The 100/200/4000 server limits are deliberately not re-applied here: the
-     * shared contract owns them, and a narrower client limit would silently
-     * truncate a profile written on the desktop.
-     */
     fun patch(form: ProfileForm, baseline: ProfileForm, config: ConfigStatus?): BotProfilePatch {
         val savedSpeakReplies = config
             ?.let { it.canSpeak(form.voice) && form.speakReplies }
@@ -205,31 +163,14 @@ object ProfileRules {
     fun generateFooter(config: ConfigStatus?): String =
         if (imageGenerationReady(config)) GENERATE_READY_FOOTER else GENERATE_BLOCKED_FOOTER
 
-    /** `config?.canSpeak(agentVoice:) == true` — false while the status is unknown. */
     fun selectedVoiceCanSpeak(config: ConfigStatus?, voice: String): Boolean =
         config?.canSpeak(voice) == true
 
     fun canPreview(busy: Boolean, config: ConfigStatus?, voice: String): Boolean =
         !busy && selectedVoiceCanSpeak(config, voice)
 
-    /**
-     * Whether the chosen engine can speak at all: the shared key under
-     * ElevenLabs, a usable voice on the computer under the built-in provider.
-     *
-     * This picks the section's *contents*, not its existence. The Voice
-     * section is drawn in every state — here, and in `AgentProfileView.swift`,
-     * where `Section` is likewise unconditional — and this decides whether it
-     * holds the picker or the muted-speaker notice, and which of the three
-     * footer sentences explains it. Neither cause is repairable from the
-     * phone, which is why the closed state explains rather than offers.
-     */
     fun voiceConfigured(config: ConfigStatus?): Boolean = config?.isTTSConfigured == true
 
-    /**
-     * Which engine's words to use. An unloaded status is ElevenLabs for the
-     * same reason a missing `provider` is: that is what the server falls back
-     * to, so the phone says nothing new while it does not yet know.
-     */
     private fun provider(config: ConfigStatus?): VoiceProvider =
         config?.voiceProvider ?: VoiceProvider.ELEVENLABS
 
@@ -256,25 +197,8 @@ object ProfileRules {
         else -> VOICE_READY_FOOTER
     }
 
-    /**
-     * Everything the voice section says, decided once.
-     *
-     * The footer and the notice describe the same state, so they are answered
-     * together rather than by two calls the screen has to pair correctly. Two
-     * public selectors of the same shape — `(ConfigStatus?) -> String` — are
-     * interchangeable to the compiler, and swapping them put the wrong
-     * sentence in the footer with the suite still green. One entry point
-     * leaves no wrong selector to pick.
-     */
     data class VoiceCopy(
-        /** The explanatory line under the section, in every state. */
         val footer: String,
-        /**
-         * The line that stands in place of the picker, or null when the
-         * section can speak. Null is also the branch: whether the picker is
-         * drawn and which words explain it are one decision, not two that
-         * could drift apart.
-         */
         val unconfiguredNotice: String?,
     )
 
@@ -283,26 +207,9 @@ object ProfileRules {
         unconfiguredNotice = if (voiceConfigured(config)) null else ttsUnconfiguredLabel(config),
     )
 
-    /**
-     * The hint under the toggle, or null when something can already speak.
-     *
-     * It hands back the sentence rather than a flag so that it cannot be
-     * confused with [selectedVoiceCanSpeak]. Both once read
-     * `(ConfigStatus?, String) -> Boolean`, both are wired into this same
-     * section — the toggle's `enabled` and this hint's visibility — and
-     * swapping the two call sites compiled and stayed green: the toggle would
-     * enable itself exactly when nothing could speak, and the hint would
-     * appear only once it was needless. Returning `String?` makes that swap a
-     * type error rather than a silent inversion.
-     */
     fun pickAVoiceHint(config: ConfigStatus?, voice: String): String? =
         if (config?.hasWorkspaceDefaultVoice != true && voice.isEmpty()) PICK_A_VOICE else null
 
-    /**
-     * The picker's rows, in the Swift's order: the empty tag first — usable only
-     * when a workspace default actually exists — then the agent's current voice
-     * if the list does not carry it, then the listed voices.
-     */
     fun voiceChoices(config: ConfigStatus?, voices: List<Voice>, voice: String): List<VoiceChoice> {
         val out = mutableListOf<VoiceChoice>()
         out += if (config?.hasWorkspaceDefaultVoice == true) {
@@ -317,13 +224,6 @@ object ProfileRules {
         return out
     }
 
-    /**
-     * The engine picker's rows, in the desktop's order. Every engine stays
-     * selectable: whether the computer can actually speak with one is the
-     * server's answer, reported as `configured` — the phone cannot know the
-     * host's platform, so it offers every engine the API defines and lets the
-     * status explain one that cannot run there.
-     */
     fun providerChoices(): List<VoiceChoice> = listOf(
         VoiceChoice(VoiceProvider.ELEVENLABS.wire, "ElevenLabs", null, enabled = true),
         VoiceChoice(VoiceProvider.FISH.wire, "Fish Audio", null, enabled = true),
@@ -331,18 +231,9 @@ object ProfileRules {
         VoiceChoice(VoiceProvider.CHATTERBOX.wire, "Chatterbox (local)", null, enabled = true),
     )
 
-    /**
-     * What the loaded status does to the form: a stored `speakReplies` that
-     * nothing can speak is turned off before the user ever sees the toggle.
-     */
     fun applyLoadedConfig(form: ProfileForm, config: ConfigStatus?): ProfileForm =
         if (config != null && !config.canSpeak(form.voice)) form.copy(speakReplies = false) else form
 
-    /**
-     * Voice ids belong to one provider. The server clears every bot voice on
-     * a successful switch, so an open sheet must clear both its draft and its
-     * dirty-comparison baseline before the new catalog is rendered.
-     */
     fun afterVoiceProviderSwitch(
         form: ProfileForm,
         baseline: ProfileForm,

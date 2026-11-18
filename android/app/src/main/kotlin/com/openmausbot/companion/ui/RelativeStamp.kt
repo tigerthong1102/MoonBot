@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import java.time.Instant
@@ -7,16 +8,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 
-/**
- * Timestamps the way a messaging app writes them — the port of
- * `RelativeStamp` in `ios/App/ChatListView.swift`.
- *
- * Every function takes "now" rather than reading the clock, so the branching —
- * which is the actual spec — is unit-testable without a fake clock.
- */
 object RelativeStamp {
 
-    /** Roster: time today, "Yesterday", weekday within the week, date beyond that. */
     fun list(
         atMillis: Double,
         nowMillis: Long,
@@ -34,7 +27,6 @@ object RelativeStamp {
         }
     }
 
-    /** In a transcript: enough to place a gap in the conversation. */
     fun separator(
         atMillis: Double,
         nowMillis: Long,
@@ -51,7 +43,6 @@ object RelativeStamp {
         }
     }
 
-    /** Thread row: short date and short time. The default zone is the OS zone. */
     fun updated(
         atMillis: Double,
         zone: ZoneId = ZoneId.systemDefault(),
@@ -71,11 +62,6 @@ object RelativeStamp {
         .withLocale(locale)
         .format(zoned(atMillis, zone))
 
-    /**
-     * A schedule's instant, spelled out — Swift's
-     * `.formatted(date: .abbreviated, time: .shortened)`, which is a medium
-     * date beside a short time in the reader's locale.
-     */
     fun dateAndTime(
         atMillis: Double,
         zone: ZoneId = ZoneId.systemDefault(),

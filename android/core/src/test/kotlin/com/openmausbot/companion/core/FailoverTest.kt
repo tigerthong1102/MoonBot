@@ -44,8 +44,6 @@ class FailoverTest {
         val rotation = CandidateRotation(listOf(hosted, tailnet))
         assertEquals(hosted, rotation.currentEndpoint)
         assertEquals(tailnet, rotation.advanceEndpoint())
-        // Wrapping rather than giving up: the retry loop already backs off between laps,
-        // and a network that comes back deserves another try at the front.
         assertEquals(hosted, rotation.advanceEndpoint())
     }
 
@@ -215,10 +213,6 @@ class FailoverTest {
             "192.168.1.42",
             8810,
         )
-        // Pinned whole: the port is what the person checks, and the section name
-        // is where they go to check it. The desktop area is called Phone, so
-        // naming a Companion section would send them to a screen that is not
-        // there (`ios/Sources/CompanionCore/Failover.swift:156`).
         assertEquals(
             "Reached your computer, but Phone access isn't answering on port 8810 — " +
                 "open StartupBot → Settings → Phone. The app keeps retrying automatically.",
@@ -264,7 +258,6 @@ class FailoverTest {
         assertTrue(message.contains("Trying mac.tail1234.ts.net next."))
         assertTrue(message.contains("retrying automatically"))
 
-        // Without a fallback the banner does not invent one.
         assertFalse(
             ConnectionAdvice.message(gatewayStatus = 522, host = "https://mac.companion.example")
                 .contains("Trying"),

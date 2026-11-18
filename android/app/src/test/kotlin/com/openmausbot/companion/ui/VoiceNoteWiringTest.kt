@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.activity.ComponentActivity
@@ -116,16 +117,8 @@ class VoiceNoteWiringTest {
 
         val playNode = compose.onNodeWithContentDescription("Play voice note")
         playNode.assertIsDisplayed()
-        // The scrub bar stays dead until playback supplies a real length.
         compose.onNodeWithContentDescription("Seek voice note").assertIsNotEnabled()
         compose.waitUntil(10_000) {
-            // The label flips to "Pause" the moment playback starts, so the
-            // node must be re-resolved on every poll or the handle goes stale.
-            // The queries run on every poll: they re-resolve the flipped
-            // label and drive the frame sync that lets the download
-            // coroutine resume. Clicking stops the moment the fetch is
-            // recorded, and a click that parks the bubble early recovers
-            // through its Retry row instead of dead-ending the poll.
             val plays = compose.onAllNodesWithContentDescription("Play voice note").fetchSemanticsNodes()
             val retries = compose.onAllNodesWithText("Retry").fetchSemanticsNodes()
             if (requests.isEmpty()) {
@@ -139,14 +132,11 @@ class VoiceNoteWiringTest {
 
         compose.onNodeWithContentDescription("Pause voice note").assertIsDisplayed()
         compose.onNodeWithContentDescription("Seek voice note").assertIsDisplayed()
-        // The slider is seconds-based: its range must span the measured duration,
-        // not the 0f..1f default that pins every scrub inside the first second.
         val seek = compose.onNodeWithContentDescription("Seek voice note")
         seek.assertIsEnabled()
         val seekRange = seek.fetchSemanticsNode().config.getOrNull(SemanticsProperties.ProgressBarRangeInfo)?.range
         assertEquals(0f, seekRange?.start)
         assertEquals(4f, seekRange?.endInclusive)
-        // The wire said 4200ms; the engine measured 4000ms, which wins once known.
         compose.onNodeWithText("0:00 / 0:04").assertIsDisplayed()
 
         compose.waitUntil(5_000) {
@@ -157,11 +147,7 @@ class VoiceNoteWiringTest {
         }
         compose.onNodeWithContentDescription("Play voice note").assertIsDisplayed()
 
-        // Resume replays the bubble's own bytes; the file route is hit exactly once.
         compose.waitUntil(5_000) {
-            // Same discipline as the first-play poll: query every poll for
-            // the frame sync, click only while the row still wants it, and
-            // recover a parked retry row the same way.
             val plays = compose.onAllNodesWithContentDescription("Play voice note").fetchSemanticsNodes()
             val retries = compose.onAllNodesWithText("Retry").fetchSemanticsNodes()
             if (player.playback.value?.playing != true) {
@@ -239,14 +225,7 @@ class VoiceNoteWiringTest {
         compose.runOnIdle { wiring.session.connect() }
         compose.waitUntil(5_000) { wiring.session.state.value.bot(fixture.id) != null }
 
-        // Play only the first bubble; the guard keeps the poll from ever
-        // starting the second one once the first label flips to Pause.
         compose.waitUntil(10_000) {
-            // Query every poll so the download coroutine gets its frame sync;
-            // click only while no fetch has been recorded so a late poll can
-            // never start the sibling row. The first bubble's Retry control
-            // wins over any Play node: after a failed download its sibling
-            // still shows Play, and clicking that would start the wrong note.
             val plays = compose.onAllNodesWithContentDescription("Play voice note").fetchSemanticsNodes()
             val pauses = compose.onAllNodesWithContentDescription("Pause voice note").fetchSemanticsNodes()
             val retries = compose.onAllNodesWithText("Retry").fetchSemanticsNodes()
@@ -261,10 +240,8 @@ class VoiceNoteWiringTest {
             }
             player.playback.value?.playing == true
         }
-        // The fetch that started playback belongs to the first bubble's message.
         assertEquals("/api/threads/first/messages/a/file", requests.single().path)
 
-        // A late decode failure parks only the clip that actually failed.
         compose.runOnIdle { engine?.onError?.invoke() }
         compose.waitUntil(5_000) {
             compose.onAllNodesWithText("Voice note unavailable").fetchSemanticsNodes().isNotEmpty()

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.sharing
 
 import java.io.File
@@ -6,13 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Process-memory holder for one inbound share.
- *
- * The trampoline copies the sender's URIs into the app cache, then deposits
- * the local result here. MainActivity never sees the original Intent extras.
- * A newer share replaces an unsent one and deletes that copy.
- */
 class ShareInbox {
     private val generation = AtomicLong(0)
     private val _pending = MutableStateFlow<PendingShare?>(null)

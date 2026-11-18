@@ -1,9 +1,4 @@
-// Where the chat's preferences are stored.
-//
-// `@AppStorage` rather than an observable object on purpose: the settings
-// screen writes these and the chat reads them, and AppStorage already keeps
-// both in step through UserDefaults. One place for the key strings is the
-// only thing a shared type is needed for.
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import SwiftUI
 import CompanionCore
@@ -16,11 +11,6 @@ enum PrefKey {
     static let language = "companion.prefs.language"
 }
 
-/// The set of chats whose island intro has already played.
-///
-/// Stored as JSON in the same defaults as everything else rather than in its
-/// own store: it is a handful of ids, and a chat that loses its entry simply
-/// plays its intro once more.
 enum IslandSeen {
     static func contains(_ id: String, in json: String) -> Bool {
         decode(json).contains(id)

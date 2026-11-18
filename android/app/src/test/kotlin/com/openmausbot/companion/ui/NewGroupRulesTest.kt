@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.CompanionState
@@ -6,15 +7,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * DELTA-01: who a group can be made from and in what order, pinned against
- * `ios/App/NewGroupSheet.swift`.
- *
- * The name is not tested here on purpose — the rule that a blank one is left out
- * of the request lives in `:core`'s `Client.createRoom`, and this screen's job is
- * to hand the field over untouched so the harness can name the room after its
- * first member.
- */
 class NewGroupRulesTest {
     private val fleet = CompanionState(
         bots = listOf(
@@ -39,8 +31,6 @@ class NewGroupRulesTest {
     @Test
     fun `members go out in the order they were listed, not the order they were tapped`() {
         val bots = NewGroupRules.selectable(fleet)
-        // Tapped bottom-up; the request still leads with the topmost pick, which
-        // is the one the harness names the room after.
         val tapped = linkedSetOf("bot-4", "bot-1")
         assertEquals(listOf("bot-1", "bot-4"), NewGroupRules.members(bots, tapped))
     }
@@ -70,10 +60,6 @@ class NewGroupRulesTest {
 
     @Test
     fun `a selection the fleet has dropped still leaves create lit, as on iOS`() {
-        // `NewGroupSheet.swift:67` disables Create on the raw set and recomputes
-        // the members only at press time, so a pick that has left the fleet keeps
-        // the button lit over a request that goes out empty. Pinned as the source
-        // behaves, not as this port would prefer.
         val bots = NewGroupRules.selectable(fleet)
         assertEquals(emptyList(), NewGroupRules.members(bots, setOf("bot-2")))
         assertTrue(NewGroupRules.canCreate(setOf("bot-2"), creating = false))

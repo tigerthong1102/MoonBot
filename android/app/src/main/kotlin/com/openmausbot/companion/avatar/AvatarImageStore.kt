@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.avatar
 
 import android.graphics.Bitmap
@@ -60,11 +61,6 @@ class AvatarImageStore(
     @Volatile
     private var generation = 0
 
-    /**
-     * Cached or freshly fetched bytes for [bot]'s `avatarUrl`.
-     * Null when the bot has no URL, the fetch fails, or [clear] raced the
-     * in-flight request (same generation gate as iOS).
-     */
     suspend fun bytesFor(bot: Bot): ByteArray? {
         val path = bot.avatarUrl ?: return null
         cache.get(path)?.let { return it }
@@ -180,7 +176,6 @@ class AvatarImageStore(
         }
     }
 
-    /** Drop every entry and abandon in-flight work — call on sign-out. */
     suspend fun clear() {
         val pending = mutex.withLock {
             generation += 1
@@ -196,10 +191,6 @@ class AvatarImageStore(
         pending.second.forEach { it.complete(null) }
     }
 
-    /**
-     * Non-suspending clear for Application observers.
-     * Always bumps [generation] so a leader that finishes later discards its put.
-     */
     fun clearBlocking() {
         generation += 1
         if (mutex.tryLock()) {
@@ -221,31 +212,14 @@ class AvatarImageStore(
         }
     }
 
-    /** Test / diagnostics: current resident byte entries. */
     internal fun cachedEntryCount(): Int = cache.size()
 
-    /** Test / diagnostics: current resident byte cost. */
     internal fun cachedByteCost(): Int = cache.byteCost()
 
-    /** Test / diagnostics: current resident decoded frames. */
     internal fun cachedBitmapCount(): Int = bitmaps.size()
 
-    /** Test / diagnostics: current resident decoded frame byte cost. */
     internal fun cachedBitmapByteCost(): Int = bitmaps.byteCost()
 
-    /**
-     * Remove the in-flight byte entry and complete joiners.
-     *
-     * Under [NonCancellable] for the same reason [completeDecode] is, and the
-     * asymmetry between the two was a real hole rather than a stylistic one.
-     * The leader reaches here from a `catch` that a cancellation put it in, so
-     * its job is already cancelling; `Mutex.lock` only checks for cancellation
-     * *when it has to suspend*, which is exactly when another coroutine holds
-     * the lock. In that window the cleanup threw before removing [inflight] or
-     * completing the deferred — and every joiner already parked on that
-     * deferred, plus every later caller of the same path, then waited forever
-     * for a leader that was gone.
-     */
     private suspend fun finish(
         path: String,
         request: Inflight,
@@ -262,11 +236,6 @@ class AvatarImageStore(
         }
     }
 
-    /**
-     * Remove the in-flight decode entry and complete joiners.
-     * Idempotent: a cancel watcher and the success path may both call this.
-     * Always runs under [NonCancellable] so a cancelled leader can still finish.
-     */
     private suspend fun completeDecode(
         path: String,
         deferred: CompletableDeferred<DecodedAvatar?>,
@@ -314,21 +283,12 @@ class AvatarImageStore(
          * bitmaps globally for roster scroll identity.
          */
         const val DEFAULT_MAX_BITMAP_BYTES: Int = 32 * 1_024 * 1_024
-        /**
-         * Longest edge after decode. Profile heroes stay under ~200 dp (~800 px at
-         * xxxhdpi); 1024 leaves headroom while capping a 10 MB JPEG that would
-         * otherwise expand to hundreds of MB as ARGB.
-         */
         const val DEFAULT_MAX_DECODE_EDGE: Int = 1_024
 
         val DEFAULT_DECODE: (ByteArray) -> DecodedAvatar? = { bytes ->
             decodeBounded(bytes, maxEdge = DEFAULT_MAX_DECODE_EDGE)?.let { DecodedAvatar.fromBitmap(it) }
         }
 
-        /**
-         * Bounds-then-sample decode. Rejects undecodable payloads; never retains
-         * a full-resolution camera frame in the global cache.
-         */
         fun decodeBounded(bytes: ByteArray, maxEdge: Int = DEFAULT_MAX_DECODE_EDGE): Bitmap? {
             if (bytes.isEmpty() || maxEdge <= 0) return null
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -346,7 +306,6 @@ class AvatarImageStore(
             }
         }
 
-        /** Power-of-two sample that fits both edges within [maxEdge]. */
         fun inSampleSizeFor(width: Int, height: Int, maxEdge: Int): Int {
             if (width <= 0 || height <= 0 || maxEdge <= 0) return 1
             var sample = 1
@@ -362,12 +321,6 @@ class AvatarImageStore(
     }
 }
 
-/**
- * Access-ordered cache with entry and byte-cost eviction. Used for both the
- * encoded-byte and decoded-frame budgets.
- * Drops the map reference only on eviction — never [Bitmap.recycle], because
- * roster/header may still be drawing that instance after eviction or sign-out.
- */
 internal class BoundedCostCache<T>(
     private val maxEntries: Int,
     private val maxBytes: Int,

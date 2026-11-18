@@ -1,9 +1,4 @@
-// The roster.
-//
-// Messages-shaped: a glass header, built-in and user-named sidebar sections,
-// channels as compact tiles, and bot conversations as rows. The floating bar
-// keeps Updates, search, organization and new-bot actions within one thumb's
-// reach while everything scrolls beneath the glass.
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 
@@ -11,9 +6,6 @@ struct ChatListView: View {
     @EnvironmentObject private var session: Session
     @State private var query = ""
     @AppStorage(PrefKey.activityDetail) private var activityDetail = ActivityDetail.full.rawValue
-    /// Driven so that making a bot can open it. Value-based navigation alone
-    /// cannot push without a tap, and a new bot appearing silently at the
-    /// bottom of the roster is a poor answer to pressing +.
     @State private var path = NavigationPath()
     @State private var searchHits: [SearchHit] = []
     @State private var searching = false
@@ -27,7 +19,6 @@ struct ChatListView: View {
     @State private var managingThreads: Chat?
     @FocusState private var searchFocused: Bool
 
-    /// Room for the floating bar, so the last row can scroll clear of it.
     private static let barClearance: CGFloat = 96
 
     var body: some View {
@@ -95,13 +86,11 @@ struct ChatListView: View {
                     }
                 }
             }
-            // top-aligned: the roster fills downward from the header
             .frame(maxWidth: CompanionLayout.rosterWidth, maxHeight: .infinity, alignment: .top)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .overlay(alignment: .bottom) {
                 bottomBar.frame(maxWidth: CompanionLayout.rosterWidth)
             }
-            // a bot that stopped for you grows out of the island
             .overlay(alignment: .top) {
                 if CompanionLayout.supportsIslandPresentation {
                     NeedsYouIsland(
@@ -125,8 +114,6 @@ struct ChatListView: View {
                 }
             }
 #if DEBUG
-            // Preview-only routes let the screenshot harness reach screens
-            // that normally require a paired computer and a tap.
             .task {
                 if ProcessInfo.processInfo.arguments.contains("-open-new-section") {
                     showingNewSection = true
@@ -179,11 +166,6 @@ struct ChatListView: View {
         }
     }
 
-    // MARK: - Header
-
-    /// The paired computer's profile on the left, one settings action on the
-    /// right, and where you are in between. The avatar is identity, not a
-    /// second hidden route to the same screen.
     private var header: some View {
         HStack(alignment: .center) {
             ProfileAvatar(name: session.connection?.name ?? "You", size: 30)
@@ -232,7 +214,6 @@ struct ChatListView: View {
         }
     }
 
-    // MARK: - Sidebar sections
 
     @ViewBuilder
     private var rosterSections: some View {
@@ -357,7 +338,6 @@ struct ChatListView: View {
         }
     }
 
-    // MARK: - Bottom bar
 
     private var bottomBar: some View {
         GlassGroup(spacing: 8) {
@@ -425,8 +405,6 @@ struct ChatListView: View {
             updatesButton
                 .frame(minWidth: 148)
             searchButton
-            // Creating bots and sections needs the admin scope on a server;
-            // a chat-only phone is not shown buttons the server would refuse.
             if session.canAdminister {
                 Menu {
                     Button("New section", systemImage: "folder.badge.plus", action: openNewSection)
@@ -493,15 +471,11 @@ struct ChatListView: View {
         }
     }
 
-    // MARK: - Data
-
-    /// The reader's activity level, which the roster preview folds by.
     private var activity: ActivityDetail { ActivityDetail(rawValue: activityDetail) ?? .full }
 
     private var chats: [ChatSummary] {
         let all = session.state.chatSummaries(activity: activity)
         guard !query.isEmpty else {
-            // rooms live in the strip; the list is bots
             return all.filter { if case .bot = $0.chat { return true } else { return false } }
         }
         return all.filter {
@@ -546,10 +520,6 @@ struct ChatListView: View {
     }
 }
 
-// MARK: - Rows and tiles
-
-/// A room as a round tile: the first two members' mascots stacked, its name
-/// beneath. `nil` is the "make one" tile.
 struct GroupTile: View {
     let room: Room?
     @EnvironmentObject private var session: Session
@@ -613,7 +583,6 @@ struct ChatRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            // the unread dot, in the bot's own colour, at the very edge
             ZStack {
                 if chat.unread && !chat.busy {
                     Circle()
@@ -636,7 +605,6 @@ struct ChatRow: View {
                             .lineLimit(1)
                             .layoutPriority(1)
 
-                        // the bot's job, the way the desktop shows it
                         if !chat.subtitle.isEmpty {
                             Text(chat.subtitle)
                                 .font(.system(size: 13))
@@ -659,7 +627,6 @@ struct ChatRow: View {
                     }
 
                     HStack(alignment: .top, spacing: 8) {
-                        // one line for every bot, so the rows keep one rhythm
                         Text(preview.isEmpty ? " " : preview)
                             .font(.system(size: 15))
                             .foregroundStyle(Color.secondary)
@@ -695,7 +662,6 @@ struct ChatRow: View {
     }
 }
 
-/// The floating pill: who is doing what right now, at a glance.
 struct UpdatesPill: View {
     let updates: [ChatUpdate]
     let action: () -> Void
@@ -757,7 +723,6 @@ struct UpdatesPill: View {
     }
 }
 
-/// Up to three mascots overlapping, the way a group of faces reads at a glance.
 struct MascotStack: View {
     let colors: [String]
     var size: CGFloat = 28
@@ -774,7 +739,6 @@ struct MascotStack: View {
     }
 }
 
-/// Connection state, shown only when it is not "fine".
 struct StatusBanner: View {
     @EnvironmentObject private var session: Session
 
@@ -838,9 +802,7 @@ struct SearchHitRow: View {
     }
 }
 
-/// Timestamps the way a messaging app writes them.
 enum RelativeStamp {
-    /// Roster: time today, weekday this week, date beyond that.
     static func list(_ at: Double) -> String {
         guard at > 0 else { return "" }
         let date = Date(timeIntervalSince1970: at / 1000)
@@ -855,7 +817,6 @@ enum RelativeStamp {
         return date.formatted(.dateTime.day().month(.abbreviated))
     }
 
-    /// In a transcript: enough to place a gap in the conversation.
     static func separator(_ date: Date) -> String {
         let calendar = Calendar.current
         let time = date.formatted(date: .omitted, time: .shortened)

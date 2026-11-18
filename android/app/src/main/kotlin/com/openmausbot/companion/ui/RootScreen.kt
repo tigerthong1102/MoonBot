@@ -60,9 +60,6 @@ fun CompanionRoot(
     val notificationPromptSeen by onboarding.notificationPromptSeen.collectAsState()
     val notificationPending by onboarding.notificationPending.collectAsState()
 
-    // Settings, reachable from the unpaired home. iOS puts it in a toolbar
-    // `NavigationLink`; there is no navigator in the unpaired world, so this is
-    // the whole of that stack.
     var showingUnpairedSettings by rememberSaveable { mutableStateOf(false) }
     var enablingNotifications by remember { mutableStateOf(false) }
 
@@ -79,13 +76,6 @@ fun CompanionRoot(
         ),
     )
 
-    /**
-     * Settle the durable marker against what is now known.
-     *
-     * Reads the flows rather than the values captured by this composition: the
-     * coroutine may run after another write landed, and the marker is the one
-     * piece of state here that a stale snapshot could destroy.
-     */
     fun reconcileNotificationOnboarding() {
         scope.launch {
             onboarding.setNotificationOnboardingPending(
@@ -103,65 +93,25 @@ fun CompanionRoot(
         session.beginPairing()
     }
 
-    /**
-     * Both answers to the education step end it: the step records that it was
-     * answered, and that is *all* it records.
-     *
-     * Spending the marker is deliberately not done here. It belongs to
-     * [NotificationOnboardingPolicy] and reaches disk through the one
-     * reconciliation below, so there is a single place that decides when a
-     * marker is spent instead of three that have to agree.
-     */
     fun finishNotificationStep() {
         scope.launch { onboarding.setNotificationPromptSeen(true) }
     }
 
-    // Back closes Settings rather than the app. The paired world gets this from
-    // its navigator; the unpaired home has no navigator, and without this line
-    // the first thing a person who opened Settings from it presses puts them
-    // back on the launcher.
     BackHandler(enabled = showingUnpairedSettings) { showingUnpairedSettings = false }
-    // Leaving this world closes it too, so a later unpair does not land on a
-    // Settings screen nobody asked for.
     LaunchedEffect(route) {
         if (route != OnboardingRoute.UNPAIRED_HOME) showingUnpairedSettings = false
     }
 
-    // A pairing that commits answers the welcome and ends the request that
-    // opened the form, wherever the person came in from — the welcome, the
-    // unpaired home, or a deep link on a first launch nobody had answered.
-    //
-    // One place. iOS spreads the same two writes over `ChatListView.onAppear`
-    // and the education step's `onContinue`, which means two copies of "the
-    // request is over" that have to stay in agreement; a stale one is what lets
-    // a much later voluntary unpair walk straight back into the pairing form.
     LaunchedEffect(connection != null) {
         if (connection == null) return@LaunchedEffect
         onboarding.setWelcomeSeen(true)
-        // A new connection can be added while another is already non-null, so
-        // only Session (which knows the redemption result) ends the request.
     }
-    // The only thing that spends the marker. One effect, keyed on every input
-    // the policy reads, so it runs at launch and again whenever any of them
-    // moves — an answer arriving, the step being answered, a fresh pairing
-    // setting the marker. Splitting this across the screens that happen to be
-    // on top when each changes is how a rule ends up true in one copy and false
-    // in another.
     LaunchedEffect(authorization, notificationPromptSeen, notificationPending) {
         reconcileNotificationOnboarding()
     }
 
-    // Resolve above every screen so a tap while unpaired or unauthorized is
-    // consumed (and cannot open against the next bond). Re-runs when restoreState
-    // leaves Pending so a deferred target is not stranded after a cold-start
-    // restore that finishes unpaired. The coordinator owns every consume:
-    // identified no-chat inside onPending, and navigate→consume inside commit.
-    // RootScreen cannot omit or invert.
     val tapCoordinator = remember { NotificationTapCoordinator() }
     val resolution by tapCoordinator.resolution.collectAsState()
-    // Persistable: bumping this keys the navigator saver with a generation that
-    // is also written into the saved value, so a stack captured while
-    // Unauthorized/Unpaired was landing cannot restore after the next pair (§6).
     var bondGeneration by rememberSaveable { mutableIntStateOf(0) }
 
     LaunchedEffect(status) {
@@ -176,9 +126,6 @@ fun CompanionRoot(
     }
 
     CompanionTheme {
-        // One place for system insets: the app draws edge to edge, and every
-        // screen wants the same answer — keep content clear of the status bar,
-        // the gesture bar, and the keyboard.
         Box(modifier = Modifier.fillMaxSize()) {
             Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -186,20 +133,12 @@ fun CompanionRoot(
                         OnboardingRoute.WELCOME -> WelcomeScreen(
                             onConnect = ::startPairing,
                             onSkip = {
-                                // "Not now" is an answer, not a postponement of the same
-                                // screen: it is remembered, and it leads to a home that
-                                // can still connect and still reach Settings.
                                 scope.launch { onboarding.setWelcomeSeen(true) }
                                 session.endPairing()
                             },
                         )
 
                         OnboardingRoute.PAIRING -> {
-                            // Being on this screen *is* the request, and it is what
-                            // keeps the screen up after `PairingScreen` consumes the
-                            // invite that opened it — at which point
-                            // `hasPendingPairingInvite` goes false and this is the only
-                            // thing left holding the route.
                             LaunchedEffect(Unit) {
                                 onboarding.setWelcomeSeen(true)
                                 session.beginPairing()
@@ -213,9 +152,6 @@ fun CompanionRoot(
                         }
 
                         OnboardingRoute.UNPAIRED_HOME -> if (showingUnpairedSettings) {
-                            // The same Settings screen, minus what needs a pairing.
-                            // Notifications can be recovered from here without first
-                            // entering a connection flow this person just declined.
                             SettingsScreen(
                                 onBack = { showingUnpairedSettings = false },
                                 onConnect = {
@@ -236,12 +172,6 @@ fun CompanionRoot(
                                 onEnable = {
                                     enablingNotifications = true
                                     scope.launch {
-                                        // Marked before the prompt is launched, the way
-                                        // [PermissionRequests] records every asking as
-                                        // part of launching it: a process that dies while
-                                        // the system sheet is up has still spent the
-                                        // prompt, and re-showing this step afterwards
-                                        // would offer a button the OS silently drops.
                                         onboarding.setNotificationPromptSeen(true)
                                         environment.notifications.act()
                                         enablingNotifications = false
@@ -276,8 +206,6 @@ fun CompanionRoot(
                     }
                 }
             }
-            // Pairing failures are shown inline on the pairing form, where the
-            // action was — a modal on top of it would say the same thing twice.
             if (route != OnboardingRoute.PAIRING) {
                 ActionErrorDialog(session)
             }
@@ -285,13 +213,7 @@ fun CompanionRoot(
     }
 }
 
-/**
- * Which of the three worlds the pairing is in, as the router asks the question.
- *
- * Revocation is tested first and unconditionally. A token the computer retired
- * is not an empty state and not a pairing: it has its own screen, and no pending
- * invite or requested pairing may push it aside.
- */
+// A revoked credential cannot be treated as an ordinary empty workspace.
 internal fun onboardingPairingState(
     status: Session.Status,
     connection: Connection?,
@@ -333,9 +255,6 @@ private fun PairedScreen(
 ) {
     val navigator = rememberCompanionNavigator(bondGeneration)
 
-    // Session already resolved the exact task; the coordinator records the
-    // stack and consumes in one commit — keyed on generation so a superseded
-    // tap cannot run against a newer pending target.
     LaunchedEffect(resolution?.generation) {
         val held = resolution ?: return@LaunchedEffect
         onCommit(held, navigator)
@@ -353,15 +272,10 @@ private fun PairedScreen(
         )
         Destination.Routines -> TasksRoutinesScreen(
             onBack = navigator::pop,
-            // A receipt's "Open task" pushes the chat above this screen, the way
-            // iOS appends it to the same navigation path.
             onOpenChat = navigator::open,
         )
         Destination.ConnectedApps -> ConnectedAppsScreen(onBack = navigator::pop)
         Destination.Voice -> VoiceSettingsScreen(onBack = navigator::pop)
-        // One branch for both shapes of chat address, so a notification's thread
-        // becoming an addressed chat re-reads the same screen instead of
-        // rebuilding it.
         is Destination.Conversation -> ChatScreen(
             destination = destination,
             onResolved = { target ->
@@ -370,7 +284,6 @@ private fun PairedScreen(
             onBack = navigator::pop,
             onOpenComputer = { navigator.push(Destination.Computer(it)) },
             onOpenOverview = { navigator.push(Destination.Overview(it)) },
-            // Push Computer keeps the chat under the top; pop to roster does not.
             retainsDraft = navigator::retainsChatDraft,
             onOpenChat = navigator::open,
         )

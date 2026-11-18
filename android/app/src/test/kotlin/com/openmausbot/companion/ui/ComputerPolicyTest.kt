@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import kotlin.test.Test
@@ -5,16 +6,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Who gets a join button, and what a still frame is claiming — the rules from
- * `ios/App/ComputerView.swift`.
- */
 class ComputerPolicyTest {
 
     @Test
     fun `only a cloud bot offers the live desktop`() {
         assertTrue(ComputerPolicy.showsCloudDesktop(bot(id = "b").copy(computer = "cloud")))
-        // Local VM and "this Mac" show the preview and no join button (§10).
         assertFalse(ComputerPolicy.showsCloudDesktop(bot(id = "b").copy(computer = "local")))
         assertFalse(ComputerPolicy.showsCloudDesktop(bot(id = "b").copy(computer = "mac")))
         assertFalse(ComputerPolicy.showsCloudDesktop(bot(id = "b").copy(computer = null)))
@@ -47,10 +43,6 @@ class ComputerPolicyTest {
         )
     }
 
-    /**
-     * The note tells the person where to switch VNC on, so it has to name the
-     * section the desktop has: Phone (`ios/App/ComputerView.swift:89`).
-     */
     @Test
     fun `the VNC note names the desktop section that exists`() {
         assertEquals(
@@ -79,11 +71,6 @@ class ComputerPolicyTest {
     }
 }
 
-/**
- * Frames are hundreds of kilobytes each, so the watcher count decides whether the
- * stream carries them at all. A count that drifts either pulls screenshots
- * forever or turns them off under an open screen.
- */
 class ScreenWatchTest {
 
     @Test

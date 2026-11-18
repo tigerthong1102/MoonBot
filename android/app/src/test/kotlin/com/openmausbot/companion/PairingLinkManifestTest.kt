@@ -95,7 +95,6 @@ class PairingLinkManifestTest {
         assertEquals("true", trampoline.getAttributeNS(android, "noHistory"))
         assertEquals("true", trampoline.getAttributeNS(android, "excludeFromRecents"))
         assertEquals("persistNever", trampoline.getAttributeNS(android, "persistableMode"))
-        // Its own task affinity, so it can never be the root of the main task.
         assertTrue(trampoline.hasAttributeNS(android, "taskAffinity"))
         assertEquals("", trampoline.getAttributeNS(android, "taskAffinity"))
     }

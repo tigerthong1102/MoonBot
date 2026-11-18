@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.layout.Arrangement
@@ -31,8 +32,6 @@ import com.openmausbot.companion.core.isWaitingOnTeammate
 import com.openmausbot.companion.core.isWorking
 import com.openmausbot.companion.core.listStamp
 
-/** The quiet status under a title: waiting states are never painted as work.
- * The queued flag is client state the harness reports out-of-band. */
 internal fun BotTask.runtimeLabel(queued: Boolean = false): String? = when {
     activity == "waiting-on-you" -> "Waiting on you"
     isWaitingOnTeammate -> "Waiting on teammate"
@@ -41,16 +40,12 @@ internal fun BotTask.runtimeLabel(queued: Boolean = false): String? = when {
     else -> null
 }
 
-/** Shared by Home and the thread picker, with status taken from this thread alone. */
 @Composable
 internal fun BotThreadRow(
     task: BotTask,
     selected: Boolean = false,
     modifier: Modifier = Modifier,
     now: Long = System.currentTimeMillis(),
-    /** The thread is holding a queued send, from the client's queue state.
-     * The harness reports this out-of-band; the activity string never says
-     * it, so the row derives it here rather than parsing activity. */
     queued: Boolean = false,
 ) {
     val runtime = task.runtimeLabel(queued)

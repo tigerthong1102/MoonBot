@@ -28,9 +28,6 @@ final class MausBodiesTests: XCTestCase {
         XCTAssertEqual(MausBodies.body("").id, "cursor")
     }
 
-    /// An unrecognised id must reach the *drawn* geometry as the cursor too,
-    /// not just as a catalog entry — the fallback is only useful if the paint
-    /// path honours it.
     func testAnUnknownBodyDrawsTheCursor() {
         XCTAssertEqual(
             MausSilhouette.faceBoxBounds("hexagram"), MausSilhouette.faceBoxBounds("cursor"))
@@ -56,11 +53,7 @@ final class MausBodiesTests: XCTestCase {
         }
     }
 
-    /// The parser is a character scanner over `M`/`C`/`Z` with newlines as
-    /// separators, and it is now responsible for ten paths rather than one.
     func testTheParserUnderstandsTheCatalogsPathGrammar() {
-        // A unit square drawn with degenerate curves: four `C` segments in one
-        // command, the form the generated catalog actually emits.
         let square = MausSilhouette.parse(
             """
             M0 0 C0 0 10 0 10 0 C10 0 10 10 10 10
@@ -69,16 +62,11 @@ final class MausBodiesTests: XCTestCase {
         XCTAssertFalse(square.isEmpty)
         XCTAssertEqual(square.boundingBoxOfPath, CGRect(x: 0, y: 0, width: 10, height: 10))
 
-        // Negative numbers and exponents both appear in the cursor path.
         let negative = MausSilhouette.parse("M-2.5 0 C-2.5 0 1e1 -5 10 -5Z")
         XCTAssertEqual(negative.boundingBoxOfPath.minX, -2.5, accuracy: 0.0001)
         XCTAssertEqual(negative.boundingBoxOfPath.minY, -5, accuracy: 0.0001)
     }
 
-    /// The cache exists because a chat list redraws hundreds of avatars per
-    /// frame and the parser is a character scanner over a four-kilobyte
-    /// string. Identical `CGPath` instances prove the second call did not
-    /// re-parse; distinct instances across ids prove it is per body.
     func testEachBodyIsParsedOnceAndCachedSeparately() {
         for id in MausBodies.order {
             XCTAssertTrue(

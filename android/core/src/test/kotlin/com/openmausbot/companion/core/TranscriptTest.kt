@@ -40,8 +40,6 @@ class DiffCardTest {
         assertNull(
             TranscriptCards.diff("Run `git show` and look for the diff --git a/x.kt b/x.kt line."),
         )
-        // Even a real patch stops being one when a sentence introduces it: iOS
-        // requires the message to *start* with the header, not to contain it.
         assertNull(TranscriptCards.diff("Here is what changed:\n\n$patch"))
     }
 
@@ -53,18 +51,11 @@ class DiffCardTest {
 
     @Test
     fun `a language whose name merely starts with diff is accepted, as on iOS`() {
-        // Inherited, and pinned deliberately. `parsedDiff` tests
-        // `hasPrefix("```diff")` and nothing more, so ```` ```difference ````
-        // opens a diff card there too. Tightening this on Android alone would
-        // be the two clients disagreeing about what a message is; the place to
-        // fix it is the Swift, and this test is what would fail if someone
-        // tightened only this side without doing that.
         assertNotNull(TranscriptCards.diff("```difference\nplain prose\n```"))
     }
 
     @Test
     fun `the header word must be the whole word`() {
-        // `diff --gitignore ...` is not a patch header.
         assertNull(TranscriptCards.diff("diff --gitignore a/x b/x\n+one"))
     }
 
@@ -75,15 +66,11 @@ class DiffCardTest {
 
     @Test
     fun `a first line with no words leaves the card named after what it is`() {
-        // The fence is closed and empty, so there is nothing to name it after.
         assertEquals("Git patch", assertNotNull(TranscriptCards.diff("```diff\n```")).filename)
     }
 
     @Test
     fun `b slash is taken out wherever it appears`() {
-        // Faithful to the Swift, which uses `replacingOccurrences(of: "b/")` and
-        // so strips the directory as well as the prefix. Pinned because it is a
-        // difference a reader would otherwise report as a port bug.
         assertEquals(
             "one.txt",
             assertNotNull(TranscriptCards.diff("diff --git a/b/one.txt b/b/one.txt\n+x")).filename,
@@ -93,7 +80,6 @@ class DiffCardTest {
     @Test
     fun `file headers are not counted as added or removed lines`() {
         val card = assertNotNull(TranscriptCards.diff(patch))
-        // `+++ b/src/App.kt` and `--- a/src/App.kt` are the file headers.
         assertEquals(1, card.additions)
         assertEquals(1, card.deletions)
     }
@@ -215,7 +201,6 @@ class DataTableTest {
 
     @Test
     fun `a patch wins over a table when a message could be read as either`() {
-        // Not a real overlap, but the order is a decision: diff is tried first.
         assertTrue(TranscriptCards.of(message(text = "diff --git a/x b/x\n+a")) is TranscriptCard.Diff)
     }
 }
@@ -291,8 +276,6 @@ class ReasoningTest {
 
     @Test
     fun `the cut never lands inside a character`() {
-        // 2,001 characters: the emoji goes whole rather than in halves, and the
-        // tail cannot begin on a lone low surrogate.
         val over = grin + "a".repeat(2_000)
         assertEquals("a".repeat(2_000), Reasoning.visible(over))
         assertFalse(Reasoning.visible(over).first().isLowSurrogate())

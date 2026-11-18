@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 
 public struct GitPRDiffCardView: View {
@@ -38,7 +39,6 @@ public struct GitPRDiffCardView: View {
         let isDark = colorScheme == .dark
 
         VStack(alignment: .leading, spacing: 8) {
-            // Header
             HStack(spacing: 6) {
                 Image(systemName: "arrow.triangle.pull")
                     .font(.system(size: 12, weight: .bold))
@@ -51,7 +51,6 @@ public struct GitPRDiffCardView: View {
 
                 Spacer()
 
-                // Diff Delta (+ / -)
                 HStack(spacing: 4) {
                     Text("+\(additions)")
                         .font(.system(size: 10.5, weight: .bold, design: .monospaced))
@@ -66,7 +65,6 @@ public struct GitPRDiffCardView: View {
                 .clipShape(Capsule())
             }
 
-            // Diff Content
             if !diffText.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     Button {
@@ -115,7 +113,6 @@ public struct GitPRDiffCardView: View {
 
             Divider().background(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
 
-            // Footer Actions
             HStack(spacing: 8) {
                 Button {
                     PlatformBridge.copyToPasteboard(diffText)

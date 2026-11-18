@@ -1,8 +1,4 @@
-// What the Updates pill opens: the active bots, grouped by what they need.
-//
-// Needs you first, with the answer right there — the phone exists so that
-// a stopped bot on the laptop can be un-stopped from wherever you are.
-// Then what is working, then what finished while you were not looking.
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 
@@ -102,8 +98,6 @@ private struct UpdateRow: View {
                                 .foregroundStyle(Color.secondary)
                                 .padding(.top, 6)
                         } else {
-                            // The answers, as pills, exactly the options the card
-                            // offered — never a choice invented here.
                             HStack(spacing: 8) {
                                 ForEach(card.options, id: \.self) { option in
                                     Button {
@@ -162,8 +156,6 @@ private struct UpdateRow: View {
     }
 }
 
-/// One definition of "the refusal", shared by every place a card's options
-/// are drawn as buttons, so the tints cannot drift apart.
 enum CardStyle {
     static func isRefusal(_ option: String) -> Bool {
         OptionCard.isRefusal(option)

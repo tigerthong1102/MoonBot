@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 /// A small, platform-neutral decision seam for the companion's first-run flow.
 ///
 /// Keeping this outside SwiftUI makes the important transitions explicit and
@@ -36,10 +37,6 @@ public enum CompanionOnboardingPreferences {
         "companion.onboarding.notificationPending"
 }
 
-/// Keeps the crash-sensitive part of a successful pairing commit explicit
-/// and testable. The notification marker must exist before the restorable
-/// connection: an orphan marker while unpaired is harmless, but a connection
-/// without its marker can permanently skip first-pair education.
 public enum CompanionPairingCommitSequence {
     public static func persist(
         markNotificationOnboardingPending: () -> Void,
@@ -74,7 +71,6 @@ public enum CompanionPairingInvitePolicy {
     }
 }
 
-/// Pure lifecycle policy for the durable first-pair notification marker.
 public enum CompanionNotificationOnboardingPolicy {
     public static func shouldKeepPending(
         isPending: Bool,
@@ -82,18 +78,11 @@ public enum CompanionNotificationOnboardingPolicy {
         authorization: CompanionNotificationAuthorizationState
     ) -> Bool {
         guard isPending else { return false }
-        // A relaunch can restore the pairing before UserNotifications has
-        // answered. Never spend the marker during that temporary state.
         guard authorization != .unresolved else { return true }
-        // Once status is known, education is needed only when iOS can still
-        // ask and this user has not already completed or skipped the step.
         return authorization == .notDetermined && !hasCompletedStep
     }
 }
 
-/// A small state machine used by PairingView to make navigation mutually
-/// exclusive with a pairing commit. A second submit or reset cannot overtake
-/// the request which may already have persisted on the Mac and phone.
 public struct CompanionPairingSubmissionState: Equatable, Sendable {
     public private(set) var isInFlight = false
 
@@ -118,8 +107,6 @@ public struct CompanionOnboardingContext: Equatable, Sendable {
     public var hasSeenWelcome: Bool
     public var pairingRequested: Bool
     public var hasPendingPairingInvite: Bool
-    /// Persisted only after a new pairing commits. Existing paired users do
-    /// not receive first-pair education merely because they upgraded.
     public var notificationOnboardingPending: Bool
     public var hasSeenNotificationPrompt: Bool
     public var notificationAuthorization: CompanionNotificationAuthorizationState

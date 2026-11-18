@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 
 /// One attachment waiting in the mobile composer. The bytes are app-owned:
@@ -158,9 +159,6 @@ public enum LocalMessageLink: Equatable, Sendable {
         if isWindowsAbsolutePath(value) || isBackslashUNCPath(value) {
             return .desktopFile(path: value)
         }
-        // In Markdown, //host/path is a protocol-relative web link. Keep it
-        // out of the UNC path branch; file://host/path remains the explicit
-        // spelling for a network share.
         if value.hasPrefix("//") {
             guard let components = URLComponents(string: "https:\(value)"),
                   let url = components.url,
@@ -200,9 +198,6 @@ public enum LocalMessageLink: Equatable, Sendable {
             return nil
         }
 
-        // Query strings and fragments belong to the Markdown target, not the
-        // local filename. Decode the path the same way as the scoped server
-        // matcher, while refusing query-only/fragment-only links.
         let delimiter = value.firstIndex(where: { $0 == "?" || $0 == "#" }) ?? value.endIndex
         let pathPart = String(value[..<delimiter])
         guard !pathPart.isEmpty, let path = pathPart.removingPercentEncoding, !path.isEmpty else { return nil }

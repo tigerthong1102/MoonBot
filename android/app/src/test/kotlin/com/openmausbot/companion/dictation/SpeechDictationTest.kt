@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.dictation
 
 import androidx.lifecycle.Lifecycle
@@ -13,30 +14,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.junit.Assert.assertNotEquals
 
-/**
- * Composer dictation lifecycle pinned to `ios/App/SpeechDictation.swift` and
- * the ChatView stop sites. Expectations come from the Swift behaviour and
- * PORT17 — not from inspecting [SpeechDictation] to decide what to assert.
- *
- * The recognizer is a fake; the controller under test is the real one, so a
- * stub that agreed with a wrong controller would still fail these cases.
- *
- * ## Stop triggers covered here (real paths)
- * - leaving the screen via [SpeechDictation.unbind]
- * - backgrounding via bound [Lifecycle.Event.ON_STOP]
- * - audio-focus interruption via the focus callback (generation-guarded)
- *
- * ## Device-plan triggers (Compose UI — no harness in this module)
- * Disconnecting these in `ChatScreen` would not fail a JVM test today; they
- * belong on a device/emulator pass rather than a simulated `stop()` call:
- * - submit via Composer `onSend`
- * - opening Computer / Tasks / Profile / Plus
- */
+
 class SpeechDictationTest {
 
     @Test
     fun typedTextIsPreservedAcrossADictationSession() {
-        // Swift: freeze base at mic-on; every partial is base + spoken.
         val fake = FakeEngineFactory()
         val dictation = newDictation(fake, granted = true)
         dictation.toggle(capturing = "please look")
@@ -56,7 +38,6 @@ class SpeechDictationTest {
             "please look at the logs again",
             Dictation.draft(base = dictation.base, transcript = dictation.transcript.value),
         )
-        // The frozen base itself never grows — that is what prevents duplication.
         assertEquals("please look", dictation.base)
     }
 
@@ -86,7 +67,6 @@ class SpeechDictationTest {
         assertEquals("two", dictation.base)
         assertEquals("", dictation.transcript.value)
 
-        // Stale session tries to rewrite the new draft.
         first.onPartial("should not land")
         assertEquals("", dictation.transcript.value)
         assertEquals("two", dictation.base)
@@ -95,7 +75,6 @@ class SpeechDictationTest {
 
     @Test
     fun stopOnLeavingTheScreenViaUnbind() {
-        // Trigger: leaving the screen.
         val fake = FakeEngineFactory()
         val dictation = newDictation(fake, granted = true)
         val screen = TestOwner()
@@ -112,7 +91,6 @@ class SpeechDictationTest {
 
     @Test
     fun stopOnBackgroundViaBoundLifecycleOnStop() {
-        // Trigger: backgrounding — Activity ON_STOP while still bound.
         val fake = FakeEngineFactory()
         val dictation = newDictation(fake, granted = true)
         val screen = TestOwner()
@@ -128,7 +106,6 @@ class SpeechDictationTest {
 
     @Test
     fun stopOnAudioInterruption() {
-        // Trigger: audio focus loss for the active session.
         val fake = FakeEngineFactory()
         val focus = FakeFocus(grant = true)
         val dictation = SpeechDictation(
@@ -148,7 +125,6 @@ class SpeechDictationTest {
 
     @Test
     fun staleAudioInterruptionDoesNotStopNewerSession() {
-        // Delayed focus-loss runnable from session A must not kill session B.
         val fake = FakeEngineFactory()
         val focus = FakeFocus(grant = true)
         val deferred = CopyOnWriteArrayList<() -> Unit>()
@@ -164,19 +140,15 @@ class SpeechDictationTest {
         dictation.toggle(capturing = "A")
         assertTrue(dictation.isListening.value)
         val interruptA = focus.interrupt!!
-        // Focus loss posts a runnable (does not run yet).
         interruptA()
         assertEquals(1, deferred.size)
 
-        // Drain nothing yet — stop A and start B on the calling thread.
         dictation.stop()
-        // Run posted blocks synchronously again for B's start path.
         val pending = deferred.toList()
         deferred.clear()
         pending.forEach { it() }
 
         dictation.toggle(capturing = "B")
-        // Flush B's start posts if any.
         while (deferred.isNotEmpty()) {
             val batch = deferred.toList()
             deferred.clear()
@@ -185,7 +157,6 @@ class SpeechDictationTest {
         assertTrue(dictation.isListening.value)
         assertEquals("B", dictation.base)
 
-        // Now the delayed A interruption runs — must be a no-op.
         interruptA()
         while (deferred.isNotEmpty()) {
             val batch = deferred.toList()
@@ -263,7 +234,6 @@ class SpeechDictationTest {
         assertTrue(dictation.isStarting.value)
         dictation.stop()
         assertFalse(dictation.isStarting.value)
-        // System sheet answers after the user already cancelled.
         pending.single().invoke(true)
         assertFalse(dictation.isListening.value)
         assertEquals(0, fake.created)
@@ -295,7 +265,6 @@ class SpeechDictationTest {
 
     @Test
     fun defaultFallbackDoesNotForcePreferOffline() {
-        // iOS leaves requiresOnDeviceRecognition unset on the fallback path.
         val fake = FakeEngineFactory(isOnDevice = false)
         val dictation = newDictation(fake, granted = true)
         dictation.toggle(capturing = "network ok")
@@ -381,7 +350,6 @@ class SpeechDictationTest {
         fake.engine!!.listener!!.onError(SpeechEngine.ErrorKind.LANGUAGE)
         assertEquals("en-US", fake.engine!!.lastRequest!!.languageTag)
 
-        // Exhausted locales on on-device → default engine, first locale again.
         fake.engine!!.listener!!.onError(SpeechEngine.ErrorKind.LANGUAGE)
         assertFalse(fake.engine!!.isOnDevice)
         assertEquals("pt-BR", fake.engine!!.lastRequest!!.languageTag)
@@ -525,12 +493,6 @@ class SpeechDictationTest {
     }
 }
 
-/**
- * Call mode — `listenForTurn` on the call-mode branch of
- * `ios/App/SpeechDictation.swift`: the turn ends a gap after the transcript
- * last changed, or on the recognizer's final; an empty turn never ends on the
- * timer; stopping any other way ends it without a callback.
- */
 class SpeechDictationTurnTest {
     private var now = 0L
     private val scheduled = ArrayDeque<() -> Unit>()
@@ -550,7 +512,6 @@ class SpeechDictationTurnTest {
         clock = { now },
     )
 
-    /** Advance the clock and run every endpoint check that was queued. */
     private fun tick(millis: Long) {
         now += millis
         val due = scheduled.toList()
@@ -570,9 +531,7 @@ class SpeechDictationTurnTest {
         tick(500)
         fake.listener!!.onPartial("read the logs")
         tick(500)
-        // 500 ms since the last change: not yet.
         assertTrue(turns.isEmpty())
-        // The recognizer re-emits the same partial; that is not a change.
         fake.listener!!.onPartial("read the logs")
         tick(400)
         assertEquals(listOf("read the logs"), turns)
@@ -624,7 +583,6 @@ class SpeechDictationTurnTest {
         dictation.stop()
         tick(2_000)
         assertTrue(turns.isEmpty())
-        // A later composer session is not a call: no endpointer applies.
         dictation.toggle(capturing = "")
         fake.listener!!.onPartial("typed")
         tick(2_000)

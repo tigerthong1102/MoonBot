@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -13,7 +14,6 @@ kotlin {
 }
 
 dependencies {
-    // api: :app consumes CompanionJson / StateFlow / Session types directly
     api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     api("com.squareup.okhttp3:okhttp:4.12.0")

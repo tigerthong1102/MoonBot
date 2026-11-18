@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Bot
@@ -27,22 +28,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 
-/**
- * What the two buttons on an approval card put on the wire.
- *
- * The expectations come from the Swift, not from the Kotlin under them:
- * `ios/App/ChatView.swift` draws the card's own options and answers each with
- * `session.answer(chat:card:choice:)`, and draws the separate "Always allow this
- * tool" which calls `session.alwaysAllow` and *then* answers with
- * `rememberingPermission: false`. `ios/App/Session.swift:473-511` is what those
- * two turn into: a grant only for a permission card with a key answered "Always
- * allow", and a behavior from `OptionCard.responseBehavior`, which
- * `ios/Tests/CompanionCoreTests/DecodingTests.swift:184-225` pins as "Approve",
- * "Yes" and "Always allow" meaning allow and a padded "deny" meaning deny.
- *
- * A real socket rather than a stub, because the claim worth checking is a count:
- * one grant per tap, never two, and never one the user did not ask for.
- */
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class ApprovalAnswersTest {
     private lateinit var server: MockWebServer

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.ui.geometry.Offset
@@ -6,25 +7,12 @@ import androidx.compose.ui.unit.dp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/**
- * DELTA-06: the tailed bubble, pinned against `ios/App/SpeechBubble.swift`.
- *
- * The Swift's own header states the reference the tail is traced from: "a 772×428
- * pill whose right cap has this radius [179], whose right edge is at x=766.342 and
- * bottom edge at y=361.317, and whose tail hangs 68 below the bottom edge". Every
- * expectation below comes from that sentence and from the four Bézier segments
- * listed in `referenceTail`, typed out here independently of the Kotlin table.
- */
 class SpeechBubbleTest {
 
     @Test
     fun `the drop is the reference drop, scaled by the corner radius`() {
-        // `tailDrop` is `cornerRadius / referenceCapRadius * referenceTailDrop`,
-        // so a bubble drawn at the reference's own cap radius drops exactly 68.
         assertEquals(68f, SpeechBubble.tailDrop(179.dp).value, TOLERANCE)
-        // Half the cap, half the drop.
         assertEquals(34f, SpeechBubble.tailDrop(89.5.dp).value, TOLERANCE)
-        // The bubble as the transcript actually draws it: 22 / 179 * 68.
         assertEquals(22f * 68f / 179f, SpeechBubble.tailDrop(22.dp).value, TOLERANCE)
         assertEquals(0f, SpeechBubble.tailDrop(0.dp).value, TOLERANCE)
     }
@@ -37,9 +25,6 @@ class SpeechBubbleTest {
 
     @Test
     fun `at the reference cap radius the tail is the reference drawing itself`() {
-        // Put the bubble's bottom-right exactly on the reference origin and scale
-        // by one: `map` is then the identity, so the curves must come back as the
-        // literal coordinates in `referenceTail`.
         val curves = tailCurves(
             width = REFERENCE_ORIGIN_X,
             height = REFERENCE_ORIGIN_Y,
@@ -70,8 +55,6 @@ class SpeechBubbleTest {
 
     @Test
     fun `the tail lands back on the bottom edge, left of the corner`() {
-        // The Swift's last segment ends at the reference's y=361.317 — the bottom
-        // edge — and at x=580.342, which is 186 to the left of the right edge.
         val curves = tailCurves(width = 200f, height = 90f, radius = REFERENCE_CAP_RADIUS)
         assertEquals(200f - 186f, curves[LAST_END_X], TOLERANCE)
         assertEquals(90f, curves[LAST_END_Y], TOLERANCE)
@@ -79,9 +62,6 @@ class SpeechBubbleTest {
 
     @Test
     fun `the leading tail is the trailing one mirrored about the centre line`() {
-        // `CGAffineTransform(translationX: rect.minX + rect.maxX, y: 0)
-        //  .scaledBy(x: -1, y: 1)` — with minX at zero that is `x' = width - x`,
-        // and y untouched.
         val mirror = mirrorAcross(100f)
         assertEquals(Offset(70f, 7f), mirror.map(Offset(30f, 7f)))
         assertEquals(Offset(0f, 0f), mirror.map(Offset(100f, 0f)))
@@ -90,7 +70,6 @@ class SpeechBubbleTest {
 
     @Test
     fun `what you said is filled with the mascot palette's blue, not the system's`() {
-        // `BubbleColor.mine = MausPalette.color("blue")`, and `mineText = .white`.
         assertEquals(0xFF377FE6.toInt(), BubbleColor.mine.toArgb())
         assertEquals(0xFFFFFFFF.toInt(), BubbleColor.mineText.toArgb())
     }
@@ -101,7 +80,6 @@ class SpeechBubbleTest {
         const val REFERENCE_ORIGIN_X = 766.342f
         const val REFERENCE_ORIGIN_Y = 361.317f
 
-        /** The fourth cubic's end point: `4 * 6 - 2` and `4 * 6 - 1`. */
         const val LAST_END_X = 22
         const val LAST_END_Y = 23
     }

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -7,7 +8,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The port of `ios/Tests/CompanionCoreTests/MessageAttachmentsTests.swift`. */
 class MessageAttachmentsTest {
 
     @Test

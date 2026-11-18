@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import java.time.LocalDateTime
@@ -8,16 +9,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * The branching, not the JDK's locale data: the exact rendering of "3:04 PM"
- * belongs to `DateTimeFormatter`, but which of the four shapes a stamp takes is
- * the spec from `ios/App/ChatListView.swift`.
- */
+
 class RelativeStampTest {
     private val zone: ZoneId = ZoneOffset.UTC
     private val locale = Locale.US
 
-    /** Thursday 2026-08-20, 15:00 UTC. */
     private val now = LocalDateTime.of(2026, 8, 20, 15, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
 
     private fun at(year: Int, month: Int, day: Int, hour: Int, minute: Int): Double =
@@ -69,7 +65,6 @@ class RelativeStampTest {
 
     @Test
     fun `the weekday window is six days, not seven`() {
-        // Six days back is still inside the window; older than that is a date.
         assertTrue(RelativeStamp.list(at(2026, 8, 14, 16, 0), now, zone, locale).isNotEmpty())
         assertEquals("Aug 13", RelativeStamp.list(at(2026, 8, 13, 12, 0), now, zone, locale))
     }

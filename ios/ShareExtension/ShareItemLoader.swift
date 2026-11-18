@@ -199,10 +199,6 @@ enum ShareItemLoader {
             return DocumentRepresentation(identifier: identifier, mime: mime, type: type)
         }
 
-        // Some document providers advertise only generic `public.data` even
-        // though their suggested filename identifies a supported format. Do
-        // not let that generic representation mask a later file-URL or text
-        // fallback, but use it when the filename gives us an allowlisted MIME.
         guard let suggestedName = provider.suggestedName,
               let inferred = UTType(filenameExtension: (suggestedName as NSString).pathExtension),
               let mime = inferred.preferredMIMEType?.lowercased(),
@@ -407,10 +403,6 @@ enum ShareItemLoader {
             throw ShareItemLoadingError.tooLarge(name, maximumBytes / (1_024 * 1_024))
         }
         let destination = inbox.appendingPathComponent("\(UUID().uuidString)-\(name)")
-        // Provider URLs stop being valid when their callbacks return.
-        // Stream into our own file and enforce the ceiling on bytes actually
-        // read. A provider can change its temporary file after the metadata
-        // check, so FileManager.copyItem plus a pre-copy stat is not a limit.
         guard FileManager.default.createFile(
             atPath: destination.path,
             contents: nil,
@@ -471,9 +463,6 @@ enum ShareItemLoader {
         return bounded.isEmpty ? "Shared item" : bounded
     }
 
-    /// Photos commonly supplies HEIC. ImageIO applies its orientation while
-    /// decoding straight to a bounded thumbnail, avoiding the two full-size
-    /// 48 MP buffers that would exceed a Share Extension's memory budget.
     private static func downsampledJPEG(from url: URL) -> Data? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let thumbnailOptions: CFDictionary = [

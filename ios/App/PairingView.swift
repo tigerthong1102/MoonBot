@@ -1,6 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// Pairing: make QR scanning the obvious path, then keep discovery and manual
-// entry available without making network plumbing part of onboarding.
 import SwiftUI
 import CompanionCore
 #if canImport(UIKit)
@@ -14,8 +12,7 @@ struct PairingView: View {
     @State private var manualAddress = ""
     @State private var code = ""
     @State private var scannedCredential: String?
-    /// Stable across Retry. If the Mac committed a device but the response
-    /// was lost, repeating this same logical request recovers its token.
+    // Pairing retries retain their original request identity to avoid duplicate device grants.
     @State private var pairRequestId: String?
     @State private var chosen: Connection?
     @State private var submission = CompanionPairingSubmissionState()
@@ -333,7 +330,6 @@ struct PairingView: View {
                         .background(Color(uiColor: .tertiarySystemGroupedBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .onChange(of: code) { _, value in
-                            // six digits for a computer, ABCD-EFGH-JKLM for a server
                             code = String(value.uppercased().filter { $0.isASCII && ($0.isNumber || $0.isLetter || $0 == "-") }.prefix(14))
                         }
 
@@ -420,9 +416,7 @@ struct PairingView: View {
         var succeeded = false
         defer {
             submission.finish()
-            // A deep link received during the commit cannot replace the
-            // consent screen. If this request failed, present it only after
-            // the in-flight request has fully settled.
+            // A concurrent deep link cannot replace consent for a pairing request already in flight.
             if succeeded {
                 session.consumePairingInvite()
                 onCancel()
@@ -462,7 +456,6 @@ struct PairingView: View {
         }
     }
 
-    /// A companion's six digits, or a server's twelve characters.
     static func codeLooksComplete(_ code: String) -> Bool {
         (code.count == 6 && code.allSatisfy(\.isNumber)) || PairingInvite.normalizedServerCode(code) != nil
     }

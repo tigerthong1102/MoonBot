@@ -1,12 +1,10 @@
+// Modified for StartupBot; original copyright and license retained.
 import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 import XCTest
 @testable import CompanionCore
 
-/// The fixtures are synthesised here rather than checked in: a GIF small
-/// enough to commit is also small enough to build, and building it is the
-/// only way to assert against delays chosen by the test.
 final class AnimatedImageTests: XCTestCase {
     func testStillImageDecodesAsNilSoTheViewFallsBackToUIImage() {
         let still = gif(delays: [0.1])
@@ -27,8 +25,6 @@ final class AnimatedImageTests: XCTestCase {
     }
 
     func testLongerFramesAreHeldByRepeatingThemOnTheShortestTick() throws {
-        // 0.2s beside 0.1s: the slow frame occupies two ticks, so the loop is
-        // three entries of 0.1s rather than two entries averaged to 0.15s.
         let decoded = try XCTUnwrap(AnimatedImageDecoder.decode(gif(delays: [0.2, 0.1])))
 
         XCTAssertEqual(decoded.frames.count, 3)
@@ -37,8 +33,6 @@ final class AnimatedImageTests: XCTestCase {
     }
 
     func testZeroDelayIsTreatedAsTheBrowserDefaultInsteadOfSpinning() throws {
-        // A 0s frame beside a 0.1s frame must not make the tick 0s; every
-        // browser rewrites "as fast as possible" to 0.1s.
         let decoded = try XCTUnwrap(AnimatedImageDecoder.decode(gif(delays: [0, 0.1])))
 
         XCTAssertEqual(decoded.tick, 0.1, accuracy: 0.001)
@@ -46,7 +40,6 @@ final class AnimatedImageTests: XCTestCase {
     }
 
     func testExpansionIsBoundedForAWildlyLopsidedLoop() throws {
-        // 60s against a 0.01s tick would expand to 6000 entries unbounded.
         let decoded = try XCTUnwrap(AnimatedImageDecoder.decode(gif(delays: [0.02, 60])))
 
         XCTAssertLessThanOrEqual(decoded.frames.count, AnimatedImageDecoder.expandedFrameLimit)
@@ -81,9 +74,6 @@ final class AnimatedImageTests: XCTestCase {
         XCTAssertEqual(decoded.frames.first?.height, 4)
     }
 
-    // MARK: - fixture
-
-    /// One synthetic GIF per delay, each a different shade so frames are distinct.
     private func gif(
         delays: [TimeInterval],
         width: Int = 2,

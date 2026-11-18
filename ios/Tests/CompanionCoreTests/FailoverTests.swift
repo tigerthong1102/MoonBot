@@ -1,9 +1,9 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import XCTest
 @testable import CompanionCore
 
 final class FailoverTests: XCTestCase {
-    // MARK: - CandidateRotation
 
     func testWalksProtectedCandidatesInOrderAndWraps() throws {
         let hosted = try XCTUnwrap(CompanionEndpoint(
@@ -15,8 +15,6 @@ final class FailoverTests: XCTestCase {
         var rotation = CandidateRotation(endpoints: [hosted, tailnet])
         XCTAssertEqual(rotation.currentEndpoint, hosted)
         XCTAssertEqual(rotation.advanceEndpoint(), tailnet)
-        // Wraps rather than giving up: the retry loop backs off between laps,
-        // and a network that comes back deserves another try at the front.
         XCTAssertEqual(rotation.advanceEndpoint(), hosted)
     }
 
@@ -44,27 +42,23 @@ final class FailoverTests: XCTestCase {
     }
 
     func testSurvivesAnEmptyCandidateList() {
-        // A real connection never produces one, but the type must not trap.
         var rotation = CandidateRotation(hosts: [])
         XCTAssertEqual(rotation.current, "")
         XCTAssertEqual(rotation.advance(), "")
         XCTAssertEqual(rotation.promoted(), [])
     }
 
-    // MARK: - Which failures move the dial
 
     func testRotatesOnAddressFailuresAndNothingElse() {
-        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.cannotFindHost)) // -1003
-        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.cannotConnectToHost)) // -1004
-        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.timedOut)) // -1001
-        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.secureConnectionFailed)) // -1200
-        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.serverCertificateHasBadDate)) // -1201
-        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.serverCertificateUntrusted)) // -1202
-        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.serverCertificateHasUnknownRoot)) // -1203
-        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.serverCertificateNotYetValid)) // -1204
-
-        // Offline fails on every address, and cancellation is deliberate.
-        XCTAssertFalse(ConnectionAdvice.shouldTryAnotherHost(.notConnectedToInternet)) // -1009
+        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.cannotFindHost))
+        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.cannotConnectToHost))
+        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.timedOut))
+        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.secureConnectionFailed))
+        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.serverCertificateHasBadDate))
+        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.serverCertificateUntrusted))
+        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.serverCertificateHasUnknownRoot))
+        XCTAssertTrue(ConnectionAdvice.shouldTryAnotherHost(.serverCertificateNotYetValid))
+        XCTAssertFalse(ConnectionAdvice.shouldTryAnotherHost(.notConnectedToInternet))
         XCTAssertFalse(ConnectionAdvice.shouldTryAnotherHost(.cancelled))
         XCTAssertFalse(ConnectionAdvice.shouldTryAnotherHost(.networkConnectionLost))
     }
@@ -123,7 +117,6 @@ final class FailoverTests: XCTestCase {
         XCTAssertEqual(rotation.currentEndpoint, hosted)
     }
 
-    // MARK: - The advice strings
 
     func testUnresolvedHostNamesTheTailnetPossibility() {
         let message = ConnectionAdvice.message(for: .cannotFindHost, host: "mac.tail1234.ts.net", port: 8810)
@@ -169,7 +162,6 @@ final class FailoverTests: XCTestCase {
         XCTAssertTrue(message.contains("Trying 192.168.1.42 next."))
     }
 
-    // MARK: - Connection candidate helpers
 
     func testOrderedHostsLeadsWithTheStoredHostAndDeduplicates() {
         let connection = Connection(
@@ -182,7 +174,6 @@ final class FailoverTests: XCTestCase {
     }
 
     func testOrderedHostsFallsBackToTheSingleStoredHost() {
-        // A connection saved before fallbacks existed still dials.
         let connection = Connection(name: "Mac", host: "mac.tail1234.ts.net", port: 8810)
         XCTAssertEqual(connection.orderedHosts, ["mac.tail1234.ts.net"])
     }
@@ -212,8 +203,6 @@ final class FailoverTests: XCTestCase {
         XCTAssertEqual(connection.host, "192.168.1.42")
         XCTAssertEqual(connection.hosts, ["192.168.1.42", "mac.tail1234.ts.net", "openmausbot-aa.local"])
 
-        // A hand-typed address the list has never seen joins at the front —
-        // the stored fallbacks remain worth walking behind it.
         connection.promote("10.0.0.7")
         XCTAssertEqual(connection.hosts?.first, "10.0.0.7")
         XCTAssertEqual(connection.hosts?.count, 4)
@@ -292,16 +281,12 @@ final class FailoverTests: XCTestCase {
         XCTAssertEqual(rotation.currentEndpoint?.kind, .hosted)
         XCTAssertTrue(rotation.endpoints.allSatisfy(\.protectsCredentials))
 
-        // Typing the LAN address again is the escape hatch when hosted is down.
         persisted.resetRoutePolicy(selecting: local)
         XCTAssertEqual(persisted.orderedEndpoints.map(\.kind), [.lan, .hosted])
     }
 
     func testAPriorityPreferredProtectedHeadOutranksTheActiveProtectedRoute() throws {
-        // A tailnet invite keeps the active tailnet route protected, but the
-        // desktop advertises its hosted HTTPS with a better priority: the
-        // trust ratchet must not hoist the active route above another
-        // protected head — only above a cleartext one.
+        // A cleartext route cannot outrank the computer's protected route order.
         let hosted = try XCTUnwrap(CompanionEndpoint(
             url: "https://mac.companion.example",
             kind: .hosted,

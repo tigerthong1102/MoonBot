@@ -1,18 +1,6 @@
 // Modified for StartupBot; original copyright and license retained.
-// The harness's wire types, in Swift.
-//
-// These mirror `server/store.ts` and the payloads in `server/index.ts`.
-// There is no shared type system across the two languages, so the contract
-// is pinned by fixtures instead: `Tests/CompanionCoreTests/Fixtures` holds
-// real responses captured from a running server, and the decoding tests
-// read them. When the server changes a payload, a test here fails.
-//
-// Everything the server may omit is optional, and nothing is decoded more
-// strictly than it has to be — a phone that refuses to show a conversation
-// because one message gained a field is worse than one that ignores it.
 import Foundation
 
-// MARK: - Messages
 
 public struct SkillReferenceFile: Codable, Hashable, Sendable {
     public var path: String
@@ -239,7 +227,6 @@ public struct Message: Codable, Hashable, Identifiable, Sendable {
     public var date: Date { Date(timeIntervalSince1970: at / 1000) }
 }
 
-// MARK: - Bots and rooms
 
 public struct ModelSelection: Codable, Hashable, Sendable {
     public var instanceId: String
@@ -277,8 +264,7 @@ public struct BotTask: Codable, Hashable, Sendable {
     public var createdAt: Double
     public var modelSelection: ModelSelection?
     public var busy: Bool?
-    /// Runtime state from newer computers; used to recover approvals in
-    /// background threads without downloading every conversation.
+    /// Optional runtime state for tasks on computers that report background approvals.
     public var activity: String?
     public var unread: Bool?
     public var approvalMode: String?
@@ -306,9 +292,7 @@ public struct Bot: Codable, Hashable, Identifiable, Sendable {
     /// An app-owned `/api/attachments/:name` URL. The URL is intentionally
     /// relative so every paired device fetches it from its own computer.
     public var avatarUrl: String?
-    /// `mascot` draws the mascot itself — its gradient body with the bot's
-    /// live face on top. The rest crop `avatarUrl` and replace the mascot
-    /// entirely, and the value names the mask. See `shared/bot-avatar.ts`.
+    /// The wire value `mascot` selects the built-in avatar; other values name the mask applied to `avatarUrl`.
     public var avatarCrop: AvatarCrop?
     public var unread: Bool
     public var modelSelection: ModelSelection
@@ -460,7 +444,6 @@ public struct Room: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
-// MARK: - Responses
 
 private struct Lossy<Element: Decodable>: Decodable {
     let value: Element?
@@ -597,10 +580,6 @@ public struct CompanionConnectionMetadata: Decodable, Sendable {
         serverName = try container.decode(String.self, forKey: .serverName)
         hosts = try container.decodeIfPresent([String].self, forKey: .hosts)
 
-        // Endpoint metadata is a replacement snapshot, not an optional hint.
-        // Keep a future malformed kind from discarding valid routes beside it,
-        // but reject a response with no usable route so the caller retains its
-        // last known-good snapshot.
         let decoded = try container.decode([Lossy<CompanionEndpoint>].self, forKey: .endpoints)
             .compactMap(\.value)
         let stable = decoded.enumerated().sorted {
@@ -695,8 +674,7 @@ public struct InstanceList: Codable, Sendable {
     public var instances: [Instance]
 }
 
-/// Which engine actually speaks — `VoiceProvider` in `server/tts/index.ts`.
-/// Derived from `ConfigFlag.provider`, never decoded straight off the wire.
+/// The synthesis provider represented by the configuration response.
 public enum VoiceProvider: Hashable, Sendable {
     case elevenlabs
     case system
@@ -725,13 +703,7 @@ public struct ConfigStatus: Codable, Sendable {
     public var imageGen: ConfigFlag?
     public var profile: Profile?
 
-    /// Whether synthesis is available on the paired computer. Deliberately
-    /// provider-neutral: under ElevenLabs this is a key on file, while under
-    /// the built-in engine `providerConfigured` in `server/tts/index.ts`
-    /// reports whether the computer has voices it can use and no credential
-    /// exists at all. Only the reason behind the flag changes — so anything
-    /// that *explains* a false here has to ask `voiceProvider` first.
-    /// Either way the credential itself never appears in this response.
+    /// Provider-neutral synthesis availability. Credential values are never included in this response.
     public var isTTSConfigured: Bool {
         tts?.configured == true || tts?.apiKeyConfigured == true
     }
@@ -747,18 +719,12 @@ public struct ConfigStatus: Codable, Sendable {
         return isTTSConfigured && (hasAgentVoice || hasWorkspaceDefaultVoice)
     }
 
-    /// `voiceProvider(cfg)` in `server/tts/index.ts`: only the exact string
-    /// `"system"` selects the built-in engine. A missing field — a computer
-    /// older than the choice — and an engine this build has never heard of
-    /// both fall back to ElevenLabs, which is the server's own rule and what
-    /// keeps an unrecognised engine from being explained to the user with
-    /// copy written for a different one.
+    /// The wire value `system` selects built-in synthesis; missing or unknown values select ElevenLabs.
     public var voiceProvider: VoiceProvider {
         tts?.provider == "system" ? .system : .elevenlabs
     }
 }
 
-// MARK: - Agent profiles, voices, routines, and notifications
 
 public struct BotProfilePatch: Encodable, Sendable {
     /// `nil` means "leave the field alone". Profile actions deliberately send
@@ -1034,7 +1000,6 @@ public struct NotificationTarget: Equatable, Sendable {
     }
 }
 
-// MARK: - Connected apps
 
 public struct ConnectorCard: Codable, Hashable, Identifiable, Sendable {
     public var slug: String
@@ -1079,18 +1044,7 @@ public struct ConnectorStatuses: Codable, Sendable {
     /// directly.
     public var credentialStore: String?
 
-    /// Whether `services` is an inventory or an admission of ignorance.
-    ///
-    /// `server/index.ts` answers an unreadable Composio credential store with
-    /// an empty map *and* `credentialStore: "unavailable"`, because failing to
-    /// read the store means we do not know what is connected — which is not
-    /// the same as knowing nothing is. An empty map arriving that way must
-    /// never be shown as "nothing is connected": every account may still be
-    /// live on the computer.
-    ///
-    /// Only that exact string withdraws the claim. `"ok"` is authoritative,
-    /// and so is a missing field — a computer old enough not to send it would
-    /// otherwise have every answer treated as unknowable.
+    /// `credentialStore: "unavailable"` means the connected-account inventory is unknown, including when `services` is empty.
     public var isAuthoritative: Bool {
         credentialStore != "unavailable"
     }

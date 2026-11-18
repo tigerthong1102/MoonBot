@@ -21,7 +21,6 @@ sealed class CallAction {
     data object None : CallAction()
 }
 
-/** The microphone must stay closed during playback to prevent a speech feedback loop. */
 object CallRules {
     fun botForCall(state: CompanionState, original: Bot): Bot? =
         state.botForThread(original.threadId)?.takeIf { it.id == original.id }

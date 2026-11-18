@@ -43,23 +43,12 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlinx.coroutines.flow.collectLatest
 
-/**
- * A bot, at whatever size the row needs — and alive, exactly the way it is on the
- * desktop. The port of `MausAvatar` in `ios/App/MausAvatar.swift`: [MausFaceEngine]
- * picks and morphs the expressions of the [state], this draws them — body, eyes,
- * mouth, and the comet rings the working states wear.
- *
- * The frame clock is read inside the canvas, not in composition, so a tick
- * repaints the mascot without recomposing the row it sits in.
- */
 @Composable
 internal fun MausAvatar(
     color: String,
-    /** Which catalog body to draw; null and unknown ids fall back to the cursor. */
     bodyId: String? = MausSilhouette.defaultBody,
     size: Dp = 52.dp,
     state: MausState = MausState.IDLE,
-    /** Off draws the state's resting face, still. For lists of many. */
     animated: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -76,7 +65,6 @@ internal fun MausAvatar(
     val geometry = remember { MausFaceGeometry() }
     val clock = remember { MausFrameClock() }
     val body = remember(color, bodyId) {
-        // The gradient runs corner to corner of the body's own bounds.
         val bounds = MausSilhouette.faceBoxBounds(bodyId)
         Brush.linearGradient(
             colorStops = MausPalette.gradient(color)
@@ -88,8 +76,6 @@ internal fun MausAvatar(
     }
 
     var moving by remember { mutableStateOf(false) }
-    // A lazy list keeps rows composed past the edge of what it shows, and a face
-    // nobody can see has no business asking for frames.
     var shown by remember { mutableStateOf(true) }
 
     LaunchedEffect(animated) {
@@ -108,10 +94,7 @@ internal fun MausAvatar(
     Canvas(
         modifier = modifier
             .size(size)
-            // Empty bounds mean every ancestor has clipped this away, or it is off
-            // the window — the two ways a composed avatar can be invisible.
             .onGloballyPositioned { shown = !it.boundsInWindow().isEmpty }
-            // The mascot repeats the name beside it; announcing it twice is noise.
             .semantics { },
     ) {
         val now = clock.nanos.longValue
@@ -122,11 +105,6 @@ internal fun MausAvatar(
     }
 }
 
-/**
- * The person, not a bot — the roster header and the settings row. A letter
- * rather than a mascot, deliberately: the mascots mean "this is a bot", and
- * giving the human one too would blur the only distinction the roster makes.
- */
 @Composable
 fun ProfileAvatar(name: String, size: Dp = 34.dp, modifier: Modifier = Modifier) {
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
@@ -142,27 +120,9 @@ fun ProfileAvatar(name: String, size: Dp = 34.dp, modifier: Modifier = Modifier)
     }
 }
 
-/**
- * One avatar's clock: the loop hands it frame times, the canvas reads the one it
- * published.
- *
- * A class holding [onFrame] rather than a lambda written inside the loop, because a
- * lambda that captures a `var` cannot be a constant — the compiler builds a fresh
- * one on every turn of the loop, which is an allocation per frame per face on
- * screen, in a build with no shrinker behind it to notice. The frame state lives
- * here for the same reason: captured `var`s become a `Ref` object.
- *
- * The origin survives the loop stopping and starting, so a face that scrolled away
- * and came back continues its own timeline rather than jumping.
- *
- * Shared with [WorkingBubble], which wants exactly this: a 30fps tick published as
- * state the draw phase reads, with nothing allocated per frame.
- */
 internal class MausFrameClock {
-    /** Nanoseconds since this avatar's first animated frame; read in the draw phase. */
     val nanos: MutableLongState = mutableLongStateOf(0L)
 
-    /** Built once, handed to `withFrameNanos` on every tick. */
     val onFrame: (Long) -> Unit = ::publish
 
     private var origin = NO_ORIGIN
@@ -171,8 +131,6 @@ internal class MausFrameClock {
     private fun publish(now: Long) {
         if (origin == NO_ORIGIN) origin = now
         val elapsed = now - origin
-        // A face is drawn at 30fps; a roster of them at 60 is twice the work for a
-        // blink nobody can see.
         if (elapsed - published >= FRAME_INTERVAL_NANOS) {
             published = elapsed
             nanos.longValue = elapsed
@@ -180,7 +138,6 @@ internal class MausFrameClock {
     }
 }
 
-/** The scratch one drawn mascot reuses: a list of them redraws on every scroll frame. */
 private class MausFaceGeometry {
     val eyes: Array<Path> = arrayOf(Path(), Path())
     val mouth: Path = Path()
@@ -188,12 +145,6 @@ private class MausFaceGeometry {
     val comets: MausCometField = MausCometField()
     val pose: MausBodyPose = MausBodyPose()
 
-    /**
-     * One brush per comet palette, over the unit segment (0,0)→(1,0); [drawComets]
-     * aims it at the comet with a transform rather than building a new gradient.
-     * They belong to the avatar rather than the process because a `ShaderBrush`
-     * caches its shader per draw size, and two avatars are two sizes.
-     */
     val cometBrushes: Array<Brush> by lazy(LazyThreadSafetyMode.NONE) {
         Array(MausComets.colors.size) { index ->
             val palette = MausComets.colors[index]
@@ -210,7 +161,6 @@ private class MausFaceGeometry {
     }
 }
 
-/** One instance, shared: the mouth is the same 7.5-unit round stroke every frame. */
 private val mouthStroke = Stroke(width = MausFaceData.MOUTH_STROKE, cap = StrokeCap.Round)
 
 private fun DrawScope.drawMaus(
@@ -238,8 +188,6 @@ private fun DrawScope.drawMaus(
 
         val pose = geometry.pose
         if (live) engine.motion.poseAt(elapsed, pose)
-        // The body in its own transform, so the rings are not under it. Comet
-        // states sit back a little, so the rings clear them.
         withTransform({
             if (trail != null) scale(trail.bodyScale, trail.bodyScale, Offset(centre, centre))
             if (live) {
@@ -263,13 +211,10 @@ private fun DrawScope.drawBody(
     bodyId: String?,
     nowNanos: Long,
 ) {
-    // Parsed and placed once per body, inside [MausSilhouette]; this is a lookup.
     val silhouette = MausSilhouette.inFaceBox(bodyId)
     val anchor = MausSilhouette.anchor(bodyId)
     drawPath(silhouette, body)
 
-    // The face is painted on the body: clipped to it, anchored in it — where the
-    // generator solved the anchor for this body.
     clipPath(silhouette) {
         withTransform({
             translate(anchor.x, anchor.y)
@@ -291,7 +236,6 @@ private fun DrawScope.drawEye(ring: FloatArray, path: Path, blink: Float) {
     path.reset()
     var index = 0
     while (index < ring.size) {
-        // blink squashes the eye towards its own centre line
         val y = axis + (ring[index + 1] - axis) * blink
         if (index == 0) path.moveTo(ring[0], y) else path.lineTo(ring[index], y)
         index += 2
@@ -300,10 +244,6 @@ private fun DrawScope.drawEye(ring: FloatArray, path: Path, blink: Float) {
     drawPath(path, Color.White)
 }
 
-/**
- * The mouth hangs off the eyes: centred under the pair, tilted with them, pushed
- * clear of whichever eye is tallest.
- */
 private fun DrawScope.drawMouth(left: FloatArray, right: FloatArray, mouth: FloatArray, path: Path) {
     val leftX = centreX(left)
     val leftY = centreY(left)
@@ -331,12 +271,6 @@ private fun DrawScope.drawMouth(left: FloatArray, right: FloatArray, mouth: Floa
     drawPath(path = path, color = Color.White, style = mouthStroke)
 }
 
-/**
- * A comet's colours run head to tail along it, and both ends move every frame. So
- * the piece is drawn in the gradient's own space — head at (0,0), tail at (1,0) —
- * and put back where it belongs with a transform. Same pixels as aiming a fresh
- * gradient at it, without a new brush, colour list and shader per piece per frame.
- */
 private fun DrawScope.drawComets(geometry: MausFaceGeometry, front: Boolean) {
     val field = geometry.comets
     for (index in 0 until field.count) {

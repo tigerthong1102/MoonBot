@@ -24,14 +24,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * D2-07: what Tasks & Routines decides.
- *
- * Expectations come from `ios/App/TasksRoutinesView.swift` — the two sorts at
- * `:107-113` and `:62`, `RoutineSchedule.summary` and the status symbol/tint
- * extensions at the foot of the file, and `RoutineEditorView`'s Save gate and
- * `RoutineInput` construction at `:330-350`.
- */
 class RoutineRulesTest {
     private val utc = ZoneId.of("UTC")
     private val en = Locale.US
@@ -161,7 +153,6 @@ class RoutineRulesTest {
 
     @Test
     fun `the Swift's two schedule quirks are mirrored, not repaired`() {
-        // Seven of anything is "Every day", even seven of the same day…
         assertEquals(
             "Every day at 08:00",
             RoutineRules.scheduleSummary(
@@ -170,7 +161,6 @@ class RoutineRulesTest {
                 en,
             ),
         )
-        // …and only the exact ordered [1,2,3,4,5] is "Weekdays".
         assertEquals(
             "Fri, Thu, Wed, Tue, Mon at 08:00",
             RoutineRules.scheduleSummary(
@@ -407,10 +397,6 @@ class RoutineRulesTest {
 
     @Test
     fun `on today, selection is bounded by the instant, not the wall clock`() {
-        // `in: Date()...` bounds the instant. At 10:30:45 the minute 10:30
-        // resolves to 10:30:00, which has already gone, so the first minute the
-        // picker can offer is 10:31. Comparing only hour and minute would have
-        // let 10:30 through and written a past instant.
         val now = Instant.parse("2026-03-03T10:30:45Z")
         val today = LocalDate.of(2026, 3, 3)
 
@@ -423,7 +409,6 @@ class RoutineRulesTest {
 
     @Test
     fun `exactly on the minute, that minute is still inside the range`() {
-        // `Date()...` is closed at its lower bound.
         val now = Instant.parse("2026-03-03T10:30:00Z")
         val today = LocalDate.of(2026, 3, 3)
 
@@ -451,8 +436,6 @@ class RoutineRulesTest {
 
     @Test
     fun `the bound is read in the picker's own zone`() {
-        // 2026-03-03T23:30:00Z is already 2026-03-04 in Tokyo, so a Tokyo user
-        // picking 03-04 at 00:00 is choosing a moment that has passed.
         val now = Instant.parse("2026-03-03T23:30:00Z")
         val tokyo = ZoneId.of("Asia/Tokyo")
 
@@ -494,7 +477,6 @@ class RoutineRulesTest {
 
     @Test
     fun `a day with no minute left answers with none`() {
-        // 23:59:xx: the next representable minute belongs to tomorrow.
         assertNull(
             RoutineRules.earliestSelectableMinute(
                 LocalDate.of(2026, 3, 3),
@@ -518,7 +500,6 @@ class RoutineRulesTest {
         val today = LocalDate.of(2026, 3, 3)
         val tomorrow = LocalDate.of(2026, 3, 4)
 
-        // A stored time that has passed opens on the first minute still in range…
         assertEquals(
             LocalTime.of(10, 31),
             RoutineRules.onceTimeStart(today, LocalTime.of(8, 15), now, utc),
@@ -528,7 +509,6 @@ class RoutineRulesTest {
             RoutineRules.onceTimeStart(today, LocalTime.of(10, 30), now, utc),
             "10:30 is exactly the minute the instant comparison rejects",
         )
-        // …and one that has not is left exactly where it was.
         assertEquals(
             LocalTime.of(18, 45),
             RoutineRules.onceTimeStart(today, LocalTime.of(18, 45), now, utc),
@@ -542,7 +522,6 @@ class RoutineRulesTest {
 
     @Test
     fun `with no minute left in the day the picker stays where it was`() {
-        // Nothing to move to; the OK button is what refuses.
         val now = Instant.parse("2026-03-03T23:59:30Z")
         val today = LocalDate.of(2026, 3, 3)
 
@@ -561,13 +540,11 @@ class RoutineRulesTest {
         val today = draft.date(utc)
         assertEquals(LocalDate.of(2026, 3, 3), today)
 
-        // The clock does open forward, on the first minute still in range…
         assertEquals(
             LocalTime.of(10, 31),
             RoutineRules.onceTimeStart(today, draft.time(utc), now, utc),
         )
 
-        // …and staging that same day writes nothing, because staging has no clock.
         val staged = draft.stage(today)
         assertEquals(firedThisMorning, staged.millis, "Next must not write")
         assertEquals(today, staged.stagedDate)
@@ -604,8 +581,6 @@ class RoutineRulesTest {
 
     @Test
     fun `confirming without staging keeps the day the routine already had`() {
-        // The daily flow never stages, and neither does a user who only wants a
-        // different time on the same day.
         val draft = OnceDraft(Instant.parse("2026-03-01T08:00:00Z").toEpochMilli())
 
         assertEquals(
@@ -662,8 +637,6 @@ class RoutineRulesTest {
         assertEquals("bot-1", seeded.botId)
         assertTrue(seeded.applied)
 
-        // A later fleet frame must not walk back over a pick, as `onAppear` does
-        // not fire twice in the Swift.
         assertEquals("bot-2", seeded.choose("bot-2").withDefault("bot-1").botId)
         assertEquals("bot-1", rotate(seeded).withDefault("bot-9").botId)
     }
@@ -678,7 +651,6 @@ class RoutineRulesTest {
 
     @Test
     fun `appearing with an empty fleet still counts as having run`() {
-        // Swift: `?? ""` inside a once-only `onAppear`.
         val none = AgentChoice("").withDefault(null)
 
         assertEquals("", none.botId)
@@ -688,9 +660,6 @@ class RoutineRulesTest {
 
     @Test
     fun `an already-fired routine still saves its past instant untouched`() {
-        // iOS bounds the *selection*, not the bound value: a one-time routine
-        // whose instant has passed re-saves as it stands while the pickers stay
-        // closed. Nothing about `at` feeds the Save gate.
         val past = 1_600_000_000_000.0
         val schedule = RoutineRules.schedule(
             RoutineSchedule.Kind.ONCE,
@@ -854,7 +823,6 @@ class RoutineRulesTest {
         assertEquals(setOf(1, 2, 3, 4, 5), RoutineRules.DEFAULT_WEEKDAYS)
     }
 
-    /** An Activity recreation, as the saved state actually sees it. */
     private fun rotate(choice: AgentChoice): AgentChoice {
         val saved = with(AgentChoiceSaver) { SaverScope { true }.save(choice) }
         return requireNotNull(AgentChoiceSaver.restore(requireNotNull(saved)))

@@ -1,16 +1,15 @@
+// Modified for StartupBot; original copyright and license retained.
 // The SSE parser, which is where a hand-rolled event client goes wrong.
 import XCTest
 @testable import CompanionCore
 
 final class SSETests: XCTestCase {
-    /// Feed lines the way `AsyncLineSequence` would — newlines stripped.
     func events(_ lines: [String]) -> [SSEEvent] {
         var parser = SSEParser()
         return lines.compactMap { parser.line($0) }
     }
 
     func testReadsOneFrameTheHarnessActuallySends() {
-        // exactly the shape server/index.ts writes
         let parsed = events(["id: 778d5d30:4", #"data: {"kind":"bot","seq":4}"#, ""])
         XCTAssertEqual(parsed.count, 1)
         XCTAssertEqual(parsed[0].id, "778d5d30:4")
@@ -18,8 +17,6 @@ final class SSETests: XCTestCase {
     }
 
     func testSwallowsKeepaliveComments() {
-        // a 25-second `: keepalive` is the only reason this stream survives
-        // a NAT, and it must never surface as an event
         XCTAssertTrue(events([": keepalive", ""]).isEmpty)
         let parsed = events([": keepalive", "", "data: {}", ""])
         XCTAssertEqual(parsed.count, 1)
@@ -29,7 +26,6 @@ final class SSETests: XCTestCase {
         var parser = SSEParser()
         XCTAssertNil(parser.line("id: s:1"))
         XCTAssertNil(parser.line("data: {}"))
-        // a frame split across two network chunks must not be emitted early
         XCTAssertNotNil(parser.line(""))
     }
 

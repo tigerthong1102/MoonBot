@@ -2,8 +2,6 @@
 import SwiftUI
 import CompanionCore
 
-/// Bot thread selection belongs to this phone. Group threads retain their
-/// shared, serial selection on the paired computer.
 struct TaskManagerView: View {
     let chat: Chat
     var onSelectThread: (String) -> Void = { _ in }
@@ -219,7 +217,6 @@ struct TaskManagerView: View {
         perform { await rename(task, title: trimmed) }
     }
 
-    /// Lock before creating the Task so two rapid taps cannot send two writes.
     private func perform(_ operation: @escaping @MainActor () async -> Void) {
         guard !isMutating else { return }
         isMutating = true

@@ -1,9 +1,4 @@
-// The roster's one-line preview, at each activity level.
-//
-// Reported from the beta: with Activity set to Hidden, a roster row still
-// read `auto-approved shell: export PATH="/opt/h...`. The transcript was
-// folding correctly and the roster was not, because the preview came off
-// the raw last message and never saw the setting.
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 @testable import CompanionCore
 
@@ -20,8 +15,6 @@ final class RosterPreviewTests: XCTestCase {
         return message
     }
 
-    /// `pending` needs a requestId — that is what makes a card answerable
-    /// rather than transcript, and it decides subtitle vs title.
     private func card(_ id: String, title: String, subtitle: String, at: Double = 1, pending: Bool = true) -> Message {
         var message = Message(id: id, role: .bot, kind: .options, at: at)
         var card = OptionCard(title: title, subtitle: subtitle, options: ["Allow", "Deny"])
@@ -30,17 +23,14 @@ final class RosterPreviewTests: XCTestCase {
         return message
     }
 
-    // MARK: - Full keeps what shipped
 
     func testFullShowsTheToolNameWhenActivityLanded() {
         let messages = [text("a", "hello"), activity("b", "auto-approved shell: export PATH=…")]
         XCTAssertEqual(rosterPreview(messages, detail: .full), "auto-approved shell: export PATH=…")
     }
 
-    // MARK: - Hidden — the reported bug
 
     func testHiddenFallsBackToTheLastRealMessage() {
-        // The bug: this returned the tool name.
         let messages = [text("a", "Deployed to staging"), activity("b", "auto-approved shell: export PATH=…")]
         XCTAssertEqual(rosterPreview(messages, detail: .hidden), "Deployed to staging")
     }
@@ -59,18 +49,15 @@ final class RosterPreviewTests: XCTestCase {
     }
 
     func testHiddenStillShowsAPendingCard() {
-        // Hiding activity must not hide the thing that needs an answer.
         let messages = [activity("a", "shell"), card("b", title: "Run this?", subtitle: "rm -rf build")]
         XCTAssertEqual(rosterPreview(messages, detail: .hidden), "rm -rf build")
     }
 
     func testAnAnsweredCardPreviewsAsItsTitle() {
-        // Historical rather than answerable: the question, not the command.
         let messages = [card("a", title: "Run this?", subtitle: "rm -rf build", pending: false)]
         XCTAssertEqual(rosterPreview(messages, detail: .hidden), "Run this?")
     }
 
-    // MARK: - Reduced summarises rather than hides
 
     func testReducedSummarisesATrailingRun() {
         let messages = [text("a", "hi"), activity("b", "shell"), activity("c", "read"), activity("d", "write")]
@@ -92,7 +79,6 @@ final class RosterPreviewTests: XCTestCase {
         XCTAssertEqual(rosterPreview(messages, detail: .reduced), "deploy")
     }
 
-    // MARK: - Everything else is untouched by the setting
 
     func testTextAndScreenReadTheSameAtEveryLevel() {
         var screen = Message(id: "s", role: .bot, kind: .screen, at: 2)

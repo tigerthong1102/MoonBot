@@ -79,7 +79,6 @@ class NavigationTest {
             listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("bot-1", "task-2"))),
             navigator.stack,
         )
-        // Back still leads where it did before the address changed.
         navigator.pop()
         assertEquals(Destination.Roster, navigator.current)
     }
@@ -145,7 +144,6 @@ class NavigationTest {
             stack,
             requireNotNull(CompanionNavigator.restoreForGeneration(saved, expectedGeneration = 0)).stack,
         )
-        // A pre-bond encoding (no generation marker) cannot restore into a later bond.
         assertNull(
             CompanionNavigator.restoreForGeneration(
                 CompanionNavigator.encode(stack),
@@ -156,8 +154,6 @@ class NavigationTest {
 
     @Test
     fun `a receipt's task opens above Tasks and Routines, and back returns there`() {
-        // iOS appends the chat to the same navigation path Settings →
-        // TasksRoutinesView is on, so leaving it lands back on the receipts.
         val navigator = CompanionNavigator()
         navigator.push(Destination.Settings)
         navigator.push(Destination.Routines)
@@ -225,7 +221,6 @@ class NavigationTest {
 
     @Test
     fun `a chat entry that cannot be read back is dropped rather than crashing`() {
-        // Truncated, malformed and over-long length prefixes all mean "unreadable".
         assertEquals(
             listOf(Destination.Roster),
             CompanionNavigator.decode(
@@ -248,16 +243,6 @@ class NavigationTest {
     }
 }
 
-/**
- * The notification tap has to fire once and only once — and "once" has to
- * survive a configuration change, because a rotation during the cold-start
- * restore is exactly when the tap is slowest to be consumed.
- *
- * Expectations come from `_temp/PARITY_DELTA_AUDIT_2.md` §D2-03 and from
- * iOS carrying both ids (`Notifications.swift:35-38`, `Models.swift:624-643`):
- * the composite `(botId, threadId)` is what is offered, consumed, and
- * remembered across recreation — never a bare thread.
- */
 class PendingThreadNavigationTest {
 
     @Test
@@ -282,7 +267,6 @@ class PendingThreadNavigationTest {
     fun `a rotation before the UI consumed it still navigates`() {
         val launch = PendingThreadNavigation()
         launch.offer("bot-1", "t1", "fixture")
-        // Recreated without the UI ever consuming: the token is still null.
         val recreated = PendingThreadNavigation(launch.consumedToken())
         recreated.offer("bot-1", "t1", "fixture")
         assertEquals(target("bot-1", "t1"), recreated.pending.value)
@@ -343,11 +327,6 @@ class PendingThreadNavigationTest {
         requireNotNull(com.openmausbot.companion.core.NotificationTarget.from(botId, threadId, "fixture"))
 }
 
-/**
- * The camera can only be released by the screen that opened it, and the provider
- * future can land after the user has already left. What cannot happen is the
- * camera staying live with nothing on screen.
- */
 class CameraLifecycleTest {
 
     @Test
@@ -385,7 +364,6 @@ class CameraLifecycleTest {
         )
         assertFalse(started)
         assertEquals(1, released)
-        // Leaving the screen afterwards must not release it a second time.
         lifecycle.release()
         assertEquals(1, released)
     }

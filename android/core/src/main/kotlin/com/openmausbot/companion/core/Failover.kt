@@ -27,10 +27,6 @@ class CandidateRotation(endpoints: List<CompanionEndpoint>) {
 
     val currentEndpoint: CompanionEndpoint? get() = endpoints.getOrNull(index)
 
-    /**
-     * Compatibility view for callers that only understand the old host list. Dialing code uses
-     * [currentEndpoint] so it never loses a route's HTTPS scheme or distinct port.
-     */
     val hosts: List<String> get() = endpoints.map { it.displayAddress }
 
     val current: String get() = currentEndpoint?.displayAddress.orEmpty()
@@ -39,13 +35,10 @@ class CandidateRotation(endpoints: List<CompanionEndpoint>) {
 
     fun advance(): String = advanceEndpoint()?.displayAddress.orEmpty()
 
-    /** Move to the next candidate and return it, wrapping past the end. */
     fun advanceEndpoint(): CompanionEndpoint? {
         if (endpoints.isEmpty()) return null
         index = (index + 1) % endpoints.size
         val next = currentEndpoint ?: return null
-        // An explicit local route may upgrade to a protected route, but that upgrade is one-way.
-        // Pruning the local route prevents a later wrap from downgrading the transport again.
         if (next.protectsCredentials && endpoints.any { !it.protectsCredentials }) {
             endpoints = endpoints.filter { it.protectsCredentials }
             index = endpoints.indexOfFirst { it.url == next.url }.takeIf { it >= 0 } ?: 0
@@ -74,14 +67,7 @@ class CandidateRotation(endpoints: List<CompanionEndpoint>) {
     fun promoted(): List<String> = promotedEndpoints().map { it.displayAddress }
 
     companion object {
-        /**
-         * Migration for bare host lists that carry no port of their own: a `.ts.net` name is
-         * protected, `.local` and everything else are explicit-local cleartext, and every route
-         * is assumed to answer on [CompanionEndpoint.DEFAULT_COMPANION_PORT].
-         *
-         * A saved [Connection] knows its own port and its own schemes, so it walks
-         * `orderedEndpoints` instead — dialing through here would silently rewrite both.
-         */
+        // Legacy bare hosts do not imply consent for protected transport; local addresses remain explicit cleartext routes.
         fun ofHosts(hosts: List<String>): CandidateRotation = CandidateRotation(
             hosts.mapIndexedNotNull { position, host ->
                 CompanionEndpoint.direct(host, CompanionEndpoint.DEFAULT_COMPANION_PORT, priority = position)
@@ -102,10 +88,8 @@ enum class ConnectionFailure {
 }
 
 object ConnectionAdvice {
-    /** Ordinary reverse-proxy failures. */
     private val PROXY_GATEWAY_STATUSES = 502..504
 
-    /** The gateway family Cloudflare returns when a tunnel or its origin is unhealthy. */
     private val TUNNEL_GATEWAY_STATUSES = 520..530
 
     fun shouldTryAnotherHost(failure: ConnectionFailure): Boolean = failure in setOf(
@@ -139,7 +123,6 @@ object ConnectionAdvice {
     fun shouldTryAnotherRoute(error: Throwable): Boolean {
         val status = statusCode(error)
         if (status != null) return isGatewayStatus(status)
-        // Only a close before hello is a route failure; a truncated live stream retries in place.
         return generateSequence(error) { it.cause }.any { it is MissingStreamHelloException } ||
             shouldTryAnotherHost(classify(error))
     }
@@ -156,7 +139,6 @@ object ConnectionAdvice {
     private fun isGatewayStatus(status: Int): Boolean =
         status in PROXY_GATEWAY_STATUSES || status in TUNNEL_GATEWAY_STATUSES
 
-    /** Map a transport failure to the URLError-shaped categories Session walks on. */
     fun classify(error: Throwable): ConnectionFailure {
         val chain = generateSequence(error) { it.cause }.toList()
         for (candidate in chain) {
@@ -219,7 +201,6 @@ object ConnectionAdvice {
         return advice + fallbackAdvice(tryingNext)
     }
 
-    /** A tunnel or reverse proxy answered for the computer, and the computer did not. */
     fun message(
         gatewayStatus: Int,
         host: String,

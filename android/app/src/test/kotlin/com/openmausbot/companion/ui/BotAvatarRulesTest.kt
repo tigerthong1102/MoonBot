@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.shape.CircleShape
@@ -12,10 +13,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
-/**
- * D2-05: what the single avatar renderer decides, pinned to
- * `ios/App/BotAvatarView.swift`.
- */
 class BotAvatarRulesTest {
 
     @Test
@@ -27,7 +24,6 @@ class BotAvatarRulesTest {
 
     @Test
     fun `the rounded mask's radius follows the size, at 22 percent`() {
-        // `RoundedRectangle(cornerRadius: size * 0.22)`.
         assertEquals(RoundedCornerShape(11.44.dp), BotAvatarRules.shape(AvatarCrop.ROUNDED, 52.dp))
         assertEquals(RoundedCornerShape(24.64.dp), BotAvatarRules.shape(AvatarCrop.ROUNDED, 112.dp))
         assertEquals(0.22f, AvatarImageRules.ROUNDED_CORNER_FRACTION)
@@ -52,7 +48,6 @@ class BotAvatarRulesTest {
     fun `every failure lands on the mascot`() {
         val path = "/api/attachments/a.png"
 
-        // `crop != .mascot && bot.avatarUrl != nil && !failed`.
         assertTrue(AvatarImageRules.usesImage(AvatarCrop.CIRCLE, path, failed = false))
         assertFalse(
             AvatarImageRules.usesImage(AvatarCrop.MASCOT, path, failed = false),

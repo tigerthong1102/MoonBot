@@ -1,10 +1,4 @@
-// Composer dictation: how typed text and a live transcript share a field.
-//
-// The Speech session is in App/ and needs a device. The join is the part
-// with a decision in it — partials replace, they do not stack — and getting
-// that wrong is a composer that writes "hello hello hello world" as you
-// talk. Same shape as the desktop: freeze the base when the mic goes on,
-// and every subsequent transcript is `base + spoken`.
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 @testable import CompanionCore
 
@@ -14,8 +8,6 @@ final class DictationTests: XCTestCase {
     }
 
     func testEmptyTranscriptLeavesTheBase() {
-        // The first callback has not arrived yet. Wiping the field in that
-        // window would look like the mic deleted what you had typed.
         XCTAssertEqual(Dictation.draft(base: "please look", transcript: ""), "please look")
         XCTAssertEqual(Dictation.draft(base: "please look", transcript: "   "), "please look")
     }
@@ -28,10 +20,6 @@ final class DictationTests: XCTestCase {
         XCTAssertEqual(Dictation.draft(base: "  please  ", transcript: "  look  "), "please look")
     }
 
-    /// The contract ChatView has to keep: the base is the text at the
-    /// moment listening started, not the live draft. Re-joining against
-    /// that frozen base is how a later partial replaces an earlier one
-    /// instead of concatenating onto it.
     func testALaterPartialReplacesAnEarlierOne() {
         let base = "please"
         XCTAssertEqual(Dictation.draft(base: base, transcript: "look"), "please look")
@@ -43,7 +31,6 @@ final class DictationTests: XCTestCase {
         XCTAssertEqual(Dictation.draft(base: "  ", transcript: "\n"), "")
     }
 
-    // MARK: - Transcript updates across segments
 
     func testEmptyTranscriptTakesTheNewPartial() {
         XCTAssertEqual(Dictation.updateTranscript("", new: "hello"), "hello")
@@ -54,7 +41,6 @@ final class DictationTests: XCTestCase {
         XCTAssertEqual(Dictation.updateTranscript("hello", new: "   "), "hello")
     }
 
-    /// Same segment: each longer partial replaces the last in place.
     func testALongerPartialReplacesTheCurrentOne() {
         XCTAssertEqual(
             Dictation.updateTranscript("first sent", new: "first sentence"),
@@ -66,8 +52,6 @@ final class DictationTests: XCTestCase {
         )
     }
 
-    /// A fresh segment after a pause does not start with the old one, so the
-    /// old text is preserved and the new segment is appended.
     func testAFreshSegmentIsAppendedAfterThePreviousText() {
         XCTAssertEqual(
             Dictation.updateTranscript("first sentence.", new: "second sentence."),
@@ -75,8 +59,6 @@ final class DictationTests: XCTestCase {
         )
     }
 
-    /// If the recognizer revises a word in the middle of the same segment,
-    /// most leading words still match, so we take the latest best reading.
     func testAWordLevelRevisionReplacesInPlace() {
         XCTAssertEqual(
             Dictation.updateTranscript("I walked to the store", new: "I walked to a store"),
@@ -84,8 +66,6 @@ final class DictationTests: XCTestCase {
         )
     }
 
-    /// A brief backtrack (new partial shorter but still a prefix) keeps the
-    /// longer accumulated text.
     func testABacktrackKeepsTheLongerTranscript() {
         XCTAssertEqual(
             Dictation.updateTranscript("first sentence", new: "first"),
@@ -93,8 +73,6 @@ final class DictationTests: XCTestCase {
         )
     }
 
-    /// A new sentence that happens to share the first word with the previous
-    /// sentence is still treated as a new segment.
     func testASharedFirstWordIsNotEnoughToMergeAcrossSegments() {
         XCTAssertEqual(
             Dictation.updateTranscript("first sentence", new: "first word"),
@@ -102,7 +80,6 @@ final class DictationTests: XCTestCase {
         )
     }
 
-    // MARK: - Locale candidates
 
     func testPreferredLanguageComesFirst() {
         let locales = Dictation.localeCandidates(

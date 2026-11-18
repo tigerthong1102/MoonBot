@@ -85,8 +85,6 @@ final class WaitingThreadHydrationTests: XCTestCase {
         state.resetCursor("stream:1")
         let expectedCursor = state.cursor
 
-        // A notification refresh captured this page before the live stream
-        // answered the request. Its slower response must not revive the card.
         var resolved = try XCTUnwrap(state.pendingApprovals.first?.message)
         resolved.card?.answered = "Allow"
         state.apply(.messagePatch(threadId: "thread-a", message: resolved))
@@ -98,8 +96,6 @@ final class WaitingThreadHydrationTests: XCTestCase {
         XCTAssertTrue(state.pendingApprovals.isEmpty)
         XCTAssertEqual(state.transcript(forThread: "thread-a").last?.card?.answered, "Allow")
 
-        // A bounded retry against the new cursor may now commit the fresh,
-        // answered page without losing or replaying the stream's progress.
         WaitingThreadStub.responses["/api/threads/thread-a/messages"] = (200, Data(
             Self.pendingPage.replacingOccurrences(of: "\"tool\":\"Bash\"", with: "\"tool\":\"Bash\",\"answered\":\"Allow\"").utf8
         ))

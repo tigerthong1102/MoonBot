@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.graphics.Bitmap
@@ -46,7 +47,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** Real chat UI and session, confined to a synthetic fleet and loopback server. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-mdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

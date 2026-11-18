@@ -1,13 +1,5 @@
-// Finding computers on the network, so nobody types an IP address.
-//
-// The other half of `server/mdns.ts`: the harness advertises
-// `_openmausbot._tcp` while its companion listener is up, and this browses
-// for it. NWBrowser is first-party and does the mDNS work; all that is left
-// is resolving each result to a host and port.
-//
-// Requires NSLocalNetworkUsageDescription and NSBonjourServices in the app's
-// Info.plist — without them iOS returns no results at all, silently, which
-// is a confusing hour if you don't know to look.
+// Modified for StartupBot; original copyright and license retained.
+// iOS Bonjour browsing requires NSLocalNetworkUsageDescription and NSBonjourServices.
 import Foundation
 import Network
 import CompanionCore
@@ -16,8 +8,6 @@ import SwiftUI
 @MainActor
 final class Discovery: ObservableObject {
     struct Found: Identifiable, Hashable {
-        /// The Bonjour instance name — the human label the harness derived
-        /// from the profile name, e.g. "Ada Lovelace's computer".
         let name: String
         let endpoint: NWEndpoint
 
@@ -26,9 +16,6 @@ final class Discovery: ObservableObject {
 
     @Published private(set) var found: [Found] = []
     @Published private(set) var browsing = false
-    /// Set when the browser could not start at all — almost always the
-    /// missing Info.plist keys, so it is worth surfacing rather than
-    /// showing an empty list forever.
     @Published private(set) var failure: LocalizedStringKey?
 
     private var browser: NWBrowser?
@@ -100,10 +87,6 @@ final class Discovery: ObservableObject {
         browsing = false
     }
 
-    /// A defunct DNS-SD connection means the system browser disappeared, not
-    /// that the companion or its Tailscale route is broken. Recreating the
-    /// browser is the only useful recovery; keep it bounded so a persistent
-    /// local-network problem does not turn into a retry loop.
     private func handleFailure(_ error: NWError) {
         browser?.cancel()
         browser = nil
@@ -138,12 +121,6 @@ final class Discovery: ObservableObject {
         return "Local discovery isn't available right now. Enter the address shown in Phone settings."
     }
 
-    /// Resolve a browse result to something `Connection` can hold.
-    ///
-    /// NWBrowser hands back a service endpoint, not an address: resolving
-    /// means actually opening a connection and asking what it connected to.
-    /// A ten-second ceiling keeps a half-present service from hanging the
-    /// pairing screen forever.
     func resolve(_ service: Found) async throws -> Connection {
         let connection = NWConnection(to: service.endpoint, using: .tcp)
         defer { connection.cancel() }
@@ -184,9 +161,6 @@ final class Discovery: ObservableObject {
         return Connection(name: service.name, host: Self.plainHost(host), port: Int(port.rawValue))
     }
 
-    /// `NWEndpoint.Host` prints IPv6 with its scope zone attached
-    /// ("fe80::1%en0"). Keep that zone — link-local IPv6 needs it — and wrap
-    /// the literal in the form URLComponents accepts.
     static func plainHost(_ host: NWEndpoint.Host) -> String {
         Connection.urlHost("\(host)")
     }

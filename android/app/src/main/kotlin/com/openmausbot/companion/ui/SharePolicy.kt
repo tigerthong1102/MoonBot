@@ -151,7 +151,6 @@ object SharePolicy {
         }
 
     fun routeLabel(connection: Connection): String {
-        // Until a client actually works this session, iOS shows "Automatic".
         val kind = connection.activeEndpoint?.kind ?: return "Automatic"
         return when (kind) {
             CompanionEndpointKind.HOSTED -> "Secure HTTPS"
@@ -227,16 +226,12 @@ object SharePolicy {
         }
         val api = generateSequence(error) { it.cause }.filterIsInstance<APIError>().firstOrNull()
         if (api?.isUnauthorized == true) return pairingExpired()
-        // withPairedShareClient's three human Transport strings arrive as
-        // APIError.Transport (core is out of scope). Pass those through at the
-        // border instead of collapsing them into the generic offline line.
         if (api is APIError.Transport && isKnownShareTransport(api.detail)) {
             return api.detail
         }
         if (api != null && isAmbiguousTransport(api)) {
             return computerName?.let(::offline) ?: "Couldn't reach your computer. Keep StartupBot open and Phone access on, then try again."
         }
-        // Mirror ShareViewModel: raw exception text never reaches the sheet.
         return generic()
     }
 

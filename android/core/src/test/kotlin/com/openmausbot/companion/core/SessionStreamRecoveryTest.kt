@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.net.InetAddress
@@ -28,8 +29,6 @@ class SessionStreamRecoveryTest {
                 ))
                 primary.start()
                 backup.start()
-                // Synthetic tailnet names retain production protected-route policy; DNS is pinned
-                // to loopback so no installed Tailscale, external network or user pairing is used.
                 val first = assertNotNull(CompanionEndpoint.create(
                     "http://primary.fixture.ts.net:${primary.port}", CompanionEndpointKind.TAILNET, 0,
                 ))

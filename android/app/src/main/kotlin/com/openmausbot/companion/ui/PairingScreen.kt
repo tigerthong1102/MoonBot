@@ -58,9 +58,6 @@ fun PairingScreen(onCancel: () -> Unit) {
     val environment = LocalCompanion.current
     val session = environment.session
     val scope = rememberCoroutineScope()
-    // `PairingView.swift` fires `Haptics.selection()` on every one of these:
-    // scanning, picking a discovered computer, taking a typed address, both
-    // submits, and going back to the list.
     val haptics = rememberHaptics()
 
     val secrets = PairingSecrets
@@ -74,18 +71,11 @@ fun PairingScreen(onCancel: () -> Unit) {
     var pending by rememberSaveable(stateSaver = PendingPairingSaver) {
         mutableStateOf<PendingPairing?>(null)
     }
-    // A pending pairing restored after a process restart carries a handle this
-    // store never minted, so writes to it would go nowhere and the next rotation
-    // would find the code field empty again. Give a typed pairing a fresh slot
-    // before it accepts input; a scanned one stays orphaned, which is the rescan
-    // case.
     LaunchedEffect(pending?.handle) {
         val current = pending ?: return@LaunchedEffect
         val rebound = current.rebindingIfOrphaned(secrets)
         if (rebound !== current) pending = rebound
     }
-    // Read back out of the process-scoped store, so a rotation does not lose the
-    // digits and a process restart does.
     var code by remember(pending?.handle) { mutableStateOf(secrets.code(pending?.handle)) }
     // Presentational only: the spinner and the disabled buttons. Whether an
     // attempt is in flight is the secret store's answer, not this flag's —
@@ -93,11 +83,7 @@ fun PairingScreen(onCancel: () -> Unit) {
     var pairing by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var showingScanner by remember { mutableStateOf(false) }
-    // "Looking…" forever is not an answer. After a few seconds with nothing
-    // found, say the thing that is almost always true.
     var searchedLongEnough by remember { mutableStateOf(false) }
-    // Closed to begin with, so the QR path — the one the desktop points at — is
-    // the whole screen until somebody asks for more.
     var showingOtherWays by rememberSaveable { mutableStateOf(false) }
 
     val permissionSnapshot by environment.permissions.snapshot.collectAsState()
@@ -125,13 +111,6 @@ fun PairingScreen(onCancel: () -> Unit) {
     }
 
     val invite by session.pairingInvite.collectAsState()
-    // One key, and it is the invite. `takeInvite` refuses while a redemption
-    // holds the slot, and what brings the refused invitation back is not a
-    // second key on this effect but `endAttemptTaking` in submit's `finally` —
-    // releasing the slot is the retry. Opening the confirmation and emptying
-    // the queue are one transaction on the other side of the boundary, which is
-    // what `accept(_:)` in `ios/App/PairingView.swift` expresses as
-    // `guard submission.allowsNavigation`.
     LaunchedEffect(invite) {
         val accepted = invite ?: return@LaunchedEffect
         val next = secrets.takeInvite(pending, accepted, session::consumePairingInvite)
@@ -142,8 +121,6 @@ fun PairingScreen(onCancel: () -> Unit) {
         }
     }
 
-    // Session raises pairing problems through actionError; on this screen they
-    // belong next to the form rather than in a modal on top of it.
     val actionError by session.actionErrorFlow.collectAsState()
     LaunchedEffect(actionError) {
         val message = actionError ?: return@LaunchedEffect
@@ -151,10 +128,6 @@ fun PairingScreen(onCancel: () -> Unit) {
         session.actionError = null
     }
 
-    // Cold, and collected only while the panel is open: collecting is what
-    // starts the browse, and cancelling the collection is what stops it. The key
-    // is the panel, so closing it tears the browse down the way `.onDisappear`
-    // does on iOS — and entering this screen starts nothing at all.
     val discovery by produceState<DiscoveryState>(DiscoveryState.Idle, showingOtherWays) {
         if (!showingOtherWays) {
             value = DiscoveryState.Idle
@@ -194,9 +167,6 @@ fun PairingScreen(onCancel: () -> Unit) {
         scope.launch {
             try {
                 session.pair(connection, credential, pairRequestId)
-                // Every cleanup below names the handle this attempt owns. The
-                // slot may already belong to a newer invite, and erasing that
-                // one would cost the user a trip back to the computer (§6).
                 secrets.clear(selectedHandle)
             } catch (error: Throwable) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
@@ -217,10 +187,6 @@ fun PairingScreen(onCancel: () -> Unit) {
                     }
                 }
             } finally {
-                // Releasing the slot is also the retry. An invite that landed in
-                // the window before Session marked this attempt was published
-                // rather than deferred, and refused above; this is where it is
-                // finally taken, in the same step that frees the slot.
                 val next = secrets.endAttemptTaking(
                     handle = selectedHandle,
                     current = pending,
@@ -313,8 +279,6 @@ fun PairingScreen(onCancel: () -> Unit) {
                         }
                     },
                 )
-                // Next to the list it makes empty, and only once the search it
-                // describes is the thing on screen.
                 if (permissionSnapshot.discoveryNeedsRequest) {
                     Text(
                         text = "Searching this network needs " +
@@ -393,7 +357,6 @@ internal enum class PairingFailureDisposition {
     RESET_TYPED_ATTEMPT,
 }
 
-/** Route ambiguity and retryable server refusals keep the same logical request alive. */
 internal fun pairingFailureDisposition(
     error: Throwable,
     cameFromScanner: Boolean,
@@ -452,7 +415,6 @@ private fun DiscoverySection(
                         fontSize = 13.sp,
                         color = secondaryTint,
                     )
-                    // The honest answer when a network refuses to cooperate.
                     Text(
                         text = "If it never appears, install Tailscale on both and sign in to the " +
                             "same account — Phone settings will then show a name ending in " +
@@ -519,10 +481,7 @@ private fun CodeSection(
     onCancel: () -> Unit,
 ) {
     SectionCard(title = "Confirm computer") {
-        // Name and address sit above the branch, as they do in `PairingView.swift`:
-        // the user is confirming which computer at which address, and that is the
-        // same question whether the credential came from a QR code or the six
-        // digits are about to be typed.
+        // Pairing requires an explicit destination before a credential can be confirmed.
         Text(confirmation.name, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         Row(modifier = Modifier.fillMaxWidth()) {
             Text("Address", color = secondaryTint, fontSize = 15.sp)
@@ -573,10 +532,7 @@ private fun CodeSection(
                 }
             }
 
-            // The app was restarted between the scan and the confirmation. The
-            // token may already have reached the computer, and §6 is absolute
-            // about never sending one twice, so there is nothing to retry here —
-            // only the computer's name and address, and the way back.
+            // An unconfirmed one-time credential cannot be replayed after restarting the app.
             PairingConfirmation.Step.Rescan -> Unit
         }
 

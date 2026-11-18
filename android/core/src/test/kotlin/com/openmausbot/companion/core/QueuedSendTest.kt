@@ -44,7 +44,6 @@ class QueuedSendTest {
         createdAt = 1.0,
     )
 
-    // MARK: - The receipt
 
     @Test
     fun `a held send decodes as queued`() {
@@ -78,7 +77,6 @@ class QueuedSendTest {
         )
     }
 
-    /** An older harness answers `{ok:true}`. That is a plain send. */
     @Test
     fun `an answer without mid-turn detail is a plain send`() {
         assertEquals(
@@ -87,10 +85,6 @@ class QueuedSendTest {
         )
     }
 
-    /**
-     * `queued` without the id it is identified by is not something this client
-     * can track, cancel, or retire. Treating it as queued would strand a row.
-     */
     @Test
     fun `queued without an id falls back to a plain send`() {
         val body = """{"ok":true,"queued":true,"threadId":"t1"}"""
@@ -100,7 +94,6 @@ class QueuedSendTest {
         )
     }
 
-    // MARK: - The server's own queues
 
     @Test
     fun `a bot queued frame replaces bot queues wholesale and tombstones vanished ids`() {
@@ -115,11 +108,8 @@ class QueuedSendTest {
         state = state.apply(frame)
 
         assertEquals(listOf("queued elsewhere"), state.pendingQueued["t1"]?.map { it.text })
-        // The frame says nothing about room queues, so their rows survive it.
         assertEquals(listOf("held for the room"), state.pendingQueued["gt1"]?.map { it.text })
 
-        // The vanished id is tombstoned, not merely absent: a slow POST
-        // response for it must not resurrect the row.
         state = state.rememberQueued(QueuedSend("q1", "mine"), "t1")
         assertEquals(listOf("queued elsewhere"), state.pendingQueued["t1"]?.map { it.text })
     }
@@ -147,13 +137,29 @@ class QueuedSendTest {
         )
         assertNull(reconnected.pendingQueued["t1"])
 
-        // The reconnect tombstoned the drained id: the receipt for a send
-        // this window queued before the drop cannot resurrect it.
         val late = reconnected.rememberQueued(QueuedSend("q1", "held before the drop"), "t1")
         assertEquals(emptySet(), late.queuedThreadIds)
     }
 
-    // MARK: - The fold
+    @Test
+    fun `an empty authoritative snapshot rejects an unseen late receipt`() {
+        val before = CompanionState()
+        val after = before.replaceBotQueues(emptyMap())
+        assertEquals(before.botQueueRevision + 1, after.botQueueRevision)
+        val late = after.rememberQueued(QueuedSend("unseen", "cancelled elsewhere"), "t1", before.botQueueRevision)
+        assertTrue(late.pendingQueued.isEmpty())
+        assertTrue(late.drainedQueueIds.isEmpty())
+    }
+
+    @Test
+    fun `current receipts and independent room queues remain visible`() {
+        val state = CompanionState().replaceBotQueues(emptyMap())
+        val current = state.rememberQueued(QueuedSend("new", "current"), "t1", state.botQueueRevision)
+        assertEquals("new", current.pendingQueued["t1"]?.single()?.queueId)
+        val room = state.rememberQueued(QueuedSend("room", "independent"), "gt1")
+        assertEquals("room", room.pendingQueued["gt1"]?.single()?.queueId)
+    }
+
 
     @Test
     fun `a held send stays on screen until its line lands`() {
@@ -174,11 +180,6 @@ class QueuedSendTest {
         assertEquals(listOf("first", "second"), state.pendingQueued["t1"]?.map { it.text })
     }
 
-    /**
-     * The turn can settle before the POST that queued the message has even
-     * returned. Its line is already in the transcript by then, so the late
-     * receipt must not put a row for it back on screen.
-     */
     @Test
     fun `a drain that beats its own receipt does not resurrect the row`() {
         val state = CompanionState()
@@ -187,7 +188,6 @@ class QueuedSendTest {
         assertNull(state.pendingQueued["t1"])
     }
 
-    /** One tombstone, one use. */
     @Test
     fun `the tombstone is spent once`() {
         val state = CompanionState()
@@ -218,12 +218,6 @@ class QueuedSendTest {
         assertEquals(listOf("second"), state.pendingQueued["t2"]?.map { it.text })
     }
 
-    /**
-     * A bot frame carrying a whole transcript replaces `messages` outright
-     * rather than appending, so it never runs the retirement that `append`
-     * does. Without reconciling here the held message sits above the chat bar
-     * for ever, long after its line has landed.
-     */
     @Test
     fun `a wholesale transcript replacement retires the row`() {
         var state = CompanionState().apply(Frame.Bot(echo()))
@@ -234,11 +228,6 @@ class QueuedSendTest {
         assertNull(state.pendingQueued["t1"])
     }
 
-    /**
-     * An engine that dies mid-sentence reports the failure as activity, not as
-     * a settled reply, so nothing else clears the buffer. Left alone it renders
-     * as an answer that streams for ever.
-     */
     @Test
     fun `an idle bot has nothing streaming`() {
         var state = CompanionState().apply(Frame.Bot(echo(busy = true)))
@@ -251,7 +240,6 @@ class QueuedSendTest {
         assertNull(state.streaming["t1"])
     }
 
-    // MARK: - The message
 
     @Test
     fun `a transcript line carries its mid-turn markers`() {

@@ -58,7 +58,6 @@ object AttachmentImportRules {
     fun tooLarge(name: String, limitBytes: Int): String =
         "$name is larger than the ${formatBytes(limitBytes.toLong())} remaining attachment limit."
 
-    /** `Photo.jpg` for one, `Photo 2.jpg` for the second of several. */
     fun photoName(index: Int, count: Int, extension: String): String =
         if (count == 1) "Photo.$extension" else "Photo ${index + 1}.$extension"
 
@@ -69,11 +68,9 @@ object AttachmentImportRules {
         else -> "jpg"
     }
 
-    /** Whatever the 50 MB total has left after what is already attached. */
     fun remainingBytes(attached: List<PendingMessageAttachment>): Int =
         max(0, AttachmentPolicy.MAXIMUM_TOTAL_BYTES - attached.sumOf { it.data.size })
 
-    /** The most one more item of this kind may read: its own cap, or the total's remainder. */
     fun readLimit(kind: PendingMessageAttachment.Kind, remainingBytes: Int): Int {
         val itemLimit = when (kind) {
             PendingMessageAttachment.Kind.IMAGE -> AttachmentPolicy.MAXIMUM_IMAGE_BYTES
@@ -85,11 +82,9 @@ object AttachmentImportRules {
     fun canAdd(attached: Int, preparing: Boolean, sending: Boolean): Boolean =
         attached < AttachmentPolicy.MAXIMUM_ITEMS && !preparing && !sending
 
-    /** `canSend` in the Swift: text or an attachment, and nothing in flight. */
     fun canSend(draft: String, attached: Int, preparing: Boolean, sending: Boolean): Boolean =
         (draft.isNotBlank() || attached > 0) && !preparing && !sending
 
-    /** `ByteCountFormatter` with `.file`: KB/MB with one decimal, bytes below a kilobyte. */
     fun formatBytes(bytes: Long): String = when {
         bytes < 1_000 -> "$bytes bytes"
         bytes < 1_000_000 -> String.format(Locale.ROOT, "%.0f KB", bytes / 1_000.0)
@@ -108,7 +103,6 @@ class AttachmentImportException(message: String) : Exception(message)
 object AttachmentImport {
     private const val PHOTO_MAX_PIXELS = 3_072
 
-    /** A document (or an image) from the system file picker. */
     fun readDocument(resolver: ContentResolver, uri: Uri, remainingBytes: Int): PendingMessageAttachment {
         val name = safeName(displayName(resolver, uri) ?: "that file")
         val mime = AttachmentPolicy.normalizedMime(
@@ -124,12 +118,6 @@ object AttachmentImport {
         return PendingMessageAttachment(data = data, name = name, mime = mime, kind = kind)
     }
 
-    /**
-     * A picture from the photo picker. A supported type within its limit
-     * travels as it is; anything else — HEIC, a 40 MB PNG — is re-encoded as
-     * JPEG the way the Share target does, so the picker never refuses a photo
-     * the computer could have shown.
-     */
     fun readPhoto(
         resolver: ContentResolver,
         uri: Uri,
@@ -161,7 +149,6 @@ object AttachmentImport {
         )
     }
 
-    /** The bytes, or null when the stream runs past [limit]. */
     private fun readBounded(resolver: ContentResolver, uri: Uri, limit: Int): ByteArray? {
         val input = runCatching { resolver.openInputStream(uri) }.getOrNull() ?: return ByteArray(0)
         input.use { source ->

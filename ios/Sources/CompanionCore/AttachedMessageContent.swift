@@ -1,9 +1,6 @@
 // Modified for StartupBot; original copyright and license retained.
 import Foundation
 
-/// An attachment encoded in a stored user prompt. Agents receive local paths,
-/// but people should see a quiet attachment label rather than the transport
-/// tag that carries that path.
 public struct DisplayedMessageAttachment: Hashable, Sendable {
     public enum Kind: Hashable, Sendable {
         case image
@@ -33,8 +30,6 @@ public struct AttachedMessageContent: Hashable, Sendable {
         self.attachments = attachments
     }
 
-    /// Splits only the exact, standalone tags StartupBot writes. An inline
-    /// example in somebody's prose stays prose instead of disappearing.
     public static func parse(_ source: String) -> AttachedMessageContent {
         var attachments: [DisplayedMessageAttachment] = []
         var visible = ""
@@ -256,9 +251,7 @@ public struct AttachedMessageContent: Hashable, Sendable {
             return value
         }
 
-        // `name` is presentation metadata from stored chat text, not a path.
-        // Basename it just like the fallback so a crafted value can never look
-        // like (or later become) a directory traversal.
+        // Attachment display names are untrusted and cannot be interpreted as directory paths.
         let value = basename(providedName) ?? basename(path) ?? (kind == .image ? "Image" : "File")
         let oneLine = value.unicodeScalars.map { scalar in
             let code = scalar.value

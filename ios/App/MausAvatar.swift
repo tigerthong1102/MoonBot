@@ -117,7 +117,7 @@ final class MausFaceEngine {
         state = new
         stateStart = now
         select(MausFaceData.pools[new]?.first ?? 0)
-        if last == nil { morph = 1; velocity = 0 } // first frame: rest on it, no morph in
+        if last == nil { morph = 1; velocity = 0 }
         nextExpressionAt = schedule(MausFaceData.expressionCadence[new], from: now)
         nextBlinkAt = schedule(MausFaceData.blink[new], from: now)
     }
@@ -198,7 +198,7 @@ final class MausFaceEngine {
         var out: [CometPiece] = []
         let samples = 22
         let span = min(spec.span, .pi - 0.05)
-        let near: CGFloat = 1.1 // swell at the near point of the ring — perspective, cheaply
+        let near: CGFloat = 1.1
 
         for i in 0..<spec.count {
             let seedA = Self.hash01(CGFloat(i + 3)), seedB = Self.hash01(CGFloat(i + 29)), seedC = Self.hash01(CGFloat(i + 71))

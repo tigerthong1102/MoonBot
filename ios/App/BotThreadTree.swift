@@ -1,8 +1,7 @@
+// Modified for StartupBot; original copyright and license retained.
 import CompanionCore
 import SwiftUI
 
-/// Observe search and live thread metadata here, independently of the
-/// roster summary's stable bot identity.
 struct BotThreadTree: View {
     let botID: String
     @Binding var query: String

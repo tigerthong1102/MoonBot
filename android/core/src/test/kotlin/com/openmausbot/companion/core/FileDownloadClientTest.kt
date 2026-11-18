@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.coroutines.runBlocking
@@ -15,7 +16,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/** The authenticated file route — the download half of `ShareClientTests.swift`. */
+
 class FileDownloadClientTest {
     private lateinit var server: MockWebServer
     private lateinit var client: CompanionClient
@@ -127,7 +128,6 @@ class FileDownloadClientTest {
             MockResponse()
                 .setBody("x")
                 .setHeader("Content-Type", "text/plain")
-                // After setBody, so the declared length is the oversized one.
                 .setHeader("Content-Length", (CompanionClient.MAXIMUM_FILE_DOWNLOAD_BYTES + 1).toString())
                 .setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AT_END),
         )

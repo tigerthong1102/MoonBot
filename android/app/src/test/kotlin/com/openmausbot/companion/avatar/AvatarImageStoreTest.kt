@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.avatar
 
 import com.openmausbot.companion.core.AvatarCrop
@@ -23,15 +24,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
-/**
- * Encoded-byte cache behaviour pinned to `ios/App/Session.swift` avatarCache:
- * countLimit 64, totalCostLimit 32 MB, shared in-flight fetch, clear on sign-out.
- *
- * Decoded-frame budget / downsample are Android-only (iOS keeps `UIImage` on the
- * view). Tests inject [DecodedAvatar.forTest] so cost, retention, eviction, OOM
- * and cancel-cleanup are exercised without Robolectric; [BitmapFactory] remains
- * a device check.
- */
+
 class AvatarImageStoreTest {
 
     @Test
@@ -80,7 +73,6 @@ class AvatarImageStoreTest {
         )
         val a = async { store.bytesFor(bot(avatarUrl = "/api/attachments/shared.webp")) }
         val b = async { store.bytesFor(bot(avatarUrl = "/api/attachments/shared.webp")) }
-        // Let both reach the in-flight map before the leader finishes.
         delay(20)
         release.unlock()
         assertContentEquals(byteArrayOf(4, 2), a.await())
@@ -109,8 +101,7 @@ class AvatarImageStoreTest {
 
     @Test
     fun `encoded byte budgets match the iOS NSCache limits`() = runTest {
-        // Encoded entries/bytes mirror Session.swift. Bitmap ceilings below are
-        // Android-only — not a second iOS NSCache.
+
         assertEquals(64, AvatarImageStore.DEFAULT_MAX_ENTRIES)
         assertEquals(32 * 1_024 * 1_024, AvatarImageStore.DEFAULT_MAX_BYTES)
         assertEquals(64, AvatarImageStore.DEFAULT_MAX_BITMAP_ENTRIES)
@@ -150,7 +141,6 @@ class AvatarImageStoreTest {
 
     @Test
     fun `inSampleSize shrinks both edges within the decode budget`() {
-        // Expectations from the pixel-cap rule, not from inspecting production output.
         assertEquals(1, AvatarImageStore.inSampleSizeFor(512, 512, maxEdge = 1_024))
         assertEquals(1, AvatarImageStore.inSampleSizeFor(1_024, 800, maxEdge = 1_024))
         assertEquals(2, AvatarImageStore.inSampleSizeFor(2_000, 1_500, maxEdge = 1_024))
@@ -178,11 +168,9 @@ class AvatarImageStoreTest {
 
     @Test
     fun `bitmapFor retains decoded frames by reported cost and evicts over budget`() = runBlocking {
-        // Would fail if bitmapFor only counted entries or ignored DecodedAvatar.byteCost.
         val store = AvatarImageStore(
             fetch = { byteArrayOf(1) },
             decode = { bytes ->
-                // Cost stands in for allocationByteCount after inSampleSize.
                 DecodedAvatar.forTest(byteCost = 40 + bytes.size)
             },
             maxBitmapEntries = 64,
@@ -198,7 +186,6 @@ class AvatarImageStoreTest {
 
     @Test
     fun `bitmapFor turns OutOfMemoryError into a mascot fallback`() = runBlocking {
-        // Would fail if OOM escaped bitmapFor or left a poisoned inflight entry.
         var explode = true
         val store = AvatarImageStore(
             fetch = { byteArrayOf(1, 2, 3) },
@@ -210,8 +197,6 @@ class AvatarImageStoreTest {
         assertNull(store.bitmapFor(bot(avatarUrl = "/api/attachments/oom.png")))
         assertEquals(0, store.cachedBitmapCount())
         explode = false
-        // Path must be claimable again; forTest has no Bitmap so asBitmap() is null,
-        // but the frame is retained by cost.
         assertNull(store.bitmapFor(bot(avatarUrl = "/api/attachments/oom.png")))
         assertEquals(1, store.cachedBitmapCount())
         assertEquals(16, store.cachedBitmapByteCost())
@@ -219,9 +204,6 @@ class AvatarImageStoreTest {
 
     @Test
     fun `sampled frame cost matches inSampleSize ARGB accounting`() {
-        // Production DEFAULT_DECODE: inSampleSize then allocationByteCount ≈ w*h*4.
-        // This pins the cost a hostile 8k frame should report after sampling —
-        // the store must be willing to retain that cost (and evict by it).
         val maxEdge = AvatarImageStore.DEFAULT_MAX_DECODE_EDGE
         val sample = AvatarImageStore.inSampleSizeFor(8_000, 6_000, maxEdge)
         assertEquals(8, sample)
@@ -237,7 +219,6 @@ class AvatarImageStoreTest {
         assertEquals(frame, cache.putIfAbsent("hostile", frame))
         assertEquals(1, cache.size())
         assertEquals(sampledCost, cache.byteCost())
-        // A second full-cost frame must evict the first.
         cache.putIfAbsent("next", DecodedAvatar.forTest(byteCost = sampledCost))
         assertEquals(1, cache.size())
         assertNull(cache.get("hostile"))
@@ -245,9 +226,6 @@ class AvatarImageStoreTest {
 
     @Test
     fun `concurrent bitmapFor shares one decode for the same path`() = runBlocking {
-        // Would fail against the previous code: each caller decoded independently.
-        // runBlocking (not runTest): CountDownLatch must not block the test
-        // scheduler thread, and withContext(Dispatchers.Default) needs real threads.
         val decodes = AtomicInteger(0)
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -267,7 +245,6 @@ class AvatarImageStoreTest {
             store.bitmapFor(bot(avatarUrl = "/api/attachments/shared.png"))
         }
         assertTrue(started.await(2, TimeUnit.SECONDS))
-        // Give the joiner time to attach to the in-flight deferred.
         withContext(Dispatchers.Default) { Thread.sleep(30) }
         release.countDown()
         assertNull(a.await())
@@ -279,8 +256,6 @@ class AvatarImageStoreTest {
 
     @Test
     fun `cancelling the decode leader unblocks joiners and clears inflight`() = runBlocking {
-        // Would hang forever against round-2: cancelled withContext skipped
-        // remove/complete, leaving joiners and later callers on an orphaned deferred.
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
         val store = AvatarImageStore(
@@ -300,34 +275,16 @@ class AvatarImageStoreTest {
         }
         withContext(Dispatchers.Default) { Thread.sleep(30) }
         leader.cancel()
-        // Joiners must unblock on the cancel transition — not after decode returns.
         withTimeout(2_000) {
             assertNull(joiner.await())
         }
         release.countDown()
         withTimeout(2_000) { leader.join() }
-        // Path must be claimable again — not stuck on an orphaned inflight entry.
         val again = store.bitmapFor(bot(avatarUrl = "/api/attachments/cancel.png"))
         assertNull(again)
         assertEquals(1, store.cachedBitmapCount())
     }
 
-    /**
-     * The byte-path twin of the test above, and it needs one thing that test
-     * does not: the mutex has to be **held** when the cancelled leader reaches
-     * its cleanup. `Mutex.lock` only checks for cancellation when it has to
-     * suspend, so an uncontended cleanup survives cancellation by luck rather
-     * than by rule — which is why `finish` looked fine while `completeDecode`
-     * carried `NonCancellable`.
-     *
-     * Every critical section in this class is non-suspending, so the hold is
-     * arranged rather than waited for. `finish` completes its deferred *inside*
-     * the lock; a joiner on [Dispatchers.Unconfined] therefore resumes on the
-     * holder's own thread, still inside that section. That joiner is what
-     * cancels the other leader, so the cancelled leader's cleanup runs against a
-     * lock somebody else is holding — the one arrangement in which the bug is
-     * observable at all.
-     */
     @Test
     fun `a cancelled bytes leader clears its inflight entry while the lock is held`() = runBlocking {
         val slowPath = "/api/attachments/holder.png"
@@ -351,7 +308,6 @@ class AvatarImageStoreTest {
             decode = { null },
         )
 
-        // The leader that gets cancelled, and the caller already parked behind it.
         val cancelledLeader = launch(Dispatchers.Unconfined, CoroutineStart.UNDISPATCHED) {
             store.bytesFor(bot(id = "cancelled", avatarUrl = cancelledPath))
         }
@@ -359,12 +315,9 @@ class AvatarImageStoreTest {
             store.bytesFor(bot(id = "stranded", avatarUrl = cancelledPath))
         }
 
-        // The lock holder: a leader on a real worker thread, parked in fetch.
         launch(Dispatchers.Default) { store.bytesFor(bot(id = "holder", avatarUrl = slowPath)) }
         assertTrue(holderEntered.await(5, TimeUnit.SECONDS))
 
-        // Its joiner. Resumed from inside the holder's critical section, it
-        // cancels the other leader from there.
         launch(Dispatchers.Unconfined, CoroutineStart.UNDISPATCHED) {
             store.bytesFor(bot(id = "holder-joiner", avatarUrl = slowPath))
             cancelledLeader.cancel()
@@ -380,7 +333,6 @@ class AvatarImageStoreTest {
         }
         withTimeout(5_000) { cancelledLeader.join() }
 
-        // And the path has to be claimable again, not owned by a dead leader.
         releaseCancelled.complete(Unit)
         val again = withTimeout(5_000) {
             store.bytesFor(bot(id = "later", avatarUrl = cancelledPath))

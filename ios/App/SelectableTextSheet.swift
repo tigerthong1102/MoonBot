@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 // A message, plain, with the system's own selection on it.
 //
 // The bubble itself cannot offer drag-to-select: long-press there already
@@ -15,8 +16,6 @@ struct SelectableTextSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                // The raw text, not the rendered markdown: what gets copied
-                // should be what the bot actually wrote, backticks and all.
                 Text(text)
                     .textSelection(.enabled)
                     .font(.body)

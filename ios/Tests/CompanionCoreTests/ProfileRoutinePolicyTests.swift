@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 @testable import CompanionCore
 
@@ -58,16 +59,8 @@ final class ProfileRoutinePolicyTests: XCTestCase {
     }
 
     func testOnlyTheEngineTheServerNamesGetsItsOwnExplanation() throws {
-        // The built-in engine is the reason "configured" stopped meaning "a
-        // key is on file" — so the copy that explains a false has to know
-        // which engine it is talking about.
         XCTAssertEqual(try decodeConfig(#"{"tts":{"configured":false,"provider":"system"}}"#).voiceProvider, .system)
 
-        // Everything else is ElevenLabs: `voiceProvider(cfg)` in
-        // `server/tts/index.ts` matches that one exact string and falls back
-        // for the rest. Each case is asserted on its own, because a rule that
-        // merely matched "system" loosely would still pass the assertion
-        // above while explaining someone's ElevenLabs setup as a Mac voice.
         XCTAssertEqual(
             try decodeConfig(#"{"tts":{"configured":true,"ready":true,"voice":"v"}}"#).voiceProvider, .elevenlabs,
             "a computer older than the choice does not send the field at all"
@@ -92,8 +85,6 @@ final class ProfileRoutinePolicyTests: XCTestCase {
             "no voice block at all is not the built-in engine either"
         )
 
-        // The flag itself stays provider-neutral: the meaning of a true moved,
-        // not its shape, and nothing above may quietly change who can speak.
         XCTAssertTrue(try decodeConfig(#"{"tts":{"configured":true,"provider":"system","voice":"Albert"}}"#).canSpeak(agentVoice: nil))
         XCTAssertFalse(try decodeConfig(#"{"tts":{"configured":false,"provider":"system","voice":"Albert"}}"#).canSpeak(agentVoice: nil))
     }

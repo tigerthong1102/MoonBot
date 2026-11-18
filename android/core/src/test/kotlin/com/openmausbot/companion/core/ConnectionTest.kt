@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.net.Inet6Address
@@ -146,9 +147,6 @@ class ConnectionTest {
 
     @Test
     fun zonedIpv6UsesScopedAddressOnTheRealOkHttpConnectPath() = runBlocking {
-        // Everything below needs a real interface name and index to build the
-        // scoped address with. Where the JVM exposes no IPv6 interface, failing
-        // here would measure the machine, not Connection — so skip instead.
         val ipv6Interface = Collections.list(NetworkInterface.getNetworkInterfaces())
             .firstOrNull { candidate ->
                 Collections.list(candidate.inetAddresses).any { it is Inet6Address }
@@ -409,18 +407,13 @@ class ConnectionTest {
             "the superseded route is still stored, for display and a later explicit choice",
         )
 
-        // And that later explicit choice still works: choosing the local route by hand makes it
-        // the head again, so the person is never locked out of their own network.
         val rechosen = upgraded.promoting(local)
         assertEquals(listOf(local, hosted), rechosen.automaticEndpoints)
     }
 
     @Test
     fun advertisedPriorityGovernsBetweenEquallyProtectedRoutes() {
-        // The computer says hosted first, tailnet second, and the LAN sits between them by
-        // number. The session is on tailnet — a transient hosted outage failed over to it.
-        // The cleartext route must fall behind both; the two protected routes must keep the
-        // order the computer asked for, including the one that is currently carrying traffic.
+        // A cleartext route cannot outrank the computer's protected route order.
         val hosted = assertNotNull(
             CompanionEndpoint.create("https://mac.example", CompanionEndpointKind.HOSTED, 0),
         )
@@ -509,7 +502,6 @@ class ConnectionTest {
             reconciled.orderedEndpoints.first().kind,
             "the next launch upgrades to hosted HTTPS",
         )
-        // A route advertised with an unusable authority for its kind never enters the snapshot.
         assertFalse(reconciled.orderedEndpoints.any { it.host == "not-a-tailnet.example" })
 
         val liveRotation = CandidateRotation(
@@ -542,7 +534,6 @@ class ConnectionTest {
 
         val reconciled = connection.reconciling(metadata)
 
-        // Retained at priority 0 so it still leads the order — same route, not a new authority.
         assertEquals(local.url, reconciled.activeEndpoint?.url, "another cleartext LAN address is not authorized")
         assertEquals(0, reconciled.activeEndpoint?.priority)
         assertEquals(

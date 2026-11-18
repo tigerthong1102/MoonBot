@@ -37,19 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/**
- * The three first-run surfaces — the behavioural port of
- * `ios/App/OnboardingViews.swift`.
- *
- * What is ported is the **timing and the routing**: the app says what it is
- * before it asks for anything, offers a way to defer that leads somewhere
- * useful, and explains notifications only once a pairing has made approvals and
- * finished work real. The gradient, the hero avatar, the glass inset and the
- * `DisclosureGroup` are not ported — Material is the right idiom here, and the
- * standing policy is that behaviour mirrors iOS while painting goes native.
- */
 
-/** The sentences these screens are made of, named so a test can look them up. */
 object OnboardingCopy {
     const val WELCOME_TITLE = "Welcome to StartupBot"
     const val WELCOME_SUBTITLE =
@@ -78,13 +66,6 @@ object OnboardingCopy {
     const val NOTIFICATIONS_ENABLE = "Enable notifications"
 }
 
-/**
- * First launch. Says what the app is, then offers exactly two answers — and the
- * second one is real: "Not now" leads to [UnpairedHomeScreen], not back here.
- *
- * Nothing on this screen asks the system for anything. That is the whole point
- * of it existing.
- */
 @Composable
 fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
     OnboardingLayout(
@@ -133,12 +114,6 @@ fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
     }
 }
 
-/**
- * Where "Not now" leads. A home that is useful without a pairing: it says how to
- * get one, offers the way in, and — the part iOS puts in a toolbar and this puts
- * in a header — reaches Settings, so notifications can be recovered later
- * without first entering a pairing flow the person just declined.
- */
 @Composable
 fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -255,7 +230,6 @@ fun NotificationOnboardingScreen(
     }
 }
 
-/** Scrolling body, actions pinned to the bottom — the same frame for all three. */
 @Composable
 private fun OnboardingLayout(
     actions: @Composable () -> Unit,
@@ -284,10 +258,6 @@ private fun OnboardingLayout(
     }
 }
 
-/**
- * A tinted disc behind one glyph. iOS draws a hero mascot here; Android draws
- * the shape Material draws, which is this.
- */
 @Composable
 private fun OnboardingHero(icon: ImageVector) {
     Surface(

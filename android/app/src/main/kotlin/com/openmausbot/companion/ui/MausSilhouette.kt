@@ -7,47 +7,29 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.PathParser
 
 internal object MausSilhouette {
-    /** The desktop's viewBox is `-15 -15 258.541 258.541`: room to bob and sway. */
     const val FACE_MARGIN: Float = 15f
 
-    /**
-     * The desktop's face box: the square every body's fit is solved into and every
-     * face coordinate — the eye anchor, the mouth — is expressed in. Mirrors
-     * [MausFaceData.FACE_BOX], which is the same box seen from the artwork's side.
-     */
     const val FACE_BOX: Float = MausFaceData.FACE_BOX
 
-    /** The shipped mascot, and what anything unrecognised falls back to. */
     val defaultBody: String get() = MausBodies.DEFAULT_ID
 
-    /** Where the face sits on a body, in face-box units — solved by the generator. */
     data class Anchor(val x: Float, val y: Float, val scale: Float)
 
-    /** One body, parsed and placed, with the bounds the gradient runs across. */
     private class Placed(val path: Path, val bounds: Rect, val anchor: Anchor)
 
     private val cache = HashMap<String, Placed>()
     private val lock = Any()
 
-    /** The chosen body in the desktop's face box, parsed once per body. */
     fun inFaceBox(id: String?): Path = placed(id).path
 
-    /**
-     * The body's own bounds inside the face box, for the gradient's corners. These
-     * come from the catalog rather than the path: Android's native path bounds are
-     * the cubic control hull, wider than the drawn shape, and the gradient has to
-     * end on the shape to match the desktop and iOS pixel for pixel.
-     */
     fun faceBoxBounds(id: String?): Rect = placed(id).bounds
 
-    /** Where the face sits on this body. One catalog feeds every renderer. */
     fun anchor(id: String?): Anchor = placed(id).anchor
 
     private fun placed(id: String?): Placed {
         val body = MausBodies.body(id)
         synchronized(lock) {
             cache[body.id]?.let { return it }
-            // Scale first, then translate — the same order the generator solved.
             val fit = Matrix().apply {
                 this[0, 0] = body.fitScale
                 this[1, 1] = body.fitScale

@@ -370,11 +370,7 @@ val BotTask.isClosed: Boolean
 val BotTask.isArchived: Boolean
     get() = archivedAt != null
 
-/**
- * Snoozed means asleep right now: 0 is the "until new activity" sentinel and
- * sleeps until woken, while a timestamp sleeps only until it passes
- * (`isSnoozed` in `SidebarThreadRow.tsx`).
- */
+/** `0` snoozes until new activity; a timestamp snoozes until that instant. */
 fun BotTask.isSnoozed(now: Long = System.currentTimeMillis()): Boolean =
     snoozedUntil != null && (snoozedUntil == 0.0 || snoozedUntil > now)
 
@@ -529,8 +525,6 @@ object FleetSerializer : KSerializer<Fleet> {
         return Fleet(
             bots = lossyArray("bots") { input.json.decodeFromJsonElement(Bot.serializer(), it) },
             groups = lossyArray("groups") { input.json.decodeFromJsonElement(Room.serializer(), it) },
-            // One malformed entry must not cost the whole fleet: the roster
-            // is worth more than the queue note beside it.
             botQueuedMessages = runCatching {
                 objectValue["botQueuedMessages"]?.jsonObject?.mapValues { (_, entries) ->
                     entries.jsonArray.mapNotNull { element ->
@@ -630,9 +624,7 @@ object PairResponseSerializer : KSerializer<PairResponse> {
             is JsonArray -> element.mapNotNull { candidate ->
                 runCatching { json.decodeFromJsonElement<CompanionEndpoint>(candidate) }.getOrNull()
             }
-            // The field is advisory and the token already exists. A malformed container is
-            // discarded just like malformed entries, but is handled explicitly rather than
-            // becoming an empty array through a nullable cast.
+            // Malformed advisory route metadata cannot discard an existing credential.
             else -> emptyList()
         }
         return PairResponse(token, device, serverName, hosts, endpoints)
@@ -788,14 +780,7 @@ data class InstanceList(val instances: List<Instance>)
 @Serializable
 data class PreparedSpeech(val ready: Boolean, val utterances: List<String>)
 
-/**
- * Which engine actually speaks. `VoiceProvider` in `server/tts/index.ts`;
- * [wire] is the exact string the config write carries, and [fromWire] applies
- * the server's own fallback: a missing field — an older desktop that predates
- * the choice — and a provider this build has never heard of both mean
- * ElevenLabs, keeping an unrecognised engine from being explained with copy
- * written for a different one.
- */
+/** The synthesis-provider wire value; missing or unknown values select ElevenLabs. */
 enum class VoiceProvider(val wire: String) {
     ELEVENLABS("elevenlabs"),
     FISH("fish"),
@@ -832,12 +817,7 @@ data class ConfigStatus(
     val imageGen: ConfigFlag? = null,
     val profile: Profile? = null,
 ) {
-    /**
-     * "This engine can speak", not "a key is on file" — under the built-in
-     * provider `providerConfigured` in `server/tts/index.ts` reports whether
-     * the computer has usable voices, and no credential exists at all. The
-     * flag stays provider-neutral; only the reason behind it changes.
-     */
+    /** Provider-neutral synthesis availability; credential values are never included. */
     val isTTSConfigured: Boolean
         get() = tts?.configured == true || tts?.apiKeyConfigured == true
 
@@ -847,11 +827,7 @@ data class ConfigStatus(
     fun canSpeak(agentVoice: String?): Boolean =
         isTTSConfigured && (!agentVoice.isNullOrBlank() || hasWorkspaceDefaultVoice)
 
-    /**
-     * `voiceProvider(cfg)` in `server/tts/index.ts`: only a known, exact wire
-     * value selects its engine. Everything else falls back to ElevenLabs
-     * through [VoiceProvider.fromWire], which is the server's own rule.
-     */
+    /** Only a recognized exact provider value selects that engine; unknown values select ElevenLabs. */
     val voiceProvider: VoiceProvider
         get() = VoiceProvider.fromWire(tts?.provider)
 }
@@ -923,20 +899,7 @@ data class ConnectorStatuses(
      */
     val credentialStore: String? = null,
 ) {
-    /**
-     * Whether `services` is an inventory or an admission of ignorance.
-     *
-     * `server/index.ts` answers an unreadable Composio credential store with
-     * an empty map *and* `credentialStore: "unavailable"`, because not being
-     * able to read the store means we do not know what is connected — which
-     * is not the same as knowing nothing is. An empty map that arrives this
-     * way must never be shown as "nothing is connected"; every account may
-     * still be live on the computer.
-     *
-     * Only that exact string withdraws the claim. "ok" is authoritative, and
-     * so is a missing field: a desktop old enough not to send it would
-     * otherwise have every answer treated as unknowable.
-     */
+    /** `credentialStore: "unavailable"` means the connected-account inventory is unknown, even if `services` is empty. */
     val isAuthoritative: Boolean
         get() = credentialStore != "unavailable"
 }

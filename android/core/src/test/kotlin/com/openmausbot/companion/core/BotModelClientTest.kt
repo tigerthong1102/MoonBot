@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.coroutines.runBlocking
@@ -13,11 +14,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 
-/**
- * The narrow model route — the port of
- * `ios/Tests/CompanionCoreTests/BotModelClientTests.swift`. Every expectation
- * is read off the Swift, not back out of the Kotlin under test.
- */
 class BotModelClientTest {
     private lateinit var server: MockWebServer
     private lateinit var client: CompanionClient

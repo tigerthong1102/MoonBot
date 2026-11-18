@@ -1,5 +1,4 @@
-// The fold. Everything here is a claim about what the user sees after a
-// frame lands, so it is written against frames rather than internals.
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 @testable import CompanionCore
 
@@ -24,7 +23,6 @@ final class StoreTests: XCTestCase {
         return state
     }
 
-    // MARK: - Hydration
 
     func testHydrateIndexesEveryThread() throws {
         let state = try hydrated()
@@ -181,7 +179,6 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(state.botChats.map(\.id), ["direct-chat"])
     }
 
-    // MARK: - Messages
 
     func testAppendsAndPatchesInPlace() throws {
         var state = try hydrated()
@@ -199,7 +196,6 @@ final class StoreTests: XCTestCase {
     }
 
     func testAReplayedMessageDoesNotAppearTwice() throws {
-        // resuming redelivers whatever was in flight when the socket died
         var state = try hydrated()
         let threadId = try XCTUnwrap(state.bots.first).threadId
         let before = state.transcript(forThread: threadId).count
@@ -229,10 +225,8 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(state.hasMore["t1"], true)
     }
 
-    // MARK: - Bots
 
     func testABotFrameMergesRatherThanWipingTheTranscript() throws {
-        // bot frames carry no messages; assigning one would empty the chat
         var state = try hydrated()
         var bot = try XCTUnwrap(state.bots.first)
         let threadId = bot.threadId
@@ -283,10 +277,8 @@ final class StoreTests: XCTestCase {
         state.apply(.bot(bot))
         state.apply(.runtime(RuntimeEvent(type: "content.delta", threadId: "thread-a", delta: "still running", streamKind: "assistant_text")))
 
-        // A desktop selection frame is canonical profile state, not phone
-        // navigation. Projecting A must never borrow B's model or transcript.
         bot.threadId = "thread-b"
-        bot.busy = true // aggregate: A is still working
+        bot.busy = true
         bot.messages = [message("root-b")]
         bot.activeLeafId = "root-b"
         state.apply(.bot(bot))
@@ -427,7 +419,7 @@ final class StoreTests: XCTestCase {
             tail.parentId = "chosen"
             state.apply(.message(threadId: "thread-a", message: tail))
             XCTAssertEqual(state.visibleTranscript(forThread: "thread-a").map(\.id), ["root", "chosen", "tail"])
-            state.apply(.message(threadId: "thread-a", message: chosen)) // replay cannot rewind the head
+            state.apply(.message(threadId: "thread-a", message: chosen))
             XCTAssertEqual(state.bot(forThread: "thread-a")?.activeLeafId, "tail")
             state.apply(.thread(threadId: "thread-a", activeLeafId: "alternative"))
             XCTAssertEqual(state.visibleTranscript(forThread: "thread-a").map(\.id), ["root", "alternative"])
@@ -454,7 +446,6 @@ final class StoreTests: XCTestCase {
         XCTAssertNotNil(state.messages["brand-new-thread"])
     }
 
-    // MARK: - Approvals
 
     func testPendingApprovalsAreTheUnansweredOnesNewestFirst() throws {
         var state = try hydrated()
@@ -481,7 +472,6 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(pending.first?.threadId, secondThread)
     }
 
-    // MARK: - Cursor
 
     func testTheCursorFollowsTheStreamAndKeepsItsStreamId() {
         var state = CompanionState()
@@ -494,7 +484,6 @@ final class StoreTests: XCTestCase {
         state.advance(to: 8)
         XCTAssertEqual(state.cursor, "abc12345:8", "the stream id is what stops a stale replay")
 
-        // hello frames carry no seq, and nothing should move without one
         state.advance(to: nil)
         XCTAssertEqual(state.cursor, "abc12345:8")
     }
@@ -505,7 +494,6 @@ final class StoreTests: XCTestCase {
         XCTAssertNil(state.cursor, "without a stream id there is no cursor worth keeping")
     }
 
-    // MARK: - Notifications
 
     func testNotificationsCollectInOrder() {
         var state = CompanionState()
@@ -537,7 +525,6 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(state.notifications.first?.title, "Done 20")
     }
 
-    // MARK: - Frames with nothing to fold
 
     func testFramesThisClientIgnoresAreHarmless() throws {
         var state = try hydrated()
@@ -551,11 +538,6 @@ final class StoreTests: XCTestCase {
     }
 }
 
-// MARK: - Live text
-
-/// The harness relays raw provider deltas alongside the settled messages it
-/// folds. These pin the handover between the two, which is where every
-/// streaming bug in this project's desktop client has lived.
 final class StreamingTests: XCTestCase {
     private func delta(_ text: String, thread: String = "t1", kind: String = "assistant_text") -> Frame {
         .runtime(RuntimeEvent(type: "content.delta", threadId: thread, delta: text, streamKind: kind))
@@ -585,9 +567,6 @@ final class StreamingTests: XCTestCase {
     }
 
     func testASettledReplyReplacesTheLiveText() {
-        // The bug this prevents: the live bubble surviving next to the real
-        // one, so the tail renders below whatever settled after it and the
-        // next turn's deltas append onto a duplicated fragment.
         var state = CompanionState()
         state.apply(delta("partial answer"))
         XCTAssertNotNil(state.streaming["t1"])
@@ -602,7 +581,6 @@ final class StreamingTests: XCTestCase {
     func testOnlyASettledBotReplyClearsIt() {
         var state = CompanionState()
         state.apply(delta("mid-answer"))
-        // the user's own message, and a tool chip, both land mid-turn
         state.apply(.message(threadId: "t1", message: Message(
             id: "u1", role: .user, kind: .text, at: 1, text: "another question"
         )))
@@ -613,8 +591,6 @@ final class StreamingTests: XCTestCase {
     }
 
     func testTheTurnEndingClearsEvenWithoutASettledMessage() {
-        // A failed or interrupted turn may never produce one. Leaving the
-        // caret blinking forever is the failure mode worth avoiding.
         for ending in ["turn.completed", "turn.failed", "turn.aborted"] {
             var state = CompanionState()
             state.apply(delta("half a sentence"))
@@ -633,18 +609,12 @@ final class StreamingTests: XCTestCase {
     }
 }
 
-// MARK: - The computer panel
-
-/// Screen frames are the one thing this client asks the server *not* to send
-/// by default — they are hundreds of kilobytes each and arrive every few
-/// seconds. These pin the fold; the turning-on is the session's job.
 final class ScreenTests: XCTestCase {
     private func frame(_ png: String, bot: String = "b1") -> Frame {
         .screen(botId: bot, png: png, mime: "image/png")
     }
 
     func testOnlyTheNewestFrameIsKept() {
-        // A history of desktop captures is worth nothing and costs megabytes.
         var state = CompanionState()
         state.apply(frame("AAAA"))
         state.apply(frame("BBBB"))
@@ -662,8 +632,6 @@ final class ScreenTests: XCTestCase {
     }
 
     func testClosingThePanelForgetsTheFrame() {
-        // Otherwise the panel reopens on however the desktop looked last
-        // time, which reads as a live view of a stale moment.
         var state = CompanionState()
         state.apply(frame("stale"))
         state.clearScreen("b1")
@@ -672,12 +640,7 @@ final class ScreenTests: XCTestCase {
 
     func testBadBase64DecodesToNilRatherThanCrashing() {
         let good = ScreenFrame(png: "aGVsbG8=", mime: "image/png")
-        // The failable initialiser rather than `String(decoding:as:)`: the
-        // latter substitutes replacement characters for anything invalid, so
-        // a decode that produced garbage would still assert equal to garbage.
-        // Here a wrong answer should be nil, and nil fails the test.
         XCTAssertEqual(good.data.flatMap { String(bytes: $0, encoding: .utf8) }, "hello")
-        // the view treats nil as "no frame yet", which is the right fallback
         XCTAssertNil(ScreenFrame(png: "not base64 at all!!", mime: "image/png").data)
     }
 }

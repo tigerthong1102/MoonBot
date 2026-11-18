@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.avatar.AvatarImageRules
@@ -37,17 +38,6 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 
-/**
- * What the profile sheet and the routine editor actually put on the wire.
- *
- * The rules objects decide, but only a request proves the decision survives the
- * serializer: an omitted field and a field set to `null` are two different
- * instructions to the server (`ios/Sources/CompanionCore/Models.swift:420-481`),
- * and truncation that happens after the encoder would be invisible to a pure
- * test. So this drives a real [Session] against a real socket, with the bodies
- * built exactly the way `AgentProfileView.profilePatch` and
- * `RoutineEditorView.save` build theirs.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileRoutineWireTest {
     private lateinit var server: MockWebServer
@@ -156,7 +146,6 @@ class ProfileRoutineWireTest {
         )
         server.enqueue(botResponse(bot.copy(avatarUrl = "/api/attachments/abc-1.png")))
 
-        // The selector still says Mascot, which is not a crop an image can wear.
         val intended = AvatarImageRules.intendedUploadCrop(AvatarCrop.MASCOT)
         session.uploadAvatar(prepared.data, prepared.mime, bot, intended)
 
@@ -282,8 +271,6 @@ class ProfileRoutineWireTest {
 
     @Test
     fun `a prompt longer than the contract's limit is cut before it reaches the wire`() = runTest {
-        // `String(prompt.trimming….prefix(20_000))` in `RoutineEditorView.save`.
-        // The cap has to survive the encoder, not only the intermediate object.
         val session = session()
         server.enqueue(json("""{"routine":${CompanionJson.encodeToString(routineJson())}}"""))
 

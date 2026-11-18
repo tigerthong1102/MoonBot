@@ -1,11 +1,9 @@
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 
 private let maximumBotsPerSection = 100
 
-/// A quick, phone-native way to file several bots under one sidebar heading.
-/// A normal tap always works; holding for a beat starts a trail that can be
-/// drawn through the grid without lifting a finger.
 struct NewSectionSheet: View {
     @EnvironmentObject private var session: Session
     @Environment(\.dismiss) private var dismiss
@@ -28,9 +26,6 @@ struct NewSectionSheet: View {
     @FocusState private var nameFocused: Bool
 
     private static let gridSpace = "new-section-grid"
-    // A brief touch separates route drawing from an ordinary fast scroll, but
-    // must not feel like a long press. The generous movement allowance lets a
-    // finger start gliding immediately, like SBB's touch timetable.
     private static let activationMilliseconds = 140
     private static let activationMovement: CGFloat = 80
     private static let dwellMilliseconds = 120
@@ -62,8 +57,6 @@ struct NewSectionSheet: View {
         selection.selectedIDs.compactMap { id in bots.first { $0.id == id } }
     }
 
-    /// Sections allow one coordinator. Moving two Chiefs together, or moving
-    /// one beside a different incumbent, must never silently remove a role.
     private var hasChiefConflict: Bool {
         let selectedChiefIDs = selectedBots
             .filter { $0.chiefOfStaff == true }
@@ -132,7 +125,6 @@ struct NewSectionSheet: View {
         }
     }
 
-    // MARK: - Pick bots
 
     private var botPicker: some View {
         VStack(spacing: 0) {
@@ -253,9 +245,6 @@ struct NewSectionSheet: View {
             .onPreferenceChange(SectionCellFramePreference.self) { cellFrames = $0 }
             .highPriorityGesture(drawGesture)
         }
-        // A fast vertical swipe still scrolls. Briefly touching a tile before
-        // gliding switches into drawing and freezes the scroll position; there
-        // is deliberately no surprising edge auto-scroll while a trail is active.
         .scrollDisabled(selection.isDragging)
     }
 
@@ -367,7 +356,6 @@ struct NewSectionSheet: View {
                     let firstHit = cellID(at: drag.startLocation)
                     guard let firstHit,
                           let candidate = selection.beginDrag(over: firstHit) else { return }
-                    // The brief activation already supplied the first dwell.
                     commit(candidate)
                 }
                 fingerLocation = drag.location
@@ -430,14 +418,11 @@ struct NewSectionSheet: View {
         dwellTask = nil
         scheduledCandidate = nil
         selection.endDrag()
-        // A bot can disappear while the finger is down. Reconcile after the
-        // gesture ends so a stale ID cannot turn the eventual save into a 404.
         let available = Set(bots.map(\.id))
         selection.selectAll(selection.selectedIDs.filter(available.contains))
         fingerLocation = nil
     }
 
-    // MARK: - Name and save
 
     private var nameStep: some View {
         ScrollView {

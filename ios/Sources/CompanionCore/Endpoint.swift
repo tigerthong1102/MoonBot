@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 
 /// Why an address exists. The kind is display and policy metadata; the URL
@@ -22,7 +23,6 @@ public enum CompanionEndpointSecurityClass: Sendable {
     case explicitLocal
 }
 
-/// One validated route to the desktop companion.
 public struct CompanionEndpoint: Codable, Hashable, Sendable {
     public let url: String
     public let kind: CompanionEndpointKind
@@ -62,8 +62,6 @@ public struct CompanionEndpoint: Codable, Hashable, Sendable {
 
     public var protectsCredentials: Bool { securityClass == .protected }
 
-    /// Host-only for the old direct routes, full HTTPS authority for hosted
-    /// routes. Used in status copy, never for dialing.
     public var displayAddress: String {
         if kind == .hosted || isSecure { return url }
         return port == 8810 ? host : "\(host):\(port)"

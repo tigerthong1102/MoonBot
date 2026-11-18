@@ -172,8 +172,7 @@ data class Connection(
                     .sortedWith(compareBy<IndexedValue<CompanionEndpoint>> { it.value.priority }.thenBy { it.index })
                     .map { it.value }
                 if (activeEndpoint?.protectsCredentials == true) {
-                    // A stable partition: both classes keep the advertised order they just got,
-                    // so this can only move cleartext down — never reorder protected routes.
+                    // Cleartext routes cannot outrank the computer's protected route order.
                     val (protectedRoutes, cleartextRoutes) = advertised.partition { it.protectsCredentials }
                     protectedRoutes + cleartextRoutes
                 } else {

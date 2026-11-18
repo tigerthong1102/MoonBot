@@ -49,18 +49,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 
-/**
- * QR scanning for the one action where typing is needless friction — the port of
- * `ios/App/PairingScanner.swift`.
- *
- * The scanner only recognizes QR codes and never pairs by itself. A valid payload
- * goes back to [PairingScreen], which shows the computer name and address for
- * explicit confirmation: an attacker-controlled deep link or QR may prefill a
- * target, but it cannot silently authorize that target.
- *
- * @param validate returns null to accept and close, or a human-readable message
- *   to show while scanning continues. The one-time credential never lives here.
- */
+// QR codes and deep links may prefill a destination but cannot silently authorize it.
 @Composable
 fun QrScannerScreen(onCancel: () -> Unit, validate: (String) -> String?) {
     val environment = LocalCompanion.current
@@ -119,9 +108,6 @@ private fun ScannerSurface(
     onCameraFailure: (String) -> Unit,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    // A camera reports the same QR on many consecutive frames. One payload is
-    // latched at a time; a rejected one re-arms after the message has had time
-    // to be read.
     val latched = remember { MutableStateFlow<String?>(null) }
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val currentValidate by rememberUpdatedState(validate)
@@ -137,9 +123,6 @@ private fun ScannerSurface(
         }
     }
 
-    // Cancel and a successful scan both remove this composable, so one disposal
-    // path covers both. Without it the use cases stayed bound to the Activity's
-    // lifecycle and ML Kit kept decoding frames behind the pairing form.
     DisposableEffect(Unit) {
         onDispose {
             cameraLifecycle.release()
@@ -211,14 +194,6 @@ private fun ScannerSurface(
     }
 }
 
-/**
- * Everything the scanner holds open, released exactly once.
- *
- * The camera provider arrives on a future, and the user can leave before it
- * lands — a disposal that happens first must still tear down whatever binds
- * afterwards, or the camera stays live with nothing on screen. Main-thread only:
- * both [bound] and [release] run on the Activity's main executor.
- */
 internal class CameraLifecycle {
     private var pendingRelease: (() -> Unit)? = null
     private var released = false
@@ -232,7 +207,6 @@ internal class CameraLifecycle {
         pendingRelease = release
     }
 
-    /** Idempotent: a second call releases nothing a second time. */
     fun release() {
         released = true
         val pending = pendingRelease
@@ -241,16 +215,6 @@ internal class CameraLifecycle {
     }
 }
 
-/**
- * Build the analyzer, hand it to the lifecycle, *then* bind.
- *
- * The order is the point. Binding can throw — a camera another app holds, a
- * device with no back lens — and an analyzer created but never registered owns
- * an open ML Kit detector that nothing will ever close. Registering first means
- * every exit, including the throwing one, runs the same release.
- *
- * @return false when binding failed; the analyzer has already been released.
- */
 internal fun <A> CameraLifecycle.startAnalyzing(
     createAnalyzer: () -> A,
     releaseAnalyzer: (A) -> Unit,
@@ -297,7 +261,6 @@ private fun bindCamera(
     )
 }
 
-/** QR only — the pairing payload is the sole thing this app reads from a camera. */
 private class QrCodeAnalyzer(private val onPayload: (String) -> Unit) : ImageAnalysis.Analyzer {
     private val scanner = BarcodeScanning.getClient(
         BarcodeScannerOptions.Builder()
@@ -305,7 +268,6 @@ private class QrCodeAnalyzer(private val onPayload: (String) -> Unit) : ImageAna
             .build(),
     )
 
-    /** Releases ML Kit's detector; safe to call more than once. */
     fun close() {
         runCatching { scanner.close() }
     }

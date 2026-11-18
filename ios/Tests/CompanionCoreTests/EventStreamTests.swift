@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 // The event stream against a real URLSession.
 //
 // This file exists because of two bugs that shipped past every other test
@@ -30,17 +31,12 @@ import XCTest
 /// flag was shared, silently truncated the next test's stream and turned a
 /// clean failure into an out-of-range crash.
 final class StreamingStub: URLProtocol {
-    /// Chunks to deliver, in order, with a small gap between them.
     static var chunks: [String] = []
     static var status = 200
-    /// How many requests have been torn down — the cancellation assertion,
-    /// counted rather than flagged so it cannot be reset by a straggler.
     static var stopCount = 0
 
     private let stopped = Stopped()
 
-    /// A tiny box, because `stopLoading()` may be called from another thread
-    /// than the one delivering chunks.
     final class Stopped {
         private let lock = NSLock()
         private var value = false
@@ -74,7 +70,6 @@ final class StreamingStub: URLProtocol {
         let stopped = self.stopped
         DispatchQueue.global().async {
             for chunk in Self.chunks {
-                // a real connection that has been cancelled delivers no more
                 if stopped.isSet { return }
                 self.client?.urlProtocol(self, didLoad: Data(chunk.utf8))
                 Thread.sleep(forTimeInterval: 0.03)
@@ -124,7 +119,6 @@ final class EventStreamTests: XCTestCase {
     }
 
     func testDeliversEveryFrameAsItArrives() async throws {
-        // the shape the harness writes: hello, then frames over time
         StreamingStub.chunks = [
             "data: {\"kind\":\"hello\",\"cursor\":\"abc12345:0\",\"resumed\":false}\n\n",
             ": keepalive\n\n",
@@ -134,10 +128,6 @@ final class EventStreamTests: XCTestCase {
 
         let frames = try await collect(limit: 3)
 
-        // Three frames arriving in three separate reads is the whole
-        // assertion: a cancelled-after-first-frame stream yields one. Guard
-        // rather than index — a short stream is the failure under test, and
-        // it should read as one instead of trapping.
         guard frames.count == 3 else {
             return XCTFail("expected 3 frames, got \(frames.count) — the stream stopped early")
         }
@@ -148,7 +138,6 @@ final class EventStreamTests: XCTestCase {
     }
 
     func testSurvivesAFrameSplitAcrossReads() async throws {
-        // TCP does not respect frame boundaries, and neither should we
         StreamingStub.chunks = [
             "data: {\"kind\":\"hel",
             "lo\",\"cursor\":\"abc12345:0\",\"resumed\":true}",
@@ -181,9 +170,6 @@ final class EventStreamTests: XCTestCase {
             "data: {\"kind\":\"config\",\"seq\":1}\n\n",
             "data: {\"kind\":\"config\",\"seq\":2}\n\n",
         ]
-        // Assert the frame arrived, not just that teardown happened: this
-        // test passed for three rounds while the stream delivered nothing at
-        // all, because it only ever checked the teardown half.
         let frames = try await collect(limit: 1)
         XCTAssertEqual(frames.count, 1, "the stream should have delivered its first frame")
         // give the teardown a moment to propagate through URLSession

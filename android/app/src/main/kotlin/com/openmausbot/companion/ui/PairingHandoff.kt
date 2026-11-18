@@ -36,24 +36,13 @@ internal object PairingLink {
  */
 internal object PairingHandoff {
 
-    /**
-     * @param inviteUrl the pairing URL, or null when this was not one of ours.
-     * @param relaunch starts the sanitized [com.openmausbot.companion.MainActivity] Intent.
-     * @param markFinishing `Activity.finish()` — synchronous, so the record is
-     *   marked before it returns.
-     * @param deliver hands the URL to the in-memory `Session`. Never called
-     *   before [markFinishing].
-     */
     fun run(
         inviteUrl: String?,
         relaunch: () -> Unit,
         markFinishing: () -> Unit,
         deliver: (String) -> Unit,
     ) {
-        // 1. Hand the user to the real screen.
         relaunch()
-        // 2. Mark this record finishing. Everything after this point is safe from
-        //    an Intent redelivery, because there is no record left to relaunch.
         markFinishing()
         // 3. Only now does the credential enter process memory.
         if (inviteUrl != null) deliver(inviteUrl)

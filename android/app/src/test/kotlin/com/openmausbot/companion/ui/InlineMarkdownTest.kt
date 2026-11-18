@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import kotlin.test.Test
@@ -5,13 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * The inline pass renders every bot message, so it gets the thorough tests.
- *
- * The supported set mirrors Foundation's `.inlineOnlyPreservingWhitespace`, which
- * is what `ios/App/MarkdownText.swift` hands its runs to: bold, italic, code
- * spans, strikethrough, links.
- */
+
 class InlineMarkdownTest {
 
     private fun styles(source: String): List<Pair<String, Set<InlineStyle>>> =
@@ -134,8 +129,6 @@ class InlineMarkdownTest {
         assertEquals(listOf("*not italic*" to emptySet<InlineStyle>()), styles("\\*not italic\\*"))
     }
 
-    // Streaming: a reply grows one character at a time, and every prefix has to
-    // render as the characters typed so far.
 
     @Test
     fun `an unterminated bold marker is literal`() {
@@ -161,8 +154,6 @@ class InlineMarkdownTest {
 
     @Test
     fun `growing a reply one character at a time never loses content characters`() {
-        // The streaming invariant from `MarkdownTests.swift`: every prefix must
-        // render, and the characters that are not syntax must all survive.
         val full = "Here is **bold**, `code`, ~~gone~~ and _more_ after."
         val markers = "*`~_".toSet()
         for (length in 0..full.length) {
@@ -189,9 +180,6 @@ class InlineMarkdownTest {
         }
     }
 
-    // Regression: a destination with an unescaped space is not a link. Accepting
-    // one swallowed the text after it the moment `)` arrived, which is exactly
-    // the content loss the streaming renderer must never cause.
 
     @Test
     fun `a destination containing a space is not a link`() {
@@ -215,8 +203,6 @@ class InlineMarkdownTest {
 
     @Test
     fun `an empty destination is still a link`() {
-        // CommonMark and the desktop both accept these; rejecting them would
-        // have shown the brackets instead of the label.
         for (source in listOf("[x]()", "[x](<>)", "[x](  )")) {
             val spans = InlineMarkdown.parse(source)
             assertEquals("x", InlineMarkdown.plain(spans), source)
@@ -260,8 +246,6 @@ class InlineMarkdownTest {
 
     @Test
     fun `a non-breaking space belongs to the destination`() {
-        // CommonMark separators are spaces, tabs and line endings. A NBSP is an
-        // ordinary character, so this is one long destination and no title.
         val nbsp = '\u00A0'
         val spans = InlineMarkdown.parse("[x](/url$nbsp\"title\")")
         assertEquals("/url$nbsp\"title\"", spans.single().link)
@@ -292,8 +276,6 @@ class InlineMarkdownTest {
 
     @Test
     fun `a backslash cannot smuggle a line ending into an angle destination`() {
-        // `\\` + LF is not an escape (a line ending is not escapable punctuation),
-        // and the line ending is rejected before any escape is consumed.
         for (source in listOf("[x](<foo\\\nbar>)", "[x](<foo\\\rbar>)")) {
             val spans = InlineMarkdown.parse(source)
             assertTrue(spans.all { it.link == null }, source.replace("\n", "\\n"))
@@ -345,8 +327,6 @@ class InlineMarkdownTest {
 
     @Test
     fun `a title must be exactly one title and nothing else`() {
-        // Title-shaped only from its ends: the inner unescaped quote closes it,
-        // and `junk "` is left over, so none of this is a link.
         for (source in listOf(
             """[x](https://e "t" junk ")""",
             """[x](https://e 't' junk ')""",
@@ -396,9 +376,6 @@ class InlineMarkdownTest {
 
     @Test
     fun `an escaped bracket that never closes the destination is not a link`() {
-        // The backslash is markdown syntax and is consumed as an escape, so the
-        // text shows `>` — but no character of content is lost and no link is
-        // invented from a destination that never closed.
         val spans = InlineMarkdown.parse("""[x](<foo\>bar)""")
         assertTrue(spans.all { it.link == null })
         assertEquals("[x](<foo>bar)", InlineMarkdown.plain(spans))

@@ -25,19 +25,9 @@ import kotlin.test.assertTrue
  * A fresh [PairingSecretStore] in these tests stands for the store a restarted
  * process would get: empty.
  */
-/**
- * Opening with nothing in flight — the ordinary case these tests describe.
- * `open` itself answers null while a redemption holds the slot, which is the
- * subject of [PairingSecretStoreTest] rather than of every other test here.
- */
 private fun PairingSecretStore.openIdle(credential: String? = null): String =
     assertNotNull(open(credential), "the store refused to open a slot")
 
-/**
- * The same, one level up: a [PendingPairing] can only be minted by the store, so
- * there is no way for these tests — or for production — to write one whose
- * handle belongs to a different computer.
- */
 private fun PairingSecretStore.openingIdle(
     connection: Connection,
     fromScan: Boolean,
@@ -47,10 +37,6 @@ private fun PairingSecretStore.openingIdle(
     "the store refused to open a slot",
 )
 
-/**
- * A record whose store is gone — the shape saved instance state comes back in
- * after the system killed the process.
- */
 private fun deadProcessPairing(
     connection: Connection,
     fromScan: Boolean,
@@ -70,7 +56,6 @@ class PairingStateTest {
 
     private val credential = "omb_pair_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefg"
 
-    /** `Saver.save` is a member extension: both receivers have to be implicit. */
     private fun saved(pending: PendingPairing?): String? =
         with(PendingPairingSaver) { with(scope) { save(pending) } }
 
@@ -94,7 +79,6 @@ class PairingStateTest {
 
     @Test
     fun `a rotation keeps the scanned credential`() {
-        // Same process, so the same store answers for the restored handle.
         val secrets = PairingSecretStore()
         val pending = scanned(secrets)
         val restored = saved(pending)?.let(PendingPairingSaver::restore)
@@ -122,7 +106,6 @@ class PairingStateTest {
         val restored = saved(pending)?.let(PendingPairingSaver::restore)
         assertNull(restored?.credential(restarted))
         assertTrue(restored!!.needsRescan(restarted))
-        // The computer is still shown, so the reader knows what was being paired.
         assertEquals(connection, restored.connection)
     }
 
@@ -140,24 +123,19 @@ class PairingStateTest {
         val original = PairingSecretStore()
         val pending = original.openingIdle(connection, fromScan = false)
 
-        // Process death: saved state comes back, the secrets do not.
         val restarted = PairingSecretStore()
         val restored = saved(pending)?.let(PendingPairingSaver::restore)!!
         assertFalse(restarted.owns(restored.handle))
         assertEquals("", restarted.code(restored.handle))
 
-        // The screen rebinds an orphaned typed pairing before accepting input,
-        // so the digits land somewhere the next rotation can find them.
         val rebound = restored.rebindingIfOrphaned(restarted)
         assertNotEquals(restored.handle, rebound.handle)
         assertTrue(restarted.owns(rebound.handle))
         restarted.setCode(rebound.handle, "420691")
 
-        // Rotate: saved state round-trips again inside the same process.
         val afterRotation = saved(rebound)?.let(PendingPairingSaver::restore)!!
         assertEquals(rebound.handle, afterRotation.handle)
         assertEquals("420691", restarted.code(afterRotation.handle))
-        // And rebinding is a no-op now that the store owns it.
         assertSame(afterRotation, afterRotation.rebindingIfOrphaned(restarted))
     }
 
@@ -280,13 +258,6 @@ class PairingSecretStoreTest {
         assertFalse(secrets.owns(handle))
     }
 
-    /**
-     * The port of `testPairingSubmissionBlocksResetUntilTheAttemptSettles`
-     * (`ios/Tests/CompanionCoreTests/OnboardingTests.swift:164-181`), against
-     * the object the screen actually goes through. `PairingScreen` cannot build
-     * a `PendingPairing` without a handle, and this is the only place a handle
-     * comes from, so a refusal here is a refusal on screen.
-     */
     @Test
     fun `no slot is opened for a deep link while the attempt is redeeming`() {
         val secrets = PairingSecretStore()
@@ -352,11 +323,6 @@ class PairingSecretStoreTest {
         assertFalse(secrets.isRedeeming())
     }
 
-    /**
-     * A `beginAttempt` whose `endAttempt` never ran must not lock this process
-     * out of pairing: once its own slot is released there is nothing left to
-     * protect.
-     */
     @Test
     fun `releasing the slot ends the protection with it`() {
         val secrets = PairingSecretStore()
@@ -410,7 +376,6 @@ class PairingInviteTransactionTest {
     private val activeCredential = "omb_pair_" + "a".repeat(43)
     private val arriving = "omb_pair_" + "b".repeat(43)
 
-    /** A slot mid-redemption: what the screen looks like while Connect is spinning. */
     private fun redeeming(): Pair<PairingSecretStore, PendingPairing> {
         val secrets = PairingSecretStore()
         val pending = secrets.openingIdle(active, fromScan = true, credential = activeCredential)
@@ -475,13 +440,6 @@ class PairingInviteTransactionTest {
         assertTrue(next.fromScan)
     }
 
-    /**
-     * The window this pass could not close: between the screen claiming the slot
-     * and `Session` marking its own attempt in flight, a deep link is published
-     * rather than deferred. It reaches the screen, is refused, and stays in the
-     * queue. Releasing the slot is what has to go back for it — otherwise a
-     * one-time QR sits unseen until the user leaves the screen and returns.
-     */
     @Test
     fun `releasing the slot takes the invite that was refused while it was held`() {
         val (secrets, pending) = redeeming()
@@ -505,8 +463,6 @@ class PairingInviteTransactionTest {
         val (secrets, pending) = redeeming()
         var consumed = 0
 
-        // What an authoritative QR failure leaves behind: no confirmation on
-        // screen, and an invitation that arrived while it was failing.
         val next = assertNotNull(
             secrets.endAttemptTaking(pending.handle, null, PairingInvite(other, arriving)) { consumed++ },
         )
@@ -525,7 +481,6 @@ class PairingInviteTransactionTest {
         assertSame(pending, next)
         assertEquals(0, consumed)
         assertFalse(secrets.isRedeeming())
-        // Released for real: the next invitation opens a slot again.
         assertNotNull(secrets.open("omb_pair_later"))
     }
 
@@ -570,22 +525,7 @@ class PairingFailureDispositionTest {
     }
 }
 
-/**
- * The confirmation, read against `confirmationView(for:)` in
- * `ios/App/PairingView.swift`.
- *
- * The expectations here come from the Swift, not from the Kotlin they check.
- * Two things are load-bearing there:
- *
- *  - `Text(connection.name)` and `Text(connection.pairingConsentOrigin)`
- *    sit **above** `if let credential = scannedCredential`, so both are on
- *    screen before confirming a scan *and* before typing six digits.
- *  - the scanned branch reads: "Confirm this computer to establish an
- *    authenticated companion connection. Use a trusted Wi-Fi network or a
- *    tailnet; StartupBot does not encrypt local Wi-Fi traffic." Authenticated
- *    and encrypted are different claims, and only one of them is true of the
- *    local network.
- */
+// LAN pairing authenticates devices; cleartext local HTTP does not provide encryption.
 class PairingConfirmationTest {
     private val connection = Connection(
         id = "conn-1",
@@ -702,19 +642,15 @@ class PairingConfirmationTest {
     @Test
     fun `the scanned notice says authenticated and says the local network is not encrypted`() {
         val notice = PairingCopy.CONFIRM_SCAN
-        // The clauses of the Swift line, each carrying its own claim.
         assertTrue(notice.contains("authenticated companion connection"), notice)
         assertTrue(notice.contains("trusted Wi-Fi"), notice)
         assertTrue(notice.contains("tailnet"), notice)
         assertTrue(notice.contains("does not encrypt local Wi-Fi traffic"), notice)
-        // And it still asks the question a scan must never answer for the user.
         assertTrue(notice.contains("Only continue if this is the computer"), notice)
     }
 
     @Test
     fun `the scanned notice no longer talks about what the phone gains instead`() {
-        // The copy this replaces listed the phone's new powers and left the
-        // transport unmentioned, which is the half that matters on a shared LAN.
         val notice = PairingCopy.CONFIRM_SCAN
         assertFalse(notice.contains("answer approvals"), notice)
         assertFalse(notice.contains("send work"), notice)
@@ -730,7 +666,6 @@ class PairingConfirmationTest {
     @Test
     fun `a QR or deep link without an address never becomes a pending pairing`() {
         assertNull(PairingInvite.parse("openmausbot://pair?token=$credential"))
-        // The control: with one, the invite carries a host and a port.
         val invite = PairingInvite.parse(
             "openmausbot://pair?address=192.168.1.42:8810&name=Kesley%27s%20Ubuntu&token=$credential",
         )
@@ -751,7 +686,6 @@ class PairingConfirmationTest {
     fun `a discovered service that answered without an address is refused`() {
         assertNull(DiscoveredService(name = "Kesley's Ubuntu", host = null, port = 8810).toConnection())
         assertNull(DiscoveredService(name = "Kesley's Ubuntu", host = "192.168.1.42", port = null).toConnection())
-        // The control: a resolved one carries both, so the confirmation can open.
         val resolved = DiscoveredService(name = "Kesley's Ubuntu", host = "192.168.1.42", port = 8810)
             .toConnection()
         assertEquals("192.168.1.42", resolved?.host)

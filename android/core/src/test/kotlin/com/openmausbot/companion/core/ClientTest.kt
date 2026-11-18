@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.coroutines.flow.take
@@ -181,28 +182,28 @@ class ClientTest {
         val room = """{"id":"g1","threadId":"gt1","name":"Room","memberIds":[],"defaultResponder":{"kind":"auto"},"bulletin":"","unread":false,"createdAt":0,"tasks":[{"threadId":"gt1","title":"Room task","createdAt":0}]}"""
         val message = fixtureText("options-card")
         listOf(
-            """{"bot":$bot}""", // create bot
-            "{}", // bot message
-            "{}", // room message
-            "{}", // respond
-            "{}", // always allow
-            """{"message":$message}""", // reaction
-            "{}", // edit
-            """{"activeLeafId":"m2"}""", // branch
-            """{"bot":$bot}""", // create task
-            """{"bot":$bot}""", // switch task
-            "{}", // rename task
-            """{"bot":$bot}""", // delete task
-            """{"group":$room}""", // create room task
-            """{"group":$room}""", // switch room task
-            "{}", // rename room task
-            """{"group":$room}""", // delete room task
-            "{}", // interrupt
-            """{"joinUrl":"https://desktop.example/session/fresh"}""", // cloud desktop
-            "{}", // bot read
-            "{}", // room read
-            "{}", // archive task
-            "{}", // unarchive task
+            """{"bot":$bot}""",
+            "{}",
+            "{}",
+            "{}",
+            "{}",
+            """{"message":$message}""",
+            "{}",
+            """{"activeLeafId":"m2"}""",
+            """{"bot":$bot}""",
+            """{"bot":$bot}""",
+            "{}",
+            """{"bot":$bot}""",
+            """{"group":$room}""",
+            """{"group":$room}""",
+            "{}",
+            """{"group":$room}""",
+            "{}",
+            """{"joinUrl":"https://desktop.example/session/fresh"}""",
+            "{}",
+            "{}",
+            "{}",
+            "{}",
         ).forEach { server.enqueue(json(it)) }
 
         client.createBot()
@@ -270,8 +271,6 @@ class ClientTest {
         assertEquals(mapOf("title" to "Renamed"), stringBody(requests[10].body.readUtf8()))
         assertEquals(mapOf("title" to "Channel next"), stringBody(requests[12].body.readUtf8()))
         assertEquals(mapOf("title" to "Channel renamed"), stringBody(requests[14].body.readUtf8()))
-        // Unarchive is the one task PATCH that must carry an explicit null;
-        // stamps stay plain integers, never scientific notation.
         assertEquals("""{"archivedAt":123}""", requests[20].body.readUtf8())
         assertEquals("""{"archivedAt":null}""", requests[21].body.readUtf8())
         requests.forEach { assertEquals("Bearer device-token", it.getHeader("Authorization")) }
@@ -309,8 +308,6 @@ class ClientTest {
         server.takeRequest().let { request ->
             assertEquals("PUT", request.method)
             assertEquals("/api/config", request.path)
-            // The raw body rather than stringBody: the write is nested, and
-            // the whole point is that the provider is the only field in it.
             assertEquals("""{"tts":{"provider":"chatterbox"}}""", request.body.readUtf8())
         }
     }

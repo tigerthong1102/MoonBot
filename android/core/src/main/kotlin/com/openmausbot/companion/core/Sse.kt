@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.io.IOException
@@ -36,7 +37,6 @@ class SSEParser {
         return null
     }
 
-    /** Discards an event that never received its terminating blank line. */
     fun reset() {
         fields.clear()
     }
@@ -56,10 +56,6 @@ class SSEParser {
     }
 }
 
-/**
- * Malformed JSON drops one frame; unknown frame kinds decode as [Frame.Unknown]
- * and keep the stream alive.
- */
 fun eventStream(
     request: Request,
     client: OkHttpClient,
@@ -86,7 +82,6 @@ fun eventStream(
             parser.reset()
             close()
         } catch (_: CancellationException) {
-            // A collector leaving the flow deliberately tears down the call.
         } catch (error: APIError) {
             close(error)
         } catch (error: IOException) {

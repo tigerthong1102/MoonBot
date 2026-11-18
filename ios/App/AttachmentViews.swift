@@ -339,9 +339,6 @@ struct TranscriptAttachmentView: View {
                     errorMessage = Text("The downloaded file couldn't be previewed.")
                     return
                 }
-                // Adopt cleanup ownership before observing cancellation. The
-                // materialized directory otherwise has a one-suspension leak
-                // window between Session returning and this view owning it.
                 unfinishedItem = item
                 try Task.checkCancellation()
                 if attachment.kind == .image {
@@ -388,13 +385,8 @@ struct TranscriptAttachmentView: View {
             .flatMap(\.windows)
             .first(where: \.isKeyWindow)?
             .bounds ?? UIScreen.main.bounds
-        // Begin just before the card reaches the viewport so the placeholder
-        // usually resolves during the final part of the scroll gesture.
         let visible = frame.intersects(windowBounds.insetBy(dx: 0, dy: -120))
         if thumbnailVisible != visible { thumbnailVisible = visible }
-        // The transcript intentionally uses an eager VStack for correct
-        // bottom anchoring. Do not let that turn every image ever visited into
-        // permanent row state: keep nearby cards warm, then release the decode.
         let retentionFrame = windowBounds.insetBy(dx: 0, dy: -windowBounds.height)
         if !retentionFrame.intersects(frame), thumbnail != nil { thumbnail = nil }
     }

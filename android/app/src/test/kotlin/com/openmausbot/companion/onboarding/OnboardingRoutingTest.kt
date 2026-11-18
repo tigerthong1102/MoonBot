@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.onboarding
 
 import androidx.compose.runtime.CompositionLocalProvider
@@ -90,19 +91,15 @@ class OnboardingRoutingTest {
         compose.onNodeWithText(OnboardingCopy.UNPAIRED_HOME_TITLE).assertIsDisplayed()
         compose.onNodeWithText(OnboardingCopy.UNPAIRED_HOME_CONNECT).assertIsDisplayed()
 
-        // The later way back to notifications, without re-entering a connection
-        // flow this person has just declined.
         compose.onNodeWithContentDescription("Settings").performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Connect a computer").assertIsDisplayed()
         compose.onNodeWithText("Enable notifications").assertIsDisplayed()
-        // And nothing that needs a pairing to mean anything.
         compose.onNodeWithText("Unpair this phone").assertDoesNotExist()
         compose.onNodeWithText("Tasks & Routines").assertDoesNotExist()
 
         assertEquals(emptyList(), scene.asked(), "declining setup still spent a prompt")
 
-        // And back closes Settings rather than the app.
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
         compose.onNodeWithText(OnboardingCopy.UNPAIRED_HOME_TITLE).assertIsDisplayed()
@@ -141,8 +138,6 @@ class OnboardingRoutingTest {
             savedConnection = OnboardingScene.MAC,
             savedToken = "device-token",
             welcomeSeen = true,
-            // The marker is false because this pairing was committed before the
-            // education step existed — an upgrade, not a first pairing.
             notificationOnboardingPending = false,
         )
         mount(scene)
@@ -165,7 +160,6 @@ class OnboardingRoutingTest {
         )
         mount(scene)
 
-        // Explained first, and nothing asked yet.
         compose.onNodeWithText(OnboardingCopy.NOTIFICATIONS_TITLE).assertIsDisplayed()
         compose.onNodeWithText(OnboardingCopy.NOTIFICATIONS_BODY).assertIsDisplayed()
         assertEquals(
@@ -182,8 +176,6 @@ class OnboardingRoutingTest {
             scene.asked(),
             "the explained step must ask for notifications and nothing else",
         )
-        // And the step is over: it does not come back for the same pairing, in
-        // this process or the next one.
         compose.onNodeWithText("No bots yet").assertIsDisplayed()
         assertFalse(
             scene.relaunchedOnboarding().notificationPending.value,
@@ -207,9 +199,6 @@ class OnboardingRoutingTest {
 
         compose.onNodeWithText("No bots yet").assertIsDisplayed()
         assertEquals(emptyList(), scene.asked(), "\"Not now\" fired the prompt anyway")
-        // And the answer reached disk: a relaunch finds no step still owing.
-        // Read through a store that never saw this process, because a marker
-        // cleared only in memory is a marker that comes back.
         assertFalse(
             scene.relaunchedOnboarding().notificationPending.value,
             "the education step was answered but the marker is still pending",
@@ -231,15 +220,6 @@ class OnboardingRoutingTest {
         assertEquals(emptyList(), scene.asked())
     }
 
-    /**
-     * The upgrade case, which has no welcome in its history at all.
-     *
-     * A phone that was already paired before any of this existed reads a marker
-     * file with nothing in it, so "has seen the welcome" is false while the
-     * person has been using the app for weeks. Landing them on a first-run
-     * welcome the day they unpair would be absurd; being paired is what answers
-     * that question for them.
-     */
     @Test
     fun `an upgrade that unpairs lands on the home, not on a welcome it never needed`() {
         val scene = OnboardingScene(
@@ -258,20 +238,6 @@ class OnboardingRoutingTest {
         compose.onNodeWithText(OnboardingCopy.WELCOME_TITLE).assertDoesNotExist()
     }
 
-    /**
-     * One person, from the first frame to a voluntary unpair, with a real
-     * `Session` committing a real pairing in the middle of it.
-     *
-     * Every other case here arranges the durable marker by hand. This one never
-     * touches it: `Session.pair` writes it as part of committing the pairing,
-     * the store publishes it, and the router acts on it — so this is the only
-     * test that fails if any link of that chain is cut rather than any one of
-     * them being wrong.
-     *
-     * It also pins the last thing on iOS's list that a state machine gets wrong
-     * quietly: unpairing later must not walk back into the pairing form,
-     * because "I asked to connect" was answered a long time ago.
-     */
     @Test
     fun `a whole first run, from the welcome to a later unpair`() {
         val scene = OnboardingScene()
@@ -287,7 +253,6 @@ class OnboardingRoutingTest {
         compose.waitUntil(5_000) { scene.session.connection.value != null }
         compose.waitForIdle()
 
-        // Nobody set the marker here: the pairing commit did.
         compose.onNodeWithText(OnboardingCopy.NOTIFICATIONS_TITLE).assertIsDisplayed()
         assertEquals(
             emptyList(),
@@ -334,8 +299,6 @@ class OnboardingRoutingTest {
             OnboardingPairingState.UNPAIRED,
             onboardingPairingState(Session.Status.Unpaired, null),
         )
-        // A connection is what makes a phone paired, not a live stream: an
-        // offline restore still belongs in chats, not on the welcome screen.
         assertEquals(
             OnboardingPairingState.UNPAIRED,
             onboardingPairingState(Session.Status.Connecting, null),
@@ -352,8 +315,6 @@ class OnboardingRoutingTest {
             NotificationAuthorizationState.DETERMINED,
             notificationAuthorization(NotificationAccess.GRANTED),
         )
-        // Nothing left to ask for: pre-33, or a prompt already spent. An
-        // explanation here would end in a button the system silently drops.
         assertEquals(
             NotificationAuthorizationState.DETERMINED,
             notificationAuthorization(NotificationAccess.BLOCKED),

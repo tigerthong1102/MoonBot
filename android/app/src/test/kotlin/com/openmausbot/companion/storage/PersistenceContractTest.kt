@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.storage
 
 import com.openmausbot.companion.core.Connection
@@ -62,7 +63,7 @@ class PersistenceContractTest {
             extraction.contains("<cloud-backup>") && extraction.contains("<device-transfer>"),
             "data_extraction_rules.xml must cover cloud-backup and device-transfer; was:\n$extraction",
         )
-        // Both cloud-backup and device-transfer blocks must name the token file.
+        // Device-token storage must be excluded from cloud backup and device transfer.
         val cloud = extraction.substringAfter("<cloud-backup>").substringBefore("</cloud-backup>")
         val transfer = extraction.substringAfter("<device-transfer>").substringBefore("</device-transfer>")
         assertTrue(cloud.contains("""path="$tokenFile""""), "cloud-backup missing $tokenFile")
@@ -96,7 +97,6 @@ class PersistenceContractTest {
 
     @Test
     fun permissionPrefsFileNameMatchesWhatTheAppOpens() {
-        // The rules above are only worth anything if they name the real file.
         assertEquals("openmaus.permissions", PermissionPreferences.NAME)
         assertEquals(PermissionPreferences.NAME + ".xml", PermissionPreferences.FILE)
     }

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.audio
 
 import java.util.Collections
@@ -11,14 +12,6 @@ import kotlin.test.assertTrue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 
-/**
- * Preview lifecycle pinned to `ios/App/AgentProfileView.previewVoice` plus the
- * Android stops required by PORT13: replace, screen destroy, app background,
- * focus interruption, concurrent play serialization, and async error surfacing.
- *
- * Expectations come from the Swift failure copy and the work order — not from
- * inspecting [VoicePreviewController] to decide what to assert.
- */
 class VoicePreviewControllerTest {
 
     @Test
@@ -64,7 +57,6 @@ class VoicePreviewControllerTest {
         assertEquals(VoicePreviewController.PLAYBACK_ERROR, controller.play(byteArrayOf(1)))
         assertEquals(0, engines)
         assertFalse(controller.playing.value)
-        // request failed immediately; abandon is still called to clear the attempt.
         assertEquals(1, focus.abandons)
     }
 
@@ -84,7 +76,6 @@ class VoicePreviewControllerTest {
         assertEquals(1, first.releases)
         assertTrue(controller.playing.value)
         assertEquals(1, engines.last().starts)
-        // stop abandons, then the replacement requests again.
         assertEquals(2, focus.requests)
         assertEquals(1, focus.abandons)
     }
@@ -137,7 +128,6 @@ class VoicePreviewControllerTest {
 
     @Test
     fun `focus interruption stops playback and abandons without resurrecting`() {
-        // Would fail against MAY_DUCK + empty listener: interruption was ignored.
         val focus = FakeFocus(grant = true)
         val engine = FakeEngine(ok = true)
         val controller = VoicePreviewController(
@@ -154,7 +144,6 @@ class VoicePreviewControllerTest {
         assertEquals(1, engine.stops)
         assertEquals(1, engine.releases)
         assertEquals(1, focus.abandons)
-        // A stale completion from the interrupted engine must not restart state.
         engine.onCompletion?.invoke()
         assertFalse(controller.playing.value)
         assertEquals(1, focus.abandons)
@@ -162,8 +151,6 @@ class VoicePreviewControllerTest {
 
     @Test
     fun `async engine error emits the iOS action-error copy`() = runTest {
-        // Would fail when onError was wired to onCompletion: playing went idle
-        // with no error the UI could turn into session.actionError.
         val focus = FakeFocus(grant = true)
         val engine = FakeEngine(ok = true)
         val controller = VoicePreviewController(
@@ -187,8 +174,6 @@ class VoicePreviewControllerTest {
 
     @Test
     fun `error delivered inside start is not lost before callbacks were installed`() = runTest {
-        // Would fail against round-2: callbacks were assigned AFTER start(), so an
-        // immediate engine error invoked a still-null onError and was dropped.
         val focus = FakeFocus(grant = true)
         val engine = FakeEngine(ok = true, errorDuringStart = true)
         val controller = VoicePreviewController(

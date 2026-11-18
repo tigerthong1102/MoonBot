@@ -1,14 +1,8 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.sharing
 
 import com.openmausbot.companion.ui.SharePolicy
 
-/**
- * Process-memory UI for one inbound share generation.
- *
- * The payload already lives in [ShareInbox]; this holds the sheet fields that
- * would otherwise die with an Activity recreation (instruction, phase, the
- * prepared sendId).
- */
 class ShareSheetSession(
     val generation: Long,
 ) {

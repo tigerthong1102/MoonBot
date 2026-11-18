@@ -36,7 +36,6 @@ import kotlinx.coroutines.test.runTest
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionLingerTest {
 
-    // ---------------------------------------------------------------- §5.1
 
     @Test
     fun `a done notify ten seconds after Home still reaches the sink`() =
@@ -82,7 +81,6 @@ class SessionLingerTest {
         assertEquals(1, stream.collectors)
     }
 
-    // ---------------------------------------------------------------- §5.2
 
     @Test
     fun `the stream survives to 24999ms and is cancelled at 25000ms`() = runTest {
@@ -103,14 +101,12 @@ class SessionLingerTest {
         assertEquals(listOf(1L), currentAnchor.stopped)
         assertNull(currentAnchor.held)
 
-        // Nothing is listening any more, so a later frame cannot be delivered.
         stream.emit(notify("done", seq = 9))
         runCurrent()
         assertEquals(0, sink.delivered.size)
         assertEquals(1, stream.opens)
     }
 
-    // ---------------------------------------------------------------- §5.3
 
     @Test
     fun `coming back after one second keeps the same connection`() =
@@ -132,7 +128,6 @@ class SessionLingerTest {
         owner.registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         runCurrent()
 
-        // Well past the deadline the cancelled timer would have had.
         advanceTimeBy(60_000)
         runCurrent()
         stream.emit(notify("done", seq = 11))
@@ -147,7 +142,6 @@ class SessionLingerTest {
         assertNull(currentController.openWindow)
     }
 
-    // ---------------------------------------------------------------- §5.4
 
     @Test
     fun `coming back after twenty-six seconds opens exactly one stream from the cursor`() = runTest {
@@ -175,7 +169,6 @@ class SessionLingerTest {
         assertEquals(1, stream.collectors)
     }
 
-    // ---------------------------------------------------------------- §5.5
 
     @Test
     fun `a second trip to the background gets its own full window`() = runTest {
@@ -194,8 +187,6 @@ class SessionLingerTest {
         owner.registry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         runCurrent()
 
-        // t = 25s globally: the *first* window's deadline. It must not touch
-        // the second window, which is only 23s old.
         advanceTimeBy(23_000)
         runCurrent()
         assertEquals(1, stream.collectors)
@@ -204,7 +195,6 @@ class SessionLingerTest {
         assertEquals(1, sink.delivered.size)
         assertEquals(21, sink.delivered.single().second)
 
-        // t = 27s globally = 25s into the second window.
         advanceTimeBy(2_000)
         runCurrent()
         assertEquals(0, stream.collectors)
@@ -213,15 +203,6 @@ class SessionLingerTest {
         assertEquals(1, stream.opens)
     }
 
-    /**
-     * The same two quick trips, with the adverse ordering the framework can
-     * actually produce: `stopService` for the first trip returns immediately,
-     * and that service's `onDestroy` only lands *after* the second window is
-     * open. It carries token 1, so it must not touch window 2.
-     *
-     * The test above cannot show this — its anchor reports the destroy inline,
-     * while `openToken` is still null.
-     */
     @Test
     fun `a late onDestroy from the first trip cannot close the second window`() = runTest {
         val stream = FakeStream()
@@ -242,7 +223,6 @@ class SessionLingerTest {
         runCurrent()
         assertEquals(2L, currentController.openWindow)
 
-        // t = 7s: the first trip's service finally reports its destruction.
         currentAnchor.deliverPendingDestroys()
         runCurrent()
 
@@ -253,7 +233,6 @@ class SessionLingerTest {
         assertEquals(1, sink.delivered.size)
         assertEquals(41, sink.delivered.single().second)
 
-        // The second window still ends on its own deadline, t = 27s globally.
         advanceTimeBy(19_999)
         runCurrent()
         assertEquals(1, stream.collectors)
@@ -265,7 +244,6 @@ class SessionLingerTest {
         assertEquals(1, stream.opens)
     }
 
-    // ---------------------------------------------------------------- §5.6
 
     @Test
     fun `an anchor the system reclaims ends the window at once`() = runTest {
@@ -284,8 +262,6 @@ class SessionLingerTest {
         assertEquals(0, stream.collectors)
         assertNull(currentController.openWindow)
 
-        // The reclaimed anchor's callback must not follow the app back to the
-        // foreground and cut the stream it reopens.
         advanceTimeBy(30_000)
         runCurrent()
         owner.registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
@@ -313,7 +289,6 @@ class SessionLingerTest {
         assertNull(currentController.openWindow)
     }
 
-    // ------------------------------------------------------- always-on race
 
     @Test
     fun `always-on starting after ON_STOP cancels the window without disconnecting`() = runTest {
@@ -327,14 +302,10 @@ class SessionLingerTest {
         assertEquals(1, stream.collectors)
         assertEquals(listOf(1L), currentAnchor.started)
 
-        // AlwaysOnConnectionService won the race and started after this
-        // window was already open.
         currentController.onAlwaysOnStarted()
         assertEquals(listOf(1L), currentAnchor.stopped)
         assertNull(currentController.openWindow)
 
-        // The window's own deadline must not still fire and disconnect what
-        // the service now depends on staying open.
         advanceTimeBy(30_000)
         runCurrent()
         assertEquals(1, stream.collectors)
@@ -343,7 +314,6 @@ class SessionLingerTest {
         assertEquals(1, sink.delivered.size)
     }
 
-    // ---------------------------------------------------------------- §5.7
 
     @Test
     fun `a turn that finishes in the background lands transcript, cursor and notify`() = runTest {
@@ -391,7 +361,6 @@ class SessionLingerTest {
         assertEquals(1, stream.opens)
     }
 
-    // ---------------------------------------------------------------- §5.8
 
     @Test
     fun `a stream in backoff may reopen inside the window and still deliver`() = runTest {
@@ -407,7 +376,6 @@ class SessionLingerTest {
         assertTrue(session.status.value is Session.Status.Offline)
         assertEquals(1, stream.opens)
 
-        // Backgrounded while the reconnect backoff is still counting down.
         owner.registry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         advanceTimeBy(1_000)
         runCurrent()
@@ -419,7 +387,6 @@ class SessionLingerTest {
         assertEquals(1, sink.delivered.size)
         assertEquals(12, sink.delivered.single().second)
 
-        // The deadline still ends it, backoff loop included.
         advanceTimeBy(24_000)
         runCurrent()
         assertEquals(0, stream.collectors)
@@ -445,8 +412,6 @@ class SessionLingerTest {
 
         assertEquals(0, currentAnchor.startAttempts)
         assertNull(currentController.openWindow)
-        // No restart loop, and no slide into Unpaired: the pairing survives
-        // until the user chooses "Pair again".
         assertEquals(1, stream.opens)
         assertEquals(Session.Status.Unauthorized, session.status.value)
     }
@@ -496,7 +461,6 @@ class SessionLingerTest {
         assertEquals(0, stream.opens)
     }
 
-    // ---------------------------------------------------------------- §5.9
 
     @Test
     fun `voice preview registered after the linger still stops at ON_STOP`() =
@@ -506,11 +470,6 @@ class SessionLingerTest {
     fun `voice preview registered before the linger still stops at ON_STOP`() =
         assertVoicePreviewStopsAtOnce(registerPlayerFirst = true)
 
-    /**
-     * The linger is only about the connection. Audio, dictation and the mic
-     * keep their own immediate teardown, whichever order the process-lifecycle
-     * observers happen to be registered in.
-     */
     private fun assertVoicePreviewStopsAtOnce(registerPlayerFirst: Boolean) = runTest {
         val stream = FakeStream()
         val sink = RecordingSink()
@@ -536,7 +495,6 @@ class SessionLingerTest {
         owner.registry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         runCurrent()
 
-        // No clock advance: audio stops on the callback, the connection does not.
         assertFalse(active.playing.value)
         assertEquals(1, engine.stops)
         assertEquals(1, stream.collectors)
@@ -552,9 +510,6 @@ class SessionLingerTest {
         val session = session(stream, sink)
         val owner = live(session, stream)
 
-        // The real store, wired exactly as OpenMausApp.kt wires it: the cache
-        // must not survive the pairing that minted its URLs, and the window
-        // must not delay that either.
         val avatars = AvatarImageStore(fetch = { byteArrayOf(7, 7, 7) }, decode = { null })
         val unpairedSeen = mutableListOf<Boolean>()
         backgroundScope.launch {
@@ -583,8 +538,6 @@ class SessionLingerTest {
         session.signOutAndAwait()
         runCurrent()
 
-        // Unpair — and the cache clear that rides on it — is not delayed by the
-        // window: no clock advance between the sign-out and these assertions.
         assertEquals(listOf(false, true), unpairedSeen)
         assertEquals(0, avatars.cachedEntryCount())
         assertEquals(0, avatars.cachedByteCost())
@@ -592,8 +545,6 @@ class SessionLingerTest {
         assertEquals(0, stream.collectors)
         assertNull(session.connection.value)
 
-        // The timer left over from the window may still fire; it must find
-        // nothing to cut and must not reopen anything.
         advanceTimeBy(30_000)
         runCurrent()
         assertEquals(listOf(1L), currentAnchor.stopped)
@@ -601,16 +552,10 @@ class SessionLingerTest {
         assertEquals(Session.Status.Unpaired, session.status.value)
     }
 
-    // ------------------------------------------------------------- fixtures
 
     private lateinit var currentAnchor: FakeAnchor
     private lateinit var currentController: SessionLingerController
 
-    /**
-     * [installLive], plus the two handles this class asserts against across
-     * most of its tests. The install/settle sequence itself lives in
-     * `LingerTestSupport` so the wiring test drives exactly the same one.
-     */
     private suspend fun TestScope.live(
         session: Session,
         stream: FakeStream,

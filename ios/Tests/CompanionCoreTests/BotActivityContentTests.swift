@@ -15,8 +15,6 @@ final class BotActivityContentTests: XCTestCase {
     }
 
     func testReusedActivityTargetsCurrentSiblingThreadEvenWhenRequestIdIsTheSame() throws {
-        // The per-bot activity began on A. Updating its content to B must
-        // move the button too; immutable activity attributes cannot do this.
         let original = content(threadId: "thread-a")
         let sibling = content(threadId: "thread-b")
         let rendered = try JSONDecoder().decode(BotActivityContent.self, from: JSONEncoder().encode(sibling))

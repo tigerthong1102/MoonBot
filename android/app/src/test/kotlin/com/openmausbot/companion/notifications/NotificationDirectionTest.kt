@@ -67,13 +67,9 @@ import org.robolectric.annotation.GraphicsMode
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-// Robolectric's legacy graphics gives no font metrics these assertions can be
-// read off; native graphics lays the text out with the real font stack, which is
-// what makes a glyph's x evidence rather than decoration.
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class NotificationDirectionTest {
 
-    // ---------------------------------------------------------------- policy
 
     @Test
     fun `English text crosses to the shade untouched`() {
@@ -120,7 +116,6 @@ class NotificationDirectionTest {
         )
     }
 
-    // ----------------------------------------------------------- paragraphs
 
     @Test
     fun `a counted list stays in ascending order on every line it takes`() {
@@ -170,9 +165,6 @@ class NotificationDirectionTest {
 
     @Test
     fun `only a line feed starts a new paragraph in the shade`() {
-        // UAX#9 class B is wider than this, but the boundary that matters is the
-        // consumer's: StaticLayout splits on U+000A alone and forces every other
-        // block separator to a neutral before ICU sees it.
         for (separator in listOf('\r', '\u001C', '\u001D', '\u001E', '\u0085', '\u2029')) {
             val body = "1 2${separator}3 4"
             val posted = postedBody(body)
@@ -193,19 +185,13 @@ class NotificationDirectionTest {
 
     @Test
     fun `a separator that is not a line feed is left unmarked inside Arabic`() {
-        // Measured: an anchor after U+2029 lands inside an already-resolved
-        // paragraph and moves the Arabic in front of it from x=4000 to x=3946.
         val body = "مرحبا\u2029123"
         assertEquals(body, postedBody(body), "there is no second paragraph here to anchor")
     }
 
-    // ------------------------------------------------- who reads the strings
 
     @Test
     fun `strong text inside an isolate settles nothing, and the line is anchored`() {
-        // P2 and the platform's FirstStrong both skip everything between an
-        // isolate initiator and its PDI, so this paragraph has no strong
-        // character of its own.
         val shade = inArabicShade(postedBody("\u2067مرحبا\u2069 1 2"))
         assertEquals(
             Layout.DIR_LEFT_TO_RIGHT,
@@ -223,17 +209,12 @@ class NotificationDirectionTest {
 
     @Test
     fun `a code point this device has no table for is still the platform's to read`() {
-        // U+05EC is unassigned; isRtlCodePoint reads it off the block it lives
-        // in, and unassigned between U+0590 and U+08FF counts as strong RTL.
         val body = "\u05EC 1 2"
         assertEquals(body, postedBody(body), "the paragraph settles its own direction")
     }
 
     @Test
     fun `a blank CRLF line takes no anchor, exactly like a blank line`() {
-        // Reads the marker on purpose: its whole subject is a character nobody
-        // sees. The CR is half of the break, not the last letter of the line it
-        // ends, so the blank line between the two has nothing to order.
         assertEquals(
             "\u200E1 2\r\n\r\n\u200E3 4",
             postedBody("1 2\r\n\r\n3 4"),
@@ -241,13 +222,9 @@ class NotificationDirectionTest {
         )
     }
 
-    // ------------------------------------------- the prefix the shade is given
 
     @Test
     fun `the character that settles a paragraph counts from where the shade stops reading`() {
-        // The strong "Done" sits at index 2000, past the 1024 this level keeps.
-        // Deciding over the whole paragraph finds it, adds no anchor, and hands
-        // the reader 1024 neutral characters for the shade to order its own way.
         val body = "1 2 3 4 5 ".repeat(200) + "Done"
         val posted = postedBody(body)
         assertEquals(1024, posted.length, "this is the body the shade was handed")
@@ -263,9 +240,6 @@ class NotificationDirectionTest {
 
     @Test
     fun `an unbroken body is decided at the window like any other`() {
-        // No line feed anywhere: the paragraph is the whole megabyte, and the
-        // strong "Done" that would settle it sits a million characters past
-        // what the shade keeps. Nothing here may be read, and nothing is.
         val body = "1 2 3 4 5 ".repeat(100_000) + "Done"
         val posted = postedBody(body)
         assertEquals(1024, posted.length, "this is the body the shade was handed")
@@ -282,8 +256,6 @@ class NotificationDirectionTest {
     @Test
     @Config(sdk = [30])
     fun `the same body settles itself where the shade keeps more of it`() {
-        // Same body, a level whose ceiling is 5120: "Done" arrives, so the
-        // paragraph settles itself and nothing is anchored.
         val body = "1 2 3 4 5 ".repeat(200) + "Done"
         val posted = postedBody(body)
         assertEquals(body, posted, "a paragraph that settles itself is handed over untouched")
@@ -314,7 +286,7 @@ class NotificationDirectionTest {
 
     @Test
     fun `a body longer than the shade keeps is anchored no further than that`() {
-        val body = "1 2\n".repeat(256_000) // 1,024,000 characters
+        val body = "1 2\n".repeat(256_000)
         val built = NotificationText.anchored(body)
         assertEquals(
             1024,
@@ -322,8 +294,6 @@ class NotificationDirectionTest {
             "anchoring a ${body.length}-character body produced ${built.length} characters — " +
                 "the building is supposed to stop where the shade does",
         )
-        // Every line of this body is neutral, so the front of it anchored line by
-        // line is just the anchored line repeated.
         assertEquals(
             "\u200E1 2\n".repeat(205).take(1024),
             built,
@@ -334,16 +304,12 @@ class NotificationDirectionTest {
 
     @Test
     fun `an anchor is never the last unit the shade has room for`() {
-        // The second paragraph starts on the final unit of room. Spending it on
-        // an anchor would order nothing and would push the only character of
-        // that line out of what the shade keeps.
         val body = "A".repeat(1022) + "\n5"
         val posted = postedBody(body)
         assertEquals(1024, posted.length, "this is the whole window")
         assertEquals(body, posted, "the character wins the last unit, not the mark")
     }
 
-    // ------------------------------------------------------------- the title
 
     @Test
     fun `a title with no strong character is anchored too`() {
@@ -368,14 +334,12 @@ class NotificationDirectionTest {
         )
     }
 
-    // ------------------------------------------------------------- machinery
 
     private fun postedBody(body: String): String = postedExtra(Notification.EXTRA_TEXT, body = body)
 
     private fun postedTitle(title: String): String =
         postedExtra(Notification.EXTRA_TITLE, title = title)
 
-    /** Posts one frame through the real poster and reads [extra] back off it. */
     private fun postedExtra(
         extra: String,
         title: String = "Luna finished",
@@ -401,7 +365,6 @@ class NotificationDirectionTest {
         return posted.extras.getCharSequence(extra).toString()
     }
 
-    /** The layout the shade's own `TextView` would build in a mirrored window. */
     private fun inArabicShade(text: String): StaticLayout {
         val paint = TextPaint().apply { textSize = 24f }
         return StaticLayout.Builder
@@ -410,7 +373,6 @@ class NotificationDirectionTest {
             .build()
     }
 
-    /** Each of [pieces] has to have been drawn to the right of the one before. */
     private fun assertAscending(shade: StaticLayout, text: String, vararg pieces: String) {
         var from = 0
         var previousX = Float.NEGATIVE_INFINITY

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 // Markdown, split into blocks.
 //
 // The desktop renders bot replies with react-markdown + GFM. The phone was
@@ -20,41 +21,25 @@ import Foundation
 
 public enum MarkdownBlock: Equatable, Sendable {
     case paragraph(String)
-    /// `indent` is nesting depth, 0 for a top-level item.
     case bullet(indent: Int, text: String)
     case ordered(indent: Int, number: Int, text: String)
     case heading(level: Int, text: String)
-    /// A fenced block. `language` is whatever followed the opening fence.
     case code(language: String?, text: String)
     case quote(String)
     case rule
 }
 
 public enum Markdown {
-    /// Split into blocks. Never throws and never drops input: an unparseable
-    /// line ends up in a paragraph, which is what the reader wanted anyway.
     public static func blocks(_ source: String) -> [MarkdownBlock] {
         var blocks: [MarkdownBlock] = []
         var paragraph: [String] = []
 
         func flushParagraph() {
             guard !paragraph.isEmpty else { return }
-            // GFM: a single newline inside a paragraph is a soft break, which
-            // renders as a space. The desktop does not enable `breaks`, so
-            // neither does this — the two should wrap the same way.
             blocks.append(.paragraph(paragraph.joined(separator: " ")))
             paragraph.removeAll()
         }
 
-        // Normalise the line endings before splitting, because
-        // `CharacterSet.newlines` contains \r and \n *separately* and
-        // `components(separatedBy:)` breaks on each of them: "a\r\nb" comes
-        // back as ["a", "", "b"], one phantom empty line per CRLF. That empty
-        // line is not cosmetic — it calls `flushParagraph`, so a paragraph
-        // written across several lines arrives as one paragraph per line, and
-        // a fenced block gains a blank line between every line of code. Tool
-        // output and pasted text reach chat bubbles with CRLF intact, so this
-        // is a path real messages take.
         let normalised = source.replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
         var lines = normalised.components(separatedBy: "\n")[...]
@@ -62,9 +47,6 @@ public enum Markdown {
             lines = lines.dropFirst()
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            // A fence runs to its closing fence, or to the end — a reply still
-            // streaming has an open one, and showing it as code beats showing
-            // three backticks and waiting.
             if trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~") {
                 flushParagraph()
                 let marker = String(trimmed.prefix(3))
@@ -84,7 +66,6 @@ public enum Markdown {
                 continue
             }
 
-            // --- or *** or ___, three or more, nothing else on the line
             if trimmed.count >= 3, "-*_".contains(trimmed.first!),
                trimmed.allSatisfy({ $0 == trimmed.first! }) {
                 flushParagraph()
@@ -120,15 +101,12 @@ public enum Markdown {
         let hashes = trimmed.prefix(while: { $0 == "#" }).count
         guard hashes >= 1, hashes <= 6 else { return nil }
         let rest = String(trimmed.dropFirst(hashes))
-        // "#hashtag" is not a heading; ATX requires the space
         guard rest.hasPrefix(" ") else { return nil }
         return .heading(level: hashes, text: rest.trimmingCharacters(in: .whitespaces))
     }
 
     private static func listItem(_ line: String) -> MarkdownBlock? {
         let leading = line.prefix(while: { $0 == " " || $0 == "\t" }).count
-        // two spaces per level, which is what a model emits and what GFM
-        // treats as nesting for a tight list
         let indent = min(leading / 2, 4)
         let trimmed = line.trimmingCharacters(in: .whitespaces)
 
@@ -136,7 +114,6 @@ public enum Markdown {
             return .bullet(indent: indent, text: String(trimmed.dropFirst(2)))
         }
 
-        // "1. " / "12) "
         let digits = trimmed.prefix(while: \.isNumber)
         if !digits.isEmpty, digits.count <= 9 {
             let rest = trimmed.dropFirst(digits.count)

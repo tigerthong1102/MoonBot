@@ -1,10 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 
-/// Temporary copies made while the Share extension owns provider URLs.
-///
-/// A normal send/cancel removes its own directory immediately. If iOS kills
-/// the extension, the containing app also sweeps old directories so selected
-/// documents do not become accidental long-term App Group storage.
 enum OpenMausSharedInbox {
     static let directoryName = "ShareInbox"
 

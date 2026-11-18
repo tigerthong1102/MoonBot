@@ -1,6 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
-/** A chat is a bot or a room. They share a thread, which is what every message is keyed by. */
 sealed class Chat {
     abstract val id: String
     abstract val threadId: String
@@ -10,7 +10,6 @@ sealed class Chat {
     abstract val busy: Boolean
     abstract val color: String
 
-    /** Owner IDs stay available for profile APIs; navigation identifies the conversation. */
     val conversationId: String
         get() = when (this) {
             is BotChat -> "bot:$id:$threadId"
@@ -23,7 +22,6 @@ sealed class Chat {
             is RoomChat -> room.tasks?.firstOrNull { it.threadId == threadId }?.displayTitle ?: "Conversation"
         }
 
-    /** Older desktops omit room tasks, so don't expose routes they do not support. */
     val supportsTasks: Boolean
         get() = when (this) {
             is BotChat -> true
@@ -84,10 +82,6 @@ fun CompanionState.chat(target: ChatTarget): Chat? = when (target) {
     }
 }
 
-/**
- * A chat plus the two things a roster row shows that the record itself does not carry:
- * the preview line, and when the thread last moved.
- */
 data class ChatSummary(
     val chat: Chat,
     val preview: String,
@@ -98,7 +92,6 @@ data class ChatSummary(
     val conversationId: String get() = chat.conversationId
 }
 
-/** Build a row from that thread's model, runtime flags, unread state and transcript. */
 fun CompanionState.chatSummary(
     target: ChatTarget,
     activity: ActivityDetail = ActivityDetail.FULL,
@@ -107,14 +100,6 @@ fun CompanionState.chatSummary(
     ChatSummary(chat, rosterPreview(messages, activity), messages.lastOrNull()?.at ?: 0.0, pinned(chat))
 }
 
-/**
- * Everything worth showing in the chat list: pinned first, then unread, then most
- * recently active. Hidden bots stay hidden. Rooms never pin.
- *
- * @param activity how much of a bot's working-out the reader has asked to see. The preview honours
- * it the same way the transcript does; `lastActivity` deliberately does not, because a thread that
- * just ran a tool has still moved and should still rise in the list.
- */
 fun CompanionState.chatSummaries(
     activity: ActivityDetail = ActivityDetail.FULL,
 ): List<ChatSummary> {

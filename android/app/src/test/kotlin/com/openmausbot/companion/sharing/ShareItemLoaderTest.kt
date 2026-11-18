@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.sharing
 
 import android.content.ContentProvider
@@ -41,7 +42,6 @@ class ShareItemLoaderTest {
     private val inboxRoot: File get() = ShareInbox.root(context.cacheDir)
     private val provider = SharedFiles()
 
-    /** A 1x1 PNG: real bytes, so the copied file can be compared to them. */
     private val png: ByteArray = Base64.getDecoder().decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAE" +
             "hQGAhKmMIQAAAABJRU5ErkJggg==",
@@ -115,7 +115,6 @@ class ShareItemLoaderTest {
         }
 
         assertEquals("Send up to 4 items at a time.", refusal.message)
-        // A refused share leaves nothing of itself in the cache.
         assertEquals(emptyList(), inboxRoot.listFiles().orEmpty().toList())
     }
 
@@ -134,8 +133,6 @@ class ShareItemLoaderTest {
 
     @Test
     fun aShareLargerThanTheCopyCeilingIsRefusedAndLeavesNoPartialFile() {
-        // Image branch: iOS still uses the 25 MB copy ceiling. Without the
-        // in-loop check this would finish the copy and fail later as "10 MB".
         val photo = Uri.parse("content://$AUTHORITY/photo.png")
         provider.types[photo.toString()] = "image/png"
         provider.names[photo.toString()] = "photo.png"
@@ -216,7 +213,6 @@ class ShareItemLoaderTest {
         putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
     }
 
-    /** One file the sending app exposes: a type, a display name, and bytes. */
     private fun content(name: String, mime: String, bytes: ByteArray): Uri {
         val uri = Uri.parse("content://$AUTHORITY/$name")
         provider.types[uri.toString()] = mime

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.layout.Box
@@ -146,15 +147,6 @@ class TableReadingOrderTest {
         assertTrue(range.maxValue() > 0f, "the grid overflows, so there is somewhere to scroll to")
     }
 
-    /**
-     * The rule under a heading, measured against the production policy itself.
-     *
-     * The children here are the test's own — three headings, three rules, one
-     * row — but [tableGridMeasurePolicy] is the one the card uses, so what the
-     * rules come back measuring is what the card's rules measure. Doing it this
-     * way keeps test tags out of the drawing, where they would be scaffolding
-     * sitting in front of a screen reader.
-     */
     @Test
     fun `each rule is as wide as its own column, floored at the iOS minimum`() {
         compose.setContent {
@@ -174,12 +166,10 @@ class TableReadingOrderTest {
 
         fun rule(index: Int) = compose.onNodeWithTag("rule-$index").getBoundsInRoot()
 
-        // Widest heading, widest cell, and a column where nothing reaches 64.dp.
         assertEquals(120f, rule(0).width.value, 0.5f, "column 0")
         assertEquals(200f, rule(1).width.value, 0.5f, "column 1")
         assertEquals(64f, rule(2).width.value, 0.5f, "column 2")
 
-        // And they start where their columns start: 18.dp of gutter between.
         assertEquals(0f, rule(0).left.value, 0.5f, "column 0 origin")
         assertEquals(138f, rule(1).left.value, 0.5f, "column 1 origin")
         assertEquals(356f, rule(2).left.value, 0.5f, "column 2 origin")

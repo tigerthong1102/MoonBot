@@ -6,15 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Sequential playback of the utterances a call fetched from the computer —
- * `CallSpeaker` in `ios/App/CallView.swift`.
- *
- * One clip at a time, each awaited to its end, over the same MediaPlayer
- * engine and audio-focus gate the voice preview uses. [stop] — an interrupt
- * or a hang-up — bumps the generation so a `speak` in flight returns false
- * and whatever it was about to play never starts.
- */
+// Modified for StartupBot; original copyright and license retained.
 class CallSpeaker internal constructor(
     private val engineFactory: () -> PreviewAudioEngine,
     private val focus: PreviewAudioFocus,
@@ -32,7 +24,6 @@ class CallSpeaker internal constructor(
     private val _isSpeaking = MutableStateFlow(false)
     val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
 
-    /** Speak every clip in order. Returns false when stopped early. */
     suspend fun speak(clips: List<ByteArray>): Boolean {
         val mine = synchronized(lock) {
             stopLocked()
@@ -41,7 +32,11 @@ class CallSpeaker internal constructor(
             generation
         }
         try {
-            focus.request(onInterrupted = { stop() })
+            val granted = synchronized(lock) {
+                if (generation != mine) return false
+                focus.request(onInterrupted = { synchronized(lock) { if (generation == mine) stop() } })
+            }
+            if (!granted) return false
             for (clip in clips) {
                 val done = CompletableDeferred<Boolean>()
                 val started = synchronized(lock) {
@@ -67,6 +62,7 @@ class CallSpeaker internal constructor(
         } finally {
             synchronized(lock) {
                 if (generation == mine) {
+                    stopLocked()
                     _isSpeaking.value = false
                     focus.abandon()
                 }

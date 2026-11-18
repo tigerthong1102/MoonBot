@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.sharing
 
 import android.content.Context
@@ -8,30 +9,10 @@ import com.openmausbot.companion.ui.ShareFormat
 import com.openmausbot.companion.ui.SharePayload
 import java.io.File
 
-/**
- * Handing an exported transcript to the Android share sheet.
- *
- * A file rather than `EXTRA_TEXT`, which is the choice worth stating. iOS shares
- * the exported file through `UIActivityViewController`, so the receiving app gets
- * `transcript.md` with its own type; matching that keeps the two phones' output
- * identical. It also sidesteps the binder transaction limit — a long thread's
- * markdown runs to hundreds of kilobytes, and an `EXTRA_TEXT` that large fails
- * with `TransactionTooLargeException` at exactly the moment the feature is most
- * useful. Sharing text for short transcripts and a file for long ones would make
- * the behaviour depend on a threshold no one can see.
- *
- * The file lives in the app's cache directory, which is app-private and reclaimed
- * by the system under pressure. [clearPrevious] runs before each write, so at most
- * the most recent export is on disk — deleting immediately after `startActivity`
- * is not an option, since the receiving app reads the URI afterwards.
- */
 class TranscriptSharing(
     private val context: Context,
     private val authority: String = "${context.packageName}.transcripts",
 ) {
-    /**
-     * @return null on success, or a human-readable reason the share did not open.
-     */
     fun share(export: ExportedTranscript, format: ShareFormat): String? {
         val directory = File(context.cacheDir, DIRECTORY)
         return try {

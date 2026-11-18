@@ -1,14 +1,13 @@
+// Modified for StartupBot; original copyright and license retained.
 import AudioToolbox
 import UIKit
 
-// MARK: - Sound Effects
 public enum SoundEffects {
     public static func playSent() {
         AudioServicesPlaySystemSound(1004)
     }
 }
 
-// MARK: - Haptic Feedback
 public enum Haptics {
     public static func selection() {
         let generator = UISelectionFeedbackGenerator()
@@ -33,7 +32,6 @@ public enum Haptics {
     }
 }
 
-// MARK: - Platform Bridge
 public enum PlatformBridge {
     public static func copyToPasteboard(_ text: String) {
         UIPasteboard.general.string = text

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.background
@@ -27,38 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openmausbot.companion.core.QueuedSend
 
-/**
- * A message the computer is holding, sitting just above the chat bar.
- *
- * A mid-turn send to a bot that cannot take words into a running turn does
- * not reach the transcript: the harness holds it, because appending it now
- * would make it the active leaf and the rest of the turn would hang off a
- * line the model never saw. Correct — but with nothing on screen it reads as
- * the phone having eaten the message, which is the bug this row fixes.
- *
- * It lives above the composer rather than in the transcript because that is
- * where a thing you have not said yet belongs — still in your hands, next to
- * the field you typed it in. Both actions are words, not glyphs: Steer stops
- * the turn so these words run now (the harness deliberately keeps its queue
- * across an interrupt, which is what makes stopping a send), the pencil
- * takes them back into the chat bar to tweak or extend, and the bin drops
- * them.
- */
 @Composable
 fun QueuedSendRow(
     send: QueuedSend,
-    /**
-     * Stop the turn so this runs now. Null where the phone cannot interrupt —
-     * a room — so the button is not offered rather than offered and broken.
-     */
     onSteer: (() -> Unit)?,
-    /**
-     * The interrupt is in flight. Engines take their time noticing one — codex
-     * needs about six seconds — and a button that looks untouched for six
-     * seconds has, as far as the person is concerned, done nothing.
-     */
     steering: Boolean,
-    /** Pull these words back into the chat bar to change them before they send. */
     onEdit: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
@@ -131,13 +105,7 @@ fun QueuedSendRow(
     }
 }
 
-/** What the composer promises about the message being typed. */
 object ComposerPromise {
-    /**
-     * The name is in the header a thumb's width above; spending the field's
-     * whole width repeating it truncates the part that says what pressing
-     * send will actually do.
-     */
     fun placeholder(
         name: String,
         busy: Boolean,

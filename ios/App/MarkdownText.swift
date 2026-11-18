@@ -4,10 +4,6 @@ import CompanionCore
 
 struct MarkdownText: View {
     let source: String
-    /// Draws a caret after the last block. The streaming bubble sets this so
-    /// the live reply and the settled one are the same view with the same
-    /// layout — a caret bolted on outside would put it on its own line the
-    /// moment the reply ends in a list item.
     var caret: Bool = false
     var openLink: ((URL) -> OpenURLAction.Result)?
 
@@ -42,8 +38,6 @@ struct MarkdownText: View {
                 .fixedSize(horizontal: false, vertical: true)
 
         case let .heading(level, text):
-            // Three sizes, not six. A chat bubble is not a document, and an
-            // h4 that looks exactly like body text is a heading that failed.
             inline(text, tail: tail)
                 .font(.system(size: level <= 1 ? 21 : level == 2 ? 19 : 17, weight: .semibold))
                 .fixedSize(horizontal: false, vertical: true)
@@ -73,9 +67,6 @@ struct MarkdownText: View {
                         .font(.system(size: 11, weight: .medium, design: .monospaced))
                         .foregroundStyle(Color.secondary)
                 }
-                // Horizontal scroll rather than wrapping: wrapped code is
-                // harder to read than code you have to push sideways, and
-                // indentation is most of what a snippet is saying.
                 ScrollView(.horizontal, showsIndicators: false) {
                     (Text(text) + caretText(tail))
                         .font(.system(size: 14, design: .monospaced))
@@ -126,9 +117,6 @@ struct MarkdownText: View {
         return rendered + caretText(tail)
     }
 
-    /// A figure space then a block, so the caret sits off the last glyph
-    /// rather than touching it. Empty when not streaming — an empty `Text`
-    /// concatenated in costs nothing and keeps the callers branch-free.
     private func caretText(_ tail: Bool) -> Text {
         tail ? Text("\u{2007}▍").foregroundStyle(Color.secondary) : Text("")
     }

@@ -80,8 +80,6 @@ struct PairingScannerSheet: View {
             }
             .task { await resolveCameraPermission() }
             .onChange(of: scenePhase) { _, phase in
-                // If access was granted in Settings, recover immediately when
-                // the user returns instead of requiring the sheet to reopen.
                 if phase == .active {
                     Task { await resolveCameraPermission() }
                 }
@@ -163,8 +161,6 @@ private struct PairingQRScanner: UIViewControllerRepresentable {
 
             locked = true
             if !onPayload(payload) {
-                // A camera reports the same QR on many consecutive frames.
-                // Give the error time to be read before allowing a retry.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                     self?.locked = false
                 }

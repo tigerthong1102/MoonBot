@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.background
@@ -41,34 +42,11 @@ import androidx.compose.ui.unit.sp
 import com.openmausbot.companion.core.Markdown
 import com.openmausbot.companion.core.MarkdownBlock
 
-/**
- * Bot replies, rendered — the port of `ios/App/MarkdownText.swift`.
- *
- * `Markdown.blocks` (`:core`) does the splitting; this draws each block and hands
- * the inline run to [InlineMarkdown], which knows emphasis, code spans,
- * strikethrough and links. Links are tappable, which is most of why this is worth
- * doing at all — a reply full of sources was otherwise a wall of bracketed URLs.
- *
- * Only bot messages get this. The desktop makes the same split: what you typed is
- * shown as you typed it, because markdown you did not intend is worse than
- * markdown you did.
- */
 @Composable
 fun MarkdownText(
     source: String,
     modifier: Modifier = Modifier,
-    /**
-     * Draws a caret after the last block. The streaming bubble sets this so the
-     * live reply and the settled one are the same view with the same layout — a
-     * caret bolted on outside would sit on its own line the moment the reply ends
-     * in a list item.
-     */
     caret: Boolean = false,
-    /**
-     * Where a tapped link goes. Null hands every link to the system; a chat
-     * supplies this so a bot's desktop path is fetched through the computer
-     * instead of handed to a browser that cannot reach it.
-     */
     openLink: ((String) -> Unit)? = null,
 ) {
     val blocks = Markdown.blocks(source)
@@ -81,7 +59,6 @@ fun MarkdownText(
     }
 }
 
-/** The opener [MarkdownText] was given, reachable from every block's inline run. */
 private val LocalLinkOpener = compositionLocalOf<((String) -> Unit)?> { null }
 
 @Composable
@@ -92,8 +69,6 @@ private fun MarkdownBlockView(block: MarkdownBlock, tail: Boolean) {
             Text(inline(block.text, tail, muted), fontSize = 17.sp)
 
         is MarkdownBlock.Heading ->
-            // Three sizes, not six. A chat bubble is not a document, and an h4
-            // that looks exactly like body text is a heading that failed.
             Text(
                 text = inline(block.text, tail, muted),
                 fontSize = when {
@@ -189,9 +164,6 @@ private fun inline(text: String, tail: Boolean, muted: Color): AnnotatedString {
                 fontFamily = if (InlineStyle.CODE in span.styles) FontFamily.Monospace else null,
                 textDecoration = if (InlineStyle.STRIKE in span.styles) TextDecoration.LineThrough else null,
             )
-            // An empty destination is a legal link (`[x]()`), but there is
-            // nothing to open — render the label and leave it inert rather than
-            // handing the UriHandler a blank URI.
             val url = span.link?.takeIf { it.isNotBlank() }
             if (url == null) {
                 withStyle(style) { append(span.text) }
@@ -205,7 +177,6 @@ private fun inline(text: String, tail: Boolean, muted: Color): AnnotatedString {
                                 textDecoration = TextDecoration.Underline,
                             ),
                         ),
-                        // With an opener the UriHandler is never consulted.
                         linkInteractionListener = opener?.let { open -> LinkInteractionListener { open(url) } },
                     ),
                 ) { append(span.text) }
@@ -215,11 +186,6 @@ private fun inline(text: String, tail: Boolean, muted: Color): AnnotatedString {
     }
 }
 
-/**
- * A figure space then a block, so the caret sits off the last glyph rather than
- * touching it. It does not blink, deliberately — a caret that blinks twice and
- * stops looks more broken than one that never blinks.
- */
 private fun androidx.compose.ui.text.AnnotatedString.Builder.appendCaret(tail: Boolean, muted: Color) {
     if (!tail) return
     withStyle(SpanStyle(color = muted)) { append(" ▍") }

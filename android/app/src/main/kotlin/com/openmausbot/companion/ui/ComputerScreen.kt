@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.graphics.BitmapFactory
@@ -43,16 +44,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-/**
- * A bot's computer, live — the port of `ios/App/ComputerView.swift`.
- *
- * Watch-only: no clicking, no typing, no zoom. The frame is fit to the bounds and
- * lands as a letterbox, because the desktop is wider than the phone.
- *
- * Frames are expensive — hundreds of kilobytes of base64 each — so `Session` only
- * asks for them while this screen is on. [ScreenWatch] holds exactly one watcher
- * for the composable's lifetime.
- */
 @Composable
 fun ComputerScreen(botId: String, onBack: () -> Unit) {
     val environment = LocalCompanion.current
@@ -66,9 +57,6 @@ fun ComputerScreen(botId: String, onBack: () -> Unit) {
         return
     }
 
-    // Enter asks the stream for screens, leave asks it to stop and drops the
-    // frame. Backgrounding does not pass through here: the stream is torn down
-    // whole and resumes with screens still on, which is what iOS does.
     DisposableEffect(botId) {
         val watch = ScreenWatch(
             start = session::watchScreen,
@@ -197,9 +185,6 @@ fun ComputerScreen(botId: String, onBack: () -> Unit) {
                         failure = null
                         scope.launch {
                             try {
-                                // Minted per join, handed straight to the browser
-                                // and kept nowhere: no field, no saved state, no
-                                // log. The next join asks the harness again.
                                 failure = environment.openCloudDesktop(session.cloudDesktop(bot))
                             } catch (error: Throwable) {
                                 if (error is kotlinx.coroutines.CancellationException) throw error

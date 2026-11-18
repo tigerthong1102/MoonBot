@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.storage
 
 import android.content.Context
@@ -14,16 +15,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/**
- * The durable half of the first-run flow — the port of
- * `testPendingNotificationPreferenceSurvivesAProcessRelaunch` in
- * `ios/Tests/CompanionCoreTests/OnboardingTests.swift:118-132`, plus the §6
- * containment this store has to keep.
- *
- * Durability is the whole point of the marker, and no in-memory fake can show
- * it, so these run against a real `SharedPreferences` file and read it back
- * through a *second* instance — the shape a relaunch has.
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class OnboardingPreferencesTest {
@@ -119,18 +110,6 @@ class OnboardingPreferencesTest {
         assertTrue(transfer.contains(needle), "device-transfer must exclude ${OnboardingPreferences.FILE}")
     }
 
-    /**
-     * A source pin, and it says only what a source pin can say: that the word
-     * `commit()` is written in the file. It is here because the difference this
-     * guards cannot be observed from a test at all — Robolectric runs `apply()`
-     * synchronously, so both spellings pass every assertion above.
-     *
-     * What is at stake is real: `Session.pair` writes this marker *before* it
-     * saves the connection precisely so that a process which stops between them
-     * leaves an orphan marker rather than a restorable pairing with none.
-     * `apply()` hands the disk write to a background thread and returns, which
-     * silently gives that ordering back.
-     */
     @Test
     fun `the marker is written synchronously`() {
         val source = sourceFile("storage/OnboardingPreferences.kt").readText()

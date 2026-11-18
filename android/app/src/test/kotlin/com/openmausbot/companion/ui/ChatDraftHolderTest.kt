@@ -77,7 +77,6 @@ class ChatDraftHolderTest {
         val source = holder.attachments("thread-a")
         source.sending.value = true
         val destination = holder.attachments("thread-b")
-        // An upload completes after the reader switched to B.
         source.sending.value = false
         source.error.value = "Upload failed"
         assertNull(destination.error.value)
@@ -97,8 +96,6 @@ class ChatDraftHolderTest {
         assertTrue(source === returned)
         returned.onTypedChange("newer edit")
         assertEquals("newer edit", source.text)
-        // Successful completion can clear the same live UI object, not an
-        // abandoned TextField state cell from before the switch.
         source.onSend()
         assertEquals("", returned.text)
         assertEquals("unrelated", holder.composer("thread-b").text)
@@ -118,9 +115,6 @@ class ChatDraftHolderTest {
 
         navigator.push(Destination.Chat(ChatTarget.Bot(chatId, "thread-a")))
         navigator.push(Destination.Computer(chatId))
-        // Production: RootScreen renders only navigator.current, so Computer
-        // removes ChatScreen. retainsChatDraft is how dispose distinguishes
-        // that push from a pop.
         assertTrue(navigator.current is Destination.Computer)
         assertTrue(navigator.retainsChatDraft(chatId))
         assertNotNull(holder.get(chatId))
@@ -137,13 +131,11 @@ class ChatDraftHolderTest {
         assertTrue(returned.contaminated)
         assertEquals("please", returned.saveableValue)
 
-        // Production leave-to-roster: clear while composed, then pop.
         returned.onLeaveToRoster()
         navigator.pop()
         assertFalse(navigator.retainsChatDraft(chatId))
         assertNull(holder.get(chatId))
 
-        // Reopen from roster with an empty saveable half — draft must not return.
         val reopened = ChatComposerDraft(chatId, holder, initialSaveable = "")
         assertEquals("", reopened.text)
         assertEquals("", reopened.saveableValue)
@@ -157,8 +149,6 @@ class ChatDraftHolderTest {
         val draft = ChatComposerDraft(chatId, holder, initialSaveable = "")
         draft.onTypedChange("please")
         draft.onDictation(Dictation.draft(base = "please", transcript = "look"))
-        // Production onSend calls composer.onSend() → publish("", afterClear()),
-        // never holder.clear().
         draft.onSend()
 
         assertNull(holder.get(chatId))
@@ -205,10 +195,6 @@ class ChatDraftHolderTest {
 
     @Test
     fun saverPersistsTypedOnlyNeverSpeech() {
-        // Production rememberSaveable uses ChatComposerDraft.saver — this is
-        // that save/restore, not a hand-copied snapshot. SavedStateRegistry
-        // keying across a real Activity still needs a composition harness
-        // (device plan); the value the registry would store is decided here.
         val liveHolder = ChatDraftHolder()
         val live = ChatComposerDraft("bot-9", liveHolder, initialSaveable = "")
         live.onTypedChange("please")
@@ -220,7 +206,6 @@ class ChatDraftHolderTest {
         assertEquals("please", ChatComposerDraft.typedSnapshotFromSaved(saved))
         assertFalse(requireNotNull(saved).toString().contains("SECRET_SPOKEN"))
 
-        // Process death: new holder, restore only what the saver emitted.
         val afterDeath = ChatDraftHolder()
         val restored = requireNotNull(
             ChatComposerDraft.saver("bot-9", afterDeath).restore(requireNotNull(saved)),
@@ -233,8 +218,6 @@ class ChatDraftHolderTest {
 
     @Test
     fun saverRestoresCorruptOrAbsentAsEmpty() {
-        // Fail-closed: null / wrong type / bare string / malformed envelope
-        // must not crash and must not seed speech (or any holder entry).
         val rejected: List<Any?> = listOf(
             null,
             42,
@@ -252,8 +235,6 @@ class ChatDraftHolderTest {
             )
         }
 
-        // restore() takes Saveable : Any (non-null). Feed every unexpected
-        // non-null shape; null is covered by the parse → "" path below.
         val restoreRejected: List<Any> = listOf(
             42,
             "please SECRET_SPOKEN",
@@ -274,7 +255,6 @@ class ChatDraftHolderTest {
             assertNull(holder.get("bot-bad"), "raw=$raw must not leave a holder entry")
         }
 
-        // Absent value: parse null → empty composer, no holder entry.
         val holder = ChatDraftHolder()
         val empty = ChatComposerDraft(
             "bot-absent",

@@ -1,18 +1,9 @@
-// A folded run of activity: one line standing in for several chips.
-//
-// What "Reduced" buys the reader. A bot that ran four tools in a row leaves
-// four receipts, and past the second one they stop carrying information —
-// so the run becomes a single line that says how many there were, and opens
-// back into the real chips on a tap.
-//
-// Failures never arrive here: `transcriptRows` breaks them out before a run
-// is formed, so anything folded is either finished or still going.
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 
 struct ActivityRunChip: View {
     let items: [Message]
-    /// Where an "Opened thread" chip inside the run goes once unfolded.
     var openThread: ((ThreadRef) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     @State private var expanded = false

@@ -1,23 +1,10 @@
 // Modified for StartupBot; original copyright and license retained.
-// Server-sent events, by hand.
-//
-// Two pieces, deliberately separated: a parser that turns lines into events
-// with no I/O in it at all, and a connection that drives it from a
-// URLSession byte stream. The parser is where the bugs live — multi-line
-// data, comments used as keepalives, the optional space after the colon —
-// so it is the part that can be tested without a server.
-//
-// The harness's stream is documented in `server/index.ts`: each frame is
-// `id: <streamId>:<seq>` followed by one `data:` line, separated by a blank
-// line, with `: keepalive` comments every 25 seconds.
+// SSE frames contain an id and data separated by a blank line; colon-prefixed lines are keepalives.
 import Foundation
 import OSLog
 
-/// Same subsystem the app's own stream logging uses, so a session reads as
-/// one story in Console rather than two halves under different names.
 private let log = Logger(subsystem: "ai.startupbot.companion", category: "stream")
 
-/// One event off the wire, before it is understood as a `Frame`.
 public struct SSEEvent: Equatable, Sendable {
     public var id: String?
     public var data: String
@@ -36,7 +23,6 @@ public struct SSEParser: Sendable {
     public init() {}
 
     public mutating func line(_ raw: String) -> SSEEvent? {
-        // AsyncLineSequence strips the newline but not a CR from CRLF
         let line = raw.hasSuffix("\r") ? String(raw.dropLast()) : raw
 
         guard !line.isEmpty else {
@@ -44,23 +30,16 @@ public struct SSEParser: Sendable {
             fields.removeAll()
             return event
         }
-        // ": keepalive" — a comment, and the only reason this stream
-        // survives a NAT with a short idle timeout
         guard !line.hasPrefix(":") else { return nil }
         guard let colon = line.firstIndex(of: ":") else {
-            // a bare field name with no value is legal and carries nothing
             return nil
         }
         var value = String(line[line.index(after: colon)...])
-        // exactly one optional leading space after the colon, per the spec
         if value.hasPrefix(" ") { value.removeFirst() }
         fields.append((name: String(line[line.startIndex..<colon]), value: value))
         return nil
     }
 
-    /// Anything still buffered when the stream ends. An event without its
-    /// closing blank line is incomplete, so this is deliberately discarded
-    /// rather than guessed at.
     public mutating func reset() {
         fields.removeAll()
     }
@@ -142,25 +121,12 @@ public func eventStream(
                         line.append(byte)
                         continue
                     }
-                    // \r\n is legal; the parser tolerates a stray \r too
                     if line.last == 0x0D { line.removeLast() }
                     let text = String(decoding: line, as: UTF8.self)
                     line.removeAll(keepingCapacity: true)
 
                     guard let event = parser.line(text) else { continue }
                     guard let data = event.data.data(using: .utf8) else { continue }
-                    // A frame we cannot decode is one frame lost, not a dead
-                    // stream: `Frame` already absorbs unknown kinds, so this
-                    // only catches genuinely malformed JSON.
-                    //
-                    // `hello` is the exception that makes the silence
-                    // dangerous. `Session` leaves `.connecting` and hydrates
-                    // only when a hello arrives, and `Frame.init(from:)`
-                    // requires its `cursor` — so a hello missing that field
-                    // throws, is dropped here, and the app waits forever on a
-                    // stream that is open and healthy, with nothing anywhere
-                    // saying why. Naming the kind costs one line and turns
-                    // that into something a console can answer.
                     guard let frame = try? decoder.decode(StreamFrame.self, from: data) else {
                         var kind = "unknown"
                         if let object = try? JSONSerialization.jsonObject(with: data),

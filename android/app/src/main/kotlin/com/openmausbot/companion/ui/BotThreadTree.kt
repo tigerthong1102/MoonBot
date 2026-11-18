@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.clickable
@@ -34,7 +35,6 @@ import com.openmausbot.companion.core.ChatSummary
 import com.openmausbot.companion.core.forTask
 import com.openmausbot.companion.core.threadGroups
 
-/** Local search includes desktop folder names and every visible conversation title. */
 internal fun rosterThreadRows(
     summaries: List<ChatSummary>,
     query: String,

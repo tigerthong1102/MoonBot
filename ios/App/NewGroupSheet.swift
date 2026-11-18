@@ -1,7 +1,4 @@
-// Make a channel from the phone: a name, and which bots are in it.
-//
-// The harness names it after the first member if the name is left blank,
-// which is what the desktop's dialog does too — one rule, two screens.
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 
@@ -56,8 +53,6 @@ struct NewGroupSheet: View {
                     Button("Create") {
                         creating = true
                         Task {
-                            // members in roster order, so the room's name (if
-                            // it defaults) follows the first bot you picked
                             let ordered = bots.map(\.id).filter(members.contains)
                             if let room = await session.createRoom(name: name, memberIds: ordered) {
                                 Haptics.success()

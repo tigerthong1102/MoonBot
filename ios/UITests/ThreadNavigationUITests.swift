@@ -1,7 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 
-/// Runs exclusively against the bundled ThreadPreview fleet. No account,
-/// paired computer, message sends, or server mutations are involved.
 final class ThreadNavigationUITests: XCTestCase {
     @MainActor
     func testRosterShowsFolderThreadsAndSwitchesLocally() {
@@ -88,8 +87,6 @@ final class ThreadNavigationUITests: XCTestCase {
         app.buttons["thread-switcher"].tap()
         let create = app.buttons["new-thread"]
         XCTAssertTrue(create.waitForExistence(timeout: 5))
-        // The preview deliberately has no API client, so this cannot write
-        // anywhere and exercises the failure path deterministically.
         create.tap()
         let error = app.descendants(matching: .any).matching(identifier: "thread-action-error").firstMatch
         XCTAssertTrue(error.waitForExistence(timeout: 5))
@@ -127,8 +124,6 @@ final class ThreadNavigationUITests: XCTestCase {
     private func launchPreview() -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
-        // Xcode may prelaunch the app after installing an updated build.
-        // Restart it so Session initializes with the offline fixture flags.
         app.terminate()
         app.launchArguments = [
             "-store-preview", "-threads-preview",
@@ -138,9 +133,6 @@ final class ThreadNavigationUITests: XCTestCase {
             "-companion.onboarding.notificationsSeen", "YES"
         ]
         app.launch()
-        // Simulator installation can restore an unpaired, prewarmed scene
-        // without the preview arguments once. Restart only that wrong route;
-        // a missing thread in an already-loaded fixture must still fail.
         if app.buttons["Connect computer"].exists {
             app.terminate()
             app.launch()

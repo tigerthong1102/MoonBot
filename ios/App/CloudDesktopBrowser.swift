@@ -1,9 +1,5 @@
 // Modified for StartupBot; original copyright and license retained.
-// The cloud provider's noVNC viewer, kept inside the app without teaching
-// StartupBot how to speak VNC or retain the provider's session token.
-// SFSafariViewController supplies a hardened browser, WebSocket support and
-// its own visible origin; dismissing it discards our only reference to the
-// freshly minted URL.
+// External browser origin and credential isolation are required; provider session URLs must not be persisted or logged.
 import SafariServices
 import SwiftUI
 

@@ -1,20 +1,14 @@
-// Which face a bot wears — the desktop's `stateForBot`, ported.
-//
-// A pinned expression wins; then what the bot is doing right now; then a
-// guess from its role. Same rules, same order, so a bot looks the same on
-// the phone as on the laptop.
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import CompanionCore
 
 extension MausState {
-    /// The desktop's legacy names, kept so an older bot record still resolves.
     private static let legacy: [String: MausState] = [
         "deadpan": .idle, "friendly": .happy, "focused": .working, "thinking": .thinking,
         "excited": .excited, "sleepy": .drowsy, "surprised": .surprised, "skeptical": .suspicious,
         "worried": .scared, "mischievous": .playful,
     ]
 
-    /// Resolves any stored value — current, legacy or junk — to a real state.
     static func normalize(_ value: String?) -> MausState? {
         guard let value, !value.isEmpty else { return nil }
         return MausState(rawValue: value) ?? legacy[value]
@@ -46,8 +40,6 @@ extension MausState {
         return .idle
     }
 
-    /// The face for a chat as a whole: a bot's own, a room's is "happy" —
-    /// which is what the desktop draws for room avatars.
     static func forChat(_ chat: Chat, in state: CompanionState) -> MausState {
         switch chat {
         case let .bot(bot): return forBot(bot, last: state.visibleTranscript(forThread: bot.threadId).last)

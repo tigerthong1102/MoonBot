@@ -83,13 +83,8 @@ class AttachmentRulesTest {
     @Test
     fun `android eight sampling bounds its intermediate without needless blur`() {
         assertEquals(4, AttachmentImageRules.legacySampleSize(4_000, 3_000, 768))
-        // The no-undershoot plan is sample 2 (36 MP). One extra step yields a
-        // 3000 px edge, just below 3072, and a bounded 9 MP allocation.
         assertEquals(4, AttachmentImageRules.legacySampleSize(12_000, 12_000, 3_072))
-        // Just over the soft 12 MP budget but close to the requested edge: keep
-        // the sharp source under the 14 MP hard cap, then scale to 3072 exactly.
         assertEquals(1, AttachmentImageRules.legacySampleSize(3_500, 3_500, 3_072))
-        // The tolerance is hard bounded; a materially larger allocation still samples.
         assertEquals(2, AttachmentImageRules.legacySampleSize(4_000, 4_000, 3_072))
         assertEquals(1, AttachmentImageRules.legacySampleSize(700, 500, 768))
     }

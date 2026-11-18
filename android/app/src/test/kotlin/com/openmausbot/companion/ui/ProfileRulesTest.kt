@@ -13,14 +13,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * D2-04 / D2-05 / D2-06: what the profile sheet decides.
- *
- * Every expectation is read off `ios/App/AgentProfileView.swift` — the dirty
- * comparison at `:181-205`, the section gating at `:47-151`, and the load-time
- * correction in the view's `.task`. Nothing here is read back out of the Kotlin
- * it is testing.
- */
 class ProfileRulesTest {
 
     @Test
@@ -36,7 +28,6 @@ class ProfileRulesTest {
         assertNull(patch.avatarCrop)
         assertNull(patch.voice)
         assertNull(patch.speakReplies)
-        // The narrow contract owns avatarUrl; the form never sends one.
         assertNull(patch.avatarUrl)
     }
 
@@ -54,9 +45,6 @@ class ProfileRulesTest {
 
     @Test
     fun `a trailing space alone still counts as changed`() {
-        // iOS compares `name == baseline.name` before trimming, so whitespace
-        // makes the field dirty and sends a value identical to the baseline.
-        // Mirrored deliberately rather than tidied.
         val baseline = ProfileForm.of(bot())
         val patch = ProfileRules.patch(baseline.copy(name = "Scout "), baseline, speaking())
 
@@ -74,8 +62,6 @@ class ProfileRulesTest {
 
     @Test
     fun `empty voice is a value, not an omission`() {
-        // The server reads "" as "use the workspace default"; nil would mean the
-        // voice is not part of this patch at all.
         val baseline = ProfileForm.of(bot().copy(voice = "voice-7"))
         val patch = ProfileRules.patch(baseline.copy(voice = ""), baseline, speaking())
 
@@ -86,7 +72,6 @@ class ProfileRulesTest {
     fun `speak replies is saved off when the selection cannot speak`() {
         val baseline = ProfileForm.of(bot().copy(speakReplies = true))
         val form = baseline.copy(voice = "")
-        // Key configured, no workspace default, no agent voice: nothing to speak.
         val patch = ProfileRules.patch(form, baseline, config = configuredWithoutDefault())
 
         assertEquals(false, patch.speakReplies)
@@ -279,9 +264,6 @@ class ProfileRulesTest {
 
     @Test
     fun `an absent provider leaves the ElevenLabs copy exactly as iOS ships it`() {
-        // Spelled out rather than compared to the constants: this is the test
-        // that must fail if the decode ever defaults to the built-in engine,
-        // and comparing a constant to itself would survive that.
         val unconfigured = ConfigStatus(tts = ConfigFlag(configured = false))
 
         assertEquals(
@@ -345,9 +327,6 @@ class ProfileRulesTest {
             "a section that can speak has no notice, and so draws the picker",
         )
 
-        // What the screen can actually be handed under this engine, rather than
-        // the constants behind it: the strings are private precisely so that
-        // these three calls are the only way to reach them.
         listOf(
             ProfileRules.voiceCopy(noVoices).unconfiguredNotice.orEmpty(),
             ProfileRules.voiceCopy(noVoices).footer,
@@ -472,11 +451,9 @@ class ProfileRulesTest {
         Voice(id = "voice-2", label = "Bex", description = null),
     )
 
-    /** Key configured and a workspace default selected. */
     private fun speaking() =
         ConfigStatus(tts = ConfigFlag(configured = true, voice = "shared-voice"))
 
-    /** Key configured, workspace default blank — the state that blocks speech. */
     private fun configuredWithoutDefault() =
         ConfigStatus(tts = ConfigFlag(configured = true, voice = "   "))
 

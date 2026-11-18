@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.text.format.DateFormat
@@ -78,21 +79,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.coroutines.launch
 
-/**
- * Making or editing one routine — the port of `RoutineEditorView` in
- * `ios/App/TasksRoutinesView.swift`.
- *
- * Every field is `rememberSaveable`, so an orientation change neither closes the
- * sheet nor discards the draft — the same thing SwiftUI view state gives the
- * Swift for free. The caller composes this under `key(target.stateKey)`, which
- * is what scopes those saved fields to one routine: a different routine opened
- * later at the same call site gets its own slots rather than inheriting a draft.
- *
- * The work, the agent, how long it may take, where it runs, and when. Cloud VM
- * is offered only when the paired computer reports both a Box credential and an
- * available Box agent, and an existing cloud routine keeps that choice while its
- * VM is unavailable rather than being silently moved back to the computer.
- */
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun RoutineEditorSheet(
@@ -172,10 +159,6 @@ internal fun RoutineEditorSheet(
 
     val bots = remember(state) { state.bots.filter { it.hidden != true } }
 
-    // `onAppear`, not a subscription: the first agent is a default applied once.
-    // The effect itself re-runs after an Activity recreation, so what makes it a
-    // once is [AgentChoice.applied], which is saved — a later fleet frame and a
-    // restored form both leave a deliberate "Choose an agent" alone.
     LaunchedEffect(Unit) {
         agent = agent.withDefault(session.state.value.bots.firstOrNull { it.hidden != true }?.id)
     }
@@ -549,8 +532,6 @@ internal fun RoutineEditorSheet(
             },
         )
         DatePickerDialog(
-            // Dismissing by scrim or back is a cancel: the staged half goes,
-            // the committed instant does not.
             onDismissRequest = {
                 pickingDate = false
                 if (editingIntervalAnchor) {
@@ -563,8 +544,6 @@ internal fun RoutineEditorSheet(
                 TextButton(
                     onClick = {
                         val picked = datePickerState.selectedDateMillis
-                        // Staged, not written. `Date()...` bounds the instant the
-                        // user confirms, and they have not confirmed one yet.
                         if (picked != null) {
                             val date = Instant.ofEpochMilli(picked)
                                 .atZone(ZoneOffset.UTC)
@@ -576,8 +555,6 @@ internal fun RoutineEditorSheet(
                             }
                         }
                         pickingDate = false
-                        // The instant is a day and a time; Material picks them in
-                        // two dialogs, so the time follows the day.
                         pickingTime = true
                     },
                 ) { Text("Next") }
@@ -631,16 +608,9 @@ internal fun RoutineEditorSheet(
                 once = once.discard()
             }
         }
-        // The Material dialog rather than an AlertDialog with a TimePicker in
-        // its text slot: the clock face is wider than a platform-default alert,
-        // which would clip it on a narrow phone.
         TimePickerDialog(
             onDismissRequest = cancel,
             confirmButton = {
-                // The rest of `in: Date()...`. The candidate instant is compared
-                // against a clock read on each move of the hands, so a minute
-                // that passes while the dialog is open stops being selectable —
-                // as it would on a bounded picker. Nothing gates Save.
                 val selectable = !bounded || RoutineRules.onceInstantSelectable(
                     date = day,
                     hour = timeState.hour,
@@ -661,9 +631,6 @@ internal fun RoutineEditorSheet(
                         } else if (bounded) {
                             once = once.confirm(timeState.hour, timeState.minute, zone)
                         } else {
-                            // "Selected days" never opens the date dialog, so
-                            // there is no staged day; dropping one is only
-                            // insurance against leaving a half-choice behind.
                             once = once.discard()
                             dailyMinuteOfDay = timeState.hour * 60 + timeState.minute
                         }
@@ -774,7 +741,6 @@ private fun AgentPicker(
     }
 }
 
-/** A `Picker(.inline)` row: one choice of several, hit at 48 dp. */
 @Composable
 private fun RadioRow(
     label: String,
@@ -832,11 +798,6 @@ private fun ValueRow(label: String, value: String, onClick: () -> Unit) {
     }
 }
 
-/**
- * One day of the week. A 48 dp circle rather than a Material chip: seven chips
- * do not fit a narrow phone at a hittable size, and the letter alone is what the
- * Swift shows. The day's full name is what a screen reader gets.
- */
 @Composable
 private fun DayToggle(letter: String, name: String, on: Boolean, onToggle: (Boolean) -> Unit) {
     Box(
@@ -867,10 +828,6 @@ private fun DayToggle(letter: String, name: String, on: Boolean, onToggle: (Bool
     }
 }
 
-/**
- * The staged half travels too: rotating with the time dialog open must not
- * forget which day it is bounding.
- */
 private val OnceDraftSaver = listSaver<OnceDraft, String>(
     save = { listOf(it.millis.toString(), it.stagedDate?.toEpochDay()?.toString() ?: "") },
     restore = {
@@ -881,10 +838,6 @@ private val OnceDraftSaver = listSaver<OnceDraft, String>(
     },
 )
 
-/**
- * Internal rather than private so the test can round-trip the very saver the
- * sheet uses: "survives a recreation" is a claim about this representation.
- */
 internal val AgentChoiceSaver = listSaver<AgentChoice, String>(
     save = { listOf(it.botId, it.applied.toString()) },
     restore = { AgentChoice(botId = it[0], applied = it[1].toBooleanStrict()) },

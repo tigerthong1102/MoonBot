@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -81,15 +82,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * The paired-safe subset of bot settings — the port of
- * `ios/App/AgentProfileView.swift`.
- *
- * The model, identity, avatar, notifications and the renderer-neutral voice
- * choice. Shared provider keys stay on the computer: this sheet sees the model
- * catalog and configured / not configured, and offers no field that could
- * carry a key.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: (String) -> Unit) {
@@ -101,8 +93,6 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
     val lifecycleOwner = LocalLifecycleOwner.current
     val player = environment.voicePreview
 
-    // The record the sheet was opened on, so the form has an origin even after
-    // the fleet drops the agent; `current` is what every action is applied to.
     val opened = remember { bot }
     val current = state.bot(opened.id) ?: opened
     val currentTask = current.forTask(opened.threadId)
@@ -119,13 +109,11 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
     var busy by remember { mutableStateOf(false) }
     var switchingEngine by remember { mutableStateOf(false) }
 
-    // The Model section. The draft survives rotation; the catalog is reloaded.
     var instances by remember { mutableStateOf<List<Instance>>(emptyList()) }
     var modelsLoaded by remember { mutableStateOf(false) }
     var savedModel by remember { mutableStateOf(opened.modelSelection) }
     var selectedInstanceId by rememberSaveable { mutableStateOf(opened.modelSelection.instanceId) }
     var selectedModelId by rememberSaveable { mutableStateOf(opened.modelSelection.model) }
-    // "" is the engine default; the picker has no null row.
     var selectedEffort by rememberSaveable { mutableStateOf(opened.modelSelection.effort.orEmpty()) }
     val selectedInstance = instances.firstOrNull { it.instanceId == selectedInstanceId }
     val modelDraft = ModelSelection(selectedInstanceId, selectedModelId, selectedEffort.ifEmpty { null })
@@ -149,12 +137,9 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
         voices = loaded.second
         instances = loaded.third
         modelsLoaded = true
-        // A stored "speak replies" that nothing can speak is turned off before
-        // the toggle is ever drawn.
         form = ProfileRules.applyLoadedConfig(form, loaded.first)
     }
 
-    // One preview at a time, and none that outlives this sheet.
     DisposableEffect(lifecycleOwner) {
         player.bind(lifecycleOwner)
         onDispose { player.unbind(lifecycleOwner) }
@@ -417,11 +402,6 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                                         ProfileRules.generatePrompt(prompt),
                                         liveBot(),
                                     ) ?: return@launch
-                                    // Generation picks a safe crop server-side;
-                                    // the selector is the user's explicit choice,
-                                    // so persist it against the returned
-                                    // attachment rather than leaving the two out
-                                    // of sync.
                                     val updated = session.updateProfile(
                                         BotProfilePatch(avatarCrop = intended),
                                         generated,
@@ -429,9 +409,6 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                                     val crop = if (updated != null) {
                                         updated.avatarCrop ?: intended
                                     } else {
-                                        // Generation itself succeeded: reflect its
-                                        // authoritative fallback rather than
-                                        // claiming the requested crop was saved.
                                         generated.avatarCrop ?: AvatarCrop.MASCOT
                                     }
                                     form = form.copy(crop = crop)
@@ -481,9 +458,6 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                     config = config,
                     switching = switchingEngine,
                     onSwitchEngine = { next ->
-                        // The desktop's Voice engine group: one field of the
-                        // ordinary config write, then a fresh voice list,
-                        // because every engine names its own voices.
                         if (switchingEngine || config?.voiceProvider == next) return@VoiceSection
                         scope.launch {
                             switchingEngine = true
@@ -498,8 +472,6 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                                     form = resetForm
                                     baseline = resetBaseline
                                     config = updated
-                                    // Never render or preview the previous
-                                    // provider's identifiers while reloading.
                                     voices = emptyList()
                                     voices = session.voiceOptions()
                                 }
@@ -709,7 +681,6 @@ internal fun FormSection(
     }
 }
 
-/** A `Button` row of a Form: full width, left aligned, hit at 48 dp. */
 @Composable
 internal fun ActionRow(
     text: String,
@@ -750,7 +721,6 @@ internal fun ActionRow(
     }
 }
 
-/** A `Toggle` row: the whole line switches, and it is 48 dp tall. */
 @Composable
 internal fun SwitchRow(
     label: String,
@@ -812,7 +782,6 @@ internal fun IconNote(
     }
 }
 
-/** Rotation must not throw away a half-typed profile. */
 private val ProfileFormSaver = listSaver<ProfileForm, Any>(
     save = {
         listOf(

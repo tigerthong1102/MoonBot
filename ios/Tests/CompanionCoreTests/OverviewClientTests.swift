@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import XCTest
 @testable import CompanionCore
@@ -79,7 +80,6 @@ final class OverviewClientTests: XCTestCase {
             _ = try await client.overview(botId: "bad/slash")
             XCTFail("expected badURL")
         } catch APIError.badURL {
-            // Expected: reject before sending a request with an unsafe path.
         } catch {
             XCTFail("unexpected error: \(error)")
         }

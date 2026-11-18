@@ -1,10 +1,4 @@
-// The two pieces of preference logic worth testing without a screen: how a
-// transcript folds at each activity level, and how a quick-reply list
-// survives a round trip through storage.
-//
-// Both are written against what the reader ends up seeing, not internals —
-// a run collapses, a failure never does, and a corrupt store still puts
-// four usable chips on the composer.
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 @testable import CompanionCore
 
@@ -21,7 +15,6 @@ final class ChatPreferencesTests: XCTestCase {
         return message
     }
 
-    // MARK: - Full
 
     func testFullKeepsEveryMessageInOrder() {
         let messages = [text("a"), activity("b"), activity("c"), text("d")]
@@ -30,7 +23,6 @@ final class ChatPreferencesTests: XCTestCase {
         XCTAssertTrue(rows.allSatisfy { if case .message = $0 { return true } else { return false } })
     }
 
-    // MARK: - Hidden
 
     func testHiddenDropsActivityAndKeepsTheRest() {
         let messages = [text("a"), activity("b"), activity("c"), text("d")]
@@ -42,7 +34,6 @@ final class ChatPreferencesTests: XCTestCase {
         XCTAssertEqual(transcriptRows(messages, detail: .hidden).map(\.id), ["a"])
     }
 
-    // MARK: - Reduced
 
     func testReducedCollapsesConsecutiveActivityIntoOneRun() {
         let messages = [text("a"), activity("b"), activity("c"), activity("d"), text("e")]
@@ -53,8 +44,6 @@ final class ChatPreferencesTests: XCTestCase {
     }
 
     func testReducedLeavesALoneActivityAlone() {
-        // A run of one is not a run — collapsing it would replace a chip
-        // with a chip that says there is one chip.
         let messages = [text("a"), activity("b"), text("c")]
         let rows = transcriptRows(messages, detail: .reduced)
         XCTAssertEqual(rows.map(\.id), ["a", "b", "c"])
@@ -62,7 +51,6 @@ final class ChatPreferencesTests: XCTestCase {
     }
 
     func testReducedBreaksOutAFailureOnItsOwn() {
-        // The whole point of reduced: noise folds, failures never do.
         let messages = [activity("a"), activity("b"), activity("c", ok: false), activity("d"), activity("e")]
         let rows = transcriptRows(messages, detail: .reduced)
         XCTAssertEqual(rows.count, 3)
@@ -91,8 +79,6 @@ final class ChatPreferencesTests: XCTestCase {
     }
 
     func testRowCarriesTheTimeAndSenderOfItsFirstMessage() {
-        // The transcript's date separators and bubble tails read these off
-        // the row rather than the message, so a run must answer for itself.
         let rows = transcriptRows([activity("a", at: 500), activity("b", at: 900)], detail: .reduced)
         XCTAssertEqual(rows[0].at, 500)
         XCTAssertEqual(rows[0].kind, .activity)
@@ -106,7 +92,6 @@ final class ChatPreferencesTests: XCTestCase {
         }
     }
 
-    // MARK: - Quick replies
 
     func testDefaultsAreTheFourChipsTheComposerAlreadyShows() {
         XCTAssertEqual(QuickReply.defaults.count, 4)
@@ -122,19 +107,14 @@ final class ChatPreferencesTests: XCTestCase {
     }
 
     func testAnEmptyStoreFallsBackToDefaults() {
-        // First launch: nothing written yet.
         XCTAssertEqual(QuickReply.decode(""), QuickReply.defaults)
     }
 
     func testCorruptStoreFallsBackToDefaultsRatherThanNoChips() {
-        // A composer with no chips is worse than a composer with the stock
-        // ones, so a bad decode is not allowed to empty the row.
         XCTAssertEqual(QuickReply.decode("{not json"), QuickReply.defaults)
     }
 
     func testDeletingEveryChipIsRespectedRatherThanReset() {
-        // Distinct from a corrupt store: an explicit empty list means the
-        // user cleared the row on purpose and it must stay cleared.
         XCTAssertEqual(QuickReply.decode(QuickReply.encode([])), [])
     }
 
@@ -151,7 +131,6 @@ final class ChatPreferencesTests: XCTestCase {
         XCTAssertEqual(QuickReply.decode(QuickReply.encode(replies)), QuickReply.defaults)
     }
 
-    // MARK: - Island intro
 
     func testIslandIntroDefaultsToOncePerBot() {
         XCTAssertEqual(IslandIntro.oncePerBot.rawValue, "oncePerBot")

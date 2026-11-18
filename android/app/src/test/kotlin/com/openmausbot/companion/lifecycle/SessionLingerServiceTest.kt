@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.lifecycle
 
 import android.content.Context
@@ -25,15 +26,6 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/**
- * The Android half of the linger: the anchoring component itself, and the fact
- * that the real Application registers the coordinator on the process lifecycle.
- *
- * Robolectric can pin the declaration, the start/stop calls, the token hand-off
- * and the absence of any foreground promotion. It cannot prove the process
- * actually keeps a service-level importance on a real device — that is what the
- * emulator run in the report is for.
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SessionLingerServiceTest {
@@ -76,7 +68,6 @@ class SessionLingerServiceTest {
         controller.destroy()
         assertEquals(listOf(42L), reported)
 
-        // A second destroy has no token left to report.
         service.onDestroy()
         assertEquals(listOf(42L), reported)
     }
@@ -114,9 +105,6 @@ class SessionLingerServiceTest {
 
     @Test
     fun `attach routes a service the system destroys back to the coordinator`() {
-        // Nothing on this scheduler runs unless it is advanced, so the session
-        // stays in its launch-time Pending restore — a state the coordinator is
-        // required to hold the window for.
         val scope = CoroutineScope(StandardTestDispatcher(TestCoroutineScheduler()))
         val session = Session(
             scope = scope,
@@ -148,9 +136,6 @@ class SessionLingerServiceTest {
         val app = RuntimeEnvironment.getApplication() as OpenMausApp
         val registry = ProcessLifecycleOwner.get().lifecycle as LifecycleRegistry
 
-        // removeObserver is a no-op for an observer that was never added, so a
-        // count that drops by one is proof this exact coordinator is the one
-        // OpenMausApp put on the process lifecycle.
         val before = registry.observerCount
         registry.removeObserver(app.linger)
         assertEquals(before - 1, registry.observerCount)

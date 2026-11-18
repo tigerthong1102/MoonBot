@@ -21,11 +21,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Regression for the cold-start notification tap: an empty pre-hydrate state is
- * "not yet", not "deleted". Concluding the latter popped the chat screen the
- * instant it opened, so the tap led back to the roster.
- */
 class ThreadResolutionTest {
     @Test
     fun backgroundChannelTasksResolveWithoutChangingTheSelectedTask() {
@@ -57,7 +52,6 @@ class ThreadResolutionTest {
 
     @Test
     fun `a cursor is not the only proof of hydration`() {
-        // A stream resumed from a cursor that was never committed still has bots.
         val withBots = CompanionState(bots = listOf(bot()))
         assertEquals(
             ThreadResolution.Result.Gone,
@@ -80,14 +74,12 @@ class ThreadResolutionTest {
             BotTask(threadId = "thread-bot-1", title = "First", createdAt = 0.0),
             BotTask(threadId = "thread-two", title = "Second", createdAt = 1.0),
         )
-        // The chat was opened on the bot's first task.
         val before = CompanionState(bots = listOf(bot().copy(tasks = tasks)), cursor = "s:1")
         assertEquals(
             "thread-bot-1",
             ThreadResolution.chatOrNull(before, "thread-bot-1")?.threadId,
         )
 
-        // A desktop switch moves its pointer, not this phone's destination.
         val after = CompanionState(
             bots = listOf(bot().copy(threadId = "thread-two", tasks = tasks)),
             cursor = "s:2",
@@ -113,7 +105,6 @@ class ThreadResolutionTest {
 
     @Test
     fun `the open thread wins over a task list that also contains it`() {
-        // Two bots, one of which lists the other's thread — the live owner wins.
         val state = CompanionState(
             bots = listOf(
                 bot(id = "bot-2").copy(
@@ -140,7 +131,6 @@ class ThreadResolutionTest {
     }
 }
 
-/** The local task stays addressed by both owner and thread, including deletion. */
 class ConversationResolutionTest {
     private val hydrated = "stream-1:1"
 
@@ -152,7 +142,6 @@ class ConversationResolutionTest {
         )
         val opened = Destination.Chat(Chat.BotChat(bot).target)
 
-        // The desktop deleted task-2, the one on screen, and selected task-1.
         val after = CompanionState(
             bots = listOf(bot.copy(threadId = "task-1", tasks = listOf(BotTask("task-1", "First", 0.0)))),
             cursor = hydrated,
@@ -223,7 +212,6 @@ class ConversationResolutionTest {
         assertEquals("thread-room-1", state.chat(destination.target)?.threadId)
         assertEquals("thread-room-1", ThreadResolution.chatOrNull(state, "thread-room-1")?.threadId)
 
-        // Deleting the formerly selected room task also keeps the channel open.
         val removed = state.copy(rooms = listOf(live.copy(tasks = live.tasks?.filter { it.threadId == "next" })))
         assertEquals("next", (ThreadResolution.resolve(removed, destination) as ThreadResolution.Result.Open).chat.threadId)
     }
@@ -358,9 +346,6 @@ class ApprovalChoicesTest {
 
     @Test
     fun `deny is the refusal, case-insensitively and after trimming`() {
-        // `OptionCard.isRefusal` in `ios/Sources/CompanionCore/Models.swift`
-        // trims `.whitespacesAndNewlines` before comparing, so padding is not a
-        // different answer.
         for (deny in listOf("Deny", "DENY", " deny ", "\nDeNy\t", "\r\ndeny")) {
             assertTrue(ApprovalChoices.isRefusal(deny), deny)
         }
@@ -391,11 +376,7 @@ class ApprovalChoicesTest {
         assertNull(ApprovalChoices.alwaysAllowChoice(answered))
     }
 
-    // The standing grant answers with one of the card's own options — for a
-    // permission card as much as for a question. `ios/App/ChatView.swift` builds
-    // that button's choice from `allowChoice` alone and shows it only when
-    // `allowChoice` exists; nothing is fabricated for a card that offered no way
-    // to say yes.
+
 
     @Test
     fun `always allow answers with an option the card offered`() {
@@ -503,7 +484,6 @@ internal fun room(id: String = "room-1") = Room(
     createdAt = 0.0,
 )
 
-/** GAP-03: the role a hit carries must survive into what the row shows. */
 class SearchHitRoleTest {
     @Test
     fun `a user hit and a bot hit are told apart`() {
@@ -522,13 +502,10 @@ class SearchHitRoleTest {
 
     @Test
     fun `an unknown role is attributed to the bot, never to you`() {
-        // Message.Role decodes anything unrecognised as BOT (§8), and the row
-        // must not claim you said something you did not.
         assertFalse(SearchHitRole.isFromUser(Message.Role.BOT))
     }
 }
 
-/** GAP-05: the refusal is the one option that does not get accent weight. */
 class OptionEmphasisTest {
     @Test
     fun `deny is secondary, case-insensitively and after trimming`() {
@@ -539,8 +516,6 @@ class OptionEmphasisTest {
 
     @Test
     fun `the tint and the answer read the same refusal`() {
-        // A padded refusal must not be drawn with accent weight while
-        // `OptionCard.responseBehavior` puts it on the wire as a deny.
         for (option in listOf("Deny", " deny ", "\nDENY\n", "Approve", " Approve ")) {
             val secondary = ApprovalChoices.emphasis(option) == OptionEmphasis.SECONDARY
             val denied = OptionCard.responseBehavior(option, isPermission = true) == "deny"
@@ -560,7 +535,6 @@ class OptionEmphasisTest {
         val options = listOf("Approve", "Deny")
         val allow = ApprovalChoices.allowChoice(options)
         assertEquals("Approve", allow)
-        // The option that means "go ahead" is the one drawn with accent weight.
         assertEquals(OptionEmphasis.PRIMARY, ApprovalChoices.emphasis(allow!!))
         assertEquals(
             OptionEmphasis.SECONDARY,
@@ -576,7 +550,6 @@ class OptionEmphasisTest {
     }
 }
 
-/** GAP-04: what the Copy action puts on the clipboard. */
 class MessageActionsTest {
     private fun message(
         kind: Message.Kind,

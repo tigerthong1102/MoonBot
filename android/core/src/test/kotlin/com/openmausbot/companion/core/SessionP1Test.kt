@@ -1,6 +1,8 @@
 // Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -13,6 +15,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -20,6 +24,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
@@ -48,6 +53,10 @@ class SessionP1Test {
         val shown = bot("b1", "task-a", "task-a").copy(activeLeafId = "m200", messages = page(151..200).messages)
         val session = session { Fleet(listOf(shown), emptyList()) }
         session.openNotification(target("b1", "task-a"))
+        server.enqueue(json(CompanionJson.encodeToString(page(151..200))))
+        session.loadThreadIfNeeded("task-a")
+        assertEquals("GET", server.takeRequest().method)
+        assertEquals((151..200).map { "m$it" }, session.state.value.visibleTranscript("task-a").map { it.id })
         for (range in listOf(1..50, 101..200, 51..150)) server.enqueue(json(CompanionJson.encodeToString(page(range))))
         val hit = SearchHit(threadId = "task-a", messageId = "m25", at = 25.0, role = Message.Role.BOT,
             kind = Message.Kind.TEXT, snippet = "Message 25", matchStart = 0, matchLength = 7,
@@ -60,6 +69,41 @@ class SessionP1Test {
         assertTrue(requests.all { it.method == "GET" })
         assertTrue(requests[1].path!!.contains("around=m150"))
         assertTrue(requests[2].path!!.contains("around=m100"))
+    }
+
+    @Test
+    fun aMissedEnqueueCannotReappearAfterAnEmptyAuthoritativeSnapshot() = runTest {
+        val frames = MutableSharedFlow<StreamFrame>(extraBufferCapacity = 8)
+        val arrived = CompletableDeferred<Unit>()
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (request.method == "POST" && request.path == "/api/bots/b1/messages") {
+                    arrived.complete(Unit)
+                    check(release.await(5, TimeUnit.SECONDS))
+                    return json("""{"queued":true,"queueId":"unseen","threadId":"task-a"}""", 202)
+                }
+                return json("{}")
+            }
+        }
+        val shown = bot("b1", "task-a", "task-a")
+        val session = session(streamFrames = frames) { Fleet(listOf(shown), emptyList(), botQueuedMessages = emptyMap()) }
+        session.connect()
+        runCurrent()
+        frames.emit(StreamFrame(Frame.Hello("fixture:1", false), 1))
+        runCurrent()
+        val revision = session.state.value.botQueueRevision
+        val pending = async { session.send("cancelled elsewhere", Chat.BotChat(shown)) }
+        try {
+            arrived.await()
+            frames.emit(StreamFrame(Frame.BotQueued(emptyMap()), 2))
+            runCurrent()
+            assertTrue(session.state.value.botQueueRevision > revision)
+        } finally { release.countDown() }
+        assertTrue(pending.await())
+        assertTrue(session.state.value.pendingQueued.isEmpty())
+        assertNull(session.actionError)
+        session.disconnect()
     }
 
     @Test
@@ -332,14 +376,11 @@ class SessionP1Test {
         assertEquals(0, server.requestCount)
         assertNull(session.actionError)
 
-        // A stale chip must not open a sibling that could receive a reply
-        // intended for the missing thread.
         val fallback = session.openThread(ThreadRef("scout", "task-9", "Gone"))
         assertNull(fallback)
         assertEquals(0, server.requestCount)
         assertEquals(Session.THREAD_GONE_MESSAGE, session.actionError)
 
-        // A thread the bot is already on needs no request at all.
         session.actionError = null
         assertEquals("task-2", session.openThread(ThreadRef("scout", "task-2", "Task 2"))?.threadId)
         assertEquals(0, server.requestCount)
@@ -456,8 +497,6 @@ class SessionP1Test {
         val room = room("room-1", "room-task-1", "room-task-1", "room-task-2")
         val switched = room.copy(threadId = "room-task-2")
         val session = session { Fleet(emptyList(), listOf(room)) }
-        // A current task notification only hydrates the fleet; it avoids a
-        // private state seam before exercising the public search entry point.
         assertIs<Chat.RoomChat>(session.openNotification(target("asker", "room-task-1")))
         server.enqueue(json("""{"group":${CompanionJson.encodeToString(switched)}}"""))
         server.enqueue(json("""{"messages":[{"id":"matched","role":"user","kind":"text","at":2,"text":"needle"}],"hasMore":false}"""))
@@ -627,6 +666,7 @@ class SessionP1Test {
 
     private suspend fun TestScope.session(
         otherComputer: Boolean = false,
+        streamFrames: Flow<StreamFrame> = emptyFlow(),
         hydrate: suspend () -> Fleet = { Fleet(emptyList(), emptyList()) },
     ): Session {
         val connection = requireNotNull(Connection.parse(server.url("/").toString())).copy(id = "fixture")
@@ -652,7 +692,7 @@ class SessionP1Test {
             },
             onboardingStore = InMemoryOnboardingStore(),
             deviceNameProvider = { "Pixel" },
-            eventsFn = { _, _, _ -> emptyFlow() },
+            eventsFn = { _, _, _ -> streamFrames },
             hydrateFn = { _, _ -> hydrate() },
         ).also { it.awaitRestored() }
     }

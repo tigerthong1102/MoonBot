@@ -363,8 +363,6 @@ private extension View {
     }
 }
 
-/// A tiny wrapping layout keeps several filenames readable without bringing
-/// a third-party dependency into a system extension.
 private struct FlowLayout: Layout {
     var spacing: CGFloat
 

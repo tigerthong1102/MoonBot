@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.runtime.saveable.SaverScope
@@ -11,14 +12,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Expectations read off `CommandSkillHUDView.defaultCommands`,
- * `PredictiveActionChipsView.defaultChips` and the composer in
- * `ios/App/ChatView.swift` — the `commands:` filter for rooms, the
- * `onSelectCommand` switch, `onChange(of: draft)`, the close button's
- * `if text == "/"`, and the `else if draft.isEmpty && !current.busy &&
- * !hasPendingApproval` that gates the chips. Not derived from the Kotlin.
- */
 class SlashCommandsTest {
     @Test
     fun `the five commands, in the order the HUD lists them`() {
@@ -74,10 +67,6 @@ class SlashCommandsTest {
 
     @Test
     fun `a DM is still a DM, even when the desktop sends it a task list`() {
-        // `Chat.supportsTasks` is `room.dm != true && room.tasks != null`
-        // (`ios/App/Session.swift:1352`). A channel with tasks keeps /tasks; a
-        // DM with the very same list does not, and the sheet behind it is gated
-        // on the same answer.
         val dm = Chat.RoomChat(
             room().copy(dm = true, tasks = listOf(BotTask("task-1", "Plan", 0.0))),
         )
@@ -114,7 +103,6 @@ class SlashCommandsTest {
 
     @Test
     fun `and on the description, so a command is findable by what it does`() {
-        // "git" appears in no title; it is in `/diff`'s description.
         assertEquals(
             listOf("/diff"),
             SlashCommands.matching(SlashCommands.ALL, "/git").map { it.title },
@@ -149,16 +137,6 @@ class SlashCommandsTest {
     }
 }
 
-/**
- * The panel has to survive the two ways this screen is torn down and put back:
- * `ChatView` on iOS is never torn down for Computer, so `draft` and
- * `showCommandHUD` cannot come apart there. Here they can, which is why the
- * entry state is derived rather than assumed.
- *
- * Driven through the same objects `LoadedChat` mounts with — a real
- * [ChatDraftHolder], the real [CompanionNavigator] push/pop, and the production
- * [ChatComposerDraft.saver] — rather than a hand-written string.
- */
 class SlashCommandEntryTest {
     @Test
     fun `a chat that comes back from Computer on a slash draft comes back with the HUD`() {
@@ -170,7 +148,6 @@ class SlashCommandEntryTest {
 
         navigator.push(Destination.Chat(ChatTarget.Bot(chatId, "thread-1")))
         navigator.push(Destination.Computer(chatId))
-        // The push that takes ChatScreen out of composition while keeping the draft.
         assertTrue(navigator.retainsChatDraft(chatId))
         navigator.pop()
 
@@ -222,7 +199,6 @@ class SlashCommandEntryTest {
         val holder = ChatDraftHolder()
         val typed = ChatComposerDraft(chatId, holder, initialSaveable = "")
         typed.onTypedChange("/dif")
-        // Leaving to the roster clears both halves before the pop.
         typed.onLeaveToRoster()
 
         val reopened = ChatComposerDraft(chatId, holder, initialSaveable = "")
@@ -268,8 +244,6 @@ class ComposerAccessoriesTest {
 
     @Test
     fun `half a sentence is not an empty composer`() {
-        // A chip sends immediately; offering one here would throw the sentence
-        // away. Not trimmed, exactly as `draft.isEmpty` on iOS is not.
         assertEquals(ComposerAccessory.NONE, accessory(draft = "wha"))
         assertEquals(ComposerAccessory.NONE, accessory(draft = " "))
     }

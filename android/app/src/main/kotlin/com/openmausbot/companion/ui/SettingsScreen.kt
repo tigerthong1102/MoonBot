@@ -51,28 +51,12 @@ import com.openmausbot.companion.core.Session
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * What little the phone gets to configure — the port of
- * `ios/App/SettingsView.swift`.
- *
- * Almost nothing, on purpose: Phone settings, API keys and pairing all live
- * on the computer, because losing the phone must not mean losing the ability to
- * lock it out (§13). This is a status page with an unpair button.
- *
- * It is also the screen the unpaired home reaches, which is why both actions are
- * optional. `SettingsView(onConnect:)` in `ios/App/SettingsView.swift` does the
- * same thing: someone who answered "Not now" can still get to notifications
- * without first entering the connection flow they just declined, and the parts
- * that need a pairing — routines, unpairing, the address — are simply not there
- * to be pressed.
- */
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenRoutines: (() -> Unit)? = null,
     onOpenConnectedApps: (() -> Unit)? = null,
     onOpenVoice: (() -> Unit)? = null,
-    /** Offered instead of the computer's details when there is no pairing. */
     onConnect: (() -> Unit)? = null,
 ) {
     val environment = LocalCompanion.current
@@ -137,8 +121,6 @@ fun SettingsScreen(
                             }
                         },
                     )
-                    // The stored address can simply go stale. Editing it here
-                    // keeps the pairing and its token (§7).
                     SettingsButton("Edit address") {
                         addressText = address
                         addressError = null
@@ -189,8 +171,6 @@ fun SettingsScreen(
                     ) {
                         scope.launch {
                             reconnecting = true
-                            // Waits until the stream leaves connecting (or 10s),
-                            // so the spinner means what it appears to mean.
                             session.refresh()
                             reconnecting = false
                         }
@@ -237,9 +217,6 @@ fun SettingsScreen(
                 Footnote(activityDetail.caption)
             }
 
-            // Routine schedules live on the computer this phone is bound to.
-            // With no binding there is nothing to schedule against, so the row
-            // is absent rather than present and dead.
             if (onOpenRoutines != null || onOpenConnectedApps != null || onOpenVoice != null) {
                 SettingsSection("Workspace") {
                     onOpenRoutines?.let { openRoutines ->
@@ -309,9 +286,6 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        // Session re-parses, re-dials and persists; the walk and
-                        // promote semantics stay its job. The form only refuses
-                        // what it can already tell is not an address.
                         if (session.updateAddress(addressText)) {
                             editingAddress = false
                         } else {
@@ -343,13 +317,10 @@ fun SettingsScreen(
                 TextButton(
                     onClick = {
                         confirmingUnpair = false
-                        // Local token and connection only. Revoking the device
-                        // itself is Settings → Phone on the computer (§6).
+                        // Forgetting local credentials does not revoke the computer's device grant.
                         session.signOut()
                     },
                 ) {
-                    // With another computer saved this removes one of them; the
-                    // phone stays paired, so "Unpair" would be the wrong promise.
                     Text(
                         text = if (connections.size > 1) "Remove" else "Unpair",
                         color = MaterialTheme.colorScheme.error,
@@ -386,8 +357,6 @@ fun SettingsScreen(
             onDismissRequest = { choosingActivity = false },
             title = { Text("Activity detail") },
             text = {
-                // iOS draws a Picker (SettingsView.swift:67-78), which marks the
-                // choice already in force; three plain buttons do not.
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     ActivityDetail.entries.forEach { detail ->
                         Row(
@@ -459,10 +428,6 @@ private fun SettingsRow(label: String, value: String) {
     }
 }
 
-/**
- * The address, short enough to read at a glance and long enough to copy — the
- * port of the connection details in `ios/App/SettingsView.swift:346-371`.
- */
 @Composable
 private fun AddressRow(
     address: String,
@@ -474,7 +439,6 @@ private fun AddressRow(
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Address", fontSize = 15.sp, color = secondaryTint)
         if (expanded) {
-            // Selectable, because the reason to show it in full is to take it away.
             SelectionContainer {
                 Text(
                     text = address,
@@ -510,7 +474,6 @@ private fun SettingsButton(
     enabled: Boolean = true,
     destructive: Boolean = false,
     icon: Int? = null,
-    /** Drawn at the end of the row — a progress indicator while one is running. */
     trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
@@ -555,13 +518,8 @@ private fun Footnote(text: String) {
 
 private const val ADDRESS_CLIP_LABEL = "StartupBot computer address"
 
-/** Long enough for "Copied" to be read, short enough not to linger (iOS `:363-367`). */
 private const val COPIED_LABEL_MILLIS = 2_000L
 
-/**
- * What the Troubleshooting section says before offering to reconnect — the port
- * of `ConnectionSecurityView.troubleshootingText` (`ios/App/SettingsView.swift:445-458`).
- */
 internal fun troubleshootingText(status: Session.Status): String = when (status) {
     Session.Status.Live -> "This computer is connected and responding normally."
     Session.Status.Connecting -> "StartupBot is trying the saved connection automatically."
@@ -570,10 +528,6 @@ internal fun troubleshootingText(status: Session.Status): String = when (status)
     is Session.Status.Offline -> status.message
 }
 
-/**
- * The address with its middle taken out, so a long tailnet name still shows the
- * host and the port it ends in — `shortened` in `ios/App/SettingsView.swift:460-464`.
- */
 internal fun shortenedAddress(address: String): String {
     if (address.length <= 14) return address
     val leading = minOf(20, maxOf(8, address.length - 8))

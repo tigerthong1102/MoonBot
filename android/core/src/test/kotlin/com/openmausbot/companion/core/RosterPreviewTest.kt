@@ -1,15 +1,9 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/**
- * The roster's one-line preview, at each activity level.
- *
- * Reported from the beta on iOS: with Activity set to Hidden, a roster row still read
- * `auto-approved shell: export PATH="/opt/h...`. The transcript was folding correctly and the
- * roster was not, because the preview came off the raw last message and never saw the setting.
- */
 class RosterPreviewTest {
     private fun text(id: String, body: String, at: Double = 1.0): Message = Message(
         id = id,
@@ -32,10 +26,6 @@ class RosterPreviewTest {
         tool = ToolActivity(name = name, ok = ok),
     )
 
-    /**
-     * `pending` needs a requestId — that is what makes a card answerable rather than transcript,
-     * and it decides subtitle vs title.
-     */
     private fun card(
         id: String,
         title: String,
@@ -55,7 +45,6 @@ class RosterPreviewTest {
         ),
     )
 
-    // Full keeps what shipped
 
     @Test
     fun fullShowsTheToolNameWhenActivityLanded() {
@@ -63,11 +52,9 @@ class RosterPreviewTest {
         assertEquals("auto-approved shell: export PATH=…", rosterPreview(messages, ActivityDetail.FULL))
     }
 
-    // Hidden — the reported bug
 
     @Test
     fun hiddenFallsBackToTheLastRealMessage() {
-        // The bug: this returned the tool name.
         val messages = listOf(
             text("a", "Deployed to staging"),
             activity("b", "auto-approved shell: export PATH=…"),
@@ -94,7 +81,6 @@ class RosterPreviewTest {
 
     @Test
     fun hiddenStillShowsAPendingCard() {
-        // Hiding activity must not hide the thing that needs an answer.
         val messages = listOf(activity("a", "shell"), card("b", "Run this?", "rm -rf build"))
         assertEquals("rm -rf build", rosterPreview(messages, ActivityDetail.HIDDEN))
     }
@@ -109,12 +95,10 @@ class RosterPreviewTest {
 
     @Test
     fun anAnsweredCardPreviewsAsItsTitle() {
-        // Historical rather than answerable: the question, not the command.
         val messages = listOf(card("a", "Run this?", "rm -rf build", pending = false))
         assertEquals("Run this?", rosterPreview(messages, ActivityDetail.HIDDEN))
     }
 
-    // Reduced summarises rather than hides
 
     @Test
     fun reducedSummarisesATrailingRun() {
@@ -145,7 +129,6 @@ class RosterPreviewTest {
         assertEquals("deploy", rosterPreview(messages, ActivityDetail.REDUCED))
     }
 
-    // Everything else is untouched by the setting
 
     @Test
     fun textAndScreenReadTheSameAtEveryLevel() {
@@ -163,12 +146,9 @@ class RosterPreviewTest {
         }
     }
 
-    // The wiring: what a roster row actually reads
 
     @Test
     fun theRosterRowFoldsByTheReadersLevelButKeepsTheTrueLastActivity() {
-        // Deliberate asymmetry: hiding the text must not bury a thread that has
-        // just moved, so `lastActivity` still comes from the real last message.
         val state = CompanionState(
             bots = listOf(sampleBot("b", "t")),
             messages = mapOf(

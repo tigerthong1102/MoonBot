@@ -1,8 +1,9 @@
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 
 public struct SkillExecutionReceiptView: View {
     public let skillName: String
-    public let status: String // "running", "success", "error"
+    public let status: String
     public let durationMs: Int
     public let parameters: String
     public let output: String

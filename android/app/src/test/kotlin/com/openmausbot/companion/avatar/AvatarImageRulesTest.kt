@@ -16,10 +16,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 
-/**
- * Limits and framing from `ios/App/AgentProfileView.swift` and
- * `ios/App/BotAvatarView.swift` — not from the Kotlin under test.
- */
 class AvatarImageRulesTest {
 
     @Test
@@ -30,7 +26,6 @@ class AvatarImageRulesTest {
         assertEquals("image/webp", AvatarImageRules.imageMime(WEBP_HEADER))
         assertNull(AvatarImageRules.imageMime(byteArrayOf(0, 1, 2, 3, 4, 5)))
         assertNull(AvatarImageRules.imageMime(byteArrayOf()))
-        // RIFF without WEBP is not an image.
         assertNull(
             AvatarImageRules.imageMime(
                 byteArrayOf(
@@ -69,8 +64,6 @@ class AvatarImageRulesTest {
 
     @Test
     fun `declared size is not an acceptance gate — body count decides like Swift Data count`() = runTest {
-        // Provider metadata claims 11 MB, but the stream body is a small valid PNG.
-        // iOS / server measure the encoded body; OpenableColumns.SIZE must not reject.
         val body = PNG_HEADER + ByteArray(256)
         val ready = assertIs<PreparedAvatar.Ready>(
             AvatarImageRules.prepare(
@@ -84,7 +77,6 @@ class AvatarImageRulesTest {
 
     @Test
     fun `declared size alone does not turn a small non-image into a size error`() = runTest {
-        // capacityHint is metadata only; a tiny invalid body is still TYPE_ERROR.
         val rejected = assertIs<PreparedAvatar.Rejected>(
             AvatarImageRules.prepare(
                 ByteArrayInputStream(byteArrayOf(1, 2, 3, 4, 5)),
@@ -96,8 +88,6 @@ class AvatarImageRulesTest {
 
     @Test
     fun `a genuinely large non-image stream is a type error like AgentProfileView`() = runTest {
-        // Would fail against round-2: stream path returned SIZE_ERROR at byte
-        // MAX+1 before sniffing magic bytes. iOS checks imageMIME before Data.count.
         val stream = SequenceInputStreamOf(
             totalBytes = AvatarImageRules.MAX_BYTES + 8,
             header = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8),
@@ -115,9 +105,6 @@ class AvatarImageRulesTest {
 
     @Test
     fun `prepare cooperatively cancels between stream reads`() = runBlocking {
-        // Real dispatcher: TestScheduler coalesces same-time yield() into one
-        // unbroken drain of the 10 MB gate, which hides cancellation. On
-        // Dispatchers.Default, yield() is a true cancel point between chunks.
         val stream = EndlessChunkStream(PNG_HEADER)
         val job = launch(Dispatchers.Default) {
             AvatarImageRules.prepare(stream)
@@ -161,10 +148,6 @@ class AvatarImageRulesTest {
         assertEquals(0f, AvatarImageRules.roundedCornerRadius(0f))
     }
 
-    /**
-     * Stream that yields [header] then zero-filled chunks until [totalBytes]
-     * have been offered to the reader.
-     */
     private class SequenceInputStreamOf(
         private val totalBytes: Int,
         private val header: ByteArray,

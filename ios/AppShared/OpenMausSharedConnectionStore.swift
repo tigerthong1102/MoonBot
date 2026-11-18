@@ -1,8 +1,7 @@
+// Modified for StartupBot; original copyright and license retained.
 import CompanionCore
 import Foundation
 
-/// Where a restored registry was found. This makes the migration decision a
-/// pure value operation which can be unit-tested without mutating defaults.
 enum OpenMausConnectionRegistrySource: Equatable {
     case sharedRegistry
     case fallbackRegistry
@@ -63,8 +62,6 @@ enum OpenMausSharedConnectionStore {
         )
     }
 
-    /// Load the registry, preferring the app-group copy and migrating older
-    /// app-only storage into it on first use.
     static func loadRegistry(
         sharedDefaults: UserDefaults? = OpenMausSharedConfiguration.sharedDefaults,
         fallbackDefaults: UserDefaults = .standard
@@ -109,8 +106,6 @@ enum OpenMausSharedConnectionStore {
         guard let encoded = try? JSONEncoder().encode(registry) else { return }
         sharedDefaults?.set(encoded, forKey: registryKey)
         fallbackDefaults.set(encoded, forKey: registryKey)
-        // The registry is now the safe fallback too, so the obsolete
-        // single-computer record can no longer resurrect a forgotten Mac.
         sharedDefaults?.removeObject(forKey: legacyConnectionKey)
         fallbackDefaults.removeObject(forKey: legacyConnectionKey)
     }

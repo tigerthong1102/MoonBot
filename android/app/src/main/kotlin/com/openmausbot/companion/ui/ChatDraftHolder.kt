@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.runtime.mutableStateListOf
@@ -6,25 +7,6 @@ import com.openmausbot.companion.core.PendingMessageAttachment
 import com.openmausbot.companion.core.DraftProvenance
 import com.openmausbot.companion.core.VolatileDraft
 
-/**
- * Memory-only drafts, separate for each thread. Only typed text is saveable.
- *
- * Android renders only `navigator.current`, so pushing Computer removes
- * [ChatScreen] from composition (`RootScreen`). iOS keeps `ChatView` under
- * the pushed destination, so its `@State draft` survives (`ChatView.swift`).
- * This holder is that survival — process memory only, never a `Saver`, so a
- * dictated partial can live here briefly without entering SavedStateRegistry.
- *
- * Switching threads keeps the source draft instead of carrying it into the
- * destination. Attachments and upload state never enter saved instance state.
- *
- * Lifetime: survives a **push** (Computer still has the chat underneath —
- * [CompanionNavigator.retainsChatDraft] is true). Does **not** survive a
- * **pop** back to the roster: [ChatComposerDraft.onLeaveToRoster] clears the
- * entry (and the saveable half) before pop, matching iOS destroying
- * `ChatView`/`@State`. Activity death drops the map; recreation restores only
- * [ChatComposerDraft.saveableValue] through [ChatComposerDraft.saver].
- */
 class ChatDraftHolder {
     class Attachments {
         val items = mutableStateListOf<PendingMessageAttachment>()

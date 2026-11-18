@@ -66,14 +66,6 @@ import com.openmausbot.companion.core.Routine
 import com.openmausbot.companion.core.RoutineRun
 import kotlinx.coroutines.launch
 
-/**
- * Tasks & Routines — the port of `ios/App/TasksRoutinesView.swift`.
- *
- * A task is one conversation and result; a routine runs with fresh context and
- * collects results in one thread, with no cron syntax anywhere. Webhook management
- * and the cancel/seen operations on a run are not on the paired allowlist and have no
- * control here — only the receipts a webhook run leaves behind.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TasksRoutinesScreen(onBack: () -> Unit, onOpenChat: (Chat) -> Unit) {
@@ -216,9 +208,6 @@ internal fun TasksRoutinesScreen(onBack: () -> Unit, onOpenChat: (Chat) -> Unit)
                         bot = state.bot(run.botId),
                         onOpenTask = { target ->
                             scope.launch {
-                                // The same resolver a notification tap uses: it
-                                // hydrates when needed and switches the bot to
-                                // the task the run created.
                                 session.openNotification(target)?.let(onOpenChat)
                             }
                         },
@@ -235,9 +224,6 @@ internal fun TasksRoutinesScreen(onBack: () -> Unit, onOpenChat: (Chat) -> Unit)
     }
 
     editor?.let { target ->
-        // Positional scoping, per routine: `rememberSaveable` inside the sheet is
-        // keyed by where it sits in the composition, and this is what makes
-        // "where" differ between one routine and the next at the same call site.
         key(target.stateKey) {
             RoutineEditorSheet(
                 target = target,
@@ -271,21 +257,8 @@ internal fun TasksRoutinesScreen(onBack: () -> Unit, onOpenChat: (Chat) -> Unit)
     }
 }
 
-/**
- * What the editor is editing — `RoutineEditorTarget` in the Swift, which is
- * `@State` and so survives an orientation change without closing the sheet or
- * forgetting what was typed into it.
- *
- * Only [routineId] and [enabled] are written to saved state. [seed] is the live
- * record and deliberately is not: the form's fields are themselves
- * `rememberSaveable` and keyed to [stateKey], so after a recreation they carry
- * the user's draft, and re-seeding would overwrite it with a stale copy. The key
- * is also what stops one routine's saved draft from being handed to another
- * routine opened later at the same call site.
- */
 internal data class RoutineEditorTarget(
     val routineId: String?,
-    /** An edit must send the flag back unchanged; a new routine sends none. */
     val enabled: Boolean?,
     val seed: Routine?,
 ) {
@@ -298,7 +271,6 @@ internal data class RoutineEditorTarget(
         fun edit(routine: Routine): RoutineEditorTarget =
             RoutineEditorTarget(routineId = routine.id, enabled = routine.enabled, seed = routine)
 
-        /** An empty save is the closed sheet; restoring it runs the init instead. */
         val Saver: Saver<RoutineEditorTarget?, Any> = listSaver(
             save = { target ->
                 if (target == null) {
@@ -322,14 +294,6 @@ internal data class RoutineEditorTarget(
     }
 }
 
-/**
- * One routine.
- *
- * iOS puts Run now / Pause / Resume / Edit / Delete on swipes and repeats every
- * one of them in a context menu. Android has no swipe idiom in a Material list,
- * so the row's overflow carries that same menu, in the same order — the row
- * itself still opens the editor.
- */
 @Composable
 private fun RoutineRow(
     routine: Routine,
@@ -504,9 +468,6 @@ private fun RoutineRunRow(
                     .padding(start = 52.dp, end = 20.dp, bottom = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // `.textSelection(.enabled)` on both, in the Swift: a long answer
-                // is meant to be selectable and an error is meant to be copyable.
-                // The rows below it are controls and stay unselectable.
                 run.output?.takeIf { it.isNotEmpty() }?.let {
                     SelectionContainer { Text(it, fontSize = 14.sp) }
                 }
@@ -590,7 +551,6 @@ private fun runStatusTint(status: RoutineRules.RunStatus): Color = when (status)
     else -> secondaryTint
 }
 
-/** What "this stopped and is waiting for you" is painted with. */
 internal val attentionTint: Color = Color(MausPalette.argb("orange"))
 
 @Composable
@@ -609,7 +569,6 @@ internal fun SectionHeading(text: String) {
     }
 }
 
-/** `ContentUnavailableView`, inside a section rather than filling the screen. */
 @Composable
 private fun SectionNote(title: String, description: String) {
     Column(

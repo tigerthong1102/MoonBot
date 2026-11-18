@@ -7,26 +7,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * The desktop app's companion area is called **Phone**. Every instruction that
- * sends a person there has to use that name, or the first step of setup points
- * at a screen that does not exist: `ios/App/PairingView.swift:132,227`,
- * `OnboardingViews.swift:137`, `SettingsView.swift:289,302`,
- * `ComputerView.swift:89` and `Discovery.swift:137` all say Phone.
- *
- * The copy pinned here lives inside `@Composable` bodies and a private
- * `failureMessage`, so no JVM unit test can call it — a source pin, in the
- * spirit of [com.openmausbot.companion.PairingLinkManifestTest] and
- * [com.openmausbot.companion.lifecycle.SessionLingerWiringTest], is what is
- * available. It is a text assertion, not a runtime proof: it says the sentence
- * is written in the file, not that the screen renders it. The constants that
- * *are* reachable are pinned where they live —
- * [SettingsPolicyTest], [ComputerPolicyTest] and, in `:core`,
- * `FailoverTest.refusedConnectionPointsAtThePhoneSection`.
- */
 class PhoneSectionCopyTest {
 
-    /** Names of the desktop area as it was called before the rename. */
     private val retiredSectionNames = listOf(
         "Settings → Companion",
         "Companion panel",
@@ -39,17 +21,14 @@ class PhoneSectionCopyTest {
     fun `pairing sends the person to Settings then Phone`() {
         val source = sourceFile("ui/PairingScreen.kt").readText()
 
-        // Step one of setup. Upstream: `ios/App/OnboardingViews.swift:137`.
         assertTrue(
             source.contains("1.  Open StartupBot → Settings → Phone"),
             "the setup steps must name the Phone section",
         )
-        // A discovered computer that answered without an address.
         assertTrue(
             source.contains("Enter the address shown in Phone settings instead."),
             "the discovery fallback must name Phone settings",
         )
-        // The tailnet hint, and the manual-address footnote.
         assertTrue(
             source.contains("same account — Phone settings will then show a name ending in "),
             "the Tailscale hint must name Phone settings",

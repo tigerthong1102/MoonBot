@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Bot
@@ -10,10 +11,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * The task rules from `ios/App/TaskManagerView.swift` and §10: a bot cannot lose
- * its last task, and a running bot refuses task changes underneath it.
- */
 class TaskRulesTest {
 
     private fun task(id: String, title: String = "Research") =
@@ -36,30 +33,24 @@ class TaskRulesTest {
         val closer = ThreadCloser(botId = "pm", name = "Parker", at = 9.0)
         val helpers = (0 until 3).map { task("helper-$it", "Helper $it").copy(closedBy = closer) }
         val own = listOf(task("t1", "Plan the launch"), task("t2", "Draft release notes"))
-        // newest first from the server: the closed pile sits on top of the person's own
         assertEquals(
             listOf("t1", "t2", "helper-0", "helper-1", "helper-2"),
             TaskRules.tasks(bot(helpers + own)).map { it.threadId },
         )
-        // running, unread, or current closed threads are treated as open and keep their place
         val live = listOf(helpers[0].copy(busy = true), helpers[1].copy(unread = true), helpers[2]) + own
         assertEquals(listOf("helper-0", "helper-1", "t1", "t2", "helper-2"), TaskRules.tasks(bot(live)).map { it.threadId })
         assertEquals(
             listOf("helper-0", "t1", "t2", "helper-1", "helper-2"),
             TaskRules.tasks(bot(helpers + own, current = "helper-0")).map { it.threadId },
         )
-        // a held send keeps a closed thread in the open pile — ordering, never filtering
         assertEquals(
             listOf("helper-0", "t1", "t2", "helper-1", "helper-2"),
             TaskRules.tasks(bot(helpers + own), queuedThreadIds = setOf("helper-0")).map { it.threadId },
         )
         assertTrue(TaskRules.demandsAttention(task("t1").copy(activity = "waiting-on-you")))
         assertFalse(TaskRules.demandsAttention(task("t1").copy(activity = "idle")))
-        // the wire value still counts, as on main; the client flag covers the
-        // queues the harness reports out-of-band
         assertTrue(TaskRules.demandsAttention(task("t1").copy(activity = "queued")))
         assertTrue(TaskRules.demandsAttention(task("t1"), queued = true))
-        // main's teammate wait rides along through the shared core rule
         assertTrue(TaskRules.demandsAttention(task("t1").copy(waitingOnTeammate = true)))
     }
 
@@ -102,9 +93,6 @@ class TaskRulesTest {
             task("later", "Later").copy(archivedAt = 0.0),
             task("held", "Held").copy(archivedAt = 5.0, unread = true),
         )
-        // "held" is archived but unread, so it stays in the open band. Equal
-        // stamps keep stored order, so it does not jump ahead of "live".
-        // Only the quiet "later" folds to the tail.
         assertEquals(
             listOf("live", "held", "later"),
             TaskRules.tasks(bot(tasks)).map { it.threadId },
@@ -113,7 +101,6 @@ class TaskRulesTest {
 
     @Test
     fun `archiving waits for work to settle`() {
-        // A modern bot paints per-task busy, so the task alone decides.
         val modern = bot(listOf(task("run").copy(busy = false)))
         assertFalse(TaskRules.canArchive(task("run").copy(activity = "working"), modern))
         assertFalse(TaskRules.canArchive(task("run").copy(activity = "running"), modern))
@@ -211,7 +198,6 @@ class TaskRulesTest {
         val execution = task("run-thread").copy(routineRunId = "run-1", busy = true)
         val subject = bot(listOf(legacy, results, execution), current = "results", busy = true)
 
-        // Equal stamps keep stored order. The open thread does not float.
         assertEquals(listOf(legacy, results), TaskRules.tasks(subject))
         assertEquals(listOf(legacy, results), TaskRules.tasks(Chat.BotChat(subject)))
         assertEquals(3, subject.tasks?.size)
@@ -219,7 +205,6 @@ class TaskRulesTest {
         assertFalse(TaskRules.canSwitch(execution, subject))
         assertFalse(TaskRules.canDelete(results, subject.copy(tasks = listOf(results, execution))))
 
-        // The wire type is shared, but routine execution markers are bot-only.
         val group = Chat.RoomChat(room().copy(tasks = listOf(legacy, execution)))
         assertEquals(listOf(legacy, execution), TaskRules.tasks(group))
     }
@@ -236,10 +221,6 @@ class TaskRulesTest {
     }
 }
 
-/**
- * The dialogs keep following the bot after they are on screen, and the rename
- * field is allowed to be empty.
- */
 class TaskDialogRulesTest {
 
     private fun subject(busy: Boolean?) =

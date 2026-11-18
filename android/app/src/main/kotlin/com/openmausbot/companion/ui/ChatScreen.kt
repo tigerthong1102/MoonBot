@@ -119,19 +119,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * One conversation: the transcript, the approval cards, and the composer — the
- * port of `ios/App/ChatView.swift`.
- *
- * The transcript is whatever the harness folded — settled text, tool chips,
- * option cards, screenshots. This renders those and nothing else; it does not
- * re-derive anything from provider events, because the server already did that
- * and having two folds is how two clients start disagreeing.
- *
- * The chrome floats: back and the bot's computer on a strip that fades into the
- * transcript, the bot's face and name over it, and the composer below. Everything
- * else scrolls underneath, which is what makes the conversation the screen.
- */
 @Composable
 fun ChatScreen(
     destination: Destination.Conversation,
@@ -139,31 +126,19 @@ fun ChatScreen(
     onBack: () -> Unit,
     onOpenComputer: (String) -> Unit,
     onOpenOverview: (String) -> Unit,
-    /**
-     * True while this conversation is still on the navigator stack (including
-     * under Computer). Used on dispose to keep the in-memory draft across a
-     * push and drop it after a pop that removed the chat.
-     */
     retainsDraft: (chatId: String) -> Boolean = { false },
-    /** An "Opened thread" chip pointing at another bot pushes that chat. */
     onOpenChat: (Chat) -> Unit = {},
 ) {
     val session = LocalCompanion.current.session
     val state by session.state.collectAsState()
 
-    // A notification tap at a cold start arrives before the fleet is hydrated,
-    // and so does a navigation stack restored after the process was killed: wait
-    // for it rather than concluding the chat is gone and bouncing back to the
-    // roster, which would make the tap open nothing.
     val resolution = remember(state, destination) {
         ThreadResolution.resolve(state, destination)
     }
     when (resolution) {
         ThreadResolution.Result.Waiting -> OpeningThread(onBack)
         ThreadResolution.Result.Gone -> LaunchedEffect(destination) { onBack() }
-        // The live chat record, so busy/unread stay current as frames land.
         is ThreadResolution.Result.Open -> {
-            // Resolve the owner without changing the task named by the destination.
             val resolved = (destination as? Destination.Thread)?.let { resolution.chat.target }
             LaunchedEffect(resolved) { if (resolved != null) onResolved(resolved) }
             LoadedChat(resolution.chat, state, onBack, onOpenComputer, onOpenOverview, retainsDraft, onResolved, onOpenChat)
@@ -171,7 +146,6 @@ fun ChatScreen(
     }
 }
 
-/** The transcript is on its way. Leaving is still possible while it is. */
 @Composable
 private fun OpeningThread(onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -200,7 +174,6 @@ private fun LoadedChat(
     onSelectTask: (ChatTarget) -> Unit,
     onOpenChat: (Chat) -> Unit,
 ) {
-    // This screen's selected task, independent of the desktop's selection.
     val threadId = chat.threadId
     val chatId = chat.id
     val draftKey = chat.threadId
@@ -215,20 +188,12 @@ private fun LoadedChat(
         onDispose { threadOpenJob?.cancel() }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
-    // Words this computer is holding until the running turn settles.
     val queuedSends = state.pendingQueued[threadId].orEmpty()
     val steeringInstanceIds by session.steeringInstanceIds.collectAsState()
-    // Whether this bot's engine can take a message INTO the running turn.
-    // Unknown reads as false, which is the promise that is always safe to
-    // make: the message will be sent, just not necessarily right now.
     val steerTarget = (chat as? Chat.BotChat)?.bot
     val engineCanSteer = steerTarget?.modelSelection?.instanceId
         ?.let { it in steeringInstanceIds }
         ?: false
-    // A Steer is in flight. Cleared when the queue drains or the turn ends,
-    // whichever the engine gets to first — and after twenty seconds even if
-    // neither frame ever arrives, because a control that spins for ever is
-    // worse than one that admits it does not know.
     var steering by remember(threadId) { mutableStateOf(false) }
     LaunchedEffect(queuedSends.size, chat.busy) {
         if (queuedSends.isEmpty() || !chat.busy) steering = false
@@ -249,12 +214,8 @@ private fun LoadedChat(
     }
     var showingTasks by remember { mutableStateOf(false) }
     var creatingThread by remember(chatId) { mutableStateOf(false) }
-    // Saveable: the profile form is a form, and a rotation must not throw away
-    // what was typed into it — the sheet has to come back for that to matter.
     var showingProfile by rememberSaveable { mutableStateOf(false) }
     var showingPlus by remember(threadId) { mutableStateOf(false) }
-    // The bot on the line. Not saveable: a call does not survive a rotation's
-    // teardown of the audio session any better than a phone call would.
     var showingCall by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
@@ -268,10 +229,7 @@ private fun LoadedChat(
     var preparingAttachments by attachmentDraft.preparing
     var sendingMessage by attachmentDraft.sending
     var attachmentError by attachmentDraft.error
-    // A notification can change owners while the system picker is open.
-    // Its result still belongs to the draft that launched it.
     var pickerDraft by remember { mutableStateOf(attachmentDraft) }
-    // A bot-linked file on its way from the computer, and where it landed.
     var openingFileName by remember(threadId) { mutableStateOf<String?>(null) }
     var fileOpenError by remember(threadId) { mutableStateOf<String?>(null) }
     var filePreview by remember(threadId) { mutableStateOf<FilePreviewItem?>(null) }
@@ -285,9 +243,6 @@ private fun LoadedChat(
     }
     DisposableEffect(filePreviews, threadId) {
         onDispose {
-            // LoadedChat follows the bot when its task changes. Invalidate the
-            // old request and its published preview as one lifecycle step; a
-            // late completion can no longer write into the next task's UI.
             filePreviews.invalidateCurrent()
             fileDownloadJob?.cancel()
         }
@@ -370,9 +325,6 @@ private fun LoadedChat(
                 return@launch
             }
             val item = try {
-                // The tag's display name labels the card only. Materialising
-                // and sharing must use the canonical Content-Disposition name
-                // returned by the scoped download route.
                 withContext(Dispatchers.IO) { filePreviews.store(fetched, requestGeneration) }
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
@@ -386,8 +338,6 @@ private fun LoadedChat(
         }
     }
 
-    // A tapped link in a bot reply: the web goes to the system, a desktop path
-    // comes back through the computer, anything else is refused out loud.
     fun openLink(url: String, message: Message) {
         when (val target = LocalMessageLink.resolve(url)) {
             is LocalMessageLink.Web -> runCatching { uriHandler.openUri(target.url) }
@@ -409,9 +359,6 @@ private fun LoadedChat(
         cacheResult = true,
     )
 
-    // A chip that opened a thread on this bot switches this screen in place,
-    // the way a thread row does; one that opened a thread on a teammate pushes
-    // that chat.
     fun openThread(ref: ThreadRef) {
         threadOpenJob?.cancel()
         threadOpenJob = scope.launch {
@@ -429,9 +376,6 @@ private fun LoadedChat(
     val rawTranscript = remember(state, threadId) { state.visibleTranscript(threadId) }
     val activityDetail by environment.chatPreferences.activityDetail.collectAsState()
     val quickReplies by environment.chatPreferences.quickReplies.collectAsState()
-    // The source transcript stays intact for approvals, mascot state and
-    // pagination. Only the rendered rows fold activity according to the local
-    // preference, so changing the choice never mutates server state.
     val transcript = remember(rawTranscript, activityDetail) {
         transcriptRows(rawTranscript, activityDetail)
     }
@@ -442,25 +386,15 @@ private fun LoadedChat(
     }
     val streaming = state.streaming[threadId]
     val reasoning = state.reasoning[threadId]
-    // Stream, then reasoning, then the bare fact of being busy — the order in
-    // `ChatView.swift`, and the reason it is a rule rather than three `if`s here.
     val tail = LiveTail.of(streaming = streaming, reasoning = reasoning, busy = chat.busy, detail = activityDetail)
     val liveText = streaming?.takeIf { tail == TranscriptTail.STREAM }
     val liveReasoning = reasoning?.takeIf { tail == TranscriptTail.REASONING }
     val hasMore = state.hasMore[threadId] == true
-    // What stops the predictive chips from covering the one question on screen
-    // that only a person can answer.
     val pendingApproval = remember(rawTranscript) {
         ComposerAccessories.hasPendingApproval(rawTranscript)
     }
 
-    // One live composer per thread, including when an upload finishes after
-    // switching away and back. Only typed text enters saved instance state;
-    // dictation and attachments remain memory-only. Back clears this owner's
-    // drafts, while a Computer push retains them.
     val heldOnEntry = remember(draftKey, chatDrafts) { chatDrafts.get(draftKey) }
-    // Hoist the saver: building it inline in rememberSaveable reallocates the
-    // Saver + both lambdas on every LoadedChat recomposition (partials included).
     val composerSaver = remember(draftKey, chatDrafts) {
         ChatComposerDraft.saver(draftKey, chatDrafts)
     }
@@ -471,17 +405,6 @@ private fun LoadedChat(
         )
     }
     val draft = composer.text
-    // The command HUD opens from the button *or* from a draft that starts with a
-    // slash — and typing anything else closes it again. iOS drives that from
-    // `onChange(of: draft)`, which fires however the draft moved, so the rule
-    // lives in the one funnel every draft change goes through rather than in the
-    // text field's callback alone.
-    //
-    // Seeded from the restored draft rather than from `false`: coming back from
-    // Computer, or from a process death, is a mount and not an edit, so nothing
-    // would ever re-apply the rule to a `/dif` that is already in the field.
-    // Closing the HUD by hand still sticks — the seed runs once per mount, and
-    // `remember` does not re-run it.
     var hudOpen by remember(draftKey, chatDrafts) {
         mutableStateOf(SlashCommands.openOnEntry(composer.text))
     }
@@ -491,15 +414,11 @@ private fun LoadedChat(
         hudOpen = SlashCommands.opensOnDraft(composerDraft.text)
     }
 
-    // Bind dictation to this chat's lifecycle: leaving the screen (including
-    // pushing Computer) and process background both stop capture.
     DisposableEffect(lifecycleOwner, threadId) {
         dictation.bind(lifecycleOwner)
         onDispose { dictation.unbind(lifecycleOwner) }
     }
 
-    // Drop the in-memory entry when the chat leaves the stack (roster pop or
-    // stack rewrite). Keep it when Computer is pushed on top.
     DisposableEffect(chatId) {
         onDispose {
             if (!retainsDraft(chatId)) {
@@ -508,12 +427,6 @@ private fun LoadedChat(
         }
     }
 
-    // Always join against the text frozen at capture start. A newer partial
-    // then replaces the older partial instead of duplicating it. Skip the
-    // first emission: StateFlow replays a sticky transcript from a prior
-    // session, and applying that on open would clobber this chat's draft.
-    // Merged text stays in the volatile draft / holder — never in the
-    // saveable typed snapshot.
     LaunchedEffect(threadId, dictation) {
         var first = true
         dictation.transcript.collect { next ->
@@ -529,7 +442,6 @@ private fun LoadedChat(
     LaunchedEffect(dictationListening) {
         if (dictationListening) focusManager.clearFocus()
     }
-    // Stop when computer / tasks / profile / plus open — matching ChatView.swift.
     LaunchedEffect(showingPlus) { if (showingPlus) dictation.stop() }
     LaunchedEffect(showingTasks) { if (showingTasks) dictation.stop() }
     LaunchedEffect(showingProfile) { if (showingProfile) dictation.stop() }
@@ -540,28 +452,17 @@ private fun LoadedChat(
         environment.chatPreferences.rememberThread(chat, connection?.id)
     }
 
-    // Opening a chat is what marks it read, exactly as on the desktop — and a
-    // message can arrive while it is already on screen, so this keys on the bit
-    // rather than running once.
     LaunchedEffect(threadId, chat.unread) {
         if (chat.unread) session.markRead(chat)
     }
-    // A non-resumable reconnect replaces the fleet snapshot and invalidates
-    // history for nonactive threads. The open chat's ID has not changed, but
-    // it must fetch its page again instead of waiting for the user to reopen it.
     LaunchedEffect(threadId, state.hasLoadedPage(threadId)) {
         session.loadThreadIfNeeded(threadId)
     }
 
     val headerCount = if (hasMore) 1 else 0
-    // One slot at the bottom, whichever of the three is in it — iOS gives all of
-    // them the same `.id(Self.liveBubbleId)` for the same reason: they replace
-    // one another, they do not stack.
     val liveCount = if (tail == TranscriptTail.NONE) 0 else 1
     val itemCount = headerCount + transcript.size + liveCount
 
-    // A conversation grows from the bottom: opening a chat starts on the newest
-    // message rather than the oldest.
     var settled by remember(threadId) { mutableStateOf(false) }
     LaunchedEffect(threadId, itemCount) {
         if (settled || itemCount == 0) return@LaunchedEffect
@@ -572,17 +473,10 @@ private fun LoadedChat(
         if (!settled || itemCount == 0) return@LaunchedEffect
         listState.animateScrollToItem(itemCount - 1)
     }
-    // Follow the live row: its arrival, its change of kind, and the text inside
-    // it. Keyed on length rather than the string so this fires once per delta
-    // batch, and without animation — animating every token turns a smooth stream
-    // into a stutter. [tail] is a key of its own because the working row appears
-    // with no text at all, and a row nobody scrolls to is a row nobody is told
-    // about.
     LaunchedEffect(threadId, tail, liveText?.length ?: 0) {
         if (liveCount == 0 || itemCount == 0) return@LaunchedEffect
         listState.scrollToItem(itemCount - 1)
     }
-    // A search hit lands on its message.
     LaunchedEffect(focusedMessageId, transcript.size) {
         val target = focusedMessageId ?: return@LaunchedEffect
         val index = transcript.indexOfFirst { row ->
@@ -593,8 +487,6 @@ private fun LoadedChat(
         if (turn != null) expandedTurns = expandedTurns + turn.turnId
         listState.scrollToItem(headerCount + index)
         if (turn != null) {
-            // The fold can span several screens. Its child brings the actual
-            // search hit into view before retiring the pending focus.
             revealedTurnMessageId = target
         } else {
             session.consumeFocus(target)
@@ -603,12 +495,7 @@ private fun LoadedChat(
     }
 
     val bot = (chat as? Chat.BotChat)?.bot
-    // The computer is bot-only; a non-DM room exposes task navigation when the
-    // paired desktop supplied a task list. Both answers are constants.
     val commands = SlashCommands.forChat(chat)
-    // One handler for the one door. The name pill stopped being the second when
-    // it became the way into a bot's profile, so the + now carries every action
-    // there is — including both export formats.
     val onAction: (ChatActionId) -> Unit = { action ->
         when (action) {
             ChatActionId.PHOTOS -> {
@@ -643,9 +530,6 @@ private fun LoadedChat(
             }
             ChatActionId.TASKS -> showingTasks = true
             ChatActionId.WATCH_COMPUTER -> {
-                // iOS stops on showingComputer; Android leaves ChatScreen when
-                // Computer is pushed, but stop here too so capture ends before
-                // the navigation frame, not only on dispose.
                 dictation.stop()
                 if (bot != null) onOpenComputer(bot.id)
             }
@@ -657,26 +541,16 @@ private fun LoadedChat(
         Unit
     }
 
-    // A slash command that navigates clears the draft the way emptying the
-    // field does — including its provenance, so a spoken word cannot outlive it.
     fun clearDraft() {
         composer.onTypedChange("")
         publishFrom(composer)
     }
 
-    /**
-     * The port of iOS `submit(_ explicitText:)`. A command or a chip sends its
-     * own prompt and still clears the composer, exactly as the Swift does: the
-     * `/dif` you had half-typed is what you were asking for, and leaving it
-     * behind would send it again on the next tap of the send button.
-     */
     fun submit(explicitText: String? = null) {
         // Cancels an in-flight permission prompt before it can open the
         // microphone after the message has already been sent.
         dictation.stop()
         val text = (explicitText ?: draft).trim()
-        // With attachments waiting, the message is the attachments plus
-        // whatever was typed; the draft is cleared only once they are sent.
         if (text.isEmpty() && attachments.isEmpty()) return
         if (preparingAttachments || sendingMessage) return
         val outgoing = attachments.toList()
@@ -703,16 +577,9 @@ private fun LoadedChat(
     }
 
     fun selectCommand(command: SlashCommand) {
-        // Null for a command that sends: `submit` below plays the send cue, and
-        // two effects back to back on one gesture are one muddled buzz.
         CompanionHaptics.forCommand(command.effect)?.let { haptics.play(it) }
         when (val effect = command.effect) {
             SlashEffect.OpenComputer -> {
-                // Stop before clearing, not after: a partial still in flight
-                // would land on the draft this just emptied. iOS stops on
-                // `showingComputer`; Android leaves ChatScreen when Computer is
-                // pushed, so stop here too — before the navigation frame, not
-                // only on dispose.
                 dictation.stop()
                 clearDraft()
                 if (bot != null) onOpenComputer(bot.id)
@@ -729,11 +596,6 @@ private fun LoadedChat(
         hudOpen = false
     }
 
-    /**
-     * Closing takes back the `/` that opened the HUD and nothing else. Routed
-     * around [publishFrom] when the draft did not change, because re-applying
-     * the open rule to an unchanged `/dif` would reopen what was just closed.
-     */
     fun closeHud() {
         val next = SlashCommands.draftAfterClose(draft)
         if (next != draft) {
@@ -743,8 +605,6 @@ private fun LoadedChat(
         hudOpen = false
     }
 
-    // Clear draft while still composed so rememberSaveable does not resurrect
-    // it after a roster pop. Computer push never takes this path.
     fun leaveToRoster() {
         composer.onLeaveToRoster()
         publishFrom(composer)
@@ -752,8 +612,6 @@ private fun LoadedChat(
     }
 
     BackHandler(enabled = showingPlus) { showingPlus = false }
-    // Back dismisses an open panel before it leaves the screen — the platform's
-    // own gesture, applied to the HUD the way it already was to the + sheet.
     BackHandler(enabled = !showingPlus && hudOpen) { closeHud() }
     BackHandler(enabled = !showingPlus && !hudOpen) { leaveToRoster() }
 
@@ -763,11 +621,6 @@ private fun LoadedChat(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    // Tapping the transcript puts the keyboard away, the way
-                    // it does on iOS. `detectTapGestures` and not `clickable`:
-                    // the transcript is not a button, so it should not answer
-                    // to TalkBack as one, and a tap a row has already taken —
-                    // a link, a card button — never reaches this far.
                     .pointerInput(Unit) {
                         detectTapGestures { focusManager.clearFocus() }
                     },
@@ -781,7 +634,6 @@ private fun LoadedChat(
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
-                        // Room for the floating face when scrolled to the top.
                         top = HEADER_CLEARANCE,
                         bottom = 12.dp,
                     ),
@@ -804,8 +656,6 @@ private fun LoadedChat(
                                             row.id == anchor || row.containsMessage(anchor)
                                         }
                                         if (index < 0) return@launch
-                                        // The "load earlier" row is item 0 for as
-                                        // long as there is still more to fetch.
                                         val offset = if (fresh.hasMore[threadId] == true) 1 else 0
                                         listState.scrollToItem(index + offset)
                                     }
@@ -819,8 +669,6 @@ private fun LoadedChat(
 
                     itemsIndexedKeyed(transcript) { index, message ->
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            // A gap in time is worth marking; a timestamp on every
-                            // message is just noise.
                             if (TranscriptLayout.startsNewRowStretch(transcript, index)) {
                                 Text(
                                     text = RelativeStamp.separator(
@@ -840,8 +688,6 @@ private fun LoadedChat(
                                 is TranscriptRow.Single -> MessageRow(
                                     chat = chat,
                                     message = message.message,
-                                    // One tail per run of bubbles from the same author,
-                                    // not one per bubble.
                                     endsRun = TranscriptLayout.endsRowRun(transcript, index),
                                     openLink = ::openLink,
                                     openAttachment = ::openAttachment,
@@ -902,9 +748,6 @@ private fun LoadedChat(
                         focusManager.clearFocus()
                         showingCall = true
                     },
-                    // A bot's face and its name pill are both the door to its
-                    // profile; a room has no profile, so its pill opens the same
-                    // sheet the + does.
                     onOpenProfile = {
                         if (bot != null) {
                             showingProfile = true
@@ -952,11 +795,6 @@ private fun LoadedChat(
                     scope.launch { session.cancelQueued(queued, chat) }
                 },
                 onEditQueued = { queued ->
-                    // The computer drops it from the queue first; only a
-                    // confirmed removal hands the words back, so a send that
-                    // already joined the turn is never resent. The composer is
-                    // this conversation's cached draft, so a thread switch
-                    // mid-request still lands the words in the right place.
                     val target = composer
                     scope.launch {
                         if (session.cancelQueued(queued, chat)) {
@@ -978,8 +816,6 @@ private fun LoadedChat(
                     attachmentError = null
                 },
                 onTogglePlus = {
-                    // iOS drops the composer's focus before the sheet rises; a
-                    // keyboard under it would leave the sheet nowhere to go.
                     dictation.stop()
                     if (!showingPlus) focusManager.clearFocus()
                     showingPlus = !showingPlus
@@ -999,14 +835,11 @@ private fun LoadedChat(
                     haptics.play(HapticCue.SELECT)
                     hudOpen = !hudOpen
                 },
-                // The button, not the back gesture — `closeHud` is also what the
-                // BackHandler calls, and Android already gives back its own feel.
                 onCloseHud = {
                     haptics.play(HapticCue.SELECT)
                     closeHud()
                 },
                 onSelectCommand = { selectCommand(it) },
-                // A chip is the whole message, sent on the tap.
                 onSelectChip = { submit(it.prompt) },
             )
         }
@@ -1073,7 +906,6 @@ private const val LOAD_EARLIER_KEY = "companion.loadEarlier"
 private const val LIVE_BUBBLE_KEY = "companion.live"
 private val CHAT_CONTENT_MAX_WIDTH = 840.dp
 
-/** `itemsIndexed` with the message id as the key — one call site, one helper. */
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedKeyed(
     messages: List<TranscriptRow>,
     content: @Composable (Int, TranscriptRow) -> Unit,
@@ -1085,20 +917,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedKeyed(
     )
 }
 
-// The strip the top controls sit on, and the air the transcript needs below the
-// name pill before its first row.
 private val HEADER_BAR = 56.dp
 private val HEADER_SCRIM_FADE = 24.dp
 private val HEADER_CLEARANCE = 128.dp
 
-/**
- * Back on the left with the rest-of-app unread count, the bot's computer on the
- * right, and the bot itself between them over its name.
- *
- * The strip behind the two buttons is opaque and then fades out, so the
- * transcript slides under the chrome and disappears rather than stopping at a
- * line. The face and the name pill float below it on their own tiles.
- */
 @Composable
 private fun ChatHeader(
     chat: Chat,
@@ -1136,7 +958,6 @@ private fun ChatHeader(
         ) {
             BackPill(unreadElsewhere = unreadElsewhere, onBack = onBack)
             Spacer(Modifier.weight(1f))
-            // The computer is a bot idea; a room has none (§12). So is a call.
             if (chat is Chat.BotChat) {
                 ChromeButton(
                     painter = painterResource(R.drawable.ic_phone),
@@ -1178,7 +999,6 @@ private fun ChatHeader(
     }
 }
 
-/** Leaving, with what is unread everywhere else — the badge Messages puts there. */
 @Composable
 private fun BackPill(unreadElsewhere: Int, onBack: () -> Unit) {
     Row(
@@ -1215,10 +1035,6 @@ private fun BackPill(unreadElsewhere: Int, onBack: () -> Unit) {
     }
 }
 
-/**
- * The bot's name over its job, and the door to its profile — "who this is", as
- * The conversation title opens thread navigation; the avatar opens settings.
- */
 @Composable
 private fun NamePill(chat: Chat, onOpen: () -> Unit) {
     val hasThreads = chat.supportsTasks
@@ -1268,11 +1084,6 @@ private fun NamePill(chat: Chat, onOpen: () -> Unit) {
     }
 }
 
-/**
- * What the composer's + opens: the things you can do here, each with a line
- * saying what it does. Rises above the composer; tapping anywhere else, the back
- * gesture, or the × the + became, puts it away.
- */
 @Composable
 private fun BoxScope.PlusSheet(
     open: Boolean,
@@ -1290,8 +1101,6 @@ private fun BoxScope.PlusSheet(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f))
-                // The scrim is a dismissal, not a control: no ripple, and the
-                // back gesture does the same thing for anyone not using touch.
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -1369,10 +1178,8 @@ private fun BoxScope.PlusSheet(
 private const val PLUS_MILLIS = 280
 private val PLUS_SHEET_RADIUS = 28.dp
 
-/** The + becomes an ×. */
 private const val PLUS_TURN_DEGREES = 45f
 
-/** A quiet progress line above the field — `ProgressView` plus a caption on iOS. */
 @Composable
 private fun ComposerStatusLine(text: String) {
     Row(
@@ -1388,10 +1195,6 @@ private fun ComposerStatusLine(text: String) {
     }
 }
 
-/**
- * The glyph beside an action. Decorative: the row's own text is the label, and
- * TalkBack reading the icon too would say everything twice.
- */
 @Composable
 private fun ChatActionIcon(id: ChatActionId, tint: Color) {
     val modifier = Modifier.size(22.dp)
@@ -1415,7 +1218,6 @@ private fun ChatActionIcon(id: ChatActionId, tint: Color) {
     }
 }
 
-/** A round + and a pill with the send button inside it. */
 @Composable
 private fun Composer(
     modifier: Modifier = Modifier,
@@ -1453,8 +1255,6 @@ private fun Composer(
 ) {
     val canSend = AttachmentImportRules.canSend(draft, attachments.size, preparing, sending)
     val inFlight = preparing || sending
-    // Held as the state rather than unwrapped with `by`: read inside the layer
-    // block, the turn is a new frame, not a new composition of the composer.
     val turn = animateFloatAsState(
         targetValue = if (plusOpen) PLUS_TURN_DEGREES else 0f,
         animationSpec = tween(PLUS_MILLIS),
@@ -1474,8 +1274,6 @@ private fun Composer(
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
-        // What is in flight, in the order iOS stacks them: the send or the
-        // import, then a file on its way, then whatever went wrong.
         if (inFlight) {
             ComposerStatusLine(if (preparing) "Preparing attachments…" else "Sending…")
         }
@@ -1511,8 +1309,6 @@ private fun Composer(
                 )
             }
         }
-        // Everything the computer is holding, stacked straight above the chat
-        // bar in the order it was sent.
         queuedSends.forEach { queued ->
             QueuedSendRow(
                 send = queued,
@@ -1540,9 +1336,6 @@ private fun Composer(
                 }
             }
         }
-        // One or the other, never both: the HUD is what the composer is doing
-        // right now, and a row of send-immediately chips under it would be a
-        // second thing to tap by accident.
         when (accessory) {
             ComposerAccessory.HUD -> CommandSkillHud(
                 commands = commands,
@@ -1595,19 +1388,11 @@ private fun Composer(
             Row(
                 modifier = Modifier
                     .weight(1f)
-                    // A capsule at one line (48dp tall, 24dp corners) that keeps
-                    // those corners as the draft grows, the way Messages does.
-                    // CircleShape rounds to half the height, and a five-line
-                    // draft became a giant pill.
                     .chromeSheet(cornerRadius = MIN_TOUCH_TARGET / 2)
                     .heightIn(min = MIN_TOUCH_TARGET),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                // The way into the HUD that does not start with typing. iOS draws
-                // the `command` glyph here; Android's core icon set has no
-                // counterpart, and the character the feature is named after says
-                // it better than a borrowed symbol would.
                 TouchTarget(
                     onClick = onToggleHud,
                     contentDescription = "Slash commands",
@@ -1653,8 +1438,6 @@ private fun Composer(
                     BasicTextField(
                         value = draft,
                         onValueChange = onDraftChange,
-                        // Partials rebuild from a frozen base; prevent competing
-                        // edits without dimming the text.
                         readOnly = dictationLocked,
                         maxLines = 5,
                         textStyle = LocalTextStyle.current.copy(
@@ -1662,11 +1445,6 @@ private fun Composer(
                             color = MaterialTheme.colorScheme.onSurface,
                         ),
                         cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
-                        // The software keyboard's Return breaks the line, like
-                        // Messages; the arrow button on the bar is the one send.
-                        // A hardware Return still sends and Shift+Return breaks
-                        // the line. Some soft keyboards deliver their Return as a
-                        // key event too, so the rule also asks where it came from.
                         modifier = Modifier
                             .fillMaxWidth()
                             .onPreviewKeyEvent { event ->

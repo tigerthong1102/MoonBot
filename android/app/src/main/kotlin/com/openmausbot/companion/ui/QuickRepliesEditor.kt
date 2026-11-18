@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.horizontalScroll
@@ -32,13 +33,6 @@ import androidx.compose.ui.unit.sp
 import com.openmausbot.companion.core.QuickReply
 import com.openmausbot.companion.storage.ChatPreferences
 
-/**
- * The editor behind Settings → Chat → Quick replies.
- *
- * Material dialogs do not have iOS's built-in list edit mode, so ordering is
- * explicit with Move up/down controls. It is equally available to keyboard and
- * TalkBack users and, unlike a drag-only list, works on a narrow handset.
- */
 @Composable
 fun QuickRepliesEditor(
     preferences: ChatPreferences,
@@ -102,8 +96,6 @@ fun QuickRepliesEditor(
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { adding = true }) { Text("Add") }
-                // Discards the list the user built: `Button(role: .destructive)`
-                // in `ios/App/QuickRepliesEditor.swift:97`.
                 TextButton(
                     onClick = { confirmReset = true },
                     colors = ButtonDefaults.textButtonColors(
@@ -204,11 +196,7 @@ private fun QuickReplyForm(
                                 icon = choice
                                 haptics.play(TactileAction.CHOOSE_QUICK_REPLY_ICON)
                             },
-                            // The composer's own table, so the mark chosen here is
-                            // the mark that turns up above the composer.
                             label = { Text(quickReplyGlyph(choice), fontSize = 13.sp) },
-                            // The glyph is a mark, not a word: the id is what a
-                            // screen reader can say, as iOS's `accessibilityLabel(icon)` does.
                             modifier = Modifier.semantics { contentDescription = choice },
                         )
                     }

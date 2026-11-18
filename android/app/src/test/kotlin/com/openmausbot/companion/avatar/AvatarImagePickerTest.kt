@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.avatar
 
 import java.io.InputStream
@@ -25,8 +26,6 @@ class AvatarImagePickerTest {
 
     @Test
     fun `cancelling a blocked provider read closes the stream`() = runBlocking {
-        // Would fail against invokeOnCompletion: close never ran while read blocked,
-        // so cancel left the coroutine and fd pinned until the provider returned.
         val enteredRead = CountDownLatch(1)
         val closed = AtomicBoolean(false)
         val stream = BlockingStream(onEnter = { enteredRead.countDown() }, onClose = { closed.set(true) })
@@ -66,10 +65,6 @@ class AvatarImagePickerTest {
         assertTrue(reads.get() >= 1)
     }
 
-    /**
-     * Parks in [read] until [close] counts down the gate — the same observable
-     * a hung cloud provider offers when its fd is closed under a blocked read.
-     */
     private class BlockingStream(
         private val onEnter: () -> Unit,
         private val onClose: () -> Unit,

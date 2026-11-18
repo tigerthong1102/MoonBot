@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.layout.requiredWidth
@@ -54,20 +55,12 @@ import org.robolectric.annotation.GraphicsMode
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-// Robolectric's legacy graphics does not give metrics or ellipsis these
-// assertions can be read off: run without this annotation, four of the seven
-// fail on the *fixed* code — the preview never elides, both Arabic comparisons
-// lose usable box positions, and two of the counted list's numbers report the
-// same x. Native graphics lays the text out with the real font stack, which is
-// what makes the positions and the ellipsis below evidence rather than
-// decoration.
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ParagraphDirectionTest {
 
     @get:Rule
     val compose = createComposeRule()
 
-    /** Mounts [content] the way an Arabic phone mounts the app. */
     private fun inRtlLocale(content: @Composable () -> Unit) {
         compose.setContent {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -84,11 +77,6 @@ class ParagraphDirectionTest {
         }
     }
 
-    /**
-     * The layout the text node published, which is the thing the glyphs were
-     * drawn from. `GetTextLayoutResult` is the same semantics action the
-     * platform's accessibility bridge reads.
-     */
     private fun layoutOf(text: String): TextLayoutResult {
         val node = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode()
         val results = mutableListOf<TextLayoutResult>()
@@ -97,7 +85,6 @@ class ParagraphDirectionTest {
         return results.first()
     }
 
-    /** Left edge of the box character [offset] was placed in. */
     private fun TextLayoutResult.leftOf(offset: Int): Float = getBoundingBox(offset).left
 
     @Test
@@ -126,7 +113,6 @@ class ParagraphDirectionTest {
             "the '?' sat at x=$questionMark, left of the 'W' at x=$firstLetter — " +
                 "that is the reordering that drew \"?What do you mostly want help with\"",
         )
-        // And nothing else overtook it: it is the right-most glyph on the line.
         val rightmost = (0..question.lastIndex).maxOf { layout.leftOf(it) }
         assertEquals(questionMark, rightmost, "the '?' has to end the line")
     }
@@ -146,7 +132,6 @@ class ParagraphDirectionTest {
             "digits are weak; with an RTL base level the whole sequence reverses",
         )
 
-        // Where each number starts, in the order they were written.
         val starts = buildList {
             var index = 0
             counted.split(" ").forEach { token -> add(index); index += token.length + 1 }
@@ -161,11 +146,6 @@ class ParagraphDirectionTest {
         }
     }
 
-    /**
-     * The other half of "resolved from the content": the fix must not have
-     * pinned everything to LTR. Two tests, not one, because the rule mounts a
-     * composition exactly once.
-     */
     @Test
     fun `Arabic reads right to left on an English phone`() {
         inLtrLocale { MarkdownText(source = ARABIC, modifier = Modifier.requiredWidth(2000.dp)) }
@@ -245,9 +225,6 @@ class ParagraphDirectionTest {
         val visible = layout.getLineEnd(0, visibleEnd = true)
         assertTrue(visible < preview.length, "the line has to overflow for this to mean anything")
 
-        // Nothing spills past the leading edge: on the device the whole run was
-        // pushed to negative x and the phone clipped the opening characters,
-        // which is how "error: CUA Driver…" came out as "ror: CUA Driver…".
         assertTrue(
             layout.getLineLeft(0) >= 0f,
             "the line started at x=${layout.getLineLeft(0)}, outside its own box",
@@ -256,20 +233,12 @@ class ParagraphDirectionTest {
             layout.getBoundingBox(0).left >= 0f,
             "the opening 'e' of \"error:\" was drawn at x=${layout.getBoundingBox(0).left}",
         )
-        // And what survives reads left to right, ending in the ellipsis.
         assertTrue(
             layout.getBoundingBox(visible - 1).left > layout.getBoundingBox(0).left,
             "the kept run has to read left to right",
         )
     }
 
-    /**
-     * PASS20's table, re-measured under RTL.
-     *
-     * The card reads by row and mirrors its columns through `placeRelative`, and
-     * that has to survive a change to how paragraphs pick a direction — the two
-     * are independent, and this is the test that says so.
-     */
     @Test
     fun `the data table still reads across and still mirrors`() {
         val languages = TranscriptCard.Table(
@@ -308,7 +277,6 @@ class ParagraphDirectionTest {
     }
 
     private companion object {
-        /** "Welcome to OpenMaus" — strong RTL from its first letter. */
         const val ARABIC = "مرحبا بك في أوبن ماوس"
     }
 }

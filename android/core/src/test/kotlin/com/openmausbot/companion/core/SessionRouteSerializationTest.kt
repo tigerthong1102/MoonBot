@@ -71,22 +71,15 @@ class SessionRouteSerializationTest {
         advanceTimeBy(1_100)
         runCurrent()
 
-        // The hosted route failed, the walk moved to the tailnet one, the stream
-        // came up on it — and the promotion that records that is now parked
-        // inside the store.
         assertEquals(1, store.parked, "the promotion never reached the store")
         assertEquals(emptyList(), store.writes, "the parked save must not have landed yet")
 
-        // Someone types a new address while that save is in flight.
         val edit = backgroundScope.launch {
             session.updateAddressAndAwait("http://192.168.1.9:8899")
         }
         runCurrent()
 
         park.complete(Unit)
-        // `advanceUntilIdle` stops as soon as only background events remain, and
-        // every coroutine the session owns is in `backgroundScope`. `runCurrent`
-        // does run them, so the pump is explicit.
         settle()
         edit.join()
         settle()
@@ -112,7 +105,6 @@ class SessionRouteSerializationTest {
                 dialed += connection.baseUrl.toString()
                 CompanionClient(connection, token)
             },
-            // An answering sidecar, so the refresh actually reaches the store.
             metadata = {
                 CompanionConnectionMetadata(
                     serverName = "Mac",
@@ -123,10 +115,6 @@ class SessionRouteSerializationTest {
             events = { _, _ ->
                 opens += 1
                 when (opens) {
-                    // Hello, a beat, then a route failure on the same stream. The
-                    // beat is what lets the refresh the Hello launched reach the
-                    // store — so the failure lands while that save is suspended,
-                    // which is the whole window.
                     1 -> flow {
                         emit(StreamFrame(Frame.Hello(cursor = "s:1", resumed = true), seq = 1))
                         kotlinx.coroutines.delay(10)
@@ -148,7 +136,6 @@ class SessionRouteSerializationTest {
         assertEquals(1, store.parked, "the refresh never reached the store: writes=${store.writes}")
         assertEquals(emptyList(), store.writes, "the refresh save must still be in flight")
 
-        // The stream fails while that save is suspended.
         advanceTimeBy(11)
         runCurrent()
 
@@ -165,7 +152,6 @@ class SessionRouteSerializationTest {
         )
     }
 
-    /** Drain everything runnable at the current virtual time, background included. */
     private fun TestScope.settle() = repeat(6) { runCurrent() }
 
     private fun TestScope.session(

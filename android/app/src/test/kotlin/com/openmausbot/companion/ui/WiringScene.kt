@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.app.Application
@@ -32,33 +33,10 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import org.robolectric.RuntimeEnvironment
 
-/**
- * A whole [CompanionEnvironment] around a real [Session], for the screens whose
- * behaviour is a *call* rather than a value.
- *
- * `OnboardingScene` does this for the first-run router; this is the same idea
- * one screen down, where what has to be measured is whether a button or a
- * lifecycle event reaches the session at all. The session is real because that
- * is the point: a fake that records `refresh()` would agree with a screen that
- * calls it in the wrong place, or twice.
- *
- * Two seams answer the two questions:
- *
- * - [streamStarts] counts *collections* of the event stream, and only
- *   `connect()` and `refresh()` start one. It is incremented inside the flow
- *   builder, so building the flow costs nothing and only collecting it counts.
- * - [events] hands each stream its own body, so a test can hold one open —
- *   which is what keeps `refresh()` in flight long enough to observe.
- *
- * A connection makes the session build a real client against whatever address
- * it was given, so a test that needs traffic can point it at a socket.
- */
 internal class WiringScene(
     connection: Connection? = null,
     token: String? = "device-token",
-    /** An isolated fleet for conversation fixtures; older wiring scenes stay empty. */
     fleet: Fleet = Fleet(emptyList(), emptyList()),
-    /** The transcript voice-note player; null builds a real one, tests inject a fake. */
     voiceNotes: VoiceNotePlayer? = null,
     /** The body of the nth stream (1-based). Hangs by default, like a live SSE. */
     private val events: (Int) -> Flow<StreamFrame> = { flow { awaitCancellation() } },
@@ -66,7 +44,6 @@ internal class WiringScene(
     private val context: Context = RuntimeEnvironment.getApplication() as Application
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    /** How many times something opened the event stream. */
     val streamStarts = AtomicInteger(0)
 
     private val onboarding = OnboardingPreferences(
@@ -154,7 +131,6 @@ internal class WiringScene(
     }
 
     private companion object {
-        /** One preferences file per scene, so scenes cannot read each other. */
         val SCENES = AtomicInteger(0)
     }
 }

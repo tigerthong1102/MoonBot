@@ -72,13 +72,10 @@ class NotificationTapCoordinatorTest {
         assertEquals("task-1", assertIs<Chat.BotChat>(held.chat).threadId)
         assertNull(navigation.consumedToken(), "consumed before navigate loses the tap on recreation")
 
-        // Recreation in that window: token still null → Intent extras re-offer.
         val midFlight = PendingThreadNavigation(navigation.consumedToken())
         midFlight.offer("b1", "task-1", "fixture")
         assertEquals(target("b1", "task-1"), midFlight.pending.value)
 
-        // Drive the real protocol: commit owns navigate → consume. A consume
-        // callback that fired first would see an empty stack and fail below.
         val events = mutableListOf<String>()
         assertTrue(
             coordinator.commit(held, navigator, "fixture") { t ->
@@ -95,7 +92,6 @@ class NotificationTapCoordinatorTest {
         assertNull(coordinator.resolution.value)
         assertNotNull(navigation.consumedToken())
 
-        // After atomic commit: recreation restores the stack and suppresses the Intent.
         val restoredNav = CompanionNavigator(
             CompanionNavigator.decode(CompanionNavigator.encode(navigator.stack)),
         )
@@ -123,10 +119,6 @@ class NotificationTapCoordinatorTest {
             navigator.stack,
         )
 
-        // Real saver path: generation is written into the saved value. A Bundle
-        // captured under generation 0 while Unauthorized/Unpaired was landing
-        // must be rejected when the next bond restores under generation 1 —
-        // not a hand-rolled map keyed by construction.
         val bondGeneration = 0
         val saved = CompanionNavigator.encodeWithBond(navigator.stack, bondGeneration)
 
@@ -140,15 +132,12 @@ class NotificationTapCoordinatorTest {
             CompanionNavigator.restoreForGeneration(saved, nextBondGeneration),
             "leaving the bond must invalidate the saved stack, not only the in-memory chat",
         )
-        // Same generation still restores — proves the rejection is the mismatch.
         val sameGen = requireNotNull(CompanionNavigator.restoreForGeneration(saved, bondGeneration))
         assertEquals(navigator.stack, sameGen.stack)
 
-        // rememberSaveable treats a null restore as "run init" → empty roster.
         val restored = CompanionNavigator.restoreForGeneration(saved, nextBondGeneration)
             ?: CompanionNavigator()
         assertEquals(listOf(Destination.Roster), restored.stack)
-        // Stale commit from the previous bond must not reopen the chat.
         assertFalse(coordinator.commit(held, restored, "fixture", navigation::consume))
         assertEquals(listOf(Destination.Roster), restored.stack)
     }
@@ -161,8 +150,6 @@ class NotificationTapCoordinatorTest {
         val session = unpairedSession()
         val target = requireNotNull(navigation.pending.value)
 
-        // Real RootScreen path: coordinator owns the identified consume. Omitting
-        // a separate RootScreen consume() call must still clear the pending entry.
         assertTrue(coordinator.onPending(session, target, navigation::consume))
         assertNull(coordinator.resolution.value)
         assertNull(navigation.pending.value)
@@ -187,7 +174,6 @@ class NotificationTapCoordinatorTest {
         val events = mutableListOf<String>()
         assertTrue(
             coordinator.commit(held, navigator, "fixture") { t ->
-                // Order pin: stack must already hold the chat when consume runs.
                 assertEquals(
                     listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("b1", "task-1"))),
                     navigator.stack,
@@ -201,8 +187,6 @@ class NotificationTapCoordinatorTest {
         assertEquals(1, navigator.stack.count { it is Destination.Chat })
         assertNull(navigation.pending.value)
 
-        // Offer B before the stale second callback — that callback must not
-        // consume B (generation already cleared; no free consume() on pending).
         navigation.offer("b2", "task-2", "fixture", fresh = true)
         assertEquals(target("b2", "task-2"), navigation.pending.value)
         assertFalse(
@@ -229,8 +213,6 @@ class NotificationTapCoordinatorTest {
         )
         val heldA = requireNotNull(coordinator.resolution.value)
 
-        // B arrives before A's commit — replaces pending and, once resolved,
-        // the held resolution. A's callback must not consume B.
         navigation.offer("b1", "task-1", "fixture", fresh = true)
         assertEquals(target("b1", "task-1"), navigation.pending.value)
 
@@ -264,7 +246,6 @@ class NotificationTapCoordinatorTest {
         navigation.offer("b1", "task-1", "fixture", fresh = true)
         assertEquals(target("b1", "task-1"), navigation.pending.value)
 
-        // Stale consume(A) must not mark B consumed.
         navigation.consume(a)
         assertEquals(target("b1", "task-1"), navigation.pending.value)
         assertNull(navigation.consumedToken())

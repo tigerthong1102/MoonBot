@@ -1,12 +1,7 @@
-// Generated from the Blob Studio export of the mascot (MausMascotios/MausAvatar.tsx;
-// the same tables ship in src/components/CursorAvatar.tsx) — do not hand-edit. 25 expressions × 2 eye rings × 48 points, a mouth per expression,
-// and per-state pools, cadences, blink rhythm and body motion. Same numbers as
-// the desktop, which is the whole point.
+// Modified for StartupBot; original copyright and license retained.
 import CoreGraphics
 
 enum MausState: String, CaseIterable {
-    /// States whose motion carries information — a turn in progress. Faces in
-    /// lists animate only for these; a resting bot earns a resting face.
     var showsActivity: Bool {
         switch self {
         case .listening, .thinking, .searching, .working: return true
@@ -75,7 +70,6 @@ enum MausFaceData {
     static let gazeTravel = CGPoint(x: 13.2, y: 8.4)
     static let expressionCount = 25
     static let pointsPerRing = 48
-    /// expression → eye → point → (x, y), flattened; see `ring(_:eye:)`.
     static let expressionsFlat: [CGFloat] = [
         89.2049, 106.51, 91.5549, 106.72, 93.8249, 107.34, 95.9549, 108.36, 97.8149, 109.81, 99.3149, 111.62, 100.525, 113.65, 101.575, 115.76,
         102.605, 117.89, 103.625, 120.02, 104.635, 122.15, 105.635, 124.29, 106.605, 126.44, 107.555, 128.6, 108.475, 130.78, 109.365, 132.96,
@@ -399,7 +393,6 @@ enum MausFaceData {
         return (0..<pointsPerRing).map { i in CGPoint(x: expressionsFlat[base + i * 2], y: expressionsFlat[base + i * 2 + 1]) }
     }
     static func gaze(_ expression: Int) -> CGPoint { CGPoint(x: gazeFlat[expression * 2], y: gazeFlat[expression * 2 + 1]) }
-    /// [halfWidth, curve, gap, skew]
     static func mouth(_ expression: Int) -> [CGFloat] { Array(mouthsFlat[(expression * 4)..<(expression * 4 + 4)]) }
 
     static let pools: [MausState: [Int]] = [
@@ -444,7 +437,6 @@ enum MausFaceData {
         .dragging: [3, 15, 0],
         .poweringDown: [22, 13],
     ]
-    /// How long a state holds an expression, ms.
     static let expressionCadence: [MausState: (CGFloat, CGFloat)] = [
         .sleeping: (6000, 10000),
         .waking: (800, 800),
@@ -487,7 +479,6 @@ enum MausFaceData {
         .dragging: (1600, 3000),
         .poweringDown: (6000, 9000),
     ]
-    /// Blink cadence, ms; absent = never blinks.
     static let blink: [MausState: (CGFloat, CGFloat)] = [
         .idle: (6000, 14000),
         .listening: (3000, 7000),

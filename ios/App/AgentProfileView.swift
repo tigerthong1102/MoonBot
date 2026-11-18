@@ -3,9 +3,6 @@ import CompanionCore
 import PhotosUI
 import SwiftUI
 
-/// The paired-safe subset of bot settings. Shared provider keys remain on the
-/// computer; the phone sees only the model catalog, configured/not-configured
-/// status, and renderer-neutral profile operations.
 struct AgentProfileView: View {
     let bot: Bot
 
@@ -108,8 +105,6 @@ struct AgentProfileView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // Changing the model and generating avatars need the admin scope
-                // on a server; a chat-only phone is not shown either.
                 if session.canAdminister {
                     Section {
                         if !modelsLoaded {
@@ -338,8 +333,6 @@ struct AgentProfileView: View {
                 ? nil : description.trimmingCharacters(in: .whitespacesAndNewlines),
             notifications: notifications == baseline.notifications ? nil : notifications,
             avatarCrop: crop == baseline.crop ? nil : crop,
-            // Empty is the server's explicit "use workspace default" value;
-            // nil would mean the voice field is not part of this patch.
             voice: voice == baseline.voice ? nil : voice,
             speakReplies: savedSpeakReplies == baseline.speakReplies ? nil : savedSpeakReplies
         )
@@ -353,8 +346,6 @@ struct AgentProfileView: View {
         busy = false
     }
 
-    /// The provider list is admin-only on a server: asking without the
-    /// scope would only put a 403 on screen for a picker that is not shown.
     private func loadModelCatalog() async -> [Instance] {
         session.canAdminister ? await session.modelInstances() : []
     }

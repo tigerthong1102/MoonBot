@@ -1,12 +1,10 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
-/** A safe, quiet label for an attachment encoded in a stored user prompt. */
 data class DisplayedMessageAttachment(
     val kind: Kind,
     val name: String,
-    /** The computer-local path carried by the exact standalone transport tag. */
     val path: String,
-    /** `kind == AUDIO`: the server's duration estimate, shown until the player loads metadata. */
     val durationMs: Double? = null,
 ) {
     enum class Kind { IMAGE, FILE, AUDIO }
@@ -17,14 +15,11 @@ data class AttachedMessageContent(
     val attachments: List<DisplayedMessageAttachment>,
 ) {
     companion object {
-        /** Split only exact standalone tags; inline examples remain ordinary prose. */
         fun parse(source: String): AttachedMessageContent {
             val attachments = mutableListOf<DisplayedMessageAttachment>()
             val visible = StringBuilder()
             var fence: Fence? = null
             var htmlBlock: HtmlBlock? = null
-            // Inside a paste whose opening wrapper line was hidden, so its
-            // exact closing line is hidden too.
             var hidingPasteWrapper = false
             var cursor = 0
             while (cursor < source.length) {
@@ -74,8 +69,6 @@ data class AttachedMessageContent(
                         consumedTransportTag = true
                     } else {
                         htmlBlock = htmlBlockStarting(line)
-                        // The bot needs the <pasted-text> wrapper to tell pasted
-                        // from typed text; the person reading it does not.
                         if (htmlBlock?.closingToken == "</pasted-text>" && PASTED_TEXT_OPEN.matches(line)) {
                             hidingPasteWrapper = true
                             consumedTransportTag = true
@@ -94,7 +87,7 @@ data class AttachedMessageContent(
 
         private data class Fence(val character: Char, val length: Int)
         private data class FenceMarker(val character: Char, val length: Int, val remainder: String)
-        /** A null token is a CommonMark type 6/7 block, which ends at a blank line. */
+        // CommonMark type 6/7 HTML blocks end at a blank line.
         private data class HtmlBlock(val closingToken: String?)
 
         private fun htmlBlockStarting(line: String): HtmlBlock? {
@@ -166,7 +159,6 @@ data class AttachedMessageContent(
             "param", "search", "section", "summary", "table", "tbody", "td", "tfoot", "th", "thead", "title",
             "tr", "track", "ul",
         ).joinToString("|")
-        /** The exact wrapper lines the desktop composer writes around a paste. */
         private val PASTED_TEXT_OPEN = Regex("""^ {0,3}<pasted-text(?:[\t ]+index="\d+")?[\t ]*>[\t ]*$""", RegexOption.IGNORE_CASE)
         private val PASTED_TEXT_CLOSE = Regex("""^[\t ]*</pasted-text>[\t ]*$""", RegexOption.IGNORE_CASE)
         private val PASTED_TEXT_START = Regex("""^ {0,3}<pasted-text(?:[\t >]|$)""", RegexOption.IGNORE_CASE)
@@ -226,12 +218,6 @@ val Message.generatedImages: List<DisplayedMessageAttachment>
             )
         }
 
-/**
- * Voice notes the server parked as generated mp3s (`kind: "audio"` plus the
- * wire's duration estimate). The gate is the desktop bubble's
- * `attachmentAudioUrl`: only a bare generated `.mp3` basename renders, so any
- * other path stays out of the transcript rather than failing on fetch.
- */
 val Message.voiceNotes: List<DisplayedMessageAttachment>
     get() = attachments.orEmpty()
         .filter { it.kind == "audio" && !it.path.isNullOrBlank() }
@@ -250,5 +236,4 @@ val Message.voiceNotes: List<DisplayedMessageAttachment>
             )
         }
 
-/** The desktop's parked-clip rule: the basename is a bare generated mp3 name. */
 private val PARKED_VOICE_NOTE_NAME = Regex("^[A-Za-z0-9-]+\\.mp3$")

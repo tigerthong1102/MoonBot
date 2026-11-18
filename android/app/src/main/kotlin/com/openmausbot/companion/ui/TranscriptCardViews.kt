@@ -60,44 +60,19 @@ import com.openmausbot.companion.core.TranscriptCard
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-/**
- * The three affordances a transcript grows when the reply is more than prose —
- * the port of `ios/App/Cards/GitPRDiffCardView.swift` and
- * `ios/App/Cards/AgentThoughtChamberView.swift`, plus Android's own data-table
- * card. iOS now draws a pipe table as markdown; matching that is issue 1707.
- *
- * Whether a reply *is* one of these is `TranscriptCards` in `:core`, and it is
- * strict on purpose: a card that swallowed a paragraph would hide the answer
- * inside it. This file is only the drawing, and it is Material drawing. The iOS
- * cards are gradients over `.ultraThinMaterial` with Tailwind hexes; the same
- * information here is a tonal surface, the app's own palette for the two colours
- * a diff actually means (added, removed), and Material's divider and text
- * button. What is not free, and is kept exactly: the whole patch on the
- * clipboard, RFC 4180 quoting, the 80-line preview, and a chamber that starts
- * closed.
- */
 
-/** What the clipboard shows a copied card came from. */
+
 private const val CARD_CLIP_LABEL = "StartupBot card"
 
-/** Added and removed, in the app's own palette rather than Tailwind's. */
 private val DiffAdded = Color(MausPalette.argb("green"))
 private val DiffRemoved = Color(MausPalette.argb("red"))
 private val DiffHunk = Color(MausPalette.argb("cyan"))
 
-/**
- * A patch, with its head visible and all of it on the clipboard.
- *
- * The preview stops at 80 lines because a 4,000-line patch inside a scrolling
- * transcript is a scroll the reader cannot get out of. Copy Diff never stops:
- * the clipboard is where the patch is actually used.
- */
 @Composable
 fun DiffCard(card: TranscriptCard.Diff, modifier: Modifier = Modifier) {
     var showingDiff by rememberSaveable(card.text) { mutableStateOf(true) }
     var showingAll by rememberSaveable(card.text) { mutableStateOf(false) }
     val copy = rememberCopy()
-    // `GitPRDiffCardView.swift` fires `Haptics.selection()` on both of these.
     val haptics = rememberHaptics()
 
     Column(
@@ -123,8 +98,6 @@ fun DiffCard(card: TranscriptCard.Diff, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .background(secondaryTint.copy(alpha = 0.14f), CircleShape)
                     .padding(horizontal = 8.dp, vertical = 3.dp)
-                    // Two glyphs and two numbers say "three added, one removed"
-                    // to anyone who can see them; this says it to everyone else.
                     .semantics(mergeDescendants = true) {
                         contentDescription =
                             "${card.additions} lines added, ${card.deletions} removed"
@@ -160,9 +133,6 @@ fun DiffCard(card: TranscriptCard.Diff, modifier: Modifier = Modifier) {
 
             if (showingDiff) {
                 val lines = remember(card, showingAll) { card.visibleLines(showingAll) }
-                // Horizontal scroll rather than wrapping, for the same reason the
-                // markdown code block does it: indentation is most of what a
-                // patch is saying, and a wrapped `-` line stops looking removed.
                 SelectionContainer {
                     Column(
                         modifier = Modifier
@@ -294,16 +264,6 @@ fun DataTableCard(card: TranscriptCard.Table, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * The cells, in the order they are read: headings, then row by row.
- *
- * The children are emitted in three runs — the [headers], one rule per column,
- * then the body row-major — because that is the contract
- * [tableGridMeasurePolicy] measures against, and because the run that carries
- * meaning (headings, then rows) comes first and in reading order. The rules
- * carry no semantics at all, so where they sit among the children is a measuring
- * detail and nothing a screen reader ever stops on.
- */
 @Composable
 private fun DataGrid(
     headers: List<String>,
@@ -317,9 +277,6 @@ private fun DataGrid(
         content = {
             headers.forEach { header ->
                 Text(
-                    // Uppercased by the invariant rules, like every other
-                    // section label in this app: a reader in `tr-TR` must still
-                    // read the column name, not a dotted capital.
                     text = header.uppercase(Locale.ROOT),
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
@@ -334,10 +291,6 @@ private fun DataGrid(
             rows.forEach { row ->
                 headers.indices.forEach { column ->
                     Text(
-                        // A short row is padded, not dropped: iOS reads
-                        // `colIdx < row.count ? row[colIdx] : ""` for the same
-                        // reason, and a missing cell that took no space would
-                        // slide the rest of the row under the wrong heading.
                         text = row.getOrElse(column) { "" },
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace,
@@ -350,30 +303,11 @@ private fun DataGrid(
     )
 }
 
-/** iOS asks every cell for `minWidth: 65`; this is that, in whole dp. */
 private val TABLE_MIN_COLUMN_WIDTH = 64.dp
 
-/** The gutter between two columns, and the leading between two rows. */
 private val TABLE_COLUMN_GAP = 18.dp
 private val TABLE_ROW_GAP = 4.dp
 
-/**
- * Column widths from the content, row positions from the columns.
- *
- * Expects its children in the order [DataGrid] emits them: [columnCount]
- * headings, then [columnCount] rules, then the body cells row-major. Everything
- * but the rules is measured against no constraint at all — inside a horizontal
- * scroller there isn't one, and a cell that wrapped would stop being a cell —
- * and only then is each column's width known: the widest thing in it, floored at
- * [minColumnWidth]. The rules are measured last, each against the fixed width of
- * the column it underlines, which is the only way a rule inside an unbounded
- * width gets one.
- *
- * Internal rather than private so a test can drive this exact policy with its
- * own children and read back what each rule was given; the alternative was a
- * test tag in the drawing, which would put test scaffolding in front of a screen
- * reader for the sake of a measurement.
- */
 internal fun tableGridMeasurePolicy(
     columnCount: Int,
     minColumnWidth: Dp = TABLE_MIN_COLUMN_WIDTH,
@@ -437,7 +371,6 @@ fun ThoughtChamber(
 ) {
     val steps = remember(reasoning) { Reasoning.steps(reasoning) }
     var expanded by rememberSaveable { mutableStateOf(false) }
-    // `AgentThoughtChamberView.swift` fires `Haptics.selection()` on the header.
     val haptics = rememberHaptics()
 
     Column(
@@ -524,7 +457,6 @@ fun ThoughtChamber(
     }
 }
 
-/** Hide/View, announced as the disclosure it is. */
 @Composable
 private fun Disclosure(expanded: Boolean, label: String, onToggle: () -> Unit) {
     Row(
@@ -555,22 +487,6 @@ private fun Disclosure(expanded: Boolean, label: String, onToggle: () -> Unit) {
     }
 }
 
-/**
- * A copy, as the two halves iOS gives it: the clipboard write, and the tick that
- * says it happened.
- *
- * `PlatformBridge.copyToPasteboard` ends every copy with `Haptics.selection()`,
- * unconditionally — so Copy Diff and Android's Copy CSV are confirmed by feel
- * and not only by a toast. iOS markdown tables do not offer Copy CSV (issue 1707).
- * neither platform shows. A copy is the one action on these cards with no
- * visible result at all: the button does not move, nothing opens, and the only
- * evidence is in a clipboard the reader has to leave the app to see. That is
- * exactly the interaction that needs the confirmation.
- *
- * Both cards go through this one object, so neither route can lose the tick
- * without the other losing it too — and [invoke] plays exactly one cue per call,
- * after the write is dispatched, in the order the Swift does it.
- */
 internal class CardClipboard(
     private val write: (String) -> Unit,
     private val haptics: Haptics,
@@ -581,7 +497,6 @@ internal class CardClipboard(
     }
 }
 
-/** One clipboard write and one tick, reused by both cards. */
 @Composable
 private fun rememberCopy(): CardClipboard {
     val clipboard = LocalClipboard.current

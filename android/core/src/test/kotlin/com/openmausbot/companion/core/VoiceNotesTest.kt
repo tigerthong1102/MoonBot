@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.serialization.decodeFromString
@@ -6,7 +7,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The decode half of the voice-note bubble contract: audio in, parked mp3s out. */
 class VoiceNotesTest {
 
     private fun reply(attachmentsJson: String): Message = CompanionJson.decodeFromString(

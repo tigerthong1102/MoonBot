@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import kotlin.random.Random
@@ -5,20 +6,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * The mascot's catalogue, transcribed from the source of truth —
- * `ios/App/MausFaceData.swift` for the tables, `ios/App/MausAvatar.swift` for the
- * comet rings — and kept here, in the test source set, where the code it describes
- * cannot reach it.
- *
- * That separation is the point. A test that asks the catalogue what it holds and
- * then agrees with the answer stays green through any drift; these numbers were
- * written down from the other platform, so a table that moves has to be moved here
- * too, deliberately, by someone who read the Swift.
- */
 internal object MausGolden {
 
-    /** `MausFaceData.swift:7-48`, in order. */
     val STATES: List<String> = listOf(
         "sleeping", "waking", "idle", "listening",
         "thinking", "searching", "working", "excited",
@@ -32,7 +21,6 @@ internal object MausGolden {
         "alerting", "bouncing", "dragging", "powering-down",
     )
 
-    /** `MausFaceData.swift:397-438`. The head of each pool is the state's resting face. */
     val POOLS: Map<String, List<Int>> = mapOf(
         "sleeping" to listOf(22, 13, 4),
         "waking" to listOf(13),
@@ -76,7 +64,6 @@ internal object MausGolden {
         "powering-down" to listOf(22, 13),
     )
 
-    /** `MausFaceData.swift:440-481`, in milliseconds. */
     val CADENCE: Map<String, Pair<Int, Int>> = mapOf(
         "sleeping" to (6000 to 10000),
         "waking" to (800 to 800),
@@ -120,7 +107,6 @@ internal object MausGolden {
         "powering-down" to (6000 to 9000),
     )
 
-    /** `MausFaceData.swift:483-507`. A state that is absent never blinks. */
     val BLINK: Map<String, Pair<Int, Int>> = mapOf(
         "idle" to (6000 to 14000),
         "listening" to (3000 to 7000),
@@ -147,7 +133,6 @@ internal object MausGolden {
         "dragging" to (2200 to 4500),
     )
 
-    /** `MausFaceData.swift:508-549`, as `field amplitude/period`, in the struct's order. */
     val MOTION: Map<String, String> = mapOf(
         "sleeping" to "pulse 0.028/4600, tilt 2",
         "waking" to "pulse 0.03/2200, enter 0.92/700",
@@ -191,7 +176,6 @@ internal object MausGolden {
         "powering-down" to "tilt 4, settle 0.05",
     )
 
-    /** `MausAvatar.swift:352-358`. */
     val TRAILS: Map<String, String> = mapOf(
         "orbit" to "count 6, period 3000, radius 105, width 5, span 2.5, body 0.72",
         "radar" to "count 4, period 2400, radius 106, width 4.5, span 2.1, body 0.72",
@@ -200,7 +184,6 @@ internal object MausGolden {
         "uploading" to "count 4, period 1800, radius 104, width 4.8, span 2.2, body 0.74",
     )
 
-    /** `MausAvatar.swift:362-365`, head to tail. */
     val PALETTES: List<String> = listOf(
         "A855F7 6366F1 38BDF8",
         "22D3EE 34D399 A3E635",
@@ -210,7 +193,6 @@ internal object MausGolden {
         "34D399 22D3EE 60A5FA",
     )
 
-    /** `MausFaceData.swift:373-377`: where each expression looks, x then y. */
     val GAZE: FloatArray = floatArrayOf(
         41.1551f, -60.5302f, 0.824375f, 25.4941f, 11.3477f, 30.8925f, -39.68f, -0.955729f,
         23.5902f, -5.85979f, -2.89208f, 32.071f, 25.2746f, 6.29417f, 25.9939f, -26.899f,
@@ -221,7 +203,6 @@ internal object MausGolden {
         6.10729f, 20.5418f,
     )
 
-    /** `MausFaceData.swift:379-387`: half-width, curve, gap, skew, per expression. */
     val MOUTHS: FloatArray = floatArrayOf(
         14.0f, 3.0f, 20.0f, 0.0f, 13.0f, 1.0f, 20.0f, 0.0f, 25.0f, 14.0f, 13.0f, 0.0f, 11.0f, 4.0f, 18.0f, 0.0f,
         16.0f, -2.0f, 22.0f, 0.0f, 15.0f, -3.0f, 20.0f, 6.0f, 12.0f, 2.0f, 20.0f, 0.0f, 17.0f, -7.0f, 18.0f, 0.0f,
@@ -232,31 +213,17 @@ internal object MausGolden {
         11.0f, 6.0f, 20.0f, 0.0f,
     )
 
-    /**
-     * The 4,800 numbers of `MausFaceData.swift:71-372`, as one number: `h = 0` then
-     * `h = h * 31 + value.toRawBits()` over the catalogue in order (expression, eye,
-     * point, x then y), in 64-bit wraparound. Recomputable from the Swift by anyone
-     * who doubts it, and a single moved decimal changes it.
-     */
     const val RING_FINGERPRINT: Long = 3801013492580860619L
 
-    /** The face a state holds when nothing is animating it. */
     val RESTING: Map<String, Int> = POOLS.mapValues { it.value.first() }
 }
 
-/**
- * Is it still the same artwork? `MausFaceTest` asks whether the face behaves, and
- * would stay green if a pool, a cadence or an amplitude quietly became a different
- * valid number. This asks the question a copied catalogue actually needs answered.
- */
 class MausCatalogueGoldenTest {
 
     @Test
     fun `the eye rings are still the 4800 numbers the desktop draws`() {
         var fingerprint = 0L
         val ring = FloatArray(96)
-        // the catalogue's own shape, spelled out rather than asked for: 25
-        // expressions, two rings of 48 points, x and y
         for (expression in 0 until 25) {
             for (eye in 0..1) {
                 MausFaceData.copyRing(expression, eye, ring)
@@ -265,7 +232,6 @@ class MausCatalogueGoldenTest {
         }
         assertEquals(MausGolden.RING_FINGERPRINT, fingerprint)
 
-        // and two corners of it, legible to a human holding the Swift open
         MausFaceData.copyRing(0, 0, ring)
         assertEquals(89.2049f, ring[0])
         assertEquals(106.51f, ring[1])
@@ -364,26 +330,22 @@ class MausCatalogueGoldenTest {
 
     @Test
     fun `the face box, its anchor and its mouth stroke are still the desktop's`() {
-        // MausFaceData.swift:63-69
         assertEquals(228.541f, MausFaceData.FACE_BOX)
         assertEquals(120f, MausFaceData.FACE_CENTRE_X)
         assertEquals(122.5f, MausFaceData.FACE_CENTRE_Y)
         assertEquals(7.5f, MausFaceData.MOUTH_STROKE)
         assertEquals(25, MausFaceData.EXPRESSION_COUNT)
         assertEquals(48, MausFaceData.POINTS_PER_RING)
-        // MausAvatar.swift:122 — the viewBox's margin around that box
         assertEquals(15f, MausSilhouette.FACE_MARGIN)
     }
 
     @Test
     fun `the face still looks around by the desktop's fraction`() {
-        // MausAvatar.swift:277
         assertEquals(0.35f, MausFaceEngine.LOOK_AROUND)
     }
 
     @Test
     fun `a blink still takes 320ms, shut at 42 percent of it`() {
-        // MausAvatar.swift:611-617, landing on idle's earliest blink — 6000ms
         val engine = MausFaceEngine(AT_THE_EARLIEST)
         engine.setState(MausState.IDLE, 0L)
         engine.advance(0L)
@@ -397,10 +359,6 @@ class MausCatalogueGoldenTest {
 
     @Test
     fun `the morph still springs at the desktop's stiffness`() {
-        // Idle rests on expression 6 and laughing on 2, whose mouths are 12 and 25
-        // wide — so the mouth reads the morph directly. The desktop's stiffness of
-        // 7, stepped at 30fps, is 87% of the way there after half a second and 99%
-        // after one. A softer 5 would be 73%, a stiffer 9 would be 93%.
         val engine = MausFaceEngine()
         engine.setState(MausState.IDLE, 0L)
         engine.advance(0L)
@@ -415,7 +373,6 @@ class MausCatalogueGoldenTest {
 
     @Test
     fun `a clock that jumped is still worth at most 100ms of spring`() {
-        // MausAvatar.swift:313
         val jumped = MausFaceEngine()
         jumped.setState(MausState.IDLE, 0L)
         jumped.advance(0L)
@@ -429,16 +386,13 @@ class MausCatalogueGoldenTest {
         stepped.advance(millis(100f))
 
         assertEquals(progress(stepped), progress(jumped), 0.0001f)
-        // ten seconds integrated whole would have thrown the morph past its target
         assertTrue(progress(jumped) < 0.6f, "the jump was not clamped")
     }
 
-    /** How far the mouth has travelled from idle's expression 6 to laughing's 2. */
     private fun progress(engine: MausFaceEngine): Float = (engine.mouth()[0] - 12f) / (25f - 12f)
 
     private fun millis(value: Float): Long = (value * 1_000_000f).toLong()
 
-    /** `bob 9/520, sway 3/1040, squash 0.35` — the Swift's fields, in its order. */
     private fun render(motion: MausBodyMotion): String {
         val parts = mutableListOf<String>()
         motion.bob?.let { parts += "bob ${plain(it.amplitude)}/${plain(it.periodMillis)}" }
@@ -453,7 +407,6 @@ class MausCatalogueGoldenTest {
         return if (parts.isEmpty()) "still" else parts.joinToString(", ")
     }
 
-    /** `count 6, period 3000, radius 105, width 5, span 2.5, body 0.72`. */
     private fun render(spec: MausCometSpec): String =
         "count ${spec.count}, period ${plain(spec.periodMillis)}, radius ${plain(spec.radius)}, " +
             "width ${plain(spec.width)}, span ${plain(spec.span)}, body ${plain(spec.bodyScale)}"
@@ -466,7 +419,6 @@ class MausCatalogueGoldenTest {
     private companion object {
         const val FRAME_NANOS = 1_000_000_000L / 30
 
-        /** Every draw at the bottom of its range, so a blink lands on a known millisecond. */
         val AT_THE_EARLIEST = object : Random() {
             override fun nextBits(bitCount: Int): Int = 0
         }

@@ -96,8 +96,6 @@ class AskQuestionTest {
 
     @Test
     fun `a question that offers no options still decodes`() {
-        // Free text answers it, so a missing list must never fail the whole
-        // transcript decode.
         val sparse = card(
             """{"title":"t","subtitle":"s","options":[],"requestId":"r",
                "questionRequest":{"questions":[{"question":"Which account?"}]}}""",
@@ -108,9 +106,6 @@ class AskQuestionTest {
 
     @Test
     fun `decodes an agent-composed ask and tolerates unknown fields`() {
-        // Origin rides on the wire only for the BoxAgent transport; a
-        // tool-call ask leaves it unset, and fields we do not know yet must
-        // never fail the transcript decode.
         val composed = card(
             """{"title":"t","subtitle":"s","options":[],"requestId":"r",
                "questionRequest":{"version":1,"origin":"output","futureField":true,

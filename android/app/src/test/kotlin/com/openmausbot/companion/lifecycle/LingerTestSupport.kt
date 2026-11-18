@@ -40,7 +40,6 @@ internal val TEST_CONNECTION = Connection(
 
 /** Records every SSE open, the `since` it carried, and hands out one hot flow. */
 internal class FakeStream(
-    /** `(1-based open index, since) -> flow`, or null for the shared hot flow. */
     private val onOpen: (Int, String?) -> Flow<StreamFrame>? = { _, _ -> null },
 ) {
     val frames = MutableSharedFlow<StreamFrame>(extraBufferCapacity = 32)
@@ -49,7 +48,6 @@ internal class FakeStream(
 
     val opens: Int get() = since.size
 
-    /** How many coroutines are currently collecting the stream. */
     val collectors: Int get() = frames.subscriptionCount.value
 
     fun open(cursor: String?, wantsScreens: Boolean): Flow<StreamFrame> {
@@ -76,23 +74,8 @@ internal class RecordingSink : NotificationSink {
     }
 }
 
-/**
- * Stands in for the started [SessionLingerService]. Everything it reports —
- * a refused start, a service the system destroyed early — is something the real
- * anchor can report on a real device.
- */
 internal class FakeAnchor(
     var refuseStart: Boolean = false,
-    /**
-     * Deliver `onDestroy` late, the way the framework does.
-     *
-     * `Context.stopService()` returns at once; the service's `onDestroy` — and
-     * with it [SessionLingerController.onAnchorLost] — arrives afterwards on the
-     * main looper. With this on, those callbacks queue up so a test can hand a
-     * previous trip's destroy to the controller *after* a newer window is
-     * already open. Off (the default) they are delivered inline, which is the
-     * simpler ordering the other tests need.
-     */
     private val deferDestroy: Boolean = false,
 ) : SessionLingerController.ProcessAnchor {
     private var controller: SessionLingerController? = null
@@ -103,7 +86,6 @@ internal class FakeAnchor(
     var startAttempts = 0
         private set
 
-    /** The token the "service" is currently alive for, or null. */
     var held: Long? = null
         private set
 
@@ -125,14 +107,12 @@ internal class FakeAnchor(
         if (deferDestroy) pendingDestroys += token else controller?.onAnchorLost(token)
     }
 
-    /** The system reclaimed the service before the deadline. */
     fun destroyedBySystem() {
         val token = checkNotNull(held) { "no anchor is held" }
         held = null
         controller?.onAnchorLost(token)
     }
 
-    /** Hand the controller every `onDestroy` that [deferDestroy] held back. */
     fun deliverPendingDestroys() {
         check(deferDestroy) { "this anchor delivers onDestroy inline" }
         val queued = pendingDestroys.toList()
@@ -159,22 +139,6 @@ internal fun tokens(result: TokenStore.ReadResult): TokenStore = object : TokenS
     override suspend fun remove(connectionId: String) = Unit
 }
 
-/**
- * The session every linger test drives, rooted at `backgroundScope`.
- *
- * That root is load-bearing for how these tests must be pumped.
- * `advanceUntilIdle()` never runs background work in
- * kotlinx-coroutines-test — not a freshly launched task, not a coroutine
- * already suspended in `delay`, not one waiting on a `Mutex`. So every
- * fire-and-forget call on this session (`connect`, `signOut`, `watchScreen`,
- * `stopWatchingScreen`, and the `restore()` its constructor launches) needs
- * `runCurrent()`, `yield()`, `advanceTimeBy(...)` or an `awaitRestored()` that
- * actually suspends between the call and any assertion that reads its result.
- *
- * An `advanceUntilIdle()` in that gap is a no-op, and a frame emitted across it
- * lands on a [FakeStream] with no collector yet and is dropped silently —
- * which leaves the test green while proving nothing. Use [installLive].
- */
 internal fun TestScope.session(
     stream: FakeStream,
     sink: NotificationSink,
@@ -192,24 +156,12 @@ internal fun TestScope.session(
     hydrateFn = { _, _ -> hydrate() },
 )
 
-/** The installed coordinator plus the handles the linger tests assert against. */
 internal class LingerScene(
     val owner: TestOwner,
     val anchor: FakeAnchor,
     val controller: SessionLingerController,
 )
 
-/**
- * Install the real coordinator on a real lifecycle, take the app to the
- * foreground and (unless told otherwise) settle a live stream.
- *
- * `awaitRestored()` + `runCurrent()` rather than `advanceUntilIdle()`: the
- * session runs on `backgroundScope`, and `advanceUntilIdle` never runs
- * background work at all. The two assertions below are what make the
- * difference observable — without them a test can reach `ON_STOP` on a session
- * that is merely `Connecting`, having silently dropped the hello it thought it
- * had delivered.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal suspend fun TestScope.installLive(
     session: Session,

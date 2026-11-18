@@ -1,8 +1,4 @@
-// The composer's chip row, editable.
-//
-// The four chips the app shipped with are now just the default contents of
-// a list you own: rename them, throw out the ones you never tap, add the
-// prompt you actually type every day.
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 
@@ -102,7 +98,6 @@ struct QuickRepliesEditor: View {
     }
 }
 
-/// Add and edit are the same form; only the title differs.
 private struct QuickReplyForm: View {
     @State var reply: QuickReply
     let onSave: (QuickReply) -> Void

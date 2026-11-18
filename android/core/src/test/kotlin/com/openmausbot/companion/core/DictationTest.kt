@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.util.Locale
@@ -6,15 +7,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * Expectations from `ios/Tests/CompanionCoreTests/DictationTests.swift` —
- * frozen base, partial replacement, and locale candidates. Not derived from
- * the Kotlin under test.
- *
- * Provenance cases below pin the pure helpers only. The integrated composer
- * path (holder + leave-to-roster + send/clear) lives in app
- * `ChatDraftHolderTest` against `ChatComposerDraft`.
- */
 class DictationTest {
     @Test
     fun emptyComposerTakesTheTranscript() {
@@ -23,8 +15,6 @@ class DictationTest {
 
     @Test
     fun emptyTranscriptLeavesTheBase() {
-        // The first callback has not arrived yet. Wiping the field in that
-        // window would look like the mic deleted what you had typed.
         assertEquals("please look", Dictation.draft(base = "please look", transcript = ""))
         assertEquals("please look", Dictation.draft(base = "please look", transcript = "   "))
     }
@@ -45,12 +35,6 @@ class DictationTest {
         )
     }
 
-    /**
-     * The contract ChatView has to keep: the base is the text at the
-     * moment listening started, not the live draft. Re-joining against
-     * that frozen base is how a later partial replaces an earlier one
-     * instead of concatenating onto it.
-     */
     @Test
     fun aLaterPartialReplacesAnEarlierOne() {
         val base = "please"
@@ -67,7 +51,6 @@ class DictationTest {
         assertEquals("", Dictation.draft(base = "  ", transcript = "\n"))
     }
 
-    // --- Transcript updates across segments --------------------------------
 
     @Test
     fun emptyTranscriptTakesTheNewPartial() {
@@ -80,7 +63,6 @@ class DictationTest {
         assertEquals("hello", Dictation.updateTranscript("hello", "   "))
     }
 
-    /** Same segment: each longer partial replaces the last in place. */
     @Test
     fun aLongerPartialReplacesTheCurrentOne() {
         assertEquals(
@@ -93,7 +75,6 @@ class DictationTest {
         )
     }
 
-    /** A fresh segment after a pause does not start with the old one. */
     @Test
     fun aFreshSegmentIsAppendedAfterThePreviousText() {
         assertEquals(
@@ -102,7 +83,6 @@ class DictationTest {
         )
     }
 
-    /** If the recognizer revises a word in the same segment, most leading words match. */
     @Test
     fun aWordLevelRevisionReplacesInPlace() {
         assertEquals(
@@ -111,7 +91,6 @@ class DictationTest {
         )
     }
 
-    /** A brief backtrack (new partial shorter but still a prefix) keeps the longer text. */
     @Test
     fun aBacktrackKeepsTheLongerTranscript() {
         assertEquals(
@@ -120,7 +99,6 @@ class DictationTest {
         )
     }
 
-    /** A new sentence that shares the first word is still treated as a new segment. */
     @Test
     fun aSharedFirstWordIsNotEnoughToMergeAcrossSegments() {
         assertEquals(
@@ -152,7 +130,6 @@ class DictationTest {
     fun hyphenAndUnderscoreAreTheSameCandidate() {
         val locales = Dictation.localeCandidates(
             preferredLanguages = listOf("en-US"),
-            // Swift passes Locale(identifier: "en_US") as current.
             current = Dictation.localeFromTag("en_US"),
         )
         assertEquals(listOf("en_us"), locales.map(Dictation::canonicalIdentifier))
@@ -181,18 +158,14 @@ class DictationTest {
         assertEquals(listOf("ja_jp", "en_us"), keys.takeLast(2))
     }
 
-    // --- Provenance: typed snapshot vs volatile draft --------------------
 
     @Test
     fun typedTextSurvivesRecreationThroughTheSnapshot() {
-        // Rotation / process death drops the in-memory holder; only the
-        // saveable typed snapshot may return. Pure typed text must come back.
         var provenance = DraftProvenance()
         provenance = Dictation.afterTypedEdit(provenance, "please look at the logs")
         assertEquals("please look at the logs", provenance.typedSnapshot)
         assertFalse(provenance.contaminated)
 
-        // Holder gone — seed from snapshot only.
         val restored = Dictation.seedVolatileDraft(
             held = null,
             typedSnapshot = Dictation.restoredDraft(provenance),
@@ -212,7 +185,6 @@ class DictationTest {
         assertEquals("please", provenance.typedSnapshot)
         assertTrue(provenance.contaminated)
 
-        // Activity recreation: holder discarded, spoken part must not return.
         val restored = Dictation.seedVolatileDraft(
             held = null,
             typedSnapshot = Dictation.restoredDraft(provenance),
@@ -229,8 +201,6 @@ class DictationTest {
         var live = Dictation.draft(base = "please", transcript = "look")
         provenance = Dictation.afterDictation(provenance)
 
-        // User edits the contaminated draft — the whole string still contains
-        // speech and must not be copied into the saveable snapshot.
         live = "$live at the logs!"
         provenance = Dictation.afterTypedEdit(provenance, live)
 
@@ -257,7 +227,6 @@ class DictationTest {
         provenance = Dictation.afterClear()
         assertEquals(DraftProvenance(), provenance)
 
-        // After reset, typing is clean again and updates the snapshot.
         provenance = Dictation.afterTypedEdit(provenance, "new draft")
         assertEquals("new draft", provenance.typedSnapshot)
         assertFalse(provenance.contaminated)

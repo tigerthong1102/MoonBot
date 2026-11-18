@@ -1,6 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// Settings stays status-first. Network details and destructive pairing
-// controls live one level deeper so the everyday screen remains calm.
 import SwiftUI
 import CompanionCore
 import UIKit
@@ -134,8 +132,6 @@ struct SettingsView: View {
                         }
                     }
 
-                    // Connecting apps needs the admin scope; a chat-only
-                    // server session leaves it to the owner, in the server's UI.
                     if session.canAdminister {
                         NavigationLink {
                             ConnectedAppsView()
@@ -246,9 +242,6 @@ struct ConnectedComputersView: View {
     @EnvironmentObject private var session: Session
     @State private var pendingRemoval: Connection?
 
-    /// The dialog interpolates the computer's own name. With no name there is
-    /// copy to fall back to, rather than an English word inside a translated
-    /// sentence.
     private var removalTitle: LocalizedStringKey {
         guard let name = pendingRemoval?.name else { return "Remove this computer?" }
         return "Remove \(name)?"
@@ -476,8 +469,6 @@ struct ConnectionSecurityView: View {
         }
     }
 
-    /// Our copy, except for `.offline`, whose text the computer itself sent and
-    /// which is shown exactly as it arrived.
     private var troubleshootingText: Text {
         switch session.status {
         case .live:

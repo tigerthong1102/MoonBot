@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Chat
@@ -9,15 +10,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/**
- * Which face a bot wears, in the desktop's order: a pinned expression, then a
- * failure, then work, then unread, then a question, then its role. The order is
- * the point — it is what makes "this one stopped and needs you" louder than "this
- * one is busy", so each rung is tested against the one below it.
- *
- * Ported alongside `ios/App/MascotState.swift`; a divergence here is a bot wearing
- * one face on the laptop and another on the phone.
- */
 class MascotStateTest {
     private val idle = bot(title = "", name = "Bot")
 
@@ -57,7 +49,6 @@ class MascotStateTest {
         assertNull(MausState.normalize(null))
         assertNull(MausState.normalize(""))
         assertNull(MausState.normalize("smouldering"))
-        // and so the bot falls through to the rest of the ladder
         assertEquals(
             MausState.WORKING,
             MausState.forBot(idle.copy(mascotExpression = "smouldering", busy = true), null),

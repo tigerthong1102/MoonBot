@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.storage
 
 import android.content.Context
@@ -87,8 +88,7 @@ class KeystoreTokenStore(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (_: Exception) {
-            // Sign-out proceeds either way: a token that could not be erased is
-            // already unusable without the connection this call is deleting.
+            // A leftover local token must remain unusable after sign-out.
         }
     }
 

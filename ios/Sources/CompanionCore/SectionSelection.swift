@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 
 /// Pure state for the section creator's draw-through gesture.
@@ -46,8 +47,6 @@ public struct SectionSelection: Equatable, Sendable {
         selectedIDs.contains(id)
     }
 
-    /// Accessible tap fallback. Buttons and VoiceOver use exactly the same
-    /// ordered selection as the drawing gesture.
     @discardableResult
     public mutating func toggle(_ id: String) -> Bool {
         guard !isDragging else { return false }
@@ -71,8 +70,6 @@ public struct SectionSelection: Equatable, Sendable {
         selectedIDs = []
     }
 
-    /// Starts a new trail without disturbing selections made by accessible
-    /// taps or an earlier gesture.
     @discardableResult
     public mutating func beginDrag(over id: String?) -> Candidate? {
         cancelCandidate()
@@ -83,8 +80,6 @@ public struct SectionSelection: Equatable, Sendable {
         return moveDrag(over: id)
     }
 
-    /// Changes the dwell target. Passing `nil` means the finger is in a grid
-    /// gap and invalidates any outstanding timer.
     @discardableResult
     public mutating func moveDrag(over id: String?) -> Candidate? {
         guard isDragging else { return nil }
@@ -108,9 +103,6 @@ public struct SectionSelection: Equatable, Sendable {
         return next
     }
 
-    /// Commits only the candidate that is still under the finger. Revisiting
-    /// an earlier trail cell removes the tail; preselected bots remain in the
-    /// base selection even when the drawn tail is shortened.
     @discardableResult
     public mutating func commit(_ expected: Candidate) -> Commit {
         guard isDragging, candidate == expected else { return .unchanged }
@@ -196,7 +188,6 @@ public struct SectionGridCellFrame: Equatable, Sendable {
 
     public func contains(_ point: SectionGridPoint) -> Bool {
         guard maxX > minX, maxY > minY else { return false }
-        // Half-open bounds make a shared edge deterministic.
         return point.x >= minX && point.x < maxX && point.y >= minY && point.y < maxY
     }
 }

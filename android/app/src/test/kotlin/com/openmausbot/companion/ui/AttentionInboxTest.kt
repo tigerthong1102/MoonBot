@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Bot
@@ -9,7 +10,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** The Needs attention section: the cross-bot rules of SidebarBotActivity. */
 class AttentionInboxTest {
     private fun task(id: String, activity: String? = null, busy: Boolean? = null, unread: Boolean? = null, routineRunId: String? = null) =
         BotTask(id, id, 0.0, activity = activity, busy = busy, unread = unread, routineRunId = routineRunId)
@@ -47,8 +47,6 @@ class AttentionInboxTest {
 
     @Test
     fun theWholeFleetOrdersTogetherSoNoUnreadOutranksAWait() {
-        // Flatten first, then order once: Scout's unread reply must not
-        // outrank Pepper's waiting approval just because Scout is earlier.
         val state = CompanionState(bots = listOf(
             bot("scout", listOf(task("scout-read", unread = true), task("scout-wait", activity = "waiting-on-you"))),
             bot("pepper", listOf(task("pepper-wait", activity = "waiting-on-you"))),

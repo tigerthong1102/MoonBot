@@ -5,7 +5,6 @@ package com.openmausbot.companion.ui
 internal object PermissionPreferences {
     const val NAME = "openmaus.permissions"
 
-    /** The on-disk file, named here so the backup rules can be asserted against it. */
     const val FILE = "$NAME.xml"
 
     const val ASKED_NOTIFICATIONS = "askedNotifications"
@@ -17,7 +16,6 @@ internal object PermissionPreferences {
      */
     const val POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
 
-    /** Composer dictation mic — asked only from the mic button's flow. */
     const val RECORD_AUDIO = "android.permission.RECORD_AUDIO"
 }
 
@@ -27,17 +25,11 @@ internal class PermissionRequests(
     private val launchSingle: (String) -> Unit,
     private val onNotificationResult: (Boolean) -> Unit,
     private val onRecordAudioResult: (Boolean) -> Unit = {},
-    /**
-     * Permissions whose "already asked" state has to outlive the process.
-     * RECORD_AUDIO joins notifications so a permanent denial through the mic
-     * button cannot be misread as "never asked" after a recreation.
-     */
     private val tracked: Set<String> = setOf(
         PermissionPreferences.POST_NOTIFICATIONS,
         PermissionPreferences.RECORD_AUDIO,
     ),
 ) {
-    /** The root's first-entry request for everything still missing. */
     fun request(permissions: Array<String>) {
         if (permissions.isEmpty()) return
         permissions.filter { it in tracked }.forEach(markAsked)
@@ -50,7 +42,6 @@ internal class PermissionRequests(
         launchSingle(permission)
     }
 
-    /** Results from either launcher, routed to whoever is showing that state. */
     fun onResults(results: Map<String, Boolean>) {
         results[PermissionPreferences.POST_NOTIFICATIONS]?.let(onNotificationResult)
         results[PermissionPreferences.RECORD_AUDIO]?.let(onRecordAudioResult)

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.avatar
 
 import android.content.ContentResolver
@@ -34,21 +35,12 @@ import kotlinx.coroutines.withContext
  * the main thread the way an `ActivityResult` callback otherwise would.
  */
 object AvatarImagePicker {
-    /** Contract the Activity/Composable registers once. */
     fun contract(): ActivityResultContracts.PickVisualMedia =
         ActivityResultContracts.PickVisualMedia()
 
-    /** Image-only request — the picker itself filters non-images. */
     fun request(): PickVisualMediaRequest =
         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
 
-    /**
-     * Read [uri] through [resolver], sniff MIME from magic bytes, and enforce
-     * the 10 MB raw-byte ceiling before any `:core` upload call.
-     *
-     * Acceptance uses the counted body (`Data.count` / `Buffer.byteLength`),
-     * not `OpenableColumns.SIZE`. Declared size only hints the buffer capacity.
-     */
     suspend fun read(resolver: ContentResolver, uri: Uri): PreparedAvatar =
         withContext(Dispatchers.IO) {
             coroutineContext.ensureActive()
@@ -66,8 +58,6 @@ object AvatarImagePicker {
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (_: Exception) {
-                // A cancel-driven close() may surface as IOException from read;
-                // if the job is already cancelled, prefer CancellationException.
                 coroutineContext.ensureActive()
                 PreparedAvatar.Rejected(AvatarImageRules.TYPE_ERROR)
             } finally {
@@ -75,10 +65,6 @@ object AvatarImagePicker {
             }
         }
 
-    /**
-     * Provider metadata only — may be unknown, stale, or describe a different
-     * representation than the stream returns. Never used as an acceptance gate.
-     */
     private fun declaredSize(resolver: ContentResolver, uri: Uri): Long? {
         return try {
             resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
@@ -92,20 +78,10 @@ object AvatarImagePicker {
     }
 }
 
-/**
- * Runs [block] while closing [stream] as soon as the calling job is cancelled.
- *
- * A plain `finally` / `Job.invokeOnCompletion` only runs after the job
- * completes; with the worker parked inside a provider `read`, that never
- * happens until the read returns. A child that [awaitCancellation]s closes the
- * stream on the transition to cancelling, which unblocks the parked read.
- */
 internal suspend fun <T> withStreamClosedOnCancel(
     stream: InputStream,
     block: suspend () -> T,
 ): T = coroutineScope {
-    // UNDISPATCHED: reach awaitCancellation before [block] parks in read.
-    // A default launch can be cancelled before its body starts, skipping finally.
     val closer = launch(start = CoroutineStart.UNDISPATCHED) {
         try {
             awaitCancellation()
@@ -115,8 +91,6 @@ internal suspend fun <T> withStreamClosedOnCancel(
     }
     try {
         val result = block()
-        // close() may unblock read and let [block] return a partial value;
-        // still surface cancellation to the caller.
         coroutineContext.ensureActive()
         result
     } finally {

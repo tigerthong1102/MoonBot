@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.discovery
 
 import android.content.Context
@@ -53,30 +54,14 @@ sealed interface DiscoveryState {
         val browsing: Boolean,
         val found: List<DiscoveredService>,
         val failure: String? = null,
-        /** True when the browser is ready and the result set is empty. */
         val emptyWhileBrowsing: Boolean = false,
     ) : DiscoveryState
 }
 
-/**
- * When a failed browse is worth starting again, and how long to wait.
- *
- * iOS recreates its DNS-SD browser on a *defunct connection* — the system
- * browser went away, which says nothing about the companion or its Tailscale
- * route — up to three times with an incremental 350ms delay, and only then goes
- * terminal. `FAILURE_MAX_LIMIT` is the Android shape of the same thing: the
- * platform is momentarily out of discovery slots, usually because another app
- * just took them. Everything else — a policy refusal, an internal error — is a
- * state that retrying cannot improve.
- *
- * Bounded on purpose: a persistent local-network problem must not become a
- * retry loop holding a multicast wake.
- */
 internal object DiscoveryRetry {
     const val MAX_ATTEMPTS = 3
     const val BASE_DELAY_MILLIS = 350L
 
-    /** Shown while a retry is actually pending, and only then. */
     const val RETRYING = "Local discovery was interrupted. Retrying…"
 
     fun isRecoverable(errorCode: Int): Boolean = errorCode == NsdManager.FAILURE_MAX_LIMIT
@@ -84,7 +69,6 @@ internal object DiscoveryRetry {
     fun canRetry(attemptsSoFar: Int, errorCode: Int): Boolean =
         isRecoverable(errorCode) && attemptsSoFar < MAX_ATTEMPTS
 
-    /** Incremental, as iOS has it: 350ms, 700ms, 1050ms. */
     fun delayFor(attempt: Int): Long = BASE_DELAY_MILLIS * attempt
 }
 
@@ -128,22 +112,11 @@ internal fun WifiManager.MulticastLock.asHandle(): MulticastLockHandle =
         }
     }
 
-/**
- * Testable browse loop: [acquireMulticastLock] runs only when the cold Flow is
- * collected (never on Flow construction), so a never-collected Flow acquires
- * nothing and each new collection gets a fresh lock handle. Released on
- * terminal start failure (and again safely from [awaitClose]).
- */
 internal fun browseDiscoveryFlow(
     serviceType: String,
     acquireMulticastLock: () -> MulticastLockHandle?,
     startBrowse: (NsdManager.DiscoveryListener) -> Unit,
     stopBrowse: (NsdManager.DiscoveryListener) -> Unit,
-    /**
-     * Resolve one service. The callback receives the resolved info, or **null**
-     * when the platform refused — a refusal the flow answers with one retry
-     * rather than by silently dropping the computer from the list.
-     */
     resolveService: (NsdServiceInfo, (NsdServiceInfo?) -> Unit) -> Unit,
     /**
      * Stop every resolve still listening. Called from [awaitClose] because the
@@ -155,7 +128,6 @@ internal fun browseDiscoveryFlow(
     hostAddress: (NsdServiceInfo) -> String?,
     failureMessage: (Int) -> String,
 ): Flow<DiscoveryState> = callbackFlow {
-    // Per-collection: acquire here, not at Flow construction.
     val multicastLock = acquireMulticastLock()
     val resolved = ConcurrentHashMap<String, DiscoveredService>()
     var browsing = false
@@ -184,8 +156,6 @@ internal fun browseDiscoveryFlow(
 
     var attempts = 0
     var started = false
-    // Assigned below; the listener needs to reach the starter to retry, and the
-    // starter needs to build a listener.
     var startAttempt: (() -> Unit)? = null
 
     fun terminal(message: String) {
@@ -241,11 +211,8 @@ internal fun browseDiscoveryFlow(
 
         override fun onStartDiscoveryFailed(regType: String, errorCode: Int) {
             browsing = false
-            // This listener never registered, so nothing is left to stop.
             started = false
             if (!DiscoveryRetry.canRetry(attempts, errorCode)) {
-                // No active browse — drop the lock and close so the collector
-                // cannot hold a multicast wake for the screen lifetime.
                 terminal(failureMessage(errorCode))
                 return
             }
@@ -254,8 +221,6 @@ internal fun browseDiscoveryFlow(
             emit()
             launch {
                 delay(DiscoveryRetry.delayFor(attempts))
-                // Leaving the screen during the backoff cancels this scope, so a
-                // retry never outlives the collector.
                 startAttempt?.invoke()
             }
         }
@@ -269,8 +234,6 @@ internal fun browseDiscoveryFlow(
 
     var activeListener: NsdManager.DiscoveryListener? = null
     startAttempt = {
-        // A fresh listener per attempt, as iOS builds a fresh browser: a listener
-        // the framework has already rejected must not be handed back to it.
         val listener = newListener()
         activeListener = listener
         try {
@@ -327,14 +290,8 @@ internal class ServiceInfoResolver(
     private val registered: MutableSet<NsdManager.ServiceInfoCallback> =
         Collections.newSetFromMap(ConcurrentHashMap())
 
-    /** Test / diagnostics: registrations still listening. */
     val outstanding: Int get() = registered.size
 
-    /**
-     * Start one resolve. [register] performs the platform registration for the
-     * service being resolved; [onResolved] receives the resolved info once, or
-     * null when the platform refused.
-     */
     fun resolve(
         register: (NsdManager.ServiceInfoCallback) -> Unit,
         onResolved: (NsdServiceInfo?) -> Unit,
@@ -358,9 +315,6 @@ internal class ServiceInfoResolver(
             }
 
             override fun onServiceLost() {
-                // The service may come back, but this resolve is a question with an
-                // answer, not a subscription. A later announcement arrives as
-                // another onServiceFound and starts a fresh one.
                 release(this)
                 answer(null)
             }
@@ -378,7 +332,6 @@ internal class ServiceInfoResolver(
         }
     }
 
-    /** Release every registration still listening — the browse is closing. */
     fun stopAll() {
         val pending = registered.toList()
         registered.clear()
@@ -391,22 +344,7 @@ internal class ServiceInfoResolver(
     }
 }
 
-/**
- * What a screen needs from discovery, and no more.
- *
- * It is an interface so that the timing rule this pass installs — nothing
- * browses the network until somebody opens the list — can be *observed* by a
- * test that mounts the screen, rather than asserted about the source. A fake
- * that records when it is collected answers the question "did entering this
- * screen start a search?"; no assertion about a boolean can.
- *
- * [NsdDiscovery] is the only production implementation.
- */
 interface CompanionDiscovery {
-    /**
-     * A cold Flow: collecting it starts a browse and cancelling the collection
-     * stops it, so *when it is collected* is the whole of the timing question.
-     */
     fun discover(): Flow<DiscoveryState>
 }
 
@@ -521,7 +459,6 @@ class NsdDiscovery(
         NsdManager.FAILURE_INTERNAL_ERROR ->
             "Local discovery isn't available right now. Enter the address shown in Phone settings below."
         NsdManager.FAILURE_MAX_LIMIT ->
-            // Only reached once the retries are spent — nothing is retrying now.
             "Local discovery keeps getting interrupted on this phone. " +
                 "Enter the address shown in Phone settings below."
         else ->

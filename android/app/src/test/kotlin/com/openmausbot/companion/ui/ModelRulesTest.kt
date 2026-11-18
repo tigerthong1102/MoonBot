@@ -60,7 +60,6 @@ class ModelRulesTest {
         assertFalse(ModelRules.canApply(loaded = true, botBusy = false, instance = codex, draft = saved, saved = saved))
         assertFalse(ModelRules.canApply(loaded = true, botBusy = false, instance = codex, draft = saved.copy(model = "gpt-4"), saved = saved))
         assertFalse(ModelRules.canApply(loaded = true, botBusy = false, instance = codex, draft = saved.copy(effort = "max"), saved = saved))
-        // Default effort is always offered.
         assertTrue(ModelRules.canApply(loaded = true, botBusy = false, instance = codex, draft = saved.copy(effort = null), saved = saved))
     }
 
@@ -68,7 +67,6 @@ class ModelRulesTest {
     fun `choosing a provider restores the saved model on the saved provider and defaults elsewhere`() {
         assertEquals(saved, ModelRules.defaultsFor(codex, saved))
         assertEquals(ModelSelection("claude", "opus", null), ModelRules.defaultsFor(claude, saved))
-        // A saved effort the provider no longer offers is dropped.
         val trimmed = instance("codex", default = "gpt-5", options = listOf("gpt-5" to "GPT-5"), efforts = listOf("low"))
         assertNull(ModelRules.defaultsFor(trimmed, saved).effort)
     }

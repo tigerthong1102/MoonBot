@@ -21,7 +21,6 @@ class SettingsPolicyTest {
             "Unpaired on the computer",
             SettingsPolicy.statusText(Session.Status.Unauthorized),
         )
-        // Offline carries the advice string Session built; it is not restated.
         assertEquals(
             "You're offline.",
             SettingsPolicy.statusText(Session.Status.Offline("You're offline.")),
@@ -41,12 +40,6 @@ class SettingsPolicyTest {
         assertEquals("—", SettingsPolicy.addressText(null))
     }
 
-    /**
-     * Both of these send the person to a named area of the desktop app, and that
-     * area is called Phone (`ios/App/SettingsView.swift:289,302`). Pinned whole
-     * rather than by keyword: a footer that still said "Companion" would satisfy
-     * any assertion loose enough to survive the rename.
-     */
     @Test
     fun `the footers name the desktop section that exists`() {
         assertEquals(
@@ -77,7 +70,6 @@ class AddressEditTest {
     fun `the form accepts what Connection parse accepts`() {
         assertTrue(AddressEdit.isValid("192.168.1.42:8810"))
         assertTrue(AddressEdit.isValid("macbook.tail1234.ts.net:8810"))
-        // A bare host is fine — Connection supplies the default companion port.
         assertTrue(AddressEdit.isValid("macbook.local"))
         assertTrue(AddressEdit.isValid("http://192.168.1.42:8810"))
         assertTrue(AddressEdit.isValid("[fe80::1]:8810"))
@@ -93,12 +85,6 @@ class AddressEditTest {
     }
 }
 
-/**
- * The notification row, wired the way the app wires it: the controller never
- * writes the asked-flag itself — [PermissionRequests] does, as part of launching
- * any prompt. Testing the controller with a hand-written `request` lambda would
- * prove nothing about the path that actually broke.
- */
 class NotificationPermissionControllerTest {
 
     /**
@@ -110,7 +96,6 @@ class NotificationPermissionControllerTest {
         var canRequest: Boolean = true,
         var rationale: Boolean = false,
     ) {
-        /** Survives recreation; wiped by [freshInstall], as uninstall would. */
         private val prefs = mutableMapOf<String, Boolean>()
 
         var prompts = 0
@@ -127,7 +112,6 @@ class NotificationPermissionControllerTest {
             recreate()
         }
 
-        /** Rebuilds both objects over the same prefs, as an Activity restart does. */
         fun recreate() {
             requests = PermissionRequests(
                 markAsked = { prefs[it] = true },
@@ -149,7 +133,6 @@ class NotificationPermissionControllerTest {
 
         fun freshInstall() = prefs.clear()
 
-        /** What CompanionRoot does on first entry: ask for everything missing. */
         fun rootRequestsMissingPermissions(vararg permissions: String) {
             requests.request(arrayOf(*permissions))
         }
@@ -186,8 +169,6 @@ class NotificationPermissionControllerTest {
     @Test
     fun `a permanent denial through the root's request survives recreation`() {
         val phone = Phone(rationale = false)
-        // First entry: the root asks for everything still missing, notifications
-        // among them. The Settings row is not involved.
         phone.rootRequestsMissingPermissions(notifications, nearby)
         assertTrue(phone.asked(notifications), "the root's request must record the asking")
         phone.systemAnswers(notifications to false, nearby to true)
@@ -258,8 +239,6 @@ class NotificationPermissionControllerTest {
 
     @Test
     fun `a fresh install can ask again`() {
-        // The uninstall-resets premise: the flag must not outlive the install,
-        // which is why the prefs file is excluded from backup and transfer.
         val phone = Phone(rationale = false)
         phone.controller.act()
         phone.systemAnswers(notifications to false)
@@ -314,8 +293,6 @@ class NotificationPermissionControllerTest {
         phone.systemAnswers(notifications to true)
         assertEquals(NotificationAccess.GRANTED, phone.controller.access.value)
 
-        // Turned off in system settings afterwards. The prompt is already spent,
-        // so the only thing that can help is the page they just came from.
         phone.enabled = false
         phone.controller.refresh()
         assertEquals(NotificationAccess.BLOCKED, phone.controller.access.value)
@@ -424,7 +401,6 @@ class SharePayloadTest {
     fun `the extension matches the format that was asked for`() {
         assertEquals("notes.json", SharePayload.fileName(export("notes"), ShareFormat.JSON))
         assertEquals("notes.md", SharePayload.fileName(export("notes"), ShareFormat.MARKDOWN))
-        // Already correct, so not doubled.
         assertEquals("notes.md", SharePayload.fileName(export("notes.md"), ShareFormat.MARKDOWN))
     }
 
@@ -441,7 +417,6 @@ class SharePayloadTest {
             "application/json",
             SharePayload.mimeType(export("t.json", "application/json"), ShareFormat.JSON),
         )
-        // A charset parameter is dropped: Intent types are bare.
         assertEquals(
             "text/markdown",
             SharePayload.mimeType(export("t.md", "text/markdown; charset=utf-8"), ShareFormat.MARKDOWN),

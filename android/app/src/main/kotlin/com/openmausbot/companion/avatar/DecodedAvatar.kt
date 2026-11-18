@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.avatar
 
 import android.graphics.Bitmap
@@ -23,7 +24,6 @@ class DecodedAvatar private constructor(
                 byteCost = bitmap.allocationByteCount.coerceAtLeast(0),
             )
 
-        /** Test seam: known memory cost, no Android [Bitmap]. */
         fun forTest(byteCost: Int): DecodedAvatar =
             DecodedAvatar(bitmap = null, byteCost = byteCost.coerceAtLeast(0))
     }

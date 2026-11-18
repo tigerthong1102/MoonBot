@@ -6,9 +6,6 @@ import CompanionCore
 import UserNotifications
 import UIKit
 
-/// Stream lifecycle, in Console.app and the Xcode console. A companion that
-/// is silently not connected looks exactly like one with nothing to say, so
-/// the transitions are worth being able to read.
 private let log = Logger(subsystem: "ai.startupbot.companion", category: "stream")
 
 private final class CachedAttachmentDownload: NSObject {
@@ -45,32 +42,20 @@ final class Session: ObservableObject {
     @Published private(set) var state = CompanionState()
     @Published private(set) var connection: Connection?
     @Published private(set) var connections: [Connection] = []
-    /// Whether the live pairing may administer the workspace — see
-    /// `Connection.canAdminister`. Views hide owner-only controls when this
-    /// is false rather than offer buttons the server would answer 403 to.
     var canAdminister: Bool { connection?.canAdminister ?? false }
     @Published private(set) var status: Status = .unpaired
-    /// Transient, user-facing failures from an action they just took.
     @Published var actionError: String?
-    /// One exact message the next opened chat should reveal.
     @Published private(set) var focusedMessageId: String?
     @Published private(set) var notificationAuthorization: UNAuthorizationStatus = .notDetermined
-    /// Distinguishes a real `.notDetermined` result from the in-memory value
-    /// used while notification settings are still loading at launch.
     @Published private(set) var notificationAuthorizationResolved = false
     @Published private(set) var steeringInstanceIds: Set<String> = []
-    /// A short-lived desktop handoff waiting for PairingView to present it.
     @Published private(set) var pairingInvite: PairingInvite?
     /// Pairing can be opened while another computer remains connected. The
     /// working session is only replaced after the new credential commits.
     @Published private(set) var pairingRequested = false
-    /// Views with sensitive input observe this value so an explicit runtime
-    /// disconnect clears the field even when the selected connection itself
-    /// has not changed.
+    // Sensitive input must be cleared when the originating runtime disconnects.
     @Published private(set) var credentialEntryResetGeneration = 0
 
-    /// A notification response that should be pushed by the roster's
-    /// NavigationStack after the exact detached task has been activated.
     @Published private(set) var notificationChat: Chat?
 
     private var client: CompanionClient?
@@ -82,23 +67,14 @@ final class Session: ObservableObject {
     /// dial moves to another stored host. The keychain remains the only place
     /// it is persisted.
     private var token: String?
-    /// Which of the connection's stored hosts the next attempt dials. The
-    /// walk advances on address-shaped failures and the winner is promoted —
-    /// and persisted — when a stream goes live.
     private var rotation = CandidateRotation(hosts: [])
     private var streamTask: Task<Void, Never>?
     /// Best-effort authenticated route refresh started by the latest live SSE
     /// hello. Kept separate so endpoint discovery never stalls event delivery.
     private var endpointRefreshTask: Task<Void, Never>?
-    /// Identifies the task currently stored in `streamTask`. A cancelled task
-    /// can finish after its replacement starts; its cleanup must not clear
-    /// the replacement's handle.
     private var streamGeneration = 0
     private var runtimeGeneration = 0
     private var reconnectDelay: UInt64 = 0
-    /// How many computer panels are open. A count rather than a flag: the
-    /// panel can be pushed twice in a navigation stack, and the last one to
-    /// close is the one that should turn screens back off.
     private var screenWatchers = 0
     /// Authenticated avatar bytes shared by roster, header, group and task
     /// surfaces. Both entry count and byte cost are bounded because one valid
@@ -109,14 +85,8 @@ final class Session: ObservableObject {
         cache.totalCostLimit = 32 * 1_024 * 1_024
         return cache
     }()
-    /// Concurrent first renders share one download. The id prevents an old
-    /// request finishing after sign-out from removing a newer pairing's task
-    /// for the same attachment path.
     private var avatarFetches: [String: (id: UUID, task: Task<Data?, Never>)] = [:]
     private var avatarCacheGeneration = 0
-    /// Full image bytes are already fetched to draw a thumbnail. Keep a small,
-    /// cost-bounded window so tapping that thumbnail opens immediately instead
-    /// of downloading the same image twice.
     private let attachmentCache: NSCache<NSString, CachedAttachmentDownload> = {
         let cache = NSCache<NSString, CachedAttachmentDownload>()
         cache.countLimit = 12
@@ -124,9 +94,6 @@ final class Session: ObservableObject {
         return cache
     }()
     private var attachmentCacheGeneration = 0
-    /// An ambiguous network failure may happen after the server accepted a
-    /// message. Reusing this id for the exact same retained draft makes Retry
-    /// idempotent instead of sending the attachment twice.
     private var attachmentSendIDs: [AttachmentDraftKey: String] = [:]
     /// A saved connection exists, but its token could not be read yet. Keeps
     /// "the keychain is locked" from being mistaken for "not paired".
@@ -164,7 +131,6 @@ final class Session: ObservableObject {
         status = .live
     }
 #endif
-    // MARK: - Pairing
 
     init() {
         Self.removeStaleFilePreviews()
@@ -251,10 +217,6 @@ final class Session: ObservableObject {
         do {
             stored = try Keychain.token(for: saved.id)
         } catch {
-            // Keep the connection and say why. `.offline` rather than
-            // `.unpaired` matters: the latter is what puts PairingView on
-            // screen, and asking for a new code is the one recovery that
-            // costs a walk to the computer.
             connection = saved
             restorePending = true
             status = .offline(
@@ -294,9 +256,6 @@ final class Session: ObservableObject {
         // A 12-character code pairs with a server directly (its own sessions,
         // a bearer with the code's scopes); anything else is the companion's.
         if let code = PairingInvite.normalizedServerCode(credential) {
-            // Reachability first, on the public descriptor: a wrong address
-            // then fails as an address problem rather than a code problem,
-            // and no attempt is spent against the server's lockout.
             try await Self.confirmServer(at: invited)
             let paired = try await CompanionClient.pairWithServer(
                 connection: invited,
@@ -322,12 +281,10 @@ final class Session: ObservableObject {
             pairRequestId: pairRequestId
         )
         let paired = outcome.response
-        // prefer the name the computer calls itself over the Bonjour label
         var stored = outcome.connection
         if !paired.serverName.isEmpty { stored.name = paired.serverName }
         stored.companionDeviceId = paired.device.id
-        // The computer knows every address it answers on, but redemption may
-        // not widen the explicit route consent carried by the invite.
+        // Redeeming a pairing invitation cannot widen its explicit route consent.
         stored.applyPairingAdvertisement(hosts: paired.hosts, endpoints: paired.endpoints)
         let winner = outcome.connection.activeEndpoint ?? CompanionEndpoint.direct(
             host: outcome.connection.host,
@@ -353,12 +310,6 @@ final class Session: ObservableObject {
         let firstPairing = registry.connections.isEmpty
         var updatedRegistry = registry
         updatedRegistry.upsert(stored)
-        // Write the first-pair education marker before making the connection
-        // restorable. If the process stops between these writes, an orphan
-        // marker is harmless while unpaired; the reverse order could restore
-        // a pairing which permanently skipped this step.
-        // RootView may not have received iOS's notification status yet, and
-        // the app may be relaunched before that asynchronous lookup finishes.
         CompanionPairingCommitSequence.persist {
             if firstPairing {
                 UserDefaults.standard.set(
@@ -395,10 +346,6 @@ final class Session: ObservableObject {
         connect()
     }
 
-    /// `GET /.well-known/openmausbot/environment` on a server about to be
-    /// paired. Nothing there means this address is not a server; the message
-    /// names the address, since that is what the person can fix. Any other
-    /// answer — unreachable, a gateway error — is passed through as it is.
     private static func confirmServer(at connection: Connection) async throws {
         let probe = CompanionClient(connection: connection, token: nil, requestTimeout: 8)
         do {
@@ -580,9 +527,6 @@ final class Session: ObservableObject {
         persistRegistry()
     }
 
-    // MARK: - Lifecycle
-
-    /// Called when the app comes to the front, and once at launch.
     func connect() {
         // A restore that found the keychain locked left `client` nil on
         // purpose. Coming to the front is the moment worth retrying on: the
@@ -592,7 +536,6 @@ final class Session: ObservableObject {
             self.pendingNotification = nil
             Task { [weak self] in await self?.openNotification(pendingNotification) }
         }
-        // back before the grace period ran out: keep the stream, drop the task
         endLinger()
         guard client != nil, streamTask == nil else { return }
         reconnectDelay = 0
@@ -606,15 +549,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Pull-to-refresh: reopen the stream, and hold the control open until
-    /// the connection has actually settled one way or the other.
-    ///
-    /// `connect()` returns the moment the task is spawned, so a `refreshable`
-    /// that only calls it snaps the spinner shut before a single byte has
-    /// arrived — the gesture reads as "nothing happened", on precisely the
-    /// occasion it exists for. Waiting for `status` to leave `.connecting`
-    /// makes the spinner mean what it appears to mean; the deadline is there
-    /// so a network that never answers still gives the control back.
     func refresh() async {
         restartStream()
         connect()
@@ -624,13 +558,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Ask the harness to include this bot's computer in the stream, for as
-    /// long as something is showing it.
-    ///
-    /// This costs a reconnect, which is the right trade: the alternative is
-    /// a base64 desktop capture arriving every few seconds for the whole
-    /// session, including on cellular, whether or not anyone is looking.
-    /// The reconnect resumes from the cursor, so nothing is missed.
     func watchScreen(of botId: String) {
         screenWatchers += 1
         if screenWatchers == 1 { restartStream() }
@@ -644,8 +571,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Reopen the stream so its query string matches what we now want. The
-    /// cursor survives, so this is a gap, not a reset.
     private func restartStream() {
         guard streamTask != nil else { return }
         streamTask?.cancel()
@@ -653,9 +578,6 @@ final class Session: ObservableObject {
         connect()
     }
 
-    /// Called when the app leaves the screen. iOS will kill the connection
-    /// anyway; dropping it deliberately means the cursor is written down at
-    /// a known point instead of wherever the socket happened to die.
     func disconnect() {
         resetCredentialEntry()
         streamTask?.cancel()
@@ -672,20 +594,11 @@ final class Session: ObservableObject {
     private var lingerTask: UIBackgroundTaskIdentifier = .invalid
     private var lingerSleep: Task<Void, Never>?
 
-    /// Leaving the screen: keep the stream alive for the grace period iOS
-    /// allows (~30 s) rather than cutting it at once, so an approval that
-    /// lands right after you swipe home still reaches the Live Activity and
-    /// the island. After that, iOS suspends us anyway; disconnect cleanly so
-    /// the cursor is written down at a known point.
     func linger() {
         guard streamTask != nil, lingerTask == .invalid else { disconnect(); return }
-        // A previous request can leave a sleeper behind when iOS refuses the
-        // background assertion. Never let it outlive the assertion it belongs
-        // to or disconnect a later linger window.
         lingerSleep?.cancel()
         lingerSleep = nil
         let task = UIApplication.shared.beginBackgroundTask(withName: "companion.linger") { [weak self] in
-            // time is up before our own timer — the system wants us gone now
             self?.disconnect()
         }
         guard task != .invalid else { disconnect(); return }
@@ -728,23 +641,12 @@ final class Session: ObservableObject {
             }
             log.info("opening stream, cursor=\(self.state.cursor ?? "none", privacy: .public)")
             do {
-                // The query is fixed when the connection opens, so changing
-                // it means a new connection — `restartStream()` cancels this
-                // task and starts another. Cancellation is the only exit;
-                // breaking out here instead would fall through to the "the
-                // harness went away" path and flash a lost-connection banner
-                // on what is actually a deliberate reconnect.
                 for try await frame in try client.events(since: state.cursor, screens: screenWatchers > 0) {
                     if Task.isCancelled { return }
                     reconnectDelay = 0
 
                     if case let .hello(cursor, resumed) = frame.frame {
                         log.info("stream live, resumed=\(resumed, privacy: .public)")
-                        // false means the server could not replay the gap —
-                        // the one case that costs a full hydrate. Commit the
-                        // hello cursor only after that hydrate succeeds: if
-                        // the request dies halfway through replay/hydration,
-                        // reconnecting must still ask for the missing gap.
                         if !resumed {
                             try await hydrate(using: client)
                             state.resetCursor(cursor)
@@ -764,7 +666,6 @@ final class Session: ObservableObject {
                     NotificationCoordinator.shared.setBadge(state.unreadCount)
                     state.advance(to: frame.seq)
                 }
-                // the stream ended without an error — the harness went away
                 log.notice("stream ended without an error")
                 status = .offline("Lost the connection.")
             } catch let error as APIError where error.isUnauthorized {
@@ -772,8 +673,6 @@ final class Session: ObservableObject {
                 status = .unauthorized
                 return
             } catch {
-                // backgrounding cancels the stream on purpose; that is not a
-                // failure to report, and it must not be retried
                 if Task.isCancelled || error is CancellationError {
                     log.info("stream closed by us")
                     return
@@ -783,8 +682,6 @@ final class Session: ObservableObject {
             }
 
             if Task.isCancelled { return }
-            // 1s, 2s, 4s… to 15s. A phone that woke on a network which is
-            // not the laptop's should not hammer it.
             reconnectDelay = reconnectDelay == 0 ? 1 : min(reconnectDelay * 2, 15)
             try? await Task.sleep(nanoseconds: reconnectDelay * 1_000_000_000)
         }
@@ -792,8 +689,6 @@ final class Session: ObservableObject {
 
     private func hydrate(using client: CompanionClient) async throws {
         let generation = streamGeneration
-        // Notification navigation can refresh while run() continues folding
-        // live events. Retry once if that makes the fetched snapshot stale.
         for _ in 0..<2 {
             let expectedCursor = state.cursor
             let snapshot = try await client.fleetForHydration(messages: 50)
@@ -805,11 +700,6 @@ final class Session: ObservableObject {
                                 ifCursorMatches: expectedCursor) else { continue }
             log.info("hydrated \(snapshot.fleet.bots.count, privacy: .public) bots, \(snapshot.fleet.groups.count, privacy: .public) rooms")
             NotificationCoordinator.shared.setBadge(state.unreadCount)
-            // Deliberately off hydrate's critical path: this only words the
-            // composer, and the cursor commit — and with it the whole stream —
-            // must not wait on a request that says nothing about the transcript.
-            // An older harness omits the flag and every engine reads as
-            // non-steering, which is the conservative wording.
             let runtime = runtimeGeneration
             Task { [weak self] in
                 let engines = (try? await client.instances()) ?? []
@@ -823,13 +713,7 @@ final class Session: ObservableObject {
         throw APIError.status(code: 409, message: "Conversations changed while loading. Please try opening this notification again.")
     }
 
-    // MARK: - Which address to dial
-
-    /// Turn a stream failure into advice a person can act on — and, when the
-    /// failure is about the address rather than the pairing, move the dial to
-    /// the next stored host so the retry that follows tries somewhere new.
-    /// A 401 never reaches here: the unauthorized path returns above, which
-    /// is what keeps a token problem from masquerading as an address walk.
+    // Unauthorized credentials must not trigger an address failover.
     private func failureMessage(for error: Error) -> String {
         guard let connection else { return error.localizedDescription }
         let failed = rotation.currentEndpoint ?? connection.activeEndpoint ??
@@ -860,8 +744,6 @@ final class Session: ObservableObject {
         return error.localizedDescription
     }
 
-    /// Persist the route that carried a live stream. Legacy host lists promote
-    /// it for the next launch; typed lists keep their explicit policy order.
     private func rememberWorkingRoute() {
         guard let winner = rotation.currentEndpoint, var updated = connection,
               updated.activeEndpoint?.url != winner.url else { return }
@@ -875,8 +757,6 @@ final class Session: ObservableObject {
     /// sidecars return 404 and a transient refresh error must not tear down a
     /// perfectly healthy event stream.
     private func refreshConnectionMetadata(using sourceClient: CompanionClient) {
-        // A server has no companion routes to advertise (`/api/companion/*`
-        // is the sidecar's); its one address is the one that was paired.
         guard connection?.pairedWithServer != true, let connectionID = connection?.id else { return }
         let workingEndpoint = rotation.currentEndpoint ?? sourceClient.connection.activeEndpoint
         endpointRefreshTask?.cancel()
@@ -910,8 +790,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Replace the stored address by hand, keeping the pairing and its token.
-    /// False when the text does not parse as a host or host:port.
     @discardableResult
     func updateAddress(_ text: String) -> Bool {
         guard var updated = connection, let parsed = Connection.parse(text) else { return false }
@@ -926,19 +804,11 @@ final class Session: ObservableObject {
         if let token {
             client = CompanionClient(connection: updated.dialing(endpoint), token: token)
         }
-        // Dial the new address now rather than on the next backoff tick —
-        // someone who just typed an address is watching the banner.
         restartStream()
         connect()
         return true
     }
 
-    // MARK: - Actions
-    //
-    // Each of these does the thing and lets the event stream deliver the
-    // result. Nothing here writes to `state` optimistically: the harness is
-    // the source of truth, and a phone that draws its own version of events
-    // is a phone that disagrees with the laptop.
 
     func send(_ text: String, to chat: Chat) async {
         let generation = runtimeGeneration
@@ -965,10 +835,6 @@ final class Session: ObservableObject {
         )
     }
 
-    /// Send a composer draft with app-owned attachments. The destination
-    /// includes the exact active thread at tap time, so neither a desktop task
-    /// switch nor an upload delay can move the message elsewhere. Callers only
-    /// clear their draft when this returns true.
     func send(
         text: String,
         attachments: [PendingMessageAttachment],
@@ -1065,10 +931,6 @@ final class Session: ObservableObject {
             let queueRevision = chat.isBot ? state.botQueueRevision : nil
             let receipt = try await client.send(text: message, to: destination, sendId: sendID)
             try requireCurrent(client, generation: generation)
-            // The ghost shows what was typed, not what was sent: `message`
-            // carries the <attached-file …> tags the harness reads, and a
-            // held message is a person's own words waiting, not transport.
-            // An attachment-only send has no words, so it falls back.
             record(
                 receipt,
                 text: trimmed.isEmpty ? message : trimmed,
@@ -1113,9 +975,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Fetch one app-owned attachment through the message that introduced it.
-    /// The caller owns presentation errors so a failed thumbnail or preview can
-    /// explain itself beside the attachment that was tapped.
     func fetchAttachment(
         threadId: String,
         messageId: String,
@@ -1151,9 +1010,7 @@ final class Session: ObservableObject {
             }
             return download
         } catch let error as APIError where error.isUnauthorized {
-            // A cancelled request from the previous computer may finish after
-            // a switch. Its 401 belongs to that old token and must not evict
-            // the current live session.
+            // An old computer's unauthorized response cannot invalidate the selected computer's session.
             guard generation == attachmentCacheGeneration, !Task.isCancelled else {
                 throw CancellationError()
             }
@@ -1167,8 +1024,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Fetch and materialize an attachment in a protected temporary directory
-    /// for Quick Look, markdown/text preview, and the system share sheet.
     func prepareAttachmentPreview(
         threadId: String,
         messageId: String,
@@ -1184,9 +1039,6 @@ final class Session: ObservableObject {
         )
         try Task.checkCancellation()
         let preparation = Task.detached(priority: .userInitiated) {
-            // Content-Disposition is the server's canonical, sanitised name.
-            // The transport tag's `name` is presentation-only and must never
-            // choose the on-disk preview/share filename.
             try Self.materializePreview(download: download, filename: download.filename)
         }
         let prepared = try await withTaskCancellationHandler {
@@ -1204,8 +1056,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Compatibility for file links in assistant markdown. User attachment
-    /// cards use the throwing API above so their feedback remains local.
     func downloadFile(
         threadId: String,
         messageId: String,
@@ -1357,9 +1207,6 @@ final class Session: ObservableObject {
         return prepared
     }
 
-    /// Recover an ambiguous ciphertext-only operation when a card view is
-    /// recreated. This is deliberately in-memory: a force-quit forgets it,
-    /// while ordinary navigation, AutoFill, and reconnects do not.
     func preparedCredential(
         chat: Chat,
         message: Message,
@@ -1453,8 +1300,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// The same answer, from something that only has the ids — the Live
-    /// Activity's buttons.
     func answer(
         threadId: String,
         requestId: String,
@@ -1498,13 +1343,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Make a new bot. The harness chooses its name, colour and greeting, so
-    /// one made here is indistinguishable from one made on the desktop.
-    ///
-    /// Creating a bot does not broadcast — the desktop adds it optimistically
-    /// too — so the new bot is folded in here rather than waited for. Return
-    /// it so the caller can open it, which is the only reason anyone taps the
-    /// button.
     @discardableResult
     func createBot() async -> Bot? {
         let requestGeneration = runtimeGeneration
@@ -1519,8 +1357,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Make a room from the phone. Same shape as `createBot`: fold it in
-    /// rather than wait for a broadcast, and hand it back so it can be opened.
     @discardableResult
     func createRoom(name: String?, memberIds: [String]) async -> Room? {
         let requestGeneration = runtimeGeneration
@@ -1556,9 +1392,6 @@ final class Session: ObservableObject {
         await perform { try await $0.interrupt(botId: bot.id, threadId: bot.threadId) }
     }
 
-    /// Take back a held message before its turn settles. The ghost goes only
-    /// once the harness confirms, so a failed cancel leaves the words on
-    /// screen still waiting — which is what is actually true.
     func cancelQueued(_ send: QueuedSend, in chat: Chat) async {
         let requestGeneration = runtimeGeneration
         guard let client else { return }
@@ -1578,8 +1411,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Ask for one fresh cloud viewer URL. Unlike ordinary actions this
-    /// returns the value to a browser sheet and never writes it to app state.
     func cloudDesktop(for bot: Bot) async throws -> URL {
         let requestGeneration = runtimeGeneration
         guard let client else { throw APIError.transport("This computer is offline.") }
@@ -1612,7 +1443,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// A pinned background thread may not be in a fresh fleet snapshot.
     func loadThreadIfNeeded(_ threadId: String) async {
         let requestGeneration = runtimeGeneration
         guard let client, !state.hasLoadedPage(forThread: threadId) else { return }
@@ -1771,10 +1601,6 @@ final class Session: ObservableObject {
         catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return false }
     }
 
-    // MARK: - Agent profile
-
-    /// The model catalog lives on the paired computer because availability
-    /// depends on which engines are installed and signed in there.
     func modelInstances() async -> [Instance] {
         let requestGeneration = runtimeGeneration
         guard let client else { return [] }
@@ -1911,7 +1737,6 @@ final class Session: ObservableObject {
         }
     }
 
-    // MARK: - Routines
 
     func loadRoutines() async -> (routines: [Routine], runs: [RoutineRun]) {
         let requestGeneration = runtimeGeneration
@@ -1965,7 +1790,6 @@ final class Session: ObservableObject {
         catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return false }
     }
 
-    // MARK: - Notification navigation
 
     func openNotification(_ target: NotificationTarget) async {
         guard let origin = target.connectionID else {
@@ -1997,9 +1821,6 @@ final class Session: ObservableObject {
                 try requireCurrent(client, generation: requestGeneration)
                 bot = state.bot(target.botId)
             }
-            // A room's approval/question notification carries the asker bot
-            // with the ROOM's thread id — open the room rather than asking
-            // the bot to switch to a thread it does not own (a 404).
             if var room = state.rooms.first(where: {
                 $0.threadId == target.threadId || ($0.tasks ?? []).contains(where: { $0.threadId == target.threadId })
             }) {
@@ -2009,8 +1830,6 @@ final class Session: ObservableObject {
                         state.apply(.room(room))
                     } catch {
                         guard isCurrent(client, generation: requestGeneration) else { return }
-                        // A stale notification should still open the channel's
-                        // current task instead of leaving the person nowhere.
                     }
                 }
                 notificationChat = .room(room)
@@ -2023,31 +1842,15 @@ final class Session: ObservableObject {
                     state.apply(.bot(selected))
                 } catch {
                     guard isCurrent(client, generation: requestGeneration) else { return }
-                    // The thread may be gone (task deleted, stale payload).
-                    // Landing in the bot's current chat still beats an error
-                    // banner and no navigation at all.
                 }
             }
             notificationChat = .bot(selected)
         } catch is CancellationError {
-            // A refresh from the previous computer must not alert on the
-            // newly selected connection after its generation guard rejects it.
         } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription } }
     }
 
     func consumeNotificationChat() { notificationChat = nil }
 
-    // MARK: - Thread chips
-
-    /// A tapped "Opened thread #Title on Scout" chip. Lands on that thread by
-    /// the route a thread row uses, which only changes what this phone is
-    /// looking at — a bot mid-turn keeps working where it was. A thread the
-    /// computer no longer has still lands on the bot, with a notice, rather
-    /// than nowhere.
-    ///
-    /// Returns the thread to select in place when the chip's bot is the one
-    /// already on screen. Any other bot is pushed the way a notification is,
-    /// and nil comes back.
     func openThread(_ ref: ThreadRef, shownBotId: String?) async -> String? {
         guard !Task.isCancelled else { return nil }
         guard let client else {
@@ -2075,9 +1878,6 @@ final class Session: ObservableObject {
                     state.apply(.bot(selected))
                 } catch APIError.status(code: 404, message: _) {
                     guard requestIsCurrent() else { return nil }
-                    // The thread may be gone (deleted since the chip was
-                    // written). The bot's current thread, and a word about
-                    // it, beats a dead tap.
                     actionError = "That thread is no longer on your computer."
                 }
             }
@@ -2129,7 +1929,6 @@ final class Session: ObservableObject {
         }
     }
 
-    // MARK: - Connected apps
 
     func loadConnectorCatalog() async -> ConnectorCatalog? {
         let requestGeneration = runtimeGeneration
@@ -2210,8 +2009,6 @@ final class Session: ObservableObject {
     }
 }
 
-/// A chat is a bot or a room. They share a thread, which is what every
-/// message, approval and page is keyed by.
 enum Chat: Identifiable, Hashable {
     case bot(Bot)
     case room(Room)
@@ -2223,8 +2020,6 @@ enum Chat: Identifiable, Hashable {
         }
     }
 
-    /// Owner identity remains available for bot APIs. Navigation and activity
-    /// lists must distinguish two conversations belonging to the same bot.
     var conversationID: String {
         switch self {
         case let .bot(bot): return "bot:\(bot.id):\(bot.threadId)"
@@ -2293,8 +2088,6 @@ enum Chat: Identifiable, Hashable {
     var supportsTasks: Bool {
         switch self {
         case .bot: return true
-        // `tasks == nil` means an older paired desktop. Hide the affordance
-        // instead of sending it a route it does not know yet.
         case let .room(room): return room.dm != true && room.tasks != nil
         }
     }
@@ -2328,9 +2121,6 @@ enum Chat: Identifiable, Hashable {
     }
 }
 
-/// A chat plus the two things a roster row shows that the record itself does
-/// not carry: the preview line, and when the thread last moved. Both come out
-/// of the same message — the last one in the transcript.
 struct ChatSummary: Identifiable, Hashable {
     let chat: Chat
     let preview: String
@@ -2341,20 +2131,6 @@ struct ChatSummary: Identifiable, Hashable {
 }
 
 extension CompanionState {
-    /// Everything worth showing in the chat list: pinned first, then unread,
-    /// then most recently active. Hidden bots stay hidden.
-    ///
-    /// The derived fields are computed once here rather than asked for as the
-    /// list is sorted and filtered. Each one walks a thread's messages to
-    /// reach the last of them, and a comparator is called O(n log n) times
-    /// while the search predicate runs over every chat on every keystroke —
-    /// so the same transcript was being traversed dozens of times per frame
-    /// to produce an answer that had not changed. One pass, then sort the
-    /// results.
-    /// - Parameter activity: how much of a bot's working-out the reader has
-    ///   asked to see. The preview honours it the same way the transcript
-    ///   does; `lastActivity` deliberately does not, because a thread that
-    ///   just ran a tool has still moved and should still rise in the list.
     func chatSummaries(activity: ActivityDetail = .full) -> [ChatSummary] {
         let bots = self.bots.filter { $0.hidden != true }.map(Chat.bot)
         let rooms = self.rooms.map(Chat.room)

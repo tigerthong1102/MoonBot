@@ -85,20 +85,6 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * The roster — the port of `ios/App/ChatListView.swift`.
- *
- * Messages-shaped: a header with you on the left and settings on the right, your
- * groups across the top, every bot below with the unread dot in the bot's own
- * colour at the left edge, and a bar floating at the bottom. The bar's pill is
- * Updates — only the bots that need you, are working, or have something you have
- * not read — beside round search and new-bot buttons. Everything scrolls under
- * the bar, which is why the list leaves [BAR_CLEARANCE] below its last row.
- *
- * Ordering is not decided here. `chatSummaries` (`:core`) folds pinned → unread →
- * last activity and hides hidden bots; [RosterLayout] decides which of those are
- * rows and which are tiles; the screen renders what it is handed.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RosterScreen(navigator: CompanionNavigator) {
@@ -109,8 +95,6 @@ fun RosterScreen(navigator: CompanionNavigator) {
     val state by session.state.collectAsState()
     val connection by session.connection.collectAsState()
     val status by session.status.collectAsState()
-    // The same preference the transcript folds by, from the same store: a reader
-    // who turned activity off must not still read tool names here.
     val activityDetail by environment.chatPreferences.activityDetail.collectAsState()
 
     var bar by rememberSaveable(stateSaver = RosterBarSaver) { mutableStateOf(RosterBar()) }
@@ -123,15 +107,11 @@ fun RosterScreen(navigator: CompanionNavigator) {
     var expandedBots by rememberSaveable(stateSaver = StringSetSaver) { mutableStateOf(emptySet<String>()) }
     var collapsedFolders by rememberSaveable(stateSaver = StringSetSaver) { mutableStateOf(emptySet<String>()) }
     var creatingThreads by remember { mutableStateOf(emptySet<String>()) }
-    // One createBot at a time: a second tap while the first is in flight
-    // would race two bots into existence.
     var creatingBot by remember { mutableStateOf(false) }
     var managingThreads by remember { mutableStateOf<Chat?>(null) }
 
     val query = bar.query
 
-    // Local filtering is always on; the computer is only asked past two
-    // characters and after a quiet moment (§10).
     LaunchedEffect(query) {
         when (val decision = SearchPolicy.decide(query)) {
             SearchPolicy.Decision.Clear -> {
@@ -147,33 +127,21 @@ fun RosterScreen(navigator: CompanionNavigator) {
         }
     }
 
-    // Folding the fleet walks every thread's transcript, so it is keyed on the
-    // state and the activity level alone: typing filters the fold instead of
-    // repeating it.
     val summaries = remember(state, activityDetail) { state.chatSummaries(activityDetail) }
-    // Only a search has rows to filter; the unsearched roster is assembled
-    // section by section below.
     val rows = remember(summaries, query, state.queuedThreadIds) {
         rosterThreadRows(summaries, query, state.queuedThreadIds)
     }
     val approvals = remember(state) { state.pendingApprovals }
     val waiting = remember(state, approvals) { RosterLayout.waitingChats(state, approvals) }
-    // One pass over the fleet rather than one per row: resolving a face walks the
-    // chat's visible transcript.
     val faces = remember(state, summaries) {
         summaries.associate { it.id to MausState.forChat(it.chat, state) }
     }
     val summariesById = remember(summaries) { summaries.associateBy { it.id } }
-    // Hoisted out of the list: read inside a lazy item, `state` would make that
-    // item's recompose scope the whole fleet.
     val rooms = state.rooms
     val tiles = remember(state) {
         rooms.associate { it.id to RosterLayout.memberBots(state, it) }
     }
-    // Read by the bar over the list and by nothing inside it, so the rows never
-    // recompose for it. `approvals` is handed over rather than walked again.
     val updates = remember(state, approvals) { state.updates(approvals) }
-    // The cross-bot Needs attention section rides above every roster section.
     val attention = remember(state) { state.crossBotAttention() }
 
     val entry: @Composable (ChatSummary, Boolean) -> Unit = { summary, last ->
@@ -202,8 +170,6 @@ fun RosterScreen(navigator: CompanionNavigator) {
                         collapsedFolders = if (key in collapsedFolders) collapsedFolders - key else collapsedFolders + key
                     },
                     onCreate = {
-                        // Hoisted across bot sections and search, so moving a row
-                        // cannot permit a second creation while the first is pending.
                         if (bot.id !in creatingThreads) {
                             creatingThreads = creatingThreads + bot.id
                             scope.launch {
@@ -241,8 +207,6 @@ fun RosterScreen(navigator: CompanionNavigator) {
                 onRefresh = {
                     scope.launch {
                         refreshing = true
-                        // Session.refresh waits until the stream leaves connecting
-                        // (or 10s), so the spinner means what it appears to mean.
                         session.refresh()
                         refreshing = false
                     }
@@ -251,8 +215,6 @@ fun RosterScreen(navigator: CompanionNavigator) {
                     .fillMaxWidth()
                     .weight(1f),
             ) {
-                // Unsearched, the empty state is about bots: channels are tiles
-                // in the strip, not rows.
                 val nothingToList =
                     if (query.isEmpty()) !RosterLayout.listsAnyBot(summaries) else rows.isEmpty()
                 if (nothingToList && hits.isEmpty()) {
@@ -331,8 +293,6 @@ fun RosterScreen(navigator: CompanionNavigator) {
                                 entry(summary, index == unsectioned.lastIndex)
                             }
                         }
-                        // Chiefs, then the section's channels, then its bots —
-                        // the order of `rosterSections` in `ChatListView.swift`.
                         state.sidebarSections.forEach { section ->
                             item(key = "section-${section.id}") {
                                 SectionLabel(section.name, Modifier.padding(top = 18.dp, bottom = 4.dp))
@@ -345,9 +305,6 @@ fun RosterScreen(navigator: CompanionNavigator) {
                             ) { index, summary ->
                                 entry(
                                     summary,
-                                    // A divider separates two rows. The strip is
-                                    // not a row, and neither is the end of the
-                                    // section.
                                     index == sectionChiefs.lastIndex &&
                                         (section.channels.isNotEmpty() || sectionBots.isEmpty()),
                                 )
@@ -397,10 +354,6 @@ fun RosterScreen(navigator: CompanionNavigator) {
                                 hit = hit,
                                 onClick = {
                                     scope.launch {
-                                        // Session.open switches task, sets the
-                                        // active branch, loads the `around` page
-                                        // and focuses the message — the chat
-                                        // screen honours the focus when it opens.
                                         session.open(hit)?.let {
                                             haptics.play(TactileAction.OPEN_SEARCH_RESULT)
                                             navigator.open(it)
@@ -455,8 +408,6 @@ fun RosterScreen(navigator: CompanionNavigator) {
                 haptics.play(TactileAction.START_NEW_SECTION)
                 showingNewSection = true
             },
-            // The same rule the sheet picks from: two copies of "which bots can
-            // be sectioned" could disagree about a hidden one.
             canCreateSection = remember(state) { SectionRules.selectable(state).isNotEmpty() },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
@@ -498,10 +449,8 @@ fun RosterScreen(navigator: CompanionNavigator) {
     }
 }
 
-/** Room for the floating bar, so the last row can scroll clear of it. */
 private val BAR_CLEARANCE = 96.dp
 
-/** Two flags and a string: enough to survive a rotation with the search still up. */
 private val RosterBarSaver = listSaver<RosterBar, Any>(
     save = { listOf(it.searchOpen, it.query) },
     restore = { RosterBar(searchOpen = it[0] as Boolean, query = it[1] as String) },
@@ -512,11 +461,6 @@ private val StringSetSaver = listSaver<Set<String>, String>(
     restore = { it.toSet() },
 )
 
-/**
- * You (the computer you are paired with) on the left, settings on the right, and
- * where you are in between. Search and both creations are not here any more —
- * they live in the bar at the bottom and at the end of the groups strip.
- */
 @Composable
 private fun RosterHeader(name: String?, status: Session.Status, onSettings: () -> Unit) {
     Row(
@@ -560,7 +504,6 @@ private fun RosterHeader(name: String?, status: Session.Status, onSettings: () -
     }
 }
 
-/** A heading over a stretch of the list. */
 @Composable
 private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -604,10 +547,6 @@ private fun GroupsStrip(
     }
 }
 
-/**
- * A room as a round tile: the first two members' mascots stacked, its name
- * beneath.
- */
 @Composable
 private fun GroupTile(room: Room, members: List<Bot>, onClick: () -> Unit) {
     GroupTileFrame(
@@ -653,7 +592,6 @@ private fun GroupTile(room: Room, members: List<Bot>, onClick: () -> Unit) {
     }
 }
 
-/** The empty tile at the end of the strip: this is where a group is made. */
 @Composable
 private fun NewGroupTile(onClick: () -> Unit) {
     val outline = secondaryTint.copy(alpha = 0.6f)
@@ -727,7 +665,6 @@ private fun ChatRow(
             .padding(start = 6.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        // The unread dot, in the bot's own colour, at the very edge.
         Box(
             modifier = Modifier
                 .width(22.dp)
@@ -775,7 +712,6 @@ private fun ChatRow(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
-                            // The bot's job, the way the desktop shows it.
                             if (chat.subtitle.isNotEmpty()) {
                                 Text(
                                     text = chat.subtitle,
@@ -815,7 +751,6 @@ private fun ChatRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.Top,
                     ) {
-                        // One line for every bot, so the rows keep one rhythm.
                         Text(
                             text = summary.preview.ifEmpty { " " },
                             fontSize = 15.sp,
@@ -865,13 +800,6 @@ private fun ChatRow(
     }
 }
 
-/**
- * The bar over the bottom of the list: Updates beside search and new bot, or —
- * once search is open — the field beside Cancel.
- *
- * Cancel is what closes it, and it takes the query with it: that is what puts the
- * groups strip back and returns the list to bots only.
- */
 @Composable
 private fun RosterBottomBar(
     updates: List<ChatUpdate>,
@@ -975,9 +903,6 @@ private fun RosterBottomBar(
                 enabled = canCreateSection,
                 size = MIN_TOUCH_TARGET,
             )
-            // Writing something new, which is what making a bot is. The empty
-            // tile in the groups strip wears a plus because gathering existing
-            // bots into a room is the other thing — two glyphs, two actions.
             ChromeButton(
                 icon = Icons.Filled.Create,
                 contentDescription = "New bot",
@@ -1002,10 +927,7 @@ private fun SearchHitRow(hit: SearchHit, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        // Who said it. Two hits with the same words are otherwise identical.
         Icon(
-            // A person for what you said, the Maus mark for what a bot said —
-            // iOS makes the same split with person.fill and a speech bubble.
             painter = if (SearchHitRole.isFromUser(hit.role)) {
                 rememberVectorPainter(Icons.Filled.Person)
             } else {
@@ -1047,7 +969,6 @@ private fun SearchHitRow(hit: SearchHit, onClick: () -> Unit) {
     }
 }
 
-/** Connection state, shown only when it is not "fine". */
 @Composable
 fun StatusBanner() {
     val session = LocalCompanion.current.session

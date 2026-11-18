@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.net.URI
@@ -8,13 +9,6 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 
-/**
- * One attachment waiting in the composer — the port of
- * `ios/Sources/CompanionCore/MessageAttachments.swift`.
- *
- * The bytes are app-owned: picker URIs are copied before this value is created,
- * so a later send never depends on a content provider still granting access.
- */
 class PendingMessageAttachment(
     val id: String = UUID.randomUUID().toString(),
     val data: ByteArray,
@@ -65,7 +59,6 @@ object AttachmentPolicy {
 
     fun itemTooLarge(name: String, limitMB: Int): String = "$name is larger than $limitMB MB."
 
-    /** `type/subtype` only, lowercased — a `; charset=` parameter is not part of the type. */
     fun normalizedMime(value: String): String =
         value.substringBefore(';').trim().lowercase()
 
@@ -76,7 +69,6 @@ object AttachmentPolicy {
         return null
     }
 
-    /** Throws [AttachmentPolicyException] with the sentence the composer shows. */
     fun validate(attachments: List<PendingMessageAttachment>) {
         if (attachments.size > MAXIMUM_ITEMS) throw AttachmentPolicyException(TOO_MANY_ITEMS)
         if (attachments.sumOf { it.data.size.toLong() } > MAXIMUM_TOTAL_BYTES) {
@@ -103,7 +95,6 @@ object AttachmentPolicy {
         }
     }
 
-    /** A syntactically plausible media type, so a server header cannot smuggle anything odd. */
     fun validMime(value: String): Boolean {
         val mime = normalizedMime(value)
         if (mime.isEmpty() || mime.toByteArray().size > 127 || '/' !in mime) return false
@@ -130,8 +121,6 @@ sealed class LocalMessageLink {
             val value = rawValue.trim()
             if (value.isEmpty() || value.toByteArray().size > 8_192 || value.any(Char::isISOControl)) return null
             if (isWindowsAbsolutePath(value) || isBackslashUncPath(value)) return DesktopFile(value)
-            // //host/path is a protocol-relative web link in Markdown. A UNC
-            // share must use backslashes or the explicit file://host spelling.
             if (value.startsWith("//")) {
                 val uri = runCatching { URI("https:$value") }.getOrNull() ?: return null
                 if (uri.host.isNullOrEmpty()) return null
@@ -236,10 +225,6 @@ internal data class AttachmentDownloadKey(
     val path: String,
 )
 
-/**
- * Small session-owned LRU for transcript attachments. It also owns each active
- * request so two rows asking for the same image await one network transfer.
- */
 internal class AttachmentDownloadCache(
     private val scope: CoroutineScope,
     private val maximumEntries: Int = 12,
@@ -317,7 +302,6 @@ internal class AttachmentDownloadCache(
         }
     }
 
-    /** A computer switch or sign-out invalidates bytes and active transfers together. */
     fun clear() {
         val jobs = synchronized(lock) {
             entries.clear()

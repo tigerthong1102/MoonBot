@@ -1,15 +1,10 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/**
- * Invariants the catalogue has to hold whatever the numbers are: a ring that is a
- * ring, a mouth below the eyes, a state that has somewhere to start. Whether the
- * numbers are still the desktop's is a different question, and
- * `MausCatalogueGoldenTest` is where it is asked.
- */
 class MausFaceDataTest {
 
     @Test
@@ -65,7 +60,6 @@ class MausFaceDataTest {
                 assertTrue(minY >= 0f && maxY <= MausFaceData.FACE_BOX, "ring $expression/$eye off the face")
             }
         }
-        // the first ring is the left eye, in every expression
         val left = FloatArray(MausFaceData.RING_STRIDE)
         val right = FloatArray(MausFaceData.RING_STRIDE)
         for (expression in 0 until MausFaceData.EXPRESSION_COUNT) {
@@ -96,13 +90,6 @@ class MausFaceDataTest {
     }
 }
 
-/**
- * The frame loop. What matters most here is the pose a face holds when nothing is
- * driving it: that is what an avatar shows when the system says animations are off,
- * and it has to be the state's own face rather than a blank or a fallback.
- *
- * Which face that is comes from [MausGolden], not from the pools being tested.
- */
 class MausFaceEngineTest {
     private val ring = FloatArray(MausFaceData.RING_STRIDE)
     private val mouth = FloatArray(MausFaceData.MOUTH_STRIDE)
@@ -130,7 +117,6 @@ class MausFaceEngineTest {
             for (index in mouth.indices) {
                 assertEquals(MausGolden.MOUTHS[expression * 4 + index], engine.mouth()[index], 0.001f, state.id)
             }
-            // eyes open, and a body left where it stands
             assertEquals(1f, engine.blinkScale(0L))
             assertEquals(0f, engine.elapsedMillis(0L))
         }
@@ -147,7 +133,6 @@ class MausFaceEngineTest {
         MausFaceData.copyRing(target, 0, ring)
         assertTrue(kotlin.math.abs(engine.ring(0)[0] - ring[0]) > 1f, "morphed with no morph in")
 
-        // a second of frames, and short of the state's own 1.2s cadence
         for (frame in 1..30) engine.advance(frame * FRAME_NANOS)
 
         val offsetX = MausGolden.GAZE[target * 2] * LOOK_AROUND
@@ -176,7 +161,6 @@ class MausFaceEngineTest {
         engine.setState(MausState.IDLE, 0L)
         var shut = 1f
         var open = 0f
-        // past the longest gap between blinks the desktop allows for idle
         for (frame in 0..15 * 30) {
             engine.advance(frame * FRAME_NANOS)
             val scale = engine.blinkScale(frame * FRAME_NANOS)

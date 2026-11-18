@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 // The one material the chrome is made of.
 //
 // Every floating control — the header tiles, the Updates pill, the round
@@ -8,7 +9,6 @@
 // job in the same shape, just without the light.
 import SwiftUI
 
-/// Something floating over content: a tile, a pill, a sheet.
 struct GlassSurface<S: InsettableShape>: ViewModifier {
     let shape: S
     var interactive: Bool = true
@@ -28,12 +28,10 @@ struct GlassSurface<S: InsettableShape>: ViewModifier {
 }
 
 extension View {
-    /// A capsule of glass — pills and round buttons.
     func glassCapsule(interactive: Bool = true, tint: Color? = nil) -> some View {
         modifier(GlassSurface(shape: Capsule(), interactive: interactive, tint: tint))
     }
 
-    /// A rounded sheet of glass.
     func glassSheet(cornerRadius: CGFloat = 28, tint: Color? = nil) -> some View {
         modifier(GlassSurface(
             shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
@@ -58,8 +56,6 @@ struct GlassGroup<Content: View>: View {
     }
 }
 
-/// A round glass button with one glyph — the shape of every action in the
-/// chrome that is not a pill.
 struct GlassButton: View {
     let systemImage: String
     var size: CGFloat = 44

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.background
@@ -47,16 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.openmausbot.companion.core.Chat
 import kotlinx.coroutines.launch
 
-/**
- * The Updates pill and what it opens — the port of `UpdatesPill`/`MascotStack` in
- * `ios/App/ChatListView.swift:474-550` and of `ios/App/UpdatesSheet.swift`.
- *
- * Needs you first, with the answer right there — the phone exists so that a
- * stopped bot on the laptop can be un-stopped from wherever you are. Then what is
- * working, then what finished while you were not looking.
- */
 
-/** The floating pill: who is doing what right now, at a glance. */
 @Composable
 internal fun UpdatesBar(updates: List<ChatUpdate>, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val first = updates.firstOrNull()
@@ -118,7 +110,6 @@ internal fun UpdatesBar(updates: List<ChatUpdate>, onOpen: () -> Unit, modifier:
     }
 }
 
-/** Up to three mascots overlapping, the way a group of faces reads at a glance. */
 @Composable
 internal fun MascotStack(colors: List<String>, size: Dp = 28.dp, overlap: Dp = 12.dp) {
     Row(horizontalArrangement = Arrangement.spacedBy(-overlap)) {
@@ -134,7 +125,6 @@ internal fun MascotStack(colors: List<String>, size: Dp = 28.dp, overlap: Dp = 1
     }
 }
 
-/** What the pill opens: the active chats, grouped by what they need. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun UpdatesSheet(onOpen: (Chat) -> Unit, onDismiss: () -> Unit) {
@@ -148,8 +138,6 @@ internal fun UpdatesSheet(onOpen: (Chat) -> Unit, onDismiss: () -> Unit) {
             if (items.isEmpty()) null else kind to items
         }
     }
-    // One pass over the fleet rather than one per row: resolving a face walks the
-    // chat's visible transcript.
     val faces = remember(state, updates) {
         updates.associate { it.id to MausState.forChat(it.chat, state) }
     }
@@ -186,8 +174,6 @@ internal fun UpdatesSheet(onOpen: (Chat) -> Unit, onDismiss: () -> Unit) {
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp,
-                        // Needs you wears the colour of the chat that heads it;
-                        // the other two stay quiet.
                         color = if (kind == UpdateKind.NEEDS_YOU) {
                             Color(MausPalette.argb(items.first().chat.color))
                         } else {
@@ -257,8 +243,6 @@ private fun UpdateRow(update: ChatUpdate, face: MausState, onOpen: () -> Unit) {
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 } else {
-                    // The answers are the card's own options, exactly as the chat
-                    // screen draws them — never a choice invented here.
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(top = 6.dp),

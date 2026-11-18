@@ -1,5 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// Live Activities receive foreground updates only; no push channel is configured.
 import ActivityKit
 import Combine
 import Foundation
@@ -10,11 +9,9 @@ final class LiveActivityCoordinator {
     private var activeConnectionID: String?
     private var cancellable: AnyCancellable?
     private var lastSent: [String: BotActivityAttributes.ContentState] = [:]
-    /// When each bot's current kind began, so an update does not reset the clock.
     private var since: [String: (kind: String, at: Date)] = [:]
 
     func attach(to session: Session) {
-        // Answer from the island: the intent runs in this process.
         AnswerApprovalIntent.handler = { [weak self, weak session] connectionID, threadId, requestId, choice, isPermission in
             await self?.answer(session: session, connectionID: connectionID, threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission)
         }
@@ -63,8 +60,6 @@ final class LiveActivityCoordinator {
             if lastSent[bot.id] == content { continue }
             defer { lastSent[bot.id] = content }
 
-            // A bot stopping for you is worth an alert: the island pops open
-            // on its own and the lock screen lights up. Working is not.
             let alert: AlertConfiguration? = update.kind == .needsYou
                 ? AlertConfiguration(
                     title: LocalizedStringResource(stringLiteral: content.headline),
@@ -80,14 +75,12 @@ final class LiveActivityCoordinator {
             } else {
                 let attributes = BotActivityAttributes(connectionID: connectionID, botId: bot.id, threadId: bot.threadId, name: bot.name, color: bot.color)
                 _ = try? Activity.request(attributes: attributes, content: .init(state: content, staleDate: nil), pushType: nil)
-                // a fresh activity cannot alert on request; one immediate alerting update does it
                 if let alert, let activity = Activity<BotActivityAttributes>.activities.first(where: { $0.attributes.botId == bot.id && $0.attributes.connectionID == connectionID }) {
                     Task { await activity.update(.init(state: content, staleDate: nil), alertConfiguration: alert) }
                 }
             }
         }
 
-        // bots that went quiet: let the island go
         for activity in Activity<BotActivityAttributes>.activities where activity.attributes.connectionID != connectionID || !wantedIds.contains(activity.attributes.botId) {
             lastSent.removeValue(forKey: activity.attributes.botId)
             since.removeValue(forKey: activity.attributes.botId)

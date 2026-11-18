@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.discovery
 
 import android.net.nsd.NsdManager
@@ -54,9 +55,6 @@ class NsdDiscoveryTest {
         assertTrue(last.found.isEmpty())
     }
 
-    // GAP-02: a transient FAILURE_MAX_LIMIT is the Android shape of iOS's defunct
-    // DNS-SD connection — the platform is momentarily out of discovery slots, and
-    // recreating the browser is the only useful recovery.
 
     @Test
     fun maxLimitRetriesThreeTimesWithIncrementalBackoffThenGoesTerminal() = runTest {
@@ -78,13 +76,11 @@ class NsdDiscoveryTest {
         runCurrent()
         assertEquals(1, listeners.size)
 
-        // Attempt 1 fails: a retry is pending, and the copy says so.
         listeners.last().onStartDiscoveryFailed(NsdDiscovery.SERVICE_TYPE, NsdManager.FAILURE_MAX_LIMIT)
         runCurrent()
         assertEquals(DiscoveryRetry.RETRYING, assertIs<DiscoveryState.Active>(states.last()).failure)
         assertFalse(collectJob.isCompleted)
 
-        // 350ms, and not a millisecond sooner.
         advanceTimeBy(349)
         runCurrent()
         assertEquals(1, listeners.size, "the retry must wait out its backoff")
@@ -93,7 +89,6 @@ class NsdDiscoveryTest {
         assertEquals(2, listeners.size)
         assertNotSame(listeners[0], listeners[1], "a rejected listener must not be reused")
 
-        // Attempt 2 fails: 700ms.
         listeners.last().onStartDiscoveryFailed(NsdDiscovery.SERVICE_TYPE, NsdManager.FAILURE_MAX_LIMIT)
         runCurrent()
         advanceTimeBy(699)
@@ -103,7 +98,6 @@ class NsdDiscoveryTest {
         runCurrent()
         assertEquals(3, listeners.size)
 
-        // Attempt 3 fails: 1050ms.
         listeners.last().onStartDiscoveryFailed(NsdDiscovery.SERVICE_TYPE, NsdManager.FAILURE_MAX_LIMIT)
         runCurrent()
         advanceTimeBy(1049)
@@ -115,8 +109,6 @@ class NsdDiscoveryTest {
         assertTrue(lock.isHeld, "the lock is held across restarts, not re-taken")
         assertEquals(0, lock.releaseCount)
 
-        // The fourth failure is past the bound: terminal, with copy that does not
-        // promise a retry that is not coming.
         listeners.last().onStartDiscoveryFailed(NsdDiscovery.SERVICE_TYPE, NsdManager.FAILURE_MAX_LIMIT)
         advanceUntilIdle()
 
@@ -186,7 +178,6 @@ class NsdDiscoveryTest {
         listeners.last().onStartDiscoveryFailed(NsdDiscovery.SERVICE_TYPE, NsdManager.FAILURE_MAX_LIMIT)
         runCurrent()
 
-        // The user leaves mid-backoff.
         collectJob.cancel()
         advanceUntilIdle()
 
@@ -340,8 +331,6 @@ class NsdDiscoveryTest {
 
     @Test
     fun productionFactoryPathAcquiresPerCollectionOnly() = runTest {
-        // Mirrors discover()'s acquireMulticastLock factory: create+hold only when
-        // invoked from inside the cold Flow's collection block.
         val locks = mutableListOf<FakeMulticastLock>()
         var acquireCalls = 0
         val acquireMulticastLock: () -> MulticastLockHandle? = {
@@ -365,12 +354,10 @@ class NsdDiscoveryTest {
             failureMessage = { "unused" },
         )
 
-        // (a) Creating the cold Flow without collecting acquires nothing.
         assertEquals(0, acquireCalls)
         assertTrue(locks.isEmpty())
         assertEquals(0, browseStarts)
 
-        // (b) First collection acquires; terminal close releases exactly once.
         val firstStates = mutableListOf<DiscoveryState>()
         val firstJob = launch { flow.collect { firstStates += it } }
         runCurrent()
@@ -391,8 +378,6 @@ class NsdDiscoveryTest {
         assertFalse(locks[0].isHeld)
         assertEquals(1, locks[0].releaseCount)
 
-        // (c) Second collection after the first completes gets a fresh held
-        // handle; browse runs locked again (screen close → reopen).
         captured = null
         val secondStates = mutableListOf<DiscoveryState>()
         val secondJob = launch { flow.collect { secondStates += it } }
@@ -404,7 +389,6 @@ class NsdDiscoveryTest {
         assertNotSame(locks[0], locks[1])
         assertTrue(locks[1].isHeld)
         assertEquals(0, locks[1].releaseCount)
-        // Prior collection's lock stays released — no reuse of a dead handle.
         assertFalse(locks[0].isHeld)
 
         captured!!.onDiscoveryStarted(NsdDiscovery.SERVICE_TYPE)
@@ -438,7 +422,6 @@ class DiscoveryRetryTest {
 
     @Test
     fun theBackoffIsIncremental() {
-        // iOS: retryCount * 350ms.
         assertEquals(350L, DiscoveryRetry.delayFor(1))
         assertEquals(700L, DiscoveryRetry.delayFor(2))
         assertEquals(1050L, DiscoveryRetry.delayFor(3))

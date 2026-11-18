@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -6,26 +7,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
-/**
- * The first-run routing rules — the port of
- * `ios/Tests/CompanionCoreTests/OnboardingTests.swift:6-162,239-249`.
- *
- * Two of that file's cases are not repeated here because Android already
- * answers them, in stronger form and somewhere else:
- *
- * - `testPairingSubmissionBlocksResetUntilTheAttemptSettles` — iOS's
- *   `CompanionPairingSubmissionState` is a boolean beside the credential.
- *   Android's `PairingSecrets` owns the credential slot itself, so refusing a
- *   second submit is a property of the store rather than a flag a screen may
- *   forget to read; `PairingSecretStoreTest` covers it.
- * - `testPairingInviteQueueClearsAcrossSuccessAndSignOutSequence` — the queue
- *   lives inside `Session` on Android, and `SessionInviteLifecycleTest` drives
- *   it through the same success/unpair sequence against a real session.
- *
- * `testPendingNotificationPreferenceSurvivesAProcessRelaunch` is durability, not
- * routing; it is ported in `:app` against a real `SharedPreferences` file, where
- * durability can actually be observed.
- */
+
 class OnboardingTest {
 
     private fun route(
@@ -75,8 +57,6 @@ class OnboardingTest {
                 pairingRequested = true,
             ),
         )
-        // A deep link opens pairing even on a first launch that has not been
-        // answered: the person is arriving from the QR code, not from the app.
         assertEquals(
             OnboardingRoute.PAIRING,
             route(
@@ -126,7 +106,6 @@ class OnboardingTest {
                 notificationAuthorization = NotificationAuthorizationState.NOT_DETERMINED,
             ),
         )
-        // Answered once, either way.
         assertEquals(
             OnboardingRoute.CHATS,
             route(
@@ -136,8 +115,6 @@ class OnboardingTest {
                 hasSeenNotificationPrompt = true,
             ),
         )
-        // Nothing left to ask: the system has already decided, in either
-        // direction, so an explanation would end in a button that does nothing.
         assertEquals(
             OnboardingRoute.CHATS,
             route(
@@ -170,8 +147,6 @@ class OnboardingTest {
             "and it is certainly not permission to spend the marker",
         )
 
-        // A second process launch reads the same durable marker. Once the answer
-        // resolves to not-determined, the step has to reappear.
         assertEquals(
             OnboardingRoute.NOTIFICATION_PROMPT,
             route(
@@ -218,8 +193,6 @@ class OnboardingTest {
                 authorization = NotificationAuthorizationState.NOT_DETERMINED,
             ),
         )
-        // Completed *and* unresolved still keeps it: the answer is not in yet,
-        // and a marker spent on a guess cannot be recovered.
         assertTrue(
             NotificationOnboardingPolicy.shouldKeepPending(
                 isPending = true,
@@ -227,7 +200,6 @@ class OnboardingTest {
                 authorization = NotificationAuthorizationState.UNRESOLVED,
             ),
         )
-        // Nothing pending is nothing to keep, whatever else is true.
         assertFalse(
             NotificationOnboardingPolicy.shouldKeepPending(
                 isPending = false,
@@ -247,8 +219,6 @@ class OnboardingTest {
                 hasPendingPairingInvite = true,
             ),
         )
-        // The pairing succeeded and consumed the invite; a later unpair must not
-        // find a stale reason to reopen the form.
         assertEquals(
             OnboardingRoute.UNPAIRED_HOME,
             route(
@@ -271,8 +241,6 @@ class OnboardingTest {
             ),
             "revocation outranks a requested pairing and a pending deep link",
         )
-        // And it outranks the education step, which is the other route a paired
-        // phone could plausibly be sent to.
         assertEquals(
             OnboardingRoute.REVOKED,
             route(
@@ -284,14 +252,9 @@ class OnboardingTest {
         )
     }
 
-    /**
-     * The whole table, so a rewrite of [OnboardingRouter] that happens to keep
-     * the cases above passing cannot quietly move a state nobody named.
-     */
     @Test
     fun everyCombinationOfTheThreeUnpairedInputsIsAccountedFor() {
         val expected = mapOf(
-            // hasSeenWelcome, pairingRequested, hasPendingPairingInvite
             Triple(false, false, false) to OnboardingRoute.WELCOME,
             Triple(true, false, false) to OnboardingRoute.UNPAIRED_HOME,
             Triple(false, true, false) to OnboardingRoute.PAIRING,

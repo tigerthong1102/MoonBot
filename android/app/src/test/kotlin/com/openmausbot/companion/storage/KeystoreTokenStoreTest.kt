@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.storage
 
 import android.content.SharedPreferences
@@ -185,10 +186,6 @@ class KeystoreTokenStoreTest {
         failure?.let { throw it }
     }
 
-    /**
-     * Records the thread of every touch and which durability the editor was
-     * asked for. Backed by a map so reads observe what writes did.
-     */
     private class RecordingPrefs(
         val commitSucceeds: Boolean = true,
     ) : SharedPreferences {
@@ -198,7 +195,6 @@ class KeystoreTokenStoreTest {
         val applies = AtomicInteger(0)
 
         private fun mark() {
-            // The coroutine debug agent appends " @coroutine#n" to thread names.
             touches += Thread.currentThread().name.substringBefore(" @")
         }
 

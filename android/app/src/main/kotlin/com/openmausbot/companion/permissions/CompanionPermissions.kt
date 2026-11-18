@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.permissions
 
 import android.Manifest
@@ -9,7 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Platform permissions used by local discovery and composer dictation. */
 class CompanionPermissions(
     private val sdkInt: Int = Build.VERSION.SDK_INT,
     private val granted: (String) -> Boolean,
@@ -38,13 +38,8 @@ class CompanionPermissions(
         return next
     }
 
-    /**
-     * What a local browse needs. Called when someone opens the list of nearby
-     * computers, never on the way to the QR scanner, which needs none of it.
-     */
     fun discoveryPermissions(): Array<String> = refresh().missingDiscovery.toTypedArray()
 
-    /** Composer mic — checked at the button, never at cold start. */
     fun recordAudioGranted(): Boolean = granted(Manifest.permission.RECORD_AUDIO)
 
     private fun read(): Snapshot {

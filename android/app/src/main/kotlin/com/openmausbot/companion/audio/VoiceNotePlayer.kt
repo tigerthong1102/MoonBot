@@ -15,25 +15,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * One voice note from the transcript, as the bubble sees it.
- *
- * [durationMs] is the engine's measured length once prepared; until then it is
- * null and the bubble shows the wire's estimate (or `--:--`), exactly like the
- * desktop bubble's `durationMs`-before-`onLoadedMetadata` window.
- */
 data class VoiceNotePlayback(
-    /** Row-unique identity: `message.id:path` — two rows may share a path. */
     val key: String,
     val playing: Boolean,
     val positionMs: Long,
     val durationMs: Long?,
 )
 
-/**
- * A late playback failure for one clip. Keyed so only the failing bubble
- * shows its retry row — a bare string would mark every visible note dead.
- */
 data class VoiceNotePlaybackError(val key: String)
 
 class VoiceNotePlayer internal constructor(
@@ -41,7 +29,6 @@ class VoiceNotePlayer internal constructor(
     processLifecycle: Lifecycle = ProcessLifecycleOwner.get().lifecycle,
 ) : DefaultLifecycleObserver {
 
-    /** Production constructor: a [MediaPlayerVoiceNoteEngine] plus the shared focus gate. */
     constructor(
         context: Context,
         processLifecycle: Lifecycle = ProcessLifecycleOwner.get().lifecycle,
@@ -55,7 +42,6 @@ class VoiceNotePlayer internal constructor(
 
     val playback: StateFlow<VoiceNotePlayback?> get() = controller.playback
 
-    /** Late decode/playback failures after a successful [play] return. */
     val playbackErrors: SharedFlow<VoiceNotePlaybackError> get() = controller.playbackErrors
 
     init {
@@ -66,26 +52,16 @@ class VoiceNotePlayer internal constructor(
         })
     }
 
-    /**
-     * Start [key] from its beginning. Any note already playing is released
-     * first (the one-voice rule: the newcomer takes the window's voice).
-     * @return null on success, or failure copy for the bubble's retry row.
-     */
     fun play(key: String, data: ByteArray): String? = controller.play(key, data)
 
-    /** Pause in place: the position survives and focus is handed back. */
     fun pause() = controller.pause()
 
-    /** Continue the paused note from its position, re-claiming focus. */
     fun resume(): String? = controller.resume()
 
-    /** Whether [resume] can continue [key], or whether it must [play] again. */
     fun resumable(key: String): Boolean = controller.resumable(key)
 
-    /** Move the clip; allowed while paused or playing, like `audio.currentTime`. */
     fun seek(key: String, positionMs: Long) = controller.seek(key, positionMs)
 
-    /** Pull the engine's current position into [playback]; the bubble ticks this. */
     fun refresh() = controller.refresh()
 }
 
@@ -126,12 +102,9 @@ class VoiceNoteController(
         val next = engineFactory()
         val gen = generation + 1
         generation = gen
-        // Install callbacks BEFORE start: the engine prepares inside start()
-        // and may deliver completion or error before start() returns.
         next.onCompletion = {
             synchronized(lock) {
                 if (gen != generation) return@synchronized
-                // Desktop's onEnded: stopped, voice given back, clock left at the end.
                 releaseInternal(abandonFocus = true, keepParkedState = true)
             }
         }
@@ -139,14 +112,11 @@ class VoiceNoteController(
             synchronized(lock) {
                 if (gen != generation) return@synchronized
                 releaseInternal(abandonFocus = true)
-                // The key rides with the failure so only this clip's bubble reacts.
                 _playbackErrors.tryEmit(VoiceNotePlaybackError(key))
             }
         }
         return try {
             val started = next.start(data, startPositionMs = 0L)
-            // If onError ran synchronously inside start(), releaseInternal already
-            // bumped [generation] past [gen] — do not publish a dead engine.
             if (!started || gen != generation) {
                 next.release()
                 focus.abandon()
@@ -225,10 +195,6 @@ class VoiceNoteController(
 
     fun onAppBackgrounded() = synchronized(lock) { pauseInternal() }
 
-    /**
-     * Any focus loss / duck pauses the note in place — the desktop contract
-     * pauses the element when the speaker's voice is claimed elsewhere.
-     */
     private fun onFocusInterrupted() {
         synchronized(lock) { pauseInternal() }
     }
@@ -247,7 +213,6 @@ class VoiceNoteController(
                 positionMs = positionOf(current, state.positionMs),
             )
         } catch (_: Exception) {
-            // A pause that cannot be delivered is a dead engine: release to idle.
             releaseInternal(abandonFocus = true)
             return
         }
@@ -257,7 +222,6 @@ class VoiceNoteController(
     private fun releaseInternal(abandonFocus: Boolean, keepParkedState: Boolean = false) {
         val current = engine
         engine = null
-        // Bump so an in-flight completion/error from [current] is ignored.
         generation += 1
         current?.stop()
         current?.release()
@@ -282,7 +246,6 @@ class VoiceNoteController(
         current.durationMs().takeIf { it > 0 }
 
     companion object {
-        /** Failure copy for the bubble's retry row. */
         const val PLAYBACK_ERROR: String = "The voice note could not be played."
     }
 }
@@ -290,16 +253,12 @@ class VoiceNoteController(
 /** One playable clip; MediaPlayer in production, a fake in tests. */
 interface VoiceNoteEngine {
     var onCompletion: (() -> Unit)?
-    /** Asynchronous decode/playback failure after a successful [start]. */
     var onError: (() -> Unit)?
-    /** Prepare and start from [startPositionMs]; false on synchronous failure. */
     fun start(data: ByteArray, startPositionMs: Long): Boolean
     fun pause()
     fun resume()
     fun seekTo(positionMs: Long)
-    /** Current offset, or a negative value when the engine cannot say. */
     fun positionMs(): Long
-    /** Measured length, or a negative value until metadata is loaded. */
     fun durationMs(): Long
     fun stop()
     fun release()

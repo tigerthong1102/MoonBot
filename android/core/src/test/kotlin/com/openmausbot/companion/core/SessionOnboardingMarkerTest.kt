@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -11,19 +12,9 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 
-/**
- * The first-pair education marker, as a real [Session] writes it.
- *
- * [OnboardingTest] pins the ordering rule on [PairingCommitSequence] in
- * isolation, which proves the sequence and nothing about who calls it. These
- * drive an actual pairing and an actual unpair through `Session` and read back
- * the order the stores were touched in, so a `pair` that stopped calling the
- * sequence — or called it around the wrong writes — fails here.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionOnboardingMarkerTest {
 
-    /** Every durable write, in the order it happened, across all three stores. */
     private class WriteLog {
         val entries = mutableListOf<String>()
         fun record(entry: String) {
@@ -173,8 +164,6 @@ class SessionOnboardingMarkerTest {
         session.pair(connection, "123456", "pair-request-1")
         advanceUntilIdle()
 
-        // `signOut` unpairs from a launched coroutine, and `backgroundScope`
-        // work only runs while the test body is suspended.
         session.signOut()
         yield()
         advanceUntilIdle()

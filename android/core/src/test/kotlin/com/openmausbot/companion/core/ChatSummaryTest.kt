@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -50,7 +51,6 @@ class ChatSummaryTest {
         )
 
         val summaries = state.chatSummaries()
-        // pinned → unread (by activity: room@15 before bot@5) → read (new@20 before old@1)
         assertEquals(
             listOf("pinned", "r1", "unread", "new", "old"),
             summaries.map { it.id },

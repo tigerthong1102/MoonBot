@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion
 
 import android.app.Activity
@@ -26,14 +27,11 @@ import kotlinx.coroutines.launch
  */
 class ShareReceiveActivity : Activity() {
 
-    // Cancelled in onDestroy so a destroyed trampoline cannot keep copying
-    // (or offer()) against a newer ShareReceiveActivity that wiped the inbox.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as OpenMausApp
-        // Stay alive until the inbox copy finishes; URI grants die with this record.
         scope.launch {
             ShareHandoff.run(
                 copy = {

@@ -7,13 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * What little the phone gets to configure — `ios/App/SettingsView.swift`.
- *
- * Almost nothing, on purpose: Phone settings, API keys and pairing all live
- * on the computer, because losing the phone must not mean losing the ability to
- * lock it out (§13). This is a status page with an unpair button.
- */
 object SettingsPolicy {
     const val NOTIFICATIONS_FOOTER =
         "Approvals and finished work appear while StartupBot is connected, including " +
@@ -50,29 +43,19 @@ object SettingsPolicy {
         connection?.displayAddress ?: "—"
 }
 
-/**
- * The stored address can simply go stale — a tailnet name on a phone that left
- * the tailnet, a LAN address after the router reshuffled. Editing it keeps the
- * pairing and its token; the alternative is a walk to the computer for a new code
- * (§7).
- */
 object AddressEdit {
     const val INVALID =
         "Enter a secure https:// address, 192.168.1.42:8810, or a name like " +
             "macbook.tail1234.ts.net."
 
-    /** The same parse `Session.updateAddress` will do, so the form can say no first. */
     fun isValid(text: String): Boolean = Connection.parse(text) != null
 }
 
-/** What the notification row can offer right now. */
 enum class NotificationAccess {
     GRANTED,
 
-    /** Not granted, and the OS will still show a prompt. */
     ASKABLE,
 
-    /** Only the system settings page can turn these back on. */
     BLOCKED,
 }
 
@@ -105,22 +88,18 @@ class NotificationPermissionController(
     private val canRequest: () -> Boolean,
     private val shouldShowRationale: () -> Boolean,
     private val hasAskedBefore: () -> Boolean,
-    /** Goes through [PermissionRequests], which records the asking. */
     private val request: () -> Unit,
     private val openSettings: () -> Unit,
 ) {
     private val _access = MutableStateFlow(read())
     val access: StateFlow<NotificationAccess> = _access.asStateFlow()
 
-    /** The single button: ask when asking can work, otherwise hand over to settings. */
     fun act() {
         val current = read()
         _access.value = current
         when (current) {
             NotificationAccess.GRANTED -> Unit
             NotificationAccess.BLOCKED -> openSettings()
-            // PermissionRequests records the asking as part of launching it, so
-            // a process death mid-prompt still counts as having asked.
             NotificationAccess.ASKABLE -> request()
         }
     }
@@ -129,7 +108,6 @@ class NotificationPermissionController(
         _access.value = read(grantedOverride = granted)
     }
 
-    /** A change made in system settings should take effect on return. */
     fun refresh() {
         _access.value = read()
     }
@@ -138,11 +116,8 @@ class NotificationPermissionController(
         val granted = grantedOverride?.let { it && isGranted() } ?: isGranted()
         return when {
             granted -> NotificationAccess.GRANTED
-            // Nothing to ask for: only system settings can turn these back on.
             !canRequest() -> NotificationAccess.BLOCKED
-            // The OS is still willing to prompt.
             shouldShowRationale() -> NotificationAccess.ASKABLE
-            // No rationale and we have asked before: the prompt is spent.
             hasAskedBefore() -> NotificationAccess.BLOCKED
             else -> NotificationAccess.ASKABLE
         }

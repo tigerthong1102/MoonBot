@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.runtime.Immutable
@@ -18,7 +19,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Camera access, as the scanner needs to reason about it. */
 enum class CameraAccess { UNKNOWN, GRANTED, DENIED }
 
 /**
@@ -34,7 +34,6 @@ class CameraPermissionController(
     private val _access = MutableStateFlow(if (isGranted()) CameraAccess.GRANTED else CameraAccess.UNKNOWN)
     val access: StateFlow<CameraAccess> = _access.asStateFlow()
 
-    /** Ask once; the OS shows the sheet only while the answer is still unknown. */
     fun ensure() {
         if (isGranted()) {
             _access.value = CameraAccess.GRANTED
@@ -47,7 +46,6 @@ class CameraPermissionController(
         _access.value = if (granted) CameraAccess.GRANTED else CameraAccess.DENIED
     }
 
-    /** Recover immediately when the user returns from Settings having granted it. */
     fun refresh() {
         if (isGranted()) _access.value = CameraAccess.GRANTED
     }
@@ -99,43 +97,23 @@ class CompanionEnvironment(
     val session: Session,
     val permissions: CompanionPermissions,
     val discovery: CompanionDiscovery,
-    /**
-     * The three durable first-run markers. The same instance [Session] writes
-     * the pending marker into when a pairing commits, so the root router reads
-     * what the commit wrote without a second copy of the truth.
-     */
     val onboarding: OnboardingPreferences,
-    /** Phone-local transcript and composer presentation choices. */
     val chatPreferences: ChatPreferences,
     val camera: CameraPermissionController,
     val mic: MicPermissionController,
     val notifications: NotificationPermissionController,
-    /** Bounded in-memory avatar bytes/bitmaps; cleared on sign-out. */
     val avatars: AvatarImageStore,
-    /** One-at-a-time TTS preview; bind to the profile screen lifecycle. */
     val voicePreview: VoicePreviewPlayer,
-    /** One-at-a-time transcript voice notes; app-scoped, pauses in place. */
     val voiceNotes: VoiceNotePlayer,
-    /** Composer dictation; bind to the chat screen lifecycle. */
     val dictation: SpeechDictation,
-    /**
-     * Volatile composer drafts keyed by [com.openmausbot.companion.core.Chat.id].
-     * Survives Computer navigation without entering saved state.
-     */
     val chatDrafts: ChatDraftHolder,
-    /** Fires the activity's `RequestMultiplePermissions` launcher. */
     val requestPermissions: (Array<String>) -> Unit,
     /** Opens the OS app-settings page, for a permission the user denied. */
     val openAppSettings: () -> Unit,
-    /** Hands an exported transcript to the share sheet; null on success. */
     val shareTranscript: (ExportedTranscript, ShareFormat) -> String?,
-    /** Opens a freshly minted cloud-desktop URL in Custom Tabs; null on success. */
     val openCloudDesktop: (URI) -> String?,
-    /** Inbound share copied off the sending app's Intent. */
     val shareInbox: ShareInbox,
-    /** Whether [com.openmausbot.companion.lifecycle.AlwaysOnConnectionService] is enabled. */
     val alwaysOnEnabled: StateFlow<Boolean>,
-    /** Flips the always-on setting and starts/stops the service to match. */
     val onToggleAlwaysOn: () -> Unit,
 )
 

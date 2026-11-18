@@ -50,9 +50,6 @@ class PairingClientTest {
         }
 
         assertEquals(listOf("http://mac.tail1234.ts.net:8810"), error.attemptedRoutes)
-        // This is the whole of what a stalled pairing tells the person, so the
-        // switch it names has to be the one the desktop actually has: Phone
-        // access, not a Companion toggle (`ios/Sources/CompanionCore/Client.swift:317`).
         assertEquals(
             "Couldn't reach this computer through any available route " +
                 "(http://mac.tail1234.ts.net:8810). Keep Phone access turned on in " +

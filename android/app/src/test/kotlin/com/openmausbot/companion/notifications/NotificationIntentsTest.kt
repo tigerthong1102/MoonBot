@@ -8,15 +8,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * PendingIntent identity must not collapse distinct notification payloads.
- *
- * Android's PendingIntent equality ignores extras; only filterable Intent
- * fields (and the request code) discriminate. Expectations come from
- * `ios/App/Notifications.swift:35-45,65-69` (each request keeps its own
- * userInfo) and `_temp/PARITY_DELTA_AUDIT_2.md` §D2-03 (open the pair that
- * *that* notification carried).
- */
+// Android PendingIntent equality ignores extras; identity uses filterable Intent fields and the request code.
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [26])
 class NotificationIntentsTest {
@@ -27,7 +19,6 @@ class NotificationIntentsTest {
         val asker = identity("asker", roomThread)
         val other = identity("other-bot", roomThread)
         assertNotEquals(asker, other)
-        // The old requestCode = threadId.hashCode() would have collided here.
         assertEquals(roomThread.hashCode(), roomThread.hashCode())
     }
 

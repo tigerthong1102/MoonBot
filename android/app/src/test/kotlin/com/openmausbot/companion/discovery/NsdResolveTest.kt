@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.discovery
 
 import android.net.nsd.NsdManager
@@ -51,8 +52,6 @@ class NsdResolveTest {
                 stopBrowse = { },
                 resolveService = { info, onResolved ->
                     attempts += info.serviceName
-                    // The platform refuses the first attempt — FAILURE_ALREADY_ACTIVE
-                    // is what a browse that found two computers at once produces.
                     if (attempts.size == 1) onResolved(null) else onResolved(info)
                 },
                 hostAddress = { "192.168.1.42" },
@@ -154,11 +153,6 @@ class NsdResolveTest {
         assertEquals(1, attempts, "leaving the screen during the backoff cancels the retry")
     }
 
-    /**
-     * The registration side, driven directly. Each terminal outcome has to leave
-     * nothing listening, because nothing else ever will: a leaked
-     * `registerServiceInfoCallback` lives as long as the process.
-     */
     @Test
     fun `an updated service is answered once and released`() {
         val unregistered = mutableListOf<NsdManager.ServiceInfoCallback>()
@@ -176,7 +170,6 @@ class NsdResolveTest {
         assertEquals(listOf(callback), unregistered)
         assertEquals(0, resolver.outstanding)
 
-        // A subscription keeps talking; a resolve is one answer.
         callback!!.onServiceUpdated(service("openmausbot-dd"))
         assertEquals(1, answers.size)
         assertEquals(1, unregistered.size)
@@ -215,7 +208,6 @@ class NsdResolveTest {
         )
         assertEquals(0, resolver.outstanding)
 
-        // A register that throws is the same outcome, reported rather than swallowed.
         val thrower = ServiceInfoResolver(unregister = { unregistered += it })
         val thrown = mutableListOf<NsdServiceInfo?>()
         thrower.resolve(register = { throw SecurityException("denied") }, onResolved = { thrown += it })
@@ -239,7 +231,6 @@ class NsdResolveTest {
         assertEquals(callbacks.toSet(), unregistered.toSet())
         assertEquals(0, resolver.outstanding)
 
-        // Idempotent: a terminal close plus awaitClose must not double-unregister.
         resolver.stopAll()
         assertEquals(3, unregistered.size)
     }

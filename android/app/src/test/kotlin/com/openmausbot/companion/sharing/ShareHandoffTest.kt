@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.sharing
 
 import com.openmausbot.companion.ui.ShareLoadException
@@ -17,7 +18,6 @@ class ShareHandoffTest {
             copy = {
                 copyThread = Thread.currentThread()
                 order += "copy-start"
-                // Real async work on IO — order is observed, not assembled by hand.
                 Thread.sleep(40)
                 order += "copy"
                 SharePayload.Failed("ok")
@@ -29,7 +29,6 @@ class ShareHandoffTest {
         assertEquals(listOf("copy-start", "copy", "relaunch", "finish", "deliver"), order)
         assertTrue(order.indexOf("copy") < order.indexOf("finish"))
         assertTrue(order.indexOf("finish") < order.indexOf("deliver"))
-        // Proves withContext(Dispatchers.IO): removing that hop leaves copy on the runner.
         assertNotEquals(runnerThread, copyThread)
     }
 

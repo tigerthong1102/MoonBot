@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -40,8 +41,6 @@ class ChatPreferencesTest {
         compaction = Compaction(summary = "summary", tokensBefore = 10),
     )
 
-    // The digest and compaction receipts are the harness talking about the
-    // tool calls: hidden with them, but never folded into a run of them.
 
     @Test
     fun hiddenDropsDigestAndCompactionReceiptsToo() {

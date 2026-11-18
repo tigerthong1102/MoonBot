@@ -1,6 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
-/** One styled run of inline text. */
 data class InlineSpan(
     val text: String,
     val styles: Set<InlineStyle> = emptySet(),
@@ -34,7 +34,6 @@ object InlineMarkdown {
     fun parse(source: String): List<InlineSpan> =
         merge(render(source, emptySet(), null))
 
-    /** Flatten the runs back to the text they render. */
     fun plain(spans: List<InlineSpan>): String = spans.joinToString("") { it.text }
 
     private fun render(source: String, styles: Set<InlineStyle>, link: String?): List<InlineSpan> {
@@ -51,7 +50,6 @@ object InlineMarkdown {
         while (index < source.length) {
             val character = source[index]
 
-            // Escapes first: a backslashed punctuation mark is that character.
             if (character == '\\' && index + 1 < source.length && source[index + 1] in ESCAPABLE) {
                 buffer.append(source[index + 1])
                 index += 2
@@ -92,17 +90,12 @@ object InlineMarkdown {
             if (character == '*' || character == '_') {
                 val run = runLength(source, index, character)
                 val width = minOf(run, 3)
-                // `_` does not open or close inside a word — snake_case_names are
-                // not emphasis. `*` may, exactly as GFM has it.
                 val opensHere = character == '*' || !isWordCharacter(source.getOrNull(index - 1))
                 val closeStart = if (opensHere) {
                     findEmphasisClose(source, index + width, character, width)
                 } else {
                     -1
                 }
-                // Close at the *end* of the closing run, so a longer run leaves
-                // its surplus inside: `**bold *and italic***` is bold wrapping
-                // an italic, not bold followed by a stray asterisk.
                 val close = if (closeStart < 0) {
                     -1
                 } else {
@@ -172,7 +165,6 @@ object InlineMarkdown {
         return length
     }
 
-    /** A code span closes on a backtick run of exactly the opening length. */
     private fun findCodeClose(source: String, from: Int, fence: Int): Int {
         var index = from
         while (index < source.length) {
@@ -187,7 +179,6 @@ object InlineMarkdown {
         return -1
     }
 
-    /** Next run of [character] at least [width] long, skipping escapes and code spans. */
     private fun findRun(source: String, from: Int, character: Char, width: Int): Int {
         var index = from
         while (index < source.length) {
@@ -213,7 +204,6 @@ object InlineMarkdown {
         return -1
     }
 
-    /** As [findRun], plus the `_` intraword rule on the closing side. */
     private fun findEmphasisClose(source: String, from: Int, character: Char, width: Int): Int {
         var search = from
         while (search < source.length) {
@@ -235,8 +225,6 @@ object InlineMarkdown {
         var index = from
         while (index < source.length) {
             val current = source[index]
-            // A bracket inside a code span is text, not structure: the label of
-            // [see `a]b`](url) ends at the second `]`, not the first.
             if (current == '`') {
                 val fence = runLength(source, index, '`')
                 val close = findCodeClose(source, index + fence, fence)
@@ -259,34 +247,15 @@ object InlineMarkdown {
 
     private data class LinkTail(val destination: String, val end: Int)
 
-    /**
-     * CommonMark's inline-link tail — `'(' ws? destination? (ws title)? ws? ')'`
-     * — read in one pass from just after the `(`, ending at the index of the
-     * closing `)`.
-     *
-     * One pass, rather than "find the closing paren, then parse what is inside",
-     * because a `)` is only the closing paren when it is not inside an angle
-     * destination or a quoted title. `[a](<b)c>)`, `[link](<foo(and(bar)>)` and
-     * `[x](/url "a)b")` are all links the desktop renders, and scanning for the
-     * bracket first rejected every one of them.
-     *
-     * Returning null is how a not-a-link renders as the characters it is made
-     * of, which is the invariant a half-typed reply depends on.
-     */
     private fun parseLinkTail(source: String, from: Int): LinkTail? {
         var index = skipSeparators(source, from) ?: return null
         val destination: String
 
         if (index < source.length && source[index] == '<') {
-            // Angle destinations may hold anything but an unescaped `<` or `>`
-            // and a line ending — parentheses and spaces included.
             var scan = index + 1
             var close = -1
             while (scan < source.length) {
                 val current = source[scan]
-                // Rejected before any escape is consumed: a backslash may hide a
-                // `>` but it may not hide a line ending, and `\` + newline would
-                // otherwise smuggle one past this check.
                 if (current == '<' || isLineEnding(current)) return null
                 if (current == '\\' &&
                     scan + 1 < source.length &&
@@ -305,8 +274,6 @@ object InlineMarkdown {
             destination = unescape(source.substring(index + 1, close))
             index = close + 1
         } else {
-            // A bare destination runs to whitespace or to the `)` that closes the
-            // link, and may hold parentheses only in balanced pairs or escaped.
             val start = index
             var depth = 0
             loop@ while (index < source.length) {
@@ -314,9 +281,6 @@ object InlineMarkdown {
                 when {
                     current == '\\' && index + 1 < source.length && source[index + 1] in ESCAPABLE ->
                         index += 2
-                    // Only the grammar's separators end a destination. A
-                    // non-breaking space is an ordinary character and belongs to
-                    // the URL, exactly as the desktop reads it.
                     isSeparator(current) || isLineEnding(current) -> break@loop
                     isControl(current) -> return null
                     current == '(' -> {
@@ -335,8 +299,6 @@ object InlineMarkdown {
             destination = unescape(source.substring(start, index))
         }
 
-        // An empty destination is legal: `[x]()` and `[x](<>)` are links on the
-        // desktop, and rejecting them would drop the label.
         val afterDestination = index
         index = skipSeparators(source, index) ?: return null
         if (index > afterDestination && index < source.length && source[index] in TITLE_OPENERS) {
@@ -350,11 +312,6 @@ object InlineMarkdown {
         }
     }
 
-    /**
-     * The index just past a title beginning at [from], or null when it never
-     * closes — so `[x](/url "a" junk ")` is text, not a link that swallows
-     * `junk`.
-     */
     private fun titleEnd(source: String, from: Int): Int? {
         val open = source[from]
         val close = if (open == '(') ')' else open
@@ -366,22 +323,12 @@ object InlineMarkdown {
                 continue
             }
             if (current == close) return index + 1
-            // A parenthesised title may hold neither bracket unescaped.
             if (open == '(' && current == '(') return null
             index += 1
         }
         return null
     }
 
-    /**
-     * The separators the link grammar allows between components: spaces, tabs,
-     * and at most one line ending. Returns null when more than one line ending
-     * was crossed — that is a blank line, which ends the link.
-     *
-     * Deliberately not `Char.isWhitespace()`, which also matches a non-breaking
-     * space; CommonMark counts that as an ordinary character, so `[x](/url "t")`
-     * written with a NBSP is one long destination, not a destination and a title.
-     */
     private fun skipSeparators(source: String, from: Int): Int? {
         var index = from
         var lineEndings = 0
@@ -414,7 +361,6 @@ object InlineMarkdown {
     private val TITLE_OPENERS = setOf('"', '\'', '(')
 
 
-    /** Backslash escapes are resolved in destinations, as CommonMark resolves them. */
     private fun unescape(source: String): String {
         if ('\\' !in source) return source
         val out = StringBuilder(source.length)
@@ -432,7 +378,6 @@ object InlineMarkdown {
         return out.toString()
     }
 
-    /** CommonMark: one space is stripped from each end when both are present. */
     private fun stripCodeSpacing(raw: String): String {
         if (raw.length >= 2 && raw.first() == ' ' && raw.last() == ' ' && raw.isNotBlank()) {
             return raw.substring(1, raw.length - 1)

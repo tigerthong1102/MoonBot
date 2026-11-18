@@ -311,12 +311,6 @@ class DecodingTest {
 
     @Test
     fun decodesTheHarnessErrorBodies() {
-        // These are captured server contracts and the client shows them to the
-        // person unchanged (`Client.kt` surfaces `APIErrorBody.error` verbatim),
-        // so they are pinned word for word — exactly as
-        // `ios/Tests/CompanionCoreTests/DecodingTests.swift:313-324` pins them.
-        // A "contains pair" assertion would have kept passing when the desktop
-        // renamed its Companion area to Phone and the fixtures were re-captured.
         assertEquals(
             "pair this device from Phone settings in OpenMausBot on your computer",
             decodeFixture<APIErrorBody>("unauthorized").error,
@@ -484,9 +478,6 @@ class DecodingTest {
 
     @Test
     fun decodesAThreadOpenedByABotAndOneOpenedByThePerson() {
-        // Newer computers say which bot opened a thread on itself or a
-        // teammate. The captured fixtures predate that, so every thread in
-        // them was opened by the person — and must still decode as such.
         val opened = CompanionJson.decodeFromString<BotTask>(
             """{"threadId":"t2","title":"Ship it","createdAt":1,
                "openedBy":{"botId":"scout","name":"Scout","delegationId":"d1","at":2}}""",
@@ -509,8 +500,6 @@ class DecodingTest {
 
     @Test
     fun decodesAThreadABotClosedAndOneStillOpen() {
-        // close_thread stamps who closed a thread; an open thread — and every
-        // thread from an older computer — has no stamp and decodes as open.
         val closed = CompanionJson.decodeFromString<BotTask>(
             """{"threadId":"t2","title":"Ship it","createdAt":1,
                "openedBy":{"botId":"pm","name":"Parker","at":2},
@@ -534,8 +523,6 @@ class DecodingTest {
 
     @Test
     fun decodesSnoozedUntilAsSentinelTimestampOrNothing() {
-        // 0 sleeps until activity, a timestamp sleeps until the clock passes
-        // it, and an older payload simply never slept.
         val asleep = CompanionJson.decodeFromString<BotTask>(
             """{"threadId":"t1","title":"","createdAt":1,"snoozedUntil":0}""",
         )
@@ -560,8 +547,6 @@ class DecodingTest {
 
     @Test
     fun archivedMeansTheStampIsPresentEvenAtZero() {
-        // The task API accepts any epoch number, so archivedAt 0 is archived —
-        // the same presence rule the desktop's isArchived uses.
         val atZero = CompanionJson.decodeFromString<BotTask>(
             """{"threadId":"t1","title":"","createdAt":1,"archivedAt":0}""",
         )
@@ -582,8 +567,6 @@ class DecodingTest {
 
     @Test
     fun aThreadOpenedByABotSaysSoInTheList() {
-        // Same words as the desktop's thread list, so a person reading both
-        // screens reads one sentence.
         val opened = CompanionJson.decodeFromString<BotTask>(
             """{"threadId":"t2","title":"Ship it","createdAt":1,"openedBy":{"botId":"scout","name":"Scout","at":2}}""",
         )

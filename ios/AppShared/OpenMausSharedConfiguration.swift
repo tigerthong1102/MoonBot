@@ -1,27 +1,15 @@
 // Modified for StartupBot; original copyright and license retained.
 import Foundation
 
-/// Values shared by the main app and its extensions.
-///
-/// Keep the group identifier in one source file rather than repeating it in
-/// the app and extension. The matching capabilities still live in the Xcode
-/// project, where iOS verifies them against the provisioning profile.
 enum OpenMausSharedConfiguration {
     static let appGroupIdentifier = "group.ai.startupbot.shared"
     static let legacyAppBundleIdentifier = "ai.startupbot.ios"
     static let keychainAccessGroupInfoKey = "OpenMausKeychainAccessGroup"
 
-    /// The shared suite can be unavailable in unsigned previews and local
-    /// tests. Callers which need compatibility with an already-installed app
-    /// retain `UserDefaults.standard` as a fallback instead of treating that
-    /// development-only state as data loss.
     static var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: appGroupIdentifier)
     }
 
-    /// Xcode expands `$(AppIdentifierPrefix)` in this Info.plist value. A
-    /// fully-qualified value is required by `kSecAttrAccessGroup`; using the
-    /// unprefixed group name fails with `errSecMissingEntitlement` on-device.
     static var keychainAccessGroup: String? {
         guard let value = Bundle.main.object(
             forInfoDictionaryKey: keychainAccessGroupInfoKey

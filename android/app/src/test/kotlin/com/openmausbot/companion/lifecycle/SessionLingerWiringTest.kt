@@ -14,26 +14,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.w3c.dom.Element
 
-/**
- * The machine can be green while the Application still cancels the stream at
- * `onStop` — so this pins the wiring itself.
- *
- * Two halves, because neither alone is enough:
- *
- * 1. [installSessionLinger] is the one function `OpenMausApp.onCreate` calls,
- *    and here it is driven through a real lifecycle, registering the very
- *    observer the Application registers.
- * 2. A source pin on `OpenMausApp.kt`, in the spirit of `PairingLinkManifestTest`:
- *    it fails if the Application goes back to an inline observer or to calling
- *    `disconnect()` on the way out. That is a text assertion, not a runtime
- *    proof — it is here because instantiating the real Application in a JVM
- *    suite would drag in DataStore, the Keystore and MediaPlayer, and prove
- *    less than it cost.
- *
- * The service declaration is pinned from the merged-source manifest for the
- * same reason `PairingLinkManifestTest` reads it: `exported`, foreground
- * service attributes and `stopWithTask` are things no compiler checks.
- */
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionLingerWiringTest {
 
@@ -44,9 +25,6 @@ class SessionLingerWiringTest {
         val session = session(stream, sink)
         val anchor = FakeAnchor()
 
-        // The same install-and-settle sequence `SessionLingerTest` drives, so
-        // `ON_STOP` below is reached on a session that is genuinely Live rather
-        // than one still Connecting behind a hello that was never collected.
         val owner = installLive(session, stream, anchor).owner
         assertEquals(1, stream.collectors)
 

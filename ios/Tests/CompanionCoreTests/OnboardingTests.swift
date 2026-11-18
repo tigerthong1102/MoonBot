@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import XCTest
 @testable import CompanionCore
@@ -115,8 +116,6 @@ final class OnboardingTests: XCTestCase {
             authorization: .unresolved
         ))
 
-        // A second process launch reads the same durable pending marker. Once
-        // iOS resolves to notDetermined, the education step must reappear.
         let relaunchedAndResolved = CompanionOnboardingContext(
             pairingState: .paired,
             hasSeenWelcome: true,

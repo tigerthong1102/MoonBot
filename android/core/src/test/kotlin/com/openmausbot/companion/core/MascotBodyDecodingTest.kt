@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.serialization.decodeFromString
@@ -5,7 +6,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** The wire field that says which catalog body a bot wears — `Bot.mascotBody` in `Models.swift`. */
 class MascotBodyDecodingTest {
     private val base = """
         {"id":"bot-1","threadId":"thread-1","name":"Scout","title":"","description":"",

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.content.ClipData
@@ -46,7 +47,6 @@ import kotlinx.coroutines.launch
 private const val UPDATE_COMMAND = "claude update"
 private const val UPDATE_CLIP_LABEL = "Claude Code update command"
 
-/** Where the card is. Port of `Phase` in `src/components/ClaudeUpdatePrompt.tsx`. */
 sealed interface ClaudeUpdatePhase {
     data object Ask : ClaudeUpdatePhase
     data object Updating : ClaudeUpdatePhase
@@ -55,13 +55,6 @@ sealed interface ClaudeUpdatePhase {
     data class Failed(val error: String) : ClaudeUpdatePhase
 }
 
-/**
- * Offered under a failed turn whose Claude Code is too old for the model.
- * The computer runs Claude Code's own updater for [instanceId] (the harness
- * refuses while another Claude turn is running, in words meant for a
- * person), or the person takes the command and runs it themselves. Either
- * way the failed message is not resent, so every ending says to send it again.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ClaudeUpdateCard(messageId: String, instanceId: String) {
@@ -162,7 +155,6 @@ fun ClaudeUpdateCard(messageId: String, instanceId: String) {
                     TextButton(
                         onClick = {
                             scope.launch {
-                                // "Copied" once the clipboard has it: `setClipEntry` suspends.
                                 clipboard.setClipEntry(
                                     ClipEntry(ClipData.newPlainText(UPDATE_CLIP_LABEL, UPDATE_COMMAND)),
                                 )

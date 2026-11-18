@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.util.UUID
@@ -5,7 +6,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 
-/** How much of a bot's working activity the transcript shows. */
 enum class ActivityDetail(val wireValue: String, val label: String, val caption: String) {
     FULL("full", "Full", "Every step a bot takes."),
     REDUCED("reduced", "Reduced", "Steps fold into one line. Failures always show."),
@@ -18,7 +18,6 @@ enum class ActivityDetail(val wireValue: String, val label: String, val caption:
     }
 }
 
-/** One user-editable chip on the composer's quick-reply row. */
 @Serializable
 data class QuickReply(
     val id: String = UUID.randomUUID().toString(),
@@ -42,10 +41,6 @@ data class QuickReply(
         fun encode(replies: List<QuickReply>): String =
             runCatching { CompanionJson.encodeToString(replies) }.getOrDefault("")
 
-        /**
-         * An empty or corrupt store falls back to defaults. An encoded empty list is a deliberate
-         * choice and remains empty.
-         */
         fun decode(json: String): List<QuickReply> {
             if (json.isEmpty()) return DEFAULTS
             val decoded = runCatching {
@@ -58,7 +53,6 @@ data class QuickReply(
     }
 }
 
-/** A transcript item: one message, consecutive activity, or completed narration. */
 sealed interface TranscriptRow {
     val head: Message
     val id: String
@@ -68,7 +62,6 @@ sealed interface TranscriptRow {
     val kind: Message.Kind get() = head.kind
     val senderName: String? get() = head.from?.name
 
-    /** Search and pagination anchors can land inside a folded row. */
     fun containsMessage(messageId: String): Boolean = when (this) {
         is Single -> message.id == messageId
         is ActivityRun -> items.any { it.id == messageId }
@@ -110,14 +103,6 @@ sealed interface TranscriptRow {
     }
 }
 
-/**
- * The one line a roster row shows under a chat's name.
- *
- * Folded by the same rule as the transcript, and for the same reason: a reader who has turned
- * activity off has said they do not want to see tool calls, and the roster is where they see the
- * most of them — one per chat, on the screen they spend the most time on. Reading the preview off
- * the raw last message made "Hidden" mean "hidden in one place".
- */
 fun rosterPreview(messages: List<Message>, detail: ActivityDetail): String =
     when (val last = transcriptRows(messages, detail).lastOrNull()) {
         null -> ""
@@ -127,11 +112,8 @@ fun rosterPreview(messages: List<Message>, detail: ActivityDetail): String =
         is TranscriptRow.AssistantTurn -> last.label
     }
 
-/** What a single message reads as in a roster row. */
 internal fun previewText(message: Message): String = when (message.kind) {
     Message.Kind.TEXT -> message.webhookContent?.task ?: message.text.orEmpty()
-    // a pending card's question is the preview; the roster row already says
-    // "waiting on you" beside it
     Message.Kind.OPTIONS -> {
         val card = message.card
         when {
@@ -147,24 +129,12 @@ internal fun previewText(message: Message): String = when (message.kind) {
     Message.Kind.UNKNOWN -> message.text.orEmpty()
 }
 
-/**
- * Rows the harness writes about a turn rather than in it: tool chips and, since
- * Phase 0, the digest and compaction receipts. Hidden together, because a reader
- * who turned activity off does not want the summary of exactly those calls either.
- * Port of `isActivityReceipt` in `ChatPreferences.swift`.
- */
 fun isActivityReceipt(message: Message): Boolean = when (message.kind) {
     Message.Kind.ACTIVITY, Message.Kind.DIGEST, Message.Kind.COMPACTION -> true
     else -> false
 }
 
-/**
- * Fold a transcript to the selected activity detail. Failed steps are never folded in reduced
- * mode; hidden mode intentionally removes all activity, including failures.
- */
 fun transcriptRows(messages: List<Message>, detail: ActivityDetail): List<TranscriptRow> {
-    // Only a server completion marker makes narration foldable. Legacy and
-    // unfinished turns stay visible, matching desktop and iOS.
     val narration = mutableMapOf<String, MutableList<Message>>()
     val startedAt = mutableMapOf<String, Double>()
     var lastUserAt: Double? = null
@@ -203,7 +173,6 @@ fun transcriptRows(messages: List<Message>, detail: ActivityDetail): List<Transc
                 flush()
                 add(turn)
             } else if (message.id in hiddenIds || (detail == ActivityDetail.HIDDEN && isActivityReceipt(message))) {
-                // The reversible turn fold owns narration; Hidden owns tools.
             } else if (detail != ActivityDetail.REDUCED || message.kind != Message.Kind.ACTIVITY) {
                 flush()
                 add(TranscriptRow.Single(message))

@@ -358,3 +358,27 @@ and production log identity additionally verifies creation generation before
 attributing a quota error. Unprovable identity contributes no log evidence;
 the runtime's typed refusal remains authoritative. Focused quota/identity
 regressions run without real provider accounts.
+
+## Native review candidate
+
+The Android bot-send path captures the authoritative bot-queue revision at the
+POST boundary. A later snapshot, including an empty snapshot for a queue ID the
+phone never saw, prevents a delayed receipt from recreating that row. Room
+queues remain independent. A real HTTP/SSE regression fails with the old receipt
+behavior and passes with the correction; the current local core suite has 623
+tests and no failures.
+
+Android call speech refuses to construct an audio engine when focus is denied,
+releases the refused focus request, and scopes interruption callbacks to their
+playback generation. Cancellation releases an owned in-flight engine. New app
+unit tests cover denied focus and successful multi-clip playback; platform CI
+must qualify these changes before a new APK is offered.
+
+The imported comment-policy correction covers native sources and Gradle scripts.
+Parser comparisons verify identical non-comment code/literal tokens across the
+comment-only edits. Copyright/SPDX notices are retained; changed imported source
+files carry explicit modification notices and appear in MODIFICATIONS.md.
+Focused security constraints, external platform facts and public wire contracts
+remain documented. No executable logic, assertion, resource or localization is
+removed by that comment-policy pass. Token equality is not a substitute for
+native build, app tests or installed acceptance.

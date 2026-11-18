@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 @testable import CompanionCore
 
@@ -40,14 +41,9 @@ final class ConnectionTests: XCTestCase {
     }
 
     func testDropsTheInterfaceScopeFromAResolvedIPv4Address() {
-        // NWEndpoint.Host prints a resolved IPv4 with the interface it came
-        // in on ("192.168.1.3%en0"). A zone means nothing for IPv4 and
-        // URLComponents refuses it as a host — which turned Bonjour discovery
-        // in the Simulator into "That address doesn't look right".
         let discovered = Connection(name: "Mac", host: "192.168.1.3%en0", port: 8810)
         XCTAssertEqual(discovered.host, "192.168.1.3")
         XCTAssertEqual(discovered.baseURL?.absoluteString, "http://192.168.1.3:8810")
-        // an IPv6 zone is still kept — link-local needs it
         XCTAssertEqual(Connection(name: "Mac", host: "fe80::1%en0", port: 8810).host, "[fe80::1%en0]")
     }
 
@@ -163,21 +159,16 @@ final class ConnectionTests: XCTestCase {
     }
 
     func testSanitizesFallbackHostsAndKeepsOnlyTheConfirmedLocalOrigin() throws {
-        // Fallbacks are advisory: a bad one costs a single failed dial when
-        // its turn comes, so it is filtered rather than fatal.
         let url = try XCTUnwrap(URL(string:
             "openmausbot://pair?address=mac.local&code=004209&hosts=%20mac.local%20,other.local,,bad%2Fslash,has%20space"))
         let invite = try XCTUnwrap(PairingInvite.parse(url))
         XCTAssertEqual(invite.connection.hosts, ["mac.local"])
 
-        // and an invite with no usable candidate keeps the single address
         let empty = try XCTUnwrap(URL(string: "openmausbot://pair?address=mac.local&code=004209&hosts=bad%2Fslash"))
         XCTAssertNil(PairingInvite.parse(empty)?.connection.hosts)
     }
 
     func testASavedConnectionWithoutFallbacksStillDecodes() throws {
-        // Exactly what UserDefaults holds for anyone who paired before
-        // fallback hosts existed — `hosts` must stay optional forever.
         let data = Data(#"{"id":"saved","name":"Mac","host":"mac.tail1234.ts.net","port":8810}"#.utf8)
         let saved = try JSONDecoder().decode(Connection.self, from: data)
         XCTAssertNil(saved.hosts)

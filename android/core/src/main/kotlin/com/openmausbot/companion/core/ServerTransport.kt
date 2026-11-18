@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.net.InetAddress
@@ -9,7 +10,6 @@ internal val Connection.serverTransportAllowed: Boolean
         if (origin.scheme.equals("https", ignoreCase = true)) return true
         val host = origin.host.orEmpty().removeSurrounding("[", "]").lowercase().trimEnd('.')
         if (host == "localhost" || host.endsWith(".local") || host.endsWith(".ts.net")) return true
-        // Only parse literals: never perform DNS to decide whether a public name is safe.
         val literal = host.substringBefore('%')
         if (':' !in literal && !literal.matches(Regex("[0-9]+(?:\\.[0-9]+){3}"))) return false
         val address = runCatching { InetAddress.getByName(literal) }.getOrNull() ?: return false

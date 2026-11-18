@@ -15,11 +15,6 @@
 // `Session` owns when they run.
 import Foundation
 
-/// The ordered walk through a connection's stored hosts.
-///
-/// Advance on an address-shaped failure, promote on success. Advancing wraps
-/// rather than giving up, because the retry loop it lives in already backs
-/// off between attempts and a network that comes back deserves a second lap.
 public struct CandidateRotation: Equatable, Sendable {
     public private(set) var endpoints: [CompanionEndpoint]
     private var index: Int
@@ -35,24 +30,18 @@ public struct CandidateRotation: Equatable, Sendable {
         index = 0
     }
 
-    /// Compatibility view for tests and callers that only understand the old
-    /// host list. New dialing code uses `currentEndpoint` so it never loses a
-    /// route's HTTPS scheme or distinct port.
     public var hosts: [String] { endpoints.map(\.displayAddress) }
 
     public var currentEndpoint: CompanionEndpoint? {
         endpoints.indices.contains(index) ? endpoints[index] : nil
     }
 
-    /// The host the next attempt should dial. Empty only when there are no
-    /// hosts at all, which a real connection never produces.
     public var current: String {
         currentEndpoint?.displayAddress ?? ""
     }
 
     public var count: Int { endpoints.count }
 
-    /// Move to the next candidate and return it, wrapping past the end.
     @discardableResult
     public mutating func advance() -> String {
         advanceEndpoint()?.displayAddress ?? ""
@@ -98,13 +87,8 @@ public struct CandidateRotation: Equatable, Sendable {
     }
 }
 
-/// What to do with a connection failure: whether another stored address is
-/// worth trying, and what to tell the person watching the banner.
 public enum ConnectionAdvice {
-    /// True only for failures about the address — the name did not resolve,
-    /// nothing answered there, the route timed out. Everything else stays
-    /// put: a 401 is a token problem that every address would repeat, and
-    /// "offline" fails identically wherever the dial points.
+    // Unauthorized credentials must not trigger an address failover.
     public static func shouldTryAnotherHost(_ code: URLError.Code) -> Bool {
         switch code {
         case .cannotFindHost,
@@ -123,10 +107,6 @@ public enum ConnectionAdvice {
         }
     }
 
-    /// Classify errors which another advertised route can actually repair.
-    /// 502–504 are ordinary reverse-proxy failures; 520–530 are the gateway
-    /// family Cloudflare can return when a tunnel or its origin is unhealthy.
-    /// Application errors such as 400/401/500 deliberately stay put.
     public static func shouldTryAnotherRoute(after error: Error) -> Bool {
         if let urlError = error as? URLError {
             return shouldTryAnotherHost(urlError.code)
@@ -186,9 +166,7 @@ extension Connection {
         return kind == .hosted || allowedRouteKinds.contains(kind)
     }
 
-    /// Kind consent is sufficient for protected transports. A cleartext
-    /// route additionally has to be the exact origin shown for confirmation;
-    /// another address of the same LAN/Bonjour kind is not interchangeable.
+    // Cleartext routes require consent to the exact origin; the network kind alone is insufficient.
     public func allowsEndpoint(_ endpoint: CompanionEndpoint) -> Bool {
         guard allowsRouteKind(endpoint.kind) else { return false }
         guard endpoint.securityClass == .explicitLocal,
@@ -203,9 +181,7 @@ extension Connection {
         candidates.filter(allowsEndpoint)
     }
 
-    /// Bind a new pairing to the route the QR/manual choice actually selected.
-    /// Other fallback addresses in a typed invite are advisory, not fresh
-    /// consent. Hosted HTTPS is always retained as a safe future upgrade.
+    // Advisory fallback addresses do not grant consent to transmit a pairing credential over them.
     public mutating func establishRoutePolicyFromInvite() {
         let selected = activeEndpoint ?? CompanionEndpoint.direct(
             host: host,
@@ -223,8 +199,6 @@ extension Connection {
             allowedRouteKinds = [endpoint.kind, .hosted]
             allowedLocalRouteURLs = [endpoint.url]
         case nil:
-            // A valid Connection always has a direct representation, but
-            // fail closed to hosted if a corrupted value reaches this helper.
             allowedRouteKinds = [.hosted]
             allowedLocalRouteURLs = []
         }
@@ -248,15 +222,11 @@ extension Connection {
         }
         if let advertisedEndpoints, !advertisedEndpoints.isEmpty {
             let accepted = endpointsAllowedByRoutePolicy(advertisedEndpoints)
-            // Keep the invite's known-good selected route if a newer or
-            // compromised response contains only disallowed alternatives.
             if !accepted.isEmpty { endpoints = Array(accepted.prefix(8)) }
         }
     }
 
-    /// A hand-entered replacement is fresh, explicit consent. Reset rather
-    /// than widening the old policy: selected Tailscale permits Tailscale and
-    /// hosted, selected LAN/Bonjour permits that one kind and hosted.
+    // An address entered by the user grants fresh consent without widening the previous route policy.
     public mutating func resetRoutePolicy(selecting endpoint: CompanionEndpoint) {
         let previousEndpoints = orderedEndpoints
         allowedRouteKinds = [endpoint.kind, .hosted]
@@ -289,9 +259,6 @@ extension Connection {
         }
     }
 
-    /// Every legacy host this connection may dial, best first. A policy-bound
-    /// hosted connection can legitimately return an empty list because its
-    /// complete HTTPS endpoint lives in `orderedEndpoints` instead.
     public var orderedHosts: [String] {
         var seen = Set<String>()
         var out: [String] = []
@@ -329,9 +296,7 @@ extension Connection {
             if let activeEndpoint, !candidates.contains(where: { $0.url == activeEndpoint.url }) {
                 candidates.append(activeEndpoint)
             }
-            // Route policy is part of candidate selection, not a final display
-            // filter. A disallowed cleartext route must not trigger the trust
-            // ratchet and hoist an otherwise lower-priority protected route.
+            // An unconsented cleartext route cannot trigger promotion of another route.
             candidates = endpointsAllowedByRoutePolicy(candidates).enumerated().sorted {
                 $0.element.priority == $1.element.priority
                     ? $0.offset < $1.offset
@@ -405,9 +370,6 @@ extension Connection {
         }
     }
 
-    /// A copy dialing `candidate` — same pairing, same port, different
-    /// address. The stored order is untouched; committing a winner is
-    /// `promote`, and only success earns it.
     public func dialing(_ candidate: String) -> Connection {
         guard let endpoint = CompanionEndpoint.direct(host: candidate, port: port, priority: 10_000) else {
             return self
@@ -426,8 +388,6 @@ extension Connection {
         return copy
     }
 
-    /// `winner` becomes the host dialed first from now on — the one that just
-    /// carried traffic, or the one the user typed in by hand.
     public mutating func promote(_ winner: String) {
         let normalized = Self.urlHost(winner)
         guard let endpoint = CompanionEndpoint.direct(
@@ -441,8 +401,7 @@ extension Connection {
         activeEndpoint = endpoint
     }
 
-    /// Remember the route that worked without letting a cleartext fallback
-    /// jump ahead of a lower-priority hosted/tailnet route on the next launch.
+    // Cleartext fallback cannot outrank a protected hosted or tailnet route.
     public mutating func promote(_ winner: CompanionEndpoint) {
         guard allowsEndpoint(winner) else { return }
         activeEndpoint = winner

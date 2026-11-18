@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +40,6 @@ import com.openmausbot.companion.core.ConfigStatus
 import com.openmausbot.companion.core.VoiceProvider
 import kotlinx.coroutines.launch
 
-/** What Settings → Voice says and offers — the decisions of `ios/App/VoiceSettingsView.swift`. */
 object VoiceSettingsRules {
     const val HEADER: String = "Calls and spoken replies"
     const val HEADER_FOOTER: String = "Calls use the voice set up on your computer. Each bot's voice is chosen on its profile."
@@ -53,7 +53,6 @@ object VoiceSettingsRules {
 
     fun usesSystemVoices(status: ConfigStatus?): Boolean = status?.voiceProvider == VoiceProvider.SYSTEM
 
-    /** The key section is drawn only under ElevenLabs; the built-in engine has no key to enter. */
     fun showsKeyField(status: ConfigStatus?): Boolean = !usesSystemVoices(status)
 
     fun saveLabel(status: ConfigStatus?): String = if (status?.isTTSConfigured == true) "Replace key" else "Save key"
@@ -63,16 +62,7 @@ object VoiceSettingsRules {
     fun canRemove(status: ConfigStatus?, saving: Boolean): Boolean = !saving && status?.isTTSConfigured == true
 }
 
-/**
- * Voice: the key that lets a bot talk, set from the phone — the port of
- * `ios/App/VoiceSettingsView.swift`.
- *
- * The desktop has this under App Settings → Voice. The credential lives on
- * the computer, in the same config the desktop writes, so entering it here is
- * the same as entering it there: one PUT, the server checks the key against
- * ElevenLabs before saving, and the key never comes back in any response.
- * What the phone shows afterwards is only whether one is on file.
- */
+// Provider keys remain on the computer and are never returned in configuration responses.
 @Composable
 fun VoiceSettingsScreen(onBack: () -> Unit) {
     val session = LocalCompanion.current.session

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.activity.ComponentActivity
@@ -23,20 +24,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * Coming back from the browser has to re-read the inventory, and entering the
- * screen must not read it twice.
- *
- * Authorization finishes somewhere else — the system browser — so the answer
- * arrives while this screen is in the background. iOS refreshes on
- * `scenePhase == .active` (`ios/App/ConnectedAppsView.swift:90-92`); the Android
- * shape of that is a resume of the screen's own lifecycle owner.
- *
- * What proves it is the request, not a counter the screen keeps: the scene dials
- * a real socket, and this counts what arrived at `/api/connectors/connected`. A
- * screen that lost its resume effect, or one that fired it on entry as well,
- * changes that number.
- */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ConnectedAppsForegroundWiringTest {
@@ -114,7 +102,6 @@ class ConnectedAppsForegroundWiringTest {
 
     private fun asked(path: String): Int = hits[path]?.get() ?: 0
 
-    /** A lifecycle a test can drive, standing in for the screen's own. */
     private class ResumableOwner : LifecycleOwner {
         val registry = LifecycleRegistry(this).apply {
             currentState = Lifecycle.State.RESUMED

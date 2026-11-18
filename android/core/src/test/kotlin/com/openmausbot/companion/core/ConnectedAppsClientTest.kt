@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.coroutines.flow.emptyFlow
@@ -70,12 +71,6 @@ class ConnectedAppsClientTest {
             "Composio being unconfigured is knowledge, and only an unreadable store is not",
         )
 
-        // Only the exact string withdraws authority. The server writes it from
-        // one literal, so a variant is not a store we failed to read — it is a
-        // value this build does not recognise, and the contract says an
-        // unrecognised answer still answers. Without these two the rule accepts
-        // a silent widening: `equals(ignoreCase = true)`, or "anything that is
-        // not ok is unavailable", would both pass on the cases above alone.
         listOf("Unavailable", "UNAVAILABLE", "unavailable ", "degraded", "", "unknown")
             .forEach { value ->
                 val decoded = CompanionJson.decodeFromString<ConnectorStatuses>(

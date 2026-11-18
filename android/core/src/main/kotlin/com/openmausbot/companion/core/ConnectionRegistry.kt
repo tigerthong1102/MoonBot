@@ -1,11 +1,8 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.serialization.Serializable
 
-/**
- * Backup-safe list of paired computers. Device tokens remain in [TokenStore],
- * keyed by [Connection.id], and therefore never appear in this value.
- */
 @Serializable
 data class ConnectionRegistry(
     val connections: List<Connection> = emptyList(),
@@ -62,13 +59,11 @@ data class ConnectionRegistry(
     }
 }
 
-/** Result of reading v1 registry data or transparently lifting the old record. */
 data class ConnectionRegistryRestore(
     val registry: ConnectionRegistry,
     val migratedLegacyConnection: Boolean,
 )
 
-/* Lets the repair paths build a validated registry without duplicating checks. */
 private data class ConnectionRegistryUnchecked(
     val connections: List<Connection>,
     val active: String?,

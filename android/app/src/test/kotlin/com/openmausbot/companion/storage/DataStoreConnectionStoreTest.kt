@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.storage
 
 import android.content.Context
@@ -105,8 +106,6 @@ class DataStoreConnectionStoreTest {
     @Test
     fun theOldSingleRecordIsLiftedIntoTheRegistry() = runTest {
         val file = preferencesFile("legacy-lift")
-        // An old install left only KEY; save() no longer writes it, so plant it
-        // the way a pre-v1 build would have.
         relaunch(file)
         writeLegacyKey(pro)
 
@@ -122,11 +121,8 @@ class DataStoreConnectionStoreTest {
     fun aCorruptRegistryHasNoLegacyRecordLeftToFallBackOn() = runTest {
         val file = preferencesFile("corrupt-v1")
         val store = relaunch(file)
-        // Plant KEY the way a pre-v1 build would have; save() never writes it,
-        // so only saveRegistry's prefs.remove(KEY) can clear this fall-back.
         writeLegacyKey(air)
         store.saveRegistry(ConnectionRegistry(listOf(pro), pro.id))
-        // The removal is the guard: without it the corrupt read below finds `air`.
         assertNull(rawPreferences()[DataStoreConnectionStore.KEY])
         corruptTheRegistry()
 
@@ -148,7 +144,6 @@ class DataStoreConnectionStoreTest {
 
         val restored = relaunch(file).loadRegistry()
 
-        // save() never rewrote KEY, so a corrupt v1 has nothing left to lift.
         assertEquals(emptyList(), restored.registry.connections)
         assertNull(restored.registry.activeConnectionId)
         assertFalse(restored.migratedLegacyConnection)
@@ -165,8 +160,6 @@ class DataStoreConnectionStoreTest {
 
         val restored = relaunch(file).loadRegistry()
 
-        // save() upserts the active record into v1; the second computer stays,
-        // the rename is visible, and KEY was never written.
         assertEquals(listOf("air", "pro"), restored.registry.connections.map(Connection::id))
         assertEquals("Air at home", restored.registry.connection("air")?.name)
         assertEquals("air", restored.registry.activeConnectionId)
@@ -174,7 +167,6 @@ class DataStoreConnectionStoreTest {
         assertFalse(restored.migratedLegacyConnection)
     }
 
-    /** Field by field, because the v1 encode is what is under test. */
     private fun assertRestored(expected: Connection, actual: Connection?) {
         val restored = requireNotNull(actual) { "${expected.id} did not come back" }
         assertEquals(expected.name, restored.name)

@@ -1,6 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
-/** The exact conversation a retry-safe shared message belongs to. */
 sealed interface MessageDestination {
     val id: String
     val threadId: String
@@ -11,7 +11,6 @@ sealed interface MessageDestination {
 
 enum class SharedAttachmentKind { IMAGE, FILE }
 
-/** A Mac-local path returned by the computer, never a phone content URI. */
 data class SharedAttachmentReference(
     val path: String,
     val kind: SharedAttachmentKind,
@@ -20,7 +19,6 @@ data class SharedAttachmentReference(
 
 data class UploadedFile(val path: String, val name: String)
 
-/** Pure prompt composer shared by Android's incoming-share UI and client tests. */
 object SharedMessageComposer {
     fun compose(
         instruction: String,

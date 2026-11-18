@@ -1,6 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 
-/// One folder's visible threads, or the unfiled threads after the folders.
 public struct BotThreadGroup: Identifiable, Hashable, Sendable {
     public let project: BotProject?
     public let tasks: [BotTask]
@@ -16,14 +16,9 @@ extension BotTask {
 }
 
 extension Bot {
-    /// Saved folder order and server thread order are preserved. Missing
-    /// folders leave their threads accessible in the unfiled group.
-    /// A folder-name search keeps all of that folder's visible threads.
     public func threadGroups(matching query: String = "") -> [BotThreadGroup] {
         let threads: [BotTask]
         if tasks == nil {
-            // Older computers have one conversation but no task metadata.
-            // An explicitly empty modern list must stay empty.
             threads = [BotTask(
                 threadId: threadId, title: "", createdAt: createdAt,
                 modelSelection: modelSelection, busy: busy, unread: unread,

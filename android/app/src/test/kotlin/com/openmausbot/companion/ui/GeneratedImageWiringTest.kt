@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import android.graphics.Bitmap
@@ -93,7 +94,6 @@ class GeneratedImageWiringTest {
         val imageNode = compose.onNodeWithContentDescription("Image attachment: screenshot.png. Tap to preview.")
         imageNode.assertDoesNotExist()
         compose.runOnIdle {
-            // Same message ID and text, as in the server's late message patch.
             shown.value = original.copy(attachments = listOf(MessageImageAttachment("image", "/fixture/screenshot.png", "image/png")))
         }
         imageNode.assertIsDisplayed()

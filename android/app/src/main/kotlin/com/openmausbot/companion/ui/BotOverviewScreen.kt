@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.layout.Arrangement
@@ -31,16 +32,6 @@ import com.openmausbot.companion.R
 import com.openmausbot.companion.core.BotOverview
 import kotlinx.coroutines.launch
 
-/**
- * "What this bot does" — a read-only, server-authored explanation of one bot's
- * standing configuration. The port of the same explanation
- * `ios/App/AgentProfileView.swift` opens from the profile sheet.
- *
- * Nothing here is editable. Identity, notifications and voice stay on
- * [AgentProfileSheet]; this screen only asks the paired computer what it wrote
- * about the agent and shows the sentences back — who it is, what it does, what
- * it can reach, what it refuses, and its most recent changes.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BotOverviewScreen(botId: String, onBack: () -> Unit) {
@@ -147,9 +138,6 @@ private fun OverviewBody(overview: BotOverview) {
         }
     }
 
-    // No empty-state copy on either phone: the server sends this only when
-    // there is something to say, and an empty list here is just a header
-    // with nothing under it (`ios/App/BotOverviewView.swift:39-43`).
     FormSection(header = OverviewRules.REACHES) {
         overview.reaches.forEach { line ->
             IconNote(text = line, painter = R.drawable.ic_hub)

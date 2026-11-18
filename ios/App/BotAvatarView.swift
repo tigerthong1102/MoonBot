@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import UIKit
 import CompanionCore
@@ -9,7 +10,6 @@ struct BotAvatarView: View {
     let bot: Bot
     let size: CGFloat
     var state: MausState = .idle
-    /// Opt-in, mirroring MausAvatar: an animated face is a 30fps canvas.
     var animated = false
     var comets = false
 
@@ -18,9 +18,6 @@ struct BotAvatarView: View {
     @State private var failed = false
 
     private var crop: AvatarCrop { bot.avatarCrop ?? .mascot }
-    /// Which of the two renderings this bot gets. The decision itself is a
-    /// pure function in `CompanionCore` so it can be tested without a
-    /// rendered `Canvas`; see `resolveBotAvatarOutcome`.
     private var outcome: BotAvatarOutcome {
         resolveBotAvatarOutcome(
             crop: crop, hasUrl: bot.avatarUrl != nil, imageDecoded: image != nil, failed: failed)
@@ -29,11 +26,7 @@ struct BotAvatarView: View {
     var body: some View {
         Group {
             switch outcome {
-            // The picture instead of the mascot, masked to the chosen shape.
             case .flatImage: flatImage
-            // The mascot in the bot's own colours, which is also the fallback
-            // whenever there is no usable picture so identity is never an
-            // empty placeholder.
             case .gradientMascot: mascot
             }
         }
@@ -43,7 +36,6 @@ struct BotAvatarView: View {
         .task(id: "\(bot.avatarUrl ?? "")|\(crop.rawValue)") {
             image = nil
             failed = false
-            // Only the flat crops paint the bytes; the mascot never needs them.
             guard crop != .mascot, bot.avatarUrl != nil else { return }
             let data = await session.avatarData(for: bot)
             guard !Task.isCancelled else { return }
@@ -70,8 +62,6 @@ struct BotAvatarView: View {
         }
     }
 
-    /// An animated GIF or WebP becomes an animated `UIImage`; everything else
-    /// — and anything whose frames will not decode — stays a still.
     private static func decode(_ data: Data) -> UIImage? {
         if let animation = AnimatedImageDecoder.decode(data) {
             let frames = animation.frames.map { UIImage(cgImage: $0) }
@@ -82,8 +72,6 @@ struct BotAvatarView: View {
         return UIImage(data: data)
     }
 
-    /// Only reached with a decoded image: `resolveBotAvatarOutcome` returns
-    /// `.flatImage` solely when one exists.
     @ViewBuilder private var flatImage: some View {
         if let image {
             attachment(image)
@@ -137,7 +125,6 @@ struct ChatAvatarView: View {
     let chat: Chat
     let size: CGFloat
     var state: MausState = .idle
-    /// Opt-in, mirroring MausAvatar: an animated face is a 30fps canvas.
     var animated = false
     var comets = false
 

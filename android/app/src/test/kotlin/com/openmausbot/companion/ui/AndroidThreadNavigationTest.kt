@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.activity.ComponentActivity
@@ -59,9 +60,6 @@ import org.robolectric.annotation.Config
 class AndroidThreadNavigationTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>(
-        // The header mascot normally requests frames continuously. Exercise
-        // its native reduce-motion path so autoAdvance can reach idle without
-        // generating an unbounded Robolectric trace queue.
         effectContext = object : MotionDurationScale { override val scaleFactor = 0f },
     )
 
@@ -183,8 +181,6 @@ class AndroidThreadNavigationTest {
             scene.session.disconnect()
             scene.session.connect()
         }
-        // The new Hello cannot resume: fleet hydration only contains the
-        // desktop-active first thread. Keep the second chat on screen throughout.
         compose.waitUntil(5_000) { scene.streamStarts.get() == 2 }
         compose.waitUntil(5_000) {
             compose.onAllNodesWithText("Recovered after reconnect").fetchSemanticsNodes().isNotEmpty()

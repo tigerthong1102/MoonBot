@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.runtime.Composable
@@ -11,10 +12,6 @@ import com.openmausbot.companion.core.nextSnoozeExpiry
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
-/**
- * The snooze presets behind the thread sheet's clock — `onSnooze` in
- * `SidebarThreadRow.tsx`, worded as `src/locales/en.json` words them.
- */
 object SnoozeRules {
     const val UNTIL_NEW_ACTIVITY = "Until new activity"
     const val UNTIL_SIX_PM = "Until 6 PM"
@@ -26,7 +23,6 @@ object SnoozeRules {
         SIX_PM(UNTIL_SIX_PM),
         NINE_AM_TOMORROW(UNTIL_NINE_AM_TOMORROW);
 
-        /** Resolve at selection time, even if the menu has been open overnight. */
         fun until(now: Long): Long = when (this) {
             NEW_ACTIVITY -> 0L
             SIX_PM -> sixPm(now)
@@ -34,22 +30,12 @@ object SnoozeRules {
         }
     }
 
-    /**
-     * The presets, in the desktop's order: activity first, then time. The
-     * sentinel travels as 0; the times are epoch milliseconds.
-     */
     val presets: List<Preset> = Preset.entries
 
-    /** Tonight's 6 PM, or tomorrow's once tonight's has already passed. */
     fun sixPm(now: Long): Long = atHour(now, daysAhead = 0, hour = 18, rollPastNow = true)
 
-    /** Tomorrow morning at 9 local: a clean overnight break. */
     fun nineAmTomorrow(now: Long): Long = atHour(now, daysAhead = 1, hour = 9, rollPastNow = false)
 
-    /**
-     * Local on purpose: it is the person's evening and the person's morning;
-     * the server stores the absolute moment either way.
-     */
     private fun atHour(now: Long, daysAhead: Int, hour: Int, rollPastNow: Boolean): Long {
         val calendar = Calendar.getInstance().apply {
             timeInMillis = now
@@ -64,12 +50,6 @@ object SnoozeRules {
     }
 }
 
-/**
- * A timed snooze ends on the wall clock, not on a server ping: a `now` that
- * re-reads the clock when the nearest expiry passes (`useSnoozeExpiry` in
- * `SidebarThreadRow.tsx`), so a row folds back in without waiting for the
- * next snapshot. The 0 sentinel never ticks and schedules nothing.
- */
 @Composable
 fun rememberSnoozeNow(tasks: List<BotTask>): Long {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }

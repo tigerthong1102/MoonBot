@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 
 public struct SQLResultTableView: View {
@@ -24,7 +25,6 @@ public struct SQLResultTableView: View {
         let isDark = colorScheme == .dark
 
         VStack(alignment: .leading, spacing: 8) {
-            // Header
             HStack {
                 HStack(spacing: 5) {
                     Image(systemName: "tablecells.fill")
@@ -46,7 +46,6 @@ public struct SQLResultTableView: View {
                     .clipShape(Capsule())
             }
 
-            // Raw Query if present
             if let query = rawQuery, !query.isEmpty {
                 Text(query)
                     .font(.system(size: 10, design: .monospaced))
@@ -57,10 +56,8 @@ public struct SQLResultTableView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
-            // Scrollable Grid
             ScrollView(.horizontal, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 4) {
-                    // Column Headers
                     HStack(spacing: 12) {
                         ForEach(Array(columns.enumerated()), id: \.offset) { _, col in
                             Text(col.uppercased())
@@ -73,7 +70,6 @@ public struct SQLResultTableView: View {
 
                     Divider().background(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
 
-                    // Rows
                     ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                         HStack(spacing: 12) {
                             ForEach(Array(columns.indices), id: \.self) { colIdx in
@@ -91,7 +87,6 @@ public struct SQLResultTableView: View {
 
             Divider().background(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
 
-            // Footer
             HStack {
                 Button {
                     let csv = ([columns] + rows)

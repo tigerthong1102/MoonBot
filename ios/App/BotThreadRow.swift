@@ -1,7 +1,7 @@
+// Modified for StartupBot; original copyright and license retained.
 import CompanionCore
 import SwiftUI
 
-/// The compact thread label shared by the roster and the thread picker.
 struct BotThreadRow: View {
     let task: BotTask
     var selected = false

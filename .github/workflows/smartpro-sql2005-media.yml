@@ -1,0 +1,21 @@
+name: Smart Pro SQL 2005 installation media
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/business-connectors/lab/verify-sql2005-media.ps1
+      - scripts/business-connectors/lab/check-sql2005-catalog.ps1
+      - .github/workflows/smartpro-sql2005-media.yml
+permissions:
+  contents: read
+jobs:
+  verify-media:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify catalog bytes and test Windows publisher trust without executing the installer
+        shell: powershell
+        run: ./scripts/business-connectors/lab/check-sql2005-catalog.ps1

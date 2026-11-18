@@ -13,3 +13,9 @@ Collector dùng Windows PowerShell 5.1, registry HKLM/HKCU và Service Control M
 Kết quả có `connection: "untested"` trong mọi trường hợp. Công cụ chưa được gắn vào MCP, Skills, menu hay bộ cài khách hàng. Không có hoạt động mạng, truy vấn SQL hoặc thay đổi cấu hình.
 
 Chạy lại fixture đa nền tảng bằng `node --test scripts/business-connectors/discovery.fixture.ts`. Workflow **Windows business discovery** còn đối chiếu kết quả của CLI với Service Control Manager trên runner Windows dùng một lần. Bằng chứng này chỉ áp dụng cho các nguồn mà runner có.
+
+## Phòng thử compatibility
+
+Chạy cả hai bộ fixture bằng `node --test scripts/business-connectors/*.fixture.ts`. Bộ thứ hai phân loại metadata engine và SQLSTATE/native code tổng hợp. Không suy ra quyền truy cập từ generation hay compatibility level của DB.
+
+Trên GitHub-hosted Windows runner, workflow còn tạo các khóa registry giả dưới HKCU để kiểm đường đọc kiểu SQL 2000 và 2005. Sau đó, nếu runtime LocalDB có sẵn, tạo instance tên ngẫu nhiên dành riêng cho lần chạy, mở Windows Integrated Authentication, kiểm transport cục bộ, chạy một SELECT cố định và xóa instance trong finally. Các giá trị decimal có scale, mã số 0 đầu và tiếng Việt được đối chiếu sau khi truyền tới Node. Đây là phiên LocalDB thuộc tài khoản dựng fixture. Chứng minh phân quyền read-only, TCP/TLS, dữ liệu của phần mềm gốc và hệ thống SQL 2005 thật cần các thí nghiệm khác.

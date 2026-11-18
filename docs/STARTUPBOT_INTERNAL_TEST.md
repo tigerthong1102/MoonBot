@@ -66,7 +66,7 @@ merge mã nguồn hoặc artifact nội bộ không phải kết luận được
 
 ## Branding và nâng cấp dữ liệu
 
-Bản `0.1.161-internal.20261118.2` thay tên sản phẩm trong UI, thông báo,
+Bản `0.1.161-internal.20261118.3` thay tên sản phẩm trong UI, thông báo,
 locale, prompt và companion. Helper mặc định đã được đánh dấu và còn mang tên
 nhà máy cũ được đổi sang StartupBot; giữ nguyên ID, lịch sử, model, quyền và
 avatar do người dùng chọn. Bot thường và helper đã đặt tên riêng được giữ nguyên.
@@ -88,3 +88,8 @@ Gate đóng gói phải đi qua onboarding thật, mở chat helper và kiểm t
 StartupBot trong renderer, sau đó tạo agent và thử hội thoại bằng engine fixture.
 Bằng chứng đó không thay thế kiểm thử model trả phí, Computer Use tương tác thật,
 hoặc kiểm thử trên điện thoại vật lý. Kết quả theo SHA nằm trong artifact từng run.
+
+Bản v3 giữ bộ lọc chống giả mạo cho cả nhãn StartupBot và định dạng cũ, đồng thời
+giữ lựa chọn ẩn helper khỏi sidebar. Không dùng v2 cho agent xử lý nội dung web
+hoặc tệp không tin cậy. Chỉ dùng artifact v3 khi có smoke PASS cùng phiên bản
+và SHA; không lấy kết quả kiểm thử bản trước làm bằng chứng cho bản mới.

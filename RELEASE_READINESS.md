@@ -2,28 +2,56 @@
 
 ## Internal desktop acceptance — 2026-11-18
 
-Windows installer at `b2e9277f1886bf9746cfcf5b816205a71b1025c9`: **PASS**
-in [workflow 44207302570](https://github.com/tigerthong1102/MoonBot/actions/runs/44207302570).
-The Windows job built the EXE, silently installed into a disposable directory,
-launched the installed app, completed onboarding and branded helper checks,
-ran isolated fake-engine agent/chat, verified private data/credentials and HTTP
-authorization, and passed bundled browser/server smokes. Download the real
-[Windows INTERNAL artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44207302570/artifacts/14384731503).
-It is unsigned internal software, not a public or commercial release.
+PR #1 is merged at `cd139d78c98c74797c1b07c9f0476f64664199d5`.
+Internal desktop work is isolated on `build/startupbot-internal-desktop-20261118`;
+its changes are not merged and no release is published. Historical sections
+below record earlier gates; they do not override this current status.
 
-The macOS job in that same run **FAILS** because the branding AST scan exceeds
-its 20-second test budget on the Intel runner (27 seconds). Optimize discovery
-by skipping source without either a retired name or escaped characters before
-parsing it; retain every literal assertion and the unchanged timeout. Local
-branding, packaging and three index regressions pass after the correction
-(8 focused cases; unrelated index cases not rerun). Select macOS alone for the
-next build so the successful Windows installer job is not rebuilt.
+Version 2 Windows installation/onboarding/chat and bundled browser/server
+smokes **PASS** at `b2e9277f1886bf9746cfcf5b816205a71b1025c9` in
+[44207302570](https://github.com/tigerthong1102/MoonBot/actions/runs/44207302570).
+The macOS-only successor **PASS** at `d30be5c7f0d94eea83707c4ab936bbe3370ada67`
+in [44208517644](https://github.com/tigerthong1102/MoonBot/actions/runs/44208517644):
+both DMGs build and the Intel DMG installs/launches on its native runner.
 
-The arm64 app was also built and launched locally through real onboarding;
-the helper has StartupBot's name and supplied logo. That local evidence does
-not make the failed remote macOS job green. Broader changed-file testing is
-still running; the independent CryptoKit HPKE-envelope regression passes and
-its v1 domain separator remains unchanged. Native mobile acceptance is separate.
+**Use version 3 rather than version 2 for agents handling untrusted content.**
+Broader regression testing found that several security-marker parsers still
+recognized only the former product name. Version 3 accepts StartupBot and the
+legacy marker/error formats, preserves Unicode/lookalike defusing, retains
+private helper naming and hidden-sidebar preferences, and handles canceled
+avatar-animation promises. The metadata gate rejects stale installers and
+smoke evidence from a different version. No authorization check is relaxed.
+
+Local corrected-source verification: 738 tests PASS in the first 25-file batch
+with two offer-fixture failures subsequently corrected; 352 tests PASS across
+nine security/helper/protocol files; 46 parser/health tests PASS, including
+legacy formats; 603 Electron Vitest tests PASS with four platform skips; 30
+branding/package/metadata tests PASS; ten focused server prompt tests PASS.
+Batches overlap. Lint, typecheck and package preparation PASS. An initial Node
+invocation incorrectly included Vitest files and failed due to the wrong test
+runner; it is not functional evidence. The correct Node runner subsequently passes 2,144 tests with 13 platform skips.
+Final artifact evidence must still be checked before approval.
+
+Version 3 packaging, installed ARM64 smoke and final-SHA Windows/macOS workflow
+results are required before promoting its artifacts. Never infer a final-SHA
+PASS from version 2. The source-wide test attempt before these fixes had 56
+failures and eight animation rejections; it is not a full-suite PASS. Focused
+regressions have corrected the confirmed causes; exact-head full CI remains a
+separate merge gate. Main's post-merge Windows app-trigger fixture failure in
+44193721059 has no established root cause and is not declared flaky or fixed.
+
+Native mobile work is separate on `build/startupbot-internal-mobile-20261118`.
+iOS 402 core tests PASS and the universal simulator app builds, but launch was
+rejected by SpringBoard in 44210771414; diagnosis is ongoing. Android core/app
+unit tests and APK/AAB builds PASS, but emulator startup failed in 44212644913
+because AVD creation and lookup used different locations. The explicit-directory
+fix requires a new emulator acceptance result. Neither mobile artifact is
+qualified for use yet. The owner's chosen iOS scope is Simulator only.
+
+No public release, commercial clearance, real-provider acceptance, physical
+mobile pairing matrix, actual macOS Computer Use or notarization is claimed.
+Keychain/profile isolation, updater disabled state and author attribution remain
+release invariants.
 
 ## Reservation and cookie-cache follow-up from f61a2b1fa
 

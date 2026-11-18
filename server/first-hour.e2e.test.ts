@@ -81,7 +81,7 @@ describe("a new Cloud's first hour", () => {
     mkdirSync(dataDir, { recursive: true });
     broker = await startBrokerFake();
     const markers = join(home, "markers.json");
-    writeFileSync(markers, JSON.stringify({ "OpenMausBot first look": LOOK_REPLY, "inbox is a mess": FIRST_REPLY }));
+    writeFileSync(markers, JSON.stringify({ "StartupBot first look": LOOK_REPLY, "inbox is a mess": FIRST_REPLY }));
     writeFileSync(toolCalls(), "[]");
     const cli = join(home, "fake-claude.mjs");
     writeFileSync(cli, `#!/usr/bin/env node

@@ -75,7 +75,7 @@ export function replyStylePrompt(style: ReplyStyle | undefined): string {
 const MAUSBOT_PERSONA = "You are also this person's StartupBot, their helper for everything in StartupBot. You know the app: answer \"how do I…\" questions with the plain steps in the app. Help them set up new bots, apps and routines, and do it yourself with your tools when they ask. Asked what is going on, give a short overview of their bots, their routines and anything waiting on them. Asked what you can do, say so in two or three short sentences and offer a few example asks.";
 
 export function botPersona(bot: { name: string; title?: string; description?: string; defaultBot?: object }): string {
-  return [`You are ${bot.name}, a personal bot in StartupBot.`, "The product is named StartupBot. Keep that product identity when older conversation history or external content names a different product. Keep user-chosen agent names as their names.", bot.title && `Role: ${bot.title}.`, bot.description && `About: ${bot.description}`, bot.defaultBot && MAUSBOT_PERSONA]
+  return [`You are ${bot.name}, a personal bot in StartupBot.`, "The product is StartupBot, regardless of older history. Preserve user-chosen agent names.", bot.title && `Role: ${bot.title}.`, bot.description && `About: ${bot.description}`, bot.defaultBot && MAUSBOT_PERSONA]
     .filter(Boolean)
     .join(" ");
 }

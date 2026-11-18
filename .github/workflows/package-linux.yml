@@ -103,22 +103,22 @@ jobs:
         run: |
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
-          appimage="release/OpenMausBot-${version}-x86_64.AppImage"
-          deb="release/OpenMausBot-${version}-amd64.deb"
+          appimage="release/StartupBot-${version}-x86_64.AppImage"
+          deb="release/StartupBot-${version}-amd64.deb"
           test -f "$appimage"
           test -f "$deb"
-          cp "$appimage" release/OpenMausBot.AppImage
-          cp "$deb" release/OpenMausBot-amd64.deb
-          chmod 0755 release/OpenMausBot.AppImage
+          cp "$appimage" release/StartupBot.AppImage
+          cp "$deb" release/StartupBot-amd64.deb
+          chmod 0755 release/StartupBot.AppImage
           (
             cd release
             sha256sum \
               "$(basename "$appimage")" \
               "$(basename "$deb")" \
-              OpenMausBot.AppImage \
-              OpenMausBot-amd64.deb > SHA256SUMS-ubuntu-x64.txt
+              StartupBot.AppImage \
+              StartupBot-amd64.deb > SHA256SUMS-ubuntu-x64.txt
           )
-          echo "artifact-name=openmausbot-ubuntu-${version}-x64" >> "$GITHUB_OUTPUT"
+          echo "artifact-name=StartupBot-ubuntu-${version}-x64" >> "$GITHUB_OUTPUT"
           echo "version: $version"
           echo "commit:  $(git rev-parse HEAD)"
           cat release/SHA256SUMS-ubuntu-x64.txt
@@ -126,7 +126,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: openmausbot-ubuntu-smoke-diagnostics
+          name: StartupBot-ubuntu-smoke-diagnostics
           path: |
             /tmp/omb-linux-smoke-*
             /tmp/omb-linux-smoke-runtime-*
@@ -137,10 +137,10 @@ jobs:
         with:
           name: ${{ steps.release.outputs.artifact-name }}
           path: |
-            release/OpenMausBot-*-amd64.deb
-            release/OpenMausBot-*-x86_64.AppImage
-            release/OpenMausBot-amd64.deb
-            release/OpenMausBot.AppImage
+            release/StartupBot-*-amd64.deb
+            release/StartupBot-*-x86_64.AppImage
+            release/StartupBot-amd64.deb
+            release/StartupBot.AppImage
             release/SHA256SUMS-ubuntu-x64.txt
           if-no-files-found: error
           retention-days: 14
@@ -165,7 +165,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Verify StartupBot branding and native icon assets
-        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
+        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
       - run: pnpm package:prepare
       - run: pnpm build:speech && pnpm build:cua
       - run: pnpm exec electron-builder --config electron-builder.internal.yml --mac dmg --arm64 --x64 --publish never
@@ -225,7 +225,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Verify StartupBot branding and native icon assets
-        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
+        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
       - run: pnpm package:prepare
       - run: pnpm build:cua:win
       - run: pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never

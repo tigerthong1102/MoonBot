@@ -57,6 +57,23 @@ describe("StartupBot, every person's helper", () => {
     expect(store.bot(userAgent.id)?.name).toBe("MausBot");
   });
 
+  it("keeps a legacy factory helper hidden during automatic branding migration", () => {
+    const store = new Store(selection);
+    const legacy = store.createBot({ name: "MausBot", color: "blue" });
+    store.patchBot(legacy.id, { defaultBot: {}, sidebarHidden: true, welcomed: true });
+    expect(boot(store)).toMatchObject({ id: legacy.id, name: "StartupBot", sidebarHidden: true, welcomed: true });
+  });
+
+  it("does not derive a person's helper name from another person's private bot names", () => {
+    const store = new Store(selection);
+    const alice = ensureDefaultBot(store, { dataDir: DATA_DIR, person: "alice@example.test" })!;
+    const bob = ensureDefaultBot(store, { dataDir: DATA_DIR, person: "bob@example.test" })!;
+    store.patchBot(bob.id, { name: "MausBot" });
+    const migrated = ensureDefaultBot(store, { dataDir: DATA_DIR, person: "bob@example.test" })!;
+    expect(migrated).toMatchObject({ id: bob.id, name: "StartupBot", defaultBot: { person: "bob@example.test" } });
+    expect(store.bot(alice.id)).toEqual(alice);
+  });
+
   it.each([true, false])("does not collide with an existing StartupBot when the legacy helper is marked=%s", (marked) => {
     const store = new Store(selection);
     const legacy = store.createBot({ name: "MausBot", color: "silver" });

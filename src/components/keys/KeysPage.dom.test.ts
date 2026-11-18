@@ -369,11 +369,12 @@ describe("the Ollama row", () => {
 });
 
 describe("Boat's credit offer on the Boat card", () => {
+  beforeEach(() => { BOAT_OFFER.until = null; });
   const offer = () => row("box")!.querySelector<HTMLElement>("[data-boat-offer]");
   const buttons = () => [...offer()!.querySelectorAll<HTMLButtonElement>("button")];
   const openComputers = () => flushSync(() => section("computers").querySelector<HTMLButtonElement>("button[aria-expanded]")!.click());
   afterEach(() => {
-    BOAT_OFFER.until = null;
+    BOAT_OFFER.until = 0;
     applyBrand({ brand: DEFAULT_BRAND, source: "default", file: "" });
     delete (window as unknown as { ogb?: unknown }).ogb;
     vi.unstubAllGlobals();
@@ -416,7 +417,7 @@ describe("Boat's credit offer on the Boat card", () => {
     BOAT_OFFER.until = Date.now() - 1;
     page();
     expect(row("box")).not.toBeNull(); expect(offer()).toBeNull();
-    BOAT_OFFER.until = null;
+    BOAT_OFFER.until = 0;
     applyBrand({ brand: { name: "Acme Bots" }, source: "file", file: "brand.json" });
     page();
     expect(row("box")).not.toBeNull(); expect(offer()).toBeNull();

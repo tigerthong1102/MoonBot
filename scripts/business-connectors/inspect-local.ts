@@ -22,7 +22,11 @@ async function main() {
     command.child.stdin?.end();
     ({ stdout } = await command);
   } catch (error) {
-    if (error && typeof error === "object" && "killed" in error && error.killed) throw new Error("inventory-timeout");
+    if (error && typeof error === "object" && "killed" in error && error.killed) {
+      const stderr = "stderr" in error && typeof error.stderr === "string" ? error.stderr : "";
+      const stage = stderr.match(/^probe-stage-(services|instances|applications|serialize)\r?$/gm)?.at(-1)?.trim() ?? "startup";
+      throw new Error("inventory-timeout/" + stage);
+    }
     throw new Error("inventory-unavailable");
   }
   let report;

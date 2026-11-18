@@ -68,6 +68,7 @@ function Read-Applications($base) {
     } finally { $uninstall.Dispose() }
 }
 
+[Console]::Error.WriteLine('probe-stage-services')
 try {
     foreach ($svc in (Get-Service -Name 'MSSQL*','SQLBrowser' -ErrorAction SilentlyContinue -ErrorVariable serviceErrors)) {
         $name = $svc.Name
@@ -87,6 +88,7 @@ foreach ($view in $views) {
         $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, $view)
         try {
             if ($hive -eq 'LocalMachine') {
+                [Console]::Error.WriteLine('probe-stage-instances')
                 try { Read-Instances $base $view } catch { [void]$issues.Add('instance-registry') }
                 try {
                     $drivers = $base.OpenSubKey('SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers')
@@ -107,9 +109,11 @@ foreach ($view in $views) {
                     }
                 } catch { [void]$issues.Add('client-registry') }
             }
+            [Console]::Error.WriteLine('probe-stage-applications')
             try { Read-Applications $base } catch { [void]$issues.Add('applications') }
         } finally { $base.Dispose() }
     }
 }
 
+[Console]::Error.WriteLine('probe-stage-serialize')
 @{ schema = 1; observations = $observations.ToArray(); issues = @($issues) } | ConvertTo-Json -Depth 4 -Compress

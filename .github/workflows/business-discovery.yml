@@ -19,6 +19,11 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - run: node --test scripts/business-connectors/discovery.fixture.ts
+      - name: Check the Windows PowerShell collector on the disposable runner
+        shell: powershell
+        run: |
+          $inventory = & ./scripts/business-connectors/windows-inventory.ps1 | ConvertFrom-Json
+          if ($inventory.schema -ne 1) { throw "Unexpected inventory schema" }
       - name: Compare local inventory with the disposable runner's service manager
         shell: pwsh
         run: |

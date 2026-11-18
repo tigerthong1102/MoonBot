@@ -1,6 +1,4 @@
-// Pinned to the platform-tools revision present in StartupBot's audited internal installers.
 // Source: https://dl.google.com/android/repository/repository2-3.xml (platform-tools, 37.0.1).
-// Archive sizes and SHA-1 were independently matched against Google's index before hashing.
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";

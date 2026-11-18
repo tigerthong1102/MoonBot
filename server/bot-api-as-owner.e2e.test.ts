@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { readdirSync, readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { connect, type Socket } from "node:net";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -84,9 +84,8 @@ it("runs a marked key's thread at the bot's level as the owner's work, keeps the
   expect(readAfterRevocation.status).toBe(403);
   const refused = await call(on.url, on.key, { message: "More", thread: task.threadId });
   expect(refused.status).toBe(403);
-  const activity = readdirSync(join(dataDir, "admin-activity")).map((name) => readFileSync(join(dataDir, "admin-activity", name), "utf8")).join("\n");
-  expect(activity).toContain("bot-api.acts-as-owner.on");
-  expect(activity).toContain("bot-api.acts-as-owner.off");
+  const actions = ((await api("GET", "/api/admin-activity?what=all")).entries as Array<{ action?: string }>).map((entry) => entry.action);
+  expect(actions).toEqual(expect.arrayContaining(["bot-api.acts-as-owner.on", "bot-api.acts-as-owner.off"]));
 
   expect(await api("POST", `/api/bots/${bot.id}/bot-api/acts-as-owner`, { enabled: true })).toMatchObject({ actsAsOwner: true });
   const status = async () => (await api("GET", `/api/bots/${bot.id}/bot-api`)) as { actsAsOwner: boolean; mayActAsOwner: boolean };

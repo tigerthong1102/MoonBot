@@ -116,4 +116,7 @@ foreach ($view in $views) {
 }
 
 [Console]::Error.WriteLine('probe-stage-serialize')
-@{ schema = 1; observations = $observations.ToArray(); issues = @($issues) } | ConvertTo-Json -Depth 4 -Compress
+[void][Reflection.Assembly]::Load('System.Web.Extensions, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35')
+$serializer = [System.Web.Script.Serialization.JavaScriptSerializer]::new()
+$report = @{ schema = 1; observations = $observations.ToArray(); issues = @($issues) }
+[Console]::Out.WriteLine($serializer.Serialize($report))

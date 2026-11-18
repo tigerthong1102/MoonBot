@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for StartupBot; original copyright and license retained. -->
+<resources>
+    <!-- Android displays the window background before the first Compose frame. -->
+    <style name="Theme.StartupBot" parent="android:Theme.Material.NoActionBar" />
+</resources>

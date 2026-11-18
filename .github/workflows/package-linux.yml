@@ -3,6 +3,23 @@ name: Internal package verification
 on:
   workflow_dispatch:
     inputs:
+      ios_runner:
+        description: "Standard macOS runner for internal simulator tests"
+        required: false
+        type: choice
+        options: [macos-26, macos-26-intel, macos-15]
+        default: macos-26
+      mobile_os:
+        description: "Internal native mobile platform to build"
+        required: false
+        type: choice
+        options: [all, android, ios]
+        default: all
+      mobile:
+        description: "Build internal Android APK/AAB and iOS simulator app"
+        required: false
+        type: boolean
+        default: false
       desktop:
         description: "Build StartupBot internal macOS and Windows installers instead of Ubuntu"
         required: false
@@ -30,7 +47,7 @@ permissions:
 
 jobs:
   package:
-    if: ${{ !inputs.desktop }}
+    if: ${{ !inputs.desktop && !inputs.mobile }}
     name: DEB + AppImage (Ubuntu 24.04 x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -302,3 +319,188 @@ jobs:
           name: StartupBot-Windows-failure-${{ github.run_id }}-${{ github.run_attempt }}
           path: release/internal/smoke/
           retention-days: 7
+
+  android:
+    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'android')
+    name: StartupBot Android internal APK and AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Verify canonical native question fixtures
+        run: |
+          node --experimental-strip-types scripts/generate-mobile-question-vectors.ts
+          git diff --exit-code -- ios/Tests/CompanionCoreTests/Fixtures/question-answer-v1.json
+      - name: Select Java 17 and verify native boundaries
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          node scripts/verify-startupbot-mobile.mjs
+          python3 scripts/verify-android-apk-payload-test.py
+      - name: Build and test native Android code
+        working-directory: android
+        run: ./gradlew --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:bundleRelease
+      - name: Test APK on a clean emulator
+        run: |
+          sudo chmod a+rw /dev/kvm
+          bash scripts/smoke-android-internal.sh
+      - name: Verify every ABI payload and APK signature
+        run: |
+          python3 scripts/verify-android-apk-payload.py --directory android/app/build/outputs/apk/debug --report mobile-artifacts/android/payload-integrity.json
+          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)"
+          test -n "$signer"
+          aligner="$(dirname "$signer")/zipalign"
+          for apk in android/app/build/outputs/apk/debug/*.apk; do "$aligner" -c -P 16 -v 4 "$apk" > "mobile-artifacts/android/$(basename "$apk").alignment.txt"; done
+          for apk in android/app/build/outputs/apk/debug/*.apk; do "$signer" verify --verbose --print-certs "$apk" > "mobile-artifacts/android/$(basename "$apk").signature.txt"; done
+      - name: Prepare separate verified internal downloads
+        run: python3 scripts/stage-android-internal.py
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-arm64-v8a-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/arm64-v8a/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-armeabi-v7a-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/armeabi-v7a/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-x86_64-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/x86_64/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-x86-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/x86/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-universal-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/universal/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-bundle-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/bundle/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: failure()
+        with:
+          name: StartupBot-Android-diagnostics-${{ github.run_id }}
+          path: |
+            mobile-artifacts/android/
+            android/core/build/reports/tests/
+            android/app/build/reports/tests/
+          retention-days: 7
+
+  ios:
+    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')
+    name: StartupBot iOS internal simulator
+    runs-on: ${{ inputs.ios_runner || 'macos-26' }}
+    timeout-minutes: 90
+    steps:
+      - name: Select Xcode 26.2 on macOS 15
+        if: inputs.ios_runner == 'macos-15'
+        run: |
+          test -d /Applications/Xcode_26.2.app/Contents/Developer
+          echo 'DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer' >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Verify canonical native question fixtures
+        run: |
+          node --experimental-strip-types scripts/generate-mobile-question-vectors.ts
+          git diff --exit-code -- ios/Tests/CompanionCoreTests/Fixtures/question-answer-v1.json
+      - name: Verify native boundaries and core protocol
+        run: |
+          node scripts/verify-startupbot-mobile.mjs
+          python3 scripts/mobile-command-test.py
+          python3 scripts/install-ios-simulator-test.py
+          node --test scripts/ios-simulator-entitlements.node-test.mjs scripts/package-payload.node-test.mjs scripts/opaque-icon.node-test.mjs
+          xcodebuild -version
+          swift test --package-path ios
+      - name: Generate StartupBot Xcode project
+        run: |
+          command -v xcodegen || brew install xcodegen
+          cd ios
+          xcodegen generate
+      - name: Build and verify separate ARM and Intel simulator apps
+        run: bash scripts/build-ios-simulators.sh
+      - name: Run the real app and navigation tests on simulator
+        timeout-minutes: 45
+        run: bash scripts/smoke-ios-internal.sh
+      - name: Prepare and verify separate simulator downloads
+        run: bash scripts/stage-ios-simulators.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-iOS-arm64-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/ios-arm64/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-iOS-x86_64-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/ios-x86_64/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: failure()
+        with:
+          name: StartupBot-iOS-diagnostics-${{ github.run_id }}
+          path: mobile-artifacts/ios/
+          retention-days: 7
+
+  ios-device:
+    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')
+    name: StartupBot iOS unsigned device Release archive
+    runs-on: ${{ inputs.ios_runner || 'macos-26' }}
+    timeout-minutes: 45
+    steps:
+      - name: Select Xcode 26.2 on macOS 15
+        if: inputs.ios_runner == 'macos-15'
+        run: |
+          test -d /Applications/Xcode_26.2.app/Contents/Developer
+          echo 'DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer' >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - name: Generate StartupBot Xcode project
+        run: |
+          command -v xcodegen || brew install xcodegen
+          cd ios
+          xcodegen generate
+      - name: Compile device SDK and archive without signing or uploading
+        run: bash scripts/archive-ios-device.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-iOS-DEVICE-UNSIGNED-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/ios-device/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14

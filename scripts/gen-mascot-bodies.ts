@@ -293,22 +293,7 @@ function emitSwift(bodies: Baked[]): string {
     })
     .join("\n")
 
-  return `// The mascot bodies a bot can wear — the phone's half of the same solve that
-// bakes \`shared/mascot-bodies.ts\`.
-//
-// GENERATED FILE — do not hand-edit. Run \`pnpm gen:bodies\` to rebuild it from
-// \`scripts/gen-mascot-bodies.ts\`, which solves each face placement against the real
-// expression geometry and verifies that nothing clips. One solve, two writers: this file
-// and \`shared/mascot-bodies.ts\` come from the same solved anchors, which is what stops
-// the two renderers drifting apart the way desktop's 0.74 and iOS's 0.84 already did once.
-//
-// CoreGraphics only, no SwiftUI — \`CompanionCore\` is everything the phone knows that is
-// not a view (see \`ios/Package.swift\`). The fit is numbers, not an SVG transform string:
-// iOS has no SVG transform parser, so it builds a \`CGAffineTransform\` from
-// \`scale\`/\`tx\`/\`ty\` directly.
-//
-// Path data is absolute \`M\`, \`C\`, \`Z\` only — the same twenty-line parser convention as
-// \`MausSilhouette\` in \`ios/App/MausAvatar.swift\`, which treats newlines as separators.
+  return `// Modified for StartupBot; original copyright and license retained.
 import CoreGraphics
 
 enum MausBodies {
@@ -320,18 +305,14 @@ enum MausBodies {
         let anchor: (x: CGFloat, y: CGFloat, scale: CGFloat)
     }
 
-    /// Every selectable body id, in the order the picker shows them.
     static let order: [String] = [${order}]
 
-    /// The shipped mascot, and the fallback for any unrecognised value.
     static let defaultID = "cursor"
 
     static let all: [String: Body] = [
 ${entries}
     ]
 
-    /// Looks up a body by id, falling back to \`defaultID\` for anything unrecognised
-    /// (including a nil id, e.g. an untrusted persisted or streamed value).
     static func body(_ id: String?) -> Body {
         if let id, let match = all[id] { return match }
         return all[defaultID]!
@@ -373,24 +354,9 @@ function emitKotlin(bodies: Baked[]): string {
     })
     .join("\n")
 
-  return `package com.openmausbot.companion.ui
+  return `// Modified for StartupBot; original copyright and license retained.
+package com.openmausbot.companion.ui
 
-/**
- * The mascot bodies a bot can wear — the Android half of the same solve that bakes
- * \`shared/mascot-bodies.ts\` and \`ios/Sources/CompanionCore/MausBodies.swift\`.
- *
- * GENERATED FILE — do not hand-edit. Run \`pnpm gen:bodies\` to rebuild it from
- * \`scripts/gen-mascot-bodies.ts\`, which solves each face placement against the real
- * expression geometry and verifies that nothing clips. One solve, three writers, so the
- * three renderers cannot drift apart the way desktop's 0.74 and iOS's 0.84 already did once.
- *
- * Plain Kotlin, no Compose: [MausSilhouette] parses the path and caches the result per
- * body. The fit is numbers, not an SVG transform string. The bounds are the tight bounds
- * of the fitted outline: Android's native path bounds are the cubic control hull, which is
- * wider than the drawn shape, and the gradient's corners have to sit on the shape.
- *
- * Path data is absolute \`M\`, \`C\`, \`Z\` only, with newlines as separators.
- */
 internal object MausBodies {
     data class Body(
         val id: String,
@@ -408,20 +374,14 @@ internal object MausBodies {
         val anchorScale: Float,
     )
 
-    /** Every selectable body id, in the order the picker shows them. */
     val order: List<String> = listOf(${order})
 
-    /** The shipped mascot, and the fallback for any unrecognised value. */
     const val DEFAULT_ID: String = "cursor"
 
     val all: Map<String, Body> = mapOf(
 ${entries}
     )
 
-    /**
-     * Looks up a body by id, falling back to [DEFAULT_ID] for anything unrecognised
-     * (including a null id, e.g. an untrusted persisted or streamed value).
-     */
     fun body(id: String?): Body = id?.let { all[it] } ?: all.getValue(DEFAULT_ID)
 }
 `

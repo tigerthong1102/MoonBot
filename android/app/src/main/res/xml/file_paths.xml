@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for StartupBot; original copyright and license retained. -->
+<paths>
+    <!-- Device credentials and private app state must not be exposed through this FileProvider. -->
+    <cache-path
+        name="shared-transcripts"
+        path="shared-transcripts/" />
+    <!-- Device credentials and private app state must not be exposed through this FileProvider. -->
+    <cache-path
+        name="file-previews"
+        path="file-previews/" />
+</paths>

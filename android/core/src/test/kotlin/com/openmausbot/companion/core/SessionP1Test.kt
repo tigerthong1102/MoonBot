@@ -1,0 +1,937 @@
+// Modified for StartupBot; original copyright and license retained.
+package com.openmausbot.companion.core
+
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class SessionP1Test {
+    private lateinit var server: MockWebServer
+
+    @BeforeTest
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+    }
+
+    @AfterTest
+    fun tearDown() {
+        server.shutdown()
+    }
+
+    @Test
+    fun skippingTeamMemorySendsADenialAndNeverAStandingGrant() = runTest {
+        val card = requireNotNull(decodeFixture<Message>("team-memory-request").card)
+        val session = session()
+        server.enqueue(json("{}"))
+        session.answer(Chat.BotChat(bot("b1", "task-1", "task-1")), card, "Skip")
+        val request = server.takeRequest()
+        assertEquals("/api/threads/task-1/respond", request.path)
+        val submitted = body(request)
+        assertEquals("deny", submitted["behavior"])
+        assertEquals(mapOf("requestId" to "memory-request", "behavior" to "deny"), submitted)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun searchFocusRequiresAnUnbrokenRenderedBranch() = runTest {
+        fun page(range: IntRange) = ThreadPage(
+            messages = range.map { Message("m$it", Message.Role.BOT, Message.Kind.TEXT, it.toDouble(), text = "Message $it", parentId = if (it > 1) "m${it - 1}" else null) },
+            activeLeafId = "m200", hasMore = true,
+        )
+        val shown = bot("b1", "task-a", "task-a").copy(activeLeafId = "m200", messages = page(151..200).messages)
+        val session = session { Fleet(listOf(shown), emptyList()) }
+        session.openNotification(target("b1", "task-a"))
+        server.enqueue(json(CompanionJson.encodeToString(page(151..200))))
+        session.loadThreadIfNeeded("task-a")
+        assertEquals("GET", server.takeRequest().method)
+        assertEquals((151..200).map { "m$it" }, session.state.value.visibleTranscript("task-a").map { it.id })
+        for (range in listOf(1..50, 101..200, 51..150)) server.enqueue(json(CompanionJson.encodeToString(page(range))))
+        val hit = SearchHit(threadId = "task-a", messageId = "m25", at = 25.0, role = Message.Role.BOT,
+            kind = Message.Kind.TEXT, snippet = "Message 25", matchStart = 0, matchLength = 7,
+            botId = "b1", name = "Fixture", onActivePath = true)
+        assertIs<Chat.BotChat>(session.open(hit))
+        assertEquals("m25", session.focusedMessageId.value)
+        assertTrue(session.state.value.visibleTranscript("task-a").any { it.id == "m25" })
+        assertEquals("m200", session.state.value.activeLeafIds["task-a"])
+        val requests = List(3) { server.takeRequest() }
+        assertTrue(requests.all { it.method == "GET" })
+        assertTrue(requests[1].path!!.contains("around=m150"))
+        assertTrue(requests[2].path!!.contains("around=m100"))
+    }
+
+    @Test
+    fun aCachedSearchHitFocusesWithoutRequiringANewHttpPage() = runTest {
+        val message = Message("cached", Message.Role.BOT, Message.Kind.TEXT, 1.0, text = "Cached reply")
+        val shown = bot("b1", "task-a", "task-a").copy(activeLeafId = message.id)
+        val session = session { Fleet(listOf(shown), emptyList()) }
+        session.openNotification(target("b1", "task-a"))
+        server.enqueue(json(CompanionJson.encodeToString(ThreadPage(listOf(message), activeLeafId = message.id))))
+        session.loadThreadIfNeeded("task-a")
+        assertEquals(1, server.requestCount)
+        val hit = SearchHit(threadId = "task-a", messageId = message.id, at = 1.0,
+            role = Message.Role.BOT, kind = Message.Kind.TEXT, snippet = "Cached reply", matchStart = 0,
+            matchLength = 6, botId = "b1", name = "Fixture", onActivePath = true)
+        assertIs<Chat.BotChat>(session.open(hit))
+        assertEquals(message.id, session.focusedMessageId.value)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun aMissedEnqueueCannotReappearAfterAnEmptyAuthoritativeSnapshot() = runTest {
+        val frames = MutableSharedFlow<StreamFrame>(extraBufferCapacity = 8)
+        val arrived = CompletableDeferred<Unit>()
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (request.method == "POST" && request.path == "/api/bots/b1/messages") {
+                    arrived.complete(Unit)
+                    check(release.await(5, TimeUnit.SECONDS))
+                    return json("""{"queued":true,"queueId":"unseen","threadId":"task-a"}""", 202)
+                }
+                return json("{}")
+            }
+        }
+        val shown = bot("b1", "task-a", "task-a")
+        val session = session(streamFrames = frames) { Fleet(listOf(shown), emptyList(), botQueuedMessages = emptyMap()) }
+        session.connect()
+        runCurrent()
+        frames.emit(StreamFrame(Frame.Hello("fixture:1", false), 1))
+        runCurrent()
+        val revision = session.state.value.botQueueRevision
+        val pending = async { session.send("cancelled elsewhere", Chat.BotChat(shown)) }
+        try {
+            arrived.await()
+            frames.emit(StreamFrame(Frame.BotQueued(emptyMap()), 2))
+            runCurrent()
+            assertTrue(session.state.value.botQueueRevision > revision)
+        } finally { release.countDown() }
+        assertTrue(pending.await())
+        assertTrue(session.state.value.pendingQueued.isEmpty())
+        assertNull(session.actionError)
+        session.disconnect()
+    }
+
+    @Test
+    fun capturedTaskPinsPlainMessagesStopReadGrantsEditsAndQueueCancellation() = runTest {
+        val captured = bot("b1", "task-a", "task-a", "task-b")
+        val elsewhere = captured.copy(threadId = "task-b")
+        val session = session { Fleet(listOf(elsewhere), emptyList()) }
+        session.openNotification(target("b1", "task-b"))
+        val chat = Chat.BotChat(captured)
+        val message = Message("message-a", Message.Role.USER, Message.Kind.TEXT, 1.0, text = "original")
+        repeat(6) { server.enqueue(json("{}")) }
+        server.enqueue(json("""{"activeLeafId":"message-a"}"""))
+        server.enqueue(json("{}"))
+
+        session.send("plain text", chat)
+        session.send("/quick command", chat)
+        session.interrupt(captured)
+        session.markRead(chat)
+        session.alwaysAllow(captured, permissionCard(listOf("Always allow"), "Read"))
+        session.edit(message, captured, "edited")
+        session.switchVersion(message, captured)
+        session.cancelQueued(QueuedSend("queue-a", "queued"), chat)
+
+        val requests = List(8) { server.takeRequest() }
+        assertEquals(listOf("messages", "messages", "interrupt", "read", "always-allow",
+            "messages/message-a/edit", "active-branch", "queue/queue-a"),
+            requests.map { it.path!!.removePrefix("/api/bots/b1/") })
+        assertEquals(List(8) { "task-a" }, requests.map { body(it)["threadId"] })
+        assertEquals("task-b", session.state.value.bot("b1")?.threadId)
+        assertNull(session.actionError)
+    }
+
+    @Test
+    fun editRestoresOnlyConfirmedCancellationsNeverAlreadyDrainedSends() = runTest {
+        val session = session()
+        val chat = Chat.BotChat(bot("b1", "task-a", "task-a"))
+        val queued = QueuedSend("queue-a", "must run only once")
+        server.enqueue(json("{}"))
+        assertTrue(session.cancelQueued(queued, chat))
+        server.enqueue(json("""{"error":"no such queued message"}""", code = 404))
+        assertEquals(false, session.cancelQueued(queued, chat))
+        assertNull(session.actionError, "Delete may quietly retire a stale row")
+        server.enqueue(json("""{"error":"dispatch already started"}""", code = 409))
+        assertEquals(false, session.cancelQueued(queued, chat))
+        assertEquals("dispatch already started", session.actionError)
+    }
+
+    @Test
+    fun changingAModelReturnsTheCapturedTaskModelNotTheSiblingOrProfileDefault() = runTest {
+        val chosen = ModelSelection("instance", "new-a")
+        val captured = bot("b1", "task-a", "task-a", "task-b")
+        val canonical = captured.copy(threadId = "task-b", tasks = listOf(
+            BotTask("task-a", "A", 1.0, modelSelection = chosen, busy = false),
+            BotTask("task-b", "B", 2.0, modelSelection = ModelSelection("instance", "b"), busy = true),
+        ))
+        val session = session { Fleet(listOf(canonical), emptyList()) }
+        server.enqueue(json("""{"bot":${CompanionJson.encodeToString(canonical)}}"""))
+
+        val updated = session.updateModel(chosen, captured)
+
+        assertEquals("task-a", updated?.threadId)
+        assertEquals(chosen, updated?.modelSelection)
+        assertEquals("model", session.state.value.bot("b1")?.modelSelection?.model)
+        assertEquals("task-b", session.state.value.bot("b1")?.threadId)
+        assertEquals("/api/bots/b1/tasks/task-a", server.takeRequest().path)
+    }
+
+    @Test
+    fun permissionAnswersUseTheSwiftBehaviorForOfferedProviderChoices() = runTest {
+        val session = session()
+        val chat = Chat.BotChat(bot("b1", "task-1", "task-1"))
+        val choices = listOf("Approve", "Yes", "Always allow", "Deny", " \ndeny\t")
+        val card = permissionCard(options = choices, allowKey = "Bash:git")
+        repeat(choices.size) { server.enqueue(json("{}")) }
+
+        choices.forEach { choice ->
+            session.answer(chat, card, choice, rememberingPermission = false)
+        }
+
+        val requests = List(5) { server.takeRequest() }
+        val bodies = requests.map(::body)
+        assertEquals(
+            listOf("allow", "allow", "allow", "deny", "deny"),
+            bodies.map { it.getValue("behavior") },
+        )
+        assertEquals(
+            List(5) { setOf("requestId", "behavior") },
+            bodies.map { it.keys },
+        )
+        assertEquals(List(5) { "/api/threads/task-1/respond" }, requests.map { it.path })
+    }
+
+    @Test
+    fun questionAnswersSendOnlyTheLiteralOptionsTheCardOffered() = runTest {
+        val session = session()
+        val chat = Chat.RoomChat(room("room-1", "room-thread"))
+        val offered = listOf("Ship it", "Not yet\n")
+        val card = OptionCard(
+            title = "Release?",
+            subtitle = "Choose",
+            options = offered,
+            requestId = "question-1",
+        )
+        repeat(offered.size) { server.enqueue(json("{}")) }
+
+        session.answer(chat, card, "Ship it")
+        session.answer(chat, card, "Not yet\n")
+
+        val sent = List(2) { body(server.takeRequest()) }
+        assertEquals(listOf("answer", "answer"), sent.map { it.getValue("behavior") })
+        assertEquals(listOf("Ship it", "Not yet\n"), sent.map { it.getValue("message") })
+        assertTrue(sent.all { it.keys == setOf("requestId", "behavior", "message") })
+    }
+
+    @Test
+    fun failedStandingGrantUsesTheProviderKeyOnceAndDoesNotAnswer() = runTest {
+        val session = session()
+        val chat = Chat.BotChat(bot("b1", "task-1", "task-1"))
+        val card = permissionCard(
+            options = listOf("Always allow", "Deny"),
+            allowKey = "Bash:git push",
+        )
+        server.enqueue(json("""{"error":"Could not save grant."}""", code = 500))
+        server.enqueue(json("{}"))
+
+        session.answer(chat, card, "Always allow")
+
+        val grant = server.takeRequest()
+        assertEquals("/api/bots/b1/always-allow", grant.path)
+        assertEquals(mapOf("allowKey" to "Bash:git push", "threadId" to "task-1"), body(grant))
+        assertEquals(1, server.requestCount)
+        assertEquals("Could not save grant.", session.actionError)
+    }
+
+    @Test
+    fun standingGrantAndApprovalCannotSpanAComputerSwitch() = runTest {
+        for (explicitButton in listOf(false, true)) {
+            val arrived = CompletableDeferred<Unit>()
+            val release = CountDownLatch(1)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path!!.endsWith("/always-allow")) {
+                        arrived.complete(Unit)
+                        check(release.await(5, TimeUnit.SECONDS))
+                    }
+                    return json("{}")
+                }
+            }
+            val session = session(otherComputer = true)
+            val chat = Chat.BotChat(bot("b1", "task-1", "task-1"))
+            val card = permissionCard(listOf("Always allow", "Deny"), "Bash:git")
+            val before = server.requestCount
+            val pending = async {
+                if (explicitButton) session.grantAndAnswer(chat, card, "Always allow")
+                else session.answer(chat, card, "Always allow")
+            }
+            try {
+                arrived.await()
+                session.switchComputer("other")
+                runCurrent()
+                assertEquals("other", session.connection.value?.id)
+                session.actionError = "Selected computer notice"
+            } finally { release.countDown() }
+            pending.await()
+            assertEquals(before + 1, server.requestCount)
+            assertEquals("Selected computer notice", session.actionError)
+        }
+    }
+
+    @Test
+    fun oldActionErrorsCannotInvalidateOrOverwriteTheSelectedComputer() = runTest {
+        for (status in listOf(401, 500)) {
+            val arrived = CompletableDeferred<Unit>()
+            val release = CountDownLatch(1)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    arrived.complete(Unit)
+                    check(release.await(5, TimeUnit.SECONDS))
+                    return json("""{"error":"Old computer failure"}""", status)
+                }
+            }
+            val session = session(otherComputer = true)
+            val pending = async { session.interrupt(bot("b1", "task-1", "task-1")) }
+            try {
+                arrived.await()
+                session.switchComputer("other")
+                runCurrent()
+                session.switchComputer("fixture")
+                runCurrent()
+                session.actionError = "Selected computer notice"
+            } finally { release.countDown() }
+            pending.await()
+            assertTrue(session.status.value !is Session.Status.Unauthorized)
+            assertEquals("Selected computer notice", session.actionError)
+        }
+    }
+
+    @Test
+    fun oldRosterTaskHistoryAndDownloadResultsCannotReachARecreatedRuntime() = runTest {
+        val old = bot("old", "old-thread", "old-thread")
+        val message = Message("old-message", Message.Role.BOT, Message.Kind.TEXT, 1.0, text = "Old data")
+        val operations: List<Pair<String, suspend (Session) -> Any?>> = listOf(
+            "roster" to { it.createBot() },
+            "task" to { it.createTask(old, "Old task") },
+            "profile" to { it.generateAvatar("Old avatar", old) },
+            "history" to { it.loadThread("old-thread"); null },
+            "reaction" to { it.react(message, "old-thread", "👍"); null },
+            "download" to { it.downloadFile("old-thread", "old-message", "/tmp/old.txt") },
+        )
+        for ((name, operation) in operations) {
+            for (status in listOf(200, 401, 500)) {
+                val arrived = CompletableDeferred<Unit>()
+                val release = CountDownLatch(1)
+                val body = when (name) {
+                    "history" -> CompanionJson.encodeToString(ThreadPage(listOf(message), activeLeafId = message.id))
+                    "reaction" -> "{\"message\":${CompanionJson.encodeToString(message)}}"
+                    else -> "{\"bot\":${CompanionJson.encodeToString(old)}}"
+                }
+                server.dispatcher = object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        arrived.complete(Unit)
+                        check(release.await(5, TimeUnit.SECONDS))
+                        return if (status == 200) json(body) else json("{\"error\":\"Old failure\"}", status)
+                    }
+                }
+                val session = session(otherComputer = true)
+                val pending = async { try { operation(session) } catch (_: CancellationException) { null } }
+                try {
+                    arrived.await()
+                    session.switchComputer("other")
+                    runCurrent()
+                    session.switchComputer("fixture")
+                    runCurrent()
+                    session.actionError = "Current notice"
+                } finally { release.countDown() }
+                assertNull(pending.await(), "$name/$status")
+                assertTrue(session.state.value.bots.isEmpty(), "$name/$status")
+                assertTrue(session.state.value.transcript("old-thread").isEmpty(), "$name/$status")
+                assertTrue(session.status.value !is Session.Status.Unauthorized, "$name/$status")
+                assertEquals("Current notice", session.actionError, "$name/$status")
+            }
+        }
+    }
+
+    @Test
+    fun avatarUploadCannotPatchAComputerSelectedWhileTheUploadWasPending() = runTest {
+        val arrived = CompletableDeferred<Unit>()
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                arrived.complete(Unit)
+                check(release.await(5, TimeUnit.SECONDS))
+                return json("{\"path\":\"/tmp/attachments/avatar.png\",\"mime\":\"image/png\",\"bytes\":1}")
+            }
+        }
+        val session = session(otherComputer = true)
+        val pending = async { session.uploadAvatar(byteArrayOf(1), "image/png", bot("old", "old-thread", "old-thread"), AvatarCrop.CIRCLE) }
+        try {
+            arrived.await()
+            session.switchComputer("other")
+            runCurrent()
+        } finally { release.countDown() }
+        assertFailsWith<CancellationException> { pending.await() }
+        assertEquals(1, server.requestCount)
+        assertTrue(session.state.value.bots.isEmpty())
+    }
+
+    @Test
+    fun shareResultsAndFailuresCannotEscapeTheirRuntimeEvenAfterReturningToTheSameComputer() = runTest {
+        for (status in listOf(200, 401, 503)) {
+            val arrived = CompletableDeferred<Unit>()
+            val release = CountDownLatch(1)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    arrived.complete(Unit)
+                    check(release.await(5, TimeUnit.SECONDS))
+                    return json("{}", status)
+                }
+            }
+            val session = session(otherComputer = true)
+            val before = server.requestCount
+            val pending = async { runCatching { session.withShareClient("fixture") { it.image("thread", "message") } } }
+            try {
+                arrived.await()
+                session.switchComputer("other")
+                runCurrent()
+                session.switchComputer("fixture")
+                runCurrent()
+                session.actionError = "Current notice"
+            } finally { release.countDown() }
+            assertTrue(pending.await().isFailure)
+            assertEquals(before + 1, server.requestCount)
+            assertTrue(session.status.value !is Session.Status.Unauthorized)
+            assertEquals("Current notice", session.actionError)
+        }
+    }
+
+    @Test
+    fun missingKeyRoomAndDisabledMemoryNeverInventAStandingGrant() = runTest {
+        val session = session()
+        val bot = Chat.BotChat(bot("b1", "task-1", "task-1"))
+        val room = Chat.RoomChat(room("room-1", "room-thread"))
+        repeat(3) { server.enqueue(json("{}")) }
+
+        session.answer(
+            bot,
+            permissionCard(options = listOf("Always allow", "Deny"), allowKey = null),
+            "Always allow",
+        )
+        session.answer(
+            bot,
+            permissionCard(options = listOf("Always allow", "Deny"), allowKey = "Bash:git"),
+            "Always allow",
+            rememberingPermission = false,
+        )
+        session.answer(
+            room,
+            permissionCard(options = listOf("Always allow", "Deny"), allowKey = "Bash:git"),
+            "Always allow",
+        )
+
+        val requests = List(3) { server.takeRequest() }
+        assertEquals(
+            listOf(
+                "/api/threads/task-1/respond",
+                "/api/threads/task-1/respond",
+                "/api/threads/room-thread/respond",
+            ),
+            requests.map { it.path },
+        )
+        assertTrue(requests.all { body(it)["behavior"] == "allow" })
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
+    fun taskActionsReturnTheExplicitSelectionWithoutRetargetingAnOpenChat() = runTest {
+        val initial = bot("b1", "task-1", "task-1", "old-inactive")
+        val created = bot("b1", "task-2", "task-1", "old-inactive", "task-2")
+        val switched = bot("b1", "task-1", "task-1", "old-inactive", "task-2")
+        val inactiveDeleted = bot("b1", "task-1", "task-1", "task-2")
+        val activeDeleted = bot("b1", "task-2", "task-2")
+        val session = session { Fleet(listOf(initial), emptyList()) }
+        val stableTarget = assertIs<Chat.BotChat>(
+            session.openNotification(target("b1", "task-1")),
+        ).target
+        listOf(created, switched, inactiveDeleted, activeDeleted).forEach { returned ->
+            server.enqueue(json("""{"bot":${CompanionJson.encodeToString(returned)}}"""))
+        }
+
+        assertEquals("task-2", session.createTask(initial, null)?.threadId)
+        assertEquals("task-1", assertIs<Chat.BotChat>(session.state.value.chat(stableTarget)).threadId)
+
+        assertEquals("task-1", session.switchTask(BotTask("task-1", "Task 1", 1.0), created)?.threadId)
+        assertEquals("task-1", assertIs<Chat.BotChat>(session.state.value.chat(stableTarget)).threadId)
+
+        session.deleteTask(BotTask("old-inactive", "Old", 0.0), switched)
+        assertEquals("task-1", assertIs<Chat.BotChat>(session.state.value.chat(stableTarget)).threadId)
+
+        assertEquals("task-2", session.deleteTask(BotTask("task-1", "Task 1", 1.0), inactiveDeleted)?.threadId)
+        assertNull(session.state.value.chat(stableTarget))
+        assertEquals(
+            listOf(
+                "POST /api/bots/b1/tasks",
+                "POST /api/bots/b1/tasks/task-1",
+                "DELETE /api/bots/b1/tasks/old-inactive",
+                "DELETE /api/bots/b1/tasks/task-1",
+            ),
+            List(4) { server.takeRequest().let { "${it.method} ${it.path}" } },
+        )
+    }
+
+    @Test
+    fun searchingABackgroundBotThreadLoadsItsMessagesWithoutSelectingItOnTheComputer() = runTest {
+        val scout = bot("scout", "task-1", "task-1", "task-2")
+        val session = session { Fleet(listOf(scout), emptyList()) }
+        session.openThread(ThreadRef("scout", "task-1", "Task 1"))
+        val message = Message("match", Message.Role.USER, Message.Kind.TEXT, 2.0, text = "Find me")
+        server.enqueue(json(CompanionJson.encodeToString(ThreadPage(listOf(message)))))
+
+        val opened = session.open(SearchHit(
+            threadId = "task-2", messageId = "match", at = 2.0, role = message.role, kind = message.kind,
+            snippet = "Find me", matchStart = 0, matchLength = 4, botId = "scout", name = "Scout", onActivePath = true,
+        ))
+
+        assertEquals("task-2", opened?.threadId)
+        assertEquals("task-1", session.state.value.bot("scout")?.threadId)
+        assertEquals(listOf(message), session.state.value.transcript("task-2"))
+        assertEquals(1, server.requestCount)
+        val request = server.takeRequest()
+        assertEquals("GET", request.method)
+        assertTrue(request.path!!.startsWith("/api/threads/task-2/messages?"))
+        assertTrue(request.path!!.contains("around=match"))
+    }
+
+    @Test
+    fun aLoadedLegacyPageIsNotFetchedAgainWhenTheThreadReopens() = runTest {
+        val session = session()
+        server.enqueue(json("""{"messages":[]}"""))
+        session.loadThreadIfNeeded("background")
+        session.loadThreadIfNeeded("background")
+        assertTrue(session.state.value.hasLoadedPage("background"))
+        assertEquals(1, server.requestCount)
+        assertEquals("GET", server.takeRequest().method)
+    }
+
+    @Test
+    fun renameReportsFailureForBotAndRoomDialogsWithoutDismissingTheirDrafts() = runTest {
+        val session = session()
+        val task = BotTask("task-1", "Original", 1.0)
+        repeat(2) { server.enqueue(json("""{"error":"Rename failed"}""", code = 500)) }
+        assertEquals(false, session.renameTask(task, bot("b1", "task-1", "task-1"), "New name"))
+        assertEquals("Rename failed", session.actionError)
+        assertEquals(false, session.renameTask(task, room("r1", "task-1", "task-1"), "New name"))
+        assertEquals("Rename failed", session.actionError)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun threadChipSelectsLocallyAndDoesNotChooseASiblingWhenTheThreadIsGone() = runTest {
+        val scout = bot("scout", "task-1", "task-1", "task-2")
+        val session = session { Fleet(listOf(scout), emptyList()) }
+
+        val opened = session.openThread(ThreadRef("scout", "task-2", "Task 2"))
+
+        assertEquals("task-2", opened?.threadId)
+        assertEquals("task-1", session.state.value.bot("scout")?.threadId)
+        assertEquals(0, server.requestCount)
+        assertNull(session.actionError)
+
+        val fallback = session.openThread(ThreadRef("scout", "task-9", "Gone"))
+        assertNull(fallback)
+        assertEquals(0, server.requestCount)
+        assertEquals(Session.THREAD_GONE_MESSAGE, session.actionError)
+
+        session.actionError = null
+        assertEquals("task-2", session.openThread(ThreadRef("scout", "task-2", "Task 2"))?.threadId)
+        assertEquals(0, server.requestCount)
+
+        assertNull(session.openThread(ThreadRef("nobody", "task-1", "Nope")))
+        assertEquals("That agent no longer exists.", session.actionError)
+    }
+
+    @Test
+    fun threadChipReportsHydrationErrorsAndAllowsRetry() = runTest {
+        val scout = bot("scout", "task-1", "task-1", "task-2")
+        var failure: APIError.Status? = null
+        val session = session {
+            failure?.let { throw it }
+            Fleet(listOf(scout), emptyList())
+        }
+        for (code in listOf(401, 403, 409, 500)) {
+            failure = APIError.Status(code, "Load failed: $code")
+            assertNull(session.openThread(ThreadRef("scout", "task-2", "Task 2")))
+            assertEquals("Load failed: $code", session.actionError)
+            assertTrue(session.state.value.bots.isEmpty())
+        }
+        failure = null
+        assertEquals("task-2", session.openThread(ThreadRef("scout", "task-2", "Task 2"))?.threadId)
+        assertNull(session.actionError)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun threadChipDiscardsAHydrationFromThePreviousComputer() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val session = session(otherComputer = true) {
+            started.complete(Unit)
+            release.await()
+            Fleet(listOf(bot("scout", "task-1", "task-1")), emptyList())
+        }
+        val opening = async { session.openThread(ThreadRef("scout", "task-1", "Task 1")) }
+        started.await()
+        session.switchComputer("other")
+        runCurrent()
+        assertEquals("other", session.connection.value?.id)
+        release.complete(Unit)
+
+        assertNull(opening.await())
+        assertTrue(session.state.value.bots.isEmpty())
+        assertNull(session.actionError)
+    }
+
+    @Test
+    fun threadChipDiscardsAHydrationFailureFromThePreviousComputer() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val session = session(otherComputer = true) {
+            started.complete(Unit)
+            release.await()
+            throw APIError.Status(500, "Old computer error")
+        }
+        val opening = async { session.openThread(ThreadRef("scout", "task-2", "Task 2")) }
+        started.await()
+        session.switchComputer("other")
+        runCurrent()
+        release.complete(Unit)
+        assertNull(opening.await())
+        assertTrue(session.state.value.bots.isEmpty())
+        assertNull(session.actionError)
+    }
+
+    @Test
+    fun threadChipCancellationDoesNotNavigateOrReportADeletedThread() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val session = session {
+            started.complete(Unit)
+            release.await()
+            Fleet(listOf(bot("scout", "task-1", "task-1", "task-2")), emptyList())
+        }
+        val opening = async { session.openThread(ThreadRef("scout", "task-2", "Task 2")) }
+        try {
+            started.await()
+            opening.cancel()
+        } finally {
+            release.complete(Unit)
+        }
+        assertFailsWith<CancellationException> { opening.await() }
+        assertTrue(session.state.value.bots.isEmpty())
+        assertNull(session.actionError)
+    }
+
+    @Test
+    fun roomTaskNotificationSwitchesTheChannelAndDoesNotOpenASiblingWhenTheTaskIsGone() = runTest {
+        val room = room("room-1", "room-task-1", "room-task-1", "room-task-2")
+        val switched = room.copy(
+            threadId = "room-task-2",
+            messages = listOf(Message("fresh", Message.Role.USER, Message.Kind.TEXT, 2.0, text = "fresh")),
+        )
+        val session = session { Fleet(emptyList(), listOf(room)) }
+        server.enqueue(json("""{"group":${CompanionJson.encodeToString(switched)}}"""))
+
+        val opened = session.openNotification(target("asker", "room-task-2"))
+
+        assertEquals("room-task-2", assertIs<Chat.RoomChat>(opened).threadId)
+        assertEquals("room-task-2", session.state.value.rooms.single().threadId)
+        assertEquals("POST /api/groups/room-1/tasks/room-task-2", server.takeRequest().let { "${it.method} ${it.path}" })
+
+        server.enqueue(json("""{"error":"Task not found."}""", code = 404))
+        val fallback = session.openNotification(target("asker", "room-task-1"))
+        assertNull(fallback)
+        assertEquals("Task not found.", session.actionError)
+    }
+
+    @Test
+    fun roomSearchHitSwitchesItsTaskBeforeLoadingTheMatchedPage() = runTest {
+        val room = room("room-1", "room-task-1", "room-task-1", "room-task-2")
+        val switched = room.copy(threadId = "room-task-2")
+        val session = session { Fleet(emptyList(), listOf(room)) }
+        assertIs<Chat.RoomChat>(session.openNotification(target("asker", "room-task-1")))
+        server.enqueue(json("""{"group":${CompanionJson.encodeToString(switched)}}"""))
+        server.enqueue(json("""{"messages":[{"id":"matched","role":"user","kind":"text","at":2,"text":"needle"}],"hasMore":false}"""))
+
+        val opened = session.open(SearchHit(
+            threadId = "room-task-2",
+            messageId = "matched",
+            at = 2.0,
+            role = Message.Role.USER,
+            kind = Message.Kind.TEXT,
+            snippet = "needle",
+            matchStart = 0,
+            matchLength = 6,
+            groupId = "room-1",
+            name = "room-1",
+            onActivePath = true,
+        ))
+
+        assertEquals("room-task-2", assertIs<Chat.RoomChat>(opened).threadId)
+        assertEquals(listOf("matched"), session.state.value.transcript("room-task-2").map(Message::id))
+        assertEquals(
+            listOf(
+                "POST /api/groups/room-1/tasks/room-task-2",
+                "GET /api/threads/room-task-2/messages?limit=50&around=matched",
+            ),
+            List(2) { server.takeRequest().let { "${it.method} ${it.path}" } },
+        )
+    }
+
+    @Test
+    fun roomNotificationHydratesAndPrefersTheRoomThread() = runTest {
+        var hydrates = 0
+        val asker = bot("asker", "bot-task", "bot-task")
+        val room = room("room-1", "room-thread")
+        val session = session {
+            hydrates++
+            Fleet(listOf(asker), listOf(room))
+        }
+
+        val opened = session.openNotification(target("asker", "room-thread"))
+
+        assertEquals("room-1", assertIs<Chat.RoomChat>(opened).id)
+        assertEquals(1, hydrates)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun activeTaskNotificationHydratesWithoutSwitching() = runTest {
+        var hydrates = 0
+        val session = session {
+            hydrates++
+            Fleet(listOf(bot("b1", "task-1", "task-1", "task-2")), emptyList())
+        }
+
+        val opened = session.openNotification(target("b1", "task-1"))
+
+        assertEquals("task-1", assertIs<Chat.BotChat>(opened).threadId)
+        assertEquals(1, hydrates)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun inactiveTaskNotificationKeepsSelectionLocalAndRepeatedOpenIsIdempotent() = runTest {
+        var hydrates = 0
+        val session = session {
+            hydrates++
+            Fleet(listOf(bot("b1", "task-1", "task-1", "task-2")), emptyList())
+        }
+        val target = target("b1", "task-2")
+
+        val first = session.openNotification(target)
+        val second = session.openNotification(target)
+
+        assertEquals("task-2", assertIs<Chat.BotChat>(first).threadId)
+        assertEquals("task-2", assertIs<Chat.BotChat>(second).threadId)
+        assertEquals("task-1", session.state.value.bot("b1")?.threadId)
+        assertEquals(1, hydrates)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun deletedTaskNotificationReportsGoneWithoutOpeningTheBotsCurrentChat() = runTest {
+        val session = session {
+            Fleet(listOf(bot("b1", "task-1", "task-1")), emptyList())
+        }
+        val opened = session.openNotification(target("b1", "deleted-task"))
+
+        assertNull(opened)
+        assertEquals(Session.THREAD_GONE_MESSAGE, session.actionError)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun unknownThreadTargetsRefreshMetadataAndOpenExactlyWithoutLosingScrollback() = runTest {
+        var tasks = listOf("task-1")
+        var reads = 0
+        val session = session {
+            reads++
+            Fleet(listOf(bot("scout", "task-1", *tasks.toTypedArray())), emptyList())
+        }
+        session.openThread(ThreadRef("scout", "task-1", "Task 1"))
+        val message = Message("saved", Message.Role.USER, Message.Kind.TEXT, 1.0, text = "Scrollback")
+        server.enqueue(json(CompanionJson.encodeToString(ThreadPage(listOf(message), hasMore = true))))
+        session.loadThreadIfNeeded("task-1")
+
+        tasks = listOf("task-1", "task-2")
+        assertEquals("task-2", session.openThread(ThreadRef("scout", "task-2", "Task 2"))?.threadId)
+        tasks = listOf("task-1", "task-2", "task-3")
+        assertEquals("task-3", session.openNotification(target("scout", "task-3"))?.threadId)
+
+        assertEquals(3, reads)
+        assertEquals("task-1", session.state.value.bot("scout")?.threadId)
+        assertEquals(listOf(message), session.state.value.transcript("task-1"))
+        assertEquals(true, session.state.value.hasMore["task-1"])
+        assertEquals(1, server.requestCount)
+        assertEquals("GET", server.takeRequest().method)
+    }
+
+    @Test
+    fun notificationDiscardsMetadataAndErrorsFromThePreviousComputer() = runTest {
+        for (fails in listOf(false, true)) {
+            val started = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val session = session(otherComputer = true) {
+                started.complete(Unit)
+                release.await()
+                if (fails) throw APIError.Status(500, "Old computer error")
+                Fleet(listOf(bot("scout", "task-1", "task-1", "task-2")), emptyList())
+            }
+            val opening = async { session.openNotification(target("scout", "task-2")) }
+            started.await()
+            session.switchComputer("other")
+            runCurrent()
+            release.complete(Unit)
+            assertNull(opening.await())
+            assertTrue(session.state.value.bots.isEmpty())
+            assertNull(session.actionError)
+        }
+    }
+
+    @Test
+    fun deletedBotNotificationDoesNotChooseAnotherBotsMatchingTask() = runTest {
+        val session = session {
+            Fleet(
+                listOf(bot("other", "other-active", "deleted-task", "other-active")),
+                emptyList(),
+            )
+        }
+
+        val opened = session.openNotification(target("deleted", "deleted-task"))
+
+        assertNull(opened)
+        assertEquals("That agent no longer exists.", session.actionError)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun foreignNotificationCannotReadOrSwitchTheSelectedComputer() = runTest {
+        val session = session { Fleet(listOf(bot("b1", "task-a", "task-a", "task-b")), emptyList()) }
+        assertIs<Chat.BotChat>(session.openNotification(target("b1", "task-a")))
+        val foreign = requireNotNull(NotificationTarget.from("b1", "task-b", "other"))
+        assertNull(session.openNotification(foreign))
+        assertEquals(0, server.requestCount)
+        assertEquals("task-a", session.state.value.bot("b1")?.threadId)
+        assertTrue(session.actionError!!.contains("computer"))
+    }
+
+    private suspend fun TestScope.session(
+        otherComputer: Boolean = false,
+        streamFrames: Flow<StreamFrame> = emptyFlow(),
+        hydrate: suspend () -> Fleet = { Fleet(emptyList(), emptyList()) },
+    ): Session {
+        val connection = requireNotNull(Connection.parse(server.url("/").toString())).copy(id = "fixture")
+        return Session(
+            scope = backgroundScope,
+            connectionStore = object : ConnectionStore {
+                override suspend fun load(): Connection = connection
+                override suspend fun save(connection: Connection) = Unit
+                override suspend fun clear() = Unit
+                override suspend fun loadRegistry() = ConnectionRegistryRestore(
+                    ConnectionRegistry(
+                        if (otherComputer) listOf(connection, connection.copy(id = "other")) else listOf(connection),
+                        connection.id,
+                    ),
+                    migratedLegacyConnection = false,
+                )
+            },
+            tokenStore = object : TokenStore {
+                override suspend fun save(connectionId: String, token: String) = Unit
+                override suspend fun read(connectionId: String): TokenStore.ReadResult =
+                    TokenStore.ReadResult.Found("device-token")
+                override suspend fun remove(connectionId: String) = Unit
+            },
+            onboardingStore = InMemoryOnboardingStore(),
+            deviceNameProvider = { "Pixel" },
+            eventsFn = { _, _, _ -> streamFrames },
+            hydrateFn = { _, _ -> hydrate() },
+        ).also { it.awaitRestored() }
+    }
+
+    private fun target(botId: String, threadId: String): NotificationTarget =
+        requireNotNull(NotificationTarget.from(botId, threadId, "fixture"))
+
+    private fun permissionCard(options: List<String>, allowKey: String?): OptionCard = OptionCard(
+        title = "Approval needed",
+        subtitle = "git push",
+        options = options,
+        requestId = "request-1",
+        tool = "Bash",
+        allowKey = allowKey,
+    )
+
+    private fun bot(id: String, active: String, vararg tasks: String): Bot = Bot(
+        id = id,
+        threadId = active,
+        name = id,
+        title = "",
+        description = "",
+        notifications = true,
+        color = "green",
+        unread = false,
+        modelSelection = ModelSelection("instance", "model"),
+        createdAt = 1.0,
+        tasks = tasks.mapIndexed { index, threadId ->
+            BotTask(threadId, "Task ${index + 1}", index.toDouble())
+        },
+    )
+
+    private fun room(id: String, threadId: String, vararg tasks: String): Room = Room(
+        id = id,
+        threadId = threadId,
+        name = id,
+        memberIds = emptyList(),
+        defaultResponder = GroupResponder("mentions"),
+        bulletin = "",
+        unread = false,
+        createdAt = 1.0,
+        tasks = tasks.mapIndexed { index, task -> BotTask(task, "Task ${index + 1}", index.toDouble()) }
+            .takeIf { it.isNotEmpty() },
+    )
+
+    private fun json(body: String, code: Int = 200): MockResponse = MockResponse()
+        .setResponseCode(code)
+        .setHeader("Content-Type", "application/json")
+        .setBody(body)
+
+    private fun body(request: RecordedRequest): Map<String, String> =
+        CompanionJson.parseToJsonElement(request.body.readUtf8()).jsonObject
+            .mapValues { it.value.jsonPrimitive.content }
+}

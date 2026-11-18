@@ -1,0 +1,354 @@
+// Modified for StartupBot; original copyright and license retained.
+package com.openmausbot.companion.notifications
+
+import android.Manifest
+import android.app.Application
+import android.app.Notification
+import android.app.NotificationManager
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextDirectionHeuristics
+import android.text.TextPaint
+import com.openmausbot.companion.core.NotificationFrame
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class NotificationDirectionTest {
+
+
+    @Test
+    fun `English text crosses to the shade untouched`() {
+        val body = "I finished the report and left it on your desk."
+        assertEquals(body, postedBody(body), "a paragraph that settles itself is not ours to touch")
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            inArabicShade(postedBody(body)).getParagraphDirection(0),
+            "English settles its own direction, mirrored window or not",
+        )
+    }
+
+    @Test
+    fun `Arabic keeps its own direction in the shade`() {
+        val body = "مرحبا بالعالم"
+        assertEquals(body, postedBody(body), "Arabic is nobody's to anchor")
+        assertEquals(
+            Layout.DIR_RIGHT_TO_LEFT,
+            inArabicShade(postedBody(body)).getParagraphDirection(0),
+            "Arabic has to keep reading right to left",
+        )
+    }
+
+    @Test
+    fun `a counted list stays in ascending order in an Arabic shade`() {
+        val body = "1 2 3 4 5 6 7 8 9 10 11 12"
+        val shade = inArabicShade(postedBody(body))
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            shade.getParagraphDirection(0),
+            "a count is nobody else's to settle; without an anchor it falls back to the shade",
+        )
+        assertAscending(shade, postedBody(body), "1", "2", "3")
+    }
+
+    @Test
+    fun `a count in front of Arabic words still reads right to left`() {
+        val body = "12 رسائل جديدة"
+        assertEquals(body, postedBody(body), "P2 walks past the digits and the Arabic settles it")
+        assertEquals(
+            Layout.DIR_RIGHT_TO_LEFT,
+            inArabicShade(postedBody(body)).getParagraphDirection(0),
+            "the paragraph belongs to the Arabic in it",
+        )
+    }
+
+
+    @Test
+    fun `a counted list stays in ascending order on every line it takes`() {
+        for (separator in listOf("\n", "\r\n")) {
+            val body = "1 2${separator}3 4"
+            val shade = inArabicShade(postedBody(body))
+            assertEquals(2, shade.lineCount, "a line feed opens a second paragraph")
+            for (line in 0 until shade.lineCount) {
+                assertEquals(
+                    Layout.DIR_LEFT_TO_RIGHT,
+                    shade.getParagraphDirection(line),
+                    "a later paragraph is nobody else's to settle either (line $line)",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `a counted line under an English line is anchored on its own`() {
+        val shade = inArabicShade(postedBody("Done\n1 2 3"))
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            shade.getParagraphDirection(0),
+            "the English line settles itself",
+        )
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            shade.getParagraphDirection(1),
+            "the count under an English line is still a paragraph of its own",
+        )
+    }
+
+    @Test
+    fun `an Arabic line keeps its direction while the line under it is anchored`() {
+        val shade = inArabicShade(postedBody("مرحبا\n1 2 3"))
+        assertEquals(
+            Layout.DIR_RIGHT_TO_LEFT,
+            shade.getParagraphDirection(0),
+            "the Arabic line is its own paragraph and keeps its direction",
+        )
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            shade.getParagraphDirection(1),
+            "the count below it is not",
+        )
+    }
+
+    @Test
+    fun `only a line feed starts a new paragraph in the shade`() {
+        for (separator in listOf('\r', '\u001C', '\u001D', '\u001E', '\u0085', '\u2029')) {
+            val body = "1 2${separator}3 4"
+            val posted = postedBody(body)
+            val shade = inArabicShade(posted)
+            assertEquals(
+                1,
+                shade.lineCount,
+                "U+%04X is inside the paragraph the leading anchor settles".format(separator.code),
+            )
+            assertEquals(
+                Layout.DIR_LEFT_TO_RIGHT,
+                shade.getParagraphDirection(0),
+                "one anchor at the front governs all of it",
+            )
+            assertAscending(shade, posted, "1", "2", "3", "4")
+        }
+    }
+
+    @Test
+    fun `a separator that is not a line feed is left unmarked inside Arabic`() {
+        val body = "مرحبا\u2029123"
+        assertEquals(body, postedBody(body), "there is no second paragraph here to anchor")
+    }
+
+
+    @Test
+    fun `strong text inside an isolate settles nothing, and the line is anchored`() {
+        val shade = inArabicShade(postedBody("\u2067مرحبا\u2069 1 2"))
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            shade.getParagraphDirection(0),
+            "the only strong text is sealed inside an isolate, so the paragraph is still " +
+                "nobody's to settle and has to be anchored",
+        )
+    }
+
+    @Test
+    fun `strong text outside the isolates still settles the paragraph`() {
+        val body = "Reply \u2067مرحبا\u2069 1 2"
+        assertEquals(body, postedBody(body), "the R outside the isolate settles this paragraph")
+    }
+
+    @Test
+    fun `a code point this device has no table for is still the platform's to read`() {
+        val body = "\u05EC 1 2"
+        assertEquals(body, postedBody(body), "the paragraph settles its own direction")
+    }
+
+    @Test
+    fun `a blank CRLF line takes no anchor, exactly like a blank line`() {
+        assertEquals(
+            "\u200E1 2\r\n\r\n\u200E3 4",
+            postedBody("1 2\r\n\r\n3 4"),
+            "the blank line has nothing to order, so it is not paid for",
+        )
+    }
+
+
+    @Test
+    fun `the character that settles a paragraph counts from where the shade stops reading`() {
+        val body = "1 2 3 4 5 ".repeat(200) + "Done"
+        val posted = postedBody(body)
+        assertEquals(1024, posted.length, "this is the body the shade was handed")
+        assertTrue("Done" !in posted, "the character that settles it never reaches the shade")
+        val shade = inArabicShade(posted)
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            shade.getParagraphDirection(0),
+            "what the shade resolves a direction for is what the shade was given",
+        )
+        assertAscending(shade, posted, "1", "2", "3")
+    }
+
+    @Test
+    fun `an unbroken body is decided at the window like any other`() {
+        val body = "1 2 3 4 5 ".repeat(100_000) + "Done"
+        val posted = postedBody(body)
+        assertEquals(1024, posted.length, "this is the body the shade was handed")
+        assertTrue("Done" !in posted, "the character that would settle it never reaches the shade")
+        val shade = inArabicShade(posted)
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            shade.getParagraphDirection(0),
+            "an unbroken body is still resolved from the prefix the shade was given",
+        )
+        assertAscending(shade, posted, "1", "2", "3")
+    }
+
+    @Test
+    @Config(sdk = [30])
+    fun `the same body settles itself where the shade keeps more of it`() {
+        val body = "1 2 3 4 5 ".repeat(200) + "Done"
+        val posted = postedBody(body)
+        assertEquals(body, posted, "a paragraph that settles itself is handed over untouched")
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            inArabicShade(posted).getParagraphDirection(0),
+            "the Done at the end settles it",
+        )
+    }
+
+    @Test
+    fun `what the shade keeps is read off the API level`() {
+        for (level in 26..30) {
+            assertEquals(
+                5120,
+                NotificationText.mostTheShadeKeeps(level),
+                "Notification.MAX_CHARSEQUENCE_LENGTH is 5 * 1024 on API $level",
+            )
+        }
+        for (level in 31..37) {
+            assertEquals(
+                1024,
+                NotificationText.mostTheShadeKeeps(level),
+                "Notification.MAX_CHARSEQUENCE_LENGTH is 1024 on API $level",
+            )
+        }
+    }
+
+    @Test
+    fun `a body longer than the shade keeps is anchored no further than that`() {
+        val body = "1 2\n".repeat(256_000)
+        val built = NotificationText.anchored(body)
+        assertEquals(
+            1024,
+            built.length,
+            "anchoring a ${body.length}-character body produced ${built.length} characters — " +
+                "the building is supposed to stop where the shade does",
+        )
+        assertEquals(
+            "\u200E1 2\n".repeat(205).take(1024),
+            built,
+            "what was built is not the front of the whole body anchored",
+        )
+        assertEquals(built, postedBody(body), "and that is what the shade was handed")
+    }
+
+    @Test
+    fun `an anchor is never the last unit the shade has room for`() {
+        val body = "A".repeat(1022) + "\n5"
+        val posted = postedBody(body)
+        assertEquals(1024, posted.length, "this is the whole window")
+        assertEquals(body, posted, "the character wins the last unit, not the mark")
+    }
+
+
+    @Test
+    fun `a title with no strong character is anchored too`() {
+        val title = "1 2 3"
+        val posted = postedTitle(title)
+        val shade = inArabicShade(posted)
+        assertEquals(
+            Layout.DIR_LEFT_TO_RIGHT,
+            shade.getParagraphDirection(0),
+            "a title is a paragraph in the same window as the body",
+        )
+        assertAscending(shade, posted, "1", "2", "3")
+    }
+
+    @Test
+    fun `the expanded body is the same string as the collapsed one`() {
+        val body = "1 2 3\n4 5 6"
+        assertEquals(
+            postedBody(body),
+            postedExtra(Notification.EXTRA_BIG_TEXT, body = body),
+            "BigTextStyle draws the same body and needs the same anchoring",
+        )
+    }
+
+
+    private fun postedBody(body: String): String = postedExtra(Notification.EXTRA_TEXT, body = body)
+
+    private fun postedTitle(title: String): String =
+        postedExtra(Notification.EXTRA_TITLE, title = title)
+
+    private fun postedExtra(
+        extra: String,
+        title: String = "Luna finished",
+        body: String = "done",
+    ): String {
+        val context = RuntimeEnvironment.getApplication() as Application
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.cancelAll()
+        LocalNotificationPoster(context).deliver(
+            NotificationFrame(
+                kind = "done",
+                botId = "luna",
+                botName = "Luna",
+                threadId = "t1",
+                title = title,
+                body = body,
+            ),
+            sequence = 1,
+            connectionId = "fixture",
+        )
+        val posted = shadowOf(manager).allNotifications.single()
+        return posted.extras.getCharSequence(extra).toString()
+    }
+
+    private fun inArabicShade(text: String): StaticLayout {
+        val paint = TextPaint().apply { textSize = 24f }
+        return StaticLayout.Builder
+            .obtain(text, 0, text.length, paint, SHADE_WIDTH)
+            .setTextDirection(TextDirectionHeuristics.FIRSTSTRONG_RTL)
+            .build()
+    }
+
+    private fun assertAscending(shade: StaticLayout, text: String, vararg pieces: String) {
+        var from = 0
+        var previousX = Float.NEGATIVE_INFINITY
+        var previous = ""
+        for (piece in pieces) {
+            val at = text.indexOf(piece, from)
+            assertTrue(at >= 0, "\"$piece\" is not in the string the shade was handed")
+            val x = shade.getPrimaryHorizontal(at)
+            assertTrue(
+                x > previousX,
+                "\"$piece\" was drawn at x=$x, left of \"$previous\" at x=$previousX — " +
+                    "the shade read it backwards",
+            )
+            previousX = x
+            previous = piece
+            from = at + piece.length
+        }
+    }
+
+    private companion object {
+        const val SHADE_WIDTH = 4000
+    }
+}

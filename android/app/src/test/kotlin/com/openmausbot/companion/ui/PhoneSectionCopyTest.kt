@@ -1,0 +1,105 @@
+// Modified for StartupBot; original copyright and license retained.
+package com.openmausbot.companion.ui
+
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class PhoneSectionCopyTest {
+
+    private val retiredSectionNames = listOf(
+        "Settings → Companion",
+        "Companion panel",
+        "shown by Companion",
+        "companion settings",
+        "Companion settings",
+    )
+
+    @Test
+    fun `pairing sends the person to Settings then Phone`() {
+        val source = sourceFile("ui/PairingScreen.kt").readText()
+
+        assertTrue(
+            source.contains("1.  Open StartupBot → Settings → Phone"),
+            "the setup steps must name the Phone section",
+        )
+        assertTrue(
+            source.contains("Enter the address shown in Phone settings instead."),
+            "the discovery fallback must name Phone settings",
+        )
+        assertTrue(
+            source.contains("same account — Phone settings will then show a name ending in "),
+            "the Tailscale hint must name Phone settings",
+        )
+        assertTrue(
+            source.contains("Whatever Phone settings on your computer shows — "),
+            "the manual-address footnote must name Phone settings",
+        )
+    }
+
+    @Test
+    fun `every discovery failure points at Phone settings`() {
+        val source = sourceFile("discovery/NsdDiscovery.kt").readText()
+
+
+
+
+        assertEquals(
+            4,
+            countOf(source, "Enter the address shown in Phone settings below."),
+            "every discovery failure must send the person to Phone settings",
+        )
+    }
+
+    @Test
+    fun `a revoked phone is told which desktop section removed it`() {
+        val source = sourceFile("ui/RootScreen.kt").readText()
+
+        assertTrue(
+            source.contains(
+                "It was removed from the computer's Phone settings, or the pairing was reset.",
+            ),
+            "the unpaired screen must name Phone settings",
+        )
+    }
+
+    @Test
+    fun `no instruction still teaches the retired section name`() {
+        for (name in listOf(
+            "ui/PairingScreen.kt",
+            "discovery/NsdDiscovery.kt",
+            "ui/RootScreen.kt",
+            "ui/SettingsPolicy.kt",
+            "ui/SettingsScreen.kt",
+            "ui/ComputerPolicy.kt",
+        )) {
+            val source = sourceFile(name).readText()
+            for (retired in retiredSectionNames) {
+                assertFalse(
+                    source.contains(retired),
+                    "$name still names \"$retired\" — the desktop section is called Phone",
+                )
+            }
+        }
+    }
+
+    private fun countOf(source: String, needle: String): Int =
+        source.split(needle).size - 1
+
+    private fun sourceFile(name: String): File =
+        locate("src/main/kotlin/com/openmausbot/companion/$name")
+
+    private fun locate(relative: String): File {
+        var directory: File? = File(".").absoluteFile
+        while (directory != null) {
+            for (prefix in listOf("", "app/")) {
+                val file = File(directory, prefix + relative)
+                if (file.isFile) return file
+            }
+            directory = directory.parentFile
+        }
+        error("could not find $relative from ${File(".").absolutePath}")
+    }
+}

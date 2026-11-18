@@ -1,0 +1,21 @@
+{
+  "id": "memory-card",
+  "role": "bot",
+  "kind": "options",
+  "at": 1,
+  "card": {
+    "title": "Remember this for the team?",
+    "subtitle": "Term: billing period — Monthly",
+    "options": [
+      "Remember",
+      "Skip"
+    ],
+    "requestId": "memory-request",
+    "tool": "propose_team_memory",
+    "teamMemoryRequest": {
+      "section": "main",
+      "entryId": "memory-request",
+      "kind": "term"
+    }
+  }
+}

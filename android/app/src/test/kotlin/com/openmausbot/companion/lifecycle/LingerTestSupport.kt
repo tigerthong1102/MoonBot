@@ -1,0 +1,213 @@
+// Modified for StartupBot; original copyright and license retained.
+package com.openmausbot.companion.lifecycle
+
+import com.openmausbot.companion.core.Bot
+import com.openmausbot.companion.core.Connection
+import com.openmausbot.companion.core.ConnectionStore
+import com.openmausbot.companion.core.Fleet
+import com.openmausbot.companion.core.InMemoryOnboardingStore
+import com.openmausbot.companion.core.ModelSelection
+import com.openmausbot.companion.core.NotificationFrame
+import com.openmausbot.companion.core.NotificationSink
+import com.openmausbot.companion.core.Session
+import com.openmausbot.companion.core.StreamFrame
+import com.openmausbot.companion.core.TokenStore
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import kotlin.test.assertEquals
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+
+
+
+internal val TEST_CONNECTION = Connection(
+    id = "c1",
+    name = "Ada's Mac",
+    host = "127.0.0.1",
+    port = 8810,
+)
+
+internal class FakeStream(
+    private val onOpen: (Int, String?) -> Flow<StreamFrame>? = { _, _ -> null },
+) {
+    val frames = MutableSharedFlow<StreamFrame>(extraBufferCapacity = 32)
+    val since = mutableListOf<String?>()
+    val screens = mutableListOf<Boolean>()
+
+    val opens: Int get() = since.size
+
+    val collectors: Int get() = frames.subscriptionCount.value
+
+    fun open(cursor: String?, wantsScreens: Boolean): Flow<StreamFrame> {
+        since += cursor
+        screens += wantsScreens
+        return onOpen(since.size, cursor) ?: frames
+    }
+
+    fun emit(frame: StreamFrame) {
+        check(frames.tryEmit(frame)) { "stream buffer full" }
+    }
+}
+
+internal class RecordingSink : NotificationSink {
+    val delivered = mutableListOf<Pair<NotificationFrame, Int?>>()
+    val badges = mutableListOf<Int>()
+
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) {
+        delivered += notification to sequence
+    }
+
+    override fun setBadge(count: Int) {
+        badges += count
+    }
+}
+
+internal class FakeAnchor(
+    var refuseStart: Boolean = false,
+    private val deferDestroy: Boolean = false,
+) : SessionLingerController.ProcessAnchor {
+    private var controller: SessionLingerController? = null
+    private val pendingDestroys = mutableListOf<Long>()
+
+    val started = mutableListOf<Long>()
+    val stopped = mutableListOf<Long>()
+    var startAttempts = 0
+        private set
+
+    var held: Long? = null
+        private set
+
+    override fun attach(controller: SessionLingerController) {
+        this.controller = controller
+    }
+
+    override fun start(token: Long): Boolean {
+        startAttempts += 1
+        if (refuseStart) return false
+        started += token
+        held = token
+        return true
+    }
+
+    override fun stop(token: Long) {
+        stopped += token
+        if (held == token) held = null
+        if (deferDestroy) pendingDestroys += token else controller?.onAnchorLost(token)
+    }
+
+    fun destroyedBySystem() {
+        val token = checkNotNull(held) { "no anchor is held" }
+        held = null
+        controller?.onAnchorLost(token)
+    }
+
+    fun deliverPendingDestroys() {
+        check(deferDestroy) { "this anchor delivers onDestroy inline" }
+        val queued = pendingDestroys.toList()
+        check(queued.isNotEmpty()) { "no onDestroy is pending" }
+        pendingDestroys.clear()
+        queued.forEach { controller?.onAnchorLost(it) }
+    }
+}
+
+internal class TestOwner : LifecycleOwner {
+    val registry = LifecycleRegistry.createUnsafe(this)
+    override val lifecycle: Lifecycle get() = registry
+}
+
+internal fun store(connection: Connection?): ConnectionStore = object : ConnectionStore {
+    override suspend fun load(): Connection? = connection
+    override suspend fun save(connection: Connection) = Unit
+    override suspend fun clear() = Unit
+}
+
+internal fun tokens(result: TokenStore.ReadResult): TokenStore = object : TokenStore {
+    override suspend fun save(connectionId: String, token: String) = Unit
+    override suspend fun read(connectionId: String): TokenStore.ReadResult = result
+    override suspend fun remove(connectionId: String) = Unit
+}
+
+internal fun TestScope.session(
+    stream: FakeStream,
+    sink: NotificationSink,
+    connections: ConnectionStore = store(TEST_CONNECTION),
+    tokenStore: TokenStore = tokens(TokenStore.ReadResult.Found("device-token")),
+    hydrate: suspend () -> Fleet = { Fleet(emptyList(), emptyList()) },
+): Session = Session(
+    scope = backgroundScope,
+    connectionStore = connections,
+    tokenStore = tokenStore,
+    onboardingStore = InMemoryOnboardingStore(),
+    deviceNameProvider = { "Pixel" },
+    notificationSink = sink,
+    eventsFn = { _, since, screens -> stream.open(since, screens) },
+    hydrateFn = { _, _ -> hydrate() },
+)
+
+internal class LingerScene(
+    val owner: TestOwner,
+    val anchor: FakeAnchor,
+    val controller: SessionLingerController,
+)
+
+@OptIn(ExperimentalCoroutinesApi::class)
+internal suspend fun TestScope.installLive(
+    session: Session,
+    stream: FakeStream,
+    anchor: FakeAnchor = FakeAnchor(),
+    awaitHello: Boolean = true,
+    owner: TestOwner = TestOwner(),
+): LingerScene {
+    val controller = installSessionLinger(owner.registry, session, backgroundScope, anchor)
+    owner.registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+    owner.registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+    session.awaitRestored()
+    runCurrent()
+    if (awaitHello) {
+        stream.emit(hello("s:1", resumed = false))
+        runCurrent()
+        assertEquals(Session.Status.Live, session.status.value)
+        assertEquals(1, stream.opens)
+    }
+    return LingerScene(owner, anchor, controller)
+}
+
+internal fun hello(cursor: String, resumed: Boolean = true, seq: Int? = null): StreamFrame =
+    StreamFrame(com.openmausbot.companion.core.Frame.Hello(cursor, resumed), seq)
+
+internal fun notify(
+    kind: String,
+    seq: Int,
+    threadId: String = "t1",
+    title: String = "Done",
+    body: String = "The report is ready.",
+): StreamFrame = StreamFrame(
+    com.openmausbot.companion.core.Frame.Notify(
+        NotificationFrame(
+            kind = kind,
+            botId = "b1",
+            botName = "Scout",
+            threadId = threadId,
+            title = title,
+            body = body,
+        ),
+    ),
+    seq = seq,
+)
+
+internal fun bot(id: String = "b1", threadId: String = "t1", unread: Boolean = false): Bot = Bot(
+    id = id,
+    threadId = threadId,
+    name = id,
+    title = "",
+    description = "",
+    notifications = true,
+    color = "green",
+    unread = unread,
+    modelSelection = ModelSelection("instance-1", "model-1"),
+    createdAt = 0.0,
+)

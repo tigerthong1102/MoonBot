@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for StartupBot; original copyright and license retained. -->
+<!-- Device tokens and key material must not migrate; permission/onboarding consent is device-local. -->
+<full-backup-content>
+    <exclude
+        domain="sharedpref"
+        path="companion_device_token.xml" />
+    <exclude
+        domain="sharedpref"
+        path="__androidx_security_crypto_encrypted_prefs__.xml" />
+    <exclude
+        domain="sharedpref"
+        path="openmaus.permissions.xml" />
+    <exclude
+        domain="sharedpref"
+        path="openmaus.onboarding.xml" />
+</full-backup-content>

@@ -1,0 +1,185 @@
+// Modified for StartupBot; original copyright and license retained.
+package com.openmausbot.companion.ui
+
+import com.openmausbot.companion.core.Chat
+import com.openmausbot.companion.core.ChatSummary
+import com.openmausbot.companion.core.CompanionState
+import com.openmausbot.companion.core.Message
+import com.openmausbot.companion.core.OptionCard
+import com.openmausbot.companion.core.PendingApproval
+import com.openmausbot.companion.core.Session
+import java.util.Locale
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class RosterLayoutTest {
+
+    @Test
+    fun `an unsearched roster has nothing to filter, and keeps the strip`() {
+        val summaries = listOf(botSummary(), roomSummary())
+        assertEquals(summaries, RosterLayout.rows(summaries, ""))
+        assertTrue(RosterLayout.showsGroups(""))
+    }
+
+    @Test
+    fun `no bots yet is about bots, because rooms live in the strip`() {
+        assertTrue(RosterLayout.listsAnyBot(listOf(botSummary(), roomSummary())))
+        assertFalse(RosterLayout.listsAnyBot(listOf(roomSummary())))
+        assertFalse(RosterLayout.listsAnyBot(emptyList()))
+    }
+
+    @Test
+    fun `a search reaches both kinds, and puts the strip away`() {
+        val rows = RosterLayout.rows(listOf(botSummary(), roomSummary()), "s")
+        assertEquals(listOf("bot-1", "room-1"), rows.map { it.id })
+        assertFalse(RosterLayout.showsGroups("s"))
+    }
+
+    @Test
+    fun `a search matches the name, the role chip and the preview`() {
+        val rows = listOf(botSummary(preview = "shipped the release"))
+        assertEquals(1, RosterLayout.rows(rows, "Scout").size)
+        assertEquals(1, RosterLayout.rows(rows, "research").size)
+        assertEquals(1, RosterLayout.rows(rows, "SHIPPED").size)
+        assertEquals(0, RosterLayout.rows(rows, "kangaroo").size)
+    }
+
+    @Test
+    fun `the rows waiting on you are the ones a pending card is in`() {
+        val state = CompanionState(bots = listOf(bot(), bot(id = "bot-2")), cursor = "s:1")
+        val pending = listOf(PendingApproval("thread-bot-2", pendingCardMessage()))
+        assertEquals(setOf("bot-2"), RosterLayout.waitingChats(state, pending))
+        assertEquals(emptySet(), RosterLayout.waitingChats(state, emptyList()))
+    }
+
+    @Test
+    fun `an approval on a thread the fleet does not know is dropped, not guessed`() {
+        val state = CompanionState(bots = listOf(bot()), cursor = "s:1")
+        val pending = listOf(PendingApproval("thread-gone", pendingCardMessage()))
+        assertEquals(emptySet(), RosterLayout.waitingChats(state, pending))
+    }
+
+    @Test
+    fun `a tile stacks its member bots, in the room's own order`() {
+        val state = CompanionState(
+            bots = listOf(
+                bot(id = "a").copy(color = "red"),
+                bot(id = "b").copy(color = "cyan"),
+                bot(id = "c").copy(color = "pink", avatarUrl = "/api/attachments/c.png"),
+            ),
+        )
+        val room = room().copy(memberIds = listOf("c", "a", "missing", "b"))
+        val members = RosterLayout.memberBots(state, room)
+        assertEquals(listOf("c", "a", "b"), members.map { it.id })
+        assertEquals(listOf("pink", "red", "cyan"), members.map { it.color })
+        assertEquals("/api/attachments/c.png", members.first().avatarUrl)
+    }
+
+    @Test
+    fun `a hidden member still lends the tile its face`() {
+        val state = CompanionState(bots = listOf(bot(id = "a").copy(color = "teal", hidden = true)))
+        assertEquals(
+            listOf("teal"),
+            RosterLayout.memberBots(state, room().copy(memberIds = listOf("a"))).map { it.color },
+        )
+    }
+
+    @Test
+    fun `the header's second line names the computer and how it is doing`() {
+        assertEquals("Studio · connected", RosterLayout.headerSubtitle("Studio", Session.Status.Live))
+        assertEquals(
+            "Studio · connecting…",
+            RosterLayout.headerSubtitle("Studio", Session.Status.Connecting),
+        )
+        assertEquals(
+            "Studio · offline",
+            RosterLayout.headerSubtitle("Studio", Session.Status.Offline("No route to the computer")),
+        )
+        assertEquals(
+            "Studio · unpaired",
+            RosterLayout.headerSubtitle("Studio", Session.Status.Unauthorized),
+        )
+    }
+
+    @Test
+    fun `unpaired says so and nothing else, even with a name to hand`() {
+        assertEquals("Not paired", RosterLayout.headerSubtitle("Studio", Session.Status.Unpaired))
+        assertEquals(
+            "Not paired · offline",
+            RosterLayout.headerSubtitle(null, Session.Status.Offline("x")),
+        )
+    }
+
+    @Test
+    fun `section headings uppercase by the invariant rules`() {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            assertEquals("BOTS", RosterLayout.sectionLabel("Bots"))
+            assertEquals("GROUPS", RosterLayout.sectionLabel("Groups"))
+            assertEquals("CHATS", RosterLayout.sectionLabel("Chats"))
+            assertEquals("MESSAGES", RosterLayout.sectionLabel("Messages"))
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+}
+
+class RosterBarTest {
+
+    @Test
+    fun `the bar starts closed and empty`() {
+        val bar = RosterBar()
+        assertFalse(bar.searchOpen)
+        assertEquals("", bar.query)
+    }
+
+    @Test
+    fun `opening search keeps whatever was typed`() {
+        val bar = RosterBar(query = "scout").openSearch()
+        assertTrue(bar.searchOpen)
+        assertEquals("scout", bar.query)
+    }
+
+    @Test
+    fun `Cancel closes the field and clears the query`() {
+        val bar = RosterBar(searchOpen = true, query = "scout").cancelSearch()
+        assertFalse(bar.searchOpen)
+        assertEquals("", bar.query)
+        assertTrue(RosterLayout.showsGroups(bar.query))
+    }
+
+    @Test
+    fun `the clear button empties the field without closing it`() {
+        val bar = RosterBar(searchOpen = true, query = "scout").clearQuery()
+        assertTrue(bar.searchOpen)
+        assertEquals("", bar.query)
+    }
+
+    @Test
+    fun `typing does not disturb whether the field is open`() {
+        assertTrue(RosterBar(searchOpen = true).typed("no").searchOpen)
+        assertFalse(RosterBar().typed("no").searchOpen)
+    }
+}
+
+private fun botSummary(preview: String = ""): ChatSummary =
+    ChatSummary(chat = Chat.BotChat(bot()), preview = preview, lastActivity = 2.0, pinned = false)
+
+private fun roomSummary(): ChatSummary =
+    ChatSummary(chat = Chat.RoomChat(room()), preview = "", lastActivity = 1.0, pinned = false)
+
+private fun pendingCardMessage(): Message = Message(
+    id = "m1",
+    role = Message.Role.BOT,
+    kind = Message.Kind.OPTIONS,
+    at = 1.0,
+    card = OptionCard(
+        title = "Run a command",
+        subtitle = "ls -la",
+        options = listOf("Allow", "Deny"),
+        requestId = "req-1",
+    ),
+)

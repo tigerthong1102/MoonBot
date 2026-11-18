@@ -1,0 +1,325 @@
+// Modified for StartupBot; original copyright and license retained.
+package com.openmausbot.companion.avatar
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import com.openmausbot.companion.core.Bot
+import java.util.UUID
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+
+/** Avatar retrieval requires the paired-device bearer. Cached bytes and decoded images must remain bounded. */
+class AvatarImageStore(
+    private val fetch: suspend (Bot) -> ByteArray?,
+    private val decode: (ByteArray) -> DecodedAvatar? = DEFAULT_DECODE,
+    maxEntries: Int = DEFAULT_MAX_ENTRIES,
+    maxBytes: Int = DEFAULT_MAX_BYTES,
+    maxBitmapEntries: Int = DEFAULT_MAX_BITMAP_ENTRIES,
+    maxBitmapBytes: Int = DEFAULT_MAX_BITMAP_BYTES,
+) {
+    private val cache = BoundedCostCache<ByteArray>(
+        maxEntries = maxEntries,
+        maxBytes = maxBytes,
+        costOf = ByteArray::size,
+    )
+    private val bitmaps = BoundedCostCache<DecodedAvatar>(
+        maxEntries = maxBitmapEntries,
+        maxBytes = maxBitmapBytes,
+        costOf = { it.byteCost },
+    )
+    private val mutex = Mutex()
+    private val inflight = LinkedHashMap<String, Inflight>()
+    private val decodeInflight = LinkedHashMap<String, CompletableDeferred<DecodedAvatar?>>()
+    @Volatile
+    private var generation = 0
+
+    suspend fun bytesFor(bot: Bot): ByteArray? {
+        val path = bot.avatarUrl ?: return null
+        cache.get(path)?.let { return it }
+
+        val gen = generation
+        val claim = mutex.withLock {
+            cache.get(path)?.let { return@withLock Claim.Hit(it) }
+            val existing = inflight[path]
+            if (existing != null) {
+                Claim.Join(existing)
+            } else {
+                val created = Inflight(id = UUID.randomUUID(), deferred = CompletableDeferred())
+                inflight[path] = created
+                Claim.Lead(created)
+            }
+        }
+
+        when (claim) {
+            is Claim.Hit -> return claim.data
+            is Claim.Join -> {
+                coroutineContext.ensureActive()
+                return claim.request.deferred.await()
+            }
+            is Claim.Lead -> {
+                val data = try {
+                    fetch(bot)
+                } catch (error: Throwable) {
+                    finish(path, claim.request, result = null, gen = gen)
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    return null
+                }
+                finish(path, claim.request, result = data, gen = gen)
+                coroutineContext.ensureActive()
+                return claim.request.deferred.await()
+            }
+        }
+    }
+
+    suspend fun bitmapFor(bot: Bot): Bitmap? {
+        val path = bot.avatarUrl ?: return null
+        bitmaps.get(path)?.let { return it.asBitmap() }
+        val data = bytesFor(bot) ?: return null
+        val gen = generation
+
+        val claim = mutex.withLock {
+            bitmaps.get(path)?.let { return@withLock DecodeClaim.Hit(it) }
+            val existing = decodeInflight[path]
+            if (existing != null) {
+                DecodeClaim.Join(existing)
+            } else {
+                val created = CompletableDeferred<DecodedAvatar?>()
+                decodeInflight[path] = created
+                DecodeClaim.Lead(created)
+            }
+        }
+
+        when (claim) {
+            is DecodeClaim.Hit -> return claim.avatar.asBitmap()
+            is DecodeClaim.Join -> {
+                coroutineContext.ensureActive()
+                return claim.deferred.await()?.asBitmap()
+            }
+            is DecodeClaim.Lead -> {
+                return coroutineScope {
+                    val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
+                        try {
+                            awaitCancellation()
+                        } finally {
+                            completeDecode(
+                                path = path,
+                                deferred = claim.deferred,
+                                decoded = null,
+                                gen = gen,
+                            )
+                        }
+                    }
+                    try {
+                        val decoded = withContext(Dispatchers.Default) {
+                            try {
+                                decode(data)
+                            } catch (_: OutOfMemoryError) {
+                                null
+                            }
+                        }
+                        completeDecode(
+                            path = path,
+                            deferred = claim.deferred,
+                            decoded = decoded,
+                            gen = gen,
+                        )
+                        coroutineContext.ensureActive()
+                        claim.deferred.await()?.asBitmap()
+                    } finally {
+                        watcher.cancel()
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun clear() {
+        val pending = mutex.withLock {
+            generation += 1
+            val waiting = inflight.values.toList()
+            val decoding = decodeInflight.values.toList()
+            inflight.clear()
+            decodeInflight.clear()
+            cache.clear()
+            bitmaps.clear()
+            waiting to decoding
+        }
+        pending.first.forEach { it.deferred.complete(null) }
+        pending.second.forEach { it.complete(null) }
+    }
+
+    fun clearBlocking() {
+        generation += 1
+        if (mutex.tryLock()) {
+            try {
+                val pending = inflight.values.toList()
+                val decoding = decodeInflight.values.toList()
+                inflight.clear()
+                decodeInflight.clear()
+                cache.clear()
+                bitmaps.clear()
+                pending.forEach { it.deferred.complete(null) }
+                decoding.forEach { it.complete(null) }
+            } finally {
+                mutex.unlock()
+            }
+        } else {
+            cache.clear()
+            bitmaps.clear()
+        }
+    }
+
+    internal fun cachedEntryCount(): Int = cache.size()
+
+    internal fun cachedByteCost(): Int = cache.byteCost()
+
+    internal fun cachedBitmapCount(): Int = bitmaps.size()
+
+    internal fun cachedBitmapByteCost(): Int = bitmaps.byteCost()
+
+    private suspend fun finish(
+        path: String,
+        request: Inflight,
+        result: ByteArray?,
+        gen: Int,
+    ) {
+        withContext(NonCancellable) {
+            mutex.withLock {
+                if (inflight[path]?.id == request.id) inflight.remove(path)
+                val keep = gen == generation
+                if (keep && result != null) cache.putIfAbsent(path, result)
+                request.deferred.complete(if (keep) result else null)
+            }
+        }
+    }
+
+    private suspend fun completeDecode(
+        path: String,
+        deferred: CompletableDeferred<DecodedAvatar?>,
+        decoded: DecodedAvatar?,
+        gen: Int,
+    ) {
+        withContext(NonCancellable) {
+            mutex.withLock {
+                if (decodeInflight[path] === deferred) {
+                    decodeInflight.remove(path)
+                }
+                if (!deferred.isCompleted) {
+                    val keep = gen == generation && decoded != null
+                    val stored = if (keep) bitmaps.putIfAbsent(path, decoded!!) else null
+                    deferred.complete(stored)
+                }
+            }
+        }
+    }
+
+    private sealed class Claim {
+        data class Hit(val data: ByteArray) : Claim()
+        data class Join(val request: Inflight) : Claim()
+        data class Lead(val request: Inflight) : Claim()
+    }
+
+    private sealed class DecodeClaim {
+        data class Hit(val avatar: DecodedAvatar) : DecodeClaim()
+        data class Join(val deferred: CompletableDeferred<DecodedAvatar?>) : DecodeClaim()
+        data class Lead(val deferred: CompletableDeferred<DecodedAvatar?>) : DecodeClaim()
+    }
+
+    private data class Inflight(
+        val id: UUID,
+        val deferred: CompletableDeferred<ByteArray?>,
+    )
+
+    companion object {
+        const val DEFAULT_MAX_ENTRIES: Int = 64
+        const val DEFAULT_MAX_BYTES: Int = 32 * 1_024 * 1_024
+        const val DEFAULT_MAX_BITMAP_ENTRIES: Int = 64
+        const val DEFAULT_MAX_BITMAP_BYTES: Int = 32 * 1_024 * 1_024
+        const val DEFAULT_MAX_DECODE_EDGE: Int = 1_024
+
+        val DEFAULT_DECODE: (ByteArray) -> DecodedAvatar? = { bytes ->
+            decodeBounded(bytes, maxEdge = DEFAULT_MAX_DECODE_EDGE)?.let { DecodedAvatar.fromBitmap(it) }
+        }
+
+        fun decodeBounded(bytes: ByteArray, maxEdge: Int = DEFAULT_MAX_DECODE_EDGE): Bitmap? {
+            if (bytes.isEmpty() || maxEdge <= 0) return null
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+            val sample = inSampleSizeFor(bounds.outWidth, bounds.outHeight, maxEdge)
+            val options = BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            return try {
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            } catch (_: OutOfMemoryError) {
+                null
+            }
+        }
+
+        fun inSampleSizeFor(width: Int, height: Int, maxEdge: Int): Int {
+            if (width <= 0 || height <= 0 || maxEdge <= 0) return 1
+            var sample = 1
+            var w = width
+            var h = height
+            while (w > maxEdge || h > maxEdge) {
+                sample *= 2
+                w /= 2
+                h /= 2
+            }
+            return sample
+        }
+    }
+}
+
+internal class BoundedCostCache<T>(
+    private val maxEntries: Int,
+    private val maxBytes: Int,
+    private val costOf: (T) -> Int,
+) {
+    private val map = LinkedHashMap<String, T>(16, 0.75f, true)
+    private var totalBytes = 0
+
+    @Synchronized
+    fun get(key: String): T? = map[key]
+
+    @Synchronized
+    fun putIfAbsent(key: String, value: T): T {
+        val existing = map[key]
+        if (existing != null) return existing
+        val cost = costOf(value).coerceAtLeast(0)
+        while (map.isNotEmpty() &&
+            (map.size >= maxEntries || totalBytes + cost > maxBytes)
+        ) {
+            val eldest = map.entries.iterator().next()
+            totalBytes -= costOf(eldest.value).coerceAtLeast(0)
+            map.remove(eldest.key)
+        }
+        map[key] = value
+        totalBytes += cost
+        return value
+    }
+
+    @Synchronized
+    fun clear() {
+        map.clear()
+        totalBytes = 0
+    }
+
+    @Synchronized
+    fun size(): Int = map.size
+
+    @Synchronized
+    fun byteCost(): Int = totalBytes
+}

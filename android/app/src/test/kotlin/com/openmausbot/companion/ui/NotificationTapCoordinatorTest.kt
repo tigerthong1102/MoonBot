@@ -1,0 +1,325 @@
+// Modified for StartupBot; original copyright and license retained.
+package com.openmausbot.companion.ui
+
+import com.openmausbot.companion.core.Bot
+import com.openmausbot.companion.core.BotTask
+import com.openmausbot.companion.core.Chat
+import com.openmausbot.companion.core.ChatTarget
+import com.openmausbot.companion.core.Connection
+import com.openmausbot.companion.core.ConnectionStore
+import com.openmausbot.companion.core.Fleet
+import com.openmausbot.companion.core.InMemoryOnboardingStore
+import com.openmausbot.companion.core.ModelSelection
+import com.openmausbot.companion.core.NotificationTarget
+import com.openmausbot.companion.core.Session
+import com.openmausbot.companion.core.TokenStore
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
+import okhttp3.mockwebserver.MockWebServer
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class NotificationTapCoordinatorTest {
+    private lateinit var server: MockWebServer
+
+    @BeforeTest
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+    }
+
+    @AfterTest
+    fun tearDown() {
+        server.shutdown()
+    }
+
+    @Test
+    fun `consumption cannot precede recorded navigation`() = runTest {
+        val navigation = PendingThreadNavigation()
+        navigation.offer("b1", "task-1", "fixture")
+        val navigator = CompanionNavigator()
+        val coordinator = NotificationTapCoordinator()
+        val session = pairedSession()
+
+        val consumeNow = coordinator.onPending(
+            session,
+            requireNotNull(navigation.pending.value),
+            navigation::consume,
+        )
+        assertFalse(consumeNow, "a resolved chat must wait for commit")
+        val held = requireNotNull(coordinator.resolution.value)
+        assertEquals("task-1", assertIs<Chat.BotChat>(held.chat).threadId)
+        assertNull(navigation.consumedToken(), "consumed before navigate loses the tap on recreation")
+
+        val midFlight = PendingThreadNavigation(navigation.consumedToken())
+        midFlight.offer("b1", "task-1", "fixture")
+        assertEquals(target("b1", "task-1"), midFlight.pending.value)
+
+        val events = mutableListOf<String>()
+        assertTrue(
+            coordinator.commit(held, navigator, "fixture") { t ->
+                events.add("consume")
+                assertEquals(
+                    listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("b1", "task-1"))),
+                    navigator.stack,
+                    "navigate must already have recorded the stack before consume runs",
+                )
+                navigation.consume(t)
+            },
+        )
+        assertEquals(listOf("consume"), events)
+        assertNull(coordinator.resolution.value)
+        assertNotNull(navigation.consumedToken())
+
+        val restoredNav = CompanionNavigator(
+            CompanionNavigator.decode(CompanionNavigator.encode(navigator.stack)),
+        )
+        assertEquals(navigator.stack, restoredNav.stack)
+        val after = PendingThreadNavigation(navigation.consumedToken())
+        after.offer("b1", "task-1", "fixture")
+        assertNull(after.pending.value, "must not fire the same tap twice")
+    }
+
+    @Test
+    fun `resolved chat is discarded when the bond is left`() = runTest {
+        val navigation = PendingThreadNavigation()
+        navigation.offer("old-bot", "old-task", "fixture")
+        val coordinator = NotificationTapCoordinator()
+        val session = pairedSession(botId = "old-bot", active = "old-task")
+        val navigator = CompanionNavigator()
+
+        assertFalse(
+            coordinator.onPending(session, requireNotNull(navigation.pending.value), navigation::consume),
+        )
+        val held = requireNotNull(coordinator.resolution.value)
+        assertTrue(coordinator.commit(held, navigator, "fixture", navigation::consume))
+        assertEquals(
+            listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("old-bot", "old-task"))),
+            navigator.stack,
+        )
+
+        val bondGeneration = 0
+        val saved = CompanionNavigator.encodeWithBond(navigator.stack, bondGeneration)
+
+        assertTrue(NotificationTapCoordinator.leavesBond(Session.Status.Unauthorized))
+        assertTrue(NotificationTapCoordinator.leavesBond(Session.Status.Unpaired))
+        coordinator.discardResolved()
+        val nextBondGeneration = bondGeneration + 1
+
+        assertNull(coordinator.resolution.value)
+        assertNull(
+            CompanionNavigator.restoreForGeneration(saved, nextBondGeneration),
+            "leaving the bond must invalidate the saved stack, not only the in-memory chat",
+        )
+        val sameGen = requireNotNull(CompanionNavigator.restoreForGeneration(saved, bondGeneration))
+        assertEquals(navigator.stack, sameGen.stack)
+
+        val restored = CompanionNavigator.restoreForGeneration(saved, nextBondGeneration)
+            ?: CompanionNavigator()
+        assertEquals(listOf(Destination.Roster), restored.stack)
+        assertFalse(coordinator.commit(held, restored, "fixture", navigation::consume))
+        assertEquals(listOf(Destination.Roster), restored.stack)
+    }
+
+    @Test
+    fun `unauthorized pending is consumed without leaving a resolved chat`() = runTest {
+        val navigation = PendingThreadNavigation()
+        navigation.offer("old-bot", "old-task", "fixture")
+        val coordinator = NotificationTapCoordinator()
+        val session = unpairedSession()
+        val target = requireNotNull(navigation.pending.value)
+
+        assertTrue(coordinator.onPending(session, target, navigation::consume))
+        assertNull(coordinator.resolution.value)
+        assertNull(navigation.pending.value)
+        assertNotNull(navigation.consumedToken())
+
+        val afterPair = PendingThreadNavigation(navigation.consumedToken())
+        afterPair.offer("old-bot", "old-task", "fixture")
+        assertNull(afterPair.pending.value)
+    }
+
+    @Test
+    fun `open then consume is a single commit — no double fire while pending`() = runTest {
+        val navigation = PendingThreadNavigation()
+        navigation.offer("b1", "task-1", "fixture")
+        val navigator = CompanionNavigator()
+        val coordinator = NotificationTapCoordinator()
+        val session = pairedSession()
+
+        coordinator.onPending(session, requireNotNull(navigation.pending.value), navigation::consume)
+        val held = requireNotNull(coordinator.resolution.value)
+
+        val events = mutableListOf<String>()
+        assertTrue(
+            coordinator.commit(held, navigator, "fixture") { t ->
+                assertEquals(
+                    listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("b1", "task-1"))),
+                    navigator.stack,
+                    "navigate must precede consume inside the same commit",
+                )
+                events.add("consume:${t.botId}")
+                navigation.consume(t)
+            },
+        )
+        assertEquals(listOf("consume:b1"), events)
+        assertEquals(1, navigator.stack.count { it is Destination.Chat })
+        assertNull(navigation.pending.value)
+
+        navigation.offer("b2", "task-2", "fixture", fresh = true)
+        assertEquals(target("b2", "task-2"), navigation.pending.value)
+        assertFalse(
+            coordinator.commit(held, navigator, "fixture") { t ->
+                events.add("consume:${t.botId}")
+                navigation.consume(t)
+            },
+        )
+        assertEquals(listOf("consume:b1"), events)
+        assertEquals(target("b2", "task-2"), navigation.pending.value)
+        assertEquals(1, navigator.stack.count { it is Destination.Chat })
+    }
+
+    @Test
+    fun `stale commit cannot consume a newer onNewIntent target`() = runTest {
+        val navigation = PendingThreadNavigation()
+        navigation.offer("a-bot", "a-task", "fixture")
+        val navigator = CompanionNavigator()
+        val coordinator = NotificationTapCoordinator()
+        val sessionA = pairedSession(botId = "a-bot", active = "a-task")
+
+        assertFalse(
+            coordinator.onPending(sessionA, requireNotNull(navigation.pending.value), navigation::consume),
+        )
+        val heldA = requireNotNull(coordinator.resolution.value)
+
+        navigation.offer("b1", "task-1", "fixture", fresh = true)
+        assertEquals(target("b1", "task-1"), navigation.pending.value)
+
+        val sessionB = pairedSession(botId = "b1", active = "task-1")
+        assertFalse(
+            coordinator.onPending(sessionB, requireNotNull(navigation.pending.value), navigation::consume),
+        )
+        val heldB = requireNotNull(coordinator.resolution.value)
+        assertTrue(heldB.generation > heldA.generation)
+
+        assertFalse(
+            coordinator.commit(heldA, navigator, "fixture", navigation::consume),
+            "stale generation must not navigate or consume",
+        )
+        assertEquals(listOf(Destination.Roster), navigator.stack)
+        assertEquals(target("b1", "task-1"), navigation.pending.value)
+
+        assertTrue(coordinator.commit(heldB, navigator, "fixture", navigation::consume))
+        assertEquals(
+            listOf(Destination.Roster, Destination.Chat(ChatTarget.Bot("b1", "task-1"))),
+            navigator.stack,
+        )
+        assertNull(navigation.pending.value)
+    }
+
+    @Test
+    fun `identified consume leaves a replaced pending target untouched`() = runTest {
+        val navigation = PendingThreadNavigation()
+        navigation.offer("a-bot", "a-task", "fixture")
+        val a = requireNotNull(navigation.pending.value)
+        navigation.offer("b1", "task-1", "fixture", fresh = true)
+        assertEquals(target("b1", "task-1"), navigation.pending.value)
+
+        navigation.consume(a)
+        assertEquals(target("b1", "task-1"), navigation.pending.value)
+        assertNull(navigation.consumedToken())
+
+        val b = requireNotNull(navigation.pending.value)
+        navigation.consume(b)
+        assertNull(navigation.pending.value)
+        assertNotNull(navigation.consumedToken())
+    }
+
+    @Test
+    fun switchedComputerCannotCommitAnAlreadyResolvedNotification() = runTest {
+        val coordinator = NotificationTapCoordinator()
+        val navigation = PendingThreadNavigation()
+        val navigator = CompanionNavigator()
+        val target = target("b1", "task-1")
+        navigation.offer(target)
+        coordinator.onPending(pairedSession(), target, navigation::consume)
+        val held = requireNotNull(coordinator.resolution.value)
+        assertFalse(coordinator.commit(held, navigator, "other", navigation::consume))
+        assertEquals(listOf(Destination.Roster), navigator.stack)
+        assertNull(coordinator.resolution.value)
+        assertNull(navigation.pending.value)
+    }
+
+    private suspend fun TestScope.pairedSession(
+        botId: String = "b1",
+        active: String = "task-1",
+    ): Session {
+        val connection = requireNotNull(Connection.parse(server.url("/").toString())).copy(id = "fixture")
+        return Session(
+            scope = backgroundScope,
+            connectionStore = object : ConnectionStore {
+                override suspend fun load(): Connection = connection
+                override suspend fun save(connection: Connection) = Unit
+                override suspend fun clear() = Unit
+            },
+            tokenStore = object : TokenStore {
+                override suspend fun save(connectionId: String, token: String) = Unit
+                override suspend fun read(connectionId: String): TokenStore.ReadResult =
+                    TokenStore.ReadResult.Found("device-token")
+                override suspend fun remove(connectionId: String) = Unit
+            },
+            onboardingStore = InMemoryOnboardingStore(),
+            deviceNameProvider = { "Pixel" },
+            eventsFn = { _, _, _ -> emptyFlow() },
+            hydrateFn = { _, _ -> Fleet(listOf(bot(botId, active, active)), emptyList()) },
+        ).also { it.awaitRestored() }
+    }
+
+    private suspend fun TestScope.unpairedSession(): Session = Session(
+        scope = backgroundScope,
+        connectionStore = object : ConnectionStore {
+            override suspend fun load(): Connection? = null
+            override suspend fun save(connection: Connection) = Unit
+            override suspend fun clear() = Unit
+        },
+        tokenStore = object : TokenStore {
+            override suspend fun save(connectionId: String, token: String) = Unit
+            override suspend fun read(connectionId: String): TokenStore.ReadResult =
+                TokenStore.ReadResult.Missing
+            override suspend fun remove(connectionId: String) = Unit
+        },
+        onboardingStore = InMemoryOnboardingStore(),
+        deviceNameProvider = { "Pixel" },
+        eventsFn = { _, _, _ -> emptyFlow() },
+        hydrateFn = { _, _ -> Fleet(emptyList(), emptyList()) },
+    ).also { it.awaitRestored() }
+
+    private fun bot(id: String, active: String, vararg tasks: String): Bot = Bot(
+        id = id,
+        threadId = active,
+        name = id,
+        title = "",
+        description = "",
+        notifications = true,
+        color = "green",
+        unread = false,
+        modelSelection = ModelSelection("instance-1", "model-1"),
+        createdAt = 0.0,
+        tasks = tasks.mapIndexed { index, threadId ->
+            BotTask(threadId, "Task $threadId", index.toDouble())
+        },
+    )
+
+    private fun target(botId: String, threadId: String): NotificationTarget =
+        requireNotNull(NotificationTarget.from(botId, threadId, "fixture"))
+}

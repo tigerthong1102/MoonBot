@@ -129,3 +129,9 @@ Local validation: 400 tests passed in the first connection batch; the extended b
 ### Connection metadata package regression
 
 At `34d8ddf1bc90d497611b9365c817245031c811ca`, both internal desktop jobs reached their real browser checks but failed the MCP identity assertion: the server correctly advertised `startupbot-mcp`, while the smoke still expected the retired name. The assertion now requires the StartupBot identity; initialize, API health, final-frame drain, process cleanup, encrypted backup and trust checks remain enforced. Local rebuilt packaged-server smoke PASS. Fresh Windows/macOS package jobs and final-head CI are still required.
+
+### Internal v8 connection and CI follow-up
+
+Internal v7 at `9423a8b2b859e5d78ea9469d650e61b6d9c5f893` passed native macOS ARM64 and Windows x64 installation/launch/package smoke in run 44259286635; Intel DMG remains build-only. Full CI 44259227270 exposed two stale Boat-offer tests in Ubuntu shard 3, not a failed production advertisement gate. The preserved engine tests now explicitly enable their test flag, and a new default-off regression proves StartupBot suppresses the upstream offer while retaining the provider card. All 27 API-key/internal-boundary tests pass locally.
+
+Internal v8 additionally renames new CLI pairing labels, the default Grok tool profile, and extraction/decision key-check text. Explicit user labels and inherited profile names remain unchanged. This fork’s strict relay fixtures and validators are updated together; no upstream cloud access is enabled. Local connection/extractor/decider/branding tests: 360 PASS, 2 conditional SKIP. Lint, typecheck, build and rebuilt packaged-server smoke PASS. Fresh native packages and final-head full CI remain required.

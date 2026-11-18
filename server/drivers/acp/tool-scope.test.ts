@@ -39,6 +39,7 @@ it("omits late MCP catalog replies and native diagnostics that could carry crede
 it("builds a curated Grok drafting profile without forwarding unknown names or wildcard selectors", () => {
   const profile = grokToolScopeProfile({ allow: ["native:read_file", "native:search_replace", "native:write", "native:unknown_tool"] }, init);
   expect(profile.toolConfig.tools.map((tool) => tool.name_override)).toEqual(["read_file", "search_replace", "write"]);
+  expect(profile.name).toBe("startupbot-tools");
   expect(profile.injectDefaultTools).toBe(false);
   expect(profile.tools).toEqual([]);
   expect(grokToolScopeProfile({ allow: [] }, init).disallowedTools).toEqual(["read_file"]);
@@ -52,6 +53,7 @@ it("intersects an inherited Grok profile rather than re-enabling its disabled to
     toolConfig: { tools: [{ id: "GrokBuild:read_file", name_override: "read_file" }, { id: "OpenCode:write", name_override: "write" }] },
     disallowedTools: ["write"], permissionMode: "default", tools: [],
   });
+  expect(profile.name).toBe("read-only");
   expect(profile.toolConfig.tools.map((tool) => tool.name_override)).toEqual(["read_file"]);
   expect(profile.disallowedTools).toContain("write");
   expect(profile.permissionMode).toBe("default");

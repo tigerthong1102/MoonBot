@@ -343,6 +343,7 @@ jobs:
         run: |
           node scripts/verify-startupbot-mobile.mjs
           python3 scripts/mobile-command-test.py
+          node --test scripts/ios-simulator-entitlements.node-test.mjs
           xcodebuild -version
           swift test --package-path ios
       - name: Generate StartupBot Xcode project
@@ -354,8 +355,8 @@ jobs:
         run: |
           xcodebuild build -project ios/StartupBot.xcodeproj -scheme StartupBot -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath mobile-artifacts/DerivedData ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= CODE_SIGN_LOCAL_EXECUTION_IDENTITY='Ad Hoc' -jobs 2
           mkdir -p mobile-artifacts/ios
-          node scripts/verify-ios-simulator.mjs mobile-artifacts/DerivedData/Build/Products/Debug-iphonesimulator/StartupBot.app
           ditto mobile-artifacts/DerivedData/Build/Products/Debug-iphonesimulator/StartupBot.app mobile-artifacts/ios/StartupBot.app
+          node scripts/verify-ios-simulator.mjs mobile-artifacts/ios/StartupBot.app
           lipo -archs mobile-artifacts/ios/StartupBot.app/StartupBot | tee mobile-artifacts/ios/architectures.txt
           grep -q arm64 mobile-artifacts/ios/architectures.txt
           grep -q x86_64 mobile-artifacts/ios/architectures.txt

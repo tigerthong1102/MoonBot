@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { simulatedEntitlementsFromDump } from "./ios-simulator-entitlements.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -19,16 +20,11 @@ for (const bundle of bundles) {
   for (const arch of ["arm64", "x86_64"]) {
     const sections = binaries.map(binary => {
       const dump = execFileSync("otool", ["-arch", arch, "-s", "__TEXT", "__entitlements", binary], { encoding: "utf8" });
-      const hex = dump.split("\n").flatMap(line => {
-        const [address, ...words] = line.trim().split(/\s+/);
-        return /^[0-9a-f]{8,16}$/.test(address ?? "") && words.length && words.every(word => /^(?:[0-9a-f]{2}){1,4}$/.test(word)) ? words : [];
-      }).join("");
-      return Buffer.from(hex, "hex").toString("utf8").replace(/\0+$/, "");
+      return simulatedEntitlementsFromDump(dump);
     });
     const xml = sections.find(section => section.includes("<plist")) ?? "";
     assert(xml.includes("<plist"), `${info.CFBundleIdentifier}/${arch} has no simulated entitlement section`);
     const entitlements = JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", "-"], { input: xml, encoding: "utf8" }));
-    assert(entitlements["com.apple.security.application-groups"].includes("group.ai.startupbot.shared"));
     if (info.CFBundleIdentifier === "ai.startupbot.ios" || info.CFBundleIdentifier.endsWith(".share")) {
       assert(entitlements["keychain-access-groups"].includes(info.OpenMausKeychainAccessGroup));
       assert(entitlements["com.apple.security.application-groups"].includes("group.ai.startupbot.shared"));

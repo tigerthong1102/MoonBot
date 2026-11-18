@@ -7024,6 +7024,7 @@ describe("harness HTTP API", () => {
         cwd: ROOT,
         env: {
           ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+          ...(process.env.PATHEXT ? { PATHEXT: process.env.PATHEXT } : {}),
           ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
           HOME: isolatedHome,
           USERPROFILE: isolatedHome,
@@ -7111,7 +7112,16 @@ describe("harness HTTP API", () => {
         `/api/bots/${direct.id}/messages`,
         { text: "request a private key" },
       )).status).toBe(202);
-      await readJsonFileWhenReady(isolatedDump);
+      try {
+        await readJsonFileWhenReady(isolatedDump, 15_000);
+      } catch (error) {
+        const snapshot = (await isolatedApi("GET", "/api/bots?messages=10")).body;
+        const pending = snapshot.bots.find((candidate: { id: string }) => candidate.id === direct.id);
+        throw new Error(`Credential fixture driver did not accept its prompt: ${JSON.stringify({
+          exitCode: isolatedChild.exitCode, signal: isolatedChild.signalCode,
+          busy: pending?.busy, messages: pending?.messages, stderr: isolatedStderr.slice(-4_000),
+        })}`, { cause: error });
+      }
       const directRequest = await requestCredential(direct.id, directOriginalThread);
       expect((await isolatedApi("POST", `/api/bots/${direct.id}/interrupt`, {})).status).toBe(200);
       await expect.poll(async () => {

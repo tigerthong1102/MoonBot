@@ -1454,9 +1454,13 @@ final class Session: ObservableObject {
         requestId: String,
         choice: String,
         isPermission: Bool,
-        reviewedSha256: String? = nil
+        reviewedSha256: String? = nil,
+        originConnectionID: String? = nil
     ) async {
         await perform {
+            if let originConnectionID, $0.connection.id != originConnectionID {
+                throw APIError.status(code: 409, message: "Select the computer that sent this request before answering it.")
+            }
             // Permission cards answer allow/deny; a question answers with
             // the chosen text. The harness tells them apart by `behavior`.
             let behavior = OptionCard.responseBehavior(for: choice, isPermission: isPermission)
@@ -1594,7 +1598,7 @@ final class Session: ObservableObject {
         await perform(quietly: true) {
             switch chat {
             case let .bot(bot): try await $0.markRead(botId: bot.id, threadId: bot.threadId)
-            case let .room(room): try await $0.markRead(roomId: room.id)
+            case let .room(room): try await $0.markRead(roomId: room.id, threadId: room.threadId)
             }
         }
     }

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import XCTest
 @testable import CompanionCore
 
@@ -9,7 +10,7 @@ final class BotActivityContentTests: XCTestCase {
     private func content(threadId: String = "thread-a", card: OptionCard? = nil, kind: String = "needsYou") -> BotActivityContent {
         BotActivityContent(
             face: "waiting", kind: kind, headline: "Pepper needs you", line: "echo hello",
-            threadId: threadId, card: card ?? self.card(), since: Date(timeIntervalSince1970: 0)
+            threadId: threadId, connectionID: "fixture", card: card ?? self.card(), since: Date(timeIntervalSince1970: 0)
         )
     }
 
@@ -21,8 +22,8 @@ final class BotActivityContentTests: XCTestCase {
         let rendered = try JSONDecoder().decode(BotActivityContent.self, from: JSONEncoder().encode(sibling))
         XCTAssertNotEqual(original, sibling, "A thread change must send an activity update")
         XCTAssertEqual(rendered.approvalThreadId, "thread-b")
-        XCTAssertTrue(rendered.canAnswer(threadId: "thread-b", requestId: "request", choice: "Allow", isPermission: true))
-        XCTAssertFalse(rendered.canAnswer(threadId: "thread-a", requestId: "request", choice: "Allow", isPermission: true))
+        XCTAssertTrue(rendered.canAnswer(connectionID: "fixture", threadId: "thread-b", requestId: "request", choice: "Allow", isPermission: true))
+        XCTAssertFalse(rendered.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "request", choice: "Allow", isPermission: true))
     }
 
     func testLegacyActivityDecodesButCannotAnswerUsingOriginalAttributes() throws {
@@ -34,22 +35,22 @@ final class BotActivityContentTests: XCTestCase {
         XCTAssertEqual(rendered.headline, "Pepper needs you")
         XCTAssertNil(rendered.threadId)
         XCTAssertNil(rendered.approvalThreadId)
-        XCTAssertFalse(rendered.canAnswer(threadId: "original-thread", requestId: "request", choice: "Allow", isPermission: true))
+        XCTAssertFalse(rendered.canAnswer(connectionID: "fixture", threadId: "original-thread", requestId: "request", choice: "Allow", isPermission: true))
     }
 
     func testStaleOrChangedIntentCannotAnswer() {
         let current = content(card: card("new-request"))
-        XCTAssertFalse(current.canAnswer(threadId: "thread-a", requestId: "old-request", choice: "Allow", isPermission: true))
-        XCTAssertFalse(current.canAnswer(threadId: "thread-a", requestId: "new-request", choice: "Always allow", isPermission: true))
-        XCTAssertFalse(current.canAnswer(threadId: "thread-a", requestId: "new-request", choice: "Allow", isPermission: false))
-        XCTAssertTrue(current.canAnswer(threadId: "thread-a", requestId: "new-request", choice: "Deny", isPermission: true))
+        XCTAssertFalse(current.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "old-request", choice: "Allow", isPermission: true))
+        XCTAssertFalse(current.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "new-request", choice: "Always allow", isPermission: true))
+        XCTAssertFalse(current.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "new-request", choice: "Allow", isPermission: false))
+        XCTAssertTrue(current.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "new-request", choice: "Deny", isPermission: true))
     }
 
     func testQuestionKeepsItsExactChoicesAndResponseKind() {
         let question = OptionCard(title: "Which?", subtitle: "", options: ["First", "Second"], requestId: "question")
         let current = content(card: question)
-        XCTAssertTrue(current.canAnswer(threadId: "thread-a", requestId: "question", choice: "Second", isPermission: false))
-        XCTAssertFalse(current.canAnswer(threadId: "thread-a", requestId: "question", choice: "Allow", isPermission: true))
+        XCTAssertTrue(current.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "question", choice: "Second", isPermission: false))
+        XCTAssertFalse(current.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "question", choice: "Allow", isPermission: true))
     }
 
     func testAnsweredDismissedAndWorkingStatesOfferNoAction() {
@@ -59,7 +60,7 @@ final class BotActivityContentTests: XCTestCase {
         dismissed.dismissed = true
         for current in [content(card: answered), content(card: dismissed), content(kind: "working")] {
             XCTAssertNil(current.approvalThreadId)
-            XCTAssertFalse(current.canAnswer(threadId: "thread-a", requestId: "request", choice: "Allow", isPermission: true))
+            XCTAssertFalse(current.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "request", choice: "Allow", isPermission: true))
         }
     }
 
@@ -76,6 +77,19 @@ final class BotActivityContentTests: XCTestCase {
         XCTAssertEqual(current.requestId, "skill", "Keep the alert visible")
         XCTAssertTrue(current.options.isEmpty)
         XCTAssertNil(current.approvalThreadId)
+    }
+
+    func testActivityAnswersRequireTheOriginatingComputerEvenWithMatchingRequestIds() throws {
+        let original = content()
+        XCTAssertTrue(original.canAnswer(connectionID: "fixture", threadId: "thread-a", requestId: "request", choice: "Allow", isPermission: true))
+        for origin in [nil, "", "other"] as [String?] {
+            XCTAssertFalse(original.canAnswer(connectionID: origin, threadId: "thread-a", requestId: "request", choice: "Allow", isPermission: true))
+        }
+        var unscoped = original
+        unscoped.connectionID = nil
+        XCTAssertNil(unscoped.approvalThreadId)
+        let decoded = try JSONDecoder().decode(BotActivityContent.self, from: JSONEncoder().encode(original))
+        XCTAssertEqual(decoded.connectionID, "fixture")
     }
 
     func testEmptyTargetOrRequestCannotOfferButtons() {

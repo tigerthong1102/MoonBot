@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 // The widget extension: the bot's Live Activity, in the Dynamic Island and
 // on the lock screen. The face is the mascot engine's resting face for the
 // state — the system renders a snapshot, so it cannot move here, but it
@@ -117,6 +118,7 @@ private struct AnswerButtons: View {
         HStack(spacing: 8) {
             ForEach(context.state.options, id: \.self) { option in
                 Button(intent: AnswerApprovalIntent(
+                    connectionID: context.state.connectionID,
                     threadId: threadId,
                     requestId: requestId,
                     choice: option,

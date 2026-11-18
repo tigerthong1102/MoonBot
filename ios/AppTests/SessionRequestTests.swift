@@ -266,4 +266,31 @@ final class SessionRequestTests: XCTestCase {
             XCTAssertNotNil(session.actionError)
         }
     }
+    @MainActor
+    func testLiveActivityAnswerCannotContactAnotherComputer() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [DeferredResponseProtocol.self]
+        let transport = URLSession(configuration: config)
+        defer { transport.invalidateAndCancel(); DeferredResponseProtocol.started = nil }
+        let connection = Connection(id: "new", name: "Selected fixture", host: "127.0.0.1", port: 19992)
+        let session = Session(fixtureClient: CompanionClient(connection: connection, token: "fixture-only", session: transport))
+        let contacted = expectation(description: "An activity from another computer must send no request")
+        contacted.isInverted = true
+        DeferredResponseProtocol.started = { contacted.fulfill(); try? DeferredResponseProtocol.finish(status: 404, body: "{}") }
+        await session.answer(threadId: "same-thread", requestId: "same-request", choice: "Allow", isPermission: true, originConnectionID: "old")
+        await fulfillment(of: [contacted], timeout: 0.2)
+        XCTAssertEqual(session.connection?.id, "new")
+        XCTAssertEqual(session.status, .live)
+        XCTAssertNotNil(session.actionError)
+    }
+
+    @MainActor
+    func testMatchingLiveActivityOriginStillSendsItsAnswer() async throws {
+        let (session, _) = try await exercise(status: 200, body: "{}", replace: false) { session, _ in
+            await session.answer(threadId: "same-thread", requestId: "same-request", choice: "Allow", isPermission: true, originConnectionID: "old")
+        }
+        XCTAssertNil(session.actionError)
+        XCTAssertEqual(session.status, .live)
+    }
+
 }

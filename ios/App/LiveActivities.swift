@@ -7,6 +7,7 @@ import CompanionCore
 
 @MainActor
 final class LiveActivityCoordinator {
+    private var activeConnectionID: String?
     private var cancellable: AnyCancellable?
     private var lastSent: [String: BotActivityAttributes.ContentState] = [:]
     /// When each bot's current kind began, so an update does not reset the clock.
@@ -14,27 +15,33 @@ final class LiveActivityCoordinator {
 
     func attach(to session: Session) {
         // Answer from the island: the intent runs in this process.
-        AnswerApprovalIntent.handler = { [weak self, weak session] threadId, requestId, choice, isPermission in
-            await self?.answer(session: session, threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission)
+        AnswerApprovalIntent.handler = { [weak self, weak session] connectionID, threadId, requestId, choice, isPermission in
+            await self?.answer(session: session, connectionID: connectionID, threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission)
         }
-        cancellable = session.$state
+        cancellable = session.$state.combineLatest(session.$connection)
             .debounce(for: .milliseconds(400), scheduler: DispatchQueue.main)
-            .sink { [weak self] state in self?.sync(state) }
+            .sink { [weak self] value in self?.sync(value.0, connectionID: value.1?.id) }
     }
 
-    private func answer(session: Session?, threadId: String, requestId: String, choice: String, isPermission: Bool) async {
-        guard Activity<BotActivityAttributes>.activities.contains(where: {
-            $0.content.state.canAnswer(threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission)
+    private func answer(session: Session?, connectionID: String?, threadId: String, requestId: String, choice: String, isPermission: Bool) async {
+        guard let connectionID, !connectionID.isEmpty, session?.connection?.id == connectionID,
+              Activity<BotActivityAttributes>.activities.contains(where: {
+            $0.attributes.connectionID == connectionID && $0.content.state.canAnswer(connectionID: connectionID, threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission)
         }) else {
             session?.actionError = "This request has changed. Open the chat to review it."
             return
         }
-        await session?.answer(threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission)
+        await session?.answer(threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission, originConnectionID: connectionID)
     }
 
-    private func sync(_ state: CompanionState) {
+    private func sync(_ state: CompanionState, connectionID: String?) {
+        if activeConnectionID != connectionID {
+            lastSent.removeAll()
+            since.removeAll()
+            activeConnectionID = connectionID
+        }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        let wanted = state.liveActivityUpdates
+        let wanted = connectionID == nil ? [] : state.liveActivityUpdates
         var wantedIds = Set<String>()
 
         for update in wanted {
@@ -49,6 +56,7 @@ final class LiveActivityCoordinator {
                 headline: update.kind == .needsYou ? "\(bot.name) needs you" : "\(bot.name) is working",
                 line: update.line.isEmpty ? (update.card?.title ?? "") : update.line,
                 threadId: update.chat.threadId,
+                connectionID: connectionID,
                 card: update.card?.questionRequest == nil ? update.card : nil,
                 since: since[bot.id]?.at ?? Date()
             )
@@ -64,23 +72,23 @@ final class LiveActivityCoordinator {
                     sound: .default
                 )
                 : nil
-            if let activity = Activity<BotActivityAttributes>.activities.first(where: { $0.attributes.botId == bot.id }) {
+            if let activity = Activity<BotActivityAttributes>.activities.first(where: { $0.attributes.botId == bot.id && $0.attributes.connectionID == connectionID }) {
                 let newAsk = update.kind == .needsYou && (
                     lastSent[bot.id]?.threadId != content.threadId || lastSent[bot.id]?.requestId != content.requestId
                 )
                 Task { await activity.update(.init(state: content, staleDate: nil), alertConfiguration: newAsk ? alert : nil) }
             } else {
-                let attributes = BotActivityAttributes(botId: bot.id, threadId: bot.threadId, name: bot.name, color: bot.color)
+                let attributes = BotActivityAttributes(connectionID: connectionID, botId: bot.id, threadId: bot.threadId, name: bot.name, color: bot.color)
                 _ = try? Activity.request(attributes: attributes, content: .init(state: content, staleDate: nil), pushType: nil)
                 // a fresh activity cannot alert on request; one immediate alerting update does it
-                if let alert, let activity = Activity<BotActivityAttributes>.activities.first(where: { $0.attributes.botId == bot.id }) {
+                if let alert, let activity = Activity<BotActivityAttributes>.activities.first(where: { $0.attributes.botId == bot.id && $0.attributes.connectionID == connectionID }) {
                     Task { await activity.update(.init(state: content, staleDate: nil), alertConfiguration: alert) }
                 }
             }
         }
 
         // bots that went quiet: let the island go
-        for activity in Activity<BotActivityAttributes>.activities where !wantedIds.contains(activity.attributes.botId) {
+        for activity in Activity<BotActivityAttributes>.activities where activity.attributes.connectionID != connectionID || !wantedIds.contains(activity.attributes.botId) {
             lastSent.removeValue(forKey: activity.attributes.botId)
             since.removeValue(forKey: activity.attributes.botId)
             Task { await activity.end(nil, dismissalPolicy: .immediate) }

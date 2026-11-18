@@ -18,7 +18,7 @@ final class ChannelTaskUpdatesTests: XCTestCase {
         for (index, thread) in ["first", "second"].enumerated() {
             let message = try JSONDecoder().decode(Message.self, from: Data("""
             {"id":"approval-\(index)","role":"bot","kind":"options","at":\(index+1),
-             "card":{"title":"Allow?","options":["Allow","Deny"],"requestId":"request-\(index)","tool":"Bash"}}
+             "card":{"title":"Allow?","subtitle":"Fixture action","options":["Allow","Deny"],"requestId":"request-\(index)","tool":"Bash"}}
             """.utf8))
             state.apply(.messagePatch(threadId: thread, message: message))
         }

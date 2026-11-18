@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import XCTest
 @testable import CompanionCore
@@ -110,6 +111,8 @@ final class ApprovalClientTests: XCTestCase {
         try assertTarget("/api/bots/bot-1/interrupt")
         try await client.markRead(botId: "bot-1", threadId: "thread-a")
         try assertTarget("/api/bots/bot-1/read")
+        try await client.markRead(roomId: "channel-1", threadId: "thread-a")
+        try assertTarget("/api/groups/channel-1/read")
         try await client.alwaysAllow(botId: "bot-1", key: "Bash:ls", threadId: "thread-a")
         try assertTarget("/api/bots/bot-1/always-allow")
         try await client.edit(botId: "bot-1", messageId: "message-a", text: "edit", threadId: "thread-a")

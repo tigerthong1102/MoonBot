@@ -1594,8 +1594,8 @@ public struct CompanionClient: Sendable {
         try await send(try makeRequest("POST", "/api/bots/\(botId)/read", body: threadId.map { ["threadId": $0] }))
     }
 
-    public func markRead(roomId: String) async throws {
-        try await send(try makeRequest("POST", "/api/groups/\(roomId)/read"))
+    public func markRead(roomId: String, threadId: String? = nil) async throws {
+        try await send(try makeRequest("POST", "/api/groups/\(roomId)/read", body: threadId.map { ["threadId": $0] }))
     }
 
     // MARK: - Events

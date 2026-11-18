@@ -594,6 +594,7 @@ class SessionP1Test {
     @Test
     fun foreignNotificationCannotReadOrSwitchTheSelectedComputer() = runTest {
         val session = session { Fleet(listOf(bot("b1", "task-a", "task-a", "task-b")), emptyList()) }
+        assertIs<Chat.BotChat>(session.openNotification(target("b1", "task-a")))
         val foreign = requireNotNull(NotificationTarget.from("b1", "task-b", "other"))
         assertNull(session.openNotification(foreign))
         assertEquals(0, server.requestCount)

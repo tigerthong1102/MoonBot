@@ -59,7 +59,9 @@ Modified imported files:
 - `ShareExtension/ShareItemLoader.swift`
 - `ShareExtension/ShareRootView.swift`
 - `ShareExtension/ShareViewModel.swift`
+- `Shared/BotActivity.swift`
 - `Sources/CompanionCore/AttachedMessageContent.swift`
+- `Sources/CompanionCore/BotActivityContent.swift`
 - `Sources/CompanionCore/Client.swift`
 - `Sources/CompanionCore/Failover.swift`
 - `Sources/CompanionCore/MausBodies.swift`
@@ -69,9 +71,12 @@ Modified imported files:
 - `Sources/CompanionCore/SendReceipt.swift`
 - `Sources/CompanionCore/Store.swift`
 - `TESTING.md`
+- `Tests/CompanionCoreTests/ApprovalClientTests.swift`
+- `Tests/CompanionCoreTests/BotActivityContentTests.swift`
 - `Tests/CompanionCoreTests/DecodingTests.swift`
 - `Tests/CompanionCoreTests/MausBodiesTests.swift`
 - `Tests/CompanionCoreTests/QueuedSendTests.swift`
 - `Tests/CompanionCoreTests/WaitingThreadHydrationTests.swift`
 - `Widgets/Info.plist`
+- `Widgets/OpenMausWidgets.swift`
 - `project.yml`

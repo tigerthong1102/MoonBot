@@ -84,3 +84,11 @@ Các PR [13](https://github.com/tigerthong1102/MoonBot/pull/13), [14](https://gi
 Founder cần mô tả các luồng dữ liệu đã đo của đúng bản phát hành. Ghi ai quyết định xử lý, dữ liệu nào chỉ nằm trên máy, nội dung nào đến provider do khách chọn, đơn vị nào nhận chẩn đoán, thời hạn giữ, cách rút quyền và đầu mối xử lý sự cố. Với chứng từ và hồ sơ nhân sự, phải xác định vai trò của khách hàng, StartupBot và nhà cung cấp model cho từng luồng, rồi để người phụ trách pháp lý đánh giá căn cứ xử lý và nghĩa vụ khi chuyển dữ liệu. Luật Bảo vệ dữ liệu cá nhân và nghị định quy định chi tiết cùng có hiệu lực từ 01/01/2026. [Luật 91/2025/QH15](https://vanban.chinhphu.vn/?docid=214590&pageid=27160) · [Nghị định 356/2025/NĐ-CP](https://vanban.chinhphu.vn/?classid=1&docid=216387&pageid=27160)
 
 Điều khoản bán cần chỉ rõ từng nghiệp vụ, phiên bản và OS được hỗ trợ, chi phí model hoặc BYOK, cách sửa sai, thời hạn hỗ trợ và cách lấy lại dữ liệu. Hợp đồng không nên cam kết thay khách hàng ký số hoặc nộp hồ sơ. Hồ sơ nguồn mở cần đi cùng gói nhận được; thỏa thuận dịch vụ triển khai, đào tạo và hỗ trợ có thể mô tả riêng.
+
+## Kiểm chứng bộ cài tích hợp
+
+Bộ cài nội bộ tại `76fd9bbbd` đã qua job Windows x64 và macOS Intel. DMG arm64 được mở trên Apple Silicon cục bộ và chạy cùng smoke onboarding/Agent. Đã khớp SHA-256 của từng ZIP với GitHub, đọc commit từ metadata bên trong và so SHA-256 installer. Bộ cài có bản sửa analytics, báo lỗi, biểu tượng, thông báo license font, kiểm toàn vẹn ADB và registry đối chiếu tệp. Bản nâng undici và loại fixture thuộc commit tích hợp sau. [Run 44338592532](https://github.com/tigerthong1102/MoonBot/actions/runs/44338592532) · [Biên bản theo nền tảng](evidence/internal-76fd9bbbd-verification.json)
+
+- **windows-x64**. Đã so 3488 tệp, có đủ ba notice font, 0 bản sao trùng byte với 26 blob Enterprise lịch sử. Traffic hệ điều hành Windows chưa đo.
+- **macos-arm64**. Đã so 3408 tệp, có đủ ba notice font, 0 bản sao trùng byte với 26 blob Enterprise lịch sử. NetLog ghi 70 HTTP request tới 127.0.0.1 và 0 lượt favicon Google.
+- **macos-x64**. Đã so 3408 tệp, có đủ ba notice font, 0 bản sao trùng byte với 26 blob Enterprise lịch sử. NetLog ghi 63 HTTP request tới 127.0.0.1 và 0 lượt favicon Google.

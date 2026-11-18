@@ -75,5 +75,11 @@
         "unpackedAsarMatches": 0
       }
     }
-  ]
+  ],
+  "nativeArm64Followup": {
+    "run": 44350351502,
+    "status": "NOT RUN",
+    "reason": "GitHub could not allocate a hosted macOS arm64 runner after multiple attempts. Zero job steps executed.",
+    "separateLocalBuild": "Same source built locally, verified ad-hoc signature and payload. Renderer timed out on the development Mac. Packaged server and browser passed their separate smoke tests."
+  }
 }

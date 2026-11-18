@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import { test } from "vitest";
 import { platformToolsPin, verifyPlatformToolsArchive, verifyPlatformToolsTree } from "./android-platform-tools-integrity.mjs";
 
 const digest = (value) => createHash("sha256").update(value).digest("hex");

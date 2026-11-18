@@ -1,0 +1,98 @@
+{
+  "historicBlobCount": 26,
+  "branches": {
+    "refs/remotes/origin/HEAD": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/build/startupbot-internal-desktop-20261118": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/build/startupbot-internal-mobile-20261118": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/docs/business-connector-audit": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/docs/misa-sme2026-sql2019-pilot": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/feat/asp-accounting-api-pilot": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/feat/business-connectors-discovery": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/feat/business-file-reconciliation": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/feat/business-readonly-lab": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/feat/smartpro-sql2005-lab": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/feat/sql-compatibility-lab": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/fix/startupbot-analytics-consent": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/fix/startupbot-desktop-font-notices": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/fix/startupbot-diagnostic-destinations": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/foundation/startupbot-rebrand": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/main": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/sync/upstream-oss-20261118": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/verify/startupbot-commercial-20261118": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    },
+    "refs/remotes/origin/verify/startupbot-windows-internal-20261118": {
+      "enterprisePaths": 0,
+      "identicalHistoricalBlobs": []
+    }
+  },
+  "artifacts": {
+    "macos-x64": {
+      "regularFilesIncludingAsarMembers": 3403,
+      "enterprisePaths": [],
+      "identicalHistoricalBlobs": []
+    },
+    "macos-arm64": {
+      "regularFilesIncludingAsarMembers": 3403,
+      "enterprisePaths": [],
+      "identicalHistoricalBlobs": []
+    },
+    "windows-x64": {
+      "regularFilesIncludingAsarMembers": 3483,
+      "enterprisePaths": [],
+      "identicalHistoricalBlobs": []
+    }
+  }
+}

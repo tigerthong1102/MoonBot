@@ -12,8 +12,8 @@ Mốc khảo sát 18/11/2026. Cột driver chỉ nêu một cặp đã có tài 
 | 2014 | 12.0 | 7.4 | ODBC 18.5 theo ma trận lịch sử | Đối chiếu KB và build thật của khách hàng. |
 | 2016 | 13.0 | 7.4 | ODBC 18.5 theo ma trận lịch sử | Engine có TLS 1.2. Hỗ trợ mở rộng thông thường đã hết tháng 7/2026. [Vòng đời 2016](https://learn.microsoft.com/en-us/lifecycle/products/sql-server-2016) |
 | 2017 | 14.0 | 7.4 | ODBC 18.7 theo ma trận hiện hành | Thử hiện đại, tùy ma trận hãng. |
-| 2019 | 15.0 | 7.4 | ODBC 18.7 | Thử hiện đại, xác minh tên DNS trên chứng chỉ. |
-| 2022 | 16.0 | 7.4 / 8.0 | ODBC 18.7 | Ưu tiên pilot, xác nhận mode TLS/TDS thực tế. |
+| 2019 | 15.0 | 7.4 | ODBC 18.7 | Ưu tiên pilot MISA SME 2026 trên instance thường; xác minh tên DNS trên chứng chỉ khi dùng TCP. |
+| 2022 | 16.0 | 7.4 / 8.0 | ODBC 18.7 | Thử ở nơi đã có engine hoặc có chứng nhận phù hợp; xác nhận mode TLS/TDS thực tế. |
 | 2025 | 17.0 | 7.4 / 8.0 | ODBC 18.7 | Ưu tiên khi hãng liệt kê đúng phiên bản. |
 
 Nguồn tương ứng là đặc tả giao thức, lịch sử build và ma trận driver, mỗi nguồn trả lời một câu hỏi riêng. Ô trống trong ma trận nghĩa là thiếu chứng nhận ở phiên bản đó. Các bản phát hành cũ có thể vẫn hoạt động về mặt kỹ thuật. [MS-TDS, phụ lục A](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/135d0ebe-5c4c-4a94-99bf-1811eccb9f4a) · [Bảng build](https://learn.microsoft.com/en-us/troubleshoot/sql/releases/download-and-install-latest-updates) · [Ma trận ODBC hiện hành](https://learn.microsoft.com/en-us/sql/connect/odbc/windows/system-requirements-installation-and-driver-files) · [Bản lưu chính thức tháng 3/2025, còn các cột 2005–2016](https://github.com/MicrosoftDocs/sql-docs/blob/8ee7f72294c258d7290d17ce32137a6401ea4640/docs/connect/odbc/windows/system-requirements-installation-and-driver-files.md)

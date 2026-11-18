@@ -4020,5 +4020,6 @@
   "room.members.far.place": "auf {place}",
   "room.members.far.off": "Verbindung ist aus",
   "room.members.far.missing": "Nicht mehr verfügbar",
-  "update.error.unavailable": "Aktualisierung nicht verfügbar"
+  "update.error.unavailable": "Aktualisierung nicht verfügbar",
+  "organization.notConfigured": "Nicht konfiguriert"
 }

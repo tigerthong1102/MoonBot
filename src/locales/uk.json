@@ -4083,5 +4083,6 @@
   "together.switch.title": "Цей комп'ютер і Моя хмара разом",
   "together.switch.line": "Типово вимкнено. Боти з хмари й боти цього комп'ютера показані в одному списку, і кожен відкривається там, де він є.",
   "together.switch.failed": "Не вдалося зберегти. Спробуйте ще раз.",
-  "update.error.unavailable": "Оновлення недоступне"
+  "update.error.unavailable": "Оновлення недоступне",
+  "organization.notConfigured": "Не налаштовано"
 }

@@ -3662,5 +3662,6 @@
   "together.switch.title": "यही कंप्यूटर और मेरा क्लाउड एक साथ",
   "together.switch.line": "डिफ़ॉल्ट रूप से बंद। क्लाउड के बॉट और इस कंप्यूटर के बॉट एक ही सूची में दिखते हैं, और हर बॉट वहीं खुलता है जहाँ वह है।",
   "together.switch.failed": "इसे सहेजा नहीं जा सका। फिर से कोशिश करें।",
-  "update.error.unavailable": "अपडेट उपलब्ध नहीं है"
+  "update.error.unavailable": "अपडेट उपलब्ध नहीं है",
+  "organization.notConfigured": "कॉन्फ़िगर नहीं किया गया"
 }

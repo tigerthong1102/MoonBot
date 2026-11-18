@@ -3808,5 +3808,6 @@
   "together.switch.title": "Cet ordinateur et Mon Cloud ensemble",
   "together.switch.line": "Désactivé par défaut. Les bots du Cloud et ceux de cet ordinateur s'affichent dans une seule liste, et chacun s'ouvre là où il se trouve.",
   "together.switch.failed": "Impossible d'enregistrer. Réessayez.",
-  "update.error.unavailable": "Mise à jour indisponible"
+  "update.error.unavailable": "Mise à jour indisponible",
+  "organization.notConfigured": "Non configuré"
 }

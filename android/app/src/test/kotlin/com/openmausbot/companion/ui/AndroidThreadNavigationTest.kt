@@ -53,7 +53,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Real Compose controls and Session requests, confined to an offline loopback fixture. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalTestApi::class)
@@ -306,8 +305,6 @@ class AndroidThreadNavigationTest {
         }
         compose.onNodeWithContentDescription("Snooze First thread").performClick()
         compose.onNodeWithText(SnoozeRules.UNTIL_SIX_PM).assertIsDisplayed()
-        // This is deliberately not Compose state: time passes without a
-        // server event or recomposition while the dialog remains open.
         compose.runOnIdle { clock = at(14, 18, 1) }
         compose.onNodeWithText(SnoozeRules.UNTIL_SIX_PM).performClick()
         waitForError()

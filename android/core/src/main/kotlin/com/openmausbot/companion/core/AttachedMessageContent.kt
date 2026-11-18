@@ -87,7 +87,6 @@ data class AttachedMessageContent(
 
         private data class Fence(val character: Char, val length: Int)
         private data class FenceMarker(val character: Char, val length: Int, val remainder: String)
-        // CommonMark type 6/7 HTML blocks end at a blank line.
         private data class HtmlBlock(val closingToken: String?)
 
         private fun htmlBlockStarting(line: String): HtmlBlock? {

@@ -348,9 +348,6 @@ interface CompanionDiscovery {
     fun discover(): Flow<DiscoveryState>
 }
 
-/**
- * NsdManager wrapper for `_openmausbot._tcp`, exposed as a Flow of [DiscoveryState].
- */
 class NsdDiscovery(
     context: Context,
     private val serviceType: String = SERVICE_TYPE,

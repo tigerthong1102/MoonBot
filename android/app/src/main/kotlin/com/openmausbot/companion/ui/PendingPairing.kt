@@ -331,11 +331,6 @@ internal object PairingCopy {
 
     const val ENTER_CODE: String = "Enter the pairing code shown on your computer or server:"
 
-    /**
-     * No iOS counterpart: SwiftUI's `@State` dies with the process, so iOS never
-     * restores a half-finished scan. Android's saved state does, and the answer
-     * §6 demands is a new QR rather than a replay.
-     */
     const val RESCAN: String =
         "This app restarted before the pairing finished. That one-time code is " +
             "never reused, because it may already have been redeemed. Start pairing " +

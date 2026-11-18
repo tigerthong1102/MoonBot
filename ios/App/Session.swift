@@ -194,10 +194,6 @@ final class Session: ObservableObject {
         restorePending = false
         registry = OpenMausSharedConnectionStore.loadRegistry()
         connections = registry.connections
-        // The Share extension can target any saved computer, not only the
-        // one active at launch. Move every inactive pre-extension token into
-        // the shared Keychain group now; the active token is read below so
-        // its locked/error state can still drive the visible connection UI.
         for saved in registry.connections where saved.id != registry.activeConnectionID {
             _ = try? Keychain.token(for: saved.id)
         }
@@ -622,14 +618,7 @@ final class Session: ObservableObject {
         while !Task.isCancelled {
             guard let client else { return }
             status = .connecting
-            // A server connection first checks it is still the same server.
-            // The descriptor is public, so this spends no credential; a
-            // changed environment id (the address now belongs to another
-            // server, or its data directory was recreated) means "pair
-            // again", exactly like a revoked token — the bearer would be
-            // refused anyway, and a fresh install must not be shown the old
-            // one. Unreachable is not "different": the stream attempt below
-            // reports that the usual way.
+            // A replacement server must not receive a saved bearer credential.
             if let expected = client.connection.serverEnvironmentId {
                 let live = try? await client.environment()
                 if Task.isCancelled { return }
@@ -991,9 +980,6 @@ final class Session: ObservableObject {
         }
         let generation = attachmentCacheGeneration
         do {
-            // Keep this structured. When the row scrolls away SwiftUI cancels
-            // its task, which now propagates directly into URLSession instead
-            // of leaving a shared unstructured download running.
             let download = try await client.downloadFile(
                 threadId: threadId,
                 messageId: messageId,
@@ -1270,9 +1256,6 @@ final class Session: ObservableObject {
         ].joined(separator: "\u{0}")
     }
 
-    /// Send one already-sealed operation. A retry deliberately reuses the
-    /// same HPKE envelope; the desktop derives its idempotency key from these
-    /// bytes, so a lost response cannot cause a second provider save.
     func provideCredential(_ prepared: PreparedPhoneCredential) async throws {
         let requestGeneration = runtimeGeneration
         guard let client, let connection else {
@@ -1371,9 +1354,6 @@ final class Session: ObservableObject {
         }
     }
 
-    /// Create a sidebar section by assigning its complete starting set in one
-    /// request. The server commits the batch before returning, then these
-    /// folds make the roster move immediately instead of waiting for SSE.
     @discardableResult
     func assignSection(name: String, botIds: [String]) async -> [Bot]? {
         let requestGeneration = runtimeGeneration
@@ -1502,16 +1482,20 @@ final class Session: ObservableObject {
 
     private func connectSearchHistory(_ hit: SearchHit, using client: CompanionClient, generation: Int) async throws {
         var landing = SearchLanding(threadID: hit.threadId, messageID: hit.messageId)
+        guard isCurrent(client, generation: generation) else { throw CancellationError() }
+        if landing.isRendered(in: state) { return }
+        var leafAtRequest = landing.leaf(in: state)
         var page = try currentResult(try await client.messages(threadId: hit.threadId, around: hit.messageId), using: client, generation: generation)
-        state = try landing.merge(page, into: state)
+        state = try landing.merge(page, into: state, leafAtRequest: leafAtRequest)
         while let cursor = try landing.next(in: state) {
+            leafAtRequest = landing.leaf(in: state)
             switch cursor {
             case .latest:
                 page = try currentResult(try await client.messages(threadId: hit.threadId, limit: 200), using: client, generation: generation)
             case let .around(parent):
                 page = try currentResult(try await client.messages(threadId: hit.threadId, around: parent, limit: 200), using: client, generation: generation)
             }
-            state = try landing.merge(page, into: state)
+            state = try landing.merge(page, into: state, leafAtRequest: leafAtRequest)
         }
     }
 
@@ -1825,24 +1809,18 @@ final class Session: ObservableObject {
                 $0.threadId == target.threadId || ($0.tasks ?? []).contains(where: { $0.threadId == target.threadId })
             }) {
                 if room.threadId != target.threadId {
-                    do {
-                        room = try currentResult(try await client.switchTask(groupId: room.id, threadId: target.threadId), using: client, generation: requestGeneration)
-                        state.apply(.room(room))
-                    } catch {
-                        guard isCurrent(client, generation: requestGeneration) else { return }
-                    }
+                    room = try currentResult(try await client.switchTask(groupId: room.id, threadId: target.threadId), using: client, generation: requestGeneration)
+                    guard room.threadId == target.threadId else { throw APIError.status(code: 409, message: "That task could not be opened. Try again.") }
+                    state.apply(.room(room))
                 }
                 notificationChat = .room(room)
                 return
             }
             guard var selected = bot else { throw APIError.status(code: 404, message: "That agent no longer exists.") }
             if target.requiresTaskSwitch(activeThreadId: selected.threadId) {
-                do {
-                    selected = try currentResult(try await client.switchTask(botId: selected.id, threadId: target.threadId), using: client, generation: requestGeneration)
-                    state.apply(.bot(selected))
-                } catch {
-                    guard isCurrent(client, generation: requestGeneration) else { return }
-                }
+                selected = try currentResult(try await client.switchTask(botId: selected.id, threadId: target.threadId), using: client, generation: requestGeneration)
+                guard selected.threadId == target.threadId else { throw APIError.status(code: 409, message: "That task could not be opened. Try again.") }
+                state.apply(.bot(selected))
             }
             notificationChat = .bot(selected)
         } catch is CancellationError {
@@ -1879,6 +1857,7 @@ final class Session: ObservableObject {
                 } catch APIError.status(code: 404, message: _) {
                     guard requestIsCurrent() else { return nil }
                     actionError = "That thread is no longer on your computer."
+                    return nil
                 }
             }
             guard requestIsCurrent() else { return nil }

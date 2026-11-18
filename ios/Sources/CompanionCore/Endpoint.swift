@@ -1,9 +1,6 @@
 // Modified for StartupBot; original copyright and license retained.
 import Foundation
 
-/// Why an address exists. The kind is display and policy metadata; the URL
-/// remains the complete dialing authority, so hosted HTTPS and local HTTP can
-/// live in the same fallback list without guessing a scheme from a hostname.
 public enum CompanionEndpointKind: String, Codable, CaseIterable, Sendable {
     case hosted
     case tailnet
@@ -67,7 +64,6 @@ public struct CompanionEndpoint: Codable, Hashable, Sendable {
         return port == 8810 ? host : "\(host):\(port)"
     }
 
-    /// Construct the legacy HTTP route represented by `host` + `port`.
     public static func direct(
         host: String,
         port: Int,

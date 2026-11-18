@@ -210,7 +210,6 @@ object AttachmentImport {
     }
 }
 
-/** One attachment waiting above the composer — `PendingAttachmentChip` in `AttachmentViews.swift`. */
 @Composable
 internal fun PendingAttachmentChip(
     attachment: PendingMessageAttachment,

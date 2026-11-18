@@ -39,6 +39,7 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import okio.Buffer
 
 internal data class ConnectionEndpoint(val baseUrl: HttpUrl, val dns: Dns)
 
@@ -288,6 +289,7 @@ class CompanionClient(
                 "/api/threads/${safeRouteId(threadId)}/messages/${safeRouteId(messageId)}/file",
                 body = jsonBody("path" to link.path),
             ),
+            maximumBytes = MAXIMUM_FILE_DOWNLOAD_BYTES.toLong(),
         )
         check(raw)
         val declared = raw.headers["Content-Length"]?.trim()?.toLongOrNull() ?: -1L
@@ -460,6 +462,9 @@ class CompanionClient(
     )
 
     suspend fun updateVoiceKey(key: String) {
+        if (endpoint?.baseUrl?.isHttps != true) {
+            throw APIError.Transport("API keys require HTTPS. Set up the voice key on your computer.")
+        }
         val trimmed = key.trim()
         if (trimmed.toByteArray().size > 512 || trimmed.any(Char::isISOControl)) {
             throw APIError.Transport("That doesn't look like an API key.")
@@ -801,18 +806,20 @@ class CompanionClient(
     private suspend fun perform(
         request: Request,
         requestClient: OkHttpClient = actionClient,
+        maximumBytes: Long = MAXIMUM_RESPONSE_BYTES,
     ): RawResponse {
         if (token != null && connection.serverEnvironmentId != null &&
             environment().environmentId != connection.serverEnvironmentId
         ) {
             throw APIError.Status(401, "This address belongs to a different server. Pair again to continue.")
         }
-        return performUnchecked(request, requestClient)
+        return performUnchecked(request, requestClient, maximumBytes)
     }
 
     private suspend fun performUnchecked(
         request: Request,
         requestClient: OkHttpClient = actionClient,
+        maximumBytes: Long = MAXIMUM_RESPONSE_BYTES,
     ): RawResponse = suspendCancellableCoroutine { continuation ->
         val call = requestClient.newCall(request)
         continuation.invokeOnCancellation { call.cancel() }
@@ -831,7 +838,7 @@ class CompanionClient(
                         val result = RawResponse(
                             code = response.code,
                             headers = response.headers,
-                            data = response.body?.bytes() ?: ByteArray(0),
+                            data = readBounded(response, maximumBytes),
                         )
                         if (continuation.isActive) continuation.resume(result)
                     }
@@ -844,6 +851,19 @@ class CompanionClient(
                 }
             }
         })
+    }
+
+    private fun readBounded(response: Response, maximumBytes: Long): ByteArray {
+        val body = response.body ?: return ByteArray(0)
+        val message = if (maximumBytes == MAXIMUM_FILE_DOWNLOAD_BYTES.toLong()) "That file is larger than 25 MB."
+            else "The response exceeds this phone's safety limit."
+        if (body.contentLength() > maximumBytes) throw IOException(message)
+        val buffer = Buffer()
+        val source = body.source()
+        while (source.read(buffer, minOf(8192L, maximumBytes + 1 - buffer.size)) != -1L) {
+            if (buffer.size > maximumBytes) throw IOException(message)
+        }
+        return buffer.readByteArray()
     }
 
     private fun check(response: RawResponse) {
@@ -859,6 +879,7 @@ class CompanionClient(
     companion object {
         const val ALREADY_DRAINED = "no such queued message"
 
+        private const val MAXIMUM_RESPONSE_BYTES = 64L * 1024 * 1024
         private const val ACTION_TIMEOUT_SECONDS = 20L
         private const val AVATAR_GENERATION_TIMEOUT_SECONDS = 150L
         private const val CLAUDE_UPDATE_TIMEOUT_SECONDS = 200L
@@ -890,17 +911,6 @@ class CompanionClient(
         private val EMPTY_BODY: RequestBody = ByteArray(0).toRequestBody(null)
         private const val HEX_DIGITS = "0123456789ABCDEF"
 
-        /**
-         * Escape one opaque id so it can only ever be a single path segment.
-         *
-         * [makeRequest] hands the finished string to `encodedPath`, which reads
-         * it as already-encoded path syntax: an id holding `/` splits into extra
-         * segments, and an id that is `.` or `..` is resolved away against the
-         * segments before it. Percent-escaping alone cannot save a dot segment —
-         * OkHttp resolves `%2e` and `%2e%2e` the same way — so those two ids are
-         * refused outright, as is the empty id that would collapse the route.
-         * Ids the sidecar issues carry no path syntax, so nothing valid changes.
-         */
         private fun segment(value: String): String {
             if (value.isEmpty() || value == "." || value == "..") throw APIError.BadUrl
             val escaped = StringBuilder(value.length)

@@ -26,7 +26,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,13 +61,12 @@ object VoiceSettingsRules {
     fun canRemove(status: ConfigStatus?, saving: Boolean): Boolean = !saving && status?.isTTSConfigured == true
 }
 
-// Provider keys remain on the computer and are never returned in configuration responses.
 @Composable
 fun VoiceSettingsScreen(onBack: () -> Unit) {
     val session = LocalCompanion.current.session
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<ConfigStatus?>(null) }
-    var key by rememberSaveable { mutableStateOf("") }
+    var key by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var messageIsError by remember { mutableStateOf(false) }

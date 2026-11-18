@@ -330,7 +330,6 @@ private fun UnpairedScreen(onPairAgain: () -> Unit, onChooseAnother: (() -> Unit
     }
 }
 
-/** SwiftUI's `ContentUnavailableView`, near enough. */
 @Composable
 fun EmptyState(
     title: String,

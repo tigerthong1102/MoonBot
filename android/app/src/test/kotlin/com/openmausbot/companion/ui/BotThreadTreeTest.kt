@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.runtime.getValue
@@ -24,7 +25,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** Disposable, offline Compose fixtures: no pairing or user server is involved. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class BotThreadTreeTest {

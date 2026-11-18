@@ -18,13 +18,22 @@ class SearchLanding(
     private val requested = mutableSetOf<String>()
     private var expectedId = messageId
 
-    fun merge(page: ThreadPage, state: CompanionState): CompanionState {
+    fun leaf(state: CompanionState): String? = state.activeLeafIds[threadId] ?: state.botForThread(threadId)?.activeLeafId
+
+    fun merge(page: ThreadPage, state: CompanionState, leafAtRequest: String? = leaf(state)): CompanionState {
         check(System.nanoTime() - started < 30_000_000_000L && pages <= maximumPages) { LIMIT }
         check(page.messages.any { it.id == expectedId }) { UNAVAILABLE }
-        val leaf = state.activeLeafIds[threadId] ?: state.botForThread(threadId)?.activeLeafId ?: page.activeLeafId
+        val currentLeaf = leaf(state)
+        val leaf = if (currentLeaf != leafAtRequest) currentLeaf else page.activeLeafId
         val next = state.merge(page.copy(activeLeafId = leaf), threadId)
         check(CompanionJson.encodeToString(next.transcript(threadId)).encodeToByteArray().size <= maximumBytes) { LIMIT }
         return next
+    }
+
+    fun isRendered(state: CompanionState): Boolean {
+        val leaf = state.activeLeafIds[threadId] ?: state.botForThread(threadId)?.activeLeafId
+        return (leaf == null || state.transcript(threadId).any { it.id == leaf }) &&
+            state.visibleTranscript(threadId).any { it.id == messageId }
     }
 
     fun next(state: CompanionState): SearchHistoryCursor? {
@@ -38,7 +47,7 @@ class SearchLanding(
             return SearchHistoryCursor.Latest
         }
         val visible = state.visibleTranscript(threadId)
-        if (visible.any { it.id == messageId }) return null
+        if (isRendered(state)) return null
         check(pages < maximumPages) { LIMIT }
         val parent = visible.firstOrNull()?.parentId
         check(parent != null && all.none { it.id == parent } && requested.add(parent)) { UNAVAILABLE }

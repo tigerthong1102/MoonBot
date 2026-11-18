@@ -3,14 +3,6 @@ package com.openmausbot.companion.avatar
 
 import android.graphics.Bitmap
 
-/**
- * Cost-bearing decode result retained by [AvatarImageStore]'s bitmap cache.
- *
- * Production wraps a real [Bitmap] and reports [Bitmap.allocationByteCount].
- * JVM unit tests inject a stand-in via [forTest] so retention, cost-eviction,
- * shared decode, cancellation cleanup and OOM fallback can be proven without
- * Robolectric or a device — [BitmapFactory] itself remains a device check.
- */
 class DecodedAvatar private constructor(
     private val bitmap: Bitmap?,
     val byteCost: Int,

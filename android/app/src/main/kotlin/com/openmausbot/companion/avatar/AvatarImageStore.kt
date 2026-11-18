@@ -99,17 +99,6 @@ class AvatarImageStore(
         }
     }
 
-    /**
-     * Decoded bitmap for [bot], cached by attachment path.
-     * Returns the same instance on repeat calls so Compose identity stays stable
-     * across scroll recompositions. Concurrent first decodes of the same path
-     * share one worker. Null on missing URL, fetch failure, or undecodable /
-     * over-budget bytes (UI falls back to the mascot, like iOS).
-     *
-     * Cancelling the leader always removes the in-flight entry and completes
-     * joiners — otherwise a roster leave during the first decode can leave
-     * another consumer of the same path waiting forever.
-     */
     suspend fun bitmapFor(bot: Bot): Bitmap? {
         val path = bot.avatarUrl ?: return null
         bitmaps.get(path)?.let { return it.asBitmap() }
@@ -135,10 +124,6 @@ class AvatarImageStore(
                 return claim.deferred.await()?.asBitmap()
             }
             is DecodeClaim.Lead -> {
-                // Decode may be stuck in non-interruptible work (BitmapFactory /
-                // a test latch). A try/finally around withContext only runs after
-                // that work returns — too late for joiners. The UNDISPATCHED
-                // watcher completes them on the transition to cancelling.
                 return coroutineScope {
                     val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
                         try {
@@ -277,11 +262,6 @@ class AvatarImageStore(
         const val DEFAULT_MAX_ENTRIES: Int = 64
         const val DEFAULT_MAX_BYTES: Int = 32 * 1_024 * 1_024
         const val DEFAULT_MAX_BITMAP_ENTRIES: Int = 64
-        /**
-         * Android-only decoded-frame ceiling. Encoded-byte cache above matches
-         * iOS `NSCache`; this second budget exists because Android retains
-         * bitmaps globally for roster scroll identity.
-         */
         const val DEFAULT_MAX_BITMAP_BYTES: Int = 32 * 1_024 * 1_024
         const val DEFAULT_MAX_DECODE_EDGE: Int = 1_024
 

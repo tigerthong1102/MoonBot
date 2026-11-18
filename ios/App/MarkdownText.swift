@@ -97,13 +97,6 @@ struct MarkdownText: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// Inline markdown via Foundation. `.inlineOnlyPreservingWhitespace`
-    /// because the blocks are already split — asking for `.full` here would
-    /// have it re-interpret list markers this has already consumed.
-    ///
-    /// Falling back to the raw string on a parse failure is the point: a
-    /// half-typed link mid-stream should show as the characters the model has
-    /// sent so far, not vanish until it closes the bracket.
     private func inline(_ text: String, tail: Bool = false) -> Text {
         let rendered: Text
         if let attributed = try? AttributedString(

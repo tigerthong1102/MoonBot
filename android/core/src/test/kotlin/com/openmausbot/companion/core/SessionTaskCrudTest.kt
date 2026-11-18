@@ -56,9 +56,6 @@ class SessionTaskCrudTest {
         )
 
         operations.forEachIndexed { index, operation ->
-            // Undispatched so the body runs into the first suspension — the
-            // HTTP call inside the shared executor — and surfaces the already-
-            // cancelled job's CancellationException through its catch.
             val deferred = cancelled.async(start = CoroutineStart.UNDISPATCHED) { operation() }
             assertFailsWith<CancellationException>("operation $index") { deferred.await() }
         }

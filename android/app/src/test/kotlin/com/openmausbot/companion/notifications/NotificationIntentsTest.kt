@@ -24,7 +24,6 @@ class NotificationIntentsTest {
 
     @Test
     fun `thread ids that share a String hashCode still differ`() {
-        // Classic Java String.hashCode collision: "Aa" and "BB" both equal 2112.
         assertEquals("Aa".hashCode(), "BB".hashCode())
         assertNotEquals(identity("bot", "Aa"), identity("bot", "BB"))
         assertNotEquals(identity("bot", "FB"), identity("bot", "Ea"))

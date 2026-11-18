@@ -89,7 +89,6 @@ final class ServerPairingTests: XCTestCase {
         XCTAssertEqual(invite.connection.activeEndpoint?.url, "https://c-7f3a9c.openmausbot.com")
         XCTAssertEqual(invite.connection.host, "c-7f3a9c.openmausbot.com")
 
-        // a port survives; a plain-http LAN link infers the local kind
         let withPort = try XCTUnwrap(PairingInvite.parse(XCTUnwrap(URL(string: "https://mini.example:8443/pair#code=ABCDEFGHJKLM"))))
         XCTAssertEqual(withPort.connection.activeEndpoint?.url, "https://mini.example:8443")
         let lan = try XCTUnwrap(PairingInvite.parse(XCTUnwrap(URL(string: "http://192.168.1.20:8799/pair#code=ABCD-EFGH-JKLM"))))
@@ -247,7 +246,10 @@ final class ServerPairingTests: XCTestCase {
     }
 
     func testAServerConnectionsStreamCarriesTheBearerAndResumesFromTheCursor() async throws {
-        ServerRequestStub.reset { _ in (401, Data(#"{"error":"session revoked"}"#.utf8)) }
+        let descriptor = try fixture("environment")
+        ServerRequestStub.reset { request in
+            request.url?.path == "/.well-known/openmausbot/environment" ? (200, descriptor) : (401, Data(#"{"error":"session revoked"}"#.utf8))
+        }
         var connection = try XCTUnwrap(Connection.parse("https://c-7f3a9c.openmausbot.com"))
         connection.serverEnvironmentId = "env_7f3a9c"
         connection.serverScopes = ["client"]
@@ -258,7 +260,7 @@ final class ServerPairingTests: XCTestCase {
         } catch let error as APIError {
             XCTAssertTrue(error.isUnauthorized)
         }
-        let request = try XCTUnwrap(ServerRequestStub.captured().first)
+        let request = try XCTUnwrap(ServerRequestStub.captured().last)
         XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer omb_sess_Zk3v")
         XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "text/event-stream")
         let components = try XCTUnwrap(URLComponents(url: XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
@@ -267,4 +269,43 @@ final class ServerPairingTests: XCTestCase {
         XCTAssertEqual(components.queryItems?.first { $0.name == "since" }?.value, "abc12345:7")
         XCTAssertEqual(components.queryItems?.first { $0.name == "screens" }?.value, "off")
     }
+    func testEveryAuthenticatedActionChecksTheDescriptorWithoutExposingTheBearer() async throws {
+        for sameServer in [false, true] {
+            let descriptor = Data("{\"environmentId\":\"\(sameServer ? "expected" : "replacement")\",\"label\":\"Fixture\",\"platform\":\"linux\",\"version\":\"1\"}".utf8)
+            ServerRequestStub.reset { request in
+                request.url?.path == "/.well-known/openmausbot/environment" ? (200, descriptor) : (200, Data("{\"bots\":[],\"groups\":[]}".utf8))
+            }
+            var connection = try XCTUnwrap(Connection.parse("https://fixture.example"))
+            connection.serverEnvironmentId = "expected"
+            let client = CompanionClient(connection: connection, token: "fixture-session", session: session)
+            do {
+                _ = try await client.fleet()
+                XCTAssertTrue(sameServer)
+            } catch let error as APIError { XCTAssertFalse(sameServer); XCTAssertTrue(error.isUnauthorized) }
+            let requests = ServerRequestStub.captured()
+            XCTAssertNil(requests.first?.value(forHTTPHeaderField: "Authorization"))
+            XCTAssertEqual(requests.count, sameServer ? 2 : 1)
+            if sameServer { XCTAssertEqual(requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-session") }
+        }
+    }
+
+    func testServerCredentialsCannotUsePublicCleartextAddresses() async throws {
+        for address in ["http://public.example", "http://8.8.8.8", "http://[2001:4860:4860::8888]"] {
+            ServerRequestStub.reset { _ in (500, Data()) }
+            var connection = try XCTUnwrap(Connection.parse(address))
+            do {
+                _ = try await CompanionClient.pairWithServer(connection: connection, code: "ABCDEFGHJKLM", label: "Fixture", session: session)
+                XCTFail("A server pairing code must not cross public HTTP")
+            } catch { XCTAssertTrue(ServerRequestStub.captured().isEmpty) }
+            connection.serverEnvironmentId = "expected"
+            do {
+                _ = try await CompanionClient(connection: connection, token: "fixture", session: session).fleet()
+                XCTFail("A server bearer must not cross public HTTP")
+            } catch { XCTAssertTrue(ServerRequestStub.captured().isEmpty) }
+        }
+        for address in ["https://fixture.example", "http://127.0.0.1:8799", "http://192.168.1.2:8799", "http://host.ts.net", "http://[fd00::1]:8799"] {
+            XCTAssertTrue(try XCTUnwrap(Connection.parse(address)).serverTransportAllowed)
+        }
+    }
+
 }

@@ -125,8 +125,6 @@ class FailoverTest {
 
     @Test
     fun certificateFailuresBelongToTheRouteNotThePairing() {
-        // A certificate a tunnel presents is a property of that route: another advertised route
-        // can repair it, exactly as the four URLError certificate codes do upstream.
         assertEquals(
             ConnectionFailure.SECURE_CONNECTION_FAILED,
             ConnectionAdvice.classify(CertificateException("untrusted root")),

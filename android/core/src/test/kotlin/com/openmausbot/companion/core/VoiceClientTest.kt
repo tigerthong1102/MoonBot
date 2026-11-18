@@ -4,6 +4,9 @@ package com.openmausbot.companion.core
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.OkHttpClient
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import kotlin.test.AfterTest
@@ -21,9 +24,16 @@ class VoiceClientTest {
 
     @BeforeTest
     fun setUp() {
+        val certificate = HeldCertificate.Builder().commonName("localhost").addSubjectAlternativeName("localhost").build()
+        val serverCertificates = HandshakeCertificates.Builder().heldCertificate(certificate).build()
+        val clientCertificates = HandshakeCertificates.Builder().addTrustedCertificate(certificate.certificate).build()
         server = MockWebServer()
+        server.useHttps(serverCertificates.sslSocketFactory(), false)
         server.start()
-        client = CompanionClient(requireNotNull(Connection.parse(server.url("/").toString())), "paired-token")
+        val transport = OkHttpClient.Builder()
+            .sslSocketFactory(clientCertificates.sslSocketFactory(), clientCertificates.trustManager)
+            .build()
+        client = CompanionClient(requireNotNull(Connection.parse(server.url("/").toString())), "paired-token", transport)
     }
 
     @AfterTest
@@ -72,7 +82,7 @@ class VoiceClientTest {
     }
 
     @Test
-    fun theKeyTravelsAsExactlyTheVoiceShapeTheCompanionForwards() = runBlocking {
+    fun theKeyUsesTheVoiceConfigContractOverAnEncryptedOrigin() = runBlocking {
         server.enqueue(json("{}"))
         client.updateVoiceKey("  sk_live_abc  ")
         val request = server.takeRequest()
@@ -110,6 +120,16 @@ class VoiceClientTest {
         server.enqueue(MockResponse().setResponseCode(400).setHeader("Content-Type", "application/json").setBody("""{"error":"ElevenLabs rejected that key"}"""))
         val error = assertFailsWith<APIError.Status> { client.updateVoiceKey("bad") }
         assertEquals("ElevenLabs rejected that key", error.message)
+    }
+
+    @Test
+    fun cleartextDesktopRoutesNeverTransmitAProviderKey() = runBlocking {
+        val desktop = CompanionClient(requireNotNull(Connection.parse("http://localhost:${server.port}")), "paired-token")
+        for (key in listOf("fixture-key", "")) {
+            val error = assertFailsWith<APIError.Transport> { desktop.updateVoiceKey(key) }
+            assertTrue(error.message!!.contains("HTTPS"))
+        }
+        assertEquals(0, server.requestCount)
     }
 
     private fun json(body: String): MockResponse =

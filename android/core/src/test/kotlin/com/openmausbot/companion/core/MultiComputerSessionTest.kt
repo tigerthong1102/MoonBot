@@ -185,7 +185,6 @@ class MultiComputerSessionTest {
         val testScope = this
         assertFailsWith<APIError.Status> {
             session.withPairedShareClient(air.id) {
-                // Switch away while the share HTTP call is still in flight.
                 session.switchComputer(pro.id)
                 testScope.runCurrent()
                 assertEquals(pro, session.connection.value)

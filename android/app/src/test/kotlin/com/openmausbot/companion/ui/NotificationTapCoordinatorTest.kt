@@ -28,17 +28,6 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockWebServer
 
-/**
- * Integrated coverage of the resolve → navigate → consume order that
- * [CompanionRoot] drives through [NotificationTapCoordinator.commit].
- *
- * Neither Robolectric nor compose-ui-test is on this module (AGP unit tests
- * here are JVM-only). Mounting the real composition would need both, plus a
- * full [CompanionEnvironment]. Because [NotificationTapCoordinator.commit]
- * receives the navigator and performs navigate then consume itself, these
- * tests observe that order without re-staging it by hand — and fail if the
- * coordinator ever splits the two steps back into caller-owned calls.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotificationTapCoordinatorTest {
     private lateinit var server: MockWebServer

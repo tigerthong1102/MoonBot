@@ -24,7 +24,6 @@ private val keyAliasValue = signingMaterial("keyAlias", "STARTUPBOT_KEY_ALIAS")
 private val keyPasswordValue =
     signingMaterial("keyPassword", "STARTUPBOT_KEY_PASSWORD") ?: storePasswordValue
 
-// Partial signing configuration must fail closed.
 private val releaseSigningMaterial = mapOf(
     "storeFile / STARTUPBOT_KEYSTORE_FILE" to storeFilePath,
     "storePassword / STARTUPBOT_KEYSTORE_PASSWORD" to storePasswordValue,
@@ -46,7 +45,6 @@ private val releaseKeystore: java.io.File? = when {
 
 private val appVersionName = "0.1.8"
 
-// Google Play requires increasing version codes for subsequent uploads.
 private val appVersionCode = run {
     val parts = appVersionName.split(".").map { it.toIntOrNull() ?: -1 }
     check(parts.size == 3 && parts.all { it in 0..99 }) {
@@ -125,7 +123,6 @@ android {
 
     testOptions {
         unitTests {
-            // Robolectric needs merged manifests and compiled Android resources.
             isIncludeAndroidResources = true
         }
     }

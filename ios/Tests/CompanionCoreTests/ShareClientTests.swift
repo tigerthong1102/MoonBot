@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import XCTest
 @testable import CompanionCore
@@ -396,4 +397,18 @@ final class ShareClientTests: XCTestCase {
             XCTAssertNotNil(ShareRequestStub.capturedRequest)
         }
     }
+    func testUnknownLengthFileResponseStopsAtTheLimitAndAnExactLimitSucceeds() async throws {
+        ShareRequestStub.responseHeaders = ["Content-Type": "application/octet-stream"]
+        ShareRequestStub.responseBody = Data(repeating: 0, count: CompanionClient.maximumFileDownloadBytes + 1)
+        do {
+            _ = try await client.downloadFile(threadId: "thread-1", messageId: "message-1", path: "/tmp/large.bin")
+            XCTFail("An unbounded response must fail")
+        } catch APIError.transport(let message) {
+            XCTAssertTrue(message.contains("25 MB"))
+        }
+        ShareRequestStub.responseBody = Data(repeating: 0, count: CompanionClient.maximumFileDownloadBytes)
+        let exact = try await client.downloadFile(threadId: "thread-1", messageId: "message-1", path: "/tmp/exact.bin")
+        XCTAssertEqual(exact.data.count, CompanionClient.maximumFileDownloadBytes)
+    }
+
 }

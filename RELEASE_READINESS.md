@@ -1,5 +1,10 @@
 # Release readiness
 
+## PR #4 independent audit checkpoint — 2026-11-18
+
+Desktop PR #3 was merged with owner authorization as `29c86dfb25cd7c2e544d4fc73aacbc54f993edfc`; its exact-head CI/native evidence remains in PR #3. PR #4 is Ready for review, not authorized for merge. See [independent PR audit](docs/STARTUPBOT_PR4_REVIEW.md) for confirmed security/data/transport findings and regression coverage. Android 0.1.8 / iOS build 15 require final-fix-head native acceptance. Store signing/submission, physical devices and live providers remain NO-GO/NOT RUN. Earlier artifact results below do not qualify these changes. No release/deployment is performed.
+
+
 ## Internal desktop acceptance — 2026-11-18
 
 PR #1 merged at `cd139d78c98c74797c1b07c9f0476f64664199d5`.

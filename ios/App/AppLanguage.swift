@@ -17,8 +17,6 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
     }
 
-    /// `nil` follows the system: the environment keeps the locale SwiftUI
-    /// already handed it, so no choice here means no behaviour change.
     var locale: Locale? {
         self == .system ? nil : Locale(identifier: rawValue)
     }

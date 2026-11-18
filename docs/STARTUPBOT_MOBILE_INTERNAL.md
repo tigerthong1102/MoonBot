@@ -1,5 +1,8 @@
 # StartupBot native mobile — internal testing
 
+Current audit: [independent PR #4 review](STARTUPBOT_PR4_REVIEW.md). Android 0.1.8 / iOS build 15 contain further scoped-request, transport and memory-limit corrections; final-head native acceptance is required. Earlier results below apply only to their named SHA.
+
+
 Native source is kept separately from desktop delivery. Android is imported
 from OpenMausBot commit `16ad4080f20fcd2fb310e27d527ce0f6a36e3724` and iOS from
 `37a9d185d825641750b865114497c0ddab43e6dd`. Their root Apache-2.0 LICENSE,

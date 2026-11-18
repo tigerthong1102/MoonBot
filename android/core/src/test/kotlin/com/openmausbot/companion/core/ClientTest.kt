@@ -442,7 +442,6 @@ class ClientTest {
         client.markRoomRead("g/../..")
         assertEquals("/api/groups/g%2F..%2F../read", server.takeRequest().path)
 
-        // `%2e` is a dot to OkHttp's resolver, so the escape itself is escaped.
         server.enqueue(json("""{"ok":true}"""))
         client.interrupt("%2e%2e")
         assertEquals("/api/bots/%252e%252e/interrupt", server.takeRequest().path)

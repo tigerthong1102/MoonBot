@@ -291,8 +291,7 @@ object ApprovalAnswers {
     }
 
     suspend fun grant(session: Session, chat: Chat.BotChat, card: OptionCard, choice: String) {
-        session.alwaysAllow(chat.bot, card)
-        session.answer(chat, card, choice, rememberingPermission = false)
+        session.grantAndAnswer(chat, card, choice)
     }
 }
 

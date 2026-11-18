@@ -783,7 +783,6 @@ private fun RadioRow(
     }
 }
 
-/** A labelled value that opens a picker — SwiftUI's `DatePicker` row. */
 @Composable
 private fun ValueRow(label: String, value: String, onClick: () -> Unit) {
     Row(

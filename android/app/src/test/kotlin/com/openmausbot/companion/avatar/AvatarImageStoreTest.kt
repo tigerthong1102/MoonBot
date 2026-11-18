@@ -150,8 +150,6 @@ class AvatarImageStoreTest {
 
     @Test
     fun `bitmap cache evicts by byte cost not only by entry count`() {
-        // Would pass against a count-only cache of 64: three entries fit easily.
-        // Fails unless eviction accounts cost the way NSCache totalCostLimit does.
         val cache = BoundedCostCache(
             maxEntries = 64,
             maxBytes = 100,

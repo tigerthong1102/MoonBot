@@ -23,15 +23,30 @@ public struct SearchLanding {
         expectedID = messageID
     }
 
-    public func merge(_ page: ThreadPage, into state: CompanionState) throws -> CompanionState {
+    public func leaf(in state: CompanionState) -> String? {
+        state.activeLeafIds[threadID] ?? state.bot(forThread: threadID)?.activeLeafId
+    }
+
+    public func merge(_ page: ThreadPage, into state: CompanionState, leafAtRequest: String?) throws -> CompanionState {
         guard Date() < deadline, pages <= maximumPages else { throw LandingError.limit }
         guard page.messages.contains(where: { $0.id == expectedID }) else { throw LandingError.unavailable }
         var bounded = page
-        bounded.activeLeafId = state.activeLeafIds[threadID] ?? state.bot(forThread: threadID)?.activeLeafId ?? page.activeLeafId
+        let currentLeaf = leaf(in: state)
+        bounded.activeLeafId = currentLeaf != leafAtRequest ? currentLeaf : page.activeLeafId
         var next = state
         next.merge(bounded, intoThread: threadID)
         guard try JSONEncoder().encode(next.transcript(forThread: threadID)).count <= maximumBytes else { throw LandingError.limit }
         return next
+    }
+
+    public func merge(_ page: ThreadPage, into state: CompanionState) throws -> CompanionState {
+        try merge(page, into: state, leafAtRequest: leaf(in: state))
+    }
+
+    public func isRendered(in state: CompanionState) -> Bool {
+        let leaf = state.activeLeafIds[threadID] ?? state.bot(forThread: threadID)?.activeLeafId
+        return (leaf == nil || state.transcript(forThread: threadID).contains { $0.id == leaf }) &&
+            state.visibleTranscript(forThread: threadID).contains { $0.id == messageID }
     }
 
     public mutating func next(in state: CompanionState) throws -> SearchHistoryCursor? {
@@ -45,7 +60,7 @@ public struct SearchLanding {
             return .latest
         }
         let visible = state.visibleTranscript(forThread: threadID)
-        if visible.contains(where: { $0.id == messageID }) { return nil }
+        if isRendered(in: state) { return nil }
         guard pages < maximumPages else { throw LandingError.limit }
         guard let parent = visible.first?.parentId, !all.contains(where: { $0.id == parent }), requested.insert(parent).inserted else {
             throw LandingError.unavailable

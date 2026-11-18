@@ -38,7 +38,6 @@ internal val TEST_CONNECTION = Connection(
     port = 8810,
 )
 
-/** Records every SSE open, the `since` it carried, and hands out one hot flow. */
 internal class FakeStream(
     private val onOpen: (Int, String?) -> Flow<StreamFrame>? = { _, _ -> null },
 ) {

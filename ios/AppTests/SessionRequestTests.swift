@@ -253,6 +253,42 @@ final class SessionRequestTests: XCTestCase {
     }
 
     @MainActor
+    func testFailedNotificationSwitchNeverOpensThePreviouslySelectedConversation() async throws {
+        let original = try bot()
+        let room = try JSONDecoder().decode(Room.self, from: Data("""
+        {"id":"room","threadId":"room-old","name":"Room fixture","memberIds":["bot"],"defaultResponder":{"kind":"mentions"},"bulletin":"","unread":false,"createdAt":1,"tasks":[{"threadId":"room-new","title":"Other","createdAt":1}]}
+        """.utf8))
+        for isRoom in [false, true] {
+            let target = try XCTUnwrap(NotificationTarget(botId: original.id, threadId: isRoom ? "room-new" : "missing-task", connectionID: "old"))
+            for status in [404, 503] {
+                for replace in [false, true] {
+                    let (session, _) = try await exercise(status: status, body: "{\"error\":\"Task unavailable\"}", replace: replace,
+                        fleet: Fleet(bots: [original], groups: isRoom ? [room] : [])) { session, _ in
+                        await session.openNotification(target)
+                    }
+                    XCTAssertNil(session.notificationChat)
+                    XCTAssertEqual(session.actionError, replace ? "current connection notice" : "Task unavailable")
+                    if !replace {
+                        XCTAssertEqual(session.state.bot(original.id)?.threadId, original.threadId)
+                        if isRoom { XCTAssertEqual(session.state.rooms.first?.threadId, "room-old") }
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testGoneThreadLinkDoesNotOpenTheSelectedConversation() async throws {
+        let ref = try JSONDecoder().decode(ThreadRef.self, from: Data("{\"botId\":\"bot\",\"threadId\":\"gone\",\"title\":\"Gone\"}".utf8))
+        let (session, result) = try await exercise(status: 404, body: "{}", replace: false, fleet: Fleet(bots: [try bot()], groups: [])) { session, _ in
+            await session.openThread(ref, shownBotId: nil)
+        }
+        XCTAssertNil(result)
+        XCTAssertNil(session.notificationChat)
+        XCTAssertEqual(session.actionError, "That thread is no longer on your computer.")
+    }
+
+    @MainActor
     func testOldAndUnscopedNotificationsCannotContactTheSelectedComputer() async throws {
         for origin in ["old", nil] as [String?] {
             let config = URLSessionConfiguration.ephemeral
@@ -410,6 +446,27 @@ final class SessionRequestTests: XCTestCase {
         XCTAssertNil(session.focusedMessageId)
         XCTAssertTrue(session.state.transcript(forThread: "thread").isEmpty)
         XCTAssertEqual(session.actionError, "current connection notice")
+    }
+
+    @MainActor
+    func testCachedSearchFocusDoesNotRequireAnHttpPage() async throws {
+        var shown = try bot()
+        shown.messages = try JSONDecoder().decode([Message].self, from: Data(#"[{"id":"cached","role":"bot","kind":"text","at":1,"text":"Cached reply"}]"#.utf8))
+        shown.activeLeafId = "cached"
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [DeferredResponseProtocol.self]
+        let transport = URLSession(configuration: config)
+        defer { transport.invalidateAndCancel(); DeferredResponseProtocol.started = nil }
+        let connection = Connection(id: "fixture", name: "Fixture", host: "127.0.0.1", port: 19991)
+        let session = Session(fixtureClient: CompanionClient(connection: connection, token: "fixture-only", session: transport), fleet: Fleet(bots: [shown], groups: []))
+        DeferredResponseProtocol.resetRequests()
+        DeferredResponseProtocol.started = { try? DeferredResponseProtocol.finish(status: 404, body: "{}") }
+        let hit = try JSONDecoder().decode(SearchHit.self, from: Data(#"{"threadId":"thread","messageId":"cached","at":1,"role":"bot","kind":"text","snippet":"Cached reply","matchStart":0,"matchLength":6,"botId":"bot","name":"Fixture","onActivePath":true}"#.utf8))
+        let opened = await session.open(hit)
+        XCTAssertNotNil(opened)
+        XCTAssertEqual(session.focusedMessageId, "cached")
+        XCTAssertEqual(DeferredResponseProtocol.requests().count, 0)
+        XCTAssertNil(session.actionError)
     }
 
 }

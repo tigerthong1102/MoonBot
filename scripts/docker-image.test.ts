@@ -53,6 +53,15 @@ afterEach(() => {
 });
 
 describe("container images", () => {
+  it("checks the actual held-volume refusal in the Docker startup smoke", () => {
+    const startup = readFileSync(new URL("../server/cloud-home-start.ts", import.meta.url), "utf8");
+    const refusal = startup.match(/if \(result.status === VOLUME_HELD\) throw new Error\("([^"]+)"\)/)?.[1];
+    expect(refusal).toBeTruthy();
+    const smoke = workflow.jobs["build-and-smoke"].steps.find((step: { run?: string }) => step.run?.includes("docker run --name own3"));
+    expect(smoke.run).toContain(`grep -qF "${refusal}"`);
+    expect(smoke.run).toContain('healthy own2 18081');
+  });
+
   it("keeps the self-hosted server the default target, and Cloud home a target of the same file", () => {
     expect(all.at(-1)!.name).toBe("server");
     expect(all.find(s => s.name === "cloud-home")!.from).toBe("runtime");

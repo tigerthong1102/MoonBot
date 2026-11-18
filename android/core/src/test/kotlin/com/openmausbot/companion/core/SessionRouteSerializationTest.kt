@@ -16,16 +16,6 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
-/**
- * Route state — `_connection`, what is on disk, `rotation` and `client` — is one
- * fact, and every writer of it holds `gate`. These pin the two that did not.
- *
- * The window both tests use is real rather than contrived: a connection store
- * *suspends*. `DataStoreConnectionStore.save` hands the write to DataStore's
- * own IO dispatcher, so the coroutine that called it gives up the thread in the
- * middle. `Dispatchers.Main.immediate` — the scope `OpenMausApp` gives the
- * session — is precisely a dispatcher on which another coroutine then runs.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionRouteSerializationTest {
 
@@ -174,22 +164,6 @@ class SessionRouteSerializationTest {
     )
 }
 
-/**
- * A store whose first write suspends until the test says so.
- *
- * Two properties, both taken from `DataStoreConnectionStore`, which is the store
- * the app actually runs:
- *
- * - **`save` suspends.** DataStore's `edit` moves the write to its own IO
- *   dispatcher, so the calling coroutine gives up the thread in the middle of a
- *   save. That suspension is the window these tests are about.
- * - **Cancelling the caller does not un-write the bytes.** `DataStore.updateData`
- *   hands the transform to an actor of its own and the caller merely waits for
- *   the acknowledgement; a caller that goes away leaves the write to finish. The
- *   park below is therefore [NonCancellable] — a cancellable park would model a
- *   store that rolls its write back when the caller is cancelled, which is not
- *   the store this app has, and would hide the very interleaving under test.
- */
 private class ParkingConnectionStore(
     initial: Connection?,
     private val parkFirstSaveOn: CompletableDeferred<Unit>,

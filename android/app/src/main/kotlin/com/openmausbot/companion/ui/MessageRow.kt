@@ -676,7 +676,6 @@ private fun VoiceNoteAttachmentView(
     val scope = rememberCoroutineScope()
     val key = remember(message.id, note.path) { message.id + ":" + note.path }
     var clip by remember(message.id, note.path) { mutableStateOf<VoiceNoteClipState>(VoiceNoteClipState.NotLoaded) }
-    // The scrub position while the slider is held; null when it tracks playback.
     var scrub by remember(key) { mutableStateOf<Float?>(null) }
 
     fun startPlayback(data: ByteArray) {
@@ -705,13 +704,11 @@ private fun VoiceNoteAttachmentView(
     val active = player.playback.collectAsState().value?.takeIf { it.key == key }
     val playing = active?.playing == true
 
-    // Late engine failures park the clip; the bubble's retry row is its UI.
     LaunchedEffect(key) {
         player.playbackErrors.collectLatest {
             if (it.key == key) clip = VoiceNoteClipState.Failed
         }
     }
-    // Pull the engine's position while it plays; the clock reads it back.
     LaunchedEffect(key, playing) {
         while (playing) {
             player.refresh()
@@ -728,7 +725,6 @@ private fun VoiceNoteAttachmentView(
         return
     }
 
-    // The wire's estimate until the engine loads metadata, then the real length.
     val durationMs = active?.durationMs ?: note.durationMs?.toLong()?.takeIf { it > 0 }
     val durationSeconds = durationMs?.let { it / 1000f } ?: 0f
     val positionMs = scrub?.toLong() ?: (active?.positionMs ?: 0L)
@@ -780,8 +776,6 @@ private fun VoiceNoteAttachmentView(
             }
         }
         Slider(
-            // The slider works in seconds; without an explicit range Compose clamps
-            // it to 0f..1f and scrubs can only land inside the first second.
             value = if (durationSeconds > 0f) (positionMs / 1000f).coerceIn(0f, durationSeconds) else 0f,
             valueRange = if (durationSeconds > 0f) 0f..durationSeconds else 0f..1f,
             onValueChange = { scrub = it * 1000f },
@@ -790,7 +784,6 @@ private fun VoiceNoteAttachmentView(
                 scrub = null
                 if (target != null && active != null) player.seek(key, target.toLong())
             },
-            // Like the desktop range input: no scrubbing until the length is known.
             enabled = active != null && durationMs != null,
             modifier = Modifier
                 .weight(1f)
@@ -804,7 +797,6 @@ private fun VoiceNoteAttachmentView(
     }
 }
 
-/** The pause glyph the core icon set does not carry, drawn at the button's scale. */
 @Composable
 private fun VoiceNotePauseGlyph(color: Color) {
     Canvas(modifier = Modifier.size(14.dp)) {
@@ -825,23 +817,6 @@ private fun VoiceNotePauseGlyph(color: Color) {
     }
 }
 
-/**
- * A tool the bot ran, and what became of it — the status half of
- * `ios/App/Cards/SkillExecutionReceiptView.swift`.
- *
- * Deliberately quiet: these are the bulk of a busy transcript and they are
- * context, not content. So the receipt is a dot and a name, and the badge word
- * appears only for the two states worth a glance ([ActivityReceipt.showsLabel]).
- * A row that failed keeps the warning glyph it already had, so failure is a
- * shape and not only a colour — and the whole row reads as one sentence to a
- * screen reader whichever state it is in.
- *
- * None of iOS's detail is here, because none of it has data: `durationMs`,
- * `parameters` and `output` are dormant on that view and absent from
- * [ToolActivity]. Nothing to expand means nothing to tap, which is why this is
- * not a button — except a chip that names a thread it opened, which is the
- * link to that thread.
- */
 @Composable
 private fun ActivityChip(
     tool: ToolActivity?,
@@ -908,11 +883,6 @@ private fun ActivityChip(
     }
 }
 
-/**
- * A quiet chip under a reply for the harness's receipts (the work digest, a
- * compaction record): one line, and the full text on tap. Port of
- * `ReceiptChip` in `ios/App/ChatView.swift`.
- */
 @Composable
 private fun ReceiptChip(label: String, detail: String) {
     if (label.isEmpty()) return
@@ -946,15 +916,10 @@ private fun ReceiptChip(label: String, detail: String) {
     }
 }
 
-/** Several consecutive successful/running activity receipts, folded on demand. */
 @Composable
 fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = null) {
     if (items.isEmpty()) return
     val haptics = rememberHaptics()
-    // Keyed on the run's identity — the same one the LazyColumn keys the row by
-    // (`TranscriptRow.ActivityRun.id = "run.${head.id}"`). Keying on the last id
-    // too would throw the reader's disclosure away on every receipt that lands
-    // while the run is still going. iOS holds a `@State` with no key at all.
     var expanded by remember(items.first().id) { mutableStateOf(false) }
     val running = items.any { it.tool?.ok == null }
     val summary = if (running) "Running ${items.size} steps" else "Ran ${items.size} steps"
@@ -962,9 +927,6 @@ fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = n
         modifier = Modifier.padding(start = 4.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        // The pill is ~30 dp tall; the target around it is MIN_TOUCH_TARGET, the
-        // way TouchTarget does it for the round buttons. Not TouchTarget itself:
-        // that helper is a square box, which would clip a capsule this wide.
         Box(
             modifier = Modifier
                 .heightIn(min = MIN_TOUCH_TARGET)
@@ -1006,13 +968,8 @@ fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = n
     }
 }
 
-/** The receipt's status dot, sized to sit level with the 13 sp name beside it. */
 private val ACTIVITY_DOT = 7.dp
 
-/**
- * An option card. When it still has a request behind it, this is the screen the
- * companion exists for — a bot stopped, and only a person can let it continue.
- */
 @Composable
 private fun CardView(chat: Chat, message: Message, haptics: Haptics) {
     val card = message.card ?: return
@@ -1040,7 +997,6 @@ private fun CardView(chat: Chat, message: Message, haptics: Haptics) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(card.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-        // The detail of what is being approved is the thing worth copying.
         SelectionContainer {
             Text(card.subtitle, fontSize = 15.sp, color = secondaryTint)
         }
@@ -1128,8 +1084,6 @@ private fun CardView(chat: Chat, message: Message, haptics: Haptics) {
 
         if (card.isPending) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // The buttons are the card's own options, never a string
-                // invented here. Session maps the choice to allow/deny/answer.
                 card.options.forEach { option ->
                     val refusal = ApprovalChoices.emphasis(option) == OptionEmphasis.SECONDARY
                     Button(
@@ -1199,10 +1153,6 @@ private fun CardView(chat: Chat, message: Message, haptics: Haptics) {
     }
 }
 
-/**
- * A frame of the bot's computer. In the paged shape the pixels are not in the
- * transcript — they are fetched here, once, when the row appears.
- */
 @Composable
 private fun ScreenShot(threadId: String, message: Message) {
     val session = LocalCompanion.current.session
@@ -1276,15 +1226,6 @@ private sealed interface ScreenShotState {
     data object Failed : ScreenShotState
 }
 
-/**
- * The reply as it is being typed, styled to match the settled bubble it is about
- * to become — the handover should be invisible, and any difference in padding or
- * corner radius reads as the message jumping on arrival.
- *
- * A caret rather than a spinner: a spinner says "something is happening
- * somewhere", which the reader already knows. A caret at the end of real text
- * says how far along it is.
- */
 @Composable
 fun StreamingBubble(text: String?, reasoning: String?) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
@@ -1297,17 +1238,9 @@ fun StreamingBubble(text: String?, reasoning: String?) {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (!reasoning.isNullOrEmpty() && text.isNullOrEmpty()) {
-                // Folded away by default, because reasoning is not the answer.
-                // Tail-limited: it runs to thousands of words and the part worth
-                // reading is always the end. Plain lines, unlike the answer: the
-                // tail cut lands wherever it lands, and rendering markdown that
-                // starts mid-syntax invents structure the model did not write.
                 ThoughtChamber(reasoning = reasoning)
             }
             if (!text.isNullOrEmpty()) {
-                // Same renderer as the settled bubble: a live reply showing
-                // `**bold**` that snaps to bold on arrival is the message
-                // jumping, just in a different dimension.
                 MarkdownText(source = text, caret = true)
             }
         }
@@ -1315,31 +1248,9 @@ fun StreamingBubble(text: String?, reasoning: String?) {
     }
 }
 
-/**
- * The beat between "go" and the first token — the port of the `else if
- * current.busy` branch of `ChatView.swift` and of `TypingIndicatorView`.
- *
- * The reason this exists is the sentence in the semantics block, not the dots.
- * Busy already reaches a sighted reader twice over — the mascot wears a working
- * face and the composer offers an interrupt — and reached a TalkBack reader
- * through neither. The row is a polite live region, so it is spoken when it
- * appears, and it carries a name of its own, so it can also be found by swiping
- * to the end of the transcript.
- *
- * Drawn in the same bubble as the reply that will replace it, and in the bot's
- * own colour, so the handover is the text arriving rather than the shape
- * changing. Everything Apple about the original — the capsule, the secondary
- * fill, the `TimelineView`, the scale wave — is left where it was; see
- * [WorkingDots].
- */
 @Composable
 fun WorkingBubble(name: String, color: String) {
     val clock = remember { MausFrameClock() }
-    // Android says "reduce motion" through the animator duration scale, and this
-    // reads it the way MausAvatar does — through a snapshotFlow, so turning the
-    // setting off while a turn is running stops the dots on the next frame
-    // rather than at the end of the turn. At zero they hold their rest alpha:
-    // still three dots, just still ones.
     var moving by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         val durationScale = coroutineContext[MotionDurationScale]
@@ -1365,8 +1276,6 @@ fun WorkingBubble(name: String, color: String) {
                 },
         ) {
             Canvas(modifier = Modifier.size(WORKING_DOTS_WIDTH, WORKING_DOT)) {
-                // Read in the draw phase: a tick repaints the dots without
-                // recomposing the bubble, let alone the transcript around it.
                 val elapsed = clock.nanos.longValue
                 val live = moving
                 val radius = size.height * 0.5f

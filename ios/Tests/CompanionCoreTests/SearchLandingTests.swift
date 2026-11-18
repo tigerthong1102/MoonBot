@@ -12,6 +12,16 @@ final class SearchLandingTests: XCTestCase {
         return try JSONDecoder().decode(ThreadPage.self, from: JSONSerialization.data(withJSONObject: ["messages":messages, "activeLeafId":leaf, "hasMore":range.lowerBound > 1]))
     }
 
+    func testCachedHitsNeedNoPageButAMissingLeafIsNotConnected() throws {
+        let landing = SearchLanding(threadID: "thread", messageID: "m25")
+        var complete = CompanionState()
+        complete.merge(try page(1...200), intoThread: "thread")
+        XCTAssertTrue(landing.isRendered(in: complete))
+        var sparse = CompanionState()
+        sparse.merge(try page(1...50), intoThread: "thread")
+        XCTAssertFalse(landing.isRendered(in: sparse))
+    }
+
     func testConnectsOldSearchWindowToTheRenderedLeafWithoutSwitchingBranches() throws {
         var state = CompanionState()
         state.merge(try page(151...200), intoThread: "thread")
@@ -57,8 +67,20 @@ final class SearchLandingTests: XCTestCase {
         var state = CompanionState()
         state.merge(try page(151...201, leaf: "m201"), intoThread: "thread")
         let landing = SearchLanding(threadID: "thread", messageID: "m175")
-        state = try landing.merge(page(151...200, leaf: "m200"), into: state)
+        state = try landing.merge(page(151...200, leaf: "m200"), into: state, leafAtRequest: "m200")
         XCTAssertEqual(state.activeLeafIds["thread"], "m201")
         XCTAssertEqual(state.visibleTranscript(forThread: "thread").last?.id, "m201")
     }
+    func testServerAdvanceReplacesAnUnchangedStaleCachedLeaf() throws {
+        var landing = SearchLanding(threadID: "thread", messageID: "m250")
+        var state = CompanionState()
+        state.merge(try page(151...200), intoThread: "thread")
+        state = try landing.merge(page(225...275, leaf: "m300"), into: state, leafAtRequest: "m200")
+        XCTAssertEqual(state.activeLeafIds["thread"], "m300")
+        XCTAssertEqual(try landing.next(in: state), .latest)
+        state = try landing.merge(page(251...300, leaf: "m300"), into: state, leafAtRequest: "m300")
+        XCTAssertNil(try landing.next(in: state))
+        XCTAssertTrue(state.visibleTranscript(forThread: "thread").contains { $0.id == "m250" })
+    }
+
 }

@@ -79,9 +79,6 @@ internal fun MausAvatar(
     var shown by remember { mutableStateOf(true) }
 
     LaunchedEffect(animated) {
-        // Android says "reduce motion" through the animator duration scale, which
-        // is the same signal Compose's own animations honour. At zero the face
-        // holds the still pose of whatever state it is in.
         val durationScale = coroutineContext[MotionDurationScale]
         snapshotFlow { animated && shown && (durationScale?.scaleFactor ?: 1f) > 0f }
             .collectLatest { live ->

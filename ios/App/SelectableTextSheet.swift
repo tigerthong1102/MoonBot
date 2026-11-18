@@ -1,10 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// A message, plain, with the system's own selection on it.
-//
-// The bubble itself cannot offer drag-to-select: long-press there already
-// opens the reactions menu, and SwiftUI gives that gesture to whichever of
-// the two asks last. So selecting part of a reply happens here instead —
-// the same move Telegram and WhatsApp make, and for the same reason.
 import SwiftUI
 import UIKit
 

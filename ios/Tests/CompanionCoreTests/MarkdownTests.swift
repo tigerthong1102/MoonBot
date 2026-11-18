@@ -76,8 +76,6 @@ final class MarkdownTests: XCTestCase {
         XCTAssertEqual(Markdown.blocks("3.14 is pi"), [.paragraph("3.14 is pi")])
     }
 
-    /// Inline emphasis is Foundation's job, not this one — the splitter must
-    /// hand the markers through untouched or the view has nothing to render.
     func testInlineSyntaxSurvivesTheSplit() {
         XCTAssertEqual(
             Markdown.blocks("- **bold** and `code` and [link](https://x.test)"),

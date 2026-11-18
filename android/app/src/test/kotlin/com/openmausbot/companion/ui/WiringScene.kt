@@ -38,7 +38,6 @@ internal class WiringScene(
     token: String? = "device-token",
     fleet: Fleet = Fleet(emptyList(), emptyList()),
     voiceNotes: VoiceNotePlayer? = null,
-    /** The body of the nth stream (1-based). Hangs by default, like a live SSE. */
     private val events: (Int) -> Flow<StreamFrame> = { flow { awaitCancellation() } },
 ) {
     private val context: Context = RuntimeEnvironment.getApplication() as Application
@@ -51,8 +50,6 @@ internal class WiringScene(
             "wiring-scene-${SCENES.incrementAndGet()}",
             Context.MODE_PRIVATE,
         ),
-        // Inline rather than Dispatchers.IO: a Compose test's clock does not wait
-        // for a real background thread.
         io = EmptyCoroutineContext,
     )
 

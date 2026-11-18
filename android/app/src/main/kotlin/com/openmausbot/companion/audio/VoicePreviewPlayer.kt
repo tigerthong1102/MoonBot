@@ -236,10 +236,6 @@ internal class AudioFocusGate(
     }
 }
 
-/**
- * MediaPlayer backed by an in-memory [MediaDataSource] — no cache file.
- * Attributes match iOS `.playback` + `.spokenAudio`.
- */
 internal class MediaPlayerPreviewEngine : PreviewAudioEngine {
     override var onCompletion: (() -> Unit)? = null
     override var onError: (() -> Unit)? = null

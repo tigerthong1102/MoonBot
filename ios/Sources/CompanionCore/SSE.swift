@@ -15,8 +15,6 @@ public struct SSEEvent: Equatable, Sendable {
     }
 }
 
-/// Line-oriented SSE parser. Feed it every line as it arrives; it returns
-/// an event when a blank line closes the block, and nil otherwise.
 public struct SSEParser: Sendable {
     private var fields: [(name: String, value: String)] = []
 
@@ -59,65 +57,47 @@ public struct SSEParser: Sendable {
     }
 }
 
-/// A live connection to `/api/events`, as an async sequence of frames.
-///
-/// Built as an `AsyncThrowingStream` around a single Task, rather than as a
-/// hand-written `AsyncSequence`, for one specific reason: `URLSession.AsyncBytes`
-/// owns the underlying data task and **cancels it when the sequence is
-/// released**. An earlier version here kept only the derived line iterator and
-/// let the `AsyncBytes` value go out of scope at the end of `next()`. The
-/// server saw the connection open and immediately close; the client saw
-/// NSURLErrorCancelled; the app reconnected forever and showed a spinner. The
-/// whole class of bug disappears when one Task holds `bytes` for the entire
-/// lifetime of the connection, which is what the loop below does.
-///
-/// Reconnection is *not* handled here — that decision belongs to whatever
-/// knows whether the app is even on screen. This runs until the stream ends
-/// or the consuming task is cancelled.
+struct SSEReadBudget {
+    let maximumBytes: Int
+    private var eventBytes = 0
+
+    init(maximumBytes: Int = 8 * 1024 * 1024) { self.maximumBytes = maximumBytes }
+
+    mutating func accept(_ line: String) throws {
+        let count = line.utf8.count
+        guard count <= maximumBytes else { throw APIError.transport("The event stream exceeds this phone's safety limit.") }
+        if line.isEmpty { eventBytes = 0 }
+        else if !line.hasPrefix(":") {
+            guard count < maximumBytes - eventBytes else { throw APIError.transport("The event stream exceeds this phone's safety limit.") }
+            eventBytes += count + 1
+        }
+    }
+}
+
 public func eventStream(
     request: URLRequest,
-    session: URLSession = .shared
+    session: URLSession = .shared,
+    beforeConnect: @escaping @Sendable () async throws -> Void = {}
 ) -> AsyncThrowingStream<StreamFrame, Error> {
-    AsyncThrowingStream { continuation in
+    AsyncThrowingStream(bufferingPolicy: .bufferingOldest(64)) { continuation in
         let task = Task {
             do {
-                let (bytes, response) = try await session.bytes(for: request)
+                try await beforeConnect()
+                let (bytes, response) = try await session.bytes(for: request, delegate: CompanionRedirectPolicy.shared)
+                defer { bytes.task.cancel() }
                 if let http = response as? HTTPURLResponse, http.statusCode != 200 {
                     throw APIError.status(code: http.statusCode, message: nil)
                 }
 
                 var parser = SSEParser()
+                var budget = SSEReadBudget()
                 let decoder = JSONDecoder()
                 var line = [UInt8]()
 
-                // Split on newlines by hand rather than using `bytes.lines`.
-                //
-                // `AsyncLineSequence` does not emit empty lines — it folds
-                // consecutive newlines into one separator. In almost any other
-                // format that is a convenience; in SSE it is fatal, because a
-                // blank line is exactly what terminates an event. Using it
-                // meant `SSEParser` was never told an event had ended, so the
-                // stream delivered zero frames, forever, while looking
-                // perfectly healthy at both ends: the server had an open
-                // connection and the client had no error to report.
-                //
-                // `bytes` also stays in scope for this whole loop, which is
-                // the other half of keeping this connection alive — see above.
-                //
-                // A byte at a time reads as expensive, and for a screen frame
-                // — a few hundred kilobytes of base64 PNG — it is a few
-                // hundred thousand iterations. It is not a few hundred
-                // thousand round trips, though: `AsyncBytes` iterates a buffer
-                // URLSession has already filled, so all but one call per chunk
-                // returns without suspending. What is left is call overhead on
-                // an append, against a stream whose frames are otherwise small
-                // and infrequent. Reading the chunks directly means a
-                // `URLSessionDataDelegate` and a session built around it,
-                // which is precisely the ownership the comment above says this
-                // file exists to get right — so it stays as it is until there
-                // is a Mac to prove the replacement on.
+                // SSE requires the empty line between frames; AsyncLineSequence skips empty lines.
                 for try await byte in bytes {
                     guard byte == 0x0A else {
+                        guard line.count < budget.maximumBytes else { throw APIError.transport("The event stream exceeds this phone's safety limit.") }
                         line.append(byte)
                         continue
                     }
@@ -125,6 +105,7 @@ public func eventStream(
                     let text = String(decoding: line, as: UTF8.self)
                     line.removeAll(keepingCapacity: true)
 
+                    try budget.accept(text)
                     guard let event = parser.line(text) else { continue }
                     guard let data = event.data.data(using: .utf8) else { continue }
                     guard let frame = try? decoder.decode(StreamFrame.self, from: data) else {
@@ -137,7 +118,12 @@ public func eventStream(
                         log.error("dropped an undecodable frame (kind: \(kind, privacy: .public))")
                         continue
                     }
-                    continuation.yield(frame)
+                    switch continuation.yield(frame) {
+                    case .enqueued: break
+                    case .dropped: throw APIError.transport("The event stream consumer fell behind. Reconnecting from the last received event.")
+                    case .terminated: return
+                    @unknown default: return
+                    }
                 }
                 continuation.finish()
             } catch {

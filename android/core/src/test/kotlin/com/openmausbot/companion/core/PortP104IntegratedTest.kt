@@ -569,16 +569,6 @@ class PortP104IntegratedTest {
     )
 
     companion object {
-        /**
-         * A hang detector, not a latency budget. Reaching the protected route after a refused
-         * authority costs a reconnect backoff — Session doubles it 1s → 15s — plus real TLS
-         * handshakes against three MockWebServers on a shared CI runner. A window sized for a
-         * quiet laptop fails the run for being slow rather than for being wrong, which is what
-         * happened: one timeout in ~31 runs, on a tree whose android/ was byte-identical to a
-         * green main. eventually() returns the moment its condition holds, so a generous
-         * ceiling costs a passing run nothing — it only bounds how long we wait before calling
-         * it hung. The assertions after each wait are what still judge the routing.
-         */
         const val FAILOVER_TIMEOUT_MS = 15_000L
 
         const val CONNECTION_ID = "p1-04-connection"
@@ -711,8 +701,6 @@ private class NetworkSidecar : AutoCloseable {
                 attemptedTlsAuthorities += call.request().url.host
             }
         })
-        // RecordedRequest exposes the actual HTTP/1.1 Host header. Keeping this harness on 1.1
-        // makes the server-side authority oracle explicit instead of relying on HTTP/2 internals.
         .protocols(listOf(Protocol.HTTP_1_1))
         .retryOnConnectionFailure(false)
         .dns(object : Dns {

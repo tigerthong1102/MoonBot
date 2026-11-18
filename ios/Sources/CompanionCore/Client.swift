@@ -10,17 +10,8 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
     public var name: String
     public var host: String
     public var port: Int
-    /// Every other address the computer answered on at pairing time, best
-    /// first — the tailnet name, the LAN address, the sidecar's mDNS name.
-    /// Optional so connections saved before fallbacks existed still decode.
-    /// Read through `orderedHosts`; policy-bound hosted connections may have
-    /// no legacy HTTP host because their complete route lives in `endpoints`.
     public var hosts: [String]?
-    /// Complete route currently being dialed. Absent on connections saved by
-    /// older app builds, where `host` + `port` still mean direct HTTP.
     public var activeEndpoint: CompanionEndpoint?
-    /// Full routes advertised by a newer desktop. Each carries its own scheme
-    /// and port so hosted HTTPS can coexist with local HTTP fallbacks.
     public var endpoints: [CompanionEndpoint]?
     /// The route kinds this pairing explicitly authorized. `nil` is reserved
     /// for connections saved by older app versions and retains their legacy
@@ -32,8 +23,6 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
     /// LAN or Bonjour origin for local pairing. Absent alongside a nil kind
     /// policy on connections saved before route consent existed.
     public var allowedLocalRouteURLs: Set<String>?
-    /// P-256 HPKE recipient point learned only from the camera-scanned QR.
-    /// It is public key material; the phone never receives the private key.
     public var secretPublicKey: String?
     /// Sidecar device identity returned after redemption. Bound into every
     /// credential envelope and checked against the authenticated bearer.
@@ -150,32 +139,7 @@ public struct Connection: Codable, Hashable, Identifiable, Sendable {
         return Connection(name: host, host: host, port: port)
     }
 
-    /// Hosted routes use ordinary certificate-validated HTTPS. A connection
-    /// saved by an older app still falls back to direct HTTP below.
-    ///
-    /// The bearer token goes out in a header on every request, so anyone who
-    /// can observe the path between phone and computer can lift it and use it
-    /// until the device is revoked. What that means in practice depends
-    /// entirely on how you reach the computer, and the supported routes are
-    /// not equivalent:
-    ///
-    /// - **Over hosted HTTPS** — the default remote route — ordinary TLS
-    ///   encrypts the connection and authenticates the public endpoint.
-    /// - **Over a tailnet**, the traffic is inside WireGuard before it reaches
-    ///   any network, so it is encrypted and authenticated end to end even
-    ///   though this URL says `http`.
-    /// - **Over a LAN**, it is cleartext on that network. Trust it exactly as
-    ///   far as you trust everyone on the wifi: fine at home, not fine on a
-    ///   café or conference network — pair over the tailnet there instead.
-    ///
-    /// TLS is not a drop-in improvement here, which is why it is not simply
-    /// switched on. A self-signed certificate on a LAN address is a
-    /// certificate nothing can validate, so it would have to be pinned at
-    /// pairing time and re-pinned whenever the sidecar regenerates it — a
-    /// meaningful amount of machinery. Hosted HTTPS and the tailnet carry
-    /// encryption; the LAN path is documented as trusted-network-only, and
-    /// pinned TLS is what it needs before it could claim otherwise. See
-    /// `docs/ios-companion.md`.
+    /// Hosted HTTPS validates TLS; tailnet routes use WireGuard. Direct LAN HTTP is cleartext and requires a trusted network.
     public var baseURL: URL? {
         if let activeEndpoint {
             guard allowsEndpoint(activeEndpoint) else { return nil }
@@ -249,9 +213,6 @@ public struct PairingInvite: Equatable, Sendable {
         return PairingInvite(connection: connection, credential: credential)
     }
 
-    /// Unpadded base64url JSON keeps the typed array in one unambiguous query
-    /// value. A present-but-invalid value rejects the invite instead of
-    /// quietly downgrading a hosted HTTPS QR to its legacy HTTP address.
     private static func decodeEndpoints(_ encoded: String) -> [CompanionEndpoint]? {
         guard !encoded.isEmpty,
               encoded.utf8.count <= 8_192,
@@ -414,9 +375,6 @@ public struct SharedAttachmentReference: Hashable, Sendable {
     }
 }
 
-/// Builds the same tagged prompt as the desktop composer without making the
-/// extension know about server paths or XML escaping. Kept pure so share-sheet
-/// input can be tested without loading UIKit or an extension context.
 public enum SharedMessageComposer {
     public static func compose(
         instruction: String,
@@ -521,6 +479,7 @@ public struct CompanionClient: Sendable {
 
 
     private func makeRequest(_ method: String, _ path: String, query: [URLQueryItem] = [], body: [String: Any]? = nil) throws -> URLRequest {
+        if connection.pairedWithServer { try connection.requireServerTransport() }
         guard let base = connection.baseURL,
               var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
         else { throw APIError.badURL }
@@ -577,10 +536,37 @@ public struct CompanionClient: Sendable {
         return body.receipt
     }
 
-    private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
+    private func perform(_ request: URLRequest, maximumBytes: Int = 64 * 1024 * 1024) async throws -> (Data, URLResponse) {
+        try await validateServerIdentity()
+        return try await performUnchecked(request, maximumBytes: maximumBytes)
+    }
+
+    private func validateServerIdentity() async throws {
+        guard token != nil, let expected = connection.serverEnvironmentId else { return }
+        guard try await environment().environmentId == expected else {
+            throw APIError.status(code: 401, message: "This address belongs to a different server. Pair again to continue.")
+        }
+    }
+
+    private func performUnchecked(_ request: URLRequest, maximumBytes: Int = 64 * 1024 * 1024) async throws -> (Data, URLResponse) {
         do {
-            return try await session.data(for: request)
+            let (bytes, response) = try await session.bytes(for: request, delegate: CompanionRedirectPolicy.shared)
+            defer { bytes.task.cancel() }
+            let message = maximumBytes == Self.maximumFileDownloadBytes
+                ? "That file is larger than 25 MB." : "The response exceeds this phone's safety limit."
+            guard response.expectedContentLength <= maximumBytes else { throw APIError.transport(message) }
+            var data = Data()
+            if response.expectedContentLength > 0 { data.reserveCapacity(Int(response.expectedContentLength)) }
+            for try await byte in bytes {
+                guard data.count < maximumBytes else { throw APIError.transport(message) }
+                data.append(byte)
+            }
+            try Task.checkCancellation()
+            return (data, response)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             throw APIError.transport(error.localizedDescription)
         }
     }
@@ -592,7 +578,6 @@ public struct CompanionClient: Sendable {
         throw APIError.status(code: http.statusCode, message: message)
     }
 
-    // MARK: - Pairing
 
     /// Redeem a one-time pairing credential for a device token. The only call
     /// made without a device token.
@@ -632,6 +617,7 @@ public struct CompanionClient: Sendable {
         attemptId: String = UUID().uuidString,
         session: URLSession = .shared
     ) async throws -> ServerPairResponse {
+        try connection.requireServerTransport()
         let client = CompanionClient(connection: connection, token: nil, session: session)
         var request = try client.makeRequest(
             "POST",
@@ -643,7 +629,12 @@ public struct CompanionClient: Sendable {
     }
 
     public func environment() async throws -> ServerEnvironment {
-        try await send(makeRequest("GET", "/.well-known/openmausbot/environment"), as: ServerEnvironment.self)
+        try connection.requireServerTransport()
+        var request = try makeRequest("GET", "/.well-known/openmausbot/environment")
+        request.setValue(nil, forHTTPHeaderField: "Authorization")
+        let (data, response) = try await performUnchecked(request, maximumBytes: 1024 * 1024)
+        try Self.check(response, data)
+        return try JSONDecoder().decode(ServerEnvironment.self, from: data)
     }
 
     public func logout() async throws {
@@ -743,7 +734,7 @@ public struct CompanionClient: Sendable {
             let client = CompanionClient(connection: connection, token: nil, session: session)
             var request = try client.makeRequest("GET", "/api/health")
             request.timeoutInterval = 4
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request, delegate: CompanionRedirectPolicy.shared)
             guard !Task.isCancelled,
                   let http = response as? HTTPURLResponse,
                   (200...299).contains(http.statusCode),
@@ -755,7 +746,6 @@ public struct CompanionClient: Sendable {
         }
     }
 
-    // MARK: - Reading
 
     /// Refresh the routes this already-paired phone can use. The sidecar owns
     /// this small authenticated response; it is not forwarded to the harness
@@ -891,7 +881,7 @@ public struct CompanionClient: Sendable {
             "/api/threads/\(threadId)/messages/\(messageId)/file",
             body: ["path": path]
         )
-        let (data, response) = try await perform(request)
+        let (data, response) = try await perform(request, maximumBytes: Self.maximumFileDownloadBytes)
         try Self.check(response, data)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.transport("The computer sent something this app couldn't read.")
@@ -1454,7 +1444,6 @@ public struct CompanionClient: Sendable {
         try await send(try makeRequest("POST", "/api/groups/\(roomId)/read", body: threadId.map { ["threadId": $0] }))
     }
 
-    // MARK: - Events
 
     /// A session for a connection that is meant to stay open for hours.
     ///
@@ -1483,6 +1472,6 @@ public struct CompanionClient: Sendable {
         var streamRequest = try makeRequest("GET", "/api/events", query: query)
         streamRequest.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         streamRequest.timeoutInterval = 90
-        return eventStream(request: streamRequest, session: streamingSession ?? Self.streaming)
+        return eventStream(request: streamRequest, session: streamingSession ?? Self.streaming, beforeConnect: { try await validateServerIdentity() })
     }
 }

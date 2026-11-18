@@ -650,11 +650,6 @@ final class DecodingTests: XCTestCase {
         XCTAssertEqual(frame.frame.threadId, "t1")
     }
 
-    // MARK: - A newer computer than the phone
-
-    // The harness gains message kinds when it ships; the phone gains them
-    // when the App Store gets round to it. So the phone talking to a newer
-    // computer is the ordinary case, and it must survive one.
 
     func testAnUnknownMessageKindDecodes() throws {
         let json = """

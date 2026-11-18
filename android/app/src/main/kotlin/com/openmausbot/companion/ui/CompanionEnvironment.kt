@@ -88,10 +88,6 @@ class MicPermissionController(
     }
 }
 
-/**
- * The SwiftUI `@EnvironmentObject` analogue: the long-lived objects every screen
- * reaches for, provided once at the top of the composition.
- */
 @Immutable
 class CompanionEnvironment(
     val session: Session,

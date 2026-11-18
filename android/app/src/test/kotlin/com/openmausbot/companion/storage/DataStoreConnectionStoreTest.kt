@@ -32,14 +32,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/**
- * The v1 registry against a real DataStore file, because everything worth
- * proving here is about what a *new instance* reads back: a fake store can
- * agree with an encoder that loses a computer.
- *
- * Each `relaunch` closes the previous instance and opens another over the same
- * file — the shape a process restart has, and the only shape DataStore permits.
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DataStoreConnectionStoreTest {

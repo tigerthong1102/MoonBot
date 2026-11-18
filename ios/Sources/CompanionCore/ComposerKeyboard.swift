@@ -1,10 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 
-/// Identifies the edit proposed by the software keyboard's Return key in a
-/// vertically growing SwiftUI TextField. `.submitLabel(.send)` changes the
-/// key's artwork but does not make that field submit; iOS still proposes a
-/// newline. Keeping the classifier outside the view makes that behavior
-/// deterministic and testable without a simulator keyboard.
 public enum ComposerKeyboard {
     public static func shouldSubmit(previousText: String, proposedText: String) -> Bool {
         let changes = proposedText.difference(from: previousText)

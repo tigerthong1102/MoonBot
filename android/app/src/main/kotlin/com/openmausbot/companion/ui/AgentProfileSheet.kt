@@ -507,15 +507,6 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                                 try {
                                     val data = session.previewVoice(form.voice, liveBot())
                                         ?: return@launch
-                                    // `rememberCoroutineScope` dispatches on
-                                    // main, and starting a preview reaches
-                                    // MediaPlayer.prepare(), which blocks
-                                    // until the source is decodable. The
-                                    // controller serialises every transition
-                                    // on its own lock and its callbacks are
-                                    // delivered on the main Looper, so it is
-                                    // safe to start from a worker; the result
-                                    // lands back on main to be reported.
                                     val failure = withContext(Dispatchers.IO) {
                                         player.play(data)
                                     }
@@ -566,7 +557,6 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-/** A SwiftUI `Picker` as Material draws one: a read-only field that opens a menu. */
 @Composable
 internal fun ChoicePicker(
     label: String,
@@ -653,10 +643,6 @@ internal fun VoiceSection(
     }
 }
 
-/**
- * A SwiftUI `Form` section, as Material draws one: a quiet heading, a rule, the
- * rows, and the explanatory line underneath.
- */
 @Composable
 internal fun FormSection(
     header: String?,
@@ -750,7 +736,6 @@ internal fun SwitchRow(
     }
 }
 
-/** SwiftUI's `Label(_, systemImage:)` in its quiet, informational form. */
 @Composable
 internal fun IconNote(
     text: String,

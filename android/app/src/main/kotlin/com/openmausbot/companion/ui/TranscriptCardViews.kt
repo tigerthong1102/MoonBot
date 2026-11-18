@@ -160,9 +160,6 @@ fun DiffCard(card: TranscriptCard.Diff, modifier: Modifier = Modifier) {
                             haptics.play(HapticCue.SELECT)
                             showingAll = !showingAll
                         },
-                        // Compose has no "hint" the way UIAccessibility does, so
-                        // iOS's hint is folded into the name: the reader must not
-                        // be left thinking Copy Diff copies the preview.
                         modifier = Modifier.semantics {
                             contentDescription =
                                 "$label. The copied diff always includes every line"

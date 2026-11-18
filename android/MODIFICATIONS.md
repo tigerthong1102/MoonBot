@@ -29,6 +29,10 @@ Internal Android 0.1.8 / iOS build 14 connects old search results to the rendere
 
 Native review corrections scope late bot-queue receipts to the captured authoritative snapshot revision and refuse Android call playback when audio focus is denied. Imported implementation/history narration is removed across native sources; public wire contracts, external platform facts, security constraints and original notices are retained. Modified imported source files carry explicit StartupBot modification notices. This comment-policy pass preserves every non-comment code and literal token.
 
+The cached-search correction permits immediate focus only when the hit is already rendered and the current leaf is present. Sparse cached windows still require bounded history recovery. iOS build 15 includes this correction. A final comment-only pass additionally uses the Kotlin 2.2.21 lexer to verify code and literal token equality.
+
+Independent PR-wide audit: runtime-scoped Android HTTP results/errors and multi-step approvals/avatar changes; cached and advancing search history; iOS notification failure targets; bounded HTTP/SSE reads; iOS redirect refusal and credential-free server identity checks; Android voice keys require HTTPS and are not saved in UI restoration state. Original OSS features and protocol identifiers remain. Store signing, physical devices and live providers require separate acceptance.
+
 Modified imported files:
 
 - `.gitignore`
@@ -85,7 +89,9 @@ Modified imported files:
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ClaudeUpdateCard.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/CommandHud.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/CompanionEnvironment.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/ui/CompanionTheme.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ComposerAttachments.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/ui/ComposerReturn.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ComputerPolicy.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ComputerScreen.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ConnectedAppsScreen.kt`
@@ -178,6 +184,7 @@ Modified imported files:
 - `app/src/test/kotlin/com/openmausbot/companion/ui/AttentionInboxTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/BotAvatarRulesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/BotThreadRowTest.kt`
+- `app/src/test/kotlin/com/openmausbot/companion/ui/BotThreadTreeTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/CallRulesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/ChatDraftHolderTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/ChatPolicyTest.kt`
@@ -208,6 +215,7 @@ Modified imported files:
 - `app/src/test/kotlin/com/openmausbot/companion/ui/RosterLayoutTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/RoutineRulesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/SectionRulesTest.kt`
+- `app/src/test/kotlin/com/openmausbot/companion/ui/ServerPairingScreenTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/SettingsPolicyTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/SettingsReconnectWiringTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/SharePolicyTest.kt`
@@ -275,6 +283,7 @@ Modified imported files:
 - `core/src/test/kotlin/com/openmausbot/companion/core/SessionStreamRecoveryTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/SessionTaskCrudTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/SessionTest.kt`
+- `core/src/test/kotlin/com/openmausbot/companion/core/SseTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/StoreTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/ThreadNavigationTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/TranscriptTest.kt`

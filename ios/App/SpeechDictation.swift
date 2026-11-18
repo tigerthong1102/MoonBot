@@ -1,5 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// On-device speech recognition avoids transmitting audio to Apple when supported.
 import AVFoundation
 import Combine
 import Speech
@@ -63,7 +62,6 @@ final class SpeechDictation: ObservableObject {
         teardown()
     }
 
-    // MARK: - Authorization
 
     private func actuallyStart(generation gen: Int) async {
         let speech = await requestSpeechAuthorization()

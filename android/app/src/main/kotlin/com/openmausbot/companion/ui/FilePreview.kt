@@ -143,10 +143,6 @@ object AttachmentImageRules {
         while (sample <= Int.MAX_VALUE / 2) {
             val pixels = sampledPixels(width, height, sample)
             val sampledEdge = max(sampledDimension(width, sample), sampledDimension(height, sample))
-            // BitmapFactory's next step halves each dimension. When the current
-            // bitmap is already within 25% of the target, allow a small, hard-
-            // capped allocation tolerance instead of throwing away 75% of its
-            // pixels (for example 3500² -> 1750²).
             val nearTarget = sampledEdge.toLong() * 4L <= maximumEdge.toLong() * 5L
             val budget = if (nearTarget) {
                 maxOf(maximumPixels, LEGACY_NEAR_TARGET_MAX_PIXELS)
@@ -293,13 +289,6 @@ class FilePreviewItem(
     val kind: FilePreviewKind get() = FilePreviewRules.kind(contentType, filename)
 }
 
-/**
- * Where downloaded files live while they are on screen: one directory per
- * download under the app's cache, reachable through the FileProvider so a
- * viewer app can read exactly that file and nothing else. Only the most recent
- * is kept, and a replacement is written completely before the previous one is
- * removed, so a failed download cannot invalidate the file currently shown.
- */
 class FilePreviews(private val context: Context) {
     private val root: File get() = File(context.cacheDir, ROOT)
     private val lock = Any()

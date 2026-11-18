@@ -48,9 +48,6 @@ struct BotAvatarView: View {
         }
     }
 
-    /// SwiftUI's `Image` draws only a `UIImage`'s static representation, so a
-    /// multi-frame attachment has to go through the UIKit view that plays
-    /// `images` itself. Stills keep the original path.
     @ViewBuilder
     private func attachment(_ image: UIImage) -> some View {
         if image.images == nil {
@@ -95,9 +92,6 @@ struct BotAvatarView: View {
     }
 }
 
-/// `UIImageView` plays an animated `UIImage` on its own; SwiftUI has no
-/// equivalent. Sizing is left entirely to the SwiftUI frame around it, so the
-/// view never fights the layout with an intrinsic size taken from the file.
 private struct AnimatedAttachmentView: UIViewRepresentable {
     let image: UIImage
 

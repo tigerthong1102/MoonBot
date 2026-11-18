@@ -2,9 +2,6 @@
 import SwiftUI
 
 public struct ActionChipItem: Identifiable {
-    /// A stable id, not a fresh UUID per instance: the row is rebuilt from
-    /// stored chips on every render, and identity that changes each time
-    /// makes SwiftUI re-insert every chip instead of leaving them be.
     public let id: String
     public let title: String
     public let icon: String

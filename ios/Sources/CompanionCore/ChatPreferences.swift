@@ -1,10 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// The parts of the chat's preferences that are logic rather than screen:
-// how much of a bot's working-out the transcript shows, and what sits on
-// the composer's chip row.
-//
-// These live in the core, away from SwiftUI, because they are the pieces
-// worth testing — the views that read them are wiring.
 import Foundation
 
 public enum ActivityDetail: String, CaseIterable, Codable, Sendable {

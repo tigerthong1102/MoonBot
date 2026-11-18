@@ -250,7 +250,6 @@ class VoiceNoteController(
     }
 }
 
-/** One playable clip; MediaPlayer in production, a fake in tests. */
 interface VoiceNoteEngine {
     var onCompletion: (() -> Unit)?
     var onError: (() -> Unit)?
@@ -264,10 +263,6 @@ interface VoiceNoteEngine {
     fun release()
 }
 
-/**
- * MediaPlayer backed by the same in-memory [ByteArrayMediaDataSource] as the
- * TTS preview — voice-note bytes never touch disk.
- */
 internal class MediaPlayerVoiceNoteEngine : VoiceNoteEngine {
     override var onCompletion: (() -> Unit)? = null
     override var onError: (() -> Unit)? = null

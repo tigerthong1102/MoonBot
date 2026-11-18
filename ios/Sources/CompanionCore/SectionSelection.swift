@@ -1,12 +1,6 @@
 // Modified for StartupBot; original copyright and license retained.
 import Foundation
 
-/// Pure state for the section creator's draw-through gesture.
-///
-/// The view owns the 160 ms timer. Every hovered cell gets a unique candidate
-/// token, so a timer that finishes after the finger has moved cannot commit a
-/// stale bot. Keeping this independent of SwiftUI makes the fiddly gesture
-/// rules deterministic and cheap to test.
 public struct SectionSelection: Equatable, Sendable {
     public struct Candidate: Equatable, Sendable {
         public let id: String
@@ -159,8 +153,6 @@ public struct SectionSelection: Equatable, Sendable {
     }
 }
 
-/// Small geometry values keep hit testing usable from CompanionCore without
-/// importing SwiftUI or leaking a particular grid implementation into it.
 public struct SectionGridPoint: Equatable, Sendable {
     public var x: Double
     public var y: Double

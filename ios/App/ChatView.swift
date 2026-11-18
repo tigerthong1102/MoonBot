@@ -631,10 +631,6 @@ struct ChatView: View {
             && !preparingAttachments && !sendingMessage
     }
 
-    /// A vertically growing SwiftUI TextField treats the software keyboard's
-    /// Return key as a newline even when the key is labelled “Send”. Intercept
-    /// that proposed edit before it reaches the draft. Hardware Shift-Return
-    /// opts into one real line break through `acceptsNextHardwareLineBreak`.
     private var composerDraft: Binding<String> {
         Binding(
             get: { draft },
@@ -1915,8 +1911,6 @@ struct CredentialRequestCardView: View {
 
     private func clearPlaintext() {
         value.removeAll(keepingCapacity: false)
-        // Replacing the SecureField also clears UIKit's backing control,
-        // including text inserted by Password AutoFill.
         fieldID = UUID()
     }
 
@@ -1953,7 +1947,6 @@ struct CardView: View {
     @EnvironmentObject private var session: Session
     @State private var answering = false
 
-    // An approval answer must be one of the options offered by that card.
     private var allowChoice: String? {
         guard let options = message.card?.options else { return nil }
         return options.first { $0.caseInsensitiveCompare("Allow") == .orderedSame }

@@ -13,7 +13,6 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 
-/** Actual Session, HTTP transport and SSE parser, with disposable loopback routes only. */
 class SessionStreamRecoveryTest {
     @Test
     fun emptyHttpStreamRecoversThroughTheAdvertisedFallbackWithoutRestarting() = runBlocking<Unit> {

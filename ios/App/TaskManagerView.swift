@@ -286,7 +286,6 @@ struct TaskManagerView: View {
     }
 
     private func delete(_ task: BotTask) async {
-        // Recheck after the confirmation; an SSE update may have made it busy.
         guard tasks.count > 1,
               let liveTask = tasks.first(where: { $0.threadId == task.threadId }),
               current.isBot ? liveTask.busy != true : !current.busy else {

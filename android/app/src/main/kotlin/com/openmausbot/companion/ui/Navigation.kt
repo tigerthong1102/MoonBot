@@ -12,20 +12,6 @@ import com.openmausbot.companion.core.Chat
 import com.openmausbot.companion.core.ChatTarget
 import com.openmausbot.companion.core.target
 
-/**
- * Where the app can be. Five places, one stack, no dependency.
- *
- * `androidx.navigation-compose` would add a library, a graph DSL and an argument
- * encoding to express roster ⇄ chat ⇄ settings ⇄ routines — CONTRIBUTING asks not
- * to add a dependency where a short module will do, and this is the short module.
- *
- * A chat is addressed by its owner rather than by a captured `Chat`: the record
- * has to be re-read from `Session.state` on every frame anyway so busy/unread
- * stay current (iOS `ChatView.current` does the same). The owner is what makes
- * the address survive: a bot keeps its id when the desktop moves it to another
- * task, and it keeps it when the task that was open is deleted — a thread does
- * not.
- */
 sealed interface Destination {
     data object Roster : Destination
     data object Settings : Destination

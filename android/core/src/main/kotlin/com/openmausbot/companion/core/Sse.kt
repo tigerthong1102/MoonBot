@@ -17,7 +17,6 @@ import okhttp3.Response
 
 data class SSEEvent(val id: String? = null, val data: String)
 
-/** A line-oriented parser whose empty input line is the SSE event terminator. */
 class SSEParser {
     private val fields = mutableListOf<Pair<String, String>>()
 
@@ -56,6 +55,20 @@ class SSEParser {
     }
 }
 
+internal class SSEReadBudget(val maximumBytes: Int = 8 * 1024 * 1024) {
+    private var eventBytes = 0
+
+    fun accept(line: String) {
+        val count = line.toByteArray(Charsets.UTF_8).size
+        if (count > maximumBytes) throw APIError.Transport("The event stream exceeds this phone's safety limit.")
+        if (line.isEmpty()) eventBytes = 0
+        else if (!line.startsWith(":")) {
+            if (count >= maximumBytes - eventBytes) throw APIError.Transport("The event stream exceeds this phone's safety limit.")
+            eventBytes += count + 1
+        }
+    }
+}
+
 fun eventStream(
     request: Request,
     client: OkHttpClient,
@@ -70,9 +83,12 @@ fun eventStream(
             val body = response.body ?: throw APIError.Transport("The computer sent an empty event stream.")
             val source = body.source()
             val parser = SSEParser()
+            val budget = SSEReadBudget()
 
             while (isActive) {
-                val line = source.readUtf8Line() ?: break
+                if (source.exhausted()) break
+                val line = source.readUtf8LineStrict(budget.maximumBytes.toLong())
+                budget.accept(line)
                 val event = parser.line(line) ?: continue
                 val frame = runCatching {
                     CompanionJson.decodeFromString<StreamFrame>(event.data)

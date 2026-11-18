@@ -14,23 +14,7 @@ struct CompanionApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(session)
-                // One modifier is the whole language seam. SwiftUI resolves a
-                // `LocalizedStringKey` against the environment's locale, so
-                // every `Text("…")`, `Button("…")`, `Section("…")` and
-                // `navigationTitle("…")` already in the app — including the
-                // ones inside sheets and pushed screens — follows this line
-                // without a call site changing. Following the system means
-                // leaving it on the phone's own locale, which is what an app
-                // with no language setting would use anyway.
                 .environment(\.locale, AppLanguage.resolved(language).locale ?? .autoupdatingCurrent)
-                // A navigation title is drawn by UIKit, which reads its string
-                // once and does not re-read it when the environment changes —
-                // so the body would switch language while the title above it
-                // stayed behind. Re-identifying the tree on the chosen language
-                // rebuilds that chrome. It costs the navigation stack and any
-                // view state below, which is the right trade for something a
-                // person changes deliberately and almost never. `session` lives
-                // on the App, not here, so the connection survives.
                 .id(language)
                 .onAppear {
                     #if DEBUG && targetEnvironment(simulator)

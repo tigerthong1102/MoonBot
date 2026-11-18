@@ -64,9 +64,6 @@ public struct CandidateRotation: Equatable, Sendable {
         return currentEndpoint
     }
 
-    /// Move only when the failure belongs to this route rather than to the
-    /// pairing or the phone as a whole. Keeping that decision beside the
-    /// rotation makes reconnects handle URL and HTTP gateway failures alike.
     @discardableResult
     public mutating func advanceEndpoint(after error: Error) -> CompanionEndpoint? {
         guard endpoints.count > 1,
@@ -117,12 +114,6 @@ public enum ConnectionAdvice {
         return (502...504).contains(code) || (520...530).contains(code)
     }
 
-    /// The offline banner as advice rather than an NSURLError string.
-    ///
-    /// Each code names the thing the person can actually check — the raw
-    /// "A server with the specified hostname could not be found" says nothing
-    /// about tailnets, and it is precisely the tailnet case that produces it.
-    /// `tryingNext` is the candidate the walk moved to, when it moved.
     public static func message(
         for code: URLError.Code,
         host: String,

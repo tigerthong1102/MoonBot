@@ -9,7 +9,6 @@ import java.security.cert.CertificateException
 import javax.net.ssl.SSLException
 import kotlin.coroutines.cancellation.CancellationException
 
-/** A successful HTTP response ended before the event stream established the session. */
 internal class MissingStreamHelloException : IOException("Lost the connection.")
 
 /**
@@ -46,14 +45,6 @@ class CandidateRotation(endpoints: List<CompanionEndpoint>) {
         return currentEndpoint
     }
 
-    /**
-     * Move only when the failure belongs to this route rather than to the pairing or to the
-     * phone as a whole. Keeping that decision beside the rotation makes reconnects handle
-     * address failures and HTTP gateway failures alike.
-     *
-     * A single remaining candidate never advances: the caller's retry loop simply dials that
-     * same authority again after its backoff.
-     */
     fun advanceEndpoint(after: Throwable): CompanionEndpoint? {
         if (endpoints.size <= 1 || !ConnectionAdvice.shouldTryAnotherRoute(after)) return null
         return advanceEndpoint()
@@ -114,12 +105,6 @@ object ConnectionAdvice {
         APIError.BadUrl -> false
     }
 
-    /**
-     * Classify the errors another advertised route can actually repair: address and
-     * TLS/certificate failures, plus the gateway statuses a tunnel returns when its origin is
-     * unreachable. Application errors such as 400/401/404/500 deliberately stay on the route —
-     * every other address would answer them identically.
-     */
     fun shouldTryAnotherRoute(error: Throwable): Boolean {
         val status = statusCode(error)
         if (status != null) return isGatewayStatus(status)
@@ -127,7 +112,6 @@ object ConnectionAdvice {
             shouldTryAnotherHost(classify(error))
     }
 
-    /** The HTTP status this failure should be reported as, when a gateway produced it. */
     fun gatewayStatus(error: Throwable): Int? = statusCode(error)?.takeIf(::isGatewayStatus)
 
     private fun statusCode(error: Throwable): Int? =

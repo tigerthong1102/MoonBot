@@ -197,9 +197,6 @@ class VoicePreviewControllerTest {
 
     @Test
     fun `concurrent play calls leave only one live engine`() {
-        // Without a lock, overlapping play() bodies can both start() before
-        // either assigns `engine`, orphaning a MediaPlayer. Under the lock the
-        // calls serialize: N engines created, exactly one left unrealeased.
         val focus = FakeFocus(grant = true)
         val engines = Collections.synchronizedList(mutableListOf<FakeEngine>())
         val controller = VoicePreviewController(
@@ -254,8 +251,6 @@ class VoicePreviewControllerTest {
         override fun start(data: ByteArray): Boolean {
             starts += 1
             if (errorDuringStart) {
-                // Fire before returning — same window MediaPlayer can deliver
-                // when callbacks are installed before start().
                 onError?.invoke()
                     ?: error("onError must be installed before start(); round-2 dropped this")
             }

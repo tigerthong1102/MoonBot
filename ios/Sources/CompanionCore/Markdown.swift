@@ -1,22 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// Markdown, split into blocks.
-//
-// The desktop renders bot replies with react-markdown + GFM. The phone was
-// showing the source: `**bold**`, `- ` bullets and `[text](url)` arriving as
-// literal characters, which is worse than no markdown at all — it is the
-// author's intent visible but not applied.
-//
-// Foundation can already do the *inline* half. `AttributedString(markdown:)`
-// handles emphasis, code spans, strikethrough and links, and SwiftUI renders
-// the links tappable for free. What it will not do is lay out blocks: with
-// `.full` it records a presentation intent and leaves you to draw the bullet,
-// the indent and the spacing yourself. So this splits the text into blocks
-// and the view draws each one, handing the inline run back to Foundation.
-//
-// Deliberately not a full CommonMark implementation. It covers what a model
-// actually emits into a chat bubble — paragraphs, lists, headings, fences,
-// quotes, rules — and treats anything it does not recognise as text, which is
-// the failure mode that loses nothing.
 import Foundation
 
 public enum MarkdownBlock: Equatable, Sendable {

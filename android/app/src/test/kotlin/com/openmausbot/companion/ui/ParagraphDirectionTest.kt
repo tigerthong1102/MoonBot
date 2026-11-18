@@ -30,29 +30,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/**
- * Which way a paragraph actually reads, measured off the laid-out text.
- *
- * On an `ar-EG` emulator the app drew *"?What do you mostly want help with"*,
- * counted *"16 15 … 1"* where the bot had said *"1 2 3 … 20"*, and cut the front
- * off every roster preview. All three were one defect: Compose's default
- * [androidx.compose.ui.text.style.TextDirection.Unspecified] takes the paragraph's
- * base level from `LocalLayoutDirection`, so an RTL locale reordered English.
- *
- * Nothing here asserts that a style property was set — a test like that would
- * have been green against the version that shipped the defect, since the
- * property *was* at its default and the default was the bug. Instead each test
- * mounts a composition under `LayoutDirection.Rtl` and reads the
- * [TextLayoutResult] the text node published: the resolved base direction, and
- * the x of the boxes the glyphs were actually placed in.
- *
- * The bubble tests drive [MarkdownText], which is the composable a bot reply is
- * drawn with (`MessageRow` → `MarkdownText(source = message.text)`). The roster
- * preview is drawn by a `Text` private to `ChatRow`, and `ChatRow` cannot be
- * mounted without a whole `CompanionEnvironment`, so that one is reproduced with
- * the call site's own arguments — the point being that it takes its style from
- * the theme, which is where the fix lives.
- */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -119,9 +96,6 @@ class ParagraphDirectionTest {
 
     @Test
     fun `a counted list stays in ascending order in an RTL locale`() {
-        // The bot's reply, verbatim: nothing in it is a strong character, so this
-        // is the case a content-or-*layout* rule (TextView's FIRST_STRONG, or
-        // Compose's TextDirection.Content) still gets wrong.
         val counted = "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20"
         inRtlLocale { MarkdownText(source = counted, modifier = Modifier.requiredWidth(2000.dp)) }
 
@@ -170,35 +144,6 @@ class ParagraphDirectionTest {
         )
     }
 
-    /**
-     * The roster's preview line: one line, ellipsised, on a narrow column.
-     *
-     * The layout is taken from `onTextLayout` rather than from the semantics
-     * action the other tests use, and that is not a convenience. `Text(String)`
-     * is drawn by `TextStringSimpleNode`, whose `GetTextLayoutResult` does not
-     * hand back the layout it drew: it calls
-     * `ParagraphLayoutCache.slowCreateTextLayoutResultOrNull`, which builds a
-     * *fresh* `MultiParagraph` from a `MultiParagraphIntrinsics` constructed
-     * with no layout direction at all. What that reconstruction falls back to
-     * is `AndroidParagraphIntrinsics.resolveTextDirectionHeuristics`, which
-     * resolves `Content`/`Unspecified` to first-strong against the style's
-     * `localeList` and, failing that, `Locale.getDefault()` — so it is
-     * first-strong-*LTR* here, and would be first-strong-*RTL* in a process
-     * whose default locale is Arabic. Either way it is not the direction that
-     * was painted: on this Compose version the node reports `Ltr` through the
-     * semantics action while `onTextLayout` reports `Rtl`, with the line
-     * starting at x = -13.7 — the clipping that ate the "er" of "error:". Read
-     * through semantics, this test is green against the defect it exists to
-     * catch.
-     *
-     * That is a `Text(String)` trap and nothing wider. `Text(AnnotatedString)`
-     * — which is what [MarkdownText] builds, and so what the five tests above
-     * that call `layoutOf` are reading — is drawn by `TextAnnotatedStringNode`,
-     * whose semantics take the measured layout out of the cache, so a direction
-     * read from those nodes is the direction that was drawn. (The table test
-     * below reads `Text(String)` nodes, but it never asks for a layout: it
-     * compares spoken order and `boundsInRoot`, so the trap does not reach it.)
-     */
     @Test
     fun `a one-line preview is cut at its end, not at its beginning`() {
         val preview = "error: CUA Driver is not ready for this computer yet"

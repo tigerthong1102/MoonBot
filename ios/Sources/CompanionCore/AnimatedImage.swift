@@ -1,24 +1,9 @@
 // Modified for StartupBot; original copyright and license retained.
-// An avatar attachment that carries more than one frame, decoded into the
-// uniform-tick form UIKit can play.
-//
-// `UIImage(data:)` keeps only the first frame, so an animated GIF or WebP
-// avatar renders as a still on the phone while the desktop — which draws the
-// same URL into an `<img>` — plays it. The server already accepts these:
-// `botAvatarUrlSchema` allows png, jpg, gif and webp.
-//
-// The decode lives here rather than in the view because ImageIO is available
-// on macOS too, so `swift test` covers the timing rules below without Xcode,
-// a simulator, or signing.
 import CoreGraphics
 import Foundation
 import ImageIO
 
 public struct AnimatedImage {
-    /// Frames in play order, already expanded so that every entry is shown
-    /// for the same tick. UIKit plays `UIImage.animatedImage(with:duration:)`
-    /// at a uniform rate, so a frame held twice as long as its neighbour is
-    /// represented as two entries rather than one longer one.
     public let frames: [CGImage]
 
     public let duration: TimeInterval
@@ -54,9 +39,6 @@ public enum AnimatedImageDecoder {
         frames.reserveCapacity(count)
         delays.reserveCapacity(count)
 
-        // ImageIO applies EXIF orientation while producing the thumbnail, so
-        // UIKit receives consistently upright frames without a second full-
-        // resolution allocation.
         let thumbnailOptions: CFDictionary = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

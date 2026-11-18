@@ -10,7 +10,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// Android may destroy a background service or process under memory pressure; its grace window is not guaranteed.
 class SessionLingerController(
     private val session: Session,
     private val scope: CoroutineScope,
@@ -18,13 +17,6 @@ class SessionLingerController(
     private val alwaysOn: () -> Boolean = { false },
 ) : DefaultLifecycleObserver {
 
-    /**
-     * Whatever keeps the process out of the `cached` class for one window.
-     *
-     * Production is a started [SessionLingerService]; tests substitute this and
-     * nothing else, so the real [Session], the real `delay` and the real SSE
-     * collection stay under test.
-     */
     interface ProcessAnchor {
         fun attach(controller: SessionLingerController)
 

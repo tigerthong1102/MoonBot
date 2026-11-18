@@ -331,9 +331,6 @@ final class ShareViewModel: ObservableObject {
         do {
             let loaded = try await ShareItemLoader.load(from: context)
             loadedItems = loaded
-            // NSItemProvider callbacks are not cancellation-aware. If the
-            // person dismissed us while a provider was copying, remove the
-            // finished App Group copy before doing any network work.
             try Task.checkCancellation()
             items = loaded
             preview = SharePreview(

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlinx.serialization.decodeFromString
@@ -10,6 +11,17 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SseTest {
+    @kotlin.test.Test
+    fun boundsWholeEventsAndIndividualLinesButNotIdleKeepalives() {
+        val budget = SSEReadBudget(16)
+        repeat(100) { budget.accept(": ping") }
+        budget.accept("data: 123")
+        kotlin.test.assertFailsWith<APIError.Transport> { budget.accept("data: 456") }
+        budget.accept("")
+        budget.accept("data: 789")
+        kotlin.test.assertFailsWith<APIError.Transport> { budget.accept("x".repeat(17)) }
+    }
+
     private fun events(lines: List<String>): List<SSEEvent> {
         val parser = SSEParser()
         return lines.mapNotNull(parser::line)

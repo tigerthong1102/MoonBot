@@ -1,25 +1,5 @@
 // Modified for StartupBot; original copyright and license retained.
-// The event stream against a real URLSession.
-//
-// This file exists because of two bugs that shipped past every other test
-// here, both in the few lines between "URLSession has bytes" and "the app
-// has frames":
-//
-//   1. `request.timeoutInterval = .greatestFiniteMagnitude` — reads as
-//      "never time out", actually produces a request that opens and then
-//      delivers nothing.
-//   2. Keeping only the line iterator and letting `URLSession.AsyncBytes`
-//      go out of scope — AsyncBytes cancels its data task when released,
-//      so the connection died after the first frame.
-//   3. Reading with `bytes.lines`, which folds consecutive newlines into
-//      one separator and so never reports the blank line that terminates
-//      an SSE event. Zero frames, no error, connection healthy at both
-//      ends.
-//
-// Both need a real URLSession to reproduce: the parser tests pass either
-// way, because the parser was never wrong. A stub protocol that delivers
-// chunks *over time* is the smallest thing that catches this class — the
-// symptom of both bugs is a stream that stops early.
+// URLSession.AsyncBytes cancels its data task when released.
 import XCTest
 @testable import CompanionCore
 
@@ -98,8 +78,6 @@ final class EventStreamTests: XCTestCase {
     }
 
     override func tearDown() {
-        // a URLSession keeps itself alive until told otherwise, and a live
-        // one from a finished test has no business still holding a request
         session?.invalidateAndCancel()
         session = nil
         super.tearDown()
@@ -172,7 +150,6 @@ final class EventStreamTests: XCTestCase {
         ]
         let frames = try await collect(limit: 1)
         XCTAssertEqual(frames.count, 1, "the stream should have delivered its first frame")
-        // give the teardown a moment to propagate through URLSession
         try await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertGreaterThan(StreamingStub.stopCount, 0, "leaving the stream should cancel the request")
     }

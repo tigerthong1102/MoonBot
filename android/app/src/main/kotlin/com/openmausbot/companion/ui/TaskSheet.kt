@@ -83,8 +83,6 @@ fun TaskSheet(
     var renaming by remember { mutableStateOf<BotTask?>(null) }
     var title by remember { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<BotTask?>(null) }
-    // The thread, not the snapshot the bell was tapped on: resolved live
-    // below, so a task that started working over SSE still gates the dialog.
     var pendingSnooze by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -359,9 +357,6 @@ fun TaskSheet(
     }
 
     pendingSnooze?.let { threadId ->
-        // Resolved from the live record, never the tapped snapshot: a task
-        // that started working over SSE disables the actions, and one deleted
-        // underneath closes the dialog.
         val task = snoozeTarget((current as? Chat.BotChat)?.bot, threadId) ?: return@let
         val working = TaskRules.isWorking(task)
         AlertDialog(

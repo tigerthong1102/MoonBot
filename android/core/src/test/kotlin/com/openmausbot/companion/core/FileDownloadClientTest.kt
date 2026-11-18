@@ -73,7 +73,6 @@ class FileDownloadClientTest {
 
     @Test
     fun blanksControlAndBidiOverrideCharactersInAServerChosenName() {
-        // OkHttp refuses to carry the raw header, so the sanitiser is exercised directly.
         assertEquals("secret .txt", CompanionClient.downloadFilename("attachment; filename=\"../secret\u202E.txt\"", "/x"))
         assertEquals("file", CompanionClient.downloadFilename("attachment; filename=\"..\"", "/"))
         assertEquals("a b.txt", CompanionClient.downloadFilename("attachment; filename=\"a\tb.txt\"", "/x"))
@@ -133,6 +132,16 @@ class FileDownloadClientTest {
         )
         assertFailsWith<APIError> { client.downloadFile("thread-1", "message-1", "/Users/test/large.txt") }
         assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun chunkedResponsesAreBoundedWhileReadingAndAnExactLimitStillSucceeds() = runBlocking {
+        val limit = CompanionClient.MAXIMUM_FILE_DOWNLOAD_BYTES
+        server.enqueue(MockResponse().setChunkedBody(Buffer().write(ByteArray(limit + 1)), 8192))
+        val error = assertFailsWith<APIError.Transport> { client.downloadFile("thread-1", "message-1", "/tmp/large.txt") }
+        assertTrue(error.message!!.contains("25 MB"))
+        server.enqueue(MockResponse().setChunkedBody(Buffer().write(ByteArray(limit)), 8192))
+        assertEquals(limit, client.downloadFile("thread-1", "message-1", "/tmp/exact.txt").data.size)
     }
 
     @Test

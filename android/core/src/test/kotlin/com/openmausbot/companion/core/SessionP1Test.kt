@@ -72,6 +72,23 @@ class SessionP1Test {
     }
 
     @Test
+    fun aCachedSearchHitFocusesWithoutRequiringANewHttpPage() = runTest {
+        val message = Message("cached", Message.Role.BOT, Message.Kind.TEXT, 1.0, text = "Cached reply")
+        val shown = bot("b1", "task-a", "task-a").copy(activeLeafId = message.id)
+        val session = session { Fleet(listOf(shown), emptyList()) }
+        session.openNotification(target("b1", "task-a"))
+        server.enqueue(json(CompanionJson.encodeToString(ThreadPage(listOf(message), activeLeafId = message.id))))
+        session.loadThreadIfNeeded("task-a")
+        assertEquals(1, server.requestCount)
+        val hit = SearchHit(threadId = "task-a", messageId = message.id, at = 1.0,
+            role = Message.Role.BOT, kind = Message.Kind.TEXT, snippet = "Cached reply", matchStart = 0,
+            matchLength = 6, botId = "b1", name = "Fixture", onActivePath = true)
+        assertIs<Chat.BotChat>(session.open(hit))
+        assertEquals(message.id, session.focusedMessageId.value)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
     fun aMissedEnqueueCannotReappearAfterAnEmptyAuthoritativeSnapshot() = runTest {
         val frames = MutableSharedFlow<StreamFrame>(extraBufferCapacity = 8)
         val arrived = CompletableDeferred<Unit>()
@@ -219,7 +236,7 @@ class SessionP1Test {
     }
 
     @Test
-    fun failedStandingGrantUsesTheProviderKeyOnceAndStillAnswersOnce() = runTest {
+    fun failedStandingGrantUsesTheProviderKeyOnceAndDoesNotAnswer() = runTest {
         val session = session()
         val chat = Chat.BotChat(bot("b1", "task-1", "task-1"))
         val card = permissionCard(
@@ -232,16 +249,173 @@ class SessionP1Test {
         session.answer(chat, card, "Always allow")
 
         val grant = server.takeRequest()
-        val answer = server.takeRequest()
         assertEquals("/api/bots/b1/always-allow", grant.path)
         assertEquals(mapOf("allowKey" to "Bash:git push", "threadId" to "task-1"), body(grant))
-        assertEquals("/api/threads/task-1/respond", answer.path)
-        assertEquals(
-            mapOf("requestId" to "request-1", "behavior" to "allow"),
-            body(answer),
-        )
-        assertEquals(2, server.requestCount)
+        assertEquals(1, server.requestCount)
         assertEquals("Could not save grant.", session.actionError)
+    }
+
+    @Test
+    fun standingGrantAndApprovalCannotSpanAComputerSwitch() = runTest {
+        for (explicitButton in listOf(false, true)) {
+            val arrived = CompletableDeferred<Unit>()
+            val release = CountDownLatch(1)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    if (request.path!!.endsWith("/always-allow")) {
+                        arrived.complete(Unit)
+                        check(release.await(5, TimeUnit.SECONDS))
+                    }
+                    return json("{}")
+                }
+            }
+            val session = session(otherComputer = true)
+            val chat = Chat.BotChat(bot("b1", "task-1", "task-1"))
+            val card = permissionCard(listOf("Always allow", "Deny"), "Bash:git")
+            val before = server.requestCount
+            val pending = async {
+                if (explicitButton) session.grantAndAnswer(chat, card, "Always allow")
+                else session.answer(chat, card, "Always allow")
+            }
+            try {
+                arrived.await()
+                session.switchComputer("other")
+                runCurrent()
+                assertEquals("other", session.connection.value?.id)
+                session.actionError = "Selected computer notice"
+            } finally { release.countDown() }
+            pending.await()
+            assertEquals(before + 1, server.requestCount)
+            assertEquals("Selected computer notice", session.actionError)
+        }
+    }
+
+    @Test
+    fun oldActionErrorsCannotInvalidateOrOverwriteTheSelectedComputer() = runTest {
+        for (status in listOf(401, 500)) {
+            val arrived = CompletableDeferred<Unit>()
+            val release = CountDownLatch(1)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    arrived.complete(Unit)
+                    check(release.await(5, TimeUnit.SECONDS))
+                    return json("""{"error":"Old computer failure"}""", status)
+                }
+            }
+            val session = session(otherComputer = true)
+            val pending = async { session.interrupt(bot("b1", "task-1", "task-1")) }
+            try {
+                arrived.await()
+                session.switchComputer("other")
+                runCurrent()
+                session.switchComputer("fixture")
+                runCurrent()
+                session.actionError = "Selected computer notice"
+            } finally { release.countDown() }
+            pending.await()
+            assertTrue(session.status.value !is Session.Status.Unauthorized)
+            assertEquals("Selected computer notice", session.actionError)
+        }
+    }
+
+    @Test
+    fun oldRosterTaskHistoryAndDownloadResultsCannotReachARecreatedRuntime() = runTest {
+        val old = bot("old", "old-thread", "old-thread")
+        val message = Message("old-message", Message.Role.BOT, Message.Kind.TEXT, 1.0, text = "Old data")
+        val operations: List<Pair<String, suspend (Session) -> Any?>> = listOf(
+            "roster" to { it.createBot() },
+            "task" to { it.createTask(old, "Old task") },
+            "profile" to { it.generateAvatar("Old avatar", old) },
+            "history" to { it.loadThread("old-thread"); null },
+            "reaction" to { it.react(message, "old-thread", "👍"); null },
+            "download" to { it.downloadFile("old-thread", "old-message", "/tmp/old.txt") },
+        )
+        for ((name, operation) in operations) {
+            for (status in listOf(200, 401, 500)) {
+                val arrived = CompletableDeferred<Unit>()
+                val release = CountDownLatch(1)
+                val body = when (name) {
+                    "history" -> CompanionJson.encodeToString(ThreadPage(listOf(message), activeLeafId = message.id))
+                    "reaction" -> "{\"message\":${CompanionJson.encodeToString(message)}}"
+                    else -> "{\"bot\":${CompanionJson.encodeToString(old)}}"
+                }
+                server.dispatcher = object : Dispatcher() {
+                    override fun dispatch(request: RecordedRequest): MockResponse {
+                        arrived.complete(Unit)
+                        check(release.await(5, TimeUnit.SECONDS))
+                        return if (status == 200) json(body) else json("{\"error\":\"Old failure\"}", status)
+                    }
+                }
+                val session = session(otherComputer = true)
+                val pending = async { try { operation(session) } catch (_: CancellationException) { null } }
+                try {
+                    arrived.await()
+                    session.switchComputer("other")
+                    runCurrent()
+                    session.switchComputer("fixture")
+                    runCurrent()
+                    session.actionError = "Current notice"
+                } finally { release.countDown() }
+                assertNull(pending.await(), "$name/$status")
+                assertTrue(session.state.value.bots.isEmpty(), "$name/$status")
+                assertTrue(session.state.value.transcript("old-thread").isEmpty(), "$name/$status")
+                assertTrue(session.status.value !is Session.Status.Unauthorized, "$name/$status")
+                assertEquals("Current notice", session.actionError, "$name/$status")
+            }
+        }
+    }
+
+    @Test
+    fun avatarUploadCannotPatchAComputerSelectedWhileTheUploadWasPending() = runTest {
+        val arrived = CompletableDeferred<Unit>()
+        val release = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                arrived.complete(Unit)
+                check(release.await(5, TimeUnit.SECONDS))
+                return json("{\"path\":\"/tmp/attachments/avatar.png\",\"mime\":\"image/png\",\"bytes\":1}")
+            }
+        }
+        val session = session(otherComputer = true)
+        val pending = async { session.uploadAvatar(byteArrayOf(1), "image/png", bot("old", "old-thread", "old-thread"), AvatarCrop.CIRCLE) }
+        try {
+            arrived.await()
+            session.switchComputer("other")
+            runCurrent()
+        } finally { release.countDown() }
+        assertFailsWith<CancellationException> { pending.await() }
+        assertEquals(1, server.requestCount)
+        assertTrue(session.state.value.bots.isEmpty())
+    }
+
+    @Test
+    fun shareResultsAndFailuresCannotEscapeTheirRuntimeEvenAfterReturningToTheSameComputer() = runTest {
+        for (status in listOf(200, 401, 503)) {
+            val arrived = CompletableDeferred<Unit>()
+            val release = CountDownLatch(1)
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    arrived.complete(Unit)
+                    check(release.await(5, TimeUnit.SECONDS))
+                    return json("{}", status)
+                }
+            }
+            val session = session(otherComputer = true)
+            val before = server.requestCount
+            val pending = async { runCatching { session.withShareClient("fixture") { it.image("thread", "message") } } }
+            try {
+                arrived.await()
+                session.switchComputer("other")
+                runCurrent()
+                session.switchComputer("fixture")
+                runCurrent()
+                session.actionError = "Current notice"
+            } finally { release.countDown() }
+            assertTrue(pending.await().isFailure)
+            assertEquals(before + 1, server.requestCount)
+            assertTrue(session.status.value !is Session.Status.Unauthorized)
+            assertEquals("Current notice", session.actionError)
+        }
     }
 
     @Test

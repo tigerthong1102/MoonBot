@@ -196,15 +196,10 @@ class MausFaceEngineTest {
 
     private companion object {
         const val FRAME_NANOS = 1_000_000_000L / 30
-        /** `MausAvatar.swift:277`. */
         const val LOOK_AROUND = 0.35f
     }
 }
 
-/**
- * The body's own movement. The numbers below are the desktop's, written out rather
- * than read back from the motion table they are checking.
- */
 class MausBodyPoseTest {
     private val pose = MausBodyPose()
 
@@ -228,7 +223,6 @@ class MausBodyPoseTest {
 
     @Test
     fun `a bob lifts the body, and squashes it as it lands`() {
-        // bouncing bobs 12 units over 560ms and squashes 0.45 on the way down
         val bouncing = MausFaceData.motion.getValue(MausState.BOUNCING)
 
         bouncing.poseAt(140f, pose)
@@ -244,7 +238,6 @@ class MausBodyPoseTest {
 
     @Test
     fun `an entrance grows to full size and then stops growing`() {
-        // spawning enters at 2% of its size over 820ms, then only breathes: ±1.4%
         val spawning = MausFaceData.motion.getValue(MausState.SPAWNING)
 
         spawning.poseAt(0f, pose)
@@ -255,11 +248,6 @@ class MausBodyPoseTest {
     }
 }
 
-/**
- * The rings the working states wear. They are cut at the horizon so the body can
- * be drawn between the halves; both halves have to exist, or the ring stops
- * reading as an orbit.
- */
 class MausCometFieldTest {
     @Test
     fun `a comet ring passes behind the body and in front of it`() {

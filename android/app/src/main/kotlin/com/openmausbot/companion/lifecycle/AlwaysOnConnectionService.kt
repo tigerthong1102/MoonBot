@@ -13,7 +13,6 @@ import androidx.core.app.NotificationCompat
 import com.openmausbot.companion.OpenMausApp
 import com.openmausbot.companion.R
 
-// Android foreground services require a visible notification. START_STICKY restarts may receive a null Intent.
 class AlwaysOnConnectionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null

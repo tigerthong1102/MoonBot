@@ -410,7 +410,6 @@ private fun RoutineRow(
     }
 }
 
-/** One run receipt — SwiftUI's `DisclosureGroup`, as a Material expanding row. */
 @Composable
 private fun RoutineRunRow(
     run: RoutineRun,
@@ -538,11 +537,6 @@ private fun RunStatusIcon(status: RoutineRules.RunStatus, tint: Color) {
     }
 }
 
-/**
- * SwiftUI's `.green` / `.orange` / `.red` / `.secondary`, in this app's palette:
- * the accent is already the mascot green, the mascot orange is the one this
- * theme does not name, and `error` is the red every other screen uses.
- */
 @Composable
 private fun runStatusTint(status: RoutineRules.RunStatus): Color = when (status) {
     RoutineRules.RunStatus.COMPLETED -> MaterialTheme.colorScheme.primary

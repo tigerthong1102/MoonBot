@@ -47,9 +47,5 @@ internal object MausSilhouette {
         }
     }
 
-    /**
-     * SVG path data into a [Path]. The catalog is absolute `M`, `C` and `Z` with
-     * newlines as separators, all of which Compose's parser reads.
-     */
     internal fun parse(data: String): Path = PathParser().parsePathString(data).toPath()
 }

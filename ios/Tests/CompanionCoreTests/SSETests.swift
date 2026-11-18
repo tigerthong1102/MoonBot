@@ -1,9 +1,18 @@
 // Modified for StartupBot; original copyright and license retained.
-// The SSE parser, which is where a hand-rolled event client goes wrong.
 import XCTest
 @testable import CompanionCore
 
 final class SSETests: XCTestCase {
+    func testBoundsWholeEventsAndIndividualLinesButNotIdleKeepalives() throws {
+        var budget = SSEReadBudget(maximumBytes: 16)
+        for _ in 0..<100 { try budget.accept(": ping") }
+        try budget.accept("data: 123")
+        XCTAssertThrowsError(try budget.accept("data: 456"))
+        try budget.accept("")
+        try budget.accept("data: 789")
+        XCTAssertThrowsError(try budget.accept(String(repeating: "x", count: 17)))
+    }
+
     func events(_ lines: [String]) -> [SSEEvent] {
         var parser = SSEParser()
         return lines.compactMap { parser.line($0) }

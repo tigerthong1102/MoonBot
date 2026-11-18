@@ -1,9 +1,6 @@
 // Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
-// Unconditional for the same reason as ChatView: `UIImage` is used below
-// without a guard, so a conditional import would only change which error a
-// non-UIKit build fails with.
 import UIKit
 
 struct ComputerView: View {

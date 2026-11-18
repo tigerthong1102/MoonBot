@@ -32,6 +32,10 @@ Internal Android 0.1.8 / iOS build 14 connects old search results to the rendere
 
 Native review corrections scope late bot-queue receipts to the captured authoritative snapshot revision and refuse Android call playback when audio focus is denied. Imported implementation/history narration is removed across native sources; public wire contracts, external platform facts, security constraints and original notices are retained. Modified imported source files carry explicit StartupBot modification notices. This comment-policy pass preserves every non-comment code and literal token.
 
+The cached-search correction permits immediate focus only when the hit is already rendered and the current leaf is present. Sparse cached windows still require bounded history recovery. iOS build 15 includes this correction. A final comment-only pass additionally uses the Kotlin 2.2.21 lexer to verify code and literal token equality.
+
+Independent PR-wide audit: runtime-scoped Android HTTP results/errors and multi-step approvals/avatar changes; cached and advancing search history; iOS notification failure targets; bounded HTTP/SSE reads; iOS redirect refusal and credential-free server identity checks; Android voice keys require HTTPS and are not saved in UI restoration state. Original OSS features and protocol identifiers remain. Store signing, physical devices and live providers require separate acceptance.
+
 Modified imported files:
 
 - `App/ActivityRunChip.swift`
@@ -89,6 +93,7 @@ Modified imported files:
 - `AppShared/OpenMausSharedConnectionStore.swift`
 - `AppShared/OpenMausSharedInbox.swift`
 - `AppShared/OpenMausSharedKeychain.swift`
+- `Package.swift`
 - `README.md`
 - `ShareExtension/ShareItemLoader.swift`
 - `ShareExtension/ShareRootView.swift`
@@ -100,6 +105,7 @@ Modified imported files:
 - `Sources/CompanionCore/BotAvatarRendering.swift`
 - `Sources/CompanionCore/ChatPreferences.swift`
 - `Sources/CompanionCore/Client.swift`
+- `Sources/CompanionCore/ComposerKeyboard.swift`
 - `Sources/CompanionCore/ConnectionRegistry.swift`
 - `Sources/CompanionCore/Dictation.swift`
 - `Sources/CompanionCore/Endpoint.swift`
@@ -136,6 +142,7 @@ Modified imported files:
 - `Tests/CompanionCoreTests/RosterPreviewTests.swift`
 - `Tests/CompanionCoreTests/SSETests.swift`
 - `Tests/CompanionCoreTests/ServerPairingTests.swift`
+- `Tests/CompanionCoreTests/ShareClientTests.swift`
 - `Tests/CompanionCoreTests/StoreTests.swift`
 - `Tests/CompanionCoreTests/WaitingThreadHydrationTests.swift`
 - `UITests/ThreadNavigationUITests.swift`

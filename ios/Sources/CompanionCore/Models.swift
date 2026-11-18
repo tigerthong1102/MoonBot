@@ -1130,7 +1130,6 @@ struct ConnectorAuthorizationResponse: Codable, Sendable {
     var url: String
 }
 
-// MARK: - Server sessions (pairing with a server directly)
 
 /// What `POST /api/auth/pair` returns on a server: the bearer, the session
 /// it opened, and the server's public descriptor.

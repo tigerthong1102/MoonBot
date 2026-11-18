@@ -13,36 +13,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * Keystore-backed device-token storage — iOS Keychain analogue.
- *
- * File name [PREFS_NAME] is excluded from Auto Backup and device-transfer via
- * `backup_rules.xml` / `data_extraction_rules.xml`. Keystore material is
- * ThisDeviceOnly-equivalent (not migratable).
- *
- * Two properties are load-bearing, and neither is free:
- *
- * - **Nothing here runs on the caller's thread.** [openPrefs] is not a field
- *   read: it derives a `MasterKey` through the Android Keystore, opens an
- *   encrypted file and decrypts its index — Keystore IPC plus disk I/O, on
- *   first touch. Every reader and writer below is reached from `Session`, whose
- *   scope in `OpenMausApp` is `Dispatchers.Main.immediate`; without the hop
- *   the launch-time restore would do that work on the main thread, and so
- *   would the token write in the middle of a pairing. [io] is where it goes
- *   instead — the same injected-context shape [OnboardingPreferences] uses,
- *   and overridable so tests can observe which thread the work landed on.
- * - **A write is durable before it returns.** [SharedPreferences.Editor.commit]
- *   rather than `apply()`, for the reason the ordering in `Session.pair` gives:
- *   the token is saved *before* the connection becomes restorable, so that a
- *   process which stops between them leaves a token with no pairing (harmless)
- *   rather than a restorable pairing whose token never landed (a phone that
- *   comes back unable to reach its computer and cannot say why). `apply()`
- *   hands that write to a background thread and returns, which gives the
- *   ordering back.
- *
- * Cancellation is re-thrown rather than reported as a store failure: a caller
- * that went away has not discovered anything about the Keystore.
- */
+// Device-token storage is excluded from backup and transfer; Android Keystore material is not migratable.
+// An unavailable or cancelled store read cannot establish that a credential is absent.
 class KeystoreTokenStore(
     private val prefsProvider: () -> SharedPreferences,
     /** Where the Keystore work and the blocking disk I/O go; overridden in tests. */
@@ -88,7 +60,6 @@ class KeystoreTokenStore(
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (_: Exception) {
-            // A leftover local token must remain unusable after sign-out.
         }
     }
 

@@ -14,14 +14,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
-/**
- * Cancellation close for picker streams.
- *
- * Round-2 used `Job.invokeOnCompletion` (fires when the job **completes**), so a
- * worker parked inside a provider `read` was never interrupted. These tests
- * exercise [withStreamClosedOnCancel] directly — the same helper [AvatarImagePicker.read]
- * wraps around the open stream — without needing a real ContentResolver.
- */
 class AvatarImagePickerTest {
 
     @Test

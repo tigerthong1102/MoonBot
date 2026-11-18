@@ -4,12 +4,21 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 
 class SearchLandingTest {
     private fun page(range: IntRange, leaf: String = "m200") = ThreadPage(
         messages = range.map { Message("m$it", Message.Role.BOT, Message.Kind.TEXT, it.toDouble(), text = "Message $it", parentId = if (it > 1) "m${it - 1}" else null) },
         activeLeafId = leaf, hasMore = range.first > 1,
     )
+
+    @Test
+    fun cachedHitsNeedNoPageButAMissingLeafIsNotAConnectedBranch() {
+        val landing = SearchLanding("thread", "m25")
+        assertTrue(landing.isRendered(CompanionState().merge(page(1..200), "thread")))
+        assertFalse(landing.isRendered(CompanionState().merge(page(1..50), "thread")))
+    }
 
     @Test
     fun connectsTheSearchHitToTheLiveBranchInsteadOfOnlyCachingIt() {
@@ -50,9 +59,21 @@ class SearchLandingTest {
     }
 
     @Test
+    fun aServerAdvanceReplacesAnUnchangedStaleCachedLeaf() {
+        val landing = SearchLanding("thread", "m250")
+        var state = CompanionState().merge(page(151..200), "thread")
+        state = landing.merge(page(225..275, "m300"), state, leafAtRequest = "m200")
+        assertEquals("m300", state.activeLeafIds["thread"])
+        assertEquals(SearchHistoryCursor.Latest, landing.next(state))
+        state = landing.merge(page(251..300, "m300"), state, leafAtRequest = "m300")
+        assertNull(landing.next(state))
+        assertTrue(state.visibleTranscript("thread").any { it.id == "m250" })
+    }
+
+    @Test
     fun oldPagesCannotRollBackANewerStreamLeaf() {
         val landing = SearchLanding("thread", "m175")
-        val state = landing.merge(page(151..200), CompanionState().merge(page(151..201, "m201"), "thread"))
+        val state = landing.merge(page(151..200), CompanionState().merge(page(151..201, "m201"), "thread"), leafAtRequest = "m200")
         assertEquals("m201", state.activeLeafIds["thread"])
         assertEquals("m201", state.visibleTranscript("thread").last().id)
     }

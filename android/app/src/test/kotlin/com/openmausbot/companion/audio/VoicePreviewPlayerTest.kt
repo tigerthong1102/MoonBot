@@ -10,13 +10,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Screen-owner lifecycle for [VoicePreviewPlayer].
- *
- * The SwiftUI `@State` player dies with the view; Android must stop when the
- * bound [LifecycleOwner] is replaced or destroyed so preview cannot outlive a
- * navigation swap or configuration change.
- */
 class VoicePreviewPlayerTest {
 
     @Test

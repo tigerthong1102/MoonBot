@@ -85,9 +85,6 @@ class OnboardingScene(
 
     val onboarding = OnboardingPreferences(
         prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE),
-        // Inline rather than Dispatchers.IO: a Compose test's idling clock does
-        // not wait for a real background thread, and what is under test here is
-        // the ordering of the app's own calls, not the dispatcher.
         io = EmptyCoroutineContext,
     )
 

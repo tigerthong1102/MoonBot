@@ -43,7 +43,6 @@ data class CompanionState(
 
     fun transcript(threadId: String): List<Message> = messages[threadId].orEmpty()
 
-    /** An SSE tail is partial history; only a fetched page establishes its boundary. */
     fun hasLoadedPage(threadId: String): Boolean = hasMore.containsKey(threadId)
 
     fun visibleTranscript(threadId: String): List<Message> {

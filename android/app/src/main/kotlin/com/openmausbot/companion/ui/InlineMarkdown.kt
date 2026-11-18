@@ -9,26 +9,6 @@ data class InlineSpan(
 
 enum class InlineStyle { BOLD, ITALIC, CODE, STRIKE }
 
-/**
- * The inline half of markdown, in-house.
- *
- * `Markdown.blocks` (`:core`) already split the source into paragraphs, headings,
- * list items, quotes and fences; this walks one block's text and produces styled
- * runs. iOS hands the same job to Foundation
- * (`AttributedString(markdown:options:.inlineOnlyPreservingWhitespace)`), whose
- * supported set is bold, italic, code spans, strikethrough and links — so that is
- * exactly the set understood here. Markwon would be a 300KB dependency and a
- * second block parser competing with `:core`'s.
- *
- * Two rules matter more than completeness, because this renders a reply while it
- * is still being typed:
- *
- * - An **unterminated** marker is literal text. A half-written `[label](` shows
- *   the characters the model has sent so far rather than vanishing until the
- *   bracket closes.
- * - Code-span content is never re-parsed, so a snippet full of `*` stays a
- *   snippet.
- */
 object InlineMarkdown {
 
     fun parse(source: String): List<InlineSpan> =

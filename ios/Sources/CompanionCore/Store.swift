@@ -26,8 +26,6 @@ public struct CompanionState: Sendable {
     public var bots: [Bot] = []
     public var rooms: [Room] = []
     public var messages: [String: [Message]] = [:]
-    /// Whether there is more transcript above a fetched page, per thread.
-    /// An absent entry means no page has loaded; SSE tails do not set this.
     public var hasMore: [String: Bool] = [:]
     public var activeLeafIds: [String: String] = [:]
     public var cursor: String?
@@ -167,11 +165,6 @@ public struct CompanionState: Sendable {
         return botCount + rooms.filter(\.unread).count
     }
 
-    // MARK: - Hydrating
-
-    /// An HTTP snapshot may arrive after the live stream has already folded
-    /// newer messages. Reject it atomically rather than erase those events
-    /// while keeping a cursor that says they were applied.
     public mutating func hydrate(
         _ fleet: Fleet,
         waitingThreads: [String: ThreadPage] = [:],

@@ -146,7 +146,6 @@ data class CompanionEndpoint private constructor(
             if (parsed.rawUserInfo != null || parsed.rawQuery != null || parsed.rawFragment != null) return null
             if (parsed.rawPath.isNotEmpty() && parsed.rawPath != "/") return null
             if (parsed.port != -1 && parsed.port !in 1..65_535) return null
-            // java.net.URI treats an empty explicit port as if no port was supplied.
             if (parsed.rawAuthority.endsWith(':')) return null
 
             when (kind) {

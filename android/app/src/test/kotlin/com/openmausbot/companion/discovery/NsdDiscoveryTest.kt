@@ -45,8 +45,6 @@ class NsdDiscoveryTest {
         assertFalse(lock.isHeld)
         assertEquals(1, lock.releaseCount)
         assertTrue(collectJob.isCompleted)
-        // A listener whose start failed was never registered with NsdManager, so
-        // stopping it would throw "listener not registered". Nothing to stop.
         assertEquals(0, stopCalls)
 
         val last = assertIs<DiscoveryState.Active>(states.last())

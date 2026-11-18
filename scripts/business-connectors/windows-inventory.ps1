@@ -70,14 +70,14 @@ function Read-Applications($base) {
 
 [Console]::Error.WriteLine('probe-stage-services')
 try {
-    foreach ($svc in (Get-Service -Name 'MSSQL*','SQLBrowser' -ErrorAction SilentlyContinue -ErrorVariable serviceErrors)) {
-        $name = $svc.Name
-        if ($name -eq 'SQLBrowser' -or $name -eq 'MSSQLSERVER' -or $name -match '^MSSQL\$') {
-            $observations.Add(@{ kind = 'service'; name = $name; state = [string]$svc.Status })
-        }
-    }
-    foreach ($err in $serviceErrors) {
-        if ($err.FullyQualifiedErrorId -notlike 'NoServiceFoundForGivenName*') { [void]$issues.Add('services') }
+    [void][Reflection.Assembly]::Load('System.ServiceProcess, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a')
+    foreach ($svc in [System.ServiceProcess.ServiceController]::GetServices()) {
+        try {
+            $name = $svc.ServiceName
+            if ($name -eq 'SQLBrowser' -or $name -eq 'MSSQLSERVER' -or $name -match '^MSSQL\$') {
+                $observations.Add(@{ kind = 'service'; name = $name; state = [string]$svc.Status })
+            }
+        } finally { $svc.Dispose() }
     }
 } catch { [void]$issues.Add('services') }
 

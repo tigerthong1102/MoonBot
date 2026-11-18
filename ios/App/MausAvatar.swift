@@ -3,7 +3,6 @@ import CompanionCore
 import SwiftUI
 
 enum MausPalette {
-    /// src/lib/mascot.ts — MAUS_COLORS
     private static let hex: [String: String] = [
         "green": "#009957",
         "blue": "#377FE6",
@@ -23,17 +22,9 @@ enum MausPalette {
 
 }
 
-/// The viewport half of the silhouette: how the face box lands in a rect.
-///
-/// The body itself — the path data, the parser and the per-body cache — moved
-/// to `CompanionCore.MausSilhouette`, where `swift test` can reach it. What
-/// stays here is what depends on `MausFaceData`, which is app-side artwork.
 extension MausSilhouette {
-    /// The face box with the desktop's 15-unit margin around it (its viewBox
-    /// is `-15 -15 258.541 258.541`) — room for the body to bob and sway.
     static let margin: CGFloat = 15
 
-    /// The transform that puts the margined face box into `rect`.
     static func fit(_ rect: CGRect) -> CGAffineTransform {
         let side = MausFaceData.faceBox + margin * 2
         let k = min(rect.width, rect.height) / side
@@ -46,22 +37,12 @@ extension MausSilhouette {
     }
 }
 
-/// A bot, at whatever size the row needs — and alive, exactly the way it is
-/// on the desktop. `MausFaceEngine` is a port of the frame loop in
-/// `MausMascotios/MausAvatar.tsx`: a state picks a pool of expressions and
-/// drifts through them on its cadence, a spring morphs the eyes and mouth
-/// between them, it blinks on its own rhythm, and the body bobs, sways,
-/// breathes or jitters per state. Same data, same numbers, same face.
 struct MausAvatar: View {
     let color: String
     var size: CGFloat = 52
-    /// Which body from the catalog to draw. Anything unrecognised — an older
-    /// bot with no choice recorded, a newer desktop's body this build has not
-    /// shipped yet — falls back to the shipped `cursor`.
     var bodyId: String? = MausSilhouette.defaultBody
     var state: MausState = .idle
     var animated: Bool = false
-    /// Comets orbiting the body — the island's "something is happening".
     var comets: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -72,8 +53,6 @@ struct MausAvatar: View {
         if MausSilhouette.usesDefaultBody(bodyId) {
             Image("StartupBotLogo").resizable().scaledToFit().frame(width: size, height: size).accessibilityHidden(true)
         } else {
-        // Even an opted-in face stops when the app is not active: nothing is
-        // watching, and in the background the redraws only cost battery.
         let live = animated && !reduceMotion && scenePhase == .active
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !live)) { timeline in
             Canvas { context, canvasSize in
@@ -88,16 +67,12 @@ struct MausAvatar: View {
     }
 }
 
-/// The resting face for a state, drawn once and still. For places the
-/// engine cannot run — a widget, a Live Activity — where the system renders
-/// a snapshot and the face can only change between updates.
 struct MausFaceStill: View {
     let color: String
     var state: MausState = .idle
     var size: CGFloat = 52
     var bodyId: String? = MausSilhouette.defaultBody
     var comets: Bool = false
-    /// The clock for the comets' phase; a different date is a different frame.
     var at: Date = Date()
 
     var body: some View {
@@ -115,8 +90,6 @@ struct MausFaceStill: View {
     }
 }
 
-/// The face, frame by frame. One per drawn mascot; holds the morph in
-/// progress, the blink, and when the next expression or blink is due.
 final class MausFaceEngine {
     private(set) var state: MausState = .idle
     private var expression = 0
@@ -135,10 +108,7 @@ final class MausFaceEngine {
     private var last: Date?
     private var started = false
 
-    /// The desktop's `lookAround` default: how much of an expression's own
-    /// look-direction to keep.
     private let lookAround: CGFloat = 0.35
-    /// Spring stiffness for the morph, the desktop's default.
     private let spring: CGFloat = 7
 
     func setState(_ new: MausState, now: Date) {
@@ -175,7 +145,6 @@ final class MausFaceEngine {
     func step(now: Date) {
         let dt = CGFloat(min(now.timeIntervalSince(last ?? now), 0.1))
         last = now
-        // the spring towards morph == 1
         let f = spring
         velocity += (-2 * f * velocity - f * f * (morph - 1)) * dt
         morph += velocity * dt
@@ -193,22 +162,14 @@ final class MausFaceEngine {
         }
     }
 
-    // MARK: - Drawing
 
-    // MARK: - Comets
 
-    /// Comets orbiting the body on tilted rings — the desktop's `trails`.
     struct CometSpec {
         let count: Int
-        /// ms for one orbit
         let period: CGFloat
-        /// face units
         let radius: CGFloat
-        /// half-width at the head
         let width: CGFloat
-        /// how much of the orbit one comet covers, radians
         let span: CGFloat
-        /// the body's resting scale while the rings are out, so they clear it
         let bodyScale: CGFloat
     }
 
@@ -220,8 +181,6 @@ final class MausFaceEngine {
         .uploading: CometSpec(count: 4, period: 1800, radius: 104, width: 4.8, span: 2.2, bodyScale: 0.74),
     ]
 
-    /// One palette per comet: three neighbouring hues along its length. A flat
-    /// colour reads as wire; a hue that travels reads as something lit.
     static let cometColors: [[Color]] = [
         ["#A855F7", "#6366F1", "#38BDF8"], ["#22D3EE", "#34D399", "#A3E635"], ["#FB923C", "#F43F5E", "#D946EF"],
         ["#818CF8", "#C084FC", "#F472B6"], ["#FACC15", "#FB923C", "#EC4899"], ["#34D399", "#22D3EE", "#60A5FA"],
@@ -235,8 +194,6 @@ final class MausFaceEngine {
         return x - floor(x)
     }
 
-    /// The comets for this frame, each split at the horizon into pieces that
-    /// go behind the body or in front of it.
     private func comets(_ spec: CometSpec, elapsed: CGFloat, centre: CGPoint, strength: CGFloat) -> [CometPiece] {
         var out: [CometPiece] = []
         let samples = 22
@@ -245,7 +202,6 @@ final class MausFaceEngine {
 
         for i in 0..<spec.count {
             let seedA = Self.hash01(CGFloat(i + 3)), seedB = Self.hash01(CGFloat(i + 29)), seedC = Self.hash01(CGFloat(i + 71))
-            // every ring its own tip, roll and speed, or they stack into one hoop
             let tilt = 0.3 + seedA * 0.66
             let roll = seedB * 2 * .pi
             let period = spec.period * (0.78 + seedC * 0.55)
@@ -271,7 +227,6 @@ final class MausFaceEngine {
                 let n = 1 + (z / radius) * (near - 1)
                 let x = centre.x + (ox * cosR - ty * sinR) * n
                 let y = centre.y + (ox * sinR + ty * cosR) * n
-                // full at the head, a third by the tail — keeps it a comet, not a brush stroke
                 let h = spec.width * n * (1 - 0.68 * pow(k, 1.5)) * strength
                 let nowSide: CGFloat = z >= 0 ? 1 : -1
                 if nowSide != side {
@@ -284,7 +239,6 @@ final class MausFaceEngine {
             if keep(run) { runs.append((run, side > 0)) }
             guard let firstRun = runs.first, let lastRun = runs.last else { continue }
 
-            // one gradient across the whole comet, so a hue runs head to tail across a cut
             let colors = Self.cometColors[i % Self.cometColors.count]
             let shading = GraphicsContext.Shading.linearGradient(
                 Gradient(stops: [
@@ -306,8 +260,6 @@ final class MausFaceEngine {
         return out
     }
 
-    /// Head→tail samples to one filled, tapered outline with half-round caps
-    /// on the true ends — a comet is an outline, not a stroke.
     private static func cometPath(_ s: [CometSample], capHead: Bool, capTail: Bool) -> Path {
         let n = s.count
         var path = Path()
@@ -340,12 +292,7 @@ final class MausFaceEngine {
         return path
     }
 
-    // MARK: - Drawing
 
-    /// `comets`: orbit the body with the `orbit` state's rings whatever the
-    /// face is doing — the island's "something is happening" — in addition to
-    /// the states that carry their own. `at` is the clock; pass a fixed date
-    /// for a still frame.
     func draw(in context: inout GraphicsContext, size: CGSize, color: String, bodyId: String? = MausSilhouette.defaultBody, bodyMotion: Bool, comets: Bool = false, at now: Date = Date()) {
         let rect = CGRect(origin: .zero, size: size)
         context.concatenate(MausSilhouette.fit(rect))
@@ -356,8 +303,6 @@ final class MausFaceEngine {
         let pieces = spec.map { self.comets($0, elapsed: elapsed, centre: centre, strength: 1) } ?? []
         for piece in pieces where !piece.front { context.fill(piece.path, with: piece.shading) }
 
-        // The body, in its own pushed context so the rings are not under its
-        // transform. Comet states sit back a little, so the rings clear them.
         var bodyContext = context
         if let spec {
             bodyContext.translateBy(x: centre.x, y: centre.y)
@@ -373,13 +318,9 @@ final class MausFaceEngine {
     }
 
     private func drawBody(in context: inout GraphicsContext, color: String, bodyId: String?, now: Date) {
-        // Wrapping the cached `CGPath` is a retain, not a re-parse: the body
-        // is parsed and placed once per id, inside `CompanionCore`.
         let body = Path(MausSilhouette.inFaceBox(bodyId))
         let a = MausSilhouette.anchor(bodyId)
 
-        // The gradient runs corner to corner of the body's own bounds,
-        // which is the only place that lookup is still needed.
         let bounds = MausSilhouette.faceBoxBounds(bodyId)
         context.fill(body, with: .linearGradient(
             Gradient(stops: MausPalette.gradientStops(color)),
@@ -387,7 +328,6 @@ final class MausFaceEngine {
             endPoint: CGPoint(x: bounds.minX, y: bounds.maxY)
         ))
 
-        // The face is painted on the body: clipped to it, anchored in it.
         context.clip(to: body)
         context.translateBy(x: a.x, y: a.y)
         context.scaleBy(x: a.scale, y: a.scale)
@@ -402,7 +342,6 @@ final class MausFaceEngine {
             let c = Self.centre(ring)
             var path = Path()
             for (i, p) in ring.enumerated() {
-                // blink squashes the eye towards its own centre line
                 let q = CGPoint(x: p.x, y: c.y + (p.y - c.y) * blink)
                 if i == 0 { path.move(to: q) } else { path.addLine(to: q) }
             }
@@ -419,7 +358,6 @@ final class MausFaceEngine {
         )
     }
 
-    /// The desktop's `bodyTransform`, in face-box units, elapsed in ms.
     private func bodyTransform(_ m: MausBodyMotion, elapsed: CGFloat) -> CGAffineTransform {
         let centre = MausFaceData.faceBox / 2
         let ground = MausFaceData.faceBox
@@ -454,8 +392,6 @@ final class MausFaceEngine {
             let t = min(max(elapsed / 1400, 0), 1)
             scale *= 1 + (settle - 1) * Self.easeInOut(t)
         }
-        // SVG applies the list right-to-left: squash, then scale, then rotate,
-        // then translate. Build it in that order.
         var t = CGAffineTransform.identity
         if sx != 1 || sy != 1 {
             t = t.concatenating(CGAffineTransform(translationX: -centre, y: -ground))
@@ -480,7 +416,6 @@ final class MausFaceEngine {
         guard let start = blinkStart else { return 1 }
         let t = CGFloat(now.timeIntervalSince(start)) / 0.320
         if t >= 1 { blinkStart = nil; return 1 }
-        // fast close, slower open
         return max(t < 0.42 ? 1 - t / 0.42 : (t - 0.42) / 0.58, 0.04)
     }
 
@@ -508,8 +443,6 @@ final class MausFaceEngine {
         return CGPoint(x: x / CGFloat(ring.count), y: y / CGFloat(ring.count))
     }
 
-    /// The mouth hangs off the eyes: centred under the pair, tilted with
-    /// them, pushed clear of whichever eye is tallest.
     private static func mouthFrame(_ rings: [[CGPoint]], _ spec: [CGFloat]) -> (x: CGFloat, y: CGFloat, angle: CGFloat) {
         let c0 = centre(rings[0]), c1 = centre(rings[1])
         let theta = atan2(c1.y - c0.y, c1.x - c0.x)
@@ -545,9 +478,6 @@ final class MausFaceEngine {
     private static func easeInOut(_ t: CGFloat) -> CGFloat { t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t) }
 }
 
-/// The person, not a bot — the roster header and the settings row. A letter
-/// rather than a mascot, deliberately: the mascots mean "this is a bot", and
-/// giving the human one too would blur the only distinction the roster makes.
 struct ProfileAvatar: View {
     let name: String
     var size: CGFloat = 34
@@ -569,8 +499,6 @@ struct ProfileAvatar: View {
 }
 
 extension MausPalette {
-    /// The gradient as raw stops, for `Canvas`, which cannot take a
-    /// `LinearGradient` directly.
     static func gradientStops(_ name: String) -> [Gradient.Stop] {
         let base = color(name)
         return [
@@ -594,9 +522,6 @@ extension Color {
         )
     }
 
-    /// Linear mix in sRGB, matching the `mix()` the desktop uses to build its
-    /// gradient stops. Not perceptually correct, and deliberately so: the
-    /// point is to land on the same colours as the other screen.
     func mixed(with other: Color, amount: Double) -> Color {
         #if canImport(UIKit)
         let a = UIColor(self), b = UIColor(other)

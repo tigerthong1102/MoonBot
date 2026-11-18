@@ -30,10 +30,13 @@ Modified imported files:
 - `app/src/main/kotlin/com/openmausbot/companion/dictation/SpeechDictation.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/lifecycle/AlwaysOnConnectionService.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/notifications/LocalNotificationPoster.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/ui/ChatPolicy.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ChatScreen.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ComposerAttachments.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ConnectedAppsScreen.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/ui/ExecutionFeedback.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/MausAvatar.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/ui/MausBodies.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/MausSilhouette.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/MessageRow.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ModelRules.kt`
@@ -94,6 +97,7 @@ Modified imported files:
 - `core/src/test/kotlin/com/openmausbot/companion/core/SessionRouteSerializationTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/SessionTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/ThreadNavigationTest.kt`
+- `core/src/test/kotlin/com/openmausbot/companion/core/TranscriptTest.kt`
 - `gradle/wrapper/gradle-wrapper.properties`
 - `gradlew.bat`
 - `settings.gradle.kts`

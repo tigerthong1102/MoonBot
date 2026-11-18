@@ -759,7 +759,7 @@ final class Session: ObservableObject {
                     }
                     state.apply(frame)
                     if case let .notify(notification) = frame.frame {
-                        NotificationCoordinator.shared.deliver(notification, sequence: frame.seq)
+                        NotificationCoordinator.shared.deliver(notification, sequence: frame.seq, connectionID: client.connection.id)
                     }
                     NotificationCoordinator.shared.setBadge(state.unreadCount)
                     state.advance(to: frame.seq)
@@ -1955,6 +1955,14 @@ final class Session: ObservableObject {
     // MARK: - Notification navigation
 
     func openNotification(_ target: NotificationTarget) async {
+        guard let origin = target.connectionID else {
+            actionError = String(localized: "This notification has no saved computer. Open the conversation from your computer list.")
+            return
+        }
+        guard origin == connection?.id else {
+            actionError = String(localized: "This notification is from another computer. Select that computer and open it again.")
+            return
+        }
         let requestGeneration = runtimeGeneration
         guard let client else {
             // Do not carry a stale destination into a future, unrelated

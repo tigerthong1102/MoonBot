@@ -1,15 +1,11 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import UserNotifications
 import CompanionCore
 
-/// The on-device notification surface. Delivery comes from live or replayed
-/// companion frames; a future APNs relay can feed the same categories and
-/// userInfo without changing the rest of the app.
 final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationCoordinator()
     private let center = UNUserNotificationCenter.current()
-    /// Set by `Session`; kept as an id-only value so the notification layer
-    /// does not know about SwiftUI navigation or mutable fleet state.
     var responseHandler: ((NotificationTarget) -> Void)?
 
     private override init() {
@@ -25,24 +21,28 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) == true
     }
 
-    func deliver(_ notification: NotificationFrame, sequence: Int?) {
+    func deliver(_ notification: NotificationFrame, sequence: Int?, connectionID: String) {
+        center.add(Self.request(notification, sequence: sequence, connectionID: connectionID))
+    }
+
+    static func request(_ notification: NotificationFrame, sequence: Int?, connectionID: String) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = notification.title
         content.body = notification.body
         content.sound = .default
-        content.categoryIdentifier = notification.isBlocking ? "OPENMAUS_APPROVAL" : "OPENMAUS_UPDATE"
-        content.threadIdentifier = notification.threadId
+        content.categoryIdentifier = notification.isBlocking ? "STARTUPBOT_APPROVAL" : "STARTUPBOT_UPDATE"
+        let scope = [connectionID, notification.threadId].map { Data($0.utf8).base64EncodedString() }.joined(separator: ".")
+        content.threadIdentifier = "startupbot.\(scope)"
         content.userInfo = [
             "threadId": notification.threadId,
             "botId": notification.botId,
             "kind": notification.kind,
+            "connectionId": connectionID,
         ]
         if notification.isBlocking { content.interruptionLevel = .timeSensitive }
 
-        // A replay after a short disconnect must reconcile a missed alert,
-        // but a repeated frame must not draw it twice.
-        let identifier = "openmaus.\(notification.threadId).\(sequence.map(String.init) ?? notification.title)"
-        center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
+        let event = sequence.map { "seq:\($0)" } ?? "title:\(Data(notification.title.utf8).base64EncodedString())"
+        return UNNotificationRequest(identifier: "\(content.threadIdentifier).\(event)", content: content, trigger: nil)
     }
 
     func setBadge(_ count: Int) {

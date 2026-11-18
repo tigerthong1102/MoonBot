@@ -4590,6 +4590,38 @@
           }
         }
       }
+    },
+    "This notification has no saved computer. Open the conversation from your computer list.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This notification has no saved computer. Open the conversation from your computer list."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thông báo này không có máy tính nguồn. Mở cuộc trò chuyện từ danh sách máy tính."
+          }
+        }
+      }
+    },
+    "This notification is from another computer. Select that computer and open it again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This notification is from another computer. Select that computer and open it again."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thông báo này đến từ máy tính khác. Chọn máy tính đó rồi mở lại thông báo."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

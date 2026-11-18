@@ -2,26 +2,13 @@
 import CoreGraphics
 import Foundation
 
-/// The mascot silhouette, per body, as an SVG path. Absolute `M`, `C` and `Z`
-/// only — which is what makes the parser below twenty lines rather than a
-/// library, and what `scripts/gen-mascot-bodies.ts` is required to emit.
 public enum MausSilhouette {
     public static func usesDefaultBody(_ id: String?) -> Bool { MausBodies.body(id).id == MausBodies.defaultID }
 
-    /// The desktop's face box: the square every body's `fit` is solved into
-    /// and every face coordinate — the eye anchor, the mouth — is expressed
-    /// in. Mirrors `MausFaceData.faceBox`, which is the same box seen from
-    /// the artwork's side.
     public static let faceBox: CGFloat = 228.541
 
-    /// The shipped mascot, and what anything unrecognised falls back to.
-    /// `MausBodies` itself is generated and stays internal to this module;
-    /// the app reaches the catalog through this type.
     public static let defaultBody: String = MausBodies.defaultID
 
-    /// One body, parsed and placed, with its bounds measured alongside —
-    /// `boundingBoxOfPath` walks the path, so it is not a per-draw question
-    /// either.
     private struct Placed {
         let path: CGPath
         let bounds: CGRect
@@ -30,27 +17,14 @@ public enum MausSilhouette {
     private static var cache: [String: Placed] = [:]
     private static let lock = NSLock()
 
-    /// The chosen body in the desktop's face box, parsed once per body.
-    ///
-    /// The caching is the point. These are multi-kilobyte strings and a
-    /// character-at-a-time parser, and the shape each one produces never
-    /// changes — but a chat list is hundreds of avatars, each redrawn on
-    /// scroll, and parsing inside `Canvas` ran the scanner for every one of
-    /// them on every frame. What is left per draw is the affine transform
-    /// that fits the box into the rect, which is the only part that depends
-    /// on where the avatar is.
     public static func inFaceBox(_ id: String?) -> CGPath {
         placed(id).path
     }
 
-    /// The body's bounds in the face box, for the gradient's corners.
     public static func faceBoxBounds(_ id: String?) -> CGRect {
         placed(id).bounds
     }
 
-    /// Where the face sits on this body, solved by the generator against the
-    /// real expression geometry. One catalog feeds both renderers, which is
-    /// what stops the desktop's placement and the phone's drifting apart.
     public static func anchor(_ id: String?) -> (x: CGFloat, y: CGFloat, scale: CGFloat) {
         MausBodies.body(id).anchor
     }
@@ -60,9 +34,6 @@ public enum MausSilhouette {
         lock.lock()
         defer { lock.unlock() }
         if let cached = cache[body.id] { return cached }
-        // The fit is numbers rather than an SVG transform string: iOS has no
-        // SVG transform parser, so the generator emits scale/tx/ty and this
-        // builds the matrix directly. Scale first, then translate.
         var transform = CGAffineTransform(scaleX: body.fit.scale, y: body.fit.scale)
             .concatenating(CGAffineTransform(translationX: body.fit.tx, y: body.fit.ty))
         let parsed = parse(body.path)
@@ -72,8 +43,6 @@ public enum MausSilhouette {
         return result
     }
 
-    /// SVG path data, once, into a `CGPath`. Only `M`, `C` and `Z` appear in
-    /// the catalog, so only those are understood; newlines are separators.
     static func parse(_ data: String) -> CGPath {
         let raw = CGMutablePath()
         var numbers: [CGFloat] = []
@@ -86,7 +55,6 @@ public enum MausSilhouette {
                 guard numbers.count >= 2 else { break }
                 raw.move(to: CGPoint(x: numbers[0], y: numbers[1]))
             case "C":
-                // several curves may follow one C, six numbers each
                 var i = 0
                 while i + 5 < numbers.count {
                     raw.addCurve(
@@ -112,7 +80,6 @@ public enum MausSilhouette {
             if character.isNumber || character == "." || character == "e" {
                 token.append(character)
             } else if character == "-" {
-                // a minus starts a new number unless it is an exponent sign
                 if token.hasSuffix("e") { token.append(character) } else { takeNumber(); token = "-" }
             } else if character == " " || character == "," || character == "\n" {
                 takeNumber()

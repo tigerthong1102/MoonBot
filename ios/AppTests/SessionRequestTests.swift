@@ -197,7 +197,7 @@ final class SessionRequestTests: XCTestCase {
         var switched = original
         switched.threadId = "notification-thread"
         let payload = String(decoding: try JSONEncoder().encode(switched), as: UTF8.self)
-        let target = try XCTUnwrap(NotificationTarget(botId: original.id, threadId: switched.threadId))
+        let target = try XCTUnwrap(NotificationTarget(botId: original.id, threadId: switched.threadId, connectionID: "old"))
         for replace in [false, true] {
             let (session, _) = try await exercise(status: 200, body: "{\"bot\":\(payload)}", replace: replace, fleet: Fleet(bots: [original], groups: [])) { session, _ in
                 await session.openNotification(target)
@@ -222,7 +222,7 @@ final class SessionRequestTests: XCTestCase {
         var switched = original
         switched.threadId = "room-new"
         let payload = String(decoding: try JSONEncoder().encode(switched), as: UTF8.self)
-        let target = try XCTUnwrap(NotificationTarget(botId: "bot", threadId: switched.threadId))
+        let target = try XCTUnwrap(NotificationTarget(botId: "bot", threadId: switched.threadId, connectionID: "old"))
         let fleet = Fleet(bots: [try bot()], groups: [original])
         for replace in [false, true] {
             let (session, _) = try await exercise(status: 200, body: "{\"group\":\(payload)}", replace: replace, fleet: fleet) { session, _ in
@@ -237,6 +237,33 @@ final class SessionRequestTests: XCTestCase {
                 XCTAssertEqual(session.notificationChat?.threadId, switched.threadId)
                 XCTAssertNil(session.actionError)
             }
+        }
+    }
+
+    @MainActor
+    func testOldAndUnscopedNotificationsCannotContactTheSelectedComputer() async throws {
+        for origin in ["old", nil] as [String?] {
+            let config = URLSessionConfiguration.ephemeral
+            config.protocolClasses = [DeferredResponseProtocol.self]
+            let transport = URLSession(configuration: config)
+            defer { transport.invalidateAndCancel(); DeferredResponseProtocol.started = nil }
+            let connection = Connection(id: "new", name: "Selected fixture", host: "127.0.0.1", port: 19992)
+            let client = CompanionClient(connection: connection, token: "fixture-only", session: transport)
+            let session = Session(fixtureClient: client, fleet: Fleet(bots: [try bot()], groups: []))
+            let contacted = expectation(description: "A foreign notification must not contact the selected computer")
+            contacted.isInverted = true
+            DeferredResponseProtocol.started = {
+                contacted.fulfill()
+                try? DeferredResponseProtocol.finish(status: 404, body: "{}")
+            }
+            let target = try XCTUnwrap(NotificationTarget(botId: "bot", threadId: "foreign-thread", connectionID: origin))
+            await session.openNotification(target)
+            await fulfillment(of: [contacted], timeout: 0.2)
+            XCTAssertNil(session.notificationChat)
+            XCTAssertEqual(session.state.bot("bot")?.threadId, "thread")
+            XCTAssertEqual(session.connection?.id, "new")
+            XCTAssertEqual(session.status, .live)
+            XCTAssertNotNil(session.actionError)
         }
     }
 }

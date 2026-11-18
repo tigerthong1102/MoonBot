@@ -41,6 +41,7 @@ Modified imported files:
 - `App/Localizable.xcstrings`
 - `App/MarkdownText.swift`
 - `App/MausAvatar.swift`
+- `App/Notifications.swift`
 - `App/OnboardingViews.swift`
 - `App/PairingScanner.swift`
 - `App/PairingView.swift`
@@ -58,6 +59,7 @@ Modified imported files:
 - `Sources/CompanionCore/AttachedMessageContent.swift`
 - `Sources/CompanionCore/Client.swift`
 - `Sources/CompanionCore/Failover.swift`
+- `Sources/CompanionCore/MausBodies.swift`
 - `Sources/CompanionCore/MausSilhouette.swift`
 - `Sources/CompanionCore/Models.swift`
 - `Sources/CompanionCore/SSE.swift`

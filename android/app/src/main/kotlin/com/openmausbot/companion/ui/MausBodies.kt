@@ -1,21 +1,6 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
-/**
- * The mascot bodies a bot can wear — the Android half of the same solve that bakes
- * `shared/mascot-bodies.ts` and `ios/Sources/CompanionCore/MausBodies.swift`.
- *
- * GENERATED FILE — do not hand-edit. Run `pnpm gen:bodies` to rebuild it from
- * `scripts/gen-mascot-bodies.ts`, which solves each face placement against the real
- * expression geometry and verifies that nothing clips. One solve, three writers, so the
- * three renderers cannot drift apart the way desktop's 0.74 and iOS's 0.84 already did once.
- *
- * Plain Kotlin, no Compose: [MausSilhouette] parses the path and caches the result per
- * body. The fit is numbers, not an SVG transform string. The bounds are the tight bounds
- * of the fitted outline: Android's native path bounds are the cubic control hull, which is
- * wider than the drawn shape, and the gradient's corners have to sit on the shape.
- *
- * Path data is absolute `M`, `C`, `Z` only, with newlines as separators.
- */
 internal object MausBodies {
     data class Body(
         val id: String,
@@ -33,10 +18,8 @@ internal object MausBodies {
         val anchorScale: Float,
     )
 
-    /** Every selectable body id, in the order the picker shows them. */
     val order: List<String> = listOf("cursor", "blob", "circle", "squircle", "capsule", "drop", "shield", "hexagon", "diamond", "star")
 
-    /** The shipped mascot, and the fallback for any unrecognised value. */
     const val DEFAULT_ID: String = "cursor"
 
     val all: Map<String, Body> = mapOf(
@@ -302,9 +285,5 @@ internal object MausBodies {
         ),
     )
 
-    /**
-     * Looks up a body by id, falling back to [DEFAULT_ID] for anything unrecognised
-     * (including a null id, e.g. an untrusted persisted or streamed value).
-     */
     fun body(id: String?): Body = id?.let { all[it] } ?: all.getValue(DEFAULT_ID)
 }

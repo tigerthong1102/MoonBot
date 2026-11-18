@@ -124,7 +124,8 @@ struct SettingsView: View {
             if session.connection != nil {
                 Section("Workspace") {
                     NavigationLink {
-                        TasksRoutinesView()
+                        TasksRoutinesView(connectionID: session.connection?.id)
+                            .id(session.connection?.id)
                     } label: {
                         Label {
                             Text("Threads & Routines")

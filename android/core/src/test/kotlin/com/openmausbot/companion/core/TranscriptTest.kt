@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
@@ -7,17 +8,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Expectations for Android's own diff and table cards. iOS no longer uses
- * `parsedTable` or the SQL result card; bringing Android across is issue 1707.
- * The 80-line prefix in
- * `ios/App/Cards/GitPRDiffCardView.swift`, and `reasoning.suffix(2_000)` in
- * `StreamingBubble`. None of them derived from the Kotlin under test.
- *
- * Half of this file is about what must *not* become a card. That is the half
- * that matters: a loose gate does not fail loudly, it quietly turns somebody's
- * paragraph into a widget with the sentences cut out of it.
- */
 class DiffCardTest {
     private val patch = """
         diff --git a/src/App.kt b/src/App.kt

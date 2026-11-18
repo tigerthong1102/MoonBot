@@ -3,6 +3,7 @@ import CompanionCore
 import SwiftUI
 
 struct TasksRoutinesView: View {
+    let connectionID: String?
     @EnvironmentObject private var session: Session
     @State private var routines: [Routine] = []
     @State private var runs: [RoutineRun] = []
@@ -62,7 +63,7 @@ struct TasksRoutinesView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(runs.sorted(by: { $0.scheduledFor > $1.scheduledFor }).prefix(50)) { run in
-                    RoutineRunRow(run: run, bot: session.state.bot(run.botId))
+                    RoutineRunRow(run: run, bot: session.state.bot(run.botId), connectionID: connectionID)
                 }
             }
 
@@ -84,7 +85,7 @@ struct TasksRoutinesView: View {
         .task { await reload() }
         .refreshable { await reload() }
         .sheet(item: $editor) { target in
-            RoutineEditorView(routine: target.routine) { await reload() }
+            RoutineEditorView(routine: target.routine, connectionID: connectionID) { await reload() }
         }
         .confirmationDialog(
             "Delete \(deleting?.name ?? "this routine")?",
@@ -94,6 +95,7 @@ struct TasksRoutinesView: View {
             Button("Delete routine", role: .destructive) {
                 guard let routine = deleting else { return }
                 Task {
+                    guard let connectionID, connectionID == session.connection?.id else { return }
                     if await session.deleteRoutine(routine) { await reload() }
                     deleting = nil
                 }
@@ -104,20 +106,24 @@ struct TasksRoutinesView: View {
     }
 
     private func reload() async {
+        guard let connectionID, connectionID == session.connection?.id else { return }
         loading = true
         let loaded = await session.loadRoutines()
+        guard !Task.isCancelled, connectionID == session.connection?.id else { return }
         routines = loaded.routines.sorted { ($0.nextRunAt ?? .greatestFiniteMagnitude) < ($1.nextRunAt ?? .greatestFiniteMagnitude) }
         runs = loaded.runs
         loading = false
     }
 
     private func toggle(_ routine: Routine) async {
+        guard let connectionID, connectionID == session.connection?.id else { return }
         guard routine.canToggle() else { return }
         _ = await session.setRoutineEnabled(routine, enabled: !routine.enabled)
         await reload()
     }
 
     private func runNow(_ routine: Routine) async {
+        guard let connectionID, connectionID == session.connection?.id else { return }
         _ = await session.runRoutine(routine)
         await reload()
     }
@@ -159,6 +165,7 @@ private struct RoutineRow: View {
 private struct RoutineRunRow: View {
     let run: RoutineRun
     let bot: Bot?
+    let connectionID: String?
     @EnvironmentObject private var session: Session
 
     var body: some View {
@@ -168,7 +175,7 @@ private struct RoutineRunRow: View {
                 if let error = run.error, !error.isEmpty { Text(error).foregroundStyle(.red).textSelection(.enabled) }
                 if run.status == "waiting" { Text("This thread is waiting for your answer.").foregroundStyle(.orange) }
                 if let threadId = run.threadId,
-                   let target = NotificationTarget(botId: run.botId, threadId: threadId) {
+                   let target = NotificationTarget(botId: run.botId, threadId: threadId, connectionID: connectionID) {
                     Button("Open thread", systemImage: "arrow.up.right.square") {
                         Task { await session.openNotification(target) }
                     }
@@ -194,6 +201,7 @@ private struct RoutineRunRow: View {
 
 private struct RoutineEditorView: View {
     let routine: Routine?
+    let connectionID: String?
     let onSaved: () async -> Void
 
     @EnvironmentObject private var session: Session
@@ -217,8 +225,9 @@ private struct RoutineEditorView: View {
     @State private var advancedExpanded: Bool
     @State private var saving = false
 
-    init(routine: Routine?, onSaved: @escaping () async -> Void) {
+    init(routine: Routine?, connectionID: String?, onSaved: @escaping () async -> Void) {
         self.routine = routine
+        self.connectionID = connectionID
         self.onSaved = onSaved
         _name = State(initialValue: routine?.name ?? "")
         _prompt = State(initialValue: routine?.prompt ?? "")
@@ -412,7 +421,10 @@ private struct RoutineEditorView: View {
                 intervalTimeoutDefaultApplied = true
             }
             .task {
-                runAvailability = await session.loadRoutineRunAvailability()
+                guard let connectionID, connectionID == session.connection?.id else { return }
+                let availability = await session.loadRoutineRunAvailability()
+                guard !Task.isCancelled, connectionID == session.connection?.id else { return }
+                runAvailability = availability
                 availabilityLoaded = true
             }
         }
@@ -433,6 +445,7 @@ private struct RoutineEditorView: View {
     }
 
     private func save() async {
+        guard let connectionID, connectionID == session.connection?.id else { return }
         guard kind != .unknown else {
             session.actionError = "Choose a supported schedule before saving this routine."
             return

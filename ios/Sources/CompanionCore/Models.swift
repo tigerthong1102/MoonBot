@@ -981,18 +981,21 @@ public extension Routine {
 public struct NotificationTarget: Equatable, Sendable {
     public let botId: String
     public let threadId: String
+    public let connectionID: String?
 
-    public init?(botId: String?, threadId: String?) {
+    public init?(botId: String?, threadId: String?, connectionID: String? = nil) {
         guard let botId, let threadId,
               !botId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !threadId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return nil }
+        if let connectionID, connectionID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return nil }
         self.botId = botId
         self.threadId = threadId
+        self.connectionID = connectionID
     }
 
     public init?(payload: [String: String]) {
-        self.init(botId: payload["botId"], threadId: payload["threadId"])
+        self.init(botId: payload["botId"], threadId: payload["threadId"], connectionID: payload["connectionId"])
     }
 
     public func requiresTaskSwitch(activeThreadId: String) -> Bool {

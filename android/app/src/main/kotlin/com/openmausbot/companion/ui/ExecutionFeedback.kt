@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.ActivityDetail
@@ -67,22 +68,6 @@ object LiveTail {
     fun workingLabel(name: String): String = "$name is working"
 }
 
-/**
- * The three dots, as numbers.
- *
- * Deliberately *not* the Apple animation: `TypingIndicatorView` scales each dot
- * on a sine inside a `TimelineView`, in a capsule of `Color.secondary`. This
- * pulses alpha only, at a period of its own, inside the bot's own speech bubble —
- * so the placeholder and the reply that replaces it are the same shape, the way
- * [StreamingBubble] already argues they should be.
- *
- * A Material progress spinner was the other candidate and is the wrong answer for
- * the same reason a spinner is the wrong answer inside the streaming bubble: it
- * says "something is loading somewhere", which the reader already knows.
- *
- * [alpha] is a function of elapsed time rather than a running value, so the draw
- * phase holds no state and allocates nothing.
- */
 object WorkingDots {
     const val COUNT: Int = 3
 

@@ -185,7 +185,31 @@ for missing answers and multiple selections remain unchanged. Test builds
 reuse the existing DerivedData; the universal artifact copy remains separate.
 Android application source is unchanged by this iOS-only follow-up.
 
-Imported native comment-policy coverage is not complete: generated catalog
-headers and some UI implementation overviews still need a source-policy pass.
-The specific reviewed history passages are corrected; this is not a claim
-that every imported comment meets AGENTS.md. Keep the native PR in Draft.
+The additional comment pass removes the identified history/implementation
+overviews in avatar, geometry, roster, accessory policy, working feedback and
+transcript tests. Native catalog headers are regenerated from their corrected
+generator. Non-comment Swift/Kotlin content matches the preceding head, the
+desktop catalog is unchanged, and all 33 generator tests pass under Vitest.
+This targeted pass is not a complete manual audit of every imported comment;
+other native UI overviews still need review. Keep the native PR in Draft.
+
+iOS build 5 at `2b0d89b79bf26ce4c39992c93f53c3e4068cc084` qualified in run
+44242000128: 407 core tests, 14 AppTests, six UI tests including the full
+structured-question route, universal build and secure-store canary passed.
+Its artifact is 14400338219. Codex then confirmed another issue: a delivered
+notification did not retain its originating computer, so switching computers
+before tapping could resolve its IDs against the wrong client.
+
+The build-6 correction records the origin in local notification metadata and
+scopes notification grouping/replay IDs by computer. Navigation rejects another
+computer or a legacy notification without origin before any lookup or request;
+the message directs the person to select the originating computer or open the
+conversation manually. Existing in-flight runtime guards remain. Tests cover
+real notification request payloads, cross-computer ID collisions, current/stale
+navigation, and zero requests for foreign/unscoped notification taps. This
+metadata is local to iOS; the server frame and HPKE protocol do not change.
+Routine receipt navigation carries its loaded computer ID as well. Routine
+views reset on computer changes and guard actions/results against their
+origin so the stricter notification boundary preserves internal navigation.
+Local core build, syntax, lint/typecheck and identity/HPKE guards pass. Fresh
+Xcode/Core/AppTests acceptance is required before qualifying build 6.

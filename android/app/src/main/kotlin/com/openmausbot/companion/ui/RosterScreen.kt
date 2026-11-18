@@ -573,10 +573,6 @@ private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * Every group, across the top, with the tile that makes one at the end — the
- * place iOS puts it, and the reason the header no longer carries a second plus.
- */
 @Composable
 private fun GroupsStrip(
     title: String,

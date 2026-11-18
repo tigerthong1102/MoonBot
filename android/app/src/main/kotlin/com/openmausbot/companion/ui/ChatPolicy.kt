@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.AttachedMessageContent
@@ -666,18 +667,6 @@ object ComposerAccessories {
     fun hasPendingApproval(messages: List<Message>): Boolean =
         messages.any { it.card?.isPending == true }
 
-    /**
-     * The HUD wins when it is open; otherwise the chips, but only on an empty
-     * draft, only while the bot is idle, and only with nothing waiting to be
-     * approved. All three matter: a chip sends immediately, so offering one
-     * beside half a sentence would throw the sentence away, offering one to a
-     * busy bot earns a 409, and offering one over a pending approval buries the
-     * question the screen exists to ask.
-     *
-     * [hasQuickReplies] carries no default for the same reason [PredictiveChipsRow]
-     * no longer does: the reader can empty the row, and a call site that forgot
-     * to say so would put chips back over an emptied composer.
-     */
     fun accessory(
         hudOpen: Boolean,
         draft: String,

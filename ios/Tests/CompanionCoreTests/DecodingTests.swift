@@ -151,6 +151,13 @@ final class DecodingTests: XCTestCase {
         XCTAssertFalse(detached.requiresTaskSwitch(activeThreadId: "task-2"))
     }
 
+    func testNotificationTargetPreservesItsComputerAndRejectsAnEmptyOrigin() {
+        let target = NotificationTarget(payload: ["botId": "bot", "threadId": "thread", "connectionId": "computer-a"])
+        XCTAssertEqual(target?.connectionID, "computer-a")
+        XCTAssertNil(NotificationTarget(payload: ["botId": "bot", "threadId": "thread", "connectionId": " "]))
+        XCTAssertNil(NotificationTarget(payload: ["botId": "bot", "threadId": "thread"])?.connectionID)
+    }
+
     func testDecodesTheCloudBackendAndItsAbsence() throws {
         // The cloud-desktop button hides on cloudBackend == "vps", so both
         // sides of that gate must decode: a harness that sends the field, and

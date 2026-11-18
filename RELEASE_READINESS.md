@@ -58,16 +58,26 @@ helper image/name, chats with the isolated fake engine, and passes data/auth
 and bundled browser/server smokes. [Qualified macOS artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44221896486/artifacts/14391792157).
 ARM64 DMG SHA256: `00ed648fe3e26a8885dab6ac93baf0b2b507d4fa860129d424b1028f745e197b`.
 Intel v4 is build-only; Intel installation/launch was verified at v3.
-The Windows v4 EXE builds, but its onboarding smoke **FAILS** waiting for the
-helper introduction; no qualified Windows v4 artifact is advertised.
-The smoke used a primary selector also matched by the AI sign-in action;
-it now waits for and clicks the actual Next action atomically. Sixteen welcome
-regressions pass, including distinct connected/sign-in action assertions.
-Failure evidence now includes renderer state and a screenshot.
+Windows v4 at `528b1d017680596bdc35864fa39aedf9418e7023`:
+[44225670059](https://github.com/tigerthong1102/MoonBot/actions/runs/44225670059)
+**PASS**. The EXE installs/launches, completes real onboarding, shows the owned
+helper name/avatar, chats with the isolated fake engine, and passes private
+data/credential, renderer authorization and bundled browser/server smokes.
+[Qualified Windows artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44225670059/artifacts/14393581659).
+This source changes only test contracts/diagnostics and audit records from edd;
+qualified application code is unchanged. The failed earlier Windows v4 smoke
+used a primary selector also matched by the AI sign-in action. Its correction
+waits for and clicks the actual Next action atomically, retaining all assertions.
+Sixteen welcome regressions pass, including distinct connected/sign-in actions.
+Failure evidence includes renderer state and a screenshot.
 
 [Full CI 44221838977](https://github.com/tigerthong1102/MoonBot/actions/runs/44221838977)
-is incomplete at this snapshot. Known failures are the stale relay vector-copy
-pin and a Linux MCP process-existence assertion. Relay's generated vector copy
+completes with 30 successful jobs, three failed executable jobs and the failed
+aggregate, plus one skipped job. The failures are the stale relay vector-copy
+pin, the included-model relay key-check fixture and a Linux MCP process-existence
+assertion. The relay E2E fixture reproduces two failures before restoring its
+independent fixed wire strings, then all six cases PASS. No credential or
+strict-body validation is relaxed. Relay's generated vector copy
 and SHA are synchronized; all 97 relay tests PASS locally with crypto bytes
 unchanged. The MCP fixture distinguishes exited Linux zombies from running
 processes, retaining positive liveness checks before cancellation and dead-tree
@@ -93,6 +103,12 @@ The earlier invalid signature is fixed using Xcode-managed simulated
 entitlements with verified native Mach-O decoding, preserving real secure-store
 tests. Intel Simulator runtime, physical iPhone and TestFlight are NOT RUN.
 The Simulator bundle requires Xcode/runtime and cannot install on an iPhone.
+
+Native review follow-up: Codex on PR #4 identifies stale iOS send completion,
+per-bot Live Activity priority and destination-thread image-model selection
+issues. These are confirmed and being corrected with regression coverage;
+new native build acceptance is required. Existing native artifacts above prove
+only their stated v1 build/launch/test scope, not these follow-up fixes.
 
 No public release, commercial clearance, real-provider acceptance, physical
 mobile pairing matrix, actual Computer Use operation or notarization is

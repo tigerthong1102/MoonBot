@@ -15,8 +15,11 @@ records only; the qualified macOS v4 application source is unchanged.
 | Included-model relay rejects the branded key-check fixture | CONFIRMED test contract drift | Local reproduction: two failures, four passes. Pin the relay fixture's two fixed legacy wire strings independently of runtime; all six E2E cases then pass, retaining strict-body refusal, credential isolation, no-log/no-save and environment filtering checks. No remote service is enabled. |
 | MCP process liveness conflates zombies with running descendants | CONFIRMED probe-contract gap; remote rerun pending | An isolated Linux container demonstrates state Z with kill(pid, 0) succeeding. Exclude only exited Z/X states, assert parent/helper are alive before abort, and retain both dead-tree assertions afterward. Runtime termination is unchanged; 156 MCP/tree/welcome/package cases pass with two platform skips. |
 
-Full CI 44221838977 remains incomplete at this snapshot. New failures are read
-before the final PR-head batch is pushed; no passed job is manually rerun.
+Full CI 44221838977 completes with 30 successful jobs, three failed executable
+jobs and the failing aggregate, plus one skip. All three executable failures
+are classified above and corrected locally. Windows v4 passes actual installed
+smoke in 44225670059 at 528b1d017; macOS v4 ARM acceptance remains valid at edd.
+No successful native package job is manually rerun for test/document-only edits.
 Current platform artifact evidence and remaining acceptance limits are recorded
 in RELEASE_READINESS.md. Qodo is outside the owner's requested review scope.
 No merge, public release, production deployment or paid runner is authorized.

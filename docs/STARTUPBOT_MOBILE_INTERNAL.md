@@ -23,8 +23,9 @@ branding, and captures UI/log evidence. Pairing on a physical Android device
 and a complete real desktop-mobile conversation are separate acceptance gates.
 
 The iOS target is `ai.startupbot.ios`, iOS 17 or later, with separate App Group
-and Keychain access groups. The internal simulator bundle contains arm64 and
-x86_64 simulator code. It cannot be installed on an iPhone, used as an IPA, or
+and Keychain access groups. The compact simulator downloads are separate arm64 and x86_64 bundles.
+Choose arm64 on Apple Silicon, x86_64 on an Intel Mac. Each keeps the full
+application, share extension and widget for that architecture. It cannot be installed on an iPhone, used as an IPA, or
 uploaded to TestFlight. Install Xcode and an iOS runtime on the Mac, boot its
 Simulator, unzip StartupBot.app and drag it into the Simulator window.
 
@@ -237,3 +238,63 @@ iOS queue cancellation now sends the captured destination thread for bots and ch
 The review on `566cd142643d5acc0018678ba43713f6c0bc3f9d` confirmed three additional issues. Android 0.1.5 includes all channel tasks in pending-card discovery and cold hydration; the existing task resolver already supported background channels and gains a regression test. The cold snapshot and cursor commit together only for the originating client. Both native clients decode and render every learned-skill reference as inert selectable text. Missing references, malformed hashes, duplicate or escaping paths leave the proposal deny-only. Server approval/hash validation is unchanged.
 
 Android text-only sends use the same acknowledged, idempotent pipeline as attachments. Failed sends retain the draft, successful replies clear only the captured draft, newer edits survive, and a stale computer cannot receive the captured request or overwrite current state/errors. Regression tests cover draft outcomes, same send ID on retry, zero requests to a mismatched origin, channel cold recovery and reference review boundaries. iOS 0.1.2 build 10 includes the reference preview. Native builds/tests for these changed sources are required; the earlier Android 0.1.4 artifact is provisional and lacks these follow-ups. The Simulator install verifier also checks the debug dylib when present.
+
+
+## Compact internal candidates — Android 0.1.6 / iOS build 11
+
+Android produces four standalone CPU-specific APKs plus a universal fallback;
+AAB delivery remains available. The phone ARM64 APK omits only other CPUs'
+native binaries. No locales, DEX code, assets, QR model or features are removed.
+CI compares every non-signature entry against the universal APK filtered by
+ABI, then verifies every APK signature. Installation/launch acceptance runs on
+the x86_64 emulator; physical ARM phones remain NOT RUN. APKs are created and
+signed by Gradle, never ZIP-recompressed after signing. Each download includes
+its own checksum, commit, signature report and scope of testing.
+
+Simulator downloads use maximum ZIP compression and separate architecture
+builds. Each ZIP is extracted and every file, permission and symlink compared
+before upload. Debug dylibs contain app code and are retained. Native host
+launch, Keychain/App Group canaries, AppTests and UI tests remain mandatory;
+the other CPU is build-only until tested on that host. A separate device-SDK
+Release archive job compiles for physical iPhone/iPad without signing. An
+unsigned xcarchive is neither an IPA nor a TestFlight-ready signed upload.
+These changed candidates are not qualified by the earlier build 10 results;
+use their new run, checksums and acceptance evidence.
+
+## Store preparation and later updates
+
+The owner reports Apple Developer and Google Play Console accounts exist.
+Publisher/contact details and all uploads are deliberately deferred until the
+owner requests publication. The build jobs have read-only repository access,
+do not retrieve store credentials and never upload to either store.
+
+Keep `ai.startupbot.ios`, its App Group and Keychain groups, and
+`ai.startupbot.android` stable. Version/build numbers must increase. Android
+production updates require the owner's stable signing key or Play App Signing;
+the ephemeral debug APK is not that production update channel. iOS distribution
+requires the owner's profiles and certificate. Desktop update sources remain
+StartupBot-owned and disabled pending update-integrity acceptance.
+
+Before public submission, complete physical-device pairing/chat/approval/
+reconnect acceptance, signed Release installation, privacy/data-safety and
+ML Kit disclosures, final published privacy/support URLs, required-reason API
+review for every extension, and asset/license/history clearance. Public store
+approval is not proven by a simulator build or an unsigned AAB/archive.
+
+References: [Android ABI packages](https://developer.android.com/build/configure-apk-splits),
+[Apple distribution](https://developer.apple.com/documentation/xcode/distributing-your-app-for-beta-testing-and-releases/),
+[Android 16 KB compatibility](https://developer.android.com/guide/practices/page-sizes),
+[Apple privacy manifests](https://developer.apple.com/documentation/bundleresources/privacy-manifest-files).
+
+
+## Last qualified baseline before compact packages
+
+At `7d362d57b2ff27ddd26f70ba241909f17d9ad09c`,
+[full CI](https://github.com/tigerthong1102/MoonBot/actions/runs/44263594696)
+completed 34 PASS, 0 FAIL, 1 SKIPPED.
+[Native acceptance](https://github.com/tigerthong1102/MoonBot/actions/runs/44263707563)
+passed Android unit/build/emulator gates and iOS 420 core tests, 19 AppTests,
+6 UI tests, installation/launch and Keychain/App Group checks. Android 0.1.5
+and iOS 0.1.2 build 10 remain the qualified fallback until the compact
+candidate has its own successful native results. Physical-device and real
+computer-pairing acceptance remains NOT RUN.

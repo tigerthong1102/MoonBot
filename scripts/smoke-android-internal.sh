@@ -19,7 +19,7 @@ for attempt in $(seq 1 180); do
 done
 [[ "$booted" == 1 ]]
 adb shell input keyevent 82
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb install -r android/app/build/outputs/apk/debug/app-x86_64-debug.apk
 adb logcat -c
 adb shell am start -W -n ai.startupbot.android/com.openmausbot.companion.MainActivity | tee mobile-artifacts/android/launch.txt
 sleep 4

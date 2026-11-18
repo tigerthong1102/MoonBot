@@ -21,6 +21,8 @@ changes require fresh native acceptance and do not change transport scopes.
 
 Notification origin is scoped to the paired computer. Background channel task approvals are recovered and owned by their exact thread. No phone token or credential is included in notification payloads.
 
+Internal Android 0.1.6 adds ABI-specific Gradle packages alongside the universal APK and AAB, preserving all shared bytecode/resources and each CPU’s native libraries. Signing and full runtime features are retained.
+
 Modified imported files:
 
 - `.gitignore`

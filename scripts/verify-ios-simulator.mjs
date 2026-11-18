@@ -4,7 +4,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 const app = path.resolve(process.argv[2]);
-const evidence = path.resolve("mobile-artifacts/ios");
+const architectures = (process.argv[3] ?? "arm64,x86_64").split(",");
+assert(architectures.length && new Set(architectures).size === architectures.length && architectures.every(arch => ["arm64", "x86_64"].includes(arch)));
+const evidence = path.resolve(process.argv[4] ?? "mobile-artifacts/ios");
 mkdirSync(evidence, { recursive: true });
 const readPlist = file => JSON.parse(execFileSync("plutil", ["-convert", "json", "-o", "-", file], { encoding: "utf8" }));
 const bundles = readdirSync(path.join(app, "PlugIns")).filter(file => file.endsWith(".appex")).map(file => path.join(app, "PlugIns", file));
@@ -17,7 +19,11 @@ for (const bundle of bundles) {
   assert(!/keychain-access-groups|com\.apple\.security\.application-groups/.test(host), "Simulator capabilities belong in Mach-O simulated entitlements, not host signing claims");
   const debug = path.join(bundle, `${info.CFBundleExecutable}.debug.dylib`);
   const binaries = [path.join(bundle, info.CFBundleExecutable), ...(existsSync(debug) ? [debug] : [])];
-  for (const arch of ["arm64", "x86_64"]) {
+  for (const binary of binaries) {
+    const actual = execFileSync("lipo", ["-archs", binary], { encoding: "utf8" }).trim().split(/\s+/).sort();
+    assert.deepEqual(actual, [...architectures].sort(), `${binary} has unexpected architectures`);
+  }
+  for (const arch of architectures) {
     const sections = binaries.map(binary => {
       const dump = execFileSync("otool", ["-arch", arch, "-s", "__TEXT", "__entitlements", binary], { encoding: "utf8" });
       return simulatedEntitlementsFromDump(dump);

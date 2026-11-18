@@ -342,6 +342,7 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
           echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
           node scripts/verify-startupbot-mobile.mjs
+          python3 scripts/verify-android-apk-payload-test.py
       - name: Build and test native Android code
         working-directory: android
         run: ./gradlew --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:bundleRelease
@@ -349,18 +350,56 @@ jobs:
         run: |
           sudo chmod a+rw /dev/kvm
           bash scripts/smoke-android-internal.sh
-      - name: Prepare verified internal artifacts
+      - name: Verify every ABI payload and APK signature
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk mobile-artifacts/android/StartupBot-0.1.5-INTERNAL-debug.apk
-          cp android/app/build/outputs/bundle/release/app-release.aab mobile-artifacts/android/StartupBot-0.1.5-UNSIGNED.aab
-          cp android/LICENSE android/NOTICE docs/STARTUPBOT_MOBILE_INTERNAL.md mobile-artifacts/android/
-          git rev-parse HEAD > mobile-artifacts/android/COMMIT.txt
-          cd mobile-artifacts/android
-          sha256sum *.apk *.aab > SHA256SUMS.txt
+          python3 scripts/verify-android-apk-payload.py --directory android/app/build/outputs/apk/debug --report mobile-artifacts/android/payload-integrity.json
+          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)"
+          test -n "$signer"
+          aligner="$(dirname "$signer")/zipalign"
+          for apk in android/app/build/outputs/apk/debug/*.apk; do "$aligner" -c -P 16 -v 4 "$apk" > "mobile-artifacts/android/$(basename "$apk").alignment.txt"; done
+          for apk in android/app/build/outputs/apk/debug/*.apk; do "$signer" verify --verbose --print-certs "$apk" > "mobile-artifacts/android/$(basename "$apk").signature.txt"; done
+      - name: Prepare separate verified internal downloads
+        run: python3 scripts/stage-android-internal.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: StartupBot-Android-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/android/
+          name: StartupBot-Android-arm64-v8a-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/arm64-v8a/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-armeabi-v7a-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/armeabi-v7a/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-x86_64-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/x86_64/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-x86-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/x86/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-universal-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/universal/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-Android-bundle-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/downloads/android/bundle/
+          compression-level: 0
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -395,7 +434,7 @@ jobs:
           node scripts/verify-startupbot-mobile.mjs
           python3 scripts/mobile-command-test.py
           python3 scripts/install-ios-simulator-test.py
-          node --test scripts/ios-simulator-entitlements.node-test.mjs
+          node --test scripts/ios-simulator-entitlements.node-test.mjs scripts/package-payload.node-test.mjs
           xcodebuild -version
           swift test --package-path ios
       - name: Generate StartupBot Xcode project
@@ -403,30 +442,25 @@ jobs:
           command -v xcodegen || brew install xcodegen
           cd ios
           xcodegen generate
-      - name: Build universal simulator app without store signing
-        run: |
-          xcodebuild build -project ios/StartupBot.xcodeproj -scheme StartupBot -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath mobile-artifacts/DerivedData ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= CODE_SIGN_LOCAL_EXECUTION_IDENTITY='Ad Hoc' -jobs 2
-          mkdir -p mobile-artifacts/ios
-          ditto mobile-artifacts/DerivedData/Build/Products/Debug-iphonesimulator/StartupBot.app mobile-artifacts/ios/StartupBot.app
-          node scripts/verify-ios-simulator.mjs mobile-artifacts/ios/StartupBot.app
-          lipo -archs mobile-artifacts/ios/StartupBot.app/StartupBot | tee mobile-artifacts/ios/architectures.txt
-          grep -q arm64 mobile-artifacts/ios/architectures.txt
-          grep -q x86_64 mobile-artifacts/ios/architectures.txt
+      - name: Build and verify separate ARM and Intel simulator apps
+        run: bash scripts/build-ios-simulators.sh
       - name: Run the real app and navigation tests on simulator
         timeout-minutes: 25
         run: bash scripts/smoke-ios-internal.sh
-      - name: Prepare verified simulator artifact
-        run: |
-          ditto -c -k --keepParent mobile-artifacts/ios/StartupBot.app mobile-artifacts/ios/StartupBot-0.1.2-build10-SIMULATOR.zip
-          rm -rf mobile-artifacts/ios/StartupBot.app
-          cp ios/LICENSE ios/NOTICE docs/STARTUPBOT_MOBILE_INTERNAL.md mobile-artifacts/ios/
-          git rev-parse HEAD > mobile-artifacts/ios/COMMIT.txt
-          cd mobile-artifacts/ios
-          shasum -a 256 StartupBot-0.1.2-build10-SIMULATOR.zip > SHA256SUMS.txt
+      - name: Prepare and verify separate simulator downloads
+        run: bash scripts/stage-ios-simulators.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: StartupBot-iOS-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/ios/
+          name: StartupBot-iOS-arm64-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/ios-arm64/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-iOS-x86_64-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/ios-x86_64/
+          compression-level: 0
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -435,3 +469,28 @@ jobs:
           name: StartupBot-iOS-diagnostics-${{ github.run_id }}
           path: mobile-artifacts/ios/
           retention-days: 7
+
+  ios-device:
+    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')
+    name: StartupBot iOS unsigned device Release archive
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - name: Generate StartupBot Xcode project
+        run: |
+          command -v xcodegen || brew install xcodegen
+          cd ios
+          xcodegen generate
+      - name: Compile device SDK and archive without signing or uploading
+        run: bash scripts/archive-ios-device.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: StartupBot-iOS-DEVICE-UNSIGNED-${{ github.sha }}-${{ github.run_attempt }}
+          path: mobile-artifacts/ios-device/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14

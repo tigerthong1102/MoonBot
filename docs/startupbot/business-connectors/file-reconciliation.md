@@ -13,3 +13,9 @@ Hỗ trợ CSV UTF-8 và XLSX một trang hiển thị với tiêu đề ở dò
 Để thử không cần dữ liệu thật, chọn **Dùng dữ liệu mẫu** rồi **Đối chiếu**. Kết quả của CT01, kỳ 2025 là ba chứng từ cần kiểm tra và tổng chênh 0.0100.
 
 Trong checkout phát triển có dependencies, tạo HTML tự chứa bằng `node scripts/business-connectors/reconcile/build.mjs`. File nằm ở `dist/reconciliation/doi-chieu.html`. Người mở bản HTML không cần Node hay kết nối mạng.
+
+## Quyền thực thi trong renderer
+
+Nút Đối chiếu cấp quyền một lần cho operation `exports.reconcile` trong registry tĩnh. Trước khi thực thi, adapter tạo hai bản tổng hợp theo đúng công ty, kỳ và cột người dùng vừa duyệt. Operation nhận tổng từng chứng từ trong phạm vi đó. Đổi file hoặc lựa chọn sau thời điểm cấp không làm đổi bản tổng hợp. Registry chỉ chấp nhận đúng đối tượng quyền do phiên renderer hiện tại cấp và tiêu thụ quyền ngay khi thực thi. Dữ liệu tồn tại trong bộ nhớ, không tạo quyền nền cho agent. Các kiểm thử ở `src/business-reconciliation/operations.test.ts` dùng hai công ty và hai kỳ.
+
+Mô hình này dành cho người đã có quyền mở hai file trên máy. Khi kết nối cơ sở dữ liệu hoặc MCP qua tiến trình khác, cần xác thực principal ở nơi truy cập dữ liệu và ràng buộc quyền với công ty trước truy vấn. Phạm vi kiểm chứng hiện tại là file CSV/XLSX do người dùng chọn.

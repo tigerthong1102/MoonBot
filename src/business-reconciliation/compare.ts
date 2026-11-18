@@ -92,12 +92,15 @@ function collect(source: Source, scope: Scope) {
   return { documents, count, total, scale };
 }
 
-export function compare(left: Source, right: Source, scope: Scope) {
+export function readScopedExports(left: Source, right: Source, scope: Scope) {
   function read(source: Source, side: "left" | "right") {
     try { return collect(source, scope); }
     catch (e) { if (e instanceof ReconcileError) e.side = side; throw e; }
   }
-  const a = read(left, "left"), b = read(right, "right");
+  return { scope: { company: scope.company, period: scope.period }, left: read(left, "left"), right: read(right, "right") };
+}
+
+export function compareTotals({ left: a, right: b, scope }: ReturnType<typeof readScopedExports>) {
   const scale = Math.max(a.scale, b.scale);
   const exceptions = [];
   for (const document of new Set([...a.documents.keys(), ...b.documents.keys()])) {
@@ -113,4 +116,8 @@ export function compare(left: Source, right: Source, scope: Scope) {
   }
   return { ...scope, leftCount: a.count, rightCount: b.count, left: format(a.total, scale),
     right: format(b.total, scale), difference: format(a.total - b.total, scale), exceptions };
+}
+
+export function compare(left: Source, right: Source, scope: Scope) {
+  return compareTotals(readScopedExports(left, right, scope));
 }

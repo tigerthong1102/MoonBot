@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.sp
 
 /** The sentences these screens are made of, named so a test can look them up. */
 object OnboardingCopy {
-    const val WELCOME_TITLE = "Take your bots with you"
+    const val WELCOME_TITLE = "Welcome to StartupBot"
     const val WELCOME_SUBTITLE =
         "Open chats, approve actions, and send new work from your phone."
     const val WELCOME_CONNECT = "Connect my computer"
@@ -97,7 +97,11 @@ fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
             }
         },
     ) {
-        OnboardingHero(Icons.AutoMirrored.Filled.Send)
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(com.openmausbot.companion.R.drawable.startupbot_logo),
+            contentDescription = "StartupBot",
+            modifier = Modifier.size(88.dp),
+        )
         Text(
             text = OnboardingCopy.WELCOME_TITLE,
             style = MaterialTheme.typography.headlineMedium,

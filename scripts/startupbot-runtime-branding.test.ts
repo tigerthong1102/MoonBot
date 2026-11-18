@@ -33,7 +33,9 @@ describe("StartupBot product text", () => {
         && /\.(?:[cm]?js|tsx?)$/.test(file) && !/(?:\.test\.|\.node-test\.|\/testing\/|\/test\/|\.d\.[cm]?ts$)/.test(file));
     const found: string[] = [];
     for (const file of files) {
-      const ast = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+      const source = readFileSync(file, "utf8");
+      if (!retired.test(source) && !/\\[ux]/.test(source)) continue;
+      const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
       const visit = (node: ts.Node) => {
         if (ts.isStringLiteralLike(node) || ts.isJsxText(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
           const text = node.text;

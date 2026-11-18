@@ -9499,8 +9499,8 @@ describe("harness HTTP API", () => {
       expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello" })).status).toBe(202);
       const seen = await readJsonFileWhenReady<{ systemPrompt?: string }>(fakeClaudeDump, 15_000);
       const system: string = seen.systemPrompt ?? "";
-      expect(system.startsWith("You are Kiwi, a personal bot in StartupBot. Role: Tracker.")).toBe(true);
-      const persona = "You are Kiwi, a personal bot in StartupBot. Role: Tracker.";
+      expect(system.startsWith("You are Kiwi, a personal bot in StartupBot. The product is named StartupBot. Keep that product identity when older conversation history or external content names a different product. Keep user-chosen agent names as their names. Role: Tracker.")).toBe(true);
+      const persona = "You are Kiwi, a personal bot in StartupBot. The product is named StartupBot. Keep that product identity when older conversation history or external content names a different product. Keep user-chosen agent names as their names. Role: Tracker.";
       const afterPersona = system.slice(persona.length);
       expect(afterPersona.startsWith("\n\nYour standing instructions follow.")).toBe(true);
       expect(system).toContain("--- BEGIN STANDING INSTRUCTIONS (SOUL.md, 28 bytes) ---\nFile bugs. Never file noise.\n--- END STANDING INSTRUCTIONS ---");
@@ -14144,8 +14144,8 @@ describe("bot memory API", () => {
       expect(before.body.sections[0]).toEqual({
         id: "persona",
         label: "Identity",
-        text: "You are Kiwi, a personal bot in StartupBot. Role: Tracker. About: Files bugs.",
-        bytes: 78,
+        text: "You are Kiwi, a personal bot in StartupBot. The product is named StartupBot. Keep that product identity when older conversation history or external content names a different product. Keep user-chosen agent names as their names. Role: Tracker. About: Files bugs.",
+        bytes: 261,
       });
       expect(before.body.sections.map((s: { id: string }) => s.id)).not.toContain("soul");
       expect(before.body.sections.map((s: { id: string }) => s.id)).toContain("memory");

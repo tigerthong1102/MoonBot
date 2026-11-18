@@ -1,5 +1,30 @@
 # Release readiness
 
+## Internal desktop acceptance — 2026-11-18
+
+Windows installer at `b2e9277f1886bf9746cfcf5b816205a71b1025c9`: **PASS**
+in [workflow 44207302570](https://github.com/tigerthong1102/MoonBot/actions/runs/44207302570).
+The Windows job built the EXE, silently installed into a disposable directory,
+launched the installed app, completed onboarding and branded helper checks,
+ran isolated fake-engine agent/chat, verified private data/credentials and HTTP
+authorization, and passed bundled browser/server smokes. Download the real
+[Windows INTERNAL artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44207302570/artifacts/14384731503).
+It is unsigned internal software, not a public or commercial release.
+
+The macOS job in that same run **FAILS** because the branding AST scan exceeds
+its 20-second test budget on the Intel runner (27 seconds). Optimize discovery
+by skipping source without either a retired name or escaped characters before
+parsing it; retain every literal assertion and the unchanged timeout. Local
+branding, packaging and three index regressions pass after the correction
+(8 focused cases; unrelated index cases not rerun). Select macOS alone for the
+next build so the successful Windows installer job is not rebuilt.
+
+The arm64 app was also built and launched locally through real onboarding;
+the helper has StartupBot's name and supplied logo. That local evidence does
+not make the failed remote macOS job green. Broader changed-file testing is
+still running; the independent CryptoKit HPKE-envelope regression passes and
+its v1 domain separator remains unchanged. Native mobile acceptance is separate.
+
 ## Reservation and cookie-cache follow-up from f61a2b1fa
 
 [CI 44148427437](https://github.com/tigerthong1102/MoonBot/actions/runs/44148427437) completes with 31 passing jobs; two shards fail the same obsolete cookie-echo assertion and the aggregate correctly fails. Both S4 jobs, Linux package and hosted macOS smoke pass; Docker, connector, Docs and website also pass. Update the cookie contract without restoring the reproduced stale-token bug, retaining every issuance attribute, origin, logout and revocation boundary.

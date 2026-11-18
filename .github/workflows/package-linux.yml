@@ -8,6 +8,12 @@ on:
         required: false
         type: boolean
         default: false
+      desktop_os:
+        description: "Internal desktop platform to build"
+        required: false
+        type: choice
+        options: [all, macos, windows]
+        default: all
       ref:
         description: "Commit/tag/branch to build (defaults to the branch this is run from)"
         required: false
@@ -140,7 +146,7 @@ jobs:
           retention-days: 14
 
   macos:
-    if: inputs.desktop
+    if: inputs.desktop && (inputs.desktop_os == 'all' || inputs.desktop_os == 'macos')
     name: StartupBot macOS internal DMGs
     runs-on: macos-26-intel
     timeout-minutes: 60
@@ -200,7 +206,7 @@ jobs:
           retention-days: 7
 
   windows:
-    if: inputs.desktop
+    if: inputs.desktop && (inputs.desktop_os == 'all' || inputs.desktop_os == 'windows')
     name: StartupBot Windows internal EXE
     runs-on: windows-latest
     timeout-minutes: 60

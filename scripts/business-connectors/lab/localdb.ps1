@@ -47,6 +47,8 @@ SELECT CONVERT(varchar(32), SERVERPROPERTY('ProductVersion')),
     if ($LASTEXITCODE -ne 0) { throw 'Accounting sample did not round-trip into Node.' }
     $reader.Dispose()
     $command.Dispose()
+    . "$PSScriptRoot/readonly.ps1"
+    Test-ScopedRead $connection
     Write-Host "Verified LocalDB $version, $transport, $auth; System.Data $([Data.SqlClient.SqlConnection].Assembly.GetName().Version), $([IntPtr]::Size * 8)-bit."
 } finally {
     if ($connection) { $connection.Dispose() }

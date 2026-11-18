@@ -54,6 +54,8 @@ describe("StartupBot internal distribution boundary", () => {
     expect(internal.mac.identity).toBe("-");
     expect(internal.dmg.sign).toBe(false);
     expect(internal.compression).toBe("maximum");
+    expect(internal.nsis.differentialPackage).toBe(false);
+    expect(builder.nsis.differentialPackage).toBeUndefined();
     expect(internal.dmg.format).toBe("UDZO");
     expect(builder.extraResources).toEqual(expect.arrayContaining([
       { from: "LICENSE", to: "licenses/OpenMausBot-LICENSE.txt" },

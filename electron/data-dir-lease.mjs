@@ -395,11 +395,19 @@ function windowsProcessListed(pid) {
   return tasklistHasPid(pid) ?? cimHasPid(pid);
 }
 
+/** Windows tasklist returns a CSV row for a running PID, an INFO line for no match, or no usable answer. */
+export function tasklistListsPid(output) {
+  const lines = output.replace(/^\uFEFF/, "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.some((line) => line.startsWith('"'))) return true;
+  if (lines.length === 0 || lines.some((line) => !/^info/i.test(line))) return null;
+  return false;
+}
+
 /** tasklist ships with every Windows and lists every running process, whatever account or session owns it. */
 function tasklistHasPid(pid) {
   try {
     const output = commandOutput("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], 5_000);
-    return output.split(/\r?\n/).some((line) => line.startsWith('"'));
+    return tasklistListsPid(output);
   } catch {
     return null;
   }
@@ -418,9 +426,9 @@ function cimHasPid(pid) {
   }
 }
 
-/** Pids are reused within a boot: a process that started at another moment, or after the lease, is not its owner. */
+/** Windows process creation time and Date.now() can disagree when the system clock is adjusted. */
 export function windowsCreationMatchesLease(created, recorded) {
-  return created <= recorded;
+  return created < recorded + 5_000;
 }
 
 function ownerIdentityMatches(owner) {

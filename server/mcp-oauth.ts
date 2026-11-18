@@ -2,6 +2,7 @@
 // compared in constant time, single-valued parameters, and a listener that lives only until its last sign-in settles.
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { isDeepStrictEqual } from "node:util";
 
 import type { McpServerSpec } from "./contracts.ts";
 import { discoverMcpAuth, type McpAuthMetadata } from "./mcp-oauth-discovery.ts";
@@ -203,6 +204,9 @@ function tokensFrom(body: Record<string, unknown>, previous?: McpOAuthTokens): M
 
 class RegistrationRefused extends Error {}
 
+type RefreshResult = { token: string | null; outcome: McpRefreshOutcome | null };
+type RefreshAttempt = { id: symbol; record: McpOAuthRecord; result: Promise<RefreshResult> };
+
 export class McpOAuthManager {
   private readonly store: McpOAuthStore;
   private readonly lifetimeMs: number;
@@ -210,7 +214,7 @@ export class McpOAuthManager {
   private readonly flows = new Map<string, Flow>();
   private readonly listeners = new Map<number, Promise<Listener>>();
   private readonly starting = new Map<string, StartingFlow>();
-  private readonly refreshing = new Map<string, Promise<{ token: string | null; outcome: McpRefreshOutcome | null }>>();
+  private readonly refreshing = new Map<string, RefreshAttempt>();
   private readonly renewedAfterRefusal = new Map<string, number>();
   private readonly clients: (name: string, url: string) => McpOAuthClientConfig | undefined;
   private readonly onSettled: (name: string, phase: McpSignInPhase, owner: string) => void;
@@ -252,6 +256,16 @@ export class McpOAuthManager {
     return this.store.get(name, url);
   }
 
+  private invalidateRefresh(name: string): void {
+    this.refreshing.delete(name);
+    this.renewedAfterRefusal.delete(name);
+  }
+
+  private replaceSignIn(name: string, record: McpOAuthRecord): void {
+    this.store.put(name, record);
+    this.invalidateRefresh(name);
+  }
+
   /** A sign-in moved here from the person's own computer, for the entry at this address. A sign-in this server already
    * has is kept, unless `replaces` says it is the one that computer moved here before (it refreshed there since). The
    * app's secret, when it has one, came with the entry itself. */
@@ -259,13 +273,13 @@ export class McpOAuthManager {
     const current = this.store.get(name, url);
     if (current && this.authState(name, url) === "signed-in" && !replaces?.(current)) return "kept";
     this.cancel(name);
-    this.store.put(name, { ...record, url, state: record.tokens ? "signed-in" : "needs-sign-in" });
+    this.replaceSignIn(name, { ...record, url, state: record.tokens ? "signed-in" : "needs-sign-in" });
     return "adopted";
   }
 
   markNeedsSignIn(name: string, url: string): void {
     const { tokens: _dropped, ...rest } = this.store.get(name, url) ?? { url };
-    this.store.put(name, { ...rest, url, state: "needs-sign-in" });
+    this.replaceSignIn(name, { ...rest, url, state: "needs-sign-in" });
   }
 
   /** A probe that sent no credentials found that the server wants a sign-in this entry doesn't hold. Never touches a
@@ -274,7 +288,7 @@ export class McpOAuthManager {
     if (this.authState(name, url) === "signed-in") return;
     const current = this.store.get(name, url);
     if (current?.state === "needs-sign-in") return;
-    this.store.put(name, { ...current, url, state: "needs-sign-in" });
+    this.replaceSignIn(name, { ...current, url, state: "needs-sign-in" });
   }
 
   start(name: string, url: string, wwwAuthenticate?: string | null, owner = "loopback", browser: McpSignInBrowser = { remote: false }): Promise<McpSignInStatus> {
@@ -364,17 +378,19 @@ export class McpOAuthManager {
   async signOut(name: string, url: string): Promise<void> {
     this.cancel(name);
     const record = this.store.get(name, url);
+    this.store.delete(name);
+    this.invalidateRefresh(name);
     const token = record?.tokens?.refresh ?? record?.tokens?.access;
     if (record?.revocationEndpoint && token) {
       await postForm(record.revocationEndpoint, { token }, this.recordClient(name, record) ?? undefined).catch(() => undefined);
     }
-    this.store.delete(name);
   }
 
   forget(name: string): void {
     this.cancel(name);
     this.flows.delete(name);
     this.store.delete(name);
+    this.invalidateRefresh(name);
   }
 
   accessToken(name: string, url: string): Promise<string | null> {
@@ -422,22 +438,26 @@ export class McpOAuthManager {
     return Boolean(record.tokens?.refresh && record.tokenEndpoint && this.recordClient(name, record));
   }
 
-  /** One refresh at a time per server. `forced`: a server refused the token, so it is renewed whatever its expiry says, and
-   * a token nothing can renew has ended. */
-  private renew(name: string, record: McpOAuthRecord, forced: boolean): Promise<{ token: string | null; outcome: McpRefreshOutcome | null }> {
+  private renew(name: string, record: McpOAuthRecord, forced: boolean): Promise<RefreshResult> {
     const pending = this.refreshing.get(name);
-    if (pending) return pending;
-    const renewed = this.refresh(name, record, forced).then((result) => {
+    if (pending && isDeepStrictEqual(pending.record, record)) return pending.result;
+    const id = Symbol();
+    const stillCurrent = () => this.refreshing.get(name)?.id === id
+      && isDeepStrictEqual(this.store.get(name, record.url), record);
+    const result = Promise.resolve().then(() => this.refresh(name, record, forced, stillCurrent)).then((result) => {
       if (result.outcome) {
         try { this.onRefresh(name, result.outcome); } catch (error) { console.error("mcp sign-in: onRefresh failed", error); }
       }
       return result;
-    }).finally(() => this.refreshing.delete(name));
-    this.refreshing.set(name, renewed);
-    return renewed;
+    }).finally(() => {
+      if (this.refreshing.get(name)?.id === id) this.refreshing.delete(name);
+    });
+    this.refreshing.set(name, { id, record, result });
+    return result;
   }
 
-  private async refresh(name: string, record: McpOAuthRecord, forced: boolean): Promise<{ token: string | null; outcome: McpRefreshOutcome | null }> {
+  private async refresh(name: string, record: McpOAuthRecord, forced: boolean, stillCurrent: () => boolean): Promise<RefreshResult> {
+    if (!stillCurrent()) return { token: null, outcome: null };
     const tokens = record.tokens!;
     const stillValid = !forced && tokens.expiresAt !== undefined && tokens.expiresAt > Date.now();
     const client = this.recordClient(name, record);
@@ -454,8 +474,10 @@ export class McpOAuthManager {
         resource: record.url,
       }, client);
     } catch {
+      if (!stillCurrent()) return { token: null, outcome: null };
       return { token: stillValid ? tokens.access : null, outcome: "unreachable" };
     }
+    if (!stillCurrent()) return { token: null, outcome: null };
     const next = answer.status >= 200 && answer.status < 300 ? tokensFrom(answer.body, tokens) : null;
     if (!next) {
       const dead = (answer.status === 400 || answer.status === 401)
@@ -464,8 +486,6 @@ export class McpOAuthManager {
       this.markNeedsSignIn(name, record.url);
       return { token: null, outcome: "rejected" };
     }
-    // the entry may have been removed or re-pointed while this was in flight
-    if (!this.store.get(name, record.url)) return { token: null, outcome: null };
     this.store.put(name, { ...record, state: "signed-in", tokens: next });
     return { token: next.access, outcome: "refreshed" };
   }
@@ -730,7 +750,7 @@ export class McpOAuthManager {
         }
         return DISCARDED;
       }
-      this.store.put(flow.name, {
+      this.replaceSignIn(flow.name, {
         url: flow.url,
         state: "signed-in",
         issuer: flow.meta.issuer,

@@ -1,0 +1,56 @@
+name: Windows business discovery
+on:
+  pull_request:
+    paths:
+      - scripts/business-connectors/**
+      - .github/workflows/business-discovery.yml
+permissions:
+  contents: read
+jobs:
+  discovery:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: node --test scripts/business-connectors/discovery.fixture.ts
+      - run: node --test scripts/business-connectors/compatibility.fixture.ts
+      - run: node --test scripts/business-connectors/setup-plan.fixture.ts
+      - name: Check synthetic legacy registry layouts without a database service
+        shell: powershell
+        run: ./scripts/business-connectors/lab/legacy-registry.ps1
+      - name: Verify accounting scalar types and metadata on a private LocalDB instance
+        shell: powershell
+        run: ./scripts/business-connectors/lab/localdb.ps1
+      - name: Compare local inventory with the disposable runner's service manager
+        shell: pwsh
+        run: |
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\StartupBotFixture-' + [guid]::NewGuid()
+          New-Item $key -Force | Out-Null
+          try {
+            New-ItemProperty $key -Name DisplayName -Value 'Smart Pro fixture' | Out-Null
+            New-ItemProperty $key -Name DisplayVersion -Value '5.0.9876' | Out-Null
+            $json = node scripts/business-connectors/inspect-local.ts --inspect-local
+          } finally {
+            Remove-Item -LiteralPath $key
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Local inventory did not finish" }
+          $report = $json | ConvertFrom-Json
+          if ($report.coverage -ne 'collected' -or $report.connection -ne 'untested') { throw "Unexpected coverage" }
+          $app = @($report.applications | Where-Object { $_.product -eq 'smartpro' -and $_.version -eq '5.0.9876' })
+          if ($app.Count -ne 1) { throw "Fixture application missing or duplicated" }
+          $services = @(Get-Service | Where-Object { $_.Name -eq 'MSSQLSERVER' -or $_.Name -match '^MSSQL\$' })
+          $observed = @($report.instances | Where-Object { $_.sources -contains 'service' })
+          if ($observed.Count -ne $services.Count) { throw "Service count mismatch" }
+          foreach ($svc in $services) {
+            $id = $svc.Name -replace '^MSSQL\$', ''
+            $match = @($observed | Where-Object name -eq $id)
+            if ($match.Count -ne 1) { throw "Service identity mismatch" }
+            if ($svc.Status -in 'Running','Stopped' -and $match[0].serviceState -ne [string]$svc.Status) { throw "State mismatch" }
+          }
+          Write-Host "Service comparison passed for $($services.Count) engine service(s)."

@@ -47,3 +47,7 @@ and fresh Windows/macOS workflow results are reported separately by exact SHA.
 The fixture does not exercise a paid model or manipulate the user's real desktop.
 Native iOS/Android source audit/build is separate; no native mobile completion is
 claimed here. Existing copyright/trademark/distribution gaps remain in LICENSE_GAP.md.
+
+HPKE v1 keeps its original domain separator, pinned by both an exact-value
+regression and the independent Apple CryptoKit ciphertext test. Packaging gates
+run credential-envelope compatibility tests before building installers.

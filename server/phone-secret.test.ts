@@ -70,6 +70,9 @@ async function seal(
 }
 
 describe("PhoneSecretBridge", () => {
+  it("retains the v1 HPKE domain separator used by paired native clients", () => {
+    expect(PHONE_SECRET_INFO).toBe("OpenMausBot phone credential v1");
+  });
   it("opens an envelope produced by Apple's CryptoKit HPKE implementation", async () => {
     let bridge!: PhoneSecretBridge;
     const send = vi.fn((message: { requestId: string; value: string }) => {

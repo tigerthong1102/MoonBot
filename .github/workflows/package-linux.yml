@@ -159,7 +159,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Verify StartupBot branding and native icon assets
-        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts
+        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
       - run: pnpm package:prepare
       - run: pnpm build:speech && pnpm build:cua
       - run: pnpm exec electron-builder --config electron-builder.internal.yml --mac dmg --arm64 --x64 --publish never
@@ -219,7 +219,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Verify StartupBot branding and native icon assets
-        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts
+        run: pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
       - run: pnpm package:prepare
       - run: pnpm build:cua:win
       - run: pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never

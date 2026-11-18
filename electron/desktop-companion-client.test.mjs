@@ -70,7 +70,7 @@ describe("desktop companion endpoint", () => {
     expect(normalizeDesktopCompanionEndpoint(`https://${LABEL}.mausbot.si`)).toBe(
       `https://${LABEL}.mausbot.si`,
     );
-    expect(normalizeDesktopCompanionEndpoint(` ${LABEL.toUpperCase()}.StartupBot.SI/ `)).toBe(
+    expect(normalizeDesktopCompanionEndpoint(` ${LABEL.toUpperCase()}.Mausbot.SI/ `)).toBe(
       `https://${LABEL}.mausbot.si`,
     );
     for (const endpoint of [

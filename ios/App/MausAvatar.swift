@@ -1,15 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// The bot's face — the same body and the same face placement the desktop draws.
-//
-// The body is whichever one the bot wears: `MausBodies` in `CompanionCore` is
-// the phone's half of the generated catalog that also bakes
-// `shared/mascot-bodies.ts`, so the two renderers cannot drift the way
-// desktop's 0.74 face scale and the phone's 0.84 already did once. Parsing and
-// placing a body is `CompanionCore.MausSilhouette`; this file is the drawing.
-//
-// What is NOT ported from the desktop: nothing of the face itself. The 25
-// expressions, blinking, gaze tracking and motion are all here, in
-// `MausFaceEngine` — same tables, same numbers, same face.
 import CompanionCore
 import SwiftUI
 
@@ -71,10 +60,6 @@ struct MausAvatar: View {
     /// shipped yet — falls back to the shipped `cursor`.
     var bodyId: String? = MausSilhouette.defaultBody
     var state: MausState = .idle
-    /// Animation is OPT-IN: a mounted face costs a 30fps Canvas redraw, and a
-    /// roster of them once pegged the app (and SimRenderServer) all night.
-    /// Pass true only where motion carries meaning — a busy bot, an open
-    /// profile, the needs-you island's opening beat.
     var animated: Bool = false
     /// Comets orbiting the body — the island's "something is happening".
     var comets: Bool = false

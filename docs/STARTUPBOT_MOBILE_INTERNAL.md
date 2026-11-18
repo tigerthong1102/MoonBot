@@ -171,3 +171,21 @@ navigation tests. The new structured-question UI test failed before opening
 chat: its expected thread row was absent after tapping the disclosure. It now
 opens the observed primary agent row and retains all form assertions. This
 correction and the additional notification regressions still need fresh CI.
+
+At `6e5b43d37f0bdbe0dffa63320f04772e8cb1382a`, Full CI 44236981994 passed
+34 jobs with one skipped. Android 0.1.2 in run 44236989353 passed unit tests,
+APK/AAB build and clean-emulator acceptance. Its artifact is 14398157233.
+iOS attempt 1 stopped at a Simulator container IPC timeout after app launch;
+attempt 2 passed 407 core tests, 14 AppTests including bot/channel notification
+isolation, and five navigation tests, but the structured-question UI test
+still failed before reaching the form. The pending attention island intercepted
+the roster tap. The iOS build-5 correction gives structured questions an explicit
+Open chat to answer route and exercises that route in the UI test. Assertions
+for missing answers and multiple selections remain unchanged. Test builds
+reuse the existing DerivedData; the universal artifact copy remains separate.
+Android application source is unchanged by this iOS-only follow-up.
+
+Imported native comment-policy coverage is not complete: generated catalog
+headers and some UI implementation overviews still need a source-policy pass.
+The specific reviewed history passages are corrected; this is not a claim
+that every imported comment meets AGENTS.md. Keep the native PR in Draft.

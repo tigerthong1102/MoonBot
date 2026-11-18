@@ -36,6 +36,7 @@ Modified imported files:
 - `App/Composer/PredictiveActionChipsView.swift`
 - `App/Composer/TypingIndicatorView.swift`
 - `App/ConnectedAppsView.swift`
+- `App/Island.swift`
 - `App/LiveActivities.swift`
 - `App/Localizable.xcstrings`
 - `App/MarkdownText.swift`

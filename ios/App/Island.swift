@@ -1,12 +1,4 @@
-// The island: a black shape at the top of the screen, sitting where the
-// hardware Dynamic Island is, that grows into a square with a bot's face
-// alive inside it — and shrinks back into the island when it is done.
-//
-// Apps cannot draw inside the real island, so this is the same trick X
-// uses: a black rounded square whose collapsed state hides behind the
-// island (or, on phones without one, disappears into the top edge). The
-// mascot engine does the rest — it already morphs every state and
-// expression, which is what makes the square worth growing.
+// Modified for StartupBot; original copyright and license retained.
 import SwiftUI
 import CompanionCore
 
@@ -118,12 +110,12 @@ struct NeedsYouIsland: View {
 
                         if let card = shown.card, card.isPending {
                             Group {
-                                if card.skillRequest != nil {
+                                if card.skillRequest != nil || card.questionRequest != nil {
                                     Button {
                                         open(shown.chat)
                                         dismiss()
                                     } label: {
-                                        Label("Open chat to review", systemImage: "doc.text.magnifyingglass")
+                                        Label(card.questionRequest != nil ? LocalizedStringKey("Open chat to answer") : LocalizedStringKey("Open chat to review"), systemImage: "doc.text.magnifyingglass")
                                             .font(.system(size: 14, weight: .semibold))
                                             .foregroundStyle(.white)
                                             .frame(maxWidth: .infinity)
@@ -131,6 +123,7 @@ struct NeedsYouIsland: View {
                                             .background(Capsule().fill(MausPalette.color(shown.chat.color)))
                                     }
                                     .buttonStyle(.plain)
+                                    .accessibilityIdentifier(card.questionRequest != nil ? "question-open-chat" : "skill-open-chat")
                                 } else {
                                     HStack(spacing: 8) {
                                         ForEach(card.options, id: \.self) { option in

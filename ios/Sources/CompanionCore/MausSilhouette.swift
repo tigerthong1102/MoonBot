@@ -1,17 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// The mascot's body, as geometry: the SVG path parser and the per-body cache
-// that turns `MausBodies` into something a canvas can fill.
-//
-// This lives in `CompanionCore` rather than beside the view that draws it for
-// one reason: `swift test` builds `Sources/CompanionCore` and nothing else, so
-// anything in `ios/App/` is unreachable by an automated test. The parser used
-// to sit in `ios/App/MausAvatar.swift` with a single hardcoded path to get
-// right; it now has ten generated ones, and a hand-rolled character scanner
-// with that much riding on it should not be the untested part of the app.
-//
-// `CGPath`, not SwiftUI's `Path`, because `CompanionCore` is everything the
-// phone knows that is *not* a view (see `ios/Package.swift`). `MausAvatar`
-// wraps the result in `Path(cgPath)`, which is a retain, not a copy.
 import CoreGraphics
 import Foundation
 

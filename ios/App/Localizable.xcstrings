@@ -2339,6 +2339,22 @@
         }
       }
     },
+    "Open chat to answer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open chat to answer"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở trò chuyện để trả lời"
+          }
+        }
+      }
+    },
     "Open chat to review": {
       "localizations": {
         "pt-BR": {

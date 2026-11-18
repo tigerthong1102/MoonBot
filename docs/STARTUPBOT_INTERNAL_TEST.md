@@ -1,7 +1,7 @@
 # StartupBot — thử nghiệm nội bộ
 
 Đây là bản thử nghiệm, chưa phải bản phát hành thương mại. Chỉ tải artifact
-từ workflow **Internal package verification** của repository
+từ workflow thủ công **package-linux.yml** của repository
 `tigerthong1102/MoonBot`. Kiểm tra SHA trong `build-metadata.json` và checksum
 trong `SHA256SUMS.txt` trước khi cài. Không có public release hoặc auto-update.
 
@@ -91,7 +91,7 @@ hoặc kiểm thử trên điện thoại vật lý. Kết quả theo SHA nằm 
 
 Bản v3 giữ bộ lọc chống giả mạo cho cả nhãn StartupBot và định dạng cũ, đồng thời
 giữ lựa chọn ẩn helper khỏi sidebar. Không dùng v2 cho agent xử lý nội dung web
-hoặc tệp không tin cậy. Chỉ dùng artifact v3 khi có smoke PASS cùng phiên bản
+hoặc tệp không tin cậy. Chỉ dùng artifact v3 trở lên khi có smoke PASS khớp phiên bản
 và SHA; không lấy kết quả kiểm thử bản trước làm bằng chứng cho bản mới.
 
 Bản v4 tiếp tục nhận lại helper mặc định cũ đã đổi màu mà chưa có marker,

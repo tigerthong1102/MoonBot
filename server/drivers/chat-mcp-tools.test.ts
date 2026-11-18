@@ -100,6 +100,12 @@ async function expectSkipped(f: ReturnType<typeof fixture>, reason: RegExp) {
 }
 
 function alive(pid: number): boolean {
+  if (process.platform === "linux") {
+    try {
+      const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+      if (["Z", "X"].includes(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[0]!)) return false;
+    } catch {}
+  }
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
@@ -747,6 +753,8 @@ describe("Chat MCP session", () => {
       receipt = JSON.parse(readFileSync(f.receipt, "utf8"));
       expect(receipt.helper).toBeGreaterThan(0);
     }, { timeout: 10_000 });
+    expect(alive(receipt.pid)).toBe(true);
+    expect(alive(receipt.helper)).toBe(true);
     f.controller.abort();
     await rejected;
     expect(alive(receipt.pid)).toBe(false);

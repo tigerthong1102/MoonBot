@@ -114,7 +114,7 @@ export function createUpdateChecker(options: {
     ...updateCommand(options.install),
   });
   const ask = (url: string) => fetchJson(url, {
-    headers: { accept: "application/vnd.github+json", "user-agent": "openmausbot-update-check" },
+    headers: { accept: "application/vnd.github+json", "user-agent": "startupbot-update-check" },
     signal: AbortSignal.timeout(8_000),
   });
 

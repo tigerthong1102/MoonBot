@@ -63,7 +63,7 @@ beforeEach(() => {
 });
 
 const account = (user_id: string, slug: string, status = "ACTIVE") => ({ id: `ca_${user_id}_${slug}`, user_id, status, toolkit: { slug } });
-const NEW_USER = /^openmausbot_[0-9a-f-]{36}$/u;
+const NEW_USER = /^startupbot_[0-9a-f-]{36}$/u;
 const prepareFresh = () => prepareProjectSession("ak_reuse", undefined, undefined, { reuseEarlierUser: true });
 
 describe("a fresh installation connecting a project an earlier installation used", () => {
@@ -79,6 +79,21 @@ describe("a fresh installation connecting a project an earlier installation used
     expect(sessionUsers).toEqual(["openmausbot_earlier"]);
     expect(accountQueries.length).toBe(2);
     expect(accountQueries.every((query) => !query.has("user_ids"))).toBe(true);
+  });
+
+  it("recovers a StartupBot installation without renaming its existing grants", async () => {
+    accounts = [account("startupbot_earlier", "gmail"), account("startupbot_earlier", "slack")];
+    const prepared = await prepareFresh();
+    expect(prepared.userId).toBe("startupbot_earlier");
+    expect(sessionUsers).toEqual(["startupbot_earlier"]);
+  });
+
+  it("does not confuse StartupBot and legacy installations sharing one project", async () => {
+    accounts = [account("startupbot_one", "gmail"), account("openmausbot_other", "slack")];
+    const prepared = await prepareFresh();
+    expect(prepared.userId).toMatch(NEW_USER);
+    expect(prepared.userId).not.toBe("startupbot_one");
+    expect(prepared.userId).not.toBe("openmausbot_other");
   });
 
   it("reads only a few pages, and starts a new user when the project is too big to tell", async () => {

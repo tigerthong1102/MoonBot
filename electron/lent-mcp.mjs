@@ -269,7 +269,7 @@ export function createLentMcp({ environment = async () => ({ ...inheritedEnviron
     const client = "command" in server ? stdioClient(server, { environment: await environment(), home }) : httpClient(server, { fetch: fetchImpl });
     const live = { key, client, idle: null, failed: false, started: null };
     running.set(server.name, live);
-    live.started = client.request("initialize", { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: "openmausbot-lent", version: "1" } }, signal, START_MS).then(result => {
+    live.started = client.request("initialize", { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: "startupbot-lent", version: "1" } }, signal, START_MS).then(result => {
       client.started?.(result?.protocolVersion);
       client.notify("notifications/initialized");
     });

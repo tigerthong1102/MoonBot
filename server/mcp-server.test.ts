@@ -43,7 +43,7 @@ describe("MCP JSON-RPC protocol", () => {
     })))!);
     expect(supported.result).toMatchObject({
       protocolVersion: "2024-11-05",
-      serverInfo: { name: "openmausbot-mcp", version: "1.1.0" },
+      serverInfo: { name: "startupbot-mcp", version: "1.1.0" },
       capabilities: { tools: {} },
     });
 

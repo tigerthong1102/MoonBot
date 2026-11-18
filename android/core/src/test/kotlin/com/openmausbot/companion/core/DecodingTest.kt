@@ -239,16 +239,19 @@ class DecodingTest {
     }
 
     @Test
-    fun notificationTargetRequiresBothExactIds() {
+    fun notificationTargetRequiresExactIdsAndOrigin() {
         assertEquals(
-            NotificationTarget.from("bot-1", "detached-task-2"),
-            NotificationTarget.from(mapOf("botId" to "bot-1", "threadId" to "detached-task-2")),
+            NotificationTarget.from("bot-1", "detached-task-2", "fixture"),
+            NotificationTarget.from(mapOf("botId" to "bot-1", "threadId" to "detached-task-2", "connectionId" to "fixture")),
         )
         assertNull(NotificationTarget.from(mapOf("botId" to "bot-1")))
         assertNull(NotificationTarget.from(mapOf("threadId" to "task-1")))
-        assertNull(NotificationTarget.from(" ", "task-1"))
-        assertNull(NotificationTarget.from("bot-1", "\n\t"))
-        val detached = assertNotNull(NotificationTarget.from("bot-1", "task-2"))
+        assertNull(NotificationTarget.from(" ", "task-1", "fixture"))
+        assertNull(NotificationTarget.from("bot-1", "\n\t", "fixture"))
+        assertNull(NotificationTarget.from("bot-1", "task-2", null))
+        assertNull(NotificationTarget.from("bot-1", "task-2", " "))
+        assertNull(NotificationTarget.from(mapOf("botId" to "bot-1", "threadId" to "task-2")))
+        val detached = assertNotNull(NotificationTarget.from("bot-1", "task-2", "fixture"))
         assertTrue(detached.requiresTaskSwitch("task-1"))
         assertFalse(detached.requiresTaskSwitch("task-2"))
     }

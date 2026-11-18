@@ -2108,7 +2108,7 @@ private class RecordingNotifications : NotificationSink {
     val delivered = mutableListOf<Pair<NotificationFrame, Int?>>()
     var lastBadge = 0
         private set
-    override fun deliver(notification: NotificationFrame, sequence: Int?) {
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) {
         delivered += notification to sequence
     }
     override fun setBadge(count: Int) {

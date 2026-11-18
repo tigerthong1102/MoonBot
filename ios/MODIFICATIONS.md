@@ -20,53 +20,9 @@ keeps failed submissions retryable until server acknowledgment. iOS callback
 scope includes bot/task/history/profile/routine/connector operations. These
 changes require fresh native acceptance and do not change transport scopes.
 
+Notification origin is scoped to the paired computer. Background channel task approvals are recovered and owned by their exact thread. No phone token or credential is included in notification payloads.
+
 Modified imported files:
 
-- `App/AgentProfileView.swift`
-- `App/Assets.xcassets/AppIcon.appiconset/icon-1024.png`
-- `App/AttachmentViews.swift`
-- `App/Cards/AgentThoughtChamberView.swift`
-- `App/Cards/GitPRDiffCardView.swift`
-- `App/Cards/SQLResultTableView.swift`
-- `App/Cards/SkillExecutionReceiptView.swift`
-- `App/ChatView.swift`
-- `App/CloudDesktopBrowser.swift`
-- `App/CompanionApp.swift`
-- `App/Composer/CommandSkillHUDView.swift`
-- `App/Composer/PredictiveActionChipsView.swift`
-- `App/Composer/TypingIndicatorView.swift`
-- `App/ConnectedAppsView.swift`
-- `App/Island.swift`
-- `App/LiveActivities.swift`
-- `App/Localizable.xcstrings`
-- `App/MarkdownText.swift`
-- `App/MausAvatar.swift`
-- `App/Notifications.swift`
-- `App/OnboardingViews.swift`
-- `App/PairingScanner.swift`
-- `App/PairingView.swift`
-- `App/Session.swift`
-- `App/SettingsView.swift`
-- `App/SpeechDictation.swift`
-- `App/TasksRoutinesView.swift`
-- `App/Updates.swift`
-- `AppShared/OpenMausSharedConfiguration.swift`
-- `AppShared/OpenMausSharedKeychain.swift`
+- `.gitignore`
 - `README.md`
-- `ShareExtension/ShareItemLoader.swift`
-- `ShareExtension/ShareRootView.swift`
-- `ShareExtension/ShareViewModel.swift`
-- `Sources/CompanionCore/AttachedMessageContent.swift`
-- `Sources/CompanionCore/Client.swift`
-- `Sources/CompanionCore/Failover.swift`
-- `Sources/CompanionCore/MausBodies.swift`
-- `Sources/CompanionCore/MausSilhouette.swift`
-- `Sources/CompanionCore/Models.swift`
-- `Sources/CompanionCore/SSE.swift`
-- `Sources/CompanionCore/SendReceipt.swift`
-- `TESTING.md`
-- `Tests/CompanionCoreTests/DecodingTests.swift`
-- `Tests/CompanionCoreTests/MausBodiesTests.swift`
-- `Tests/CompanionCoreTests/QueuedSendTests.swift`
-- `Widgets/Info.plist`
-- `project.yml`

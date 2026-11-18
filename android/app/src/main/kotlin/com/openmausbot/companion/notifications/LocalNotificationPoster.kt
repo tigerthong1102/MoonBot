@@ -15,12 +15,6 @@ import com.openmausbot.companion.R
 import com.openmausbot.companion.core.NotificationFrame
 import com.openmausbot.companion.core.NotificationSink
 
-/**
- * Local-only notifications from live/replayed notify frames. No FCM.
- * PendingIntent carries both `botId` and `threadId` — the same pair iOS puts
- * in `userInfo` — so a tap opens the exact task (the one allowed quality
- * delta vs iOS, which only presents the banner).
- */
 class LocalNotificationPoster(
     context: Context,
 ) : NotificationSink {
@@ -31,12 +25,12 @@ class LocalNotificationPoster(
         ensureChannels()
     }
 
-    override fun deliver(notification: NotificationFrame, sequence: Int?) {
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) {
         if (!canPost()) return
         val channelId = NotificationMapping.channelId(notification)
         // Identity lives in Intent data (botId + threadId), not a hashed
         // requestCode — extras alone cannot distinguish PendingIntents.
-        val intent = NotificationIntents.contentIntent(appContext, notification)
+        val intent = NotificationIntents.contentIntent(appContext, notification, connectionId)
         val pending = PendingIntent.getActivity(
             appContext,
             0,
@@ -68,7 +62,7 @@ class LocalNotificationPoster(
                 else NotificationCompat.CATEGORY_STATUS,
             )
         try {
-            manager.notify(NotificationMapping.dedupeId(notification, sequence), 0, builder.build())
+            manager.notify(NotificationMapping.dedupeId(notification, sequence, connectionId), 0, builder.build())
         } catch (_: SecurityException) {
             // Permission can be revoked between canPost() and notify(). A missed
             // local banner is safer than crashing the live companion session.
@@ -90,14 +84,7 @@ class LocalNotificationPoster(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val system = appContext.getSystemService(NotificationManager::class.java) ?: return
 
-        // Re-creating a channel that already exists is supposed to be a no-op
-        // for anything but name/description, but a plain process restart on
-        // Kate's S26+ (2026-09-09) reset a custom sound she had picked for
-        // `bot_messages` — the channel's own mUserLockedFields showed
-        // visibility+lights locked but *not* sound, so this call's freshly
-        // built (soundless) NotificationChannel object was silently winning.
-        // Only ever create each channel once; leave an existing one alone,
-        // full stop, so nothing this call passes can clobber a real pick.
+        // Existing channels preserve the user's sound and importance choices.
         if (system.getNotificationChannel(NotificationMapping.CHANNEL_BLOCKING) == null) {
             system.createNotificationChannel(
                 NotificationChannel(
@@ -175,8 +162,7 @@ class LocalNotificationPoster(
         }
     }
 
-    /** True when the platform will accept a notification post right now. */
-    fun canPost(): Boolean {
+        fun canPost(): Boolean {
         if (!manager.areNotificationsEnabled()) return false
         if (Build.VERSION.SDK_INT < 33) return true
         return ContextCompat.checkSelfPermission(
@@ -185,19 +171,17 @@ class LocalNotificationPoster(
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    /** True when a runtime POST_NOTIFICATIONS request is still required. */
-    fun needsNotificationPermission(): Boolean =
+        fun needsNotificationPermission(): Boolean =
         Build.VERSION.SDK_INT >= 33 && !canPost()
 
     companion object {
         const val EXTRA_THREAD_ID = "openmaus.threadId"
+        const val EXTRA_CONNECTION_ID = "startupbot.connectionId"
         const val EXTRA_BOT_ID = "openmaus.botId"
         const val EXTRA_KIND = "openmaus.kind"
 
-        /** Permission string for the UI pass's launcher contract. */
-        const val POST_NOTIFICATIONS_PERMISSION = Manifest.permission.POST_NOTIFICATIONS
+                const val POST_NOTIFICATIONS_PERMISSION = Manifest.permission.POST_NOTIFICATIONS
 
-        /** The channel id [NotificationMapping.CHANNEL_DONE] replaced. See its kdoc. */
-        private const val LEGACY_CHANNEL_DONE = "done"
+                private const val LEGACY_CHANNEL_DONE = "done"
     }
 }

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.notifications
 
 import com.openmausbot.companion.core.NotificationFrame
@@ -28,10 +29,14 @@ class NotificationMappingTest {
     }
 
     @Test
-    fun dedupeIdMatchesIosContract() {
+    fun dedupeIdIncludesOriginAndRemainsStableAcrossReplay() {
         val notification = frame("approval", threadId = "thread-9", title = "Allow?")
-        assertEquals("openmaus.thread-9.42", NotificationMapping.dedupeId(notification, 42))
-        assertEquals("openmaus.thread-9.Allow?", NotificationMapping.dedupeId(notification, null))
+        assertEquals("startupbot.7:fixture8:thread-9.42", NotificationMapping.dedupeId(notification, 42, "fixture"))
+        assertEquals("startupbot.7:fixture8:thread-9.Allow?", NotificationMapping.dedupeId(notification, null, "fixture"))
+        kotlin.test.assertNotEquals(NotificationMapping.dedupeId(notification, 42, "fixture"),
+            NotificationMapping.dedupeId(notification, 42, "other"))
+        assertEquals(NotificationMapping.dedupeId(notification, 42, "fixture"),
+            NotificationMapping.dedupeId(notification, 42, "fixture"))
     }
 
     private fun frame(

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 // The client's state, and the fold that maintains it.
 //
 // This mirrors the reducer in `src/state/store.tsx`, and is deliberately a
@@ -118,7 +119,7 @@ public struct CompanionState: Sendable {
     }
 
     public func room(forThread threadId: String) -> Room? {
-        rooms.first { $0.threadId == threadId }
+        rooms.lazy.compactMap { $0.projected(forThread: threadId) }.first
     }
 
     /// User-named sidebar sections in the same natural order as the desktop:
@@ -197,7 +198,9 @@ public struct CompanionState: Sendable {
     /// screen the whole companion exists for.
     public var pendingApprovals: [(threadId: String, message: Message)] {
         var out: [(threadId: String, message: Message)] = []
-        let activeThreads = Set(bots.flatMap { [$0.threadId] + ($0.tasks ?? []).map(\.threadId) } + rooms.map(\.threadId))
+        let botThreads = bots.flatMap { [$0.threadId] + ($0.tasks ?? []).map(\.threadId) }
+        let roomThreads = rooms.flatMap { [$0.threadId] + ($0.tasks ?? []).map(\.threadId) }
+        let activeThreads = Set(botThreads + roomThreads)
         for threadId in activeThreads {
             for message in visibleTranscript(forThread: threadId) where message.card?.isPending == true {
                 out.append((threadId: threadId, message: message))

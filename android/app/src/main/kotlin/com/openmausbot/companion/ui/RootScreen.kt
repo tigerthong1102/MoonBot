@@ -256,7 +256,12 @@ fun CompanionRoot(
                                 resolution = resolution,
                                 bondGeneration = bondGeneration,
                                 onCommit = { held, navigator ->
-                                    tapCoordinator.commit(held, navigator, onPendingTargetConsumed)
+                                    if (session.connection.value?.id == held.target.connectionId) {
+                                        tapCoordinator.commit(held, navigator, onPendingTargetConsumed)
+                                    } else {
+                                        tapCoordinator.discardResolved()
+                                        onPendingTargetConsumed(held.target)
+                                    }
                                 },
                             )
                         }

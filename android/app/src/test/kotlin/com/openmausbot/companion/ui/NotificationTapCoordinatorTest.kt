@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Bot
@@ -56,7 +57,7 @@ class NotificationTapCoordinatorTest {
     @Test
     fun `consumption cannot precede recorded navigation`() = runTest {
         val navigation = PendingThreadNavigation()
-        navigation.offer("b1", "task-1")
+        navigation.offer("b1", "task-1", "fixture")
         val navigator = CompanionNavigator()
         val coordinator = NotificationTapCoordinator()
         val session = pairedSession()
@@ -73,7 +74,7 @@ class NotificationTapCoordinatorTest {
 
         // Recreation in that window: token still null → Intent extras re-offer.
         val midFlight = PendingThreadNavigation(navigation.consumedToken())
-        midFlight.offer("b1", "task-1")
+        midFlight.offer("b1", "task-1", "fixture")
         assertEquals(target("b1", "task-1"), midFlight.pending.value)
 
         // Drive the real protocol: commit owns navigate → consume. A consume
@@ -100,14 +101,14 @@ class NotificationTapCoordinatorTest {
         )
         assertEquals(navigator.stack, restoredNav.stack)
         val after = PendingThreadNavigation(navigation.consumedToken())
-        after.offer("b1", "task-1")
+        after.offer("b1", "task-1", "fixture")
         assertNull(after.pending.value, "must not fire the same tap twice")
     }
 
     @Test
     fun `resolved chat is discarded when the bond is left`() = runTest {
         val navigation = PendingThreadNavigation()
-        navigation.offer("old-bot", "old-task")
+        navigation.offer("old-bot", "old-task", "fixture")
         val coordinator = NotificationTapCoordinator()
         val session = pairedSession(botId = "old-bot", active = "old-task")
         val navigator = CompanionNavigator()
@@ -155,7 +156,7 @@ class NotificationTapCoordinatorTest {
     @Test
     fun `unauthorized pending is consumed without leaving a resolved chat`() = runTest {
         val navigation = PendingThreadNavigation()
-        navigation.offer("old-bot", "old-task")
+        navigation.offer("old-bot", "old-task", "fixture")
         val coordinator = NotificationTapCoordinator()
         val session = unpairedSession()
         val target = requireNotNull(navigation.pending.value)
@@ -168,14 +169,14 @@ class NotificationTapCoordinatorTest {
         assertNotNull(navigation.consumedToken())
 
         val afterPair = PendingThreadNavigation(navigation.consumedToken())
-        afterPair.offer("old-bot", "old-task")
+        afterPair.offer("old-bot", "old-task", "fixture")
         assertNull(afterPair.pending.value)
     }
 
     @Test
     fun `open then consume is a single commit — no double fire while pending`() = runTest {
         val navigation = PendingThreadNavigation()
-        navigation.offer("b1", "task-1")
+        navigation.offer("b1", "task-1", "fixture")
         val navigator = CompanionNavigator()
         val coordinator = NotificationTapCoordinator()
         val session = pairedSession()
@@ -202,7 +203,7 @@ class NotificationTapCoordinatorTest {
 
         // Offer B before the stale second callback — that callback must not
         // consume B (generation already cleared; no free consume() on pending).
-        navigation.offer("b2", "task-2", fresh = true)
+        navigation.offer("b2", "task-2", "fixture", fresh = true)
         assertEquals(target("b2", "task-2"), navigation.pending.value)
         assertFalse(
             coordinator.commit(held, navigator) { t ->
@@ -218,7 +219,7 @@ class NotificationTapCoordinatorTest {
     @Test
     fun `stale commit cannot consume a newer onNewIntent target`() = runTest {
         val navigation = PendingThreadNavigation()
-        navigation.offer("a-bot", "a-task")
+        navigation.offer("a-bot", "a-task", "fixture")
         val navigator = CompanionNavigator()
         val coordinator = NotificationTapCoordinator()
         val sessionA = pairedSession(botId = "a-bot", active = "a-task")
@@ -230,7 +231,7 @@ class NotificationTapCoordinatorTest {
 
         // B arrives before A's commit — replaces pending and, once resolved,
         // the held resolution. A's callback must not consume B.
-        navigation.offer("b1", "task-1", fresh = true)
+        navigation.offer("b1", "task-1", "fixture", fresh = true)
         assertEquals(target("b1", "task-1"), navigation.pending.value)
 
         val sessionB = pairedSession(botId = "b1", active = "task-1")
@@ -258,9 +259,9 @@ class NotificationTapCoordinatorTest {
     @Test
     fun `identified consume leaves a replaced pending target untouched`() = runTest {
         val navigation = PendingThreadNavigation()
-        navigation.offer("a-bot", "a-task")
+        navigation.offer("a-bot", "a-task", "fixture")
         val a = requireNotNull(navigation.pending.value)
-        navigation.offer("b1", "task-1", fresh = true)
+        navigation.offer("b1", "task-1", "fixture", fresh = true)
         assertEquals(target("b1", "task-1"), navigation.pending.value)
 
         // Stale consume(A) must not mark B consumed.
@@ -278,7 +279,7 @@ class NotificationTapCoordinatorTest {
         botId: String = "b1",
         active: String = "task-1",
     ): Session {
-        val connection = requireNotNull(Connection.parse(server.url("/").toString()))
+        val connection = requireNotNull(Connection.parse(server.url("/").toString())).copy(id = "fixture")
         return Session(
             scope = backgroundScope,
             connectionStore = object : ConnectionStore {
@@ -335,5 +336,5 @@ class NotificationTapCoordinatorTest {
     )
 
     private fun target(botId: String, threadId: String): NotificationTarget =
-        requireNotNull(NotificationTarget.from(botId, threadId))
+        requireNotNull(NotificationTarget.from(botId, threadId, "fixture"))
 }

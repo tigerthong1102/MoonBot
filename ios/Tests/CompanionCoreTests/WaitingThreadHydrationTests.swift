@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 import XCTest
 @testable import CompanionCore
@@ -179,6 +180,56 @@ final class WaitingThreadHydrationTests: XCTestCase {
         } catch is CancellationError {}
         XCTAssertTrue(WaitingThreadStub.requests.isEmpty)
     }
+
+    func testBackgroundChannelApprovalHydratesAndResolvesItsOwnThread() async throws {
+        WaitingThreadStub.responses["/api/bots"] = (200, Data(Self.channelFleetJSON.utf8))
+        let snapshot = try await client.fleetForHydration(messages: 25)
+        var state = CompanionState()
+        state.hydrate(snapshot.fleet, waitingThreads: snapshot.waitingThreads)
+        XCTAssertEqual(state.pendingApprovals.map(\.threadId), ["thread-a"])
+        XCTAssertEqual(state.room(forThread: "thread-a")?.id, "channel-1")
+        XCTAssertEqual(state.room(forThread: "thread-a")?.threadId, "thread-a")
+        XCTAssertNil(state.room(forThread: "thread-a")?.messages)
+        XCTAssertNil(state.room(forThread: "thread-a")?.busyBotId)
+        XCTAssertEqual(state.rooms.first?.threadId, "thread-b")
+        XCTAssertNil(state.room(forThread: "foreign"))
+        XCTAssertEqual(WaitingThreadStub.requests.map { $0.url!.path }, [
+            "/api/bots", "/api/threads/thread-a/messages",
+        ])
+        XCTAssertEqual(URLComponents(url: WaitingThreadStub.requests.last!.url!, resolvingAgainstBaseURL: false)?.queryItems,
+                       [URLQueryItem(name: "limit", value: "25")])
+    }
+
+    func testBackgroundChannelCardArrivingOverStreamIsVisibleWithoutTaskSelection() throws {
+        let fleet = try JSONDecoder().decode(Fleet.self, from: Data(Self.channelFleetJSON.utf8))
+        let page = try JSONDecoder().decode(ThreadPage.self, from: Data(Self.pendingPage.utf8))
+        var state = CompanionState()
+        state.hydrate(fleet)
+        for message in page.messages { state.apply(.messagePatch(threadId: "thread-a", message: message)) }
+        XCTAssertEqual(state.pendingApprovals.map(\.message.id), ["approval-a"])
+        XCTAssertEqual(state.room(forThread: "thread-a")?.threadId, "thread-a")
+        XCTAssertEqual(state.rooms.first?.threadId, "thread-b")
+    }
+
+    func testBackgroundChannelPageFailureRefusesPartialHydration() async throws {
+        WaitingThreadStub.responses["/api/bots"] = (200, Data(Self.channelFleetJSON.utf8))
+        WaitingThreadStub.responses["/api/threads/thread-a/messages"] = (503, Data())
+        do {
+            _ = try await client.fleetForHydration()
+            XCTFail("A failed channel page must fail the snapshot.")
+        } catch APIError.status(let code, _) { XCTAssertEqual(code, 503) }
+    }
+
+    private static let channelFleetJSON = #"""
+    {"bots":[],"groups":[{
+      "id":"channel-1","threadId":"thread-b","name":"Channel","memberIds":[],
+      "defaultResponder":{"kind":"all"},"bulletin":"","unread":true,"createdAt":1,
+      "tasks":[
+        {"threadId":"thread-a","title":"A","createdAt":1,"activity":"waiting-on-you"},
+        {"threadId":"thread-b","title":"B","createdAt":2,"activity":"working"}
+      ],"messages":[]
+    }]}
+    """#
 
     private static let fleetJSON = #"""
     {"bots":[{

@@ -213,3 +213,9 @@ views reset on computer changes and guard actions/results against their
 origin so the stricter notification boundary preserves internal navigation.
 Local core build, syntax, lint/typecheck and identity/HPKE guards pass. Fresh
 Xcode/Core/AppTests acceptance is required before qualifying build 6.
+
+## Pending qualification: scoped notifications and channel tasks
+
+The next Android build is 0.1.3; the next iOS 0.1.2 build is 7. Both require fresh native qualification. Android notifications, Intent identity, replay deduplication and recreation tokens now include the originating connection ID; opening a foreign notification refuses before any API request. Legacy unscoped notifications are rejected. Routine receipt navigation carries the loaded computer identity. iOS background channel tasks participate in pending-card discovery, exact room ownership and bounded cold hydration.
+
+At source 583b376f56edbc57f0352c76d4edc55b7150648b, full CI run 44246140113 completed SUCCESS. Its iOS packaging run 44246342967 failed during `simctl launch` (90-second command timeout), before AppTests. The diagnostic screenshot shows the installed StartupBot icon on the Simulator home screen; this is not launch acceptance. The next run uses the standard Intel macOS runner to isolate that Simulator environment and records the exact bounded simctl operation. Universal arm64/x86_64 build and all app, UI, secure-storage smoke checks remain mandatory. No current-head native PASS is claimed before those jobs finish.

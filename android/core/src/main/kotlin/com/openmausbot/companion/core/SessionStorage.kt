@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 /**
@@ -87,12 +88,12 @@ class InMemoryOnboardingStore(initial: Boolean = false) : OnboardingStore {
 
 /** Local notification surface fed by live/replayed notify frames. */
 interface NotificationSink {
-    fun deliver(notification: NotificationFrame, sequence: Int?)
+    fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String)
     fun setBadge(count: Int)
 }
 
 object NoOpNotificationSink : NotificationSink {
-    override fun deliver(notification: NotificationFrame, sequence: Int?) = Unit
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) = Unit
     override fun setBadge(count: Int) = Unit
 }
 

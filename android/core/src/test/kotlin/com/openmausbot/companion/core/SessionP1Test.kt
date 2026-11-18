@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.AfterTest
@@ -590,11 +591,21 @@ class SessionP1Test {
         assertEquals(0, server.requestCount)
     }
 
+    @Test
+    fun foreignNotificationCannotReadOrSwitchTheSelectedComputer() = runTest {
+        val session = session { Fleet(listOf(bot("b1", "task-a", "task-a", "task-b")), emptyList()) }
+        val foreign = requireNotNull(NotificationTarget.from("b1", "task-b", "other"))
+        assertNull(session.openNotification(foreign))
+        assertEquals(0, server.requestCount)
+        assertEquals("task-a", session.state.value.bot("b1")?.threadId)
+        assertTrue(session.actionError!!.contains("computer"))
+    }
+
     private suspend fun TestScope.session(
         otherComputer: Boolean = false,
         hydrate: suspend () -> Fleet = { Fleet(emptyList(), emptyList()) },
     ): Session {
-        val connection = requireNotNull(Connection.parse(server.url("/").toString()))
+        val connection = requireNotNull(Connection.parse(server.url("/").toString())).copy(id = "fixture")
         return Session(
             scope = backgroundScope,
             connectionStore = object : ConnectionStore {
@@ -623,7 +634,7 @@ class SessionP1Test {
     }
 
     private fun target(botId: String, threadId: String): NotificationTarget =
-        requireNotNull(NotificationTarget.from(botId, threadId))
+        requireNotNull(NotificationTarget.from(botId, threadId, "fixture"))
 
     private fun permissionCard(options: List<String>, allowKey: String?): OptionCard = OptionCard(
         title = "Approval needed",

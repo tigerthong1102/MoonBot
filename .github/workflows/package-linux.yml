@@ -330,8 +330,8 @@ jobs:
           bash scripts/smoke-android-internal.sh
       - name: Prepare verified internal artifacts
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk mobile-artifacts/android/StartupBot-0.1.2-INTERNAL-debug.apk
-          cp android/app/build/outputs/bundle/release/app-release.aab mobile-artifacts/android/StartupBot-0.1.2-UNSIGNED.aab
+          cp android/app/build/outputs/apk/debug/app-debug.apk mobile-artifacts/android/StartupBot-0.1.3-INTERNAL-debug.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab mobile-artifacts/android/StartupBot-0.1.3-UNSIGNED.aab
           cp android/LICENSE android/NOTICE docs/STARTUPBOT_MOBILE_INTERNAL.md mobile-artifacts/android/
           git rev-parse HEAD > mobile-artifacts/android/COMMIT.txt
           cd mobile-artifacts/android

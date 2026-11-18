@@ -875,9 +875,11 @@ public struct CompanionClient: Sendable {
         try Task.checkCancellation()
         let fleet = try await fleet(messages: limit)
         var waitingThreads: [String: ThreadPage] = [:]
-        for bot in fleet.bots {
-            for task in bot.tasks ?? [] where task.activity == "waiting-on-you"
-                && task.threadId != bot.threadId && waitingThreads[task.threadId] == nil {
+        let owners = fleet.bots.map { ($0.threadId, $0.tasks ?? []) }
+            + fleet.groups.map { ($0.threadId, $0.tasks ?? []) }
+        for (selectedThreadId, tasks) in owners {
+            for task in tasks where task.activity == "waiting-on-you"
+                && task.threadId != selectedThreadId && waitingThreads[task.threadId] == nil {
                 try Task.checkCancellation()
                 waitingThreads[task.threadId] = try await messages(threadId: task.threadId, limit: limit)
             }

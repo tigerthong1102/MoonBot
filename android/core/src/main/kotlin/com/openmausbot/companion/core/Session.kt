@@ -845,7 +845,7 @@ class Session(
                             else -> {
                                 _state.update { it.apply(frame) }
                                 if (payload is Frame.Notify) {
-                                    notificationSink.deliver(payload.notification, frame.seq)
+                                    notificationSink.deliver(payload.notification, frame.seq, activeClient.connection.id)
                                 }
                                 notificationSink.setBadge(_state.value.unreadCount)
                                 _state.update { it.advance(frame.seq) }
@@ -1643,6 +1643,10 @@ class Session(
                 return@withLock null
             }
 
+            if (target.connectionId != activeClient.connection.id) {
+                _actionError.value = "Select the computer that sent this notification before opening it."
+                return@withLock null
+            }
             try {
                 _state.value.roomOwningTask(target.threadId)?.let { room ->
                     return@withLock openRoomNotification(activeClient, room, target.threadId)

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.lifecycle
 
 import com.openmausbot.companion.core.Bot
@@ -66,7 +67,7 @@ internal class RecordingSink : NotificationSink {
     val delivered = mutableListOf<Pair<NotificationFrame, Int?>>()
     val badges = mutableListOf<Int>()
 
-    override fun deliver(notification: NotificationFrame, sequence: Int?) {
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) {
         delivered += notification to sequence
     }
 

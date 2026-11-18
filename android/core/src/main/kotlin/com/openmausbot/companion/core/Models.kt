@@ -123,17 +123,18 @@ data class OptionCard(
 data class NotificationTarget private constructor(
     val botId: String,
     val threadId: String,
+    val connectionId: String,
 ) {
     fun requiresTaskSwitch(activeThreadId: String): Boolean = threadId != activeThreadId
 
     companion object {
-        fun from(botId: String?, threadId: String?): NotificationTarget? {
-            if (botId.isNullOrBlank() || threadId.isNullOrBlank()) return null
-            return NotificationTarget(botId, threadId)
+        fun from(botId: String?, threadId: String?, connectionId: String?): NotificationTarget? {
+            if (botId.isNullOrBlank() || threadId.isNullOrBlank() || connectionId.isNullOrBlank()) return null
+            return NotificationTarget(botId, threadId, connectionId)
         }
 
         fun from(payload: Map<String, String>): NotificationTarget? =
-            from(payload["botId"], payload["threadId"])
+            from(payload["botId"], payload["threadId"], payload["connectionId"])
     }
 }
 

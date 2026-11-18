@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.animation.AnimatedVisibility
@@ -79,6 +80,7 @@ internal fun TasksRoutinesScreen(onBack: () -> Unit, onOpenChat: (Chat) -> Unit)
     val session = LocalCompanion.current.session
     val state by session.state.collectAsState()
     val scope = rememberCoroutineScope()
+    val connectionId = remember { session.connection.value?.id }
 
     var routines by remember { mutableStateOf<List<Routine>>(emptyList()) }
     var runs by remember { mutableStateOf<List<RoutineRun>>(emptyList()) }
@@ -210,6 +212,7 @@ internal fun TasksRoutinesScreen(onBack: () -> Unit, onOpenChat: (Chat) -> Unit)
                 items(receipts, key = { it.id }) { run ->
                     RoutineRunRow(
                         run = run,
+                        connectionId = connectionId,
                         bot = state.bot(run.botId),
                         onOpenTask = { target ->
                             scope.launch {
@@ -447,6 +450,7 @@ private fun RoutineRow(
 @Composable
 private fun RoutineRunRow(
     run: RoutineRun,
+    connectionId: String?,
     bot: Bot?,
     onOpenTask: (NotificationTarget) -> Unit,
 ) {
@@ -518,7 +522,7 @@ private fun RoutineRunRow(
                         color = attentionTint,
                     )
                 }
-                NotificationTarget.from(run.botId, run.threadId)?.let { target ->
+                NotificationTarget.from(run.botId, run.threadId, connectionId)?.let { target ->
                     ActionRow(
                         text = "Open thread",
                         icon = Icons.AutoMirrored.Filled.ExitToApp,

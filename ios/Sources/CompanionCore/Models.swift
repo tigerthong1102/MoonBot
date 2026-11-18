@@ -430,6 +430,18 @@ public struct Room: Codable, Hashable, Identifiable, Sendable {
     public var tasks: [BotTask]?
     public var messages: [Message]?
     public var hasMore: Bool?
+
+    public func projected(forThread selectedThreadId: String) -> Room? {
+        if threadId == selectedThreadId { return self }
+        guard let task = tasks?.first(where: { $0.threadId == selectedThreadId }) else { return nil }
+        var view = self
+        view.threadId = selectedThreadId
+        view.messages = nil
+        view.hasMore = nil
+        view.busyBotId = nil
+        view.unread = task.unread ?? false
+        return view
+    }
 }
 
 // MARK: - Responses

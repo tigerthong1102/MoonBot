@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.notifications
 
 import kotlin.test.Test
@@ -41,15 +42,30 @@ class NotificationIntentsTest {
     @Test
     fun `identity encodes the payload pair into the data URI`() {
         assertEquals(
-            "openmaus://notification/bot%3A1/thread%2F2",
-            NotificationIntents.contentIdentity("bot:1", "thread/2"),
+            "startupbot://notification/fixture/bot%3A1/thread%2F2",
+            NotificationIntents.contentIdentity("bot:1", "thread/2", "fixture"),
         )
         assertEquals(
-            "openmaus://notification/bot%20one/a%2Fb%3Fc",
-            NotificationIntents.contentIdentity("bot one", "a/b?c"),
+            "startupbot://notification/fixture/bot%20one/a%2Fb%3Fc",
+            NotificationIntents.contentIdentity("bot one", "a/b?c", "fixture"),
         )
     }
 
+    @Test
+    fun `same task from two computers has distinct intent identity and origin`() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val frame = com.openmausbot.companion.core.NotificationFrame(
+            kind = "approval", botId = "bot", botName = "Bot", threadId = "task", title = "Allow?", body = "Fixture",
+        )
+        val first = NotificationIntents.contentIntent(context, frame, "computer/a")
+        val second = NotificationIntents.contentIntent(context, frame, "computer/b")
+        assertNotEquals(first.data, second.data)
+        assertEquals("computer/a", first.notificationTarget()?.connectionId)
+        assertEquals("computer/b", second.notificationTarget()?.connectionId)
+        first.removeExtra(LocalNotificationPoster.EXTRA_CONNECTION_ID)
+        assertEquals(null, first.notificationTarget())
+    }
+
     private fun identity(botId: String, threadId: String): String =
-        NotificationIntents.contentIdentity(botId, threadId)
+        NotificationIntents.contentIdentity(botId, threadId, "fixture")
 }

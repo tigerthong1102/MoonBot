@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Chat
@@ -262,58 +263,58 @@ class PendingThreadNavigationTest {
     @Test
     fun `a tap is offered to the UI as a notification target`() {
         val navigation = PendingThreadNavigation()
-        navigation.offer("bot-1", "t1")
+        navigation.offer("bot-1", "t1", "fixture")
         assertEquals(target("bot-1", "t1"), navigation.pending.value)
     }
 
     @Test
     fun `an absent or blank extra offers nothing`() {
         val navigation = PendingThreadNavigation()
-        navigation.offer(null, "t1")
-        navigation.offer("bot-1", null)
-        navigation.offer("bot-1", "")
-        navigation.offer(" ", "t1")
-        navigation.offer(null as String?, null as String?)
+        navigation.offer(null, "t1", "fixture")
+        navigation.offer("bot-1", null, "fixture")
+        navigation.offer("bot-1", "", "fixture")
+        navigation.offer(" ", "t1", "fixture")
+        navigation.offer(null as String?, null as String?, "fixture")
         assertNull(navigation.pending.value)
     }
 
     @Test
     fun `a rotation before the UI consumed it still navigates`() {
         val launch = PendingThreadNavigation()
-        launch.offer("bot-1", "t1")
+        launch.offer("bot-1", "t1", "fixture")
         // Recreated without the UI ever consuming: the token is still null.
         val recreated = PendingThreadNavigation(launch.consumedToken())
-        recreated.offer("bot-1", "t1")
+        recreated.offer("bot-1", "t1", "fixture")
         assertEquals(target("bot-1", "t1"), recreated.pending.value)
     }
 
     @Test
     fun `a rotation after the UI consumed it does not navigate again`() {
         val launch = PendingThreadNavigation()
-        launch.offer("bot-1", "t1")
+        launch.offer("bot-1", "t1", "fixture")
         launch.consume()
         assertNull(launch.pending.value)
 
         val recreated = PendingThreadNavigation(launch.consumedToken())
-        recreated.offer("bot-1", "t1")
+        recreated.offer("bot-1", "t1", "fixture")
         assertNull(recreated.pending.value)
     }
 
     @Test
     fun `two notifications in a row for the same thread navigate again while the app is up`() {
         val navigation = PendingThreadNavigation()
-        navigation.offer("bot-1", "t1")
+        navigation.offer("bot-1", "t1", "fixture")
         navigation.consume()
-        navigation.offer("bot-1", "t1", fresh = true)
+        navigation.offer("bot-1", "t1", "fixture", fresh = true)
         assertEquals(target("bot-1", "t1"), navigation.pending.value)
     }
 
     @Test
     fun `a different target always navigates`() {
         val navigation = PendingThreadNavigation()
-        navigation.offer("bot-1", "t1")
+        navigation.offer("bot-1", "t1", "fixture")
         navigation.consume()
-        navigation.offer("bot-1", "t2")
+        navigation.offer("bot-1", "t2", "fixture")
         assertEquals(target("bot-1", "t2"), navigation.pending.value)
     }
 
@@ -324,8 +325,22 @@ class PendingThreadNavigationTest {
         assertEquals(target, PendingThreadNavigation.parseToken(token))
     }
 
+    @Test
+    fun notificationConsumptionIsScopedToComputerAndRejectsLegacyTokens() {
+        val first = requireNotNull(com.openmausbot.companion.core.NotificationTarget.from("bot", "task", "a:one"))
+        val second = requireNotNull(com.openmausbot.companion.core.NotificationTarget.from("bot", "task", "b:two"))
+        val navigation = PendingThreadNavigation()
+        navigation.offer(first)
+        navigation.consume(first)
+        navigation.offer(second)
+        assertEquals(second, navigation.pending.value)
+        assertEquals(second, PendingThreadNavigation.parseToken(PendingThreadNavigation.tokenOf(second)))
+        assertEquals(null, PendingThreadNavigation.parseToken("3:bottask"))
+        assertEquals(null, PendingThreadNavigation.parseToken("v2:2147483647:x"))
+    }
+
     private fun target(botId: String, threadId: String) =
-        requireNotNull(com.openmausbot.companion.core.NotificationTarget.from(botId, threadId))
+        requireNotNull(com.openmausbot.companion.core.NotificationTarget.from(botId, threadId, "fixture"))
 }
 
 /**

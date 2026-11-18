@@ -19,6 +19,10 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - run: node --test scripts/business-connectors/discovery.fixture.ts
+      - run: node --test scripts/business-connectors/compatibility.fixture.ts
+      - name: Verify accounting scalar types and metadata on a private LocalDB instance
+        shell: powershell
+        run: ./scripts/business-connectors/lab/localdb.ps1
       - name: Compare local inventory with the disposable runner's service manager
         shell: pwsh
         run: |

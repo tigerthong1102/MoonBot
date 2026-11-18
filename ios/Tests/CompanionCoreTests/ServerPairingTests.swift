@@ -138,6 +138,7 @@ final class ServerPairingTests: XCTestCase {
         XCTAssertEqual(request.url?.absoluteString, "https://c-7f3a9c.openmausbot.com/api/auth/pair")
         XCTAssertEqual(request.httpMethod, "POST")
         XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertFalse(request.httpShouldHandleCookies)
         let sent = try XCTUnwrap(ServerRequestStub.body(of: request))
         XCTAssertEqual(sent["code"] as? String, "ABCDEFGHJKLM")
         XCTAssertEqual(sent["label"] as? String, "Milind's iPhone")
@@ -284,6 +285,7 @@ final class ServerPairingTests: XCTestCase {
             } catch let error as APIError { XCTAssertFalse(sameServer); XCTAssertTrue(error.isUnauthorized) }
             let requests = ServerRequestStub.captured()
             XCTAssertNil(requests.first?.value(forHTTPHeaderField: "Authorization"))
+            XCTAssertFalse(try XCTUnwrap(requests.first).httpShouldHandleCookies)
             XCTAssertEqual(requests.count, sameServer ? 2 : 1)
             if sameServer { XCTAssertEqual(requests.last?.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-session") }
         }

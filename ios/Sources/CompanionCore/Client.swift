@@ -488,6 +488,7 @@ public struct CompanionClient: Sendable {
         guard let url = components.url else { throw APIError.badURL }
 
         var request = URLRequest(url: url)
+        request.httpShouldHandleCookies = false
         request.httpMethod = method
         request.timeoutInterval = requestTimeout
         if let token {

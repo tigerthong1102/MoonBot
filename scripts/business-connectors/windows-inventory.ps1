@@ -4,42 +4,8 @@ $ErrorActionPreference = 'Stop'
 $observations = [Collections.Generic.List[object]]::new()
 $issues = [Collections.Generic.HashSet[string]]::new()
 $sqlRoot = 'SOFTWARE\Microsoft\Microsoft SQL Server'
-$instancePattern = '^[A-Za-z0-9_#$-]{1,16}$'
 
-function Read-Value($base, $path, $name) {
-    $key = $base.OpenSubKey($path)
-    if ($null -eq $key) { return }
-    try { $key.GetValue($name, $null, 'DoNotExpandEnvironmentNames') }
-    finally { $key.Dispose() }
-}
-
-function Read-Instances($base, $view) {
-    $path = "$sqlRoot\Instance Names\SQL"
-    $map = $base.OpenSubKey($path)
-    if ($null -ne $map) {
-        try {
-            foreach ($name in $map.GetValueNames()) {
-                $id = $map.GetValue($name)
-                if ($name -notmatch $instancePattern -or $id -notmatch '^[A-Za-z0-9_.#$-]{1,128}$') {
-                    [void]$issues.Add('instance-registry')
-                    continue
-                }
-                $version = Read-Value $base "$sqlRoot\$id\Setup" 'Version'
-                $observations.Add(@{ kind = 'registry'; name = $name; view = $view; version = [string]$version })
-            }
-        } finally { $map.Dispose() }
-    }
-    foreach ($name in (Read-Value $base $sqlRoot 'InstalledInstances')) {
-        if ($name -notmatch $instancePattern) {
-            [void]$issues.Add('instance-registry')
-            continue
-        }
-        $path = "$sqlRoot\$name\MSSQLServer\CurrentVersion"
-        if ($name -eq 'MSSQLSERVER') { $path = 'SOFTWARE\Microsoft\MSSQLServer\MSSQLServer\CurrentVersion' }
-        $version = Read-Value $base $path 'CurrentVersion'
-        $observations.Add(@{ kind = 'registry'; name = $name; view = $view; version = [string]$version })
-    }
-}
+. "$PSScriptRoot/instance-registry.ps1"
 
 function Read-Applications($base) {
     $uninstall = $base.OpenSubKey('SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall')
@@ -89,7 +55,7 @@ foreach ($view in $views) {
         try {
             if ($hive -eq 'LocalMachine') {
                 [Console]::Error.WriteLine('probe-stage-instances')
-                try { Read-Instances $base $view } catch { [void]$issues.Add('instance-registry') }
+                try { Read-Instances $base $view $observations $issues } catch { [void]$issues.Add('instance-registry') }
                 try {
                     $drivers = $base.OpenSubKey('SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers')
                     if ($null -ne $drivers) {

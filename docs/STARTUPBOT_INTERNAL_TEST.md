@@ -101,3 +101,15 @@ có trong Settings. `VITE_STARTUPBOT_ADMIN_ORIGIN` chỉ dành cho build với p
 HTTPS đã được chủ hệ thống chấp thuận, không tạo hay cung cấp dịch vụ Cloud.
 Bộ kiểm tra key của relay/extractor giữ nguyên văn bản wire cố định để tương
 thích giao thức; các ngoại lệ nội bộ đó không phải tên hiển thị của ứng dụng.
+
+## Internal desktop v5: promotions and provider consent
+
+v5 disables built-in upstream sponsor cards and Cloud marketing; the owner-controlled announcement engine, schedules, audience rules, required-action priority and per-card seen records are retained. Boat/ModelGo sponsor banners are removed from README. ModelGo provider links have no upstream sponsorship parameters; user-selected providers remain available. See STARTUPBOT_CAMPAIGNS.md for editing campaigns without application code changes.
+
+New ChatGPT authorization requests suggest StartupBot as the agent name. A previously registered external agent may retain its user-selected name: this patch does not silently delete or re-register a working credential.
+
+macOS permission acceptance is separate from application packaging. The installer uses ai.startupbot.desktop, StartupBot bundle names and owned artwork. An existing OpenMausBot permission entry belongs to its existing authorization and must not be renamed or reused by bypassing TCC. Quit the old StartupBot instance, install the new app into Applications, launch that exact application, request Computer Use and grant Screen Recording/Accessibility to StartupBot locally. The packaging smoke checks bundle identity and signature integrity, but granting real macOS privacy permissions on the owner's Mac is NOT RUN while computer observation reports the Mac locked. No TCC database modification or global reset is performed.
+
+v5 qualification is PENDING until its own build and smoke jobs finish. v4's historical evidence is not a PASS for v5.
+
+Local validation for the v5 patch: 190 targeted tests passed across notices, onboarding, key-row analytics, brand policy, ChatGPT authorization and feed handling; 125 additional/repeated focused tests passed for owner campaign retention, provider-link hygiene and internal release boundaries. `pnpm lint`, `pnpm typecheck`, `pnpm build` passed. The existing v4 signed bundle also passes `codesign --verify --strict` and has StartupBot display/name plus ai.startupbot.desktop; this confirms its metadata, not permission-list behavior on the owner's locked desktop. New v5 packaging acceptance remains pending.

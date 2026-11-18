@@ -21,6 +21,16 @@ assert(existsSync(executable), "The packaged executable is missing");
 for (const entry of ["app.asar", "server/index.js", "ui/index.html", "browser-engine/manifest.json", "licenses/OpenMausBot-LICENSE.txt", "licenses/OpenMausBot-NOTICE.txt"]) {
   assert(existsSync(path.join(resources, entry)), `Missing packaged resource: ${entry}`);
 }
+if (mac) {
+  const info = path.join(app, "Contents", "Info.plist");
+  const identity = Object.fromEntries(["CFBundleIdentifier", "CFBundleName", "CFBundleDisplayName"].map(key =>
+    [key, execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, info], { encoding: "utf8" }).trim()]));
+  assert.equal(identity.CFBundleIdentifier, "ai.startupbot.desktop");
+  assert.equal(identity.CFBundleName, "StartupBot");
+  assert.equal(identity.CFBundleDisplayName, "StartupBot");
+  execFileSync("codesign", ["--verify", "--strict", app], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  writeFileSync(path.join(evidence, "macos-identity.json"), JSON.stringify({ ...identity, signatureVerified: true, privacyPermissionGrant: "NOT RUN" }, null, 2));
+}
 const fixture = mkdtempSync(path.join(tmpdir(), "startupbot-package-"));
 const home = path.join(fixture, "home");
 const data = path.join(home, ".startupbot");

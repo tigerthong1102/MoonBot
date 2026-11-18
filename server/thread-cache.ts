@@ -26,6 +26,7 @@ interface Entry { state: ThreadState; usedAt: number; bytes: number }
 export class ThreadCache {
   private entries = new Map<string, Entry>();
   private sweptAt = Date.now();
+  private nextBudgetRetryAt = 0;
   private bytes = 0;
   private readonly busyThreadIds: () => ReadonlySet<string>;
   private readonly maxBytes: number;
@@ -43,6 +44,7 @@ export class ThreadCache {
     entry.usedAt = now;
     this.entries.delete(threadId);
     this.entries.set(threadId, entry);
+    if (now >= this.nextBudgetRetryAt) this.shrink(threadId);
     return entry.state;
   }
 
@@ -90,6 +92,7 @@ export class ThreadCache {
   private shrink(keep: string): void {
     if (this.bytes <= this.maxBytes) return;
     const now = Date.now();
+    this.nextBudgetRetryAt = now + MIN_RESIDENCY_MS;
     const busy = this.busyThreadIds();
     for (const [threadId, entry] of this.entries) {
       if (this.bytes <= this.maxBytes) break;

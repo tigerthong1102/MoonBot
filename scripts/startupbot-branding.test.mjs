@@ -72,6 +72,7 @@ describe("StartupBot distribution branding", () => {
   it("keeps active installed-package smokes on the builder's installation root", () => {
     const builder = parse(read("electron-builder.yml").toString());
     const root = `/opt/${builder.productName}`;
+    expect(read(".github/workflows/package-linux.yml").toString()).not.toContain("release/OpenMausBot");
     expect(builder.productName).toBe("StartupBot");
     expect(builder.appId).toBe("ai.startupbot.desktop");
     for (const workflow of [".github/workflows/ci.yml", ".github/workflows/package-linux.yml"]) {

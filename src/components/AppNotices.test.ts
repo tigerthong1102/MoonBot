@@ -437,6 +437,7 @@ describe("the Product Hunt launch card", () => {
 });
 
 describe("Boat's credit offer", () => {
+  beforeEach(() => { BOAT_OFFER.until = null; });
   const TITLE = "$50 of Boat credit for you";
   const BODY = "Boat runs the cloud computers behind StartupBot. Buy Boat's $100 plan or bigger, then tell Boat that StartupBot sent you, and they'll add $50 in credits to your Boat account.";
   const YOURSELF = "You claim it yourself: it isn't automatic.";
@@ -451,7 +452,7 @@ describe("Boat's credit offer", () => {
     expect(storage.get(BOAT_OFFER_NOTICE)).toBe("1"); expect(hints()).toContain(BOAT_OFFER_NOTICE); expect(desk.saved?.seen).toContain(BOAT_OFFER_NOTICE);
     expect(await launch()).not.toContain(TITLE);
   };
-  afterEach(() => { BOAT_OFFER.until = null; });
+  afterEach(() => { BOAT_OFFER.until = 0; });
 
   it("never reaches a Team Cloud's member", async () => {
     fresh(); storage.delete(STAR_NOTICE);
@@ -527,7 +528,7 @@ describe("Boat's credit offer", () => {
     const draft = new URL(vi.mocked(window.ogb!.openExternal!).mock.calls[0]![0]);
     expect(`${draft.protocol}${draft.pathname}`).toBe("mailto:support@ascii.dev");
     expect(draft.searchParams.get("subject")).toBe("StartupBot introduced me: $50 Boat credit");
-    expect(draft.searchParams.get("body")!.replace(/\r\n/g, "\n")).toBe("Hi Boat team,\n\nMausBot introduced me to Boat. I'm on the $___ plan.\nMy Boat account email: ___\n\nThanks!");
+    expect(draft.searchParams.get("body")!.replace(/\r\n/g, "\n")).toBe("Hi Boat team,\n\nStartupBot introduced me to Boat. I'm on the $___ plan.\nMy Boat account email: ___\n\nThanks!");
     expect(vi.mocked(api).mock.calls.map(([path]) => path), "only the dismissal is saved").toEqual(["/api/config"]);
     expect(boatEvents()).toContainEqual({ action: "claim", place: "card" });
     await endedForGood();
@@ -603,6 +604,7 @@ describe("Boat's credit offer", () => {
 });
 
 describe("What's new after the update", () => {
+  afterEach(() => { BOAT_OFFER.until = 0; });
   const PRO = "Meet the new StartupBot Cloud", TEAM = "Shared bots for your whole team";
   const ID = WHATS_NEW_NOTICE;
   const BOAT = "$50 of Boat credit for you";
@@ -728,6 +730,7 @@ describe("What's new after the update", () => {
   });
 
   it("one promo a launch: What's new first; Boat's credit offer waits for the next launch, a reload in this one included", async () => {
+    BOAT_OFFER.until = null;
     returning(); storage.delete(BOAT_OFFER_NOTICE); storage.set(CLOUD_INTRO, "1"); desk.saved = null;
     const first = await launch();
     expect(on(first)).toBe("pro"); expect(first).not.toContain(BOAT);

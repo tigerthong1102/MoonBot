@@ -12,7 +12,10 @@ export const StartupBotAvatar = forwardRef<MausAvatarHandle, MausAvatarProps>(fu
   const live = animated && !reduced;
   const play = (frames: Keyframe[], duration: number) => {
     animation.current?.cancel();
-    if (live) animation.current = image.current?.animate?.(frames, { duration, easing: "ease-out" }) ?? null;
+    if (live) {
+      animation.current = image.current?.animate?.(frames, { duration, easing: "ease-out" }) ?? null;
+      void animation.current?.finished.catch(() => {});
+    }
   };
   useImperativeHandle(ref, () => ({
     blink: () => play([{ opacity: 1 }, { opacity: 0.55 }, { opacity: 1 }], 180),
@@ -20,7 +23,10 @@ export const StartupBotAvatar = forwardRef<MausAvatarHandle, MausAvatarProps>(fu
     setExpression: expression => { if (image.current) image.current.dataset.expression = String(expression); },
   }));
   useEffect(() => {
-    if (motion !== "none" && live) animation.current = image.current?.animate?.([{ transform: "scale(.94)" }, { transform: "scale(1)" }], { duration: 180, easing: "ease-out" }) ?? null;
+    if (motion !== "none" && live) {
+      animation.current = image.current?.animate?.([{ transform: "scale(.94)" }, { transform: "scale(1)" }], { duration: 180, easing: "ease-out" }) ?? null;
+      void animation.current?.finished.catch(() => {});
+    }
     return () => { animation.current?.cancel(); };
   }, [motion, motionKey, live]);
   return (

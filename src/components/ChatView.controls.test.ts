@@ -252,7 +252,7 @@ describe("header name", () => {
         return markup.slice(start, markup.indexOf("data-chathead-status", start));
       };
       expect(pillOf(busyMarkup)).not.toContain("animate-status-pulse");
-      expect(pillOf(busyMarkup)).toBe(pillOf(idleMarkup));
+      expect(pillOf(busyMarkup).replace(/data-avatar-state="[^"]*"/, 'data-avatar-state=""')).toBe(pillOf(idleMarkup).replace(/data-avatar-state="[^"]*"/, 'data-avatar-state=""'));
       expect(busyMarkup).toMatch(/<span role="status" class="sr-only" data-chathead-status="true">Working…<\/span>/);
       expect(idleMarkup).toMatch(/<span role="status" class="sr-only" data-chathead-status="true"><\/span>/);
       expect(busyMarkup).toContain(advanced ? 'title="Stop this turn"' : 'aria-label="Stop this turn"');

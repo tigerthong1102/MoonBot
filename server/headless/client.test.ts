@@ -50,6 +50,10 @@ describe("the server and the credential", () => {
 });
 
 describe("explain", () => {
+  it.each(["StartupBot", "OpenMausBot"])("extracts %s server refusals without changing authorization", async product => {
+    const error = Object.assign(new Error(`${product} API error (403): {"error":"admin scope required"}`), { status: 403 });
+    expect(await explain(error)).toMatchObject({ exitCode: 5, message: "not allowed: admin scope required" });
+  });
   it("turns refusals and unreachable servers into exit codes a script can branch on", async () => {
     const status = (code: number, message = "nope") => Object.assign(new Error(message), { status: code });
     expect(await explain(status(401))).toMatchObject({ exitCode: 5, hint: expect.stringContaining("--token-file") });

@@ -29,7 +29,7 @@ describe("StartupBot product text", () => {
 
   it("permits old names only in bounded compatibility, attribution and OSS dependency literals", () => {
     const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8" }).split("\n")
-      .filter(file => /^(?:src|server|electron|companion|relay|shared|packages\/phone-protocol\/src)\//.test(file)
+      .filter(file => (/^(?:src|server|electron|companion|relay|shared|packages\/phone-protocol\/src)\//.test(file) || file === "scripts/mcp-server.ts")
         && /\.(?:[cm]?js|tsx?)$/.test(file) && !/(?:\.test\.|\.node-test\.|\/testing\/|\/test\/|\.d\.[cm]?ts$)/.test(file));
     const found: string[] = [];
     for (const file of files) {

@@ -123,8 +123,8 @@ export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: str
   if (marked[0]) {
     let kept = marked[0];
     if (LEGACY_FACTORY_HELPER_NAMES.has(kept.name)) {
-      const taken = new Set(store.bots.filter(bot => bot.id !== kept.id).map(bot => bot.name.trim().toLowerCase()));
-      kept = store.patchBot(kept.id, { name: takeImportName(DEFAULT_BOT_NAME, taken) }) ?? kept;
+      const taken = new Set(person ? [] : store.bots.filter(bot => bot.id !== kept.id).map(bot => bot.name.trim().toLowerCase()));
+      kept = store.patchBot(kept.id, { name: takeImportName(DEFAULT_BOT_NAME, taken), ...(kept.sidebarHidden ? { sidebarHidden: true } : {}) }) ?? kept;
     }
     remember(options.dataDir, person, kept.id);
     return kept;

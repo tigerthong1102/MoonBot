@@ -50,6 +50,11 @@ const incidents = (w: ReturnType<typeof world>, after?: string) => w.health.repo
 const place = (state: PlaceRow["state"]): PlaceRow => ({ state, params: { bot: "Tallyspoon Ops", cause: "Boat said: quota exceeded for ada@example.test." }, source: "works-on" });
 
 describe("a Cloud home's memory pressure in its health report", () => {
+  it.each(["StartupBot", "OpenMausBot"])("recognizes a persisted %s restart", product => {
+    const w = world();
+    w.fail(`turn interrupted — ${product} restarted`);
+    expect(incidents(w)).toContainEqual({ kind: "turn", code: "restart", engine: null, count: 1 });
+  });
   it("carries the last day's counts where the home watches memory, and null where it does not", () => {
     expect(world().health.report(undefined)).toMatchObject({ room: null });
     const room = { waits: 3, waitMs: 360_000, stopped: 1, killed: 2, stallMinutes: 4 };

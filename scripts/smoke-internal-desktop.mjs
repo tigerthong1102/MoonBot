@@ -36,6 +36,11 @@ if (mac) {
   execFileSync("codesign", ["--verify", "--strict", app], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   writeFileSync(path.join(evidence, "macos-identity.json"), JSON.stringify({ ...identity, signatureVerified: true, privacyPermissionGrant: "NOT RUN" }, null, 2));
 }
+assert.deepEqual(
+  readFileSync(path.join(resources, "licenses", "cua-driver-LICENSE.txt")),
+  readFileSync(path.join(root, "third_party", "cua-driver", "LICENSE.md")),
+  "The installed Cua Driver notice must match the pinned upstream license",
+);
 const fixture = mkdtempSync(path.join(tmpdir(), "startupbot-package-"));
 const home = path.join(fixture, "home");
 const data = path.join(home, ".startupbot");

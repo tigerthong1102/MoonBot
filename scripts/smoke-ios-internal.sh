@@ -34,7 +34,7 @@ trap cleanup EXIT
 python3 scripts/mobile-command.py 30 xcrun simctl boot "$simulator_id"
 python3 scripts/mobile-command.py 600 xcrun simctl bootstatus "$simulator_id" -b
 app="$PWD/mobile-artifacts/DerivedData/Build/Products/Debug-iphonesimulator/StartupBot.app"
-python3 scripts/mobile-command.py 90 xcrun simctl install "$simulator_id" "$app"
+python3 scripts/install-ios-simulator.py "$simulator_id" "$app" mobile-artifacts/ios/installation.json
 python3 scripts/mobile-command.py 90 xcrun simctl launch "$simulator_id" ai.startupbot.ios --startupbot-internal-security-smoke 2>&1 | tee mobile-artifacts/ios/launch.txt
 data_container="$(python3 scripts/mobile-command.py 30 xcrun simctl get_app_container "$simulator_id" ai.startupbot.ios data)"
 for attempt in $(seq 1 30); do

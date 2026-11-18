@@ -64,6 +64,7 @@ Modified imported files:
 - `Sources/CompanionCore/BotActivityContent.swift`
 - `Sources/CompanionCore/Client.swift`
 - `Sources/CompanionCore/Failover.swift`
+- `Sources/CompanionCore/Frames.swift`
 - `Sources/CompanionCore/MausBodies.swift`
 - `Sources/CompanionCore/MausSilhouette.swift`
 - `Sources/CompanionCore/Models.swift`

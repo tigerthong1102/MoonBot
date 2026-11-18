@@ -457,18 +457,21 @@ private struct Lossy<Element: Decodable>: Decodable {
 public struct Fleet: Decodable, Sendable {
     public var bots: [Bot]
     public var groups: [Room]
+    public var botQueuedMessages: [String: [QueuedSend]]?
 
-    private enum CodingKeys: String, CodingKey { case bots, groups }
+    private enum CodingKeys: String, CodingKey { case bots, groups, botQueuedMessages }
 
-    public init(bots: [Bot], groups: [Room]) {
+    public init(bots: [Bot], groups: [Room], botQueuedMessages: [String: [QueuedSend]]? = nil) {
         self.bots = bots
         self.groups = groups
+        self.botQueuedMessages = botQueuedMessages
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         bots = try container.decodeIfPresent([Lossy<Bot>].self, forKey: .bots)?.compactMap(\.value) ?? []
         groups = try container.decodeIfPresent([Lossy<Room>].self, forKey: .groups)?.compactMap(\.value) ?? []
+        botQueuedMessages = try? container.decodeIfPresent([String: [QueuedSend]].self, forKey: .botQueuedMessages)
     }
 }
 

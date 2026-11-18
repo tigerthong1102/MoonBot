@@ -943,26 +943,25 @@ final class Session: ObservableObject {
     func send(_ text: String, to chat: Chat) async {
         let generation = runtimeGeneration
         await perform { client in
+            let queueRevision = chat.isBot ? self.state.botQueueRevision : nil
             let receipt: SendReceipt
             switch chat {
             case let .bot(bot):
                 receipt = try await client.send(text: text, toBot: bot.id, threadId: bot.threadId)
             case let .room(room):
-                receipt = try await client.send(text: text, toRoom: room.id)
+                receipt = try await client.send(text: text, toRoom: room.id, threadId: room.threadId)
             }
             try self.requireCurrent(client, generation: generation)
-            self.record(receipt, text: text, fallbackThreadId: chat.threadId)
+            self.record(receipt, text: text, fallbackThreadId: chat.threadId, botQueueRevision: queueRevision)
         }
     }
 
-    /// A send the harness held rather than ran has to stay on screen, or the
-    /// words simply vanish from the phone until the turn settles. `text` is
-    /// what the person typed; the harness echoes back only an id.
-    private func record(_ receipt: SendReceipt, text: String, fallbackThreadId: String) {
+    private func record(_ receipt: SendReceipt, text: String, fallbackThreadId: String, botQueueRevision: Int?) {
         guard case let .queued(queueId, threadId) = receipt else { return }
         state.rememberQueued(
             QueuedSend(queueId: queueId, text: text),
-            inThread: threadId.isEmpty ? fallbackThreadId : threadId
+            inThread: threadId.isEmpty ? fallbackThreadId : threadId,
+            ifBotQueueRevisionMatches: botQueueRevision
         )
     }
 
@@ -1063,6 +1062,7 @@ final class Session: ObservableObject {
                 urls: [],
                 attachments: uploaded
             )
+            let queueRevision = chat.isBot ? state.botQueueRevision : nil
             let receipt = try await client.send(text: message, to: destination, sendId: sendID)
             try requireCurrent(client, generation: generation)
             // The ghost shows what was typed, not what was sent: `message`
@@ -1072,7 +1072,8 @@ final class Session: ObservableObject {
             record(
                 receipt,
                 text: trimmed.isEmpty ? message : trimmed,
-                fallbackThreadId: chat.threadId
+                fallbackThreadId: chat.threadId,
+                botQueueRevision: queueRevision
             )
             attachmentSendIDs.removeValue(forKey: draftKey)
             actionError = nil

@@ -103,8 +103,6 @@ final class ApprovalClientTests: XCTestCase {
             let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: String])
             XCTAssertEqual(body["threadId"], "thread-a")
         }
-        // The server's selected thread may have moved to B. None of these
-        // requests is allowed to resolve its destination from that pointer.
         try await client.send(text: "hello", toBot: "bot-1", threadId: "thread-a")
         try assertTarget("/api/bots/bot-1/messages")
         try await client.interrupt(botId: "bot-1", threadId: "thread-a")
@@ -113,6 +111,14 @@ final class ApprovalClientTests: XCTestCase {
         try assertTarget("/api/bots/bot-1/read")
         try await client.markRead(roomId: "channel-1", threadId: "thread-a")
         try assertTarget("/api/groups/channel-1/read")
+        try await client.cancelQueued("queued-a", to: .bot(id: "bot-1", threadId: "thread-a"))
+        try assertTarget("/api/bots/bot-1/queue/queued-a")
+        XCTAssertEqual(ApprovalRequestStub.capturedRequest?.httpMethod, "DELETE")
+        try await client.cancelQueued("queued-a", to: .room(id: "channel-1", threadId: "thread-a"))
+        try assertTarget("/api/groups/channel-1/queue/queued-a")
+        ApprovalRequestStub.responseBody = Data(#"{"ok":true}"#.utf8)
+        _ = try await client.send(text: "same room task", toRoom: "channel-1", threadId: "thread-a")
+        try assertTarget("/api/groups/channel-1/messages")
         try await client.alwaysAllow(botId: "bot-1", key: "Bash:ls", threadId: "thread-a")
         try assertTarget("/api/bots/bot-1/always-allow")
         try await client.edit(botId: "bot-1", messageId: "message-a", text: "edit", threadId: "thread-a")

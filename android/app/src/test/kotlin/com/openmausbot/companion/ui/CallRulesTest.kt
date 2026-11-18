@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.ConfigFlag
@@ -11,8 +12,26 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** The call loop's decisions, read off `react()` in `ios/App/CallView.swift`. */
 class CallRulesTest {
+    @Test
+    fun `a call keeps its original task while the desktop selects another one`() {
+        val original = com.openmausbot.companion.core.Bot(
+            id = "bot", threadId = "a", name = "Fixture", title = "", description = "", notifications = true,
+            color = "blue", unread = false, createdAt = 1.0,
+            modelSelection = com.openmausbot.companion.core.ModelSelection("fake", "fake"),
+            tasks = listOf(
+                com.openmausbot.companion.core.BotTask(threadId = "a", title = "A", createdAt = 1.0),
+                com.openmausbot.companion.core.BotTask(threadId = "b", title = "B", createdAt = 2.0),
+            ),
+        )
+        val live = original.copy(threadId = "b", name = "Updated")
+        val state = com.openmausbot.companion.core.CompanionState(bots = listOf(live))
+        assertEquals("a", CallRules.botForCall(state, original)?.threadId)
+        assertEquals("Updated", CallRules.botForCall(state, original)?.name)
+        assertNull(CallRules.botForCall(state.copy(bots = listOf(live.copy(id = "other"))), original))
+        assertNull(CallRules.botForCall(state.copy(bots = emptyList()), original))
+    }
+
     private fun text(id: String, role: Message.Role = Message.Role.BOT, body: String = "Done.") =
         Message(id = id, role = role, kind = Message.Kind.TEXT, at = 1.0, text = body)
 

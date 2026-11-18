@@ -1358,8 +1358,10 @@ public struct CompanionClient: Sendable {
     }
 
     @discardableResult
-    public func send(text: String, toRoom groupId: String) async throws -> SendReceipt {
-        try await sendForReceipt(try makeRequest("POST", "/api/groups/\(groupId)/messages", body: ["text": text]))
+    public func send(text: String, toRoom groupId: String, threadId: String? = nil) async throws -> SendReceipt {
+        var body = ["text": text]
+        if let threadId { body["threadId"] = threadId }
+        return try await sendForReceipt(try makeRequest("POST", "/api/groups/\(groupId)/messages", body: body))
     }
 
     /// The harness's own answer when the entry is not in its queue. Matched
@@ -1376,16 +1378,19 @@ public struct CompanionClient: Sendable {
     public func cancelQueued(_ queueId: String, to destination: MessageDestination) async throws {
         guard Self.validRouteID(queueId) else { throw APIError.badURL }
         let route: String
+        let threadId: String
         switch destination {
-        case let .bot(id, _):
+        case let .bot(id, thread):
+            threadId = thread
             guard Self.validRouteID(id) else { throw APIError.badURL }
             route = "/api/bots/\(id)/queue/\(queueId)"
-        case let .room(id, _):
+        case let .room(id, thread):
+            threadId = thread
             guard Self.validRouteID(id) else { throw APIError.badURL }
             route = "/api/groups/\(id)/queue/\(queueId)"
         }
         do {
-            try await send(try makeRequest("DELETE", route))
+            try await send(try makeRequest("DELETE", route, body: ["threadId": threadId]))
         } catch let APIError.status(code, message) where code == 404 &&
             message?.localizedCaseInsensitiveContains(Self.alreadyDrained) == true {
             return

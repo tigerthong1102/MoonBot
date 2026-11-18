@@ -1,11 +1,4 @@
-// The SSE frames the harness broadcasts, as one enum.
-//
-// Every frame is `{ "kind": …, "seq": n, … }` with a payload keyed by kind
-// (see `broadcast` in server/index.ts). Decoding switches on `kind`, and —
-// this is the important part — an unrecognised kind decodes to `.unknown`
-// rather than throwing. The harness gains frame kinds over time, and a
-// phone from last month must keep folding the ones it does understand
-// instead of tearing down its stream over one it does not.
+// Modified for StartupBot; original copyright and license retained.
 import Foundation
 
 public struct NotificationFrame: Codable, Hashable, Sendable {
@@ -40,6 +33,7 @@ public enum Frame: Sendable {
     /// A branch switch: which leaf of the conversation is now visible.
     case thread(threadId: String, activeLeafId: String?)
     case bot(Bot)
+    case botQueued([String: [QueuedSend]])
     case botDeleted(botId: String)
     case room(Room)
     case roomDeleted(groupId: String)
@@ -58,7 +52,7 @@ public enum Frame: Sendable {
 extension Frame: Decodable {
     private enum CodingKeys: String, CodingKey {
         case kind, cursor, resumed, threadId, message, activeLeafId
-        case bot, botId, group, groupId, notification, png, mime, state, event
+        case queues, bot, botId, group, groupId, notification, png, mime, state, event
     }
 
     public init(from decoder: Decoder) throws {
@@ -86,6 +80,10 @@ extension Frame: Decodable {
                 threadId: try container.decode(String.self, forKey: .threadId),
                 activeLeafId: try container.decodeIfPresent(String.self, forKey: .activeLeafId)
             )
+        case "bot.queued":
+            if let queues = try? container.decode([String: [QueuedSend]].self, forKey: .queues) {
+                self = .botQueued(queues)
+            } else { self = .unknown(kind: kind) }
         case "bot":
             self = .bot(try container.decode(Bot.self, forKey: .bot))
         case "bot.deleted":

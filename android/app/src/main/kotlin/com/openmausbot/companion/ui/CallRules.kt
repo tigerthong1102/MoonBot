@@ -1,6 +1,9 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Message
+import com.openmausbot.companion.core.Bot
+import com.openmausbot.companion.core.CompanionState
 
 /** Where a call is — `CallView.Phase` on iOS. */
 enum class CallPhase { LISTENING, SENDING, WORKING, SPEAKING }
@@ -34,6 +37,9 @@ sealed class CallAction {
  * sends it back as a message, and the two of them talk forever.
  */
 object CallRules {
+    fun botForCall(state: CompanionState, original: Bot): Bot? =
+        state.botForThread(original.threadId)?.takeIf { it.id == original.id }
+
     /** The turn ends this long after the transcript last changed — the desktop's endpointer. */
     const val ENDPOINT_GAP_MILLIS: Long = 850L
 

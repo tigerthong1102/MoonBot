@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.activity.compose.BackHandler
@@ -28,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,7 +73,12 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val speaker = remember { CallSpeaker(context) }
     val state by session.state.collectAsState()
-    val current = state.bot(bot.id) ?: bot
+    val connection by session.connection.collectAsState()
+    val originConnectionId = remember { connection?.id }
+    val liveBot by rememberUpdatedState(
+        if (originConnectionId != null && connection?.id == originConnectionId) CallRules.botForCall(state, bot) else null,
+    )
+    val current = liveBot ?: bot
     val messages = remember(state, current.threadId) { state.visibleTranscript(current.threadId) }
     val transcript by microphone.transcript.collectAsState()
     val microphoneError by microphone.error.collectAsState()
@@ -86,7 +93,15 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
     var started by remember { mutableStateOf(false) }
     var sayGeneration by remember { mutableStateOf(0) }
 
+    LaunchedEffect(liveBot == null) {
+        if (liveBot == null) { microphone.stop(); speaker.stop(); onDismiss() }
+    }
+
+    fun activeCallBot(): Bot? = if (originConnectionId != null && session.connection.value?.id == originConnectionId)
+        CallRules.botForCall(session.state.value, bot) else null
+
     fun listen() {
+        if (activeCallBot() == null) return
         phase = CallPhase.LISTENING
         note = null
         microphone.listenForTurn(CallRules.ENDPOINT_GAP_MILLIS) { heard ->
@@ -95,7 +110,7 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
                 listen()
             } else {
                 phase = CallPhase.SENDING
-                scope.launch { session.send(said, Chat.BotChat(current)) }
+                scope.launch { activeCallBot()?.let { session.send(said, Chat.BotChat(it)) } }
             }
         }
     }
@@ -105,6 +120,7 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
      * still the one that asked (an interrupt or hang-up bumps the generation).
      */
     suspend fun say(text: String): Boolean {
+        if (activeCallBot() == null) return false
         sayGeneration += 1
         val mine = sayGeneration
         phase = CallPhase.SPEAKING
@@ -117,10 +133,10 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
             }
             val clips = ArrayList<ByteArray>(prepared.utterances.size)
             for (utterance in prepared.utterances) {
-                if (sayGeneration != mine) return false
+                if (sayGeneration != mine || activeCallBot() == null) return false
                 clips += session.speak(utterance, current.voice)
             }
-            if (sayGeneration != mine) return false
+            if (sayGeneration != mine || activeCallBot() == null) return false
             speaker.speak(clips) && sayGeneration == mine
         } catch (error: CancellationException) {
             throw error

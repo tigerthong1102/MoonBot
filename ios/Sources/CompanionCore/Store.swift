@@ -21,7 +21,7 @@ public struct SidebarSection: Identifiable, Hashable, Sendable {
 }
 
 /// A message waiting in the harness's steer queue, as this client knows it.
-public struct QueuedSend: Identifiable, Hashable, Sendable {
+public struct QueuedSend: Decodable, Identifiable, Hashable, Sendable {
     public var queueId: String
     public var text: String
 
@@ -69,9 +69,7 @@ public struct CompanionState: Sendable {
     /// this is the phone's copy, shown as a ghost below the transcript.
     /// Identified by the harness's queueId, never by text.
     public var pendingQueued: [String: [QueuedSend]] = [:]
-    /// queueIds whose drain frame beat the POST's own continuation. A short,
-    /// bounded tombstone list, so a slow response cannot re-add a ghost for
-    /// a message that is already in the transcript.
+    public private(set) var botQueueRevision = 0
     private(set) var drainedQueueIds: [String] = []
 
     public init() {}
@@ -261,6 +259,7 @@ public struct CompanionState: Sendable {
         // A hydrate can be the first thing this window sees after a turn
         // settled behind its back, so rows it is still holding may have
         // already drained into these transcripts.
+        if let queues = fleet.botQueuedMessages { replaceBotQueues(queues) }
         for threadId in Array(pendingQueued.keys) { reconcileQueued(inThread: threadId) }
     }
 
@@ -386,6 +385,9 @@ public struct CompanionState: Sendable {
                     messages[bot.threadId] = []
                 }
             }
+
+        case let .botQueued(queues):
+            replaceBotQueues(queues)
 
         case let .botDeleted(botId):
             if let index = bots.firstIndex(where: { $0.id == botId }) {
@@ -532,7 +534,10 @@ public struct CompanionState: Sendable {
     /// even returned — the harness settles a turn on its own clock. When it
     /// already has, the words are in the transcript and adding a ghost for
     /// them would show the message twice, so the tombstone wins and is spent.
-    public mutating func rememberQueued(_ send: QueuedSend, inThread threadId: String) {
+    public mutating func rememberQueued(_ send: QueuedSend, inThread threadId: String, ifBotQueueRevisionMatches expectedRevision: Int? = nil) {
+        if let expectedRevision, expectedRevision != botQueueRevision {
+            return
+        }
         if let index = drainedQueueIds.firstIndex(of: send.queueId) {
             drainedQueueIds.remove(at: index)
             return
@@ -541,6 +546,22 @@ public struct CompanionState: Sendable {
         guard !waiting.contains(where: { $0.queueId == send.queueId }) else { return }
         waiting.append(send)
         pendingQueued[threadId] = waiting
+    }
+
+    public mutating func replaceBotQueues(_ queues: [String: [QueuedSend]]) {
+        botQueueRevision &+= 1
+        let roomThreads = Set(rooms.flatMap { [$0.threadId] + ($0.tasks ?? []).map(\.threadId) })
+        let liveIDs = Set(queues.values.flatMap { $0.map(\.queueId) })
+        var next = queues.filter { !$0.value.isEmpty }
+        for (threadId, entries) in pendingQueued {
+            if roomThreads.contains(threadId) {
+                next[threadId] = entries
+            } else {
+                drainedQueueIds.append(contentsOf: entries.filter { !liveIDs.contains($0.queueId) }.map(\.queueId))
+            }
+        }
+        drainedQueueIds = Array(drainedQueueIds.suffix(Self.maxDrainedQueueIds))
+        pendingQueued = next
     }
 
     /// Drop a ghost because its line landed, and leave a tombstone behind.

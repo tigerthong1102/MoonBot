@@ -3625,12 +3625,12 @@
         }
       }
     },
-    "Take your bots with you": {
+    "Welcome to StartupBot": {
       "localizations": {
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Leve seus bots com você"
+            "value": "Boas-vindas ao StartupBot"
           }
         }
       }

@@ -19,7 +19,7 @@ struct CompanionWelcomeView: View {
                 }
 
                 VStack(spacing: 12) {
-                    Text("Take your bots with you")
+                    Text("Welcome to StartupBot")
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
                     Text("Open chats, approve actions, and send new work from this device.")

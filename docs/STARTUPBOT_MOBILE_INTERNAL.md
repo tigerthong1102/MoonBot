@@ -80,3 +80,20 @@ Android APK/AAB compilation and unit tests passed; emulator setup then failed
 while trying to re-resolve the already-used compile SDK from sdkmanager. The
 emulator setup now requests only its runtime and system image. Full artifact
 qualification remains conditional on a completed passing smoke run.
+
+Android internal acceptance: workflow
+[44215532499](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499)
+PASS at `5ac456cff0ff9027b9bc8ad76731b0ecadfb53a5`: core/app tests, APK/AAB,
+clean emulator installation, real launch and StartupBot onboarding/logo checks.
+The [actual artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499/artifacts/14387623543)
+contains the debug-signed APK, unsigned AAB, smoke evidence and checksums.
+Physical pairing, live model/chat and real desktop-mobile approvals remain
+NOT RUN. The desktop marker-parser changes do not ship in the Android APK.
+
+iOS build and 402 core tests pass, but 44210771414 receives a SpringBoard launch
+denial. Its diagnostic successor 44214357661 waits for the simulator system app
+for 8m25s, then is canceled before application acceptance. The log does not
+establish who canceled it or why; no iOS app is qualified. Further runs use an owned disposable
+simulator matching the Xcode SDK, bounded simulator commands and diagnostic
+cleanup, retaining the real Keychain/App Group canary and navigation tests.
+Only standard public-repository runners are selectable, not paid larger runners.

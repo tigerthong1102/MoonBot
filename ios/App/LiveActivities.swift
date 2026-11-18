@@ -49,7 +49,7 @@ final class LiveActivityCoordinator {
                 headline: update.kind == .needsYou ? "\(bot.name) needs you" : "\(bot.name) is working",
                 line: update.line.isEmpty ? (update.card?.title ?? "") : update.line,
                 threadId: update.chat.threadId,
-                card: update.card,
+                card: update.card?.questionRequest == nil ? update.card : nil,
                 since: since[bot.id]?.at ?? Date()
             )
             if lastSent[bot.id] == content { continue }

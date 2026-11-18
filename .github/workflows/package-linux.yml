@@ -323,8 +323,8 @@ jobs:
           bash scripts/smoke-android-internal.sh
       - name: Prepare verified internal artifacts
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk mobile-artifacts/android/StartupBot-0.1.1-INTERNAL-debug.apk
-          cp android/app/build/outputs/bundle/release/app-release.aab mobile-artifacts/android/StartupBot-0.1.1-UNSIGNED.aab
+          cp android/app/build/outputs/apk/debug/app-debug.apk mobile-artifacts/android/StartupBot-0.1.2-INTERNAL-debug.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab mobile-artifacts/android/StartupBot-0.1.2-UNSIGNED.aab
           cp android/LICENSE android/NOTICE docs/STARTUPBOT_MOBILE_INTERNAL.md mobile-artifacts/android/
           git rev-parse HEAD > mobile-artifacts/android/COMMIT.txt
           cd mobile-artifacts/android
@@ -381,12 +381,12 @@ jobs:
         run: bash scripts/smoke-ios-internal.sh
       - name: Prepare verified simulator artifact
         run: |
-          ditto -c -k --keepParent mobile-artifacts/ios/StartupBot.app mobile-artifacts/ios/StartupBot-0.1.1-SIMULATOR.zip
+          ditto -c -k --keepParent mobile-artifacts/ios/StartupBot.app mobile-artifacts/ios/StartupBot-0.1.2-SIMULATOR.zip
           rm -rf mobile-artifacts/ios/StartupBot.app
           cp ios/LICENSE ios/NOTICE docs/STARTUPBOT_MOBILE_INTERNAL.md mobile-artifacts/ios/
           git rev-parse HEAD > mobile-artifacts/ios/COMMIT.txt
           cd mobile-artifacts/ios
-          shasum -a 256 StartupBot-0.1.1-SIMULATOR.zip > SHA256SUMS.txt
+          shasum -a 256 StartupBot-0.1.2-SIMULATOR.zip > SHA256SUMS.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: StartupBot-iOS-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}

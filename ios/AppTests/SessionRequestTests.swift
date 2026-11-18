@@ -23,10 +23,10 @@ final class DeferredResponseProtocol: URLProtocol {
 
     static func finish(status: Int, body: String) throws {
         lock.lock()
-        let pending = active
+        let captured = active
         active = nil
         lock.unlock()
-        let pending = try XCTUnwrap(pending)
+        let pending = try XCTUnwrap(captured)
         let response = try XCTUnwrap(HTTPURLResponse(url: pending.request.url!, statusCode: status, httpVersion: nil, headerFields: ["content-type": "application/json"]))
         pending.client?.urlProtocol(pending, didReceive: response, cacheStoragePolicy: .notAllowed)
         pending.client?.urlProtocol(pending, didLoad: Data(body.utf8))
@@ -171,6 +171,23 @@ final class SessionRequestTests: XCTestCase {
                 XCTAssertEqual(session.state.bot("bot")?.id, "bot")
                 XCTAssertNil(session.actionError)
             }
+        }
+    }
+
+    @MainActor
+    func testStructuredAnswersRequireAcknowledgmentFromTheCurrentComputer() async throws {
+        let card = try JSONDecoder().decode(OptionCard.self, from: Data("""
+        {"title":"Questions","subtitle":"","options":[],"requestId":"ask","tool":"AskUserQuestion","requestType":"question","questionRequest":{"version":1,"questions":[{"question":"Notes?","options":[]}]}}
+        """.utf8))
+        let request = try XCTUnwrap(card.questionRequest)
+        var form = QuestionAnswerForm()
+        form.setCustom("fixture answer", at: 0, in: request)
+        for replace in [false, true] {
+            let (session, accepted) = try await exercise(status: 200, body: "{}", replace: replace) { session, bot in
+                await session.answerQuestions(chat: .bot(bot), card: card, form: form)
+            }
+            XCTAssertEqual(accepted, !replace)
+            XCTAssertEqual(session.status, .live)
         }
     }
 }

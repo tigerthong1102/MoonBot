@@ -13,6 +13,13 @@ model selection in both share clients. Imported historical comment narration
 is removed; license/attribution, OS facts and security contracts are retained.
 All platform acceptance must be rerun for this changed native source.
 
+Internal 0.1.2 adds structured iOS question inputs and strict question/permission
+classification. Shared canonical answer vectors verify both mobile formatters,
+including newline/header boundaries. Android honors option-only questions and
+keeps failed submissions retryable until server acknowledgment. iOS callback
+scope includes bot/task/history/profile/routine/connector operations. These
+changes require fresh native acceptance and do not change transport scopes.
+
 Modified imported files:
 
 - `App/AgentProfileView.swift`
@@ -51,6 +58,7 @@ Modified imported files:
 - `Sources/CompanionCore/Client.swift`
 - `Sources/CompanionCore/Failover.swift`
 - `Sources/CompanionCore/MausSilhouette.swift`
+- `Sources/CompanionCore/Models.swift`
 - `Sources/CompanionCore/SSE.swift`
 - `Sources/CompanionCore/SendReceipt.swift`
 - `TESTING.md`

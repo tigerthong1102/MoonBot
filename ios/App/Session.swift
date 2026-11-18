@@ -173,9 +173,11 @@ final class Session: ObservableObject {
         }
 #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
+        let previewResource = arguments.contains("-structured-question-preview") ? "QuestionPreview"
+            : arguments.contains("-threads-preview") ? "ThreadPreview" : "StorePreview"
         if (arguments.contains("-store-preview") || arguments.contains("-computer-switcher-preview")),
            let url = Bundle.main.url(
-               forResource: arguments.contains("-threads-preview") ? "ThreadPreview" : "StorePreview",
+               forResource: previewResource,
                withExtension: "json"
            ),
            let data = try? Data(contentsOf: url),
@@ -1476,6 +1478,21 @@ final class Session: ObservableObject {
     func alwaysAllow(bot: Bot, card: OptionCard) async {
         guard let key = card.allowKey else { return }
         await perform { try await $0.alwaysAllow(botId: bot.id, key: key, threadId: bot.threadId) }
+    }
+
+    func answerQuestions(chat: Chat, card: OptionCard, form: QuestionAnswerForm) async -> Bool {
+        guard let client, card.isPending, !card.isPermission, let request = card.questionRequest,
+              let requestID = card.requestId, let answer = form.answer(in: request) else { return false }
+        let generation = runtimeGeneration
+        do {
+            try currentResult(try await client.respond(threadId: chat.threadId, requestId: requestID, behavior: "answer", message: answer), using: client, generation: generation)
+            return true
+        } catch {
+            guard isCurrent(client, generation: generation) else { return false }
+            if (error as? APIError)?.isUnauthorized == true { status = .unauthorized }
+            actionError = error.localizedDescription
+            return false
+        }
     }
 
     /// Make a new bot. The harness chooses its name, colour and greeting, so

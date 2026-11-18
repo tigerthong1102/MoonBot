@@ -47,8 +47,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.startupbot.ios
-        MARKETING_VERSION: "0.1.1"
-        CURRENT_PROJECT_VERSION: "3"
+        MARKETING_VERSION: "0.1.2"
+        CURRENT_PROJECT_VERSION: "4"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
         # The catalog lives in App/, which is already a source path.
@@ -181,8 +181,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.startupbot.ios.share
-        MARKETING_VERSION: "0.1.1"
-        CURRENT_PROJECT_VERSION: "3"
+        MARKETING_VERSION: "0.1.2"
+        CURRENT_PROJECT_VERSION: "4"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
         APPLICATION_EXTENSION_API_ONLY: YES
@@ -241,8 +241,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.startupbot.ios.widgets
-        MARKETING_VERSION: "0.1.1"
-        CURRENT_PROJECT_VERSION: "3"
+        MARKETING_VERSION: "0.1.2"
+        CURRENT_PROJECT_VERSION: "4"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: true

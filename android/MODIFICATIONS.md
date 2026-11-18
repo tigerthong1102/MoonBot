@@ -12,6 +12,13 @@ model selection in both share clients. Imported historical comment narration
 is removed; license/attribution, OS facts and security contracts are retained.
 All platform acceptance must be rerun for this changed native source.
 
+Internal 0.1.2 adds structured iOS question inputs and strict question/permission
+classification. Shared canonical answer vectors verify both mobile formatters,
+including newline/header boundaries. Android honors option-only questions and
+keeps failed submissions retryable until server acknowledgment. iOS callback
+scope includes bot/task/history/profile/routine/connector operations. These
+changes require fresh native acceptance and do not change transport scopes.
+
 Modified imported files:
 
 - `.gitignore`
@@ -37,6 +44,7 @@ Modified imported files:
 - `app/src/main/kotlin/com/openmausbot/companion/ui/PermissionRequests.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ProfileRules.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/QrScannerScreen.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/ui/QuestionCard.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/RootScreen.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/RosterScreen.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/RoutineRules.kt`
@@ -69,6 +77,7 @@ Modified imported files:
 - `app/src/test/kotlin/com/openmausbot/companion/ui/SharePolicyTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/TranscriptRunTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/VoiceSectionWiringTest.kt`
+- `core/src/main/kotlin/com/openmausbot/companion/core/AskQuestion.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/Client.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/Connection.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/Failover.kt`
@@ -76,12 +85,14 @@ Modified imported files:
 - `core/src/main/kotlin/com/openmausbot/companion/core/SendReceipt.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/Session.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/ThreadNavigation.kt`
+- `core/src/test/kotlin/com/openmausbot/companion/core/AskQuestionTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/DecodingTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/FailoverTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/FixtureSupport.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/PairingClientTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/QueuedSendTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/SessionRouteSerializationTest.kt`
+- `core/src/test/kotlin/com/openmausbot/companion/core/SessionTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/ThreadNavigationTest.kt`
 - `gradle/wrapper/gradle-wrapper.properties`
 - `gradlew.bat`

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.background
@@ -42,44 +43,32 @@ import com.openmausbot.companion.core.Chat
 import com.openmausbot.companion.core.Message
 import kotlinx.coroutines.launch
 
-/**
- * The question card: what the bot actually asked, and its own answers.
- *
- * A structured ask (Claude's `AskUserQuestion`) reaches the harness through
- * the permission channel, so before this it drew the ordinary card — a flat
- * row of buttons over "which model should this bot run on?". One tap could not
- * say WHICH question it answered, so a multi-question ask had nothing tappable
- * at all and the phone could only watch it time out.
- *
- * The desktop's `src/components/QuestionCard.tsx` and its Swift twin
- * `ios/App/Cards/QuestionCardView.swift`, in Compose: a tab per question, the
- * model's options with their glosses, an "Other" row for a reply it did not
- * think of, and one submit that sends every answer at once. The answer text is
- * built by [AskQuestionAnswer.format], so an answer given here is
- * byte-for-byte the one the Mac would have sent.
- */
 @Composable
 internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
     val card = message.card ?: return
     val questions = card.questions
     if (questions.isEmpty()) return
+    if (card.questionRequest?.version != 1) {
+        Text("This question format is not supported. Open it on your computer.")
+        return
+    }
 
     val session = LocalCompanion.current.session
     val scope = rememberCoroutineScope()
     // Per question: the option labels ticked, the free-text reply, and whether
     // "Other" is open. An open field with nothing in it is not an answer.
-    val picked = remember(message.id) { mutableStateMapOf<Int, Set<String>>() }
-    val custom = remember(message.id) { mutableStateMapOf<Int, String>() }
-    val other = remember(message.id) { mutableStateMapOf<Int, Boolean>() }
-    var active by remember(message.id) { mutableStateOf(0) }
-    var answering by remember(message.id) { mutableStateOf(false) }
+    val picked = remember(message.id, card.requestId, card.questionRequest) { mutableStateMapOf<Int, Set<String>>() }
+    val custom = remember(message.id, card.requestId, card.questionRequest) { mutableStateMapOf<Int, String>() }
+    val other = remember(message.id, card.requestId, card.questionRequest) { mutableStateMapOf<Int, Boolean>() }
+    var active by remember(message.id, card.requestId, card.questionRequest) { mutableStateOf(0) }
+    var answering by remember(message.id, card.requestId, card.questionRequest) { mutableStateOf(false) }
     // The harness settles the card, but only after a round trip. Holding the
     // sent answer closes the window where the buttons are still live.
-    var sent by remember(message.id) { mutableStateOf<String?>(null) }
+    var sent by remember(message.id, card.requestId, card.questionRequest) { mutableStateOf<String?>(null) }
 
     fun answersFor(position: Int): List<String> {
         val chosen = picked[position].orEmpty().sorted().toMutableList()
-        if (other[position] == true) {
+        if (questions[position].allowsCustom && other[position] == true) {
             custom[position]?.trim()?.takeIf { it.isNotEmpty() }?.let(chosen::add)
         }
         return chosen
@@ -88,7 +77,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
     val index = active.coerceIn(0, questions.lastIndex)
     val current = questions[index]
     val answeredCount = questions.indices.count { answersFor(it).isNotEmpty() }
-    val complete = answeredCount == questions.size
+    val complete = answeredCount == questions.size && custom.values.all { it.length <= 2_000 }
     val settled = card.answered != null || sent != null
 
     fun choose(label: String) {
@@ -110,7 +99,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
     }
 
     fun toggleOther() {
-        if (settled) return
+        if (settled || !current.allowsCustom) return
         if (other[index] == true) {
             other[index] = false
             return
@@ -124,17 +113,16 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
         if (settled || !complete || requestId == null) return
         val answer = AskQuestionAnswer.format(questions, questions.indices.map(::answersFor))
         if (answer.isEmpty()) return
-        sent = answer
         answering = true
         scope.launch {
             // A question only ever answers with text; the harness rejects an
             // allow/deny on one, so this never takes the permission path.
-            session.answer(
+            val accepted = session.answerQuestion(
                 threadId = chat.threadId,
-                requestId = requestId,
-                choice = answer,
-                isPermission = false,
+                card = card,
+                answer = answer,
             )
+            if (accepted) sent = answer
             answering = false
         }
     }
@@ -259,6 +247,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
                     choose(option.label)
                 }
             }
+            if (current.allowsCustom) {
             if (current.options.isNotEmpty()) HorizontalDivider()
             ChoiceRow(
                 label = "Other",
@@ -275,6 +264,8 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
                 OutlinedTextField(
                     value = custom[index].orEmpty(),
                     onValueChange = { custom[index] = it },
+                    isError = (custom[index]?.length ?: 0) > 2_000,
+                    supportingText = { Text("${custom[index]?.length ?: 0}/2000") },
                     placeholder = { Text("Type your own answer") },
                     singleLine = false,
                     maxLines = 4,
@@ -283,6 +274,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
                         .fillMaxWidth()
                         .padding(10.dp),
                 )
+            }
             }
         }
 

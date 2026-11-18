@@ -1,0 +1,69 @@
+{
+  "bots": [
+    {
+      "id": "question-fixture",
+      "threadId": "question-thread",
+      "name": "Question fixture",
+      "title": "Test agent",
+      "description": "",
+      "notifications": true,
+      "color": "blue",
+      "unread": false,
+      "createdAt": 1,
+      "modelSelection": {
+        "instanceId": "fixture",
+        "model": "fixture"
+      },
+      "messages": [
+        {
+          "id": "question-message",
+          "role": "bot",
+          "kind": "options",
+          "at": 1,
+          "card": {
+            "title": "A few questions",
+            "subtitle": "",
+            "options": [],
+            "requestId": "question-request",
+            "tool": "AskUserQuestion",
+            "requestType": "question",
+            "questionRequest": {
+              "version": 1,
+              "questions": [
+                {
+                  "question": "Which plans?",
+                  "header": "Plans",
+                  "multiSelect": true,
+                  "custom": false,
+                  "options": [
+                    {
+                      "label": "Basic"
+                    },
+                    {
+                      "label": "Pro"
+                    }
+                  ]
+                },
+                {
+                  "question": "When?",
+                  "header": "Schedule",
+                  "custom": false,
+                  "options": [
+                    {
+                      "label": "Today"
+                    },
+                    {
+                      "label": "Tomorrow"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "activeLeafId": "question-message"
+    }
+  ],
+  "groups": []
+}

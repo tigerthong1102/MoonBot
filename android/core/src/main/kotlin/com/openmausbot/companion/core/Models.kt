@@ -83,6 +83,7 @@ data class OptionCard(
      * Present only on a structured ask; every other card leaves it null.
      */
     val questionRequest: QuestionRequestCardData? = null,
+    val requestType: String? = null,
     /**
      * What an answered question was answered WITH. `answered` only records the
      * behavior once the harness settles a live ask, so without this a settled
@@ -91,7 +92,8 @@ data class OptionCard(
     val answeredText: String? = null,
 ) {
     val isPending: Boolean get() = requestId != null && answered == null && dismissed != true
-    val isPermission: Boolean get() = tool != null
+    val isPermission: Boolean get() = questionRequest == null && requestType != "question" &&
+        (requestType == "permission" || (requestType == null && tool != null))
 
     /**
      * A structured ask draws its own card: the model posed real questions with

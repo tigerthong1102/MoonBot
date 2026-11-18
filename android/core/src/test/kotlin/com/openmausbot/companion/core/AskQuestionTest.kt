@@ -1,22 +1,35 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.serialization.Serializable
 
-/**
- * A structured ask (Claude's `AskUserQuestion`) as the harness puts it on a
- * card, and the answer text the phone sends back for it.
- *
- * The expectations come from the desktop, not from the Kotlin under them:
- * `shared/ask-question.ts` builds this exact string and the model receives it
- * as its tool result, so an answer given on Android has to be
- * indistinguishable from one given on the Mac or in
- * `ios/Sources/CompanionCore/AskQuestion.swift`. If the three ever disagree,
- * this test is the one that says so.
- */
 class AskQuestionTest {
+    @Serializable
+    private data class AnswerVector(val request: QuestionRequestCardData, val answers: List<List<String>>, val formatted: String)
+
+    @Test
+    fun `formatter matches canonical phone protocol including multiline boundaries`() {
+        val text = checkNotNull(javaClass.getResourceAsStream("/question-answer-v1.json")).bufferedReader().use { it.readText() }
+        val vectors = CompanionJson.decodeFromString<List<AnswerVector>>(text)
+        assertTrue(vectors.size >= 4)
+        for (vector in vectors) assertEquals(vector.formatted, AskQuestionAnswer.format(vector.request.questions, vector.answers))
+    }
+
+    @Test
+    fun `custom false forbids free text beside options but never disables free-text-only questions`() {
+        val option = AskQuestionOption("Only choice")
+        assertFalse(AskQuestion("Choose", options = listOf(option), custom = false).allowsCustom)
+        assertTrue(AskQuestion("Notes", custom = false).allowsCustom)
+        val ask = card().copy(tool = "AskUserQuestion", allowKey = "must-not-grant")
+        assertFalse(ask.isPermission)
+        assertFalse(ask.shouldRememberPermission("Always allow"))
+        assertEquals("answer", ask.responseBehavior("Always allow"))
+    }
+
     private val payload = """
         {
           "title": "Your bot has a question",

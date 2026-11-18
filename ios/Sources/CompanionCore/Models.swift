@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 // The harness's wire types, in Swift.
 //
 // These mirror `server/store.ts` and the payloads in `server/index.ts`.
@@ -45,6 +46,7 @@ public struct OptionCard: Codable, Hashable, Sendable {
     public var subtitle: String
     public var options: [String]
     public var answered: String?
+    public var answeredText: String? = nil
     public var dismissed: Bool?
     /// Present when this card is a live provider ask — the thing that makes
     /// it answerable rather than historical.
@@ -57,6 +59,8 @@ public struct OptionCard: Codable, Hashable, Sendable {
     /// Learned skills must show their complete reviewed contents before an
     /// approval button is offered on a compact companion surface.
     public var skillRequest: SkillRequestCardData? = nil
+    public var requestType: String? = nil
+    public var questionRequest: QuestionRequestCardData? = nil
 
     /// A card is actionable while it is unanswered and still has a request
     /// behind it. Everything else is transcript.
@@ -65,7 +69,10 @@ public struct OptionCard: Codable, Hashable, Sendable {
     }
 
     /// Permission cards carry a tool; questions do not.
-    public var isPermission: Bool { tool != nil }
+    public var isPermission: Bool {
+        guard questionRequest == nil, requestType != "question" else { return false }
+        return requestType == "permission" || (requestType == nil && tool != nil)
+    }
 
     /// The wire API accepts an approval behavior rather than the button's
     /// display text. Treat the one refusal as deny and every other offered

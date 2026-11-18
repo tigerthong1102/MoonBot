@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 import java.net.ConnectException
@@ -36,6 +37,29 @@ import okhttp3.mockwebserver.MockWebServer
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionTest {
+    @Test
+    fun structuredQuestionRemainsRetryableUntilTheServerAcknowledgesIt() = runTest {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val connection = requireNotNull(Connection.parse(server.url("/").toString()))
+            val tokens = FakeTokenStore().apply { saved[connection.id] = "fixture-token" }
+            val session = session(connectionStore = FakeConnectionStore(connection), tokenStore = tokens)
+            session.awaitRestored()
+            val card = OptionCard(title = "Question", subtitle = "", options = emptyList(), requestId = "ask",
+                tool = "AskUserQuestion", questionRequest = QuestionRequestCardData(questions = listOf(AskQuestion("Notes?"))))
+            for (status in listOf(500, 200, 401)) {
+                server.enqueue(MockResponse().setResponseCode(status).setHeader("Content-Type", "application/json").setBody("{}"))
+                assertEquals(status == 200, session.answerQuestion("thread", card, "fixture answer"))
+                if (status == 200) assertNull(session.actionError)
+                val request = assertNotNull(server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS))
+                assertEquals("/api/threads/thread/respond", request.path)
+                assertTrue(request.body.readUtf8().contains("\"behavior\":\"answer\""))
+            }
+            assertEquals(Session.Status.Unauthorized, session.status.value)
+        } finally { server.shutdown() }
+    }
+
     @Test
     fun restoreWithMissingConnectionStaysUnpaired() = runTest {
         val session = session()

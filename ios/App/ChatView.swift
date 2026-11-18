@@ -2254,6 +2254,9 @@ struct CardView: View {
                 }
 
                 if card.isPending {
+                    if let request = card.questionRequest {
+                        StructuredQuestionCardView(chat: chat, card: card, request: request)
+                    } else {
                     HStack(spacing: 8) {
                         ForEach(card.options, id: \.self) { option in
                             Button {
@@ -2288,7 +2291,7 @@ struct CardView: View {
                     // wider than the computer would have. The same goes for
                     // the answer: it is one of the options the card offered,
                     // never a string invented here.
-                    if card.allowKey != nil, let allow = allowChoice, case let .bot(bot) = chat {
+                    if card.isPermission, card.allowKey != nil, let allow = allowChoice, case let .bot(bot) = chat {
                         Button("Always allow this tool") {
                             Haptics.selection()
                             answering = true
@@ -2308,8 +2311,9 @@ struct CardView: View {
                         .frame(maxWidth: .infinity)
                         .disabled(answering)
                     }
+                    }
                 } else if let answered = card.answered {
-                    Label(answered, systemImage: "checkmark.circle")
+                    Label(QuestionAnswerForm.display(card.answeredText ?? answered), systemImage: "checkmark.circle")
                         .font(.system(size: 14))
                         .foregroundStyle(Color.secondary)
                 }

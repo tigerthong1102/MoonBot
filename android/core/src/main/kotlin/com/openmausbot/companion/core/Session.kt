@@ -1454,6 +1454,31 @@ class Session(
         perform { it.alwaysAllow(bot.id, key, bot.threadId) }
     }
 
+    suspend fun answerQuestion(threadId: String, card: OptionCard, answer: String): Boolean {
+        val activeClient = client ?: return false
+        val requestId = card.requestId ?: return false
+        if (!card.isPending || card.isPermission || card.questionRequest?.version != 1 || answer.isBlank() || answer.length > 100_000) return false
+        val current = gate.withLock {
+            if (client !== activeClient) false else { _actionError.value = null; true }
+        }
+        if (!current) return false
+        return try {
+            activeClient.respond(threadId = threadId, requestId = requestId, behavior = "answer", message = answer)
+            currentCoroutineContext().ensureActive()
+            gate.withLock { client === activeClient }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            gate.withLock {
+                if (client === activeClient) {
+                    if ((error as? APIError)?.isUnauthorized == true) _status.value = Status.Unauthorized
+                    _actionError.value = error.message
+                }
+            }
+            false
+        }
+    }
+
     suspend fun createBot(): Bot? {
         val activeClient = client ?: return null
         return try {

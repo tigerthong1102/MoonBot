@@ -1278,21 +1278,26 @@ final class Session: ObservableObject {
         try? FileManager.default.removeItem(at: root)
     }
 
-    func answer(chat: Chat, card: OptionCard, choice: String, rememberingPermission: Bool = true) async {
-        guard let client else { return }
+    func answer(chat: Chat, card: OptionCard, choice: String, rememberingPermission: Bool = false) async {
         let generation = runtimeGeneration
         guard let requestId = card.requestId else { return }
-        if rememberingPermission, card.shouldRememberPermission(for: choice), case let .bot(bot) = chat {
-            await alwaysAllow(bot: bot, card: card)
+        let behavior = OptionCard.responseBehavior(for: choice, isPermission: card.isPermission)
+        await perform { client in
+            if rememberingPermission || card.shouldRememberPermission(for: choice) {
+                guard card.isPermission, behavior == "allow", let key = card.allowKey, case let .bot(bot) = chat else {
+                    throw APIError.status(code: 409, message: "This request cannot create a standing permission.")
+                }
+                try await client.alwaysAllow(botId: bot.id, key: key, threadId: chat.threadId)
+                try self.requireCurrent(client, generation: generation)
+            }
+            try await client.respond(
+                threadId: chat.threadId,
+                requestId: requestId,
+                behavior: behavior,
+                message: behavior == "answer" ? choice : nil,
+                reviewedSha256: behavior == "allow" ? card.skillRequest?.reviewedSha256 : nil
+            )
         }
-        guard isCurrent(client, generation: generation) else { return }
-        await answer(
-            threadId: chat.threadId,
-            requestId: requestId,
-            choice: choice,
-            isPermission: card.isPermission,
-            reviewedSha256: card.skillRequest?.reviewedSha256
-        )
     }
 
     /// Synchronously seal a credential before the caller starts an async
@@ -1476,14 +1481,6 @@ final class Session: ObservableObject {
                 try await $0.respond(threadId: threadId, requestId: requestId, behavior: "answer", message: choice)
             }
         }
-    }
-
-    /// "Always allow" — the grant key comes from the card, never from
-    /// anything derived here, so the phone and the harness cannot disagree
-    /// about what was just permitted.
-    func alwaysAllow(bot: Bot, card: OptionCard) async {
-        guard let key = card.allowKey else { return }
-        await perform { try await $0.alwaysAllow(botId: bot.id, key: key, threadId: bot.threadId) }
     }
 
     func answerQuestions(chat: Chat, card: OptionCard, form: QuestionAnswerForm) async -> Bool {

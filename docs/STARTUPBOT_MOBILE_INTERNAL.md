@@ -240,7 +240,7 @@ The review on `566cd142643d5acc0018678ba43713f6c0bc3f9d` confirmed three additio
 Android text-only sends use the same acknowledged, idempotent pipeline as attachments. Failed sends retain the draft, successful replies clear only the captured draft, newer edits survive, and a stale computer cannot receive the captured request or overwrite current state/errors. Regression tests cover draft outcomes, same send ID on retry, zero requests to a mismatched origin, channel cold recovery and reference review boundaries. iOS 0.1.2 build 10 includes the reference preview. Native builds/tests for these changed sources are required; the earlier Android 0.1.4 artifact is provisional and lacks these follow-ups. The Simulator install verifier also checks the debug dylib when present.
 
 
-## Compact internal candidates — Android 0.1.6 / iOS build 11
+## Compact internal candidates — Android 0.1.6 / iOS build 12
 
 Android produces four standalone CPU-specific APKs plus a universal fallback;
 AAB delivery remains available. The phone ARM64 APK omits only other CPUs'
@@ -298,3 +298,13 @@ passed Android unit/build/emulator gates and iOS 420 core tests, 19 AppTests,
 and iOS 0.1.2 build 10 remain the qualified fallback until the compact
 candidate has its own successful native results. Physical-device and real
 computer-pairing acceptance remains NOT RUN.
+
+
+The first unsigned device archive in run 44273981659 compiled successfully,
+then failed the wrapper's `lipo -verify_arch` argument order. The wrapper is
+corrected to place the input before that variable-length option. Build 12
+also fixes the confirmed Always Allow computer-switch race: a grant and its
+approval share one captured client/runtime, rejected grants stop the sequence,
+and a changed runtime cannot submit the answer. SessionRequestTests adds
+request-level regressions for success, rejection and computer/runtime switches.
+New iOS acceptance is required; Android source remains 0.1.6 unchanged.

@@ -7,6 +7,17 @@ final class DeferredResponseProtocol: URLProtocol {
     private static let lock = NSLock()
     private static var active: DeferredResponseProtocol?
     static var started: (() -> Void)?
+    private static var capturedRequests: [URLRequest] = []
+
+    static func resetRequests() {
+        lock.lock(); defer { lock.unlock() }
+        capturedRequests = []
+    }
+
+    static func requests() -> [URLRequest] {
+        lock.lock(); defer { lock.unlock() }
+        return capturedRequests
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -14,6 +25,7 @@ final class DeferredResponseProtocol: URLProtocol {
     override func startLoading() {
         Self.lock.lock()
         Self.active = self
+        Self.capturedRequests.append(request)
         let notify = Self.started
         Self.lock.unlock()
         notify?()
@@ -291,6 +303,59 @@ final class SessionRequestTests: XCTestCase {
         }
         XCTAssertNil(session.actionError)
         XCTAssertEqual(session.status, .live)
+    }
+
+
+    @MainActor
+    func testStandingPermissionCannotAnswerThroughAnotherComputerOrRuntime() async throws {
+        let card = try JSONDecoder().decode(OptionCard.self, from: Data(#"""
+        {"title":"Allow fixture?","subtitle":"","options":["Allow","Deny"],"requestId":"approval","tool":"Bash","requestType":"permission","allowKey":"Bash:fixture"}
+        """#.utf8))
+        for sameID in [false, true] {
+            DeferredResponseProtocol.resetRequests()
+            let (session, _) = try await exercise(status: 200, body: "{}", replace: true, sameID: sameID) { session, bot in
+                await session.answer(chat: .bot(bot), card: card, choice: "Allow", rememberingPermission: true)
+            }
+            let requests = DeferredResponseProtocol.requests()
+            XCTAssertEqual(requests.count, 1)
+            XCTAssertEqual(requests.first?.url?.path, "/api/bots/bot/always-allow")
+            XCTAssertEqual(requests.first?.url?.port, 19991)
+            XCTAssertEqual(session.status, .live)
+            XCTAssertEqual(session.actionError, "current connection notice")
+        }
+    }
+
+    @MainActor
+    func testFailedStandingPermissionDoesNotSubmitAnApproval() async throws {
+        let card = try JSONDecoder().decode(OptionCard.self, from: Data(#"""
+        {"title":"Allow fixture?","subtitle":"","options":["Allow","Deny"],"requestId":"approval","tool":"Bash","requestType":"permission","allowKey":"Bash:fixture"}
+        """#.utf8))
+        DeferredResponseProtocol.resetRequests()
+        let (session, _) = try await exercise(status: 403, body: "{}", replace: false) { session, bot in
+            await session.answer(chat: .bot(bot), card: card, choice: "Allow", rememberingPermission: true)
+        }
+        XCTAssertEqual(DeferredResponseProtocol.requests().count, 1)
+        XCTAssertNotNil(session.actionError)
+    }
+
+    @MainActor
+    func testStandingPermissionAndAnswerKeepTheSameComputerAndThread() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [DeferredResponseProtocol.self]
+        let transport = URLSession(configuration: config)
+        defer { transport.invalidateAndCancel(); DeferredResponseProtocol.started = nil }
+        let connection = Connection(id: "old", name: "Fixture", host: "127.0.0.1", port: 19991)
+        let session = Session(fixtureClient: CompanionClient(connection: connection, token: "fixture-only", session: transport))
+        let card = try JSONDecoder().decode(OptionCard.self, from: Data(#"""
+        {"title":"Allow fixture?","subtitle":"","options":["Allow","Deny"],"requestId":"approval","tool":"Bash","requestType":"permission","allowKey":"Bash:fixture"}
+        """#.utf8))
+        DeferredResponseProtocol.resetRequests()
+        DeferredResponseProtocol.started = { try? DeferredResponseProtocol.finish(status: 200, body: "{}") }
+        await session.answer(chat: .bot(try bot()), card: card, choice: "Allow", rememberingPermission: true)
+        let requests = DeferredResponseProtocol.requests()
+        XCTAssertEqual(requests.map { $0.url?.port }, [19991, 19991])
+        XCTAssertEqual(requests.map { $0.url?.path }, ["/api/bots/bot/always-allow", "/api/threads/thread/respond"])
+        XCTAssertNil(session.actionError)
     }
 
 }

@@ -22,7 +22,9 @@ changes require fresh native acceptance and do not change transport scopes.
 
 Notification origin is scoped to the paired computer. Background channel task approvals are recovered and owned by their exact thread. No phone token or credential is included in notification payloads.
 
-Internal iOS build 11 separates ARM64 and Intel simulator packages without removing executable code, and adds a device-SDK Release archive build without store signing. Bundle, data and secure-store identities are unchanged.
+Internal iOS build 12 separates ARM64 and Intel simulator packages without removing executable code, and adds a device-SDK Release archive build without store signing. Bundle, data and secure-store identities are unchanged.
+
+Internal build 12 pins permission remembering and approval to one captured client/runtime, stops after failed grants, and tests computer switches including a replacement runtime with the same connection ID.
 
 Modified imported files:
 

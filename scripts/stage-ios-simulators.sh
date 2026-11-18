@@ -2,7 +2,7 @@
 set -euo pipefail
 for arch in arm64 x86_64; do
   output="mobile-artifacts/ios-$arch"
-  archive="StartupBot-0.1.2-build11-$arch-SIMULATOR.zip"
+  archive="StartupBot-0.1.2-build12-$arch-SIMULATOR.zip"
   ditto -c -k --zlibCompressionLevel 9 --keepParent "$output/StartupBot.app" "$output/$archive"
   temporary="$(mktemp -d "${TMPDIR:-/tmp}/startupbot-simulator-payload.XXXXXX")"
   trap 'rm -rf "$temporary"' EXIT

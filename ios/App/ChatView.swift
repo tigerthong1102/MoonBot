@@ -2308,17 +2308,16 @@ struct CardView: View {
                     // wider than the computer would have. The same goes for
                     // the answer: it is one of the options the card offered,
                     // never a string invented here.
-                    if card.isPermission, card.allowKey != nil, let allow = allowChoice, case let .bot(bot) = chat {
+                    if card.isPermission, card.allowKey != nil, let allow = allowChoice, case .bot = chat {
                         Button("Always allow this tool") {
                             Haptics.selection()
                             answering = true
                             Task {
-                                await session.alwaysAllow(bot: bot, card: card)
                                 await session.answer(
                                     chat: chat,
                                     card: card,
                                     choice: allow,
-                                    rememberingPermission: false
+                                    rememberingPermission: true
                                 )
                                 answering = false
                             }

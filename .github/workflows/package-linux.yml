@@ -8,6 +8,12 @@ on:
         required: false
         type: boolean
         default: false
+      macos_runner:
+        description: "Standard macOS runner for native DMG acceptance"
+        required: false
+        type: choice
+        options: [macos-26-intel, macos-26]
+        default: macos-26-intel
       desktop_os:
         description: "Internal desktop platform to build"
         required: false
@@ -148,7 +154,7 @@ jobs:
   macos:
     if: inputs.desktop && (inputs.desktop_os == 'all' || inputs.desktop_os == 'macos')
     name: StartupBot macOS internal DMGs
-    runs-on: macos-26-intel
+    runs-on: ${{ inputs.macos_runner || 'macos-26-intel' }}
     timeout-minutes: 60
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -169,23 +175,33 @@ jobs:
       - run: pnpm package:prepare
       - run: pnpm build:speech && pnpm build:cua
       - run: pnpm exec electron-builder --config electron-builder.internal.yml --mac dmg --arm64 --x64 --publish never
-      - name: Test the installed Intel DMG on its native host
+      - name: Test the installed DMG on its native host
         shell: bash
         run: |
           set -euo pipefail
+          case "$(uname -m)" in
+            arm64) smoke_arch=arm64 ;;
+            x86_64) smoke_arch=x64 ;;
+            *) echo "Unsupported native macOS architecture" >&2; exit 1 ;;
+          esac
           volume="$RUNNER_TEMP/StartupBotVolume"
           mkdir -p "$volume" "$RUNNER_TEMP/StartupBotInstalled"
-          hdiutil attach -nobrowse -readonly -mountpoint "$volume" release/internal/*-x64.dmg
+          hdiutil attach -nobrowse -readonly -mountpoint "$volume" release/internal/*-"$smoke_arch".dmg
           trap 'hdiutil detach "$volume"' EXIT
           ditto "$volume/StartupBot.app" "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app"
           codesign --verify --deep --strict "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app"
           node scripts/smoke-internal-desktop.mjs --app "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --output release/internal/smoke
       - name: Test the packaged browser and server
-        env:
-          OMB_SMOKE_DIST: ${{ github.workspace }}/release/internal/mac/StartupBot.app/Contents/Resources/server
+        shell: bash
         run: |
-          node scripts/smoke-browser-bundle.mjs --resources "$PWD/release/internal/mac/StartupBot.app/Contents/Resources"
-          node scripts/smoke-packaged-server.mjs --browser-bundle "$PWD/release/internal/mac/StartupBot.app/Contents/Resources/browser-engine"
+          case "$(uname -m)" in
+            arm64) app_directory=mac-arm64 ;;
+            x86_64) app_directory=mac ;;
+            *) echo "Unsupported native macOS architecture" >&2; exit 1 ;;
+          esac
+          resources="$PWD/release/internal/$app_directory/StartupBot.app/Contents/Resources"
+          node scripts/smoke-browser-bundle.mjs --resources "$resources"
+          OMB_SMOKE_DIST="$resources/server" node scripts/smoke-packaged-server.mjs --browser-bundle "$resources/browser-engine"
       - run: node scripts/internal-build-metadata.mjs
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:

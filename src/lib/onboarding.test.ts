@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  configuredAdminOrigin,
   aiChoices,
   aiWorks,
   beatsFor,
@@ -282,5 +283,15 @@ describe("welcomeFinishedThisLaunch", () => {
     vi.stubGlobal("sessionStorage", { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } });
     expect(() => markWelcomeFinished()).not.toThrow();
     expect(welcomeFinishedThisLaunch()).toBe(true);
+  });
+});
+
+
+describe("optional StartupBot organization portal", () => {
+  it.each([undefined, "", "not a URL", "http://admin.example.test", "https://user:secret@admin.example.test", "https://admin.example.test/path", "https://admin.example.test/?token=x", "https://admin.example.test/#x"])("rejects missing or unsafe configuration %s", value => {
+    expect(configuredAdminOrigin(value)).toBe("");
+  });
+  it("normalizes an explicitly configured HTTPS origin", () => {
+    expect(configuredAdminOrigin("  https://ADMIN.example.test:443/  ")).toBe("https://admin.example.test");
   });
 });

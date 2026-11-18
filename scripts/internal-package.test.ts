@@ -9,6 +9,8 @@ describe("StartupBot internal distribution boundary", () => {
     const workflow = parse(read(".github/workflows/package-linux.yml"));
     expect(Object.keys(workflow.on)).toEqual(["workflow_dispatch"]);
     expect(workflow.permissions).toEqual({ contents: "read" });
+    expect(workflow.on.workflow_dispatch.inputs.macos_runner.options).toEqual(["macos-26-intel", "macos-26"]);
+    expect(workflow.jobs.macos["runs-on"]).toBe("${{ inputs.macos_runner || 'macos-26-intel' }}");
     expect(workflow.jobs.package.if).toBe("${{ !inputs.desktop }}");
     for (const name of ["macos", "windows"]) {
       const job = workflow.jobs[name];

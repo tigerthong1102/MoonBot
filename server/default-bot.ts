@@ -81,7 +81,7 @@ export function forgetDefaultBot(dataDir: string, person: string): void {
 export function seededMausBot(bots: readonly BotRecord[]): BotRecord | undefined {
   const oldest = bots.reduce<BotRecord | undefined>((first, bot) => !first || bot.createdAt < first.createdAt ? bot : first, undefined);
   if (!oldest || oldest.hidden || oldest.movedTo || oldest.section?.trim() || oldest.installedPackage) return undefined;
-  return oldest.name === DEFAULT_BOT_NAME || oldest.color === STARTER_COLOR ? oldest : undefined;
+  return oldest.name === DEFAULT_BOT_NAME || LEGACY_FACTORY_HELPER_NAMES.has(oldest.name) || oldest.color === STARTER_COLOR ? oldest : undefined;
 }
 
 /** Puts the intro where its person sees it next: in its open conversation while nobody has written there, else at the
@@ -135,7 +135,7 @@ export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: str
   let bot: BotRecord;
   if (adoptable) {
     const taken = new Set(store.bots.filter(candidate => candidate.id !== adoptable.id).map(candidate => candidate.name.trim().toLowerCase()));
-    bot = store.patchBot(adoptable.id, { defaultBot: {}, ...(LEGACY_FACTORY_HELPER_NAMES.has(adoptable.name) ? { name: takeImportName(DEFAULT_BOT_NAME, taken) } : {}), ...(adoptable.color === STARTER_COLOR ? { color: DEFAULT_BOT_COLOR } : {}) }) ?? adoptable;
+    bot = store.patchBot(adoptable.id, { defaultBot: {}, ...(adoptable.sidebarHidden ? { sidebarHidden: true } : {}), ...(LEGACY_FACTORY_HELPER_NAMES.has(adoptable.name) ? { name: takeImportName(DEFAULT_BOT_NAME, taken) } : {}), ...(adoptable.color === STARTER_COLOR ? { color: DEFAULT_BOT_COLOR } : {}) }) ?? adoptable;
     chief?.(bot.id);
     introduce(store, bot, options.team);
   } else {

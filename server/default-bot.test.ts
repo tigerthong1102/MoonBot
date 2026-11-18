@@ -29,6 +29,21 @@ function seededBefore(store: Store): BotRecord {
 }
 
 describe("StartupBot, every person's helper", () => {
+  it.each(["MausBot", "OpenMausBot"])("adopts an unmarked recolored %s without replacing its history or preferences", name => {
+    const store = new Store(selection);
+    const original = store.createBot({ name, color: "blue", soul: "Preserve my standing instructions" });
+    store.setChiefOfStaff(original.id);
+    store.patchBot(original.id, { sidebarHidden: true, avatarUrl: "/api/attachments/own.png" });
+    const thread = original.threadId;
+    store.appendMessage(thread, { role: "user", kind: "text", text: "Keep this original conversation" });
+    const messages = structuredClone(store.messagesFor(thread));
+    const adopted = boot(store)!;
+    expect(adopted).toMatchObject({ id: original.id, name: "StartupBot", color: "blue", sidebarHidden: true, soul: "Preserve my standing instructions", avatarUrl: "/api/attachments/own.png", defaultBot: {} });
+    expect(store.bots).toHaveLength(1);
+    expect(store.messagesFor(thread)).toEqual(messages);
+    expect(boot(new Store(selection))).toMatchObject({ id: original.id, name: "StartupBot", sidebarHidden: true });
+  });
+
   beforeEach(() => rmSync(DATA_DIR, { recursive: true, force: true }));
   afterEach(() => readTeamRolesWith(() => null));
 

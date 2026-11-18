@@ -98,11 +98,11 @@ export function OrganisationRow({
     action = (
       <button
         type="button"
-        disabled={busy}
-        onClick={() => void perform(() => bridge.begin({ portalOrigin: DEFAULT_ADMIN_ORIGIN }))}
+        disabled={busy || !DEFAULT_ADMIN_ORIGIN}
+        onClick={() => { if (DEFAULT_ADMIN_ORIGIN) void perform(() => bridge.begin({ portalOrigin: DEFAULT_ADMIN_ORIGIN })); }}
         className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[13px] font-medium text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
       >
-        {busy ? t("organization.working") : t("onboarding.org.signIn")}
+        {!DEFAULT_ADMIN_ORIGIN ? t("organization.notConfigured") : busy ? t("organization.working") : t("onboarding.org.signIn")}
       </button>
     );
   } else if (connection.status === "connecting") {

@@ -13,6 +13,7 @@ const exceptions: Record<string, readonly string[]> = {
   "server/model-manifest/manifest.ts": ["https://raw.githubusercontent.com/milind-soni/OpenMausBot/main/server/model-manifest/model-manifest.json"],
   "src/lib/computer-messages.ts": ["The existing container was not created by OpenMausBot; recreate it"],
   "packages/phone-protocol/src/startupbot-brand.ts": ["MausBot", "OpenMausBot"],
+  "packages/phone-protocol/src/phone-secret-envelope.ts": ["OpenMausBot phone credential v1"],
 };
 
 describe("StartupBot product text", () => {

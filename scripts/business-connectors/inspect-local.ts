@@ -15,7 +15,10 @@ async function main() {
   try {
     const command = promisify(execFile)(executable, ["-NoLogo", "-NoProfile", "-NonInteractive", "-File", script], {
       timeout: 30_000, maxBuffer: 512 * 1024, windowsHide: true, cwd: win32.dirname(executable),
-      env: { SystemRoot: root, WINDIR: root, PSModulePath: win32.join(win32.dirname(executable), "Modules"),
+      env: { SystemRoot: root, WINDIR: root, SystemDrive: win32.parse(root).root.slice(0, 2),
+        ProgramData: process.env.ProgramData, ProgramFiles: process.env.ProgramFiles,
+        "ProgramFiles(x86)": process.env["ProgramFiles(x86)"], ProgramW6432: process.env.ProgramW6432,
+        PSModulePath: win32.join(win32.dirname(executable), "Modules"),
         TEMP: process.env.TEMP, TMP: process.env.TMP, USERPROFILE: process.env.USERPROFILE,
         LOCALAPPDATA: process.env.LOCALAPPDATA, APPDATA: process.env.APPDATA, PATH: win32.join(root, "System32") },
     });

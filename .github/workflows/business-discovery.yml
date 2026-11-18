@@ -19,18 +19,23 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - run: node --test scripts/business-connectors/discovery.fixture.ts
-      - name: Check the Windows PowerShell collector on the disposable runner
-        shell: powershell
-        run: |
-          $inventory = & ./scripts/business-connectors/windows-inventory.ps1 | ConvertFrom-Json
-          if ($inventory.schema -ne 1) { throw "Unexpected inventory schema" }
       - name: Compare local inventory with the disposable runner's service manager
         shell: pwsh
         run: |
-          $json = node scripts/business-connectors/inspect-local.ts --inspect-local
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\StartupBotFixture-' + [guid]::NewGuid()
+          New-Item $key -Force | Out-Null
+          try {
+            New-ItemProperty $key -Name DisplayName -Value 'Smart Pro fixture' | Out-Null
+            New-ItemProperty $key -Name DisplayVersion -Value '5.0.9876' | Out-Null
+            $json = node scripts/business-connectors/inspect-local.ts --inspect-local
+          } finally {
+            Remove-Item -LiteralPath $key
+          }
           if ($LASTEXITCODE -ne 0) { throw "Local inventory did not finish" }
           $report = $json | ConvertFrom-Json
           if ($report.coverage -ne 'collected' -or $report.connection -ne 'untested') { throw "Unexpected coverage" }
+          $app = @($report.applications | Where-Object { $_.product -eq 'smartpro' -and $_.version -eq '5.0.9876' })
+          if ($app.Count -ne 1) { throw "Fixture application missing or duplicated" }
           $services = @(Get-Service | Where-Object { $_.Name -eq 'MSSQLSERVER' -or $_.Name -match '^MSSQL\$' })
           $observed = @($report.instances | Where-Object { $_.sources -contains 'service' })
           if ($observed.Count -ne $services.Count) { throw "Service count mismatch" }

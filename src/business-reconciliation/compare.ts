@@ -32,7 +32,7 @@ export function checkMapping(t: Table, m: Mapping) {
 }
 
 function identifier(cell: Cell | undefined, field: string, line: number) {
-  if (typeof cell !== "string" || !cell.trim() || cell.length > 256 || cell !== cell.trim() || /[\u0000-\u001f\u007f]/.test(cell)) {
+  if (typeof cell !== "string" || !cell.trim() || cell.length > 256 || cell !== cell.trim() || /\p{Cc}/u.test(cell)) {
     throw new Error("Dòng dữ liệu " + line + " cần " + field + " dạng văn bản, không có khoảng trắng ở hai đầu.");
   }
   return cell;

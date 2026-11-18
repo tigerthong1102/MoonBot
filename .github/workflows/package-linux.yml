@@ -293,7 +293,9 @@ jobs:
         run: |
           if ((node -p process.arch) -ne $env:TARGET_ARCH) { throw 'Expected a native Node.js build host' }
           $options = @("--$env:TARGET_ARCH")
-          if ($env:TARGET_ARCH -eq 'arm64') { $options += '-c.nsis.artifactName=StartupBot-${version}-arm64-Setup.${ext}' }
+          if ($env:TARGET_ARCH -eq 'arm64') {
+            $options += '-c.nsis.useZip=true', '-c.nsis.artifactName=StartupBot-${version}-arm64-Setup.${ext}'
+          }
           pnpm exec electron-builder --config electron-builder.internal.yml --win nsis @options --publish never
       - name: Install EXE and test the installed application
         shell: pwsh

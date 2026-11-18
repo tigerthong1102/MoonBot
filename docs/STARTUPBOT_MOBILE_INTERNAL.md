@@ -128,3 +128,11 @@ these changes. Local Swift core build, Swift syntax parsing and native
 identity/license/HPKE guards pass; full native acceptance is PENDING until
 new 0.1.1 runs complete. The older 0.1.0 artifact results above remain
 scoped to their original source; do not treat them as proof of this patch.
+
+The iOS follow-up also scopes successful results and errors for history, bot/task
+creation, profile/model changes, routines, connector URLs and previews to the
+originating connection/runtime. A separate runtime epoch survives ordinary
+stream reconnects but advances when the active runtime is replaced. Regression
+fixtures cover stale and current history, bot creation, connector URLs, sends,
+queued receipts and current-connection 401 handling. iOS build number is 3;
+the Android 0.1.1 source is unchanged by this additional Swift-only correction.

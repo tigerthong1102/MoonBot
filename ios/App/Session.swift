@@ -94,6 +94,7 @@ final class Session: ObservableObject {
     /// can finish after its replacement starts; its cleanup must not clear
     /// the replacement's handle.
     private var streamGeneration = 0
+    private var runtimeGeneration = 0
     private var reconnectDelay: UInt64 = 0
     /// How many computer panels are open. A count rather than a flag: the
     /// panel can be pushed twice in a navigation stack, and the last one to
@@ -545,6 +546,7 @@ final class Session: ObservableObject {
     }
 
     private func stopActiveRuntime() {
+        runtimeGeneration += 1
         resetCredentialEntry()
         streamGeneration += 1
         streamTask?.cancel()
@@ -805,9 +807,11 @@ final class Session: ObservableObject {
             // must not wait on a request that says nothing about the transcript.
             // An older harness omits the flag and every engine reads as
             // non-steering, which is the conservative wording.
+            let runtime = runtimeGeneration
             Task { [weak self] in
                 let engines = (try? await client.instances()) ?? []
-                self?.steeringInstanceIds = Set(
+                guard let self, self.isCurrent(client, generation: runtime) else { return }
+                self.steeringInstanceIds = Set(
                     engines.filter { $0.capabilities?.queueing == true }.map(\.instanceId)
                 )
             }
@@ -934,7 +938,7 @@ final class Session: ObservableObject {
     // is a phone that disagrees with the laptop.
 
     func send(_ text: String, to chat: Chat) async {
-        let generation = streamGeneration
+        let generation = runtimeGeneration
         await perform { client in
             let receipt: SendReceipt
             switch chat {
@@ -972,7 +976,7 @@ final class Session: ObservableObject {
             actionError = "This computer is offline."
             return false
         }
-        let generation = streamGeneration
+        let generation = runtimeGeneration
         actionError = nil
         do {
             try AttachmentPolicy.validate(attachments)
@@ -1167,6 +1171,7 @@ final class Session: ObservableObject {
         path: String,
         cacheResult: Bool = false
     ) async throws -> DownloadedFile {
+        let generation = attachmentCacheGeneration
         let download = try await fetchAttachment(
             threadId: threadId,
             messageId: messageId,
@@ -1187,6 +1192,7 @@ final class Session: ObservableObject {
         }
         do {
             try Task.checkCancellation()
+            guard generation == attachmentCacheGeneration else { throw CancellationError() }
             return prepared
         } catch {
             Self.removePreview(at: prepared.localURL)
@@ -1201,6 +1207,7 @@ final class Session: ObservableObject {
         messageId: String,
         path: String
     ) async -> DownloadedFile? {
+        let generation = attachmentCacheGeneration
         actionError = nil
         do {
             let download = try await prepareAttachmentPreview(
@@ -1213,7 +1220,7 @@ final class Session: ObservableObject {
         } catch is CancellationError {
             return nil
         } catch {
-            actionError = error.localizedDescription
+            if !Task.isCancelled, generation == attachmentCacheGeneration { actionError = error.localizedDescription }
             return nil
         }
     }
@@ -1268,10 +1275,13 @@ final class Session: ObservableObject {
     }
 
     func answer(chat: Chat, card: OptionCard, choice: String, rememberingPermission: Bool = true) async {
+        guard let client else { return }
+        let generation = runtimeGeneration
         guard let requestId = card.requestId else { return }
         if rememberingPermission, card.shouldRememberPermission(for: choice), case let .bot(bot) = chat {
             await alwaysAllow(bot: bot, card: card)
         }
+        guard isCurrent(client, generation: generation) else { return }
         await answer(
             threadId: chat.threadId,
             requestId: requestId,
@@ -1408,6 +1418,7 @@ final class Session: ObservableObject {
     /// same HPKE envelope; the desktop derives its idempotency key from these
     /// bytes, so a lost response cannot cause a second provider save.
     func provideCredential(_ prepared: PreparedPhoneCredential) async throws {
+        let requestGeneration = runtimeGeneration
         guard let client, let connection else {
             throw APIError.transport("This computer is offline.")
         }
@@ -1421,13 +1432,14 @@ final class Session: ObservableObject {
         }
 
         do {
-            try await client.provideCredential(
+            try currentResult(try await client.provideCredential(
                 botId: prepared.botID,
                 messageId: prepared.messageID,
                 envelope: prepared.envelope
-            )
-        } catch let error as APIError where error.isUnauthorized {
-            status = .unauthorized
+            ), using: client, generation: requestGeneration)
+        } catch {
+            try requireCurrent(client, generation: requestGeneration)
+            if (error as? APIError)?.isUnauthorized == true { status = .unauthorized }
             throw error
         }
     }
@@ -1475,13 +1487,14 @@ final class Session: ObservableObject {
     /// button.
     @discardableResult
     func createBot() async -> Bot? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let bot = try await client.createBot()
+            let bot = try currentResult(try await client.createBot(), using: client, generation: requestGeneration)
             state.apply(.bot(bot))
             return bot
         } catch {
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
@@ -1490,13 +1503,14 @@ final class Session: ObservableObject {
     /// rather than wait for a broadcast, and hand it back so it can be opened.
     @discardableResult
     func createRoom(name: String?, memberIds: [String]) async -> Room? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let room = try await client.createRoom(name: name, memberIds: memberIds)
+            let room = try currentResult(try await client.createRoom(name: name, memberIds: memberIds), using: client, generation: requestGeneration)
             state.apply(.room(room))
             return room
         } catch {
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
@@ -1506,13 +1520,14 @@ final class Session: ObservableObject {
     /// folds make the roster move immediately instead of waiting for SSE.
     @discardableResult
     func assignSection(name: String, botIds: [String]) async -> [Bot]? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let bots = try await client.assignSection(name: name, botIds: botIds)
+            let bots = try currentResult(try await client.assignSection(name: name, botIds: botIds), using: client, generation: requestGeneration)
             for bot in bots { state.apply(.bot(bot)) }
             return bots
         } catch {
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
@@ -1525,6 +1540,7 @@ final class Session: ObservableObject {
     /// once the harness confirms, so a failed cancel leaves the words on
     /// screen still waiting — which is what is actually true.
     func cancelQueued(_ send: QueuedSend, in chat: Chat) async {
+        let requestGeneration = runtimeGeneration
         guard let client else { return }
         let threadId = chat.threadId
         let destination: MessageDestination
@@ -1533,23 +1549,25 @@ final class Session: ObservableObject {
         case let .room(room): destination = .room(id: room.id, threadId: threadId)
         }
         do {
-            try await client.cancelQueued(send.queueId, to: destination)
+            try currentResult(try await client.cancelQueued(send.queueId, to: destination), using: client, generation: requestGeneration)
             state.forgetQueued(send.queueId, inThread: threadId)
         } catch let error as APIError where error.isUnauthorized {
-            status = .unauthorized
+            if isCurrent(client, generation: requestGeneration) { status = .unauthorized }
         } catch {
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
         }
     }
 
     /// Ask for one fresh cloud viewer URL. Unlike ordinary actions this
     /// returns the value to a browser sheet and never writes it to app state.
     func cloudDesktop(for bot: Bot) async throws -> URL {
+        let requestGeneration = runtimeGeneration
         guard let client else { throw APIError.transport("This computer is offline.") }
         do {
-            return try await client.cloudDesktop(botId: bot.id).url
-        } catch let error as APIError where error.isUnauthorized {
-            status = .unauthorized
+            return try currentResult(try await client.cloudDesktop(botId: bot.id), using: client, generation: requestGeneration).url
+        } catch {
+            try requireCurrent(client, generation: requestGeneration)
+            if (error as? APIError)?.isUnauthorized == true { status = .unauthorized }
             throw error
         }
     }
@@ -1564,34 +1582,39 @@ final class Session: ObservableObject {
     }
 
     func loadOlder(threadId: String) async {
+        let requestGeneration = runtimeGeneration
         guard let client, let oldest = state.transcript(forThread: threadId).first else { return }
         do {
-            let page = try await client.messages(threadId: threadId, before: oldest.id, limit: 50)
+            let page = try currentResult(try await client.messages(threadId: threadId, before: oldest.id, limit: 50), using: client, generation: requestGeneration)
             state.prepend(page, toThread: threadId)
         } catch {
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
         }
     }
 
     /// A pinned background thread may not be in a fresh fleet snapshot.
     func loadThreadIfNeeded(_ threadId: String) async {
+        let requestGeneration = runtimeGeneration
         guard let client, !state.hasLoadedPage(forThread: threadId) else { return }
         do {
-            let page = try await client.messages(threadId: threadId)
+            let page = try currentResult(try await client.messages(threadId: threadId), using: client, generation: requestGeneration)
             state.merge(page, intoThread: threadId)
-        } catch { if !Task.isCancelled { actionError = error.localizedDescription } }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription } }
     }
 
     func image(threadId: String, messageId: String) async -> Data? {
-        try? await client?.image(threadId: threadId, messageId: messageId)
+        guard let client else { return nil }
+        let generation = runtimeGeneration
+        return try? currentResult(try await client.image(threadId: threadId, messageId: messageId), using: client, generation: generation)
     }
 
     func search(_ query: String) async -> [SearchHit] {
+        let requestGeneration = runtimeGeneration
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2, let client else { return [] }
-        do { return try await client.search(trimmed) }
+        do { return try currentResult(try await client.search(trimmed), using: client, generation: requestGeneration) }
         catch {
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return []
         }
     }
@@ -1599,18 +1622,19 @@ final class Session: ObservableObject {
     /// Resolve a SQLite search hit into the live task/branch, load a page
     /// around it, and hand navigation the current chat record.
     func open(_ hit: SearchHit) async -> Chat? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
             if let botId = hit.botId, var bot = state.bot(botId) {
                 if bot.threadId != hit.threadId {
-                    bot = try await client.switchTask(botId: bot.id, threadId: hit.threadId)
+                    bot = try currentResult(try await client.switchTask(botId: bot.id, threadId: hit.threadId), using: client, generation: requestGeneration)
                     state.apply(.bot(bot))
                 }
                 if !hit.onActivePath {
-                    let leaf = try await client.setActiveBranch(botId: bot.id, messageId: hit.messageId, threadId: hit.threadId)
+                    let leaf = try currentResult(try await client.setActiveBranch(botId: bot.id, messageId: hit.messageId, threadId: hit.threadId), using: client, generation: requestGeneration)
                     state.apply(.thread(threadId: hit.threadId, activeLeafId: leaf))
                 }
-                let page = try await client.messages(threadId: hit.threadId, around: hit.messageId)
+                let page = try currentResult(try await client.messages(threadId: hit.threadId, around: hit.messageId), using: client, generation: requestGeneration)
                 state.merge(page, intoThread: hit.threadId)
                 focusedMessageId = hit.messageId
                 return state.bot(forThread: hit.threadId).map(Chat.bot)
@@ -1618,15 +1642,15 @@ final class Session: ObservableObject {
             if let groupId = hit.groupId,
                var room = state.rooms.first(where: { $0.id == groupId }) {
                 if room.threadId != hit.threadId {
-                    room = try await client.switchTask(groupId: room.id, threadId: hit.threadId)
+                    room = try currentResult(try await client.switchTask(groupId: room.id, threadId: hit.threadId), using: client, generation: requestGeneration)
                     state.apply(.room(room))
                 }
-                let page = try await client.messages(threadId: hit.threadId, around: hit.messageId)
+                let page = try currentResult(try await client.messages(threadId: hit.threadId, around: hit.messageId), using: client, generation: requestGeneration)
                 state.merge(page, intoThread: hit.threadId)
                 focusedMessageId = hit.messageId
                 return state.rooms.first(where: { $0.id == groupId }).map(Chat.room)
             }
-        } catch { actionError = error.localizedDescription }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription } }
         return nil
     }
 
@@ -1636,74 +1660,84 @@ final class Session: ObservableObject {
 
     @discardableResult
     func createTask(for bot: Bot, title: String?) async -> Bot? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let updated = try await client.createTask(botId: bot.id, title: title)
+            let updated = try currentResult(try await client.createTask(botId: bot.id, title: title), using: client, generation: requestGeneration)
             state.apply(.bot(updated))
             return updated
-        } catch { actionError = error.localizedDescription; return nil }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     @discardableResult
     func switchTask(_ task: BotTask, for bot: Bot) async -> Bot? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let updated = try await client.switchTask(botId: bot.id, threadId: task.threadId)
+            let updated = try currentResult(try await client.switchTask(botId: bot.id, threadId: task.threadId), using: client, generation: requestGeneration)
             state.apply(.bot(updated))
             return updated
-        } catch { actionError = error.localizedDescription; return nil }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     @discardableResult
     func renameTask(_ task: BotTask, for bot: Bot, title: String) async -> Bool {
+        let requestGeneration = runtimeGeneration
         guard let client else { return false }
         do {
-            try await client.renameTask(botId: bot.id, threadId: task.threadId, title: title)
+            try currentResult(try await client.renameTask(botId: bot.id, threadId: task.threadId, title: title), using: client, generation: requestGeneration)
             await refresh()
+            try requireCurrent(client, generation: requestGeneration)
             return true
-        } catch { actionError = error.localizedDescription; return false }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return false }
     }
 
     @discardableResult
     func deleteTask(_ task: BotTask, for bot: Bot) async -> Bot? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let updated = try await client.deleteTask(botId: bot.id, threadId: task.threadId)
+            let updated = try currentResult(try await client.deleteTask(botId: bot.id, threadId: task.threadId), using: client, generation: requestGeneration)
             state.apply(.bot(updated))
             return updated
-        } catch { actionError = error.localizedDescription; return nil }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     @discardableResult
     func createTask(for room: Room, title: String?) async -> Bool {
+        let requestGeneration = runtimeGeneration
         guard let client else { return false }
-        do { state.apply(.room(try await client.createTask(groupId: room.id, title: title))); return true }
-        catch { actionError = error.localizedDescription; return false }
+        do { state.apply(.room(try currentResult(try await client.createTask(groupId: room.id, title: title), using: client, generation: requestGeneration))); return true }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return false }
     }
 
     @discardableResult
     func switchTask(_ task: BotTask, for room: Room) async -> Bool {
+        let requestGeneration = runtimeGeneration
         guard task.threadId != room.threadId else { return true }
         guard let client else { return false }
-        do { state.apply(.room(try await client.switchTask(groupId: room.id, threadId: task.threadId))); return true }
-        catch { actionError = error.localizedDescription; return false }
+        do { state.apply(.room(try currentResult(try await client.switchTask(groupId: room.id, threadId: task.threadId), using: client, generation: requestGeneration))); return true }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return false }
     }
 
     @discardableResult
     func renameTask(_ task: BotTask, for room: Room, title: String) async -> Bool {
+        let requestGeneration = runtimeGeneration
         guard let client else { return false }
         do {
-            try await client.renameTask(groupId: room.id, threadId: task.threadId, title: title)
+            try currentResult(try await client.renameTask(groupId: room.id, threadId: task.threadId, title: title), using: client, generation: requestGeneration)
             await refresh()
+            try requireCurrent(client, generation: requestGeneration)
             return true
-        } catch { actionError = error.localizedDescription; return false }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return false }
     }
 
     @discardableResult
     func deleteTask(_ task: BotTask, for room: Room) async -> Bool {
+        let requestGeneration = runtimeGeneration
         guard let client else { return false }
-        do { state.apply(.room(try await client.deleteTask(groupId: room.id, threadId: task.threadId))); return true }
-        catch { actionError = error.localizedDescription; return false }
+        do { state.apply(.room(try currentResult(try await client.deleteTask(groupId: room.id, threadId: task.threadId), using: client, generation: requestGeneration))); return true }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return false }
     }
 
     // MARK: - Agent profile
@@ -1711,45 +1745,49 @@ final class Session: ObservableObject {
     /// The model catalog lives on the paired computer because availability
     /// depends on which engines are installed and signed in there.
     func modelInstances() async -> [Instance] {
+        let requestGeneration = runtimeGeneration
         guard let client else { return [] }
         do {
-            return try await client.instances()
+            return try currentResult(try await client.instances(), using: client, generation: requestGeneration)
         } catch {
-            if !Task.isCancelled { actionError = error.localizedDescription }
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return []
         }
     }
 
     func updateModel(_ selection: ModelSelection, for bot: Bot) async -> Bot? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let updated = try await client.updateModel(botId: bot.id, selection: selection, threadId: bot.threadId)
+            let updated = try currentResult(try await client.updateModel(botId: bot.id, selection: selection, threadId: bot.threadId), using: client, generation: requestGeneration)
             guard !Task.isCancelled else { return nil }
             state.apply(.bot(updated))
             return updated
         } catch {
-            if !Task.isCancelled { actionError = error.localizedDescription }
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
 
     func updateProfile(_ patch: BotProfilePatch, for bot: Bot) async -> Bot? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let updated = try await client.updateProfile(botId: bot.id, patch: patch)
+            let updated = try currentResult(try await client.updateProfile(botId: bot.id, patch: patch), using: client, generation: requestGeneration)
             guard !Task.isCancelled else { return nil }
             state.apply(.bot(updated))
             return updated
         } catch {
-            if !Task.isCancelled { actionError = error.localizedDescription }
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
 
     func uploadAvatar(_ data: Data, mime: String, for bot: Bot, crop: AvatarCrop) async -> Bot? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let avatarUrl = try await client.uploadAvatar(data: data, mime: mime)
+            let avatarUrl = try currentResult(try await client.uploadAvatar(data: data, mime: mime), using: client, generation: requestGeneration)
             guard !Task.isCancelled else { return nil }
             let current = state.bot(bot.id) ?? bot
             return await updateProfile(
@@ -1757,20 +1795,21 @@ final class Session: ObservableObject {
                 for: current
             )
         } catch {
-            if !Task.isCancelled { actionError = error.localizedDescription }
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
 
     func generateAvatar(prompt: String, for bot: Bot) async -> Bot? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let updated = try await client.generateAvatar(botId: bot.id, prompt: prompt)
+            let updated = try currentResult(try await client.generateAvatar(botId: bot.id, prompt: prompt), using: client, generation: requestGeneration)
             guard !Task.isCancelled else { return nil }
             state.apply(.bot(updated))
             return updated
         } catch {
-            if !Task.isCancelled { actionError = error.localizedDescription }
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
@@ -1806,33 +1845,37 @@ final class Session: ObservableObject {
     }
 
     func voiceOptions() async -> [Voice] {
+        let generation = runtimeGeneration
         guard let client else { return [] }
-        do { return try await client.voices() }
-        catch { actionError = error.localizedDescription; return [] }
+        do { return try currentResult(try await client.voices(), using: client, generation: generation) }
+        catch { if isCurrent(client, generation: generation) { actionError = error.localizedDescription }; return [] }
     }
 
     func previewVoice(_ voiceId: String, for bot: Bot) async -> Data? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
-        do { return try await client.previewVoice(text: "Hello, I'm \(bot.name).", voiceId: voiceId) }
-        catch { actionError = error.localizedDescription; return nil }
+        do { return try currentResult(try await client.previewVoice(text: "Hello, I'm \(bot.name).", voiceId: voiceId), using: client, generation: requestGeneration) }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     func configStatus() async -> ConfigStatus? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
-        return try? await client.config()
+        return try? currentResult(try await client.config(), using: client, generation: requestGeneration)
     }
 
     func botOverview(for bot: Bot) async -> BotOverview? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         let connectionID = connection?.id
         do {
-            let overview = try await client.overview(botId: bot.id)
+            let overview = try currentResult(try await client.overview(botId: bot.id), using: client, generation: requestGeneration)
             guard !Task.isCancelled, connection?.id == connectionID else { return nil }
             return overview
         } catch {
             guard !Task.isCancelled, connection?.id == connectionID else { return nil }
             guard !(error is CancellationError), (error as? URLError)?.code != .cancelled else { return nil }
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
@@ -1840,52 +1883,61 @@ final class Session: ObservableObject {
     // MARK: - Routines
 
     func loadRoutines() async -> (routines: [Routine], runs: [RoutineRun]) {
+        let requestGeneration = runtimeGeneration
         guard let client else { return ([], []) }
-        do { return try await client.routines() }
-        catch { actionError = error.localizedDescription; return ([], []) }
+        do { return try currentResult(try await client.routines(), using: client, generation: requestGeneration) }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return ([], []) }
     }
 
     func loadRoutineRunAvailability() async -> RoutineRunAvailability? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
             async let config = client.config()
             async let instances = client.instances()
-            return try await RoutineRunAvailability(config: config, instances: instances)
+            let availability = try await RoutineRunAvailability(config: config, instances: instances)
+            try requireCurrent(client, generation: requestGeneration)
+            return availability
         } catch {
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
 
     func saveRoutine(_ input: RoutineInput, id: String?) async -> Routine? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            if let id { return try await client.updateRoutine(id: id, input: input) }
-            return try await client.createRoutine(input)
-        } catch { actionError = error.localizedDescription; return nil }
+            if let id { return try currentResult(try await client.updateRoutine(id: id, input: input), using: client, generation: requestGeneration) }
+            return try currentResult(try await client.createRoutine(input), using: client, generation: requestGeneration)
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     func setRoutineEnabled(_ routine: Routine, enabled: Bool) async -> Routine? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
-        do { return try await client.setRoutineEnabled(id: routine.id, enabled: enabled) }
-        catch { actionError = error.localizedDescription; return nil }
+        do { return try currentResult(try await client.setRoutineEnabled(id: routine.id, enabled: enabled), using: client, generation: requestGeneration) }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     func runRoutine(_ routine: Routine) async -> RoutineRun? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
-        do { return try await client.runRoutine(id: routine.id) }
-        catch { actionError = error.localizedDescription; return nil }
+        do { return try currentResult(try await client.runRoutine(id: routine.id), using: client, generation: requestGeneration) }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     func deleteRoutine(_ routine: Routine) async -> Bool {
+        let requestGeneration = runtimeGeneration
         guard let client else { return false }
-        do { try await client.deleteRoutine(id: routine.id); return true }
-        catch { actionError = error.localizedDescription; return false }
+        do { try currentResult(try await client.deleteRoutine(id: routine.id), using: client, generation: requestGeneration); return true }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return false }
     }
 
     // MARK: - Notification navigation
 
     func openNotification(_ target: NotificationTarget) async {
+        let requestGeneration = runtimeGeneration
         guard let client else {
             // Do not carry a stale destination into a future, unrelated
             // pairing. Only a saved connection waiting for Keychain access is
@@ -1903,6 +1955,7 @@ final class Session: ObservableObject {
             var bot = state.bot(target.botId)
             if bot == nil {
                 try await hydrate(using: client)
+                try requireCurrent(client, generation: requestGeneration)
                 bot = state.bot(target.botId)
             }
             // A room's approval/question notification carries the asker bot
@@ -1913,9 +1966,10 @@ final class Session: ObservableObject {
             }) {
                 if room.threadId != target.threadId {
                     do {
-                        room = try await client.switchTask(groupId: room.id, threadId: target.threadId)
+                        room = try currentResult(try await client.switchTask(groupId: room.id, threadId: target.threadId), using: client, generation: requestGeneration)
                         state.apply(.room(room))
                     } catch {
+                        guard isCurrent(client, generation: requestGeneration) else { return }
                         // A stale notification should still open the channel's
                         // current task instead of leaving the person nowhere.
                     }
@@ -1926,9 +1980,10 @@ final class Session: ObservableObject {
             guard var selected = bot else { throw APIError.status(code: 404, message: "That agent no longer exists.") }
             if target.requiresTaskSwitch(activeThreadId: selected.threadId) {
                 do {
-                    selected = try await client.switchTask(botId: selected.id, threadId: target.threadId)
+                    selected = try currentResult(try await client.switchTask(botId: selected.id, threadId: target.threadId), using: client, generation: requestGeneration)
                     state.apply(.bot(selected))
                 } catch {
+                    guard isCurrent(client, generation: requestGeneration) else { return }
                     // The thread may be gone (task deleted, stale payload).
                     // Landing in the bot's current chat still beats an error
                     // banner and no navigation at all.
@@ -1938,7 +1993,7 @@ final class Session: ObservableObject {
         } catch is CancellationError {
             // A refresh from the previous computer must not alert on the
             // newly selected connection after its generation guard rejects it.
-        } catch { actionError = error.localizedDescription }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription } }
     }
 
     func consumeNotificationChat() { notificationChat = nil }
@@ -1999,11 +2054,12 @@ final class Session: ObservableObject {
     }
 
     func react(to message: Message, in threadId: String, emoji: String) async {
+        let requestGeneration = runtimeGeneration
         guard let client else { return }
         do {
-            let patched = try await client.toggleReaction(threadId: threadId, messageId: message.id, emoji: emoji)
+            let patched = try currentResult(try await client.toggleReaction(threadId: threadId, messageId: message.id, emoji: emoji), using: client, generation: requestGeneration)
             state.apply(.messagePatch(threadId: threadId, message: patched))
-        } catch { actionError = error.localizedDescription }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription } }
     }
 
     func edit(_ message: Message, for bot: Bot, text: String) async {
@@ -2011,23 +2067,25 @@ final class Session: ObservableObject {
     }
 
     func switchVersion(to message: Message, for bot: Bot) async {
+        let requestGeneration = runtimeGeneration
         guard let client else { return }
         do {
-            let leaf = try await client.setActiveBranch(botId: bot.id, messageId: message.id, threadId: bot.threadId)
+            let leaf = try currentResult(try await client.setActiveBranch(botId: bot.id, messageId: message.id, threadId: bot.threadId), using: client, generation: requestGeneration)
             state.apply(.thread(threadId: bot.threadId, activeLeafId: leaf))
-        } catch { actionError = error.localizedDescription }
+        } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription } }
     }
 
     func export(threadId: String, format: String) async -> URL? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let exported = try await client.export(threadId: threadId, format: format)
+            let exported = try currentResult(try await client.export(threadId: threadId, format: format), using: client, generation: requestGeneration)
             let name = URL(fileURLWithPath: exported.filename).lastPathComponent
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
             try exported.data.write(to: url, options: .atomic)
             return url
         } catch {
-            actionError = error.localizedDescription
+            if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
             return nil
         }
     }
@@ -2035,21 +2093,24 @@ final class Session: ObservableObject {
     // MARK: - Connected apps
 
     func loadConnectorCatalog() async -> ConnectorCatalog? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
-        do { return try await client.connectorCatalog() }
-        catch { actionError = error.localizedDescription; return nil }
+        do { return try currentResult(try await client.connectorCatalog(), using: client, generation: requestGeneration) }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     func loadAllConnectorStatuses() async -> ConnectorStatuses? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
-        do { return try await client.allConnectorStatuses() }
-        catch { actionError = error.localizedDescription; return nil }
+        do { return try currentResult(try await client.allConnectorStatuses(), using: client, generation: requestGeneration) }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     func authorizeConnector(_ slug: String, alias: String?) async -> URL? {
+        let requestGeneration = runtimeGeneration
         guard let client else { return nil }
-        do { return try await client.authorizeConnector(slug: slug, alias: alias) }
-        catch { actionError = error.localizedDescription; return nil }
+        do { return try currentResult(try await client.authorizeConnector(slug: slug, alias: alias), using: client, generation: requestGeneration) }
+        catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
     func refreshNotificationAuthorization() async {
@@ -2082,7 +2143,7 @@ final class Session: ObservableObject {
 
     private func perform(quietly: Bool = false, _ body: (CompanionClient) async throws -> Void) async {
         guard let client else { return }
-        let generation = streamGeneration
+        let generation = runtimeGeneration
         do {
             try await body(client)
         } catch is CancellationError {
@@ -2096,8 +2157,13 @@ final class Session: ObservableObject {
         }
     }
 
+    private func currentResult<Value>(_ value: Value, using client: CompanionClient, generation: Int) throws -> Value {
+        try requireCurrent(client, generation: generation)
+        return value
+    }
+
     private func isCurrent(_ client: CompanionClient, generation: Int) -> Bool {
-        !Task.isCancelled && streamGeneration == generation && self.client?.connection.id == client.connection.id
+        !Task.isCancelled && runtimeGeneration == generation && self.client?.connection.id == client.connection.id
     }
 
     private func requireCurrent(_ client: CompanionClient, generation: Int) throws {

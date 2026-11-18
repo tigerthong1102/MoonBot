@@ -44,7 +44,7 @@ final class SessionRequestTests: XCTestCase {
     }
 
     @MainActor
-    private func exerciseSend(status: Int, body: String, replace: Bool, sameID: Bool = false, legacy: Bool = false) async throws -> (Session, Bool) {
+    private func exercise<Result: Sendable>(status: Int, body: String, replace: Bool, sameID: Bool = false, operation: @escaping @MainActor (Session, Bot) async -> Result) async throws -> (Session, Result) {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [DeferredResponseProtocol.self]
         let transport = URLSession(configuration: config)
@@ -52,12 +52,11 @@ final class SessionRequestTests: XCTestCase {
         let old = Connection(id: "old", name: "Old fixture", host: "127.0.0.1", port: 19991)
         let client = CompanionClient(connection: old, token: "fixture-only", session: transport)
         let session = Session(fixtureClient: client)
-        let chat = Chat.bot(try bot())
+        let target = try bot()
         let started = expectation(description: "The old computer receives the request")
         DeferredResponseProtocol.started = { started.fulfill() }
         let pending = Task { @MainActor in
-            if legacy { await session.send("fixture", to: chat); return false }
-            return await session.send(text: "fixture", attachments: [], to: chat)
+            await operation(session, target)
         }
         await fulfillment(of: [started], timeout: 5)
         if replace {
@@ -67,6 +66,14 @@ final class SessionRequestTests: XCTestCase {
         }
         try DeferredResponseProtocol.finish(status: status, body: body)
         return (session, await pending.value)
+    }
+
+    @MainActor
+    private func exerciseSend(status: Int, body: String, replace: Bool, sameID: Bool = false, legacy: Bool = false) async throws -> (Session, Bool) {
+        try await exercise(status: status, body: body, replace: replace, sameID: sameID) { session, bot in
+            if legacy { await session.send("fixture", to: .bot(bot)); return false }
+            return await session.send(text: "fixture", attachments: [], to: .bot(bot))
+        }
     }
 
     @MainActor
@@ -108,5 +115,62 @@ final class SessionRequestTests: XCTestCase {
         let (session, accepted) = try await exerciseSend(status: 202, body: "{\"queued\":true,\"queueId\":\"queue\",\"threadId\":\"thread\"}", replace: false)
         XCTAssertTrue(accepted)
         XCTAssertEqual(session.state.pendingQueued["thread"]?.first?.queueId, "queue")
+    }
+
+    @MainActor
+    func testLateHistoryCannotPopulateAnotherComputersThread() async throws {
+        let body = "{\"messages\":[{\"id\":\"old-message\",\"role\":\"user\",\"kind\":\"text\",\"at\":1,\"text\":\"private old history\"}],\"hasMore\":false}"
+        let (session, _) = try await exercise(status: 200, body: body, replace: true) { session, _ in
+            await session.loadThreadIfNeeded("thread")
+        }
+        XCTAssertTrue(session.state.transcript(forThread: "thread").isEmpty)
+        XCTAssertEqual(session.actionError, "current connection notice")
+    }
+
+    @MainActor
+    func testCurrentHistoryStillLoads() async throws {
+        let body = "{\"messages\":[{\"id\":\"current-message\",\"role\":\"user\",\"kind\":\"text\",\"at\":1,\"text\":\"current history\"}],\"hasMore\":false}"
+        let (session, _) = try await exercise(status: 200, body: body, replace: false) { session, _ in
+            await session.loadThreadIfNeeded("thread")
+        }
+        XCTAssertEqual(session.state.transcript(forThread: "thread").first?.text, "current history")
+        XCTAssertNil(session.actionError)
+    }
+
+    @MainActor
+    func testLateConnectorAuthorizationCannotOpenForAnotherComputer() async throws {
+        let (session, url) = try await exercise(status: 200, body: "{\"url\":\"https://fixture.invalid/authorize\"}", replace: true) { session, _ in
+            await session.authorizeConnector("fixture", alias: nil)
+        }
+        XCTAssertNil(url)
+        XCTAssertEqual(session.actionError, "current connection notice")
+    }
+
+    @MainActor
+    func testCurrentConnectorAuthorizationStillReturnsItsURL() async throws {
+        let (session, url) = try await exercise(status: 200, body: "{\"url\":\"https://fixture.invalid/authorize\"}", replace: false) { session, _ in
+            await session.authorizeConnector("fixture", alias: nil)
+        }
+        XCTAssertEqual(url?.absoluteString, "https://fixture.invalid/authorize")
+        XCTAssertNil(session.actionError)
+    }
+
+    @MainActor
+    func testCreatedBotIsFoldedOnlyIntoItsOriginatingComputer() async throws {
+        let botJSON = String(decoding: try JSONEncoder().encode(bot()), as: UTF8.self)
+        for replace in [false, true] {
+            let (session, created) = try await exercise(status: 201, body: "{\"bot\":\(botJSON)}", replace: replace) { session, _ in
+                await session.createBot()
+            }
+            if replace {
+                XCTAssertNil(created)
+                XCTAssertNil(session.state.bot("bot"))
+                XCTAssertEqual(session.actionError, "current connection notice")
+            } else {
+                XCTAssertEqual(created?.id, "bot")
+                XCTAssertEqual(session.state.bot("bot")?.id, "bot")
+                XCTAssertNil(session.actionError)
+            }
+        }
     }
 }

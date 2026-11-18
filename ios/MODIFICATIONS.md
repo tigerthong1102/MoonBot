@@ -7,7 +7,8 @@ New compatibility tests cover both pairing URI schemes without loosening validat
 No Enterprise files, store marketing assets or upstream compiled apps are imported.
 
 Internal 0.1.1 adds scoped iOS send completion/receipt handling and native
-regression tests, one priority Live Activity per bot, and active-thread image
+regression tests, runtime-scoped history/profile/routine/connector results,
+one priority Live Activity per bot, and active-thread image
 model selection in both share clients. Imported historical comment narration
 is removed; license/attribution, OS facts and security contracts are retained.
 All platform acceptance must be rerun for this changed native source.

@@ -192,6 +192,7 @@ async function freshModules() {
 const snapshots = () => ph.captured.filter(({ event }) => event === "app_snapshot").map(({ props }) => props);
 
 describe("the daily usage snapshot", () => {
+  beforeEach(() => { storage.set("omb-analytics-opt-out", "0"); });
   it("counts what is set up from a workspace full of names, keys, ids and addresses, and sends none of them", async () => {
     const { snapshot } = await freshModules();
     expect(await snapshot.sendDailySnapshot(hostileState(), hostileSources(), DAY)).toBe(true);
@@ -240,7 +241,8 @@ describe("the daily usage snapshot", () => {
   });
 
   it("sends once per page load when storage throws, through the page's own memory", async () => {
-    const { snapshot } = await freshModules();
+    const { analytics, snapshot } = await freshModules();
+    analytics.setAnalyticsEnabled(true);
     vi.stubGlobal("localStorage", { getItem: () => { throw new Error("denied"); }, setItem: () => { throw new Error("denied"); } });
     expect(await snapshot.sendDailySnapshot(hostileState(), hostileSources(), DAY)).toBe(true);
     expect(await snapshot.sendDailySnapshot(hostileState(), hostileSources(), DAY + 1_000)).toBe(false);
@@ -305,6 +307,7 @@ describe("an opted-out install", () => {
   });
 
   it("drops a snapshot when analytics is switched off while it gathers", async () => {
+    storage.set("omb-analytics-opt-out", "0");
     const { analytics, snapshot } = await freshModules();
     let release!: () => void;
     const sending = snapshot.sendDailySnapshot(hostileState(), hostileSources({

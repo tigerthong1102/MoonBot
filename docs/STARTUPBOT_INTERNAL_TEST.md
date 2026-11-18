@@ -141,3 +141,14 @@ Internal v8 additionally renames new CLI pairing labels, the default Grok tool p
 The measured internal-v4 ARM64 baseline is 321,744,967 bytes as UDZO. Converting that same image to ULMO produces 241,306,247 bytes (25.0% smaller). An isolated read-only mount comparison verifies all 2,887 application files, executable modes and symlink targets unchanged (809,284,773 logical payload bytes); code-signature and image-integrity checks PASS. This is a download-size improvement; the fully bundled Electron, browser, data, CUA and Android tools remain. No language, provider, model capability, image quality or offline component is removed.
 
 Internal v9 uses maximum NSIS compression and verified ULMO conversion after building supported UDZO images. Every installed application is compared byte-for-byte with its packaged source before launch. The native installer/browser/server smokes remain mandatory. ARM64 and Intel DMGs are uploaded separately with scoped checksums and explicit native-smoke versus build-only qualification, avoiding a combined two-architecture download. A new v9 build is required; the baseline numbers are not presented as final v9 results.
+
+
+Internal v10 additionally disables NSIS differential-archive layout for manual
+Windows trial installers. electron-builder 26.15.3 forces differential archives
+to a non-solid 1 MiB dictionary, overriding the requested compression mode.
+These internal installers instead use full solid compression. Application
+payloads, installation and full-installer upgrades remain supported; the base
+production updater/differential configuration is unchanged and remains gated.
+Windows is rebuilt and payload/installation/browser/server checks rerun for
+this packaging change. macOS v9 remains a separate unchanged qualified build;
+its source SHA and acceptance are reported independently.

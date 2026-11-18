@@ -56,6 +56,7 @@
   "server.reports.when.minute": "in etwa {count} Minute",
   "server.reports.when.minutes": "in etwa {count} Minuten",
   "server.reports.when.soon": "so bald wie möglich",
+  "server.reports.disabled": "Die Fehlerberichterstattung ist deaktiviert. Es wurde kein Diagnosebericht gesendet.",
   "server.reports.refused": "Der Server des StartupBot-Teams hat diesen Fehlerbericht abgelehnt, daher wurde nichts gesendet: {detail}.",
   "server.reports.full": "Nicht gesendet: {count} Fehlerberichte warten schon darauf, an das StartupBot-Team zu gehen. Schreib noch einmal @devs, sobald sie gesendet sind.",
   "server.reports.dropped": "Ein Fehlerbericht aus dieser Unterhaltung konnte das StartupBot-Team eine Woche lang nicht erreichen und wurde deshalb verworfen. Schreib noch einmal @devs, um einen neuen zu senden.",

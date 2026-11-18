@@ -7,9 +7,6 @@ import { z } from "zod";
 
 import { DEVS_REPORT_LIMITS, withoutContact, type DevsReportPayload } from "./devs-report.ts";
 
-export const BUG_REPORT_PATH = "/api/bug-reports";
-export const PRODUCTION_CLOUD_ORIGIN = "https://cloud.openmausbot.com";
-export const STAGING_CLOUD_ORIGIN = "https://omb-cloud-staging.fly.dev";
 const SEND_TIMEOUT_MS = 20_000;
 const ANSWER_MAX_BYTES = 16 * 1024;
 
@@ -20,19 +17,18 @@ export type SendOutcome =
   /** The endpoint refused this report; sending it again would be refused again. */
   | { ok: false; retry: false; why: "refused"; detail: string };
 
-/** OMB_BUG_REPORT_URL (an https address, or http on this machine's loopback, for fixtures), else a Cloud home's own
- * Admin origin, else the staging or production Cloud. */
-export function bugReportEndpoint(env: NodeJS.ProcessEnv, cloudOrigin?: string | null): string {
+/** Reports have a separately configured destination. Cloud enrollment never grants permission to share diagnostics. */
+export function bugReportEndpoint(env: NodeJS.ProcessEnv): string | null {
   const explicit = env.OMB_BUG_REPORT_URL?.trim();
-  if (explicit) {
-    try {
-      const url = new URL(explicit);
-      const loopback = url.protocol === "http:" && ["127.0.0.1", "[::1]", "localhost"].includes(url.hostname);
-      if ((url.protocol === "https:" || loopback) && !url.username && !url.password) return url.href;
-    } catch { /* not an address: the default below */ }
-  }
-  const origin = cloudOrigin ?? (env.OMB_CLOUD_STAGING === "1" ? STAGING_CLOUD_ORIGIN : PRODUCTION_CLOUD_ORIGIN);
-  return `${origin.replace(/\/+$/, "")}${BUG_REPORT_PATH}`;
+  if (!explicit) return null;
+  try {
+    const url = new URL(explicit);
+    const hostname = url.hostname.replace(/\.$/, "");
+    if (hostname === "omb-cloud-staging.fly.dev" || hostname === "openmausbot.com" || hostname.endsWith(".openmausbot.com")) return null;
+    const loopback = url.protocol === "http:" && ["127.0.0.1", "[::1]", "localhost"].includes(hostname);
+    if ((url.protocol === "https:" || loopback) && !url.username && !url.password && !url.hash) return url.href;
+  } catch {}
+  return null;
 }
 
 async function boundedJson(response: Response): Promise<Record<string, unknown>> {
@@ -139,3 +135,10 @@ export async function askReportStatus(endpoint: string, question: ReportStatusQu
 
 export const devsStatusAsker = (reportEndpoint: string, home: ReportStatusHome | null, fetcher: typeof fetch = fetch) =>
   (question: ReportStatusQuestion) => askReportStatus(bugReportStatusEndpoint(reportEndpoint), question, home, fetcher);
+
+export function devsReportTransport(env: NodeJS.ProcessEnv, home?: ReportStatusHome & { adminOrigin: string } | null) {
+  const endpoint = bugReportEndpoint(env);
+  if (!endpoint) return null;
+  const sameAdmin = home && new URL(endpoint).origin === home.adminOrigin;
+  return { endpoint, send: devsReportSender(endpoint), askStatus: devsStatusAsker(endpoint, sameAdmin ? home : null) };
+}

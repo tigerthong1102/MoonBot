@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { VerbContext } from "./context.ts";
-import { checkHost, hostDoctor, hostReport, listeningPorts, type CommandResult, type HostCheck, type HostProbe } from "./host-doctor.ts";
+import { chronyClockOffset, checkHost, hostDoctor, hostReport, listeningPorts, type CommandResult, type HostCheck, type HostProbe } from "./host-doctor.ts";
 import type { HeadlessIo } from "./output.ts";
 import { runHeadless } from "./main.ts";
 
@@ -185,4 +185,13 @@ describe("doctor --host", () => {
     expect(out).toHaveLength(1);
     expect(JSON.parse(out[0]!)).toMatchObject({ ok: false, problems: 1, checks: [{ id: "platform", status: "FAIL", fix: expect.any(String) }] });
   });
+});
+
+
+it("reads the signed clock offset from a synchronised local chrony daemon", () => {
+  const tracking = "System time     : 0.025 seconds slow of NTP time\nLeap status     : Normal\n";
+  expect(chronyClockOffset(tracking)).toBe(-25);
+  expect(chronyClockOffset(tracking.replace("slow", "fast"))).toBe(25);
+  expect(chronyClockOffset(tracking.replace("Normal", "Not synchronised"))).toBeNull();
+  expect(chronyClockOffset("")).toBeNull();
 });

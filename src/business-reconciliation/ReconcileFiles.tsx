@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ComponentType, type SelectHTMLAttributes } from "react";
 import { checkMapping, compare, fields, guess, table, titles, type Source } from "./compare";
 import { readFileTable } from "./files";
 import { htmlReport, type Report } from "./report";
@@ -8,7 +8,9 @@ type Input = { source?: Source; name?: string; error?: string; busy?: boolean };
 type Pair = [Input, Input];
 const sides = ["Tệp cần kiểm tra", "Báo cáo đối chứng"] as const;
 
-export default function ReconcileFiles({ close }: { close?: () => void }) {
+type Dropdown = "select" | ComponentType<Omit<SelectHTMLAttributes<HTMLSelectElement>, "size">>;
+
+export default function ReconcileFiles({ close, dropdown: Dropdown }: { close?: () => void; dropdown: Dropdown }) {
   const [inputs, setInputs] = useState<Pair>([{}, {}]);
   const versions = useRef([0, 0]);
   const [company, setCompany] = useState(""), [period, setPeriod] = useState("");
@@ -68,12 +70,12 @@ export default function ReconcileFiles({ close }: { close?: () => void }) {
       }}/></label>
       {input.name && <small>{input.name}{input.busy ? " · Đang đọc…" : ""}</small>}
       {input.error && <p role="alert">{input.error}</p>}
-      {input.source && fields.map(f => <label key={f}>{titles[f]}<select aria-label={sides[i] + " · " + titles[f]} value={input.source!.mapping[f]} onChange={e => {
+      {input.source && fields.map(f => <label key={f}>{titles[f]}<Dropdown aria-label={sides[i] + " · " + titles[f]} value={input.source!.mapping[f]} onChange={e => {
         const source = input.source!;
         update(i, { ...input, source: { ...source, mapping: { ...source.mapping, [f]: Number(e.target.value) } } });
-      }}><option value={-1}>Chọn cột</option>{input.source!.data.headers.map((h, n) => <option key={n} value={n}>{h}</option>)}</select></label>)}
-      {input.source && <label>Dấu thập phân<select value={input.source.separator} onChange={e => update(i, { ...input, source: { ...input.source!, separator: e.target.value as "." | "," } })}>
-        <option value=".">Dấu chấm (1234.50)</option><option value=",">Dấu phẩy (1234,50)</option></select></label>}
+      }}><option value={-1}>Chọn cột</option>{input.source!.data.headers.map((h, n) => <option key={n} value={n}>{h}</option>)}</Dropdown></label>)}
+      {input.source && <label>Dấu thập phân<Dropdown value={input.source.separator} onChange={e => update(i, { ...input, source: { ...input.source!, separator: e.target.value as "." | "," } })}>
+        <option value=".">Dấu chấm (1234.50)</option><option value=",">Dấu phẩy (1234,50)</option></Dropdown></label>}
     </fieldset>)}</div>
     <div className="reconcile-scope"><label>Mã công ty cần kiểm tra<input value={company} onChange={e => { setCompany(e.target.value); clearReport(); }}/></label>
       <label>Kỳ cần kiểm tra<input value={period} onChange={e => { setPeriod(e.target.value); clearReport(); }}/></label></div>

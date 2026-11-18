@@ -4,6 +4,7 @@ import { DATA_ROUTES, type DataRunRequest } from "../../../shared/data-surface";
 import { api, useStore, type Bot } from "@/state/store";
 import { t } from "@/lib/i18n";
 import { useColorScheme } from "@/lib/color-scheme";
+import { Select } from "../Select";
 import { SourcesStrip } from "./SourcesStrip";
 import { DataCard, RunningStatus } from "./DataCard";
 import { DataResultFooter } from "./DataGrid";
@@ -256,7 +257,7 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
     <div ref={panel} className="@container/data flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card text-ink fullscreen:h-full fullscreen:w-full" data-testid="data-panel">
       {reconcileOpen && <dialog ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setReconcileOpen(false)}
         className="m-auto max-h-[90vh] w-[min(64rem,96vw)] overflow-auto rounded-xl bg-card text-ink backdrop:bg-black/30" aria-label="Đối chiếu chứng từ">
-        <Suspense fallback={<button onClick={() => setReconcileOpen(false)}>Đóng</button>}><ReconcileFiles close={() => setReconcileOpen(false)} /></Suspense>
+        <Suspense fallback={<button onClick={() => setReconcileOpen(false)}>Đóng</button>}><ReconcileFiles dropdown={Select} close={() => setReconcileOpen(false)} /></Suspense>
       </dialog>}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden [container-type:size]" data-testid="data-result">
         {!sheet && !loadError && (

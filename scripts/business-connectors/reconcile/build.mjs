@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = resolve(process.argv[2] ?? resolve(root, "dist/reconciliation/doi-chieu.html"));
 const bundle = await build({
-  absWorkingDir: root, stdin: { contents: 'import {createElement} from "react"; import {createRoot} from "react-dom/client"; import ReconcileFiles from "./src/business-reconciliation/ReconcileFiles"; createRoot(document.getElementById("app")).render(createElement(ReconcileFiles));',
+  absWorkingDir: root, stdin: { contents: 'import {createElement} from "react"; import {createRoot} from "react-dom/client"; import ReconcileFiles from "./src/business-reconciliation/ReconcileFiles"; createRoot(document.getElementById("app")).render(createElement(ReconcileFiles,{dropdown:"select"}));',
     resolveDir: root }, outfile: "portable.js", jsx: "automatic", bundle: true, write: false, minify: true,
   define: { "process.env.NODE_ENV": '"production"' }, legalComments: "inline",
 });

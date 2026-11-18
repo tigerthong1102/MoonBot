@@ -3,7 +3,11 @@ set -euo pipefail
 mkdir -p mobile-artifacts/android
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
 sdkmanager 'system-images;android-35;google_apis;x86_64' 'emulator'
-printf 'no\n' | avdmanager create avd -n StartupBotInternal -k 'system-images;android-35;google_apis;x86_64' --force
+export ANDROID_AVD_HOME="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/startupbot-internal-avd"
+mkdir -p "$ANDROID_AVD_HOME"
+printf 'no\n' | avdmanager create avd -n StartupBotInternal -p "$ANDROID_AVD_HOME/StartupBotInternal.avd" -k 'system-images;android-35;google_apis;x86_64' --device pixel_6 --force
+emulator -list-avds | tee mobile-artifacts/android/avds.txt
+grep -qx StartupBotInternal mobile-artifacts/android/avds.txt
 emulator -avd StartupBotInternal -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -camera-back none -camera-front none > mobile-artifacts/android/emulator.log 2>&1 &
 emulator_pid=$!
 trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT

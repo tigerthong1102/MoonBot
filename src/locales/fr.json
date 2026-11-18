@@ -52,6 +52,7 @@
   "server.reports.when.minute": "dans environ {count} minute",
   "server.reports.when.minutes": "dans environ {count} minutes",
   "server.reports.when.soon": "dès que possible",
+  "server.reports.disabled": "L’envoi de rapports est désactivé. Aucun rapport de diagnostic n’a été envoyé.",
   "server.reports.refused": "Le serveur de l'équipe StartupBot a refusé ce rapport de bug, rien n'a donc été envoyé : {detail}.",
   "server.reports.full": "Non envoyé : {count} rapports de bug attendent déjà d'être envoyés à l'équipe StartupBot. Écrivez de nouveau @devs une fois qu'ils sont partis.",
   "server.reports.dropped": "Un rapport de bug de cette conversation n'a pas pu atteindre l'équipe StartupBot pendant une semaine, il a donc été abandonné. Écrivez de nouveau @devs pour en envoyer un nouveau.",

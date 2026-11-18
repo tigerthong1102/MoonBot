@@ -14,6 +14,7 @@ export interface ImageSlotStatus { provider: ImageProvider; model: string; confi
 
 /** GET /api/config — configured flags only; secrets are never echoed. */
 export interface ConfigStatus {
+  bugReportsEnabled?: boolean;
   /** The workspace's banner picture (GET /api/workspace/banner), by a version that changes with it; null without one. */
   workspaceBanner?: import("@/lib/place-banner").BannerSummary | null;
   xai?: SavedKey;

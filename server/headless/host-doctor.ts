@@ -1,12 +1,11 @@
 // `doctor --host`: can this Linux machine run the server and the bots' sandbox? It only looks: files under /proc and /sys,
-// version queries to docker, podman and timedatectl, the sockets already listening, and one HEAD request for the time. On
+// version queries to docker, podman and timedatectl, the sockets already listening, and the local time daemon. On
 // a server that runs the MausBot connector it also asks that for its own checks, which start one throwaway box probe.
 import { execFile } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statfsSync } from "node:fs";
 import { arch, cpus, homedir, release, totalmem } from "node:os";
 import { dirname, join, posix, resolve } from "node:path";
 
-import { PRODUCTION_CLOUD_ORIGIN } from "../devs-report-send.ts";
 import { EXIT, flag, usageError } from "./args.ts";
 import type { VerbContext, VerbOutcome } from "./context.ts";
 
@@ -229,8 +228,8 @@ async function clockCheck(probe: HostProbe): Promise<HostCheck> {
   const [offset, ntp] = await Promise.all([probe.clockOffset(), probe.run("timedatectl", ["show", "-p", "NTPSynchronized", "--value"])]);
   const synced = ntp.ok ? ntp.stdout.trim() === "yes" : null;
   if (offset === null) {
-    return synced ? ok("clock", "Clock is kept synchronised (network time could not be reached to compare)")
-      : warn("clock", synced === false ? "Clock is not kept synchronised, and network time could not be reached" : "Could not check the clock", NTP_FIX);
+    return synced ? ok("clock", "Clock is kept synchronised (offset unavailable)")
+      : warn("clock", synced === false ? "Clock is not kept synchronised, and its offset is unavailable" : "Could not check the clock", NTP_FIX);
   }
   const seconds = Math.abs(offset) / 1_000;
   const off = seconds < 1.5 ? "within 1 s of network time" : `${Math.round(seconds)} s ${offset > 0 ? "ahead of" : "behind"} network time`;
@@ -271,6 +270,14 @@ function run(command: string, args: string[]): Promise<CommandResult> {
   });
 }
 
+export function chronyClockOffset(tracking: string): number | null {
+  if (!/^Leap status\s*:\s*Normal\s*$/m.test(tracking)) return null;
+  const time = /^System time\s*:\s*([0-9]+(?:\.[0-9]+)?) seconds (fast|slow) of NTP time\s*$/m.exec(tracking);
+  if (!time) return null;
+  const ms = Number(time[1]) * 1_000;
+  return Number.isFinite(ms) ? (time[2] === "slow" ? -ms : ms) : null;
+}
+
 export function systemProbe(): HostProbe {
   const read = (path: string) => { try { return readFileSync(path, "utf8"); } catch { return null; } };
   return {
@@ -289,16 +296,8 @@ export function systemProbe(): HostProbe {
       }
     },
     async clockOffset() {
-      try {
-        const before = Date.now();
-        const response = await fetch(PRODUCTION_CLOUD_ORIGIN, { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(5_000) });
-        const after = Date.now();
-        const date = Date.parse(response.headers.get("date") ?? "");
-        // An HTTP date is whole seconds: the server's clock was somewhere in the second after it.
-        return Number.isFinite(date) ? (before + after) / 2 - (date + 500) : null;
-      } catch {
-        return null;
-      }
+      const tracking = await run("chronyc", ["-n", "tracking"]);
+      return tracking.ok ? chronyClockOffset(tracking.stdout) : null;
     },
     async serverAnswers(port) {
       try {

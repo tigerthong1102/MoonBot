@@ -83,6 +83,7 @@
   "server.reports.when.minute": "yaklaşık {count} dakika içinde",
   "server.reports.when.minutes": "yaklaşık {count} dakika içinde",
   "server.reports.when.soon": "mümkün olan en kısa sürede",
+  "server.reports.disabled": "Rapor gönderimi kapalı. Tanılama raporu gönderilmedi.",
   "server.reports.refused": "StartupBot ekibinin sunucusu bu hata raporunu reddetti, bu yüzden hiçbir şey gönderilmedi: {detail}.",
   "server.reports.full": "Gönderilmedi: {count} hata raporu zaten StartupBot ekibine gönderilmeyi bekliyor. Onlar gönderildikten sonra tekrar @devs yazın.",
   "server.reports.dropped": "Bu konuşmadaki bir hata raporu bir hafta boyunca StartupBot ekibine ulaşamadığı için silindi. Yeni bir rapor göndermek için tekrar @devs yazın.",

@@ -58,13 +58,16 @@ describe("sending a @devs report", () => {
 });
 
 describe("where reports go", () => {
-  it("is a fixture's loopback or https address, else a Cloud home's own origin, else the staging or production Cloud", () => {
-    expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: "http://127.0.0.1:4400/api/bug-reports" })).toBe("http://127.0.0.1:4400/api/bug-reports");
-    expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: "http://192.0.2.1/api/bug-reports" })).toBe("https://cloud.openmausbot.com/api/bug-reports");
-    expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: "https://user:pw@evil.example/x" })).toBe("https://cloud.openmausbot.com/api/bug-reports");
-    expect(bugReportEndpoint({}, "https://cloud.openmausbot.com")).toBe("https://cloud.openmausbot.com/api/bug-reports");
-    expect(bugReportEndpoint({ OMB_CLOUD_STAGING: "1" })).toBe("https://omb-cloud-staging.fly.dev/api/bug-reports");
-    expect(bugReportEndpoint({})).toBe("https://cloud.openmausbot.com/api/bug-reports");
+  it("requires an explicit destination and rejects upstream or invalid URLs", () => {
+    for (const url of ["http://127.0.0.1:4400/api/bug-reports", "https://support.example.test/reports"]) {
+      expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: url })).toBe(url);
+    }
+    for (const url of ["", "invalid", "http://192.0.2.1/reports", "https://user:pw@server.example/x",
+      "https://CLOUD.openmausbot.com.:443/api/bug-reports", "https://omb-cloud-staging.fly.dev/reports"]) {
+      expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: url })).toBeNull();
+    }
+    expect(bugReportEndpoint({ OMB_CLOUD_STAGING: "1" })).toBeNull();
+    expect(bugReportEndpoint({})).toBeNull();
   });
 });
 

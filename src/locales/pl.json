@@ -94,6 +94,7 @@
   "server.reports.when.minute": "za około {count} minutę",
   "server.reports.when.minutes": "za około {count} min",
   "server.reports.when.soon": "gdy tylko będzie to możliwe",
+  "server.reports.disabled": "Wysyłanie zgłoszeń jest wyłączone. Raport diagnostyczny nie został wysłany.",
   "server.reports.refused": "Serwer zespołu StartupBot odrzucił to zgłoszenie błędu, więc nic nie zostało wysłane: {detail}.",
   "server.reports.full": "Nie wysłano: {count} zgłoszeń błędów czeka już na wysłanie do zespołu StartupBot. Wpisz ponownie @devs, gdy zostaną wysłane.",
   "server.reports.dropped": "Zgłoszenie błędu z tej rozmowy przez tydzień nie mogło dotrzeć do zespołu StartupBot, więc zostało odrzucone. Wpisz ponownie @devs, aby wysłać nowe.",

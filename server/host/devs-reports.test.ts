@@ -11,16 +11,19 @@ import type { ReportStatusAnswer, ReportStatusQuestion, SendOutcome } from "../d
 import { personKey } from "../person-key.ts";
 import type { PublicSession } from "../sessions.ts";
 import type { Message, StoreChange } from "../store.ts";
-import { createDevsReports, DEVS_REPORTS_FILE, fixedLine, LONGEST_WAIT_MS, NO_ANSWER_MS, RETRY_MS, sentLine, STATUS_EVERY_MS, STATUS_FIRST_MS, TRACKED_MS,
+import { createDevsReports, devsReportsFile, fixedLine, LONGEST_WAIT_MS, NO_ANSWER_MS, RETRY_MS, sentLine, STATUS_EVERY_MS, STATUS_FIRST_MS, TRACKED_MS,
   type DevsReportsDeps } from "./devs-reports.ts";
 
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
+const TEST_ENDPOINT = "https://reports.example.test/api/bug-reports";
+const DEVS_REPORTS_FILE = devsReportsFile(TEST_ENDPOINT);
+
 const SCOUT = { id: "scout", name: "Scout", threadId: "scout-main", modelSelection: { instanceId: "claude", model: "claude-opus-5-5" }, composio: true };
 const ROVER = { id: "rover", name: "Rover", threadId: "rover-main", modelSelection: { instanceId: "codex", model: "gpt-5.5", effort: "high" } };
 
-function fixture(options: { dataDir?: string; sections?: string[]; outcomes?: SendOutcome[]; sessions?: PublicSession[]; ownerKey?: string | null; team?: boolean;
+function fixture(options: { endpoint?: string | null; dataDir?: string; sections?: string[]; outcomes?: SendOutcome[]; sessions?: PublicSession[]; ownerKey?: string | null; team?: boolean;
   profileEmail?: string; automated?: boolean; lineLanguage?: DevsReportsDeps["lineLanguage"]; appVersion?: string; clock?: number;
   /** The conversations, kept across a restart (another fixture on the same data). */
   threads?: Map<string, Message[]>;
@@ -68,8 +71,11 @@ function fixture(options: { dataDir?: string; sections?: string[]; outcomes?: Se
     appsReady: () => false, sessions: () => options.sessions ?? [], ownerKey: options.ownerKey ?? null, team: options.team === true,
     profileEmail: () => options.profileEmail, language: () => "en", ...(options.lineLanguage ? { lineLanguage: options.lineLanguage } : {}),
     recentLog: () => ["2026-10-27T08:59:00.000Z warn engine probe slow"],
-    send: async (payload) => { sent.push(payload); return outcomes.shift() ?? { ok: true, id: `report-${sent.length}` }; },
-    askStatus: async (question) => { asked.push(question); return options.answer?.(question) ?? null; },
+    transport: options.endpoint === null ? null : {
+      endpoint: options.endpoint ?? TEST_ENDPOINT,
+      send: async (payload) => { sent.push(payload); return outcomes.shift() ?? { ok: true, id: `report-${sent.length}` }; },
+      askStatus: async (question) => { asked.push(question); return options.answer?.(question) ?? null; },
+    },
     tell: (threadId, text, person) => { told.push({ threadId, text, ...(person ? { person } : {}) }); },
     now: () => clock, timer: false,
   };
@@ -93,6 +99,26 @@ function fixture(options: { dataDir?: string; sections?: string[]; outcomes?: Se
 }
 
 describe("a message that tags @devs", () => {
+  it("keeps an existing queue private when reporting is disabled or the recipient changes", async () => {
+    const original = fixture();
+    original.person("scout-main", "@devs original recipient only");
+    original.stop();
+    for (const endpoint of [null, "https://different.example.test/reports"]) {
+      const next = fixture({ dataDir: original.dataDir, endpoint });
+      next.advance(STATUS_EVERY_MS);
+      await next.settle();
+      if (!endpoint) {
+        next.person("scout-main", "@devs private diagnostics");
+        expect(next.notices("scout-main").join(" ")).toContain("Reporting is disabled");
+        expect(next.reports.note("scout-main", true)).toBe("");
+        expect((await next.call("scout", "scout-main", {})).status).toBe(503);
+      }
+      expect(next.sent).toEqual([]);
+      expect(next.asked).toEqual([]);
+      next.stop();
+    }
+    expect(readFileSync(join(original.dataDir, DEVS_REPORTS_FILE), "utf8")).toContain("original recipient only");
+  });
   it("sends one report with the bot's summary when the bot calls report_bug, and the bot's reply tells the person", async () => {
     const fx = fixture({ profileEmail: "ada@example.com" });
     const line = fx.person("scout-main", "@devs pictures never load, key sk-ant-" + "a".repeat(40));

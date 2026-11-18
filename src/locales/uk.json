@@ -52,6 +52,7 @@
   "server.reports.when.minute": "приблизно за {count} хвилину",
   "server.reports.when.minutes": "приблизно за {count} хв",
   "server.reports.when.soon": "щойно з'явиться можливість",
+  "server.reports.disabled": "Надсилання звітів вимкнено. Діагностичний звіт не надіслано.",
   "server.reports.refused": "Сервер команди StartupBot відхилив цей звіт про помилку, тому нічого не надіслано: {detail}.",
   "server.reports.full": "Не надіслано: уже {count} звітів про помилки чекають на відправлення команді StartupBot. Напишіть @devs ще раз, коли їх буде надіслано.",
   "server.reports.dropped": "Звіт про помилку з цієї розмови тиждень не міг дійти до команди StartupBot, тому його відкинуто. Напишіть @devs ще раз, щоб надіслати новий.",

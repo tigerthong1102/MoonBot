@@ -281,12 +281,12 @@ jobs:
         run: |
           pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
           node --test scripts/package-payload.node-test.mjs
-      - run: pnpm package:prepare
       - run: pnpm build:cua:win
       - name: Test ARM64 native modules and Computer Use driver
         if: inputs.windows_arch == 'arm64'
         run: |
           node scripts/smoke-cua-win-embedded.mjs
+      - run: pnpm package:prepare
       - name: Build for the selected Windows architecture
         env:
           TARGET_ARCH: ${{ inputs.windows_arch || 'x64' }}

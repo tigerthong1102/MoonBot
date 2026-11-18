@@ -178,6 +178,7 @@
   "server.reports.when.minute": "在大約 {count} 分鐘後",
   "server.reports.when.minutes": "在大約 {count} 分鐘後",
   "server.reports.when.soon": "盡快",
+  "server.reports.disabled": "回報功能已停用，未傳送診斷報告。",
   "server.reports.refused": "StartupBot 團隊的伺服器拒絕了這份錯誤回報，因此沒有傳送任何內容：{detail}。",
   "server.reports.full": "未傳送：已有 {count} 份錯誤回報正在等待傳送給 StartupBot 團隊。等它們傳送後，再輸入一次 @devs。",
   "server.reports.dropped": "此對話中的一份錯誤回報一週內都無法送達 StartupBot 團隊，因此已被捨棄。若要傳送新的回報，請再輸入一次 @devs。",

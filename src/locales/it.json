@@ -93,6 +93,7 @@
   "server.reports.when.minute": "tra circa {count} minuto",
   "server.reports.when.minutes": "tra circa {count} minuti",
   "server.reports.when.soon": "appena possibile",
+  "server.reports.disabled": "L’invio delle segnalazioni è disattivato. Nessun rapporto diagnostico è stato inviato.",
   "server.reports.refused": "Il server del team di StartupBot ha rifiutato questa segnalazione di bug, quindi non è stato inviato nulla: {detail}.",
   "server.reports.full": "Non inviata: ci sono già {count} segnalazioni di bug in attesa di essere inviate al team di StartupBot. Scrivi di nuovo @devs quando saranno partite.",
   "server.reports.dropped": "Una segnalazione di bug di questa conversazione non è riuscita a raggiungere il team di StartupBot per una settimana, quindi è stata scartata. Scrivi di nuovo @devs per inviarne una nuova.",

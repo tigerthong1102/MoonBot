@@ -52,6 +52,7 @@
   "server.reports.when.minute": "लगभग {count} मिनट में",
   "server.reports.when.minutes": "लगभग {count} मिनट में",
   "server.reports.when.soon": "जितनी जल्दी हो सके",
+  "server.reports.disabled": "रिपोर्ट भेजना बंद है। कोई डायग्नोस्टिक रिपोर्ट नहीं भेजी गई।",
   "server.reports.refused": "StartupBot टीम के सर्वर ने यह बग रिपोर्ट अस्वीकार कर दी, इसलिए कुछ नहीं भेजा गया: {detail}।",
   "server.reports.full": "नहीं भेजी गई: {count} बग रिपोर्ट पहले से StartupBot टीम को भेजे जाने का इंतज़ार कर रही हैं। उनके चले जाने के बाद फिर से @devs लिखें।",
   "server.reports.dropped": "इस बातचीत की एक बग रिपोर्ट एक हफ़्ते तक StartupBot टीम तक नहीं पहुँच सकी, इसलिए उसे हटा दिया गया। नई रिपोर्ट भेजने के लिए फिर से @devs लिखें।",

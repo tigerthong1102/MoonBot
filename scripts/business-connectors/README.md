@@ -31,3 +31,5 @@ echo '{"consent":"granted","data":"sql","location":"local","engine":"running","o
 ~~~
 
 Các trường checks của phương án F ghi kết quả kiểm tra do người vận hành cung cấp. Công cụ không tải, xác minh hay chạy installer, không nhận password và không xin nâng quyền. Bundle thử dùng file xuất ngay cả khi người dùng chưa có môi trường SQL.
+
+Đối với Smart Pro dùng SQL Server 2005, Setup Assistant có [quy trình cài thủ công trong VM cô lập](../../docs/startupbot/business-connectors/smartpro-sql2005-lab.md), gồm kiểm tra media, điểm dừng và phép đọc sau cài.

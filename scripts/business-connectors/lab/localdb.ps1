@@ -46,6 +46,13 @@ SELECT CONVERT(varchar(32), SERVERPROPERTY('ProductVersion')),
     $sample | ConvertTo-Json -Compress | node "$PSScriptRoot/verify-sample.ts"
     if ($LASTEXITCODE -ne 0) { throw 'Accounting sample did not round-trip into Node.' }
     $reader.Dispose()
+    $command.CommandText = Get-Content -Raw -LiteralPath "$PSScriptRoot/verify-sql2005.sql"
+    try {
+        $null = $command.ExecuteNonQuery()
+        throw 'The SQL 2005 verification script accepted a modern engine.'
+    } catch [Data.SqlClient.SqlException] {
+        if ($_.Exception.Number -ne 50000 -or $_.Exception.Message -notmatch 'Expected SQL Server 2005 Database Engine') { throw }
+    }
     $command.Dispose()
     . "$PSScriptRoot/readonly.ps1"
     Test-ScopedRead $connection

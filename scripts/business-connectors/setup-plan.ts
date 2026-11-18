@@ -16,9 +16,17 @@ const choices = {
 type Evidence = { [K in keyof typeof choices]: typeof choices[K][number] } & {
   observedVersion?: string; certifiedTarget?: "2022" | "2025";
   checks?: Partial<Record<typeof checks[number], boolean>>;
+  smartPro2005Lab?: Partial<Record<typeof labChecks[number], boolean>>;
 };
 const checks = ["localHostConfirmed", "hardwareAndOs", "adminAvailable", "license",
   "officialInstaller", "signature", "independentChecksum", "instanceNameAvailable", "recoveryPlan"] as const;
+
+const labChecks = ["disposableVm", "networkDisconnected", "cleanSnapshot", "syntheticDataOnly", "smartProBuildConfirmed"] as const;
+
+function validChecks(raw: unknown, keys: readonly string[]) {
+  return raw !== null && typeof raw === "object" && !Array.isArray(raw) &&
+    Object.entries(raw).every(([key, value]) => keys.includes(key) && typeof value === "boolean");
+}
 
 function validate(raw: unknown): Evidence {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("invalid-evidence");
@@ -28,8 +36,9 @@ function validate(raw: unknown): Evidence {
   }
   if (obj.observedVersion !== undefined && (typeof obj.observedVersion !== "string" || !/^\d{1,2}\.\d{1,2}(?:\.\d{1,5}){0,2}$/.test(obj.observedVersion))) throw new Error("invalid-evidence");
   if (obj.certifiedTarget !== undefined && obj.certifiedTarget !== "2022" && obj.certifiedTarget !== "2025") throw new Error("invalid-evidence");
-  if (obj.checks !== undefined && (!obj.checks || typeof obj.checks !== "object" || Array.isArray(obj.checks) ||
-      Object.entries(obj.checks).some(([key, value]) => !(checks as readonly string[]).includes(key) || typeof value !== "boolean"))) throw new Error("invalid-evidence");
+  if (obj.checks !== undefined && !validChecks(obj.checks, checks)) throw new Error("invalid-evidence");
+  if (obj.smartPro2005Lab !== undefined &&
+      (!validChecks(obj.smartPro2005Lab, labChecks) || obj.certifiedTarget !== undefined)) throw new Error("invalid-evidence");
   return obj as Evidence;
 }
 
@@ -39,6 +48,18 @@ export function setupPlan(raw: unknown) {
   if (e.consent !== "granted") return plan("STOP", "Dừng theo lựa chọn của người dùng.");
   if (e.data === "unknown") return plan("UNKNOWN", "Xác minh sản phẩm và cơ sở dữ liệu theo đúng phiên bản.");
   if (e.data !== "sql") return plan("G", "Dùng API được cấp quyền hoặc file xuất của hãng.");
+  if (e.smartPro2005Lab) {
+    if (e.installation !== "requested") return plan("STOP", "Chỉ lập kế hoạch cài lab khi người vận hành yêu cầu.");
+    if (e.location !== "local" || e.engine !== "absent" || e.observedVersion || e.access !== "unknown" ||
+        e.database === "identified" || e.channel !== "unknown" || e.driver === "incompatible" ||
+        (e.vendor !== "new-required" && e.vendor !== "legacy-only")) {
+      return plan("STOP", "Xác minh máy ảo trống dành riêng cho Smart Pro. Nếu đã có máy chủ dữ liệu, khảo sát instance hiện hữu.");
+    }
+    const missing = [...checks.filter(key => e.checks?.[key] !== true),
+      ...labChecks.filter(key => e.smartPro2005Lab?.[key] !== true)];
+    if (missing.length) return plan("LAB_2005_PENDING", "Bổ sung bằng chứng cho máy thử và bộ cài SQL Server 2005.", missing);
+    return plan("LAB_2005_MANUAL", "Người vận hành có thể mở bộ cài SQL Server 2005 đã xác minh trong máy ảo Smart Pro cô lập.");
+  }
   if (e.vendor === "legacy-only") return plan("J", "Xin báo cáo xuất hoặc lập kế hoạch migration cùng hãng.");
   const generation = e.observedVersion && sqlGeneration(e.observedVersion);
   if (e.channel === "unsafe" || generation === "2000" || generation === "2005") return plan("I", "Dùng file xuất chính thức. Đường kết nối legacy cần lab riêng.");

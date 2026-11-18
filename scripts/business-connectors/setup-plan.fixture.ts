@@ -33,3 +33,32 @@ test("refusal, tampered installer, missing admin and uncertified targets cannot 
   assert.equal(checked.mode, "dry-run");
   assert.match(checked.next,/duyệt/);
 });
+
+test("Smart Pro SQL 2005 installation is a manual plan for an explicitly approved isolated lab", () => {
+  const checks = { localHostConfirmed: true, hardwareAndOs: true, adminAvailable: true, license: true,
+    officialInstaller: true, signature: true, independentChecksum: true, instanceNameAvailable: true, recoveryPlan: true };
+  const lab = { disposableVm: true, networkDisconnected: true, cleanSnapshot: true,
+    syntheticDataOnly: true, smartProBuildConfirmed: true };
+  const evidence = { ...baseline, ...absent, installation: "requested", checks, smartPro2005Lab: lab };
+  for (const vendor of ["new-required", "legacy-only"]) {
+    assert.equal(setupPlan({ ...evidence, vendor }).scenario, "LAB_2005_MANUAL");
+  }
+  for (const [group, values] of Object.entries({ checks, smartPro2005Lab: lab })) {
+    for (const key of Object.keys(values)) {
+      const result = setupPlan({ ...evidence, [group]: { ...values, [key]: false } });
+      assert.equal(result.scenario, "LAB_2005_PENDING");
+      assert.deepEqual(result.missing, [key]);
+    }
+    assert.equal(setupPlan({ ...evidence, [group]: {} }).scenario, "LAB_2005_PENDING");
+  }
+  for (const change of [{ consent: "denied" }, { installation: "declined" }, { installation: "unknown" },
+    { location: "lan" }, { engine: "running" }, { engine: "stopped" }, { observedVersion: "9.00.5000" },
+    { channel: "unsafe" }, { database: "identified" }, { access: "denied" }, { vendor: "existing" }]) {
+    assert.equal(setupPlan({ ...evidence, ...change }).scenario, "STOP");
+  }
+  for (const malformed of [true, null, [], { internetConnected: true }, { disposableVm: "true" }]) {
+    assert.throws(() => setupPlan({ ...evidence, smartPro2005Lab: malformed }), /invalid-evidence/);
+  }
+  assert.throws(() => setupPlan({ ...evidence, certifiedTarget: "2022" }), /invalid-evidence/);
+  assert.equal(setupPlan({ ...evidence, smartPro2005Lab: undefined }).scenario, "F");
+});

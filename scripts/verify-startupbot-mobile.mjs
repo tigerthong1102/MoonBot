@@ -20,6 +20,7 @@ for (const file of ["android/app/src/main/res/drawable-nodpi/startupbot_logo.png
 }
 const icon = readFileSync("ios/App/Assets.xcassets/AppIcon.appiconset/icon-1024.png");
 assert.equal(icon.readUInt32BE(16), 1024); assert.equal(icon.readUInt32BE(20), 1024);
+assert.equal(icon[25], 2, "Static App Store icon must have RGB pixels without an alpha channel");
 for (const platform of ["android", "ios"]) {
   assert(text(`${platform}/LICENSE`).includes("Apache License"));
   assert(text(`${platform}/NOTICE`).includes("Milind"));

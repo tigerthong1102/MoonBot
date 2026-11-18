@@ -434,7 +434,7 @@ jobs:
           node scripts/verify-startupbot-mobile.mjs
           python3 scripts/mobile-command-test.py
           python3 scripts/install-ios-simulator-test.py
-          node --test scripts/ios-simulator-entitlements.node-test.mjs scripts/package-payload.node-test.mjs
+          node --test scripts/ios-simulator-entitlements.node-test.mjs scripts/package-payload.node-test.mjs scripts/opaque-icon.node-test.mjs
           xcodebuild -version
           swift test --package-path ios
       - name: Generate StartupBot Xcode project

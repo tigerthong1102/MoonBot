@@ -320,3 +320,14 @@ fetches or old callbacks cannot restart or stop a replacement preview. These
 changes require fresh native tests; the smaller 0.1.6 APK remains a separately
 qualified fallback, not proof of the changed 0.1.7 source. Store signing and
 physical-device acceptance remain deferred gates.
+
+
+Static iOS App Store artwork is encoded as RGB PNG without an alpha channel.
+The white-backed 1024px logo had fully opaque pixels but still carried an RGBA
+channel. The generator now refuses nonopaque input and emits RGB without
+changing any pixel color. Independent rendering before/after verifies all
+1,048,576 pixels identical (RGBA SHA256
+`ad51e9358da7661f59f13884af68ef5e1c5f7b2aedbcbc14256330fa5e696290`).
+Native verification rejects alpha-channel static store icons, and encoder
+regressions check PNG CRCs, exact RGB samples and rejection of transparency.
+The in-app transparent robot artwork and all Android assets are unchanged.

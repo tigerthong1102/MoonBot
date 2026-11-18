@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for StartupBot; original copyright and license retained. -->
 <resources>
-    <!--
-      The window background behind Compose. Without a dark variant the first
-      frame of a dark-mode launch flashes white before the composition draws.
-    -->
+    <!-- Android displays the window background before the first Compose frame. -->
     <style name="Theme.StartupBot" parent="android:Theme.Material.NoActionBar" />
 </resources>

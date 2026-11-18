@@ -33,6 +33,8 @@ The cached-search correction permits immediate focus only when the hit is alread
 
 Independent PR-wide audit: runtime-scoped Android HTTP results/errors and multi-step approvals/avatar changes; cached and advancing search history; iOS notification failure targets; bounded HTTP/SSE reads; iOS redirect refusal and credential-free server identity checks; Android voice keys require HTTPS and are not saved in UI restoration state. Original OSS features and protocol identifiers remain. Store signing, physical devices and live providers require separate acceptance.
 
+Unused upstream store-export signing identity is removed; export is local-only and owner-configured. Manifest/resource comments retain only platform/security facts, with XML values/attributes unchanged.
+
 Modified imported files:
 
 - `.gitignore`
@@ -147,11 +149,36 @@ Modified imported files:
 - `app/src/main/kotlin/com/openmausbot/companion/ui/Updates.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/UpdatesSheet.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/VoiceSettingsScreen.kt`
+- `app/src/main/res/drawable/ic_attach_file.xml`
+- `app/src/main/res/drawable/ic_block.xml`
+- `app/src/main/res/drawable/ic_call_end.xml`
+- `app/src/main/res/drawable/ic_chat_bubbles.xml`
+- `app/src/main/res/drawable/ic_cloud.xml`
+- `app/src/main/res/drawable/ic_display.xml`
+- `app/src/main/res/drawable/ic_hub.xml`
 - `app/src/main/res/drawable/ic_launcher_foreground.xml`
 - `app/src/main/res/drawable/ic_launcher_monochrome.xml`
+- `app/src/main/res/drawable/ic_mic.xml`
+- `app/src/main/res/drawable/ic_pan_tool.xml`
+- `app/src/main/res/drawable/ic_pause_circle.xml`
+- `app/src/main/res/drawable/ic_phone.xml`
+- `app/src/main/res/drawable/ic_photo.xml`
+- `app/src/main/res/drawable/ic_remove.xml`
+- `app/src/main/res/drawable/ic_schedule.xml`
+- `app/src/main/res/drawable/ic_sparkles.xml`
+- `app/src/main/res/drawable/ic_volume_off.xml`
+- `app/src/main/res/drawable/ic_volume_up.xml`
+- `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`
+- `app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml`
 - `app/src/main/res/values-night/themes.xml`
+- `app/src/main/res/values/colors.xml`
 - `app/src/main/res/values/strings.xml`
 - `app/src/main/res/values/themes.xml`
+- `app/src/main/res/xml/backup_rules.xml`
+- `app/src/main/res/xml/data_extraction_rules.xml`
+- `app/src/main/res/xml/file_paths.xml`
+- `app/src/main/res/xml/network_security_config.xml`
+- `app/src/preview/AndroidManifest.xml`
 - `app/src/preview/res/values/strings.xml`
 - `app/src/test/kotlin/com/openmausbot/companion/PairingLinkManifestTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/audio/VoiceNotePlayerTest.kt`

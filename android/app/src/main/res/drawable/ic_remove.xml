@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  A minus, for the lower half of a Stepper. Drawn here rather than pulled from
-  `material-icons-extended`: the core icon set has no such glyph, and the
-  extended artifact is thousands of vectors for a handful of uses.
--->
+<!-- Modified for StartupBot; original copyright and license retained. -->
+
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

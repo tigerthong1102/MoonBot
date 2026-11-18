@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  A photo, for the composer's "Photo Library" action. Drawn here for the same
-  reason `ic_mic.xml` is: the core icon set has no image glyph.
--->
+<!-- Modified for StartupBot; original copyright and license retained. -->
+
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

@@ -18,6 +18,10 @@ const approved = createHash("sha256").update(readFileSync("public/startupbot-ico
 for (const file of ["android/app/src/main/res/drawable-nodpi/startupbot_logo.png", "ios/Shared/Assets.xcassets/StartupBotLogo.imageset/startupbot-logo.png"]) {
   assert.equal(createHash("sha256").update(readFileSync(file)).digest("hex"), approved);
 }
+const storeExport = text("ios/ExportOptions.plist");
+assert(/<key>destination<\/key>\s*<string>export<\/string>/.test(storeExport));
+assert(!/<key>teamID<\/key>/.test(storeExport), "Store signing must use the owner's configuration");
+assert(/<key>uploadSymbols<\/key>\s*<false\s*\/>/.test(storeExport));
 const icon = readFileSync("ios/App/Assets.xcassets/AppIcon.appiconset/icon-1024.png");
 assert.equal(icon.readUInt32BE(16), 1024); assert.equal(icon.readUInt32BE(20), 1024);
 assert.equal(icon[25], 2, "Static App Store icon must have RGB pixels without an alpha channel");

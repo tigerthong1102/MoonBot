@@ -23,6 +23,8 @@ The entire PR diff was reviewed by subsystem, rather than treating a bot receipt
 | Policy | Imported implementation/history narration violated AGENTS.md | Remove narration, preserve wire/security/platform facts and original notices. Comment-only subsets retain identical non-comment code/literal tokens. MODIFICATIONS.md records imported changes. |
 | CI | Main Docker held-volume smoke expected the old product name | Match the actual StartupBot refusal, keep second-container rejection and live-container health checks. A regression checks the workflow/runtime contract; production lock behavior is unchanged. |
 
+The release-configuration audit also found an unused imported iOS ExportOptions.plist with the upstream Apple team ID and automatic upload destination. It now exports locally without a hardcoded team or symbol upload. Native identity verification enforces this. XML/manifest narration is reduced to platform/security facts; XML elements, attributes and resource values remain identical and original notices are preserved (the export configuration change is separately reviewed).
+
 ## Additional reviewed boundaries
 
 - Pairing: one-time redemption, request IDs, device origin, route consent, HTTPS ratchet and approved LAN/Tailscale origins. Wire identifiers remain compatible.

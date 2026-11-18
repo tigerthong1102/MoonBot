@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Modified for StartupBot; original copyright and license retained. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <application>
-        <!-- Pair from inside Preview using its scanner or manual form. Keep
-             release links and system share destinations unambiguous. -->
+
         <activity android:name=".PairingLinkActivity" tools:node="remove" />
         <activity android:name=".ShareReceiveActivity" tools:node="remove" />
     </application>

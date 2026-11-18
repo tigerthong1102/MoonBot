@@ -1,6 +1,3 @@
-// Files, the desktop service: the folders the person shared go to My Cloud, and what Cloud bots make comes to
-// Documents/MausBot. This computer decides what is shared (settings.shared); a folder My Cloud names is never synced
-// unless this computer registered it. It drives every pass over the Cloud sign-in the window holds.
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -63,7 +60,12 @@ export function createCloudFilesService({
 }) {
   let settings = readSettings(settingsFile);
   const state = openSyncState(stateFile);
-  const outputsDir = path.join(documentsDir, "StartupBot");
+  const defaultOutputsDir = path.join(documentsDir, "StartupBot");
+  const legacyOutputsDir = path.join(documentsDir, "MausBot");
+  const recordedOutputs = [...state.places().map(({ local }) => local), ...state.metaValues("botdir:")];
+  const outputsDir = typeof settings.outputs?.directory === "string" && path.isAbsolute(settings.outputs.directory)
+    ? settings.outputs.directory
+    : recordedOutputs.some(local => within(local, legacyOutputsDir, platform)) ? legacyOutputsDir : defaultOutputsDir;
   let closed = false, interval = null, poller = null, cursor = 0, chain = Promise.resolve(), pending = null;
   let status = { phase: "unavailable", lastSyncedAt: null, disk: null, shared: [], outputs: { enabled: true, dir: outputsDir, folders: 0, problem: null } };
   const results = new Map();
@@ -72,7 +74,9 @@ export function createCloudFilesService({
   const lentChecks = new Map();
 
   const save = (next) => { settings = next; writeSettings(settingsFile, next); };
-  if (!settings.computerId || !settings.outputs) save({ ...settings, computerId: settings.computerId ?? randomUUID(), outputs: settings.outputs ?? { enabled: true, since: now() } });
+  if (!settings.computerId || !settings.outputs || settings.outputs.directory !== outputsDir) {
+    save({ ...settings, computerId: settings.computerId ?? randomUUID(), outputs: { ...(settings.outputs ?? { enabled: true, since: now() }), directory: outputsDir } });
+  }
   const view = () => ({
     ...status,
     shared: settings.shared.map((folder) => ({ id: folder.id ?? folder.key, name: folder.name, pcPath: folder.pcPath, lent: Boolean(folder.lentId), kept: folder.kept ?? [],
@@ -99,7 +103,7 @@ export function createCloudFilesService({
     try { home = fs.realpathSync(homeDir); } catch {}
     if (real === p.parse(real).root || within(home, real, platform)) return refused("too-broad");
     try { if (fs.statSync(real).dev !== fs.statSync(path.dirname(real)).dev) return refused("too-broad"); } catch {}
-    const appDirs = [localDataDir, outputsDir].filter(Boolean);
+    const appDirs = [localDataDir, outputsDir, defaultOutputsDir, legacyOutputsDir].filter(Boolean);
     if (appDirs.some((dir) => within(real, dir, platform) || within(dir, real, platform))) return refused("app-data");
     const parts = pathKey(p.relative(home, real), platform).split("/");
     if (parts.some((part) => PRIVATE.some((name) => pathKey(name, platform) === part))) return refused("private");
@@ -122,7 +126,6 @@ export function createCloudFilesService({
     return { name, pcPath: real, files, bytes, partial, refusal: null };
   }
 
-  /** Bot output folders that hold work from since the person turned this on, each in Documents/MausBot/<bot>/<conversation>. */
   async function outputPlaces(cloud, folders) {
     const places = new Map();
     const taken = (dir) => {
@@ -422,7 +425,7 @@ export function createCloudFilesService({
       return view();
     },
     async setOutputs(enabled) {
-      save({ ...settings, outputs: { enabled, since: settings.outputs.since ?? now() } });
+      save({ ...settings, outputs: { ...settings.outputs, enabled, since: settings.outputs.since ?? now() } });
       onChange(view());
       if (enabled) void pass();
       return view();

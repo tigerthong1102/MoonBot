@@ -1,9 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { accentInk, applyBrand, bootstrapBrand, brand, brandVars, DEFAULT_BRAND, iconType, luminance, PRODUCT_NAME, productName } from "./brand";
+import { accentInk, applyBrand, bootstrapBrand, brand, brandVars, DEFAULT_BRAND, iconType, luminance, upstreamPromotionsEnabled, PRODUCT_NAME, productName } from "./brand";
 
 describe("brand", () => {
+  it("keeps upstream promotions disabled independently of custom branding", () => {
+    applyBrand({ brand: DEFAULT_BRAND, source: "default", file: "" });
+    expect(upstreamPromotionsEnabled()).toBe(false);
+    applyBrand({ brand: { name: "Custom" }, source: "file", file: "brand.json" });
+    expect(upstreamPromotionsEnabled()).toBe(false);
+    applyBrand({ brand: DEFAULT_BRAND, source: "default", file: "" });
+  });
   it("derives readable ink for light and dark accents", () => {
     expect(accentInk("#1D4ED8")).toBe("#ffffff");
     expect(accentInk("#C2510A")).toBe("#ffffff");

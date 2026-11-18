@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 const render = (avatars: Array<Partial<MausAvatarProps> & { ref?: React.Ref<MausAvatarHandle> }>) =>
-  act(() => root.render(avatars.map((props, key) => createElement(MausAvatar, { key, color: "green", ...props }))));
+  act(() => root.render(avatars.map((props, key) => createElement(MausAvatar, { key, color: "green", bodyId: "circle", ...props }))));
 const run = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 const eyePaths = () => [...host.querySelectorAll("svg")].map((svg) => svg.querySelector("g[clip-path] path")!.getAttribute("d"));
 const toPath = (ring: Array<[number, number]>) => "M" + ring.map((p) => p[0].toFixed(2) + " " + p[1].toFixed(2)).join("L") + "Z";
@@ -135,7 +135,7 @@ describe("CursorAvatar on the shared clock", () => {
 
   it("lets an unread mascot play its notice, then draws nothing while the news waits", () => {
     function Row({ unread }: { unread: boolean }) {
-      return createElement(MausAvatar, { color: "green", state: unread ? "notifying" : "idle", size: 42, animated: useUnreadNotice(unread) });
+      return createElement(MausAvatar, { color: "green", bodyId: "circle", state: unread ? "notifying" : "idle", size: 42, animated: useUnreadNotice(unread) });
     }
     act(() => root.render(createElement(Row, { unread: false })));
     run(200);

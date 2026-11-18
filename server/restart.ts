@@ -35,5 +35,5 @@ export function restartPolicy(now: () => number = Date.now) {
 }
 
 export const restartLine = (code: number | null, delayMs: number): string => code === RESTART_EXIT_CODE
-  ? "OpenMausBot is starting again to finish installing a copy from the desktop app…"
-  : `OpenMausBot stopped unexpectedly (${code ?? "killed"}); starting it again in ${Math.round(delayMs / 1000)} s…`;
+  ? "StartupBot is starting again to finish installing a copy from the desktop app…"
+  : `StartupBot stopped unexpectedly (${code ?? "killed"}); starting it again in ${Math.round(delayMs / 1000)} s…`;

@@ -102,7 +102,7 @@ describe("bot-first sidebar", () => {
       expect(String(row.props.className).split(" ")).toEqual(expect.arrayContaining([...spacing]));
       expect(markup).toContain(avatar.avatarUrl
         ? `width="${size}" height="${size}"`
-        : `width="${size}px" height="${size}px"`);
+        : `width="${size}" height="${size}"`);
       // Simple draws its mascot larger than the 36px it takes in the row, so the text stays where it was.
       if (!advanced && density === "comfortable") expect(markup).toContain('<span class="relative flex shrink-0 -m-[3px]">');
     }

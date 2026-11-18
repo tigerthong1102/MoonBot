@@ -101,9 +101,11 @@ describe("a new install's first run", () => {
   it("is two screens with an AI already working: Next, then Create, and it lands in the Chief's chat", async () => {
     await show();
     expect(host.querySelector("h1")?.textContent).toBe("Meet StartupBot");
+    expect(host.querySelector("img")?.getAttribute("src")).toBe("/startupbot-icon-192.png");
     expect(host.querySelector("[data-demo-composer]")?.textContent, "reduced motion shows the whole sentence").toContain("Hand off any task to your team of bots");
     for (const gone of ["Step 1", "Back", "Skip", "Your name", "Connect an AI", "Set up later"]) expect(text()).not.toContain(gone);
     expect(button("Next")!.disabled).toBe(false);
+    expect(host.querySelector('[data-welcome=meet] [data-primary]:not([data-sign-in]):not([disabled])')).toBe(button("Next"));
 
     await press("Next");
     expect(host.querySelector("[data-welcome]")?.getAttribute("data-welcome"), "the first screen fades out first").toBe("meet");
@@ -186,6 +188,7 @@ describe("with no AI working yet", () => {
     expect(host.querySelector("h1")?.textContent).toBe("Meet StartupBot");
     expect(button("Next")).toBeUndefined();
     expect(button("Sign in with Claude")).toBeDefined();
+    expect(host.querySelector('[data-welcome=meet] [data-primary]:not([data-sign-in]):not([disabled])')).toBeNull();
     expect(button("Other ways to connect")).toBeDefined();
     expect(host.querySelector("[data-engine-setup]"), "no setup card on the screen itself").toBeNull();
     await toChief("Set up later");

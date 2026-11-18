@@ -22,7 +22,7 @@ interface ThreadState {
   noted?: string;
 }
 
-const NOTE = (count: number, owner: boolean) => `\n\nOpenMausBot note: your last ${count} turns in this conversation failed because your AI could not answer `
+const NOTE = (count: number, owner: boolean) => `\n\nStartupBot note: your last ${count} turns in this conversation failed because your AI could not answer `
   + "(out of credits, at a usage or rate limit, overloaded, or unable to run your model). Start your reply with one plain sentence saying so, and "
   + (owner ? "offer to switch you to another model; if they agree, choose one with list_models and change it with app_settings set bots.model."
     : "say the owner of this place can switch you to another model; you cannot change it from this conversation.")

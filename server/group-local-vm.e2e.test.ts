@@ -824,7 +824,7 @@ describe("Group Local VM ownership on the real isolated server", () => {
 
   it.skipIf(process.platform === "linux")("carries the recorded macOS permission failure into the failed turn", async () => {
     const { bots, group } = await room();
-    const reason = "embedded host failed: Screen Recording required; grant access in System Settings and restart OpenMausBot";
+    const reason = "embedded host failed: Screen Recording required; grant access in System Settings and restart StartupBot";
     mkdirSync(dirname(cuaDescriptor), { recursive: true });
     writeFileSync(cuaDescriptor, JSON.stringify({ mode: "unavailable", reason }), { mode: 0o600 });
     await appHandsItOver();

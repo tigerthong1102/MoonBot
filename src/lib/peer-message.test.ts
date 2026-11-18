@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { peerExchange, peerLine, peerPreview, peerRequest } from "./peer-message";
 
 const NOTE = (opening: string, name: string, rest: string) =>
-  `[${opening} @${name}, another bot in this OpenMausBot workspace${rest}]`;
+  `[${opening} @${name}, another bot in this StartupBot workspace${rest}]`;
 
 describe("peerLine", () => {
   it("is null for the person's own line and for bot lines", () => {
@@ -19,6 +19,10 @@ describe("peerLine", () => {
       delivery: "ask_bot",
       body: "Which database?",
     });
+  });
+
+  it.each(["StartupBot", "OpenMausBot"])("reads persisted %s workspace notes without changing the author", product => {
+    expect(peerLine({ role: "user", text: `[Delegated by @Chief, another bot in this ${product} workspace. Do the work and reply directly.]\n\nWrite the summary.` })).toEqual({ name: "Chief", delivery: "delegate_bot", body: "Write the summary." });
   });
 
   it("falls back to the note on rows stored before the field existed", () => {

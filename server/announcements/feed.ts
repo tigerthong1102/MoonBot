@@ -113,7 +113,8 @@ export class AnnouncementStore {
     this.diskChecked = true;
     try {
       if (!existsSync(this.cachePath) || statSync(this.cachePath).size > this.maxBytes * 2) return;
-      const raw = JSON.parse(readFileSync(this.cachePath, "utf8")) as { fetchedAtMs?: unknown; feed?: unknown };
+      const raw = JSON.parse(readFileSync(this.cachePath, "utf8")) as { source?: unknown; fetchedAtMs?: unknown; feed?: unknown };
+      if (raw.source !== ANNOUNCEMENTS_URL) return;
       const parsed = parseAnnouncementFeed(raw.feed, { nowMs: this.now });
       if (!parsed.ok) {
         this.log(`ignoring the cached copy (${parsed.error})`);
@@ -155,7 +156,7 @@ export class AnnouncementStore {
     this.lastAttemptMs = null;
     try {
       mkdirSync(dirname(this.cachePath), { recursive: true });
-      writeFileAtomic(this.cachePath, JSON.stringify({ fetchedAtMs: now, feed: fetched }));
+      writeFileAtomic(this.cachePath, JSON.stringify({ source: ANNOUNCEMENTS_URL, fetchedAtMs: now, feed: fetched }));
     } catch (error) {
       this.log(`could not save the downloaded announcements (${message(error)})`);
     }
@@ -167,7 +168,7 @@ export class AnnouncementStore {
     const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? ANNOUNCEMENTS_FETCH_TIMEOUT_MS);
     try {
       const response = await (this.options.fetch ?? fetch)(ANNOUNCEMENTS_URL, {
-        headers: { accept: "application/json", "user-agent": "OpenMausBot" },
+        headers: { accept: "application/json", "user-agent": "StartupBot" },
         // Nothing of the person's goes with it.
         credentials: "omit",
         referrerPolicy: "no-referrer",

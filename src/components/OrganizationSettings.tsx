@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { ManagedDesktopState, ManagedMessageCode } from "../../electron/managed-desktop.mjs";
+import { DEFAULT_ADMIN_ORIGIN } from "@/lib/onboarding";
 import { activeLocale, t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { Card, LearnMore, SETTINGS_INPUT, SettingRow, SettingsField, SettingsFoldRow, SettingsRows } from "./SettingsPrimitives";
 import { CompanyModels } from "./CompanyModels";
 
 const providerNames: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter" };
-const DEFAULT_PORTAL_ORIGIN = "https://admin.openmausbot.com";
+
 const STATUS_TEXT: Record<ManagedMessageCode, LocaleKey> = {
   clearFailed: "organization.status.clearFailed",
   disconnected: "organization.status.disconnected",
@@ -114,8 +115,8 @@ export function OrganizationSettings({ simple = false }: { simple?: boolean } = 
           {licenseExpired && <span role="alert" className="block text-ink">{t("organization.licenseExpired")}</span>}
           {error && <span role="alert" className="block text-danger">{error}</span>}
         </>}>
-        <button type="button" disabled={busy} className="ui-button" data-organization-sign-in="" onClick={() => void perform(() => bridge.begin({ portalOrigin: DEFAULT_PORTAL_ORIGIN }))}>
-          {busy ? t("organization.working") : t("organization.useWorkSignIn")}
+        <button type="button" disabled={busy || !DEFAULT_ADMIN_ORIGIN} className="ui-button" data-organization-sign-in="" onClick={() => { if (DEFAULT_ADMIN_ORIGIN) void perform(() => bridge.begin({ portalOrigin: DEFAULT_ADMIN_ORIGIN })); }}>
+          {!DEFAULT_ADMIN_ORIGIN ? t("organization.notConfigured") : busy ? t("organization.working") : t("organization.useWorkSignIn")}
         </button>
       </SettingRow>
       <SettingsFoldRow id="organization-address" title={t("organization.customTitle")} open={custom} onToggle={() => setCustom((open) => !open)}>
@@ -125,7 +126,7 @@ export function OrganizationSettings({ simple = false }: { simple?: boolean } = 
         }}>
           <SettingsField label={t("organization.address")} hint={t("organization.advancedHelp")}>
             <input type="url" required value={address} disabled={busy} onChange={(event) => setAddress(event.target.value)}
-              placeholder={DEFAULT_PORTAL_ORIGIN} autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} maxLength={2048}
+              placeholder="https://admin.example.com" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} maxLength={2048}
               className={SETTINGS_INPUT} />
           </SettingsField>
           <button type="submit" disabled={busy || !address.trim()} className="ui-button self-end">{t("organization.customSignIn")}</button>

@@ -4,6 +4,7 @@
 import { z } from "zod";
 
 export const PHONE_SECRET_PROTOCOL_VERSION = 1 as const;
+/** HPKE v1 domain separation is fixed by paired clients; a change requires a protocol version. */
 export const PHONE_SECRET_INFO = "OpenMausBot phone credential v1";
 export const PHONE_SECRET_MAX_BYTES = 4_096;
 

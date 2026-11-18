@@ -27,3 +27,27 @@ REVIEW_AUDIT.md and test the final commit separately.
 
 A local agent requires its host to remain awake and online. A phone is a remote
 client, not an always-on backend. No paid service has been provisioned.
+
+## Internal platform delta — 2026-11-18
+
+Desktop v3 has real Windows and Intel DMG install/launch acceptance in
+44215347938. Desktop v4 (`edd8456ad4f8c1f0966f62b93ea49ae14b104e53`)
+passes native Apple Silicon DMG install/launch, onboarding, helper name/image,
+isolated agent/chat, data/auth and bundled browser/server smokes in 44221896486.
+Windows v4 at 528b1d017 passes installed onboarding, helper/chat, data/auth
+and bundled browser/server tests in 44225670059. The three executable failures
+of full CI 44221838977 are corrected locally; final-head CI remains separate.
+Real-provider billing and actual Computer Use are NOT RUN. Legacy history and
+custom names/avatars remain user data.
+
+Android APK/AAB and emulator launch PASS in 44215532499. iOS Simulator passes
+402 core tests, universal compilation, native ARM installation/launch,
+Keychain/App Group and five navigation tests in 44220727356. The clients,
+pinned OSS source and licenses are in PR #4, separate from desktop PR #3.
+The native v1 artifacts have three confirmed functional review follow-ups in
+PR #4 that require new native qualification after correction.
+Physical pairing/chat/approval/reconnect across the desktop/mobile matrix
+remain NOT RUN. Default Cloud and organization portals stay inactive unless
+explicitly configured. See RELEASE_READINESS.md for exact source/artifact
+links and the remaining full-CI gates. This delta supersedes historical
+platform-presence rows above; it is not store or commercial clearance.

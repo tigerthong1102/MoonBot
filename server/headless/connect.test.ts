@@ -62,6 +62,14 @@ describe("connect", () => {
     expect(requests[1]!.body).toEqual({ label: "CI runner" });
   });
 
+  it("labels newly paired CLI devices as StartupBot and retains an explicit label", async () => {
+    const before = requests.length;
+    expect(await runHeadless(["connect", origin, "--out", join(dir, "startupbot-default"), "--json"], { io: capture().io, env: {} })).toBe(0);
+    expect(requests.slice(before).filter(request => request.body?.label).map(request => request.body.label)).toEqual(["StartupBot CLI", "StartupBot CLI"]);
+    expect(await runHeadless(["connect", origin, "--out", join(dir, "startupbot-custom"), "--label", "My accounting workstation", "--json"], { io: capture().io, env: {} })).toBe(0);
+    expect(requests.at(-1)?.body.label).toBe("My accounting workstation");
+  });
+
   it("uses a given code, refuses to overwrite a token file unless --force, and reports a refused code", async () => {
     const file = join(dir, "token-2");
     writeFileSync(file, "old\n");
@@ -97,7 +105,7 @@ describe("connect", () => {
     expect(requests.at(-1)).toMatchObject({ path: "/api/auth/pair", body: { code: "ABCD-EFGH-JKLM" } });
     const lan = capture();
     expect(await runHeadless(["connect", "http://omb-test-no-such-host:1", "--code", "ABCD-EFGH-JKLM", "--out", join(dir, "token-lan")], { io: lan.io, env: {} })).toBe(5);
-    expect(lan.err[0]).toContain("no MausBot server answers at http://omb-test-no-such-host:1");
+    expect(lan.err[0]).toContain("no StartupBot server answers at http://omb-test-no-such-host:1");
     const open = capture();
     expect(await runHeadless(["connect", "http://203.0.113.9:8799", "--code", "ABCD-EFGH-JKLM", "--out", join(dir, "token-open")], { io: open.io, env: {} })).toBe(2);
     expect(open.err.join("\n")).toContain("put HTTPS in front");

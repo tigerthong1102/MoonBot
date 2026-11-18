@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { analyticsEnabled, setAnalyticsEnabled } from "@/lib/analytics";
+import { analyticsConfigured, analyticsEnabled, setAnalyticsEnabled } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 import { SettingRow, Switch } from "./SettingsPrimitives";
 
-const ANALYTICS_DOC_URL = "https://github.com/milind-soni/OpenMausBot/blob/main/docs/analytics.md";
+const ANALYTICS_DOC_URL = "https://github.com/tigerthong1102/MoonBot/blob/main/docs/analytics.md";
 
 export function AnalyticsRow({ simple = false }: { simple?: boolean }) {
   const [on, setOn] = useState(analyticsEnabled);
@@ -16,9 +16,10 @@ export function AnalyticsRow({ simple = false }: { simple?: boolean }) {
     </>
   );
   return (
-    <SettingRow title={t("settings.analytics.title")} subtitle={subtitle}>
+    <SettingRow title={t("settings.analytics.title")} subtitle={analyticsConfigured() ? subtitle : t("organization.notConfigured")}>
       <Switch
         checked={on}
+        disabled={!analyticsConfigured()}
         aria-label={t("settings.analytics.aria")}
         onClick={() => {
           const next = !on;

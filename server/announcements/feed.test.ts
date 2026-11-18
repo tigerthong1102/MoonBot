@@ -41,6 +41,20 @@ it("tests never reach the network: the suite switches it off for every server it
   expect(process.env[ANNOUNCEMENTS_DISABLE_ENV]).toBe("1");
 });
 
+it.each([undefined, "https://raw.githubusercontent.com/milind-soni/OpenMausBot/main/announcements/announcements.json"])(
+  "ignores a cache without StartupBot feed ownership (%s), including while offline", async source => {
+    const dir = dataDir();
+    mkdirSync(dirname(announcementsCachePath(dir)), { recursive: true });
+    writeFileSync(announcementsCachePath(dir), JSON.stringify({ source, fetchedAtMs: NOW,
+      feed: feed("2026-12-01T09:00:00Z", [card("old-sponsor")]) }));
+    const fetchMock = vi.fn(async () => { throw new Error("offline"); });
+    const { store } = subject({ dir, fetch: fetchMock as unknown as typeof fetch });
+    expect(store.cards()).toEqual([]);
+    expect(await store.cardsForPage(0)).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  },
+);
+
 describe("downloading the file", () => {
   it("asks main's raw file with a plain GET, nothing of the person's sent, and keeps what it got", async () => {
     const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) => answer(feed("2026-12-01T09:00:00Z", [card("phone-app")])));
@@ -53,6 +67,7 @@ describe("downloading the file", () => {
     expect(Object.keys(init!.headers as Record<string, string>).sort()).toEqual(["accept", "user-agent"]);
     expect(url).not.toMatch(/[?#]/);
     expect(existsSync(announcementsCachePath(dir))).toBe(true);
+    expect(JSON.parse(readFileSync(announcementsCachePath(dir), "utf8")).source).toBe(ANNOUNCEMENTS_URL);
     // A later start reads the copy on disk before any download.
     expect(subject({ dir, fetch: vi.fn() }).store.cards().map((entry) => entry.id)).toEqual(["phone-app"]);
   });
@@ -72,7 +87,7 @@ describe("downloading the file", () => {
   it("offline, rate-limited, too large, slow or not JSON: keeps the last good copy, says nothing to the page, retries later", async () => {
     const dir = dataDir();
     mkdirSync(dirname(announcementsCachePath(dir)), { recursive: true });
-    writeFileSync(announcementsCachePath(dir), JSON.stringify({ fetchedAtMs: NOW - ANNOUNCEMENTS_TTL_MS * 2, feed: feed("2026-11-20T00:00:00Z", [card("kept")]) }));
+    writeFileSync(announcementsCachePath(dir), JSON.stringify({ source: ANNOUNCEMENTS_URL, fetchedAtMs: NOW - ANNOUNCEMENTS_TTL_MS * 2, feed: feed("2026-11-20T00:00:00Z", [card("kept")]) }));
     const failures: Array<() => Promise<Response>> = [
       async () => { throw new TypeError("fetch failed"); },
       async () => answer("rate limited", { status: 429 }),

@@ -62,13 +62,13 @@ export interface ChiefNoticeDeps {
 /** How long a run stopped for memory waits before it starts again; the memory gate then holds it until there is room. */
 export const MEMORY_RETRY_MS = 30_000;
 export const FOLDED_LISTED = 5;
-export const MEMORY_RETRY_TEXT = "[OpenMausBot started this again by itself, once: the last run was stopped to free memory on this Cloud. "
+export const MEMORY_RETRY_TEXT = "[StartupBot started this again by itself, once: the last run was stopped to free memory on this Cloud. "
   + "Continue the request above from where it stopped and finish it. If the same problem comes back, say exactly what is blocking and stop.]";
 
-export const SERVER_MEMORY_RETRY_TEXT = "[OpenMausBot started this again by itself, once: the last run was stopped to free memory on this server. "
+export const SERVER_MEMORY_RETRY_TEXT = "[StartupBot started this again by itself, once: the last run was stopped to free memory on this server. "
   + "Continue the request above from where it stopped and finish it. If the same problem comes back, say exactly what is blocking and stop.]";
 
-export const ROOM_RETRY_TEXT = "[OpenMausBot started this again by itself, once: the last run could not start because this server had no room for another program. "
+export const ROOM_RETRY_TEXT = "[StartupBot started this again by itself, once: the last run could not start because this server had no room for another program. "
   + "Continue the request above from where it stopped and finish it. If the same problem comes back, say exactly what is blocking and stop.]";
 
 export function createChiefNotices(deps: ChiefNoticeDeps) {

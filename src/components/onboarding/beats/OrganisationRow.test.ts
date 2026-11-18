@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ManagedDesktopBridge, ManagedDesktopState } from "../../../../electron/managed-desktop.mjs";
 import { setLocale } from "@/lib/i18n";
 
-const fixture = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: [] as EffectCallback[] }));
+const fixture = vi.hoisted(() => ({ portal: "https://admin.example.test", values: [] as unknown[], index: 0, effects: [] as EffectCallback[] }));
+vi.mock("@/lib/onboarding", async original => ({ ...await original<typeof import("@/lib/onboarding")>(), get DEFAULT_ADMIN_ORIGIN() { return fixture.portal; } }));
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
   useState: (initial: unknown) => {
@@ -68,7 +69,7 @@ async function mount(state: ManagedDesktopState = { status: "signed-out" }) {
 
 const connecting: ManagedDesktopState = {
   status: "connecting",
-  enrollment: { userCode: "ABCDE-FGHIJ", verificationUri: "https://admin.openmausbot.com/enroll?code=ABCDE-FGHIJ", expiresAt: Date.now() + 60_000 },
+  enrollment: { userCode: "ABCDE-FGHIJ", verificationUri: "https://admin.example.test/enroll?code=ABCDE-FGHIJ", expiresAt: Date.now() + 60_000 },
 };
 const connected: ManagedDesktopState = {
   status: "connected",
@@ -82,6 +83,7 @@ const connected: ManagedDesktopState = {
 };
 
 beforeEach(() => {
+  fixture.portal = "https://admin.example.test";
   fixture.values = [];
   fixture.index = 0;
   fixture.effects = [];
@@ -110,6 +112,18 @@ afterEach(() => {
 });
 
 describe("organisation sign-in row in the welcome flow", () => {
+  it("keeps an unconfigured default offline and offers explicit organization settings", async () => {
+    fixture.portal = "";
+    await mount();
+    const signIn = button("Not configured")!;
+    expect(signIn.props.disabled).toBe(true);
+    signIn.props.onClick!(); await flush();
+    expect(bridge.begin).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    button("Other Admin address")!.props.onClick!();
+    expect(onOpenSettings).toHaveBeenCalledOnce();
+  });
+
   it("offers sign-in without starting it, and never touches Settings' own acknowledgement", async () => {
     expect(render().html).toBe("");
     await mount();
@@ -128,7 +142,7 @@ describe("organisation sign-in row in the welcome flow", () => {
     signIn.props.onClick!();
     signIn.props.onClick!();
     await flush();
-    expect(bridge.begin).toHaveBeenCalledExactlyOnceWith({ portalOrigin: "https://admin.openmausbot.com" });
+    expect(bridge.begin).toHaveBeenCalledExactlyOnceWith({ portalOrigin: "https://admin.example.test" });
 
     let html = render().html;
     expect(html).toContain("Finish in your browser");

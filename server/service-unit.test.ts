@@ -19,12 +19,12 @@ const spec: ServiceSpec = {
 describe("service units", () => {
   it("runs the same serve command, with strip-types only for a checkout", () => {
     expect(serviceCommand(spec)).toEqual(["/usr/bin/node", "/usr/lib/node_modules/openmausbot/cli.js", "serve", ...spec.serveArgs]);
-    expect(serviceCommand({ ...spec, script: "/srv/OpenMausBot/server/openmausbot.ts" })[1]).toBe("--experimental-strip-types");
+    expect(serviceCommand({ ...spec, script: "/srv/StartupBot/server/openmausbot.ts" })[1]).toBe("--experimental-strip-types");
   });
 
   it("renders a systemd unit that restarts, runs as the user, and grants low ports only for --domain", () => {
     const unit = systemdUnit(spec);
-    expect(unit).toContain("Description=OpenMausBot (agentada)");
+    expect(unit).toContain("Description=StartupBot (agentada)");
     expect(unit).toContain("User=maus");
     expect(unit).toContain("Environment=OMB_DATA_DIR=/home/maus/.openmausbot");
     expect(unit).toContain("ExecStart=/usr/bin/node /usr/lib/node_modules/openmausbot/cli.js serve --port 8799 --data-dir /home/maus/.openmausbot --domain maus.example.com --no-pair");
@@ -63,7 +63,7 @@ describe("service units", () => {
     const out = "/Users/maus/Library/Application Support/openmausbot-sentinel";
     const sentinel = { node: "/usr/bin/node", script: "/usr/lib/node_modules/openmausbot/cli.js", dataDir: "/Users/maus/.openmausbot", home: "/Users/maus", out };
     expect(sentinelCommand(sentinel)).toEqual(["/usr/bin/node", "/usr/lib/node_modules/openmausbot/cli.js", "sentinel", "--once", "--data-dir", "/Users/maus/.openmausbot", "--out", out]);
-    expect(sentinelCommand({ ...sentinel, script: "/srv/OpenMausBot/server/openmausbot.ts" })[1]).toBe("--experimental-strip-types");
+    expect(sentinelCommand({ ...sentinel, script: "/srv/StartupBot/server/openmausbot.ts" })[1]).toBe("--experimental-strip-types");
     const plist = sentinelLaunchdPlist(sentinel);
     expect(plist).toContain("<string>com.openmausbot.sentinel</string>");
     expect(plist).toContain("<key>StartInterval</key>\n\t<integer>120</integer>");

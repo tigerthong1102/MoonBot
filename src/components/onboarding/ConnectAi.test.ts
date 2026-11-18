@@ -8,7 +8,7 @@ import type { InstanceInfo } from "@/state/store";
 
 const f = vi.hoisted(() => ({
   instances: [] as InstanceInfo[], dispatch: vi.fn(), row: null as null | { bridge: unknown; onOpenSettings: () => void },
-  check: (): Promise<object> => Promise.resolve({ ok: true }), checks: [] as string[], fail: false, config: {} as Record<string, unknown>, brand: "default", opened: [] as string[],
+  check: (): Promise<object> => Promise.resolve({ ok: true }), checks: [] as string[], fail: false, config: {} as Record<string, unknown>, brand: "default", promotions: true, opened: [] as string[],
 }));
 vi.mock("@/state/store", () => ({
   api: async (path: string) => {
@@ -20,7 +20,7 @@ vi.mock("@/state/store", () => ({
   useStore: () => ({ state: { instances: f.instances, config: f.config }, dispatch: f.dispatch }),
 }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn(), emailGateDone: () => false }));
-vi.mock("@/lib/brand", () => ({ brandStatus: () => ({ source: f.brand }), productName: () => "MausBot" }));
+vi.mock("@/lib/brand", () => ({ brandStatus: () => ({ source: f.brand }), productName: () => "StartupBot", upstreamPromotionsEnabled: () => f.promotions }));
 vi.mock("@/lib/app-links", async (original) => ({ ...await original<typeof import("@/lib/app-links")>(), openExternalLink: async (url: string) => { f.opened.push(url); } }));
 vi.mock("@/components/EngineSetup", async () => {
   const { createElement: h } = await import("react");
@@ -61,7 +61,7 @@ beforeEach(() => {
   f.check = () => Promise.resolve({ ok: true });
   f.checks = [];
   f.instances = [engine("grok", "grokAgent", "Grok", false), engine("claude", "claudeAgent", "Claude", false), engine("codex", "codex", "Codex", false)];
-  f.dispatch.mockReset(); f.config = {}; f.brand = "default"; f.opened = [];
+  f.dispatch.mockReset(); f.config = {}; f.brand = "default"; f.promotions = true; f.opened = [];
   vi.mocked(track).mockClear();
   f.row = null;
   f.fail = false;
@@ -74,6 +74,13 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+});
+
+it("does not promote upstream sponsors in StartupBot onboarding", async () => {
+  f.promotions = false;
+  await show();
+  expect(document.body.textContent).not.toContain("Sponsor");
+  expect(document.querySelector("[data-modelgo-sponsor]")).toBeNull();
 });
 
 describe("connecting an AI on the first screen", () => {
@@ -248,7 +255,7 @@ describe("connecting an AI on the first screen", () => {
 });
 
 describe("the ModelGo option", () => {
-  const URL_EXACT = "https://modelgo.ai/?utm_source=openmausbot&utm_medium=sponsorship&utm_content=app&campaign_id=openmausbot&ad_group_id=app";
+  const URL_EXACT = "https://modelgo.ai/";
   const option = () => host.querySelector("[data-modelgo-option]");
   const events = () => vi.mocked(track).mock.calls.filter(([name]) => name === "modelgo_offer").map(([, props]) => props);
   const provider = (ready = false) => engine("modelgo", "modelgo", "ModelGo (API)", ready);

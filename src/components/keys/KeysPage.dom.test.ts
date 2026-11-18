@@ -7,6 +7,7 @@ import { setLocale } from "@/lib/i18n";
 
 const fx = vi.hoisted(() => ({
   config: {} as Record<string, unknown>,
+  upstreamPromotions: false,
   instances: [] as unknown[],
   listeners: new Set<() => void>(),
   api: vi.fn(),
@@ -25,6 +26,10 @@ vi.mock("@/state/store", async (original) => {
     },
   };
 });
+vi.mock("@/lib/brand", async (original) => ({
+  ...await original<typeof import("@/lib/brand")>(),
+  upstreamPromotionsEnabled: () => fx.upstreamPromotions,
+}));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
 vi.mock("@/lib/live-call-media", () => ({ dismissLiveNotice: vi.fn() }));
 
@@ -72,6 +77,7 @@ function paste(input: HTMLInputElement, text: string) {
 }
 
 beforeEach(() => {
+  fx.upstreamPromotions = false;
   setLocale("en");
   fx.api.mockReset();
   fx.dispatch.mockReset();
@@ -369,14 +375,24 @@ describe("the Ollama row", () => {
 });
 
 describe("Boat's credit offer on the Boat card", () => {
+  beforeEach(() => { BOAT_OFFER.until = null; fx.upstreamPromotions = true; });
   const offer = () => row("box")!.querySelector<HTMLElement>("[data-boat-offer]");
   const buttons = () => [...offer()!.querySelectorAll<HTMLButtonElement>("button")];
   const openComputers = () => flushSync(() => section("computers").querySelector<HTMLButtonElement>("button[aria-expanded]")!.click());
   afterEach(() => {
-    BOAT_OFFER.until = null;
+    BOAT_OFFER.until = 0;
     applyBrand({ brand: DEFAULT_BRAND, source: "default", file: "" });
     delete (window as unknown as { ogb?: unknown }).ogb;
     vi.unstubAllGlobals();
+  });
+
+  it("suppresses upstream advertising in StartupBot even during an active offer, retaining the provider card", () => {
+    fx.upstreamPromotions = false;
+    page(); openComputers();
+    expect(row("box")).not.toBeNull();
+    expect(offer()).toBeNull();
+    expect(host.textContent).not.toContain("$50 of Boat credit");
+    expect(fx.api).not.toHaveBeenCalled();
   });
 
   it("is always on the Boat card while the offer runs: with no key, a saved key, one a Cloud plan includes, and after its popup closed", () => {
@@ -386,7 +402,7 @@ describe("Boat's credit offer on the Boat card", () => {
       expect(offer(), JSON.stringify(box)).not.toBeNull();
       expect(offer()!.closest("[hidden]")).toBeNull();
       const words = offer()!.textContent!;
-      for (const text of ["$50 of Boat credit for you", "Boat runs the cloud computers behind MausBot.", "You claim it yourself: it isn't automatic."]) {
+      for (const text of ["$50 of Boat credit for you", "Boat runs the cloud computers behind StartupBot.", "You claim it yourself: it isn't automatic."]) {
         expect(words).toContain(text);
       }
       expect(buttons().map((button) => button.textContent)).toEqual(["Get Boat", "I bought it: claim my $50"]);
@@ -416,7 +432,7 @@ describe("Boat's credit offer on the Boat card", () => {
     BOAT_OFFER.until = Date.now() - 1;
     page();
     expect(row("box")).not.toBeNull(); expect(offer()).toBeNull();
-    BOAT_OFFER.until = null;
+    BOAT_OFFER.until = 0;
     applyBrand({ brand: { name: "Acme Bots" }, source: "file", file: "brand.json" });
     page();
     expect(row("box")).not.toBeNull(); expect(offer()).toBeNull();

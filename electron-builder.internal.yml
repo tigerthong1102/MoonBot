@@ -1,0 +1,27 @@
+extends: ./electron-builder.yml
+compression: maximum
+directories:
+  output: release/internal
+extraMetadata:
+  name: startupbot
+  version: 0.1.161-internal.20261118.11
+  homepage: https://startupbot.ai
+  repository:
+    type: git
+    url: https://github.com/tigerthong1102/MoonBot.git
+  desktopName: ai.startupbot.desktop
+mac:
+  identity: '-'
+  target:
+    - target: dmg
+      arch: [arm64]
+dmg:
+  sign: false
+  format: UDZO
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  differentialPackage: false
+  artifactName: StartupBot-${version}-Setup.${ext}

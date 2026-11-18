@@ -20,11 +20,11 @@ const evaluation = JSON.parse(readFileSync(new URL("./testing/fixtures/setup-sug
 };
 
 describe("the prompt", () => {
-  it("is the one the recorded run used, for every scenario", () => {
+  it("matches the recorded prompt with StartupBot identity, for every scenario", () => {
     for (const { id, ctx } of evaluation.scenarios) {
       const prompt = setupSuggestionPrompt({ name: ctx.name ?? undefined, title: ctx.title, department: ctx.department, apps: ctx.apps ?? [],
         aboutMe: ctx.about || undefined, otherJobs: ctx.jobs ?? [], language: ctx.language, canBrowse: ctx.canBrowse ?? true });
-      expect(prompt, id).toBe(evaluation.prompts[id]);
+      expect(prompt, id).toBe(evaluation.prompts[id]!.replaceAll("OpenMausBot", "StartupBot"));
     }
   });
 

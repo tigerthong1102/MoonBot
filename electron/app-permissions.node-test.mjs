@@ -349,7 +349,7 @@ test("a restore that ends without this Cloud, or outlasts the wait, refuses rath
   assert.equal(await f.ask("media", MIC).done, false);
 });
 
-test("with OpenMausBot Cloud unreachable past the verified window, the same account's Cloud keeps the microphone", async () => {
+test("with StartupBot Cloud unreachable past the verified window, the same account's Cloud keeps the microphone", async () => {
   const f = myCloudFixture();
   await f.restore();
   assert.equal(f.client.homeTarget()?.origin, CLOUD);

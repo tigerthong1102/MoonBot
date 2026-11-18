@@ -38,11 +38,13 @@ const memoryStorage = {
 };
 
 beforeEach(() => {
+  vi.stubEnv("VITE_STARTUPBOT_POSTHOG_TOKEN", "phc_startupbot_fixture");
+  vi.stubEnv("VITE_STARTUPBOT_POSTHOG_HOST", "https://analytics.example.test");
   storage.clear();
   ph.captured = [];
   vi.stubGlobal("localStorage", memoryStorage);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 const DOCUMENTED = [
   "key_providers", "key_count", "has_boat_key", "cloud_computer_source", "cloud_computers", "team_computers", "bots_cloud_boat",

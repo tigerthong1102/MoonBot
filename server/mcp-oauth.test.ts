@@ -734,7 +734,7 @@ describe("McpOAuthManager sign-in from a browser on another computer", () => {
     const forged = new URLSearchParams(callback.search);
     forged.set("state", "forged");
     for (const [host, search] of [["cloud.example", `?${forged}`], ["attacker.example", callback.search], [undefined, callback.search], ["cloud.example", ""]] as const) {
-      expect(await manager.publicCallback(host, search)).toEqual({ status: 400, text: "Invalid sign-in callback. Return to OpenMausBot and try again." });
+      expect(await manager.publicCallback(host, search)).toEqual({ status: 400, text: "Invalid sign-in callback. Return to StartupBot and try again." });
     }
     expect(manager.status("docs", started.flowId, "alice")?.phase).toBe("waiting");
     expect(oauth.counts.token).toBe(0);

@@ -1,7 +1,10 @@
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Bot, Group, Message } from "@/state/store";
+
+const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
 const viewer = vi.hoisted(() => ({ reactor: "user" }));
 vi.mock("@/state/store", async (importOriginal) => {
@@ -63,8 +66,8 @@ describe("room speaker names", () => {
     expect(html).toContain('class="text-[13px] font-semibold bot-identity" data-bot-color="blue"');
     expect(html).toContain(">Ada<");
     expect(html).toContain(">Kai<");
-    expect(html).toContain("var(--identity-blue)");
-    expect(html).toContain("var(--identity-orange)");
+    expect(styles).toMatch(/\.bot-identity\[data-bot-color="blue"\]\s*\{\s*color:\s*var\(--identity-blue\)/);
+    expect(styles).toMatch(/\.bot-identity\[data-bot-color="orange"\]\s*\{\s*color:\s*var\(--identity-orange\)/);
     expect(html).not.toContain('data-bot-color="blue">still me');
     expect(html).toContain("bg-bubble-user");
     expect(html).not.toContain("user-bubble-colored");

@@ -278,7 +278,7 @@ export class ChatMcpClient {
       if (Date.now() >= deadline) throw new Error(STARTUP_TIMED_OUT);
       return deadline - Date.now();
     };
-    const handshake = { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "openmausbot-chat", version: "1" } };
+    const handshake = { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "startupbot-chat", version: "1" } };
     let initialized: unknown;
     if (observer?.mount.extension) {
       try { initialized = await this.call("initialize", withUiExtension(handshake), signal, remaining(), true, STARTUP_TIMED_OUT); }

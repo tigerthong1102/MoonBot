@@ -1,13 +1,13 @@
-export const APP_NAME = "OpenMausBot";
-export const APP_REPOSITORY = "https://github.com/milind-soni/OpenMausBot";
+export const APP_NAME = "StartupBot";
+export const APP_REPOSITORY = "https://github.com/tigerthong1102/MoonBot";
 export const DOCS_URL = `${APP_REPOSITORY}/tree/main/docs`;
 export const HELP_CENTER_URL = DOCS_URL;
 export const APPROVAL_LEVELS_URL = `${APP_REPOSITORY}/blob/main/docs/approval-levels.md`;
-export const PASSKEY_HELP_URL = "https://docs.openmausbot.com/docs/troubleshooting/google-sign-in-cloud-browser";
-export const FEEDBACK_URL = "https://discord.gg/9Wb8MEpXRs";
+export const PASSKEY_HELP_URL = `${APP_REPOSITORY}/blob/main/apps/docs/content/docs/troubleshooting/google-sign-in-cloud-browser.mdx`;
+export const FEEDBACK_URL = `${APP_REPOSITORY}/issues`;
 export const RELEASES_URL = `${APP_REPOSITORY}/releases`;
-export const PRICING_URL = "https://www.openmausbot.com/pricing";
-export const CLOUD_PLAN_URL = "https://cloud.openmausbot.com/cloud";
+export const PRICING_URL = `${APP_REPOSITORY}/blob/main/docs/STARTUPBOT_INTERNAL_TEST.md`;
+export const CLOUD_PLAN_URL = PRICING_URL;
 export function withSource(url: string, source: string): string {
   const target = new URL(url);
   target.searchParams.set("src", source);

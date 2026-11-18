@@ -17,6 +17,8 @@ export interface BrandStatus {
 export const DEFAULT_BRAND: Brand = { name: "StartupBot" };
 export const PRODUCT_NAME = "StartupBot";
 
+export function upstreamPromotionsEnabled(): boolean { return false; }
+
 let current: BrandStatus = { brand: DEFAULT_BRAND, source: "default", file: "" };
 
 export function brand(): Brand {

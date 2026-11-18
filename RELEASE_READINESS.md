@@ -1,5 +1,120 @@
 # Release readiness
 
+## Internal desktop acceptance — 2026-11-18
+
+PR #1 merged at `cd139d78c98c74797c1b07c9f0476f64664199d5`.
+The desktop branch is `build/startupbot-internal-desktop-20261118`,
+[Draft PR #3](https://github.com/tigerthong1102/MoonBot/pull/3). Native clients
+are reviewed separately in [Draft PR #4](https://github.com/tigerthong1102/MoonBot/pull/4),
+based on the desktop branch. Neither new PR is authorized for merge or release.
+Historical sections below do not override this current status.
+
+Internal version 3 is built at `b3f5e8d85b985971b6c5692cc07c423c60f77694`:
+[44215347938](https://github.com/tigerthong1102/MoonBot/actions/runs/44215347938)
+**PASS**, both Windows and macOS jobs. The EXE installs and launches on Windows;
+both DMGs build and the Intel DMG installs/launches on Intel. Onboarding,
+StartupBot helper name/avatar, isolated fake-engine chat, credential/data
+isolation, renderer authorization, and bundled browser/server smokes PASS.
+Download [Windows](https://github.com/tigerthong1102/MoonBot/actions/runs/44215347938/artifacts/14388242196)
+or [macOS](https://github.com/tigerthong1102/MoonBot/actions/runs/44215347938/artifacts/14388328720).
+The local ARM64 v3 DMG builds and verifies its ad-hoc signature, but its launch
+smoke times out while the Mac is locked. Local ARM launch is **BLOCKED**, not
+PASS. Version 4 closes the hosted ARM acceptance gap below.
+
+Version 3 fixes the StartupBot/legacy marker-security parsers and preserves
+hidden/private helper preferences. Version 4 additionally adopts unmarked,
+recolored legacy factory helpers without duplicating bots or losing history;
+two regression fixtures fail before the correction and pass afterward.
+Default organization enrollment is offline unless an approved HTTPS portal is
+explicitly configured; custom owner-provided addresses remain supported.
+Fixed decider/extractor key-check wire messages retain their legacy text for
+contract compatibility, rather than silently changing what a relay accepts.
+No upstream service, token or updater is enabled.
+
+[Full CI 44216594389](https://github.com/tigerthong1102/MoonBot/actions/runs/44216594389)
+on `f49d63f730b1c2ea003a552b350fdddf46fc9785` **FAILS**, not PASS. All failed
+shards were read. Confirmed groups: inactive telemetry fixtures, image-avatar
+markup/clock fixtures, branded text/links, missing mock export, fixed relay
+wire texts, generated catalog/package/vector metadata, and the host-only smoke
+variable's explicit deny classification. Regenerate catalog goldens and package
+manifests; retain immutable recorded model replies and normalize only their
+expected product identity. Cryptographic vector bytes, package hashes, tool
+schemas and permissions remain unchanged. No test is deleted or disabled.
+
+Focused verification after these corrections: 399/400 in the first 18-file
+batch, with its final CSS assertion subsequently corrected to test the actual
+speaker-color rules; 107 tests PASS across the final helper/settings/parser
+batch; 134 related UI/privacy/wire tests PASS; 98 regenerated catalog tests
+PASS without update mode; 39 package-format tests PASS; 30 packaging/icon/
+metadata gates PASS. Batches overlap. Earlier correct Node Electron runner:
+2,144 PASS / 13 platform skips; Electron Vitest: 603 PASS / 4 skips.
+Version 4 lint, typecheck and production package preparation PASS locally.
+
+Version 4 at `edd8456ad4f8c1f0966f62b93ea49ae14b104e53`:
+[44221896486](https://github.com/tigerthong1102/MoonBot/actions/runs/44221896486)
+macOS job **PASS** on the native Apple Silicon runner. Both DMGs build;
+the ARM64 DMG installs/launches, completes real onboarding, shows the owned
+helper image/name, chats with the isolated fake engine, and passes data/auth
+and bundled browser/server smokes. [Qualified macOS artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44221896486/artifacts/14391792157).
+ARM64 DMG SHA256: `00ed648fe3e26a8885dab6ac93baf0b2b507d4fa860129d424b1028f745e197b`.
+Intel v4 is build-only; Intel installation/launch was verified at v3.
+Windows v4 at `528b1d017680596bdc35864fa39aedf9418e7023`:
+[44225670059](https://github.com/tigerthong1102/MoonBot/actions/runs/44225670059)
+**PASS**. The EXE installs/launches, completes real onboarding, shows the owned
+helper name/avatar, chats with the isolated fake engine, and passes private
+data/credential, renderer authorization and bundled browser/server smokes.
+[Qualified Windows artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44225670059/artifacts/14393581659).
+This source changes only test contracts/diagnostics and audit records from edd;
+qualified application code is unchanged. The failed earlier Windows v4 smoke
+used a primary selector also matched by the AI sign-in action. Its correction
+waits for and clicks the actual Next action atomically, retaining all assertions.
+Sixteen welcome regressions pass, including distinct connected/sign-in actions.
+Failure evidence includes renderer state and a screenshot.
+
+[Full CI 44221838977](https://github.com/tigerthong1102/MoonBot/actions/runs/44221838977)
+completes with 30 successful jobs, three failed executable jobs and the failed
+aggregate, plus one skipped job. The failures are the stale relay vector-copy
+pin, the included-model relay key-check fixture and a Linux MCP process-existence
+assertion. The relay E2E fixture reproduces two failures before restoring its
+independent fixed wire strings, then all six cases PASS. No credential or
+strict-body validation is relaxed. Relay's generated vector copy
+and SHA are synchronized; all 97 relay tests PASS locally with crypto bytes
+unchanged. The MCP fixture distinguishes exited Linux zombies from running
+processes, retaining positive liveness checks before cancellation and dead-tree
+assertions afterward. An isolated Linux container reproduces state Z while
+kill(pid, 0) succeeds. All 156 related MCP/tree/welcome/package tests PASS locally
+with two platform skips. Final-head CI and exact-head Codex remain merge gates.
+
+Android [44215532499](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499)
+**PASS** at `5ac456cff0ff9027b9bc8ad76731b0ecadfb53a5`: native core/app tests,
+APK/AAB build, clean emulator installation, launch and StartupBot onboarding.
+The [actual artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499/artifacts/14387623543)
+is downloaded and its APK/AAB SHA256 verified locally. The APK is debug-signed;
+the AAB is unsigned. Physical desktop pairing and live models are NOT RUN.
+
+iOS Simulator at `292e014dd9bebeb29d18ad21c15ba5128a015213`:
+[44220727356](https://github.com/tigerthong1102/MoonBot/actions/runs/44220727356)
+**PASS**. 402 core tests, universal arm64/x86_64 compilation and entitlement
+verification, real installation/launch on an ARM Simulator, Keychain/App Group
+canary and five native navigation tests PASS. [Qualified artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44220727356/artifacts/14391711034)
+was downloaded, SHA256 checked and its StartupBot welcome screenshot inspected.
+The Simulator ZIP SHA256 is `b6b9795d64878ad9dd4872e0d9fc75b7a276401e7cb9c8ec382a18f1678a2bc1`.
+The earlier invalid signature is fixed using Xcode-managed simulated
+entitlements with verified native Mach-O decoding, preserving real secure-store
+tests. Intel Simulator runtime, physical iPhone and TestFlight are NOT RUN.
+The Simulator bundle requires Xcode/runtime and cannot install on an iPhone.
+
+Native review follow-up: Codex on PR #4 identifies stale iOS send completion,
+per-bot Live Activity priority and destination-thread image-model selection
+issues. These are confirmed and being corrected with regression coverage;
+new native build acceptance is required. Existing native artifacts above prove
+only their stated v1 build/launch/test scope, not these follow-up fixes.
+
+No public release, commercial clearance, real-provider acceptance, physical
+mobile pairing matrix, actual Computer Use operation or notarization is
+claimed. Main's earlier post-merge Windows app-trigger fixture failure in
+44193721059 has no established root cause and is not declared flaky or fixed.
+
 ## Reservation and cookie-cache follow-up from f61a2b1fa
 
 [CI 44148427437](https://github.com/tigerthong1102/MoonBot/actions/runs/44148427437) completes with 31 passing jobs; two shards fail the same obsolete cookie-echo assertion and the aggregate correctly fails. Both S4 jobs, Linux package and hosted macOS smoke pass; Docker, connector, Docs and website also pass. Update the cookie contract without restoring the reproduced stale-token bug, retaining every issuance attribute, origin, logout and revocation boundary.

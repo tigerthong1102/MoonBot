@@ -24,3 +24,19 @@ Docker and platform smokes; open or update a PR for human review. Never auto
 merge or publish. Regression must cover branding, data isolation, device pairing,
 protocol compatibility, user skills and integrations. This integration merge
 is the first real sync exercise; complete acceptance remains pending.
+
+## Desktop/native branch baseline — 2026-11-18
+
+The internal desktop branch started from main merge `cd139d78c98c74797c1b07c9f0476f64664199d5`.
+While it was in progress, main advanced to `712adf52c215f3137fbb5a9bd108542e029d898d`
+through PR #2's selected OSS backports. That merge is not imported automatically
+into this work branch; artifacts identify their own exact source SHA. PR #3's
+checks also exercise GitHub's merge result against current main. Refresh the
+approved main baseline before future production qualification. No new automatic
+upstream merge, release or deployment is introduced here.
+
+Native source pins and deviations are recorded in PR #4's platform MODIFICATIONS
+files. Health identity, Bonjour, pairing aliases, HPKE v1 and fixed key-check
+wire bodies remain compatible. Product UI/branding, native install identities
+and Keychain/App Group identifiers are separate. Native version numbers are
+independent; they are not claims of full parity with an upstream store build.

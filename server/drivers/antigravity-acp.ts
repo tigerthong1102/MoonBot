@@ -135,7 +135,7 @@ export async function verifyAntigravityBrowserHelper(profile: AntigravityProfile
   if (verifiedBrowserHelpers.has(helper)) return;
   const reason = await antigravityBrowserHelperProblem(profile.environment, helper);
   if (reason) {
-    throw new Error(`Google sign-in cannot start: the helper that passes the sign-in link to OpenMausBot failed a check (${reason}). Restart OpenMausBot and try again. If it keeps failing, share this message.`);
+    throw new Error(`Google sign-in cannot start: the helper that passes the sign-in link to StartupBot failed a check (${reason}). Restart StartupBot and try again. If it keeps failing, share this message.`);
   }
   verifiedBrowserHelpers.add(helper);
 }
@@ -254,7 +254,7 @@ export async function prepareAntigravityProfile(input: {
 
   const executable = process.platform === "win32" ? process.execPath.replaceAll("\\", "/") : process.execPath;
   if (/\r|\n|\0|%s/u.test(executable) || executable.includes(delimiter)) {
-    throw new Error("The OpenMausBot runtime path cannot safely suppress Antigravity browser launches.");
+    throw new Error("The StartupBot runtime path cannot safely suppress Antigravity browser launches.");
   }
   const browserCommand = [executable, "-e", browserHelperSource, "--", "%s"]
     .map(quoteBrowserArgument)
@@ -492,7 +492,7 @@ export class AntigravityAcpClient {
         (this.nativeStartupHint ? `${this.nativeStartupHint} ` : "") +
         `Startup output: ${this.startupOutputBytes} bytes; diagnostic output: ${this.startupDiagnosticBytes} bytes. ` +
         (this.tempDirectory ? `Unpacked into temp: ${Math.round(Math.max(0, now - before) / 1_000_000)} MB. ` : "") +
-        "Retry setup. If it still fails, share this error and your OpenMausBot version; do not paste Google sign-in links or tokens.",
+        "Retry setup. If it still fails, share this error and your StartupBot version; do not paste Google sign-in links or tokens.",
       );
     };
     const initialized = await this.request("initialize", {
@@ -714,7 +714,7 @@ const OPEN_MODEL_ACCESS_RELEASE = [1, 5, 1] as const;
 export function antigravityClientInfo(version: string | null | undefined, editorName = ANTIGRAVITY_EDITOR_CLIENT_NAME): { name: string; version: string } {
   const match = /^(\d+)\.(\d+)\.(\d+)/u.exec(version?.trim() ?? "");
   const open = match !== null && OPEN_MODEL_ACCESS_RELEASE.reduce((difference, part, index) => difference || Number(match[index + 1]) - part, 0) >= 0;
-  return open || !editorName ? { name: "openmausbot", version: "0.0.0" } : { name: "zed", version: "0.0.0" };
+  return open || !editorName ? { name: "startupbot", version: "0.0.0" } : { name: "zed", version: "0.0.0" };
 }
 
 const runtimeVersion = (value: unknown) => typeof value === "string" ? value.replace(/^agy_acp_server_/u, "").trim() : "";

@@ -1,6 +1,4 @@
-// Whether an Antigravity turn that ended like a normal reply was an upstream failure, read from the runtime's own
-// session log.
-//
+// Modified for StartupBot; original copyright and license retained.
 // Adapted from pingdotgg/t3code@b732621b51, MIT License, Copyright (c) 2026
 // T3 Tools Inc. (full text in third_party/t3-code/LICENSE); modified:
 //   - apps/server/src/provider/acp/AntigravityTurnOutcome.ts (the error step,
@@ -8,8 +6,6 @@
 //     session's own unlinked log);
 //   - apps/server/src/provider/acp/AntigravityProfilePaths.ts (the proof that
 //     no component of a path below the profile is a link).
-// The failure is a plain error for the shared ACP runtime to throw, worded as every engine's usage limit is. A reset
-// time is taken only inside the coming eight days, and a log or step too large to read quickly is not read.
 import type { Stats } from "node:fs";
 import { lstat, realpath } from "node:fs/promises";
 import { join } from "node:path";
@@ -72,6 +68,10 @@ async function managedPath(
   }
   if (info === undefined) return undefined;
   return (await realpath(current).catch(() => undefined)) === current ? { path: current, info } : undefined;
+}
+
+export function sameAntigravityLogFile(before: Pick<Stats, "dev" | "ino" | "birthtimeMs">, after: Pick<Stats, "dev" | "ino" | "birthtimeMs">): boolean {
+  return before.dev === after.dev && before.ino === after.ino && before.birthtimeMs > 0 && before.birthtimeMs === after.birthtimeMs;
 }
 
 function readSteps<A>(file: string, read: (database: DatabaseSync) => A): A | undefined {
@@ -196,10 +196,9 @@ export async function watchAntigravityPromptOutcome(
   }
   const from = startIndex;
   return async (result) => {
-    // The same file as before the prompt, or one this prompt created, still unlinked.
     const after = await managedPath(before.root, segments, "file").catch(() => undefined);
     const sameFile = after !== undefined
-      && (before.identity === undefined || (after.info.dev === before.identity.dev && after.info.ino === before.identity.ino));
+      && (before.identity === undefined || sameAntigravityLogFile(before.identity, after.info));
     let step: LastStep | undefined;
     if (sameFile && after.info.size <= MAX_LOG_BYTES) {
       try {

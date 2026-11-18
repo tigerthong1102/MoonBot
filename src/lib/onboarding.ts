@@ -147,7 +147,15 @@ export function welcomeFinishedThisLaunch(): boolean {
   }
 }
 
-export const DEFAULT_ADMIN_ORIGIN = "https://admin.openmausbot.com";
+export function configuredAdminOrigin(value: unknown): string {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash ? url.origin : "";
+  } catch { return ""; }
+}
+
+export const DEFAULT_ADMIN_ORIGIN = configuredAdminOrigin(import.meta.env.VITE_STARTUPBOT_ADMIN_ORIGIN);
 
 export function organisationSignIn<Bridge>(
   ogb: { organization?: Bridge; remoteClient?: { active?: boolean } } | undefined,

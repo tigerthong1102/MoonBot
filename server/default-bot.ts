@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { writeFileAtomic } from "./atomic.ts";
 import { DEFAULT_BOT_COLOR, DEFAULT_BOT_NAME, defaultBotPerson } from "../shared/default-bot.ts";
 import { takeImportName } from "../shared/import-name.ts";
+import { LEGACY_FACTORY_HELPER_NAMES } from "../packages/phone-protocol/src/startupbot-brand.ts";
 import type { BotRecord, Message, Store } from "./store.ts";
 
 export type DefaultBotStore = Pick<Store, "bots" | "bot" | "createBot" | "patchBot" | "appendMessage" | "messagesFor" | "createTask" | "setChiefOfStaff">;
@@ -25,7 +26,7 @@ export function defaultBotRefusal(name: string): string {
  * allowed on a default bot; any other `defaultBot` value is refused — the flag is set at creation, never by PATCH. */
 export function defaultBotPatchRefusal(bot: BotRecord | null, body: Record<string, unknown>): string | null {
   for (const key of ["sidebarHidden", "welcomed"]) if (body[key] !== undefined && typeof body[key] !== "boolean") return `${key} must be true or false`;
-  if ((body.sidebarHidden !== undefined || body.welcomed !== undefined) && !bot?.defaultBot) return "Only MausBot is hidden this way; archive or delete other bots.";
+  if ((body.sidebarHidden !== undefined || body.welcomed !== undefined) && !bot?.defaultBot) return "Only StartupBot is hidden this way; archive or delete other bots.";
   if (body.defaultBot !== undefined && body.defaultBot !== null) return "defaultBot can only be cleared (null), never set by a patch";
   return body.hidden === true && bot?.defaultBot ? defaultBotRefusal(bot.name) : null;
 }
@@ -80,7 +81,7 @@ export function forgetDefaultBot(dataDir: string, person: string): void {
 export function seededMausBot(bots: readonly BotRecord[]): BotRecord | undefined {
   const oldest = bots.reduce<BotRecord | undefined>((first, bot) => !first || bot.createdAt < first.createdAt ? bot : first, undefined);
   if (!oldest || oldest.hidden || oldest.movedTo || oldest.section?.trim() || oldest.installedPackage) return undefined;
-  return oldest.name === DEFAULT_BOT_NAME || oldest.color === STARTER_COLOR ? oldest : undefined;
+  return oldest.name === DEFAULT_BOT_NAME || LEGACY_FACTORY_HELPER_NAMES.has(oldest.name) || oldest.color === STARTER_COLOR ? oldest : undefined;
 }
 
 /** Puts the intro where its person sees it next: in its open conversation while nobody has written there, else at the
@@ -120,15 +121,21 @@ export function ensureDefaultBot(store: DefaultBotStore, options: { dataDir: str
     .sort((a, b) => a.createdAt - b.createdAt);
   for (const extra of marked.slice(1)) store.patchBot(extra.id, { defaultBot: undefined, sidebarHidden: undefined });
   if (marked[0]) {
-    remember(options.dataDir, person, marked[0].id);
-    return marked[0];
+    let kept = marked[0];
+    if (LEGACY_FACTORY_HELPER_NAMES.has(kept.name)) {
+      const taken = new Set(person ? [] : store.bots.filter(bot => bot.id !== kept.id).map(bot => bot.name.trim().toLowerCase()));
+      kept = store.patchBot(kept.id, { name: takeImportName(DEFAULT_BOT_NAME, taken), ...(kept.sidebarHidden ? { sidebarHidden: true } : {}) }) ?? kept;
+    }
+    remember(options.dataDir, person, kept.id);
+    return kept;
   }
   if (Object.hasOwn(ledger(options.dataDir), person)) return null;
   const adoptable = person ? undefined : seededMausBot(store.bots);
   const chief = !person && !store.bots.some((bot) => bot.chiefOfStaff && !bot.hidden) ? (id: string) => store.setChiefOfStaff(id) : undefined;
   let bot: BotRecord;
   if (adoptable) {
-    bot = store.patchBot(adoptable.id, { defaultBot: {}, ...(adoptable.color === STARTER_COLOR ? { color: DEFAULT_BOT_COLOR } : {}) }) ?? adoptable;
+    const taken = new Set(store.bots.filter(candidate => candidate.id !== adoptable.id).map(candidate => candidate.name.trim().toLowerCase()));
+    bot = store.patchBot(adoptable.id, { defaultBot: {}, ...(adoptable.sidebarHidden ? { sidebarHidden: true } : {}), ...(LEGACY_FACTORY_HELPER_NAMES.has(adoptable.name) ? { name: takeImportName(DEFAULT_BOT_NAME, taken) } : {}), ...(adoptable.color === STARTER_COLOR ? { color: DEFAULT_BOT_COLOR } : {}) }) ?? adoptable;
     chief?.(bot.id);
     introduce(store, bot, options.team);
   } else {

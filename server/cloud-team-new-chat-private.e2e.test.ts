@@ -81,7 +81,7 @@ it("never shows another member or an admin a conversation someone opens, from it
   for (const stream of [...Object.values(streams), own]) await stream.close();
 }, hostTimeout(90_000));
 
-it("never sends anyone else a new member's own MausBot's main chat, from its first frame on", async () => {
+it("never sends anyone else a new member's own StartupBot's main chat, from its first frame on", async () => {
   const streams = { ada: await listen(ada), ben: await listen(ben) };
   const cleo = (await team.pair(CLEO)).token!;
   const own = await expect.poll(async () => ((await team.as(cleo, "GET", "/api/bots?messages=0")).body.bots as Bot[]).find((bot) => bot.defaultBot?.person === CLEO.email), { timeout: 20_000 })

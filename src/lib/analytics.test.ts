@@ -62,6 +62,8 @@ const baseStorage = {
 vi.stubGlobal("localStorage", baseStorage);
 
 beforeEach(() => {
+  vi.stubEnv("VITE_STARTUPBOT_POSTHOG_TOKEN", "phc_startupbot_fixture");
+  vi.stubEnv("VITE_STARTUPBOT_POSTHOG_HOST", "https://analytics.startupbot.test");
   store.clear();
   ph.loads = 0;
   ph.fail = false;
@@ -105,6 +107,16 @@ describe("optAction", () => {
 });
 
 describe("the stored choice", () => {
+  it("never loads or sends telemetry without StartupBot-owned configuration, even after opt-in", async () => {
+    vi.stubEnv("VITE_STARTUPBOT_POSTHOG_TOKEN", "");
+    vi.stubEnv("VITE_STARTUPBOT_POSTHOG_HOST", "");
+    const fresh = await freshAnalytics();
+    fresh.setAnalyticsEnabled(true);
+    await fresh.initAnalytics();
+    expect(fresh.analyticsEnabled()).toBe(false);
+    expect(ph.loads).toBe(0);
+    expect(ph.calls).toEqual([]);
+  });
   it("is on for a fresh install", () => {
     expect(analyticsEnabled()).toBe(true);
   });

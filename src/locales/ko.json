@@ -137,6 +137,7 @@
   "server.reports.when.minute": "약 {count}분 후에",
   "server.reports.when.minutes": "약 {count}분 후에",
   "server.reports.when.soon": "가능해지는 대로",
+  "server.reports.disabled": "보고 기능이 꺼져 있습니다. 진단 보고서를 보내지 않았습니다.",
   "server.reports.refused": "StartupBot 팀 서버가 이 버그 리포트를 거절해서 아무것도 보내지 않았어요: {detail}.",
   "server.reports.full": "보내지 않았어요: StartupBot 팀으로 보내길 기다리는 버그 리포트가 이미 {count}건 있어요. 전송이 끝난 뒤 다시 @devs를 입력하세요.",
   "server.reports.dropped": "이 대화의 버그 리포트가 일주일 동안 StartupBot 팀에 전달되지 못해 삭제됐어요. 새로 보내려면 다시 @devs를 입력하세요.",

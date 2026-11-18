@@ -19,6 +19,20 @@ final class DecodingTests: XCTestCase {
     }
 
 
+    func testSkippingTeamMemoryRefusesTheProposalOnCardsAndLiveActivities() throws {
+        let card = try XCTUnwrap(JSONDecoder().decode(Message.self, from: fixture("team-memory-request")).card)
+        XCTAssertTrue(card.isPermission)
+        XCTAssertEqual(card.options, ["Remember", "Skip"])
+        XCTAssertEqual(card.responseBehavior(for: "Remember"), "allow")
+        for choice in ["Skip", " skip ", "SKIP"] {
+            XCTAssertTrue(OptionCard.isRefusal(choice))
+            XCTAssertEqual(card.responseBehavior(for: choice), "deny")
+            XCTAssertEqual(OptionCard.responseBehavior(for: choice, isPermission: true), "deny")
+            XCTAssertEqual(OptionCard.responseBehavior(for: choice, isPermission: false), "answer")
+            XCTAssertFalse(card.shouldRememberPermission(for: choice))
+        }
+    }
+
     func testRoutineExecutionMarkerIsOptionalAndPreserved() throws {
         let legacy = try JSONDecoder().decode(
             BotTask.self, from: Data(#"{"threadId":"legacy","title":"Legacy","createdAt":1}"#.utf8)

@@ -2,17 +2,16 @@
 
 ## PR #4 independent audit checkpoint — 2026-11-18
 
-Desktop PR #3 was merged with owner authorization as `29c86dfb25cd7c2e544d4fc73aacbc54f993edfc`; its exact-head CI/native evidence remains in PR #3. PR #4 is Ready for review, not authorized for merge. See [independent PR audit](docs/STARTUPBOT_PR4_REVIEW.md) for confirmed security/data/transport findings and regression coverage. Android 0.1.8 / iOS build 15 require final-fix-head native acceptance. Store signing/submission, physical devices and live providers remain NO-GO/NOT RUN. Earlier artifact results below do not qualify these changes. No release/deployment is performed.
+Desktop PR #3 was merged with owner authorization as `29c86dfb25cd7c2e544d4fc73aacbc54f993edfc`; its exact-head CI/native evidence remains in PR #3. PR #4 is Ready for review, not authorized for merge. See [independent PR audit](docs/STARTUPBOT_PR4_REVIEW.md) for confirmed security/data/transport findings and regression coverage. Android 0.1.9 / iOS build 16 require final-fix-head native acceptance. Android 0.1.8 / iOS build 15 are review-held after the Skip-refusal finding. Store signing/submission, physical devices and live providers remain NO-GO/NOT RUN. Earlier artifact results below do not qualify these changes. No release/deployment is performed.
 
 
-## Internal desktop acceptance — 2026-11-18
+## Historical internal desktop acceptance — 2026-11-18
 
 PR #1 merged at `cd139d78c98c74797c1b07c9f0476f64664199d5`.
 The desktop branch is `build/startupbot-internal-desktop-20261118`,
-[Draft PR #3](https://github.com/tigerthong1102/MoonBot/pull/3). Native clients
-are reviewed separately in [Draft PR #4](https://github.com/tigerthong1102/MoonBot/pull/4),
-based on the desktop branch. Neither new PR is authorized for merge or release.
-Historical sections below do not override this current status.
+[PR #3](https://github.com/tigerthong1102/MoonBot/pull/3). Native clients
+are reviewed separately in [PR #4](https://github.com/tigerthong1102/MoonBot/pull/4),
+originally based on the desktop branch. This section records the original checkpoint; the current PR #4 checkpoint above supersedes its branch/merge status. No public release is authorized.
 
 Internal version 3 is built at `b3f5e8d85b985971b6c5692cc07c423c60f77694`:
 [44215347938](https://github.com/tigerthong1102/MoonBot/actions/runs/44215347938)

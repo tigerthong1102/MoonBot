@@ -6,6 +6,7 @@ import com.openmausbot.companion.core.ConfigStatus
 import com.openmausbot.companion.core.Message
 import com.openmausbot.companion.core.OptionCard
 import com.openmausbot.companion.core.ToolActivity
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -13,6 +14,28 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class CallRulesTest {
+    @Test
+    fun `structured questions are announced as questions even when they name a tool`() {
+        val question = card("question", "request", "AskUserQuestion")
+        val pending = question.copy(card = question.card!!.copy(requestType = "question"))
+        assertEquals(CallAction.Announce("Scout has a question. Open the chat to answer it."), react(pendingCard = pending))
+    }
+
+    @Test
+    fun `refused playback recovers the current call using its latest busy state`() = runTest {
+        var active = true
+        val refused = CallRules.playSpeech(isCurrent = { active }) { false }
+        assertEquals(CallSpeechResult.CURRENT, refused)
+        assertEquals(CallAction.Listen, CallRules.speechFinishedAction(refused, busy = false))
+        assertEquals(CallAction.StopListeningAndWork, CallRules.speechFinishedAction(refused, busy = true))
+        val replaced = CallRules.playSpeech(isCurrent = { active }) { active = false; false }
+        assertEquals(CallSpeechResult.OBSOLETE, replaced)
+        assertEquals(CallAction.None, CallRules.speechFinishedAction(replaced, busy = false))
+        var played = false
+        assertEquals(CallSpeechResult.OBSOLETE, CallRules.playSpeech(isCurrent = { active }) { played = true; true })
+        assertFalse(played)
+    }
+
     @Test
     fun `failed sends resume only the active idle half duplex call`() {
         assertEquals(CallAction.Listen, CallRules.failedSendAction(active = true, busy = false, speaking = false))

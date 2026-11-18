@@ -5,6 +5,8 @@ import com.openmausbot.companion.core.Message
 import com.openmausbot.companion.core.Bot
 import com.openmausbot.companion.core.CompanionState
 
+enum class CallSpeechResult { CURRENT, OBSOLETE }
+
 enum class CallPhase { LISTENING, SENDING, WORKING, SPEAKING }
 
 sealed class CallAction {
@@ -27,6 +29,18 @@ object CallRules {
 
     fun failedSendAction(active: Boolean, busy: Boolean, speaking: Boolean): CallAction = when {
         !active || speaking -> CallAction.None
+        busy -> CallAction.StopListeningAndWork
+        else -> CallAction.Listen
+    }
+
+    suspend fun playSpeech(isCurrent: () -> Boolean, play: suspend () -> Boolean): CallSpeechResult {
+        if (!isCurrent()) return CallSpeechResult.OBSOLETE
+        play()
+        return if (isCurrent()) CallSpeechResult.CURRENT else CallSpeechResult.OBSOLETE
+    }
+
+    fun speechFinishedAction(result: CallSpeechResult, busy: Boolean): CallAction = when {
+        result == CallSpeechResult.OBSOLETE -> CallAction.None
         busy -> CallAction.StopListeningAndWork
         else -> CallAction.Listen
     }
@@ -61,7 +75,7 @@ object CallRules {
     ): CallAction {
         val request = pendingCard?.card?.requestId
         if (pendingCard != null && request != null && request !in announced && phase != CallPhase.SPEAKING) {
-            return CallAction.Announce(announcement(name, pendingCard.card?.tool != null))
+            return CallAction.Announce(announcement(name, pendingCard.card?.isPermission == true))
         }
         val reply = fresh.lastOrNull {
             it.role == Message.Role.BOT && it.kind == Message.Kind.TEXT && !it.text.isNullOrBlank()

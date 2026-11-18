@@ -112,38 +112,48 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
         }
     }
 
-    suspend fun say(text: String): Boolean {
-        if (activeCallBot() == null) return false
+    suspend fun say(text: String): CallSpeechResult {
+        if (activeCallBot() == null) return CallSpeechResult.OBSOLETE
         sayGeneration += 1
         val mine = sayGeneration
+        fun isCurrent() = sayGeneration == mine && activeCallBot() != null
         phase = CallPhase.SPEAKING
         microphone.stop()
         return try {
             val prepared = session.prepareSpeech(text, current.voice)
+            if (!isCurrent()) return CallSpeechResult.OBSOLETE
             if (!prepared.ready) {
                 note = CallRules.noVoiceNote(current.name)
-                return sayGeneration == mine
+                return CallSpeechResult.CURRENT
             }
             val clips = ArrayList<ByteArray>(prepared.utterances.size)
             for (utterance in prepared.utterances) {
-                if (sayGeneration != mine || activeCallBot() == null) return false
+                if (sayGeneration != mine || activeCallBot() == null) return CallSpeechResult.OBSOLETE
                 clips += session.speak(utterance, current.voice)
             }
-            if (sayGeneration != mine || activeCallBot() == null) return false
-            speaker.speak(clips) && sayGeneration == mine
+            if (sayGeneration != mine || activeCallBot() == null) return CallSpeechResult.OBSOLETE
+            CallRules.playSpeech(::isCurrent) { speaker.speak(clips) }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            if (!isCurrent()) return CallSpeechResult.OBSOLETE
             note = error.message ?: "Couldn't speak that."
-            sayGeneration == mine
+            CallSpeechResult.CURRENT
+        }
+    }
+
+    fun finishSpeech(result: CallSpeechResult) {
+        if (phase != CallPhase.SPEAKING) return
+        val active = activeCallBot() ?: return
+        when (CallRules.speechFinishedAction(result, active.busy == true)) {
+            CallAction.Listen -> listen()
+            CallAction.StopListeningAndWork -> { microphone.stop(); phase = CallPhase.WORKING }
+            else -> Unit
         }
     }
 
     fun sayThenListen(text: String) {
-        scope.launch {
-            val stillMine = say(text)
-            if (stillMine && phase == CallPhase.SPEAKING) listen()
-        }
+        scope.launch { finishSpeech(say(text)) }
     }
 
     LaunchedEffect(Unit) {
@@ -172,10 +182,7 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
                 sayThenListen(action.text)
             }
             is CallAction.SayReply -> sayThenListen(action.text)
-            is CallAction.SayChip -> scope.launch {
-                val stillMine = say(action.text)
-                if (stillMine && phase == CallPhase.SPEAKING) phase = CallPhase.WORKING
-            }
+            is CallAction.SayChip -> scope.launch { finishSpeech(say(action.text)) }
             CallAction.StopListeningAndWork -> {
                 microphone.stop()
                 phase = CallPhase.WORKING

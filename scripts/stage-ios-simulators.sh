@@ -7,7 +7,7 @@ ditto mobile-artifacts/DerivedData/Build/Products/Debug-iphonesimulator/StartupB
 node scripts/verify-ios-simulator.mjs "$native_output" "$native_arch" "mobile-artifacts/ios-$native_arch"
 for arch in arm64 x86_64; do
   output="mobile-artifacts/ios-$arch"
-  archive="StartupBot-0.1.2-build15-$arch-SIMULATOR.zip"
+  archive="StartupBot-0.1.2-build16-$arch-SIMULATOR.zip"
   ditto -c -k --zlibCompressionLevel 9 --keepParent "$output/StartupBot.app" "$output/$archive"
   temporary="$(mktemp -d "${TMPDIR:-/tmp}/startupbot-simulator-payload.XXXXXX")"
   trap 'rm -rf "$temporary"' EXIT

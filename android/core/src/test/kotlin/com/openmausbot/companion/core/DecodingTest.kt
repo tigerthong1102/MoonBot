@@ -13,6 +13,21 @@ import kotlin.test.assertTrue
 
 class DecodingTest {
     @Test
+    fun skippingTeamMemoryRefusesTheProposalAcrossEveryCardAnswerPath() {
+        val card = assertNotNull(decodeFixture<Message>("team-memory-request").card)
+        assertTrue(card.isPermission)
+        assertEquals(listOf("Remember", "Skip"), card.options)
+        assertEquals("allow", card.responseBehavior("Remember"))
+        for (choice in listOf("Skip", " skip ", "SKIP")) {
+            assertTrue(OptionCard.isRefusal(choice))
+            assertEquals("deny", card.responseBehavior(choice))
+            assertEquals("deny", OptionCard.responseBehavior(choice, true))
+            assertEquals("answer", OptionCard.responseBehavior(choice, false))
+            assertFalse(card.shouldRememberPermission(choice))
+        }
+    }
+
+    @Test
     fun decodesThePagedFleet() {
         val fleet = decodeFixture<Fleet>("bots-paged")
         assertTrue(fleet.bots.isNotEmpty())

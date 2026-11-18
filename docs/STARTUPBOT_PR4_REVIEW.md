@@ -25,6 +25,16 @@ The entire PR diff was reviewed by subsystem, rather than treating a bot receipt
 
 The release-configuration audit also found an unused imported iOS ExportOptions.plist with the upstream Apple team ID and automatic upload destination. It now exports locally without a hardcoded team or symbol upload. Native identity verification enforces this. XML/manifest narration is reduced to platform/security facts; XML elements, attributes and resource values remain identical and original notices are preserved (the export configuration change is separately reviewed).
 
+A paginated recheck of all review comments found two further confirmed findings from review 13a22ff65: team-memory “Skip” mapped to allow on both clients, and denied audio focus left an active Android call in Speaking. Both are corrected in Android 0.1.9 / iOS build 16: shared wire-fixture and real HTTP denial regressions, and typed speech ownership with recovery based on the current busy state. The two new Android denial regressions fail against the prior model. A real TeamMemory service test checks that the shared mobile fixture matches the actual server card and that deny does not accept the proposed entry; a pure JVM contract runs the actual CallRules and CallSpeaker together. Android 0.1.8 and iOS build 15 are review-held, not the recommended final artifacts.
+
+The first Windows CUA probe failure could not be diagnosed because the original helper discarded process errors/stdout/stderr. The helper now preserves bounded diagnostics without changing its pinned SHA256, exact version requirement or timeout. Windows CUA passes at 971a29910; the original launch failure is not labelled flaky and its host-level cause remains unproven.
+
+The GitHub ARM64 runner capacity failure is recorded in check 134801028175: no runner acquired after repeated attempts. The native workflow supports the standard macos-15 ARM64 pool with explicit installed Xcode 26.2 as a free fallback. This changes runner selection only, not app permissions or signing.
+
+The Intel iOS run [44307444621](https://github.com/tigerthong1102/MoonBot/actions/runs/44307444621) failed one of six navigation UI tests after the 33 App tests passed. The retained screen recording shows the expected Triage iCloud conversation after the tap; the failed accessibility snapshot contains only an empty application node. This does not establish a wrong-thread production bug or a clean UI gate. No assertion or timeout is weakened. Native acceptance is repeated on the standard ARM64 pool with the new functional fixes.
+
+Full CI [44307130401](https://github.com/tigerthong1102/MoonBot/actions/runs/44307130401) and Docker [44307130427](https://github.com/tigerthong1102/MoonBot/actions/runs/44307130427) completed SUCCESS at 971a29910. These remain prior-head evidence until the next fix SHA completes its checks.
+
 ## Additional reviewed boundaries
 
 - Pairing: one-time redemption, request IDs, device origin, route consent, HTTPS ratchet and approved LAN/Tailscale origins. Wire identifiers remain compatible.
@@ -40,6 +50,6 @@ Prior head 271fdc7fa: [Full CI 44292357681](https://github.com/tigerthong1102/Mo
 
 Prior Android run 44292347992 FAIL: one cached-search Compose regression, 623 core and 978/979 app tests passed. The root cause is corrected without removing assertions or increasing timeouts.
 
-Current working-source local results: 634 Android core tests PASS, 0 skipped; Swift core build/syntax PASS; root lint/typecheck/build PASS; Docker/runtime targeted tests 84 PASS and 2 platform-dependent SKIPPED; identity/artwork/attribution/HPKE checks PASS. Actual compiled Swift core against an isolated HTTP fixture passed redirect rejection, credential-free changed-server rejection and early oversized-body rejection.
+Current working-source local results: 636 Android core tests PASS, 0 skipped; Swift core build/syntax PASS; root lint/typecheck/build PASS; Docker/runtime targeted tests 84 PASS and 2 platform-dependent SKIPPED; identity/artwork/attribution/HPKE checks PASS. Actual compiled Swift core against an isolated HTTP fixture passed redirect rejection, credential-free changed-server rejection and early oversized-body rejection.
 
 The fix SHA requires fresh full CI/native acceptance. Local XCTest/Simulator is BLOCKED by missing full Xcode. Physical phones, live-provider desktop pairing/chat/permissions and store signing/submission are NOT RUN. No live owner data was used. A source merge decision is separate from commercial/store release readiness; synthetic tests cannot prove a perfect app.

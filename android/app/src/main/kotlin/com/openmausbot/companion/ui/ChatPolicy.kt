@@ -17,14 +17,6 @@ import com.openmausbot.companion.core.chat
 import com.openmausbot.companion.core.TranscriptRow
 import com.openmausbot.companion.core.webhookContent
 
-/**
- * The decisions the chat and roster screens make that are worth testing without
- * a device. Everything here is pure; the composables call in, they do not
- * re-derive. The one deliberate exception is [ApprovalAnswers], which is a pair
- * of session calls rather than a decision, and is here for the same reason: so
- * the pair can be tested rather than trusted.
- */
-
 object ThreadResolution {
     sealed interface Result {
         data class Open(val chat: Chat) : Result

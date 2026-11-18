@@ -43,7 +43,7 @@ private val releaseKeystore: java.io.File? = when {
     }
 }
 
-private val appVersionName = "0.1.8"
+private val appVersionName = "0.1.9"
 
 private val appVersionCode = run {
     val parts = appVersionName.split(".").map { it.toIntOrNull() ?: -1 }

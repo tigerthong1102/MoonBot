@@ -124,7 +124,7 @@ data class OptionCard(
         }
 
         fun isRefusal(choice: String): Boolean = choice.trim().lowercase() in
-            setOf("deny", "cancel", "dismiss")
+            setOf("deny", "cancel", "dismiss", "skip")
     }
 }
 

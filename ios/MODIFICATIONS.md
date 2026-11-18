@@ -38,6 +38,8 @@ Independent PR-wide audit: runtime-scoped Android HTTP results/errors and multi-
 
 Unused upstream store-export signing identity is removed; export is local-only and owner-configured. Manifest/resource comments retain only platform/security facts, with XML values/attributes unchanged.
 
+Android 0.1.9 / iOS build 16 map team-memory Skip to deny, preserving ordinary question answers. Android speech completion is scoped independently from audio-focus/playback success and recovers using the latest call busy state. Shared fixture tests validate the actual host card and refusal semantics.
+
 Modified imported files:
 
 - `App/ActivityRunChip.swift`

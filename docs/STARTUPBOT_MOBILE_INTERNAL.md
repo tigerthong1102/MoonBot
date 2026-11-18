@@ -1,6 +1,6 @@
 # StartupBot native mobile — internal testing
 
-Current audit: [independent PR #4 review](STARTUPBOT_PR4_REVIEW.md). Android 0.1.8 / iOS build 15 contain further scoped-request, transport and memory-limit corrections; final-head native acceptance is required. Earlier results below apply only to their named SHA.
+Current audit: [independent PR #4 review](STARTUPBOT_PR4_REVIEW.md). Android 0.1.9 / iOS build 16 contain further scoped-request, transport and memory-limit corrections; final-head native acceptance is required. Earlier results below apply only to their named SHA.
 
 
 Native source is kept separately from desktop delivery. Android is imported

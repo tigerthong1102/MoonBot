@@ -45,6 +45,20 @@ class SessionP1Test {
     }
 
     @Test
+    fun skippingTeamMemorySendsADenialAndNeverAStandingGrant() = runTest {
+        val card = requireNotNull(decodeFixture<Message>("team-memory-request").card)
+        val session = session()
+        server.enqueue(json("{}"))
+        session.answer(Chat.BotChat(bot("b1", "task-1", "task-1")), card, "Skip")
+        val request = server.takeRequest()
+        assertEquals("/api/threads/task-1/respond", request.path)
+        val submitted = body(request)
+        assertEquals("deny", submitted["behavior"])
+        assertEquals(mapOf("requestId" to "memory-request", "behavior" to "deny"), submitted)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
     fun searchFocusRequiresAnUnbrokenRenderedBranch() = runTest {
         fun page(range: IntRange) = ThreadPage(
             messages = range.map { Message("m$it", Message.Role.BOT, Message.Kind.TEXT, it.toDouble(), text = "Message $it", parentId = if (it > 1) "m${it - 1}" else null) },

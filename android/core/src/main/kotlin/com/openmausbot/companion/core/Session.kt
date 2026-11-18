@@ -835,8 +835,7 @@ class Session(
                             is Frame.Hello -> {
                                 receivedHello = true
                                 if (!payload.resumed) {
-                                    hydrate()
-                                    _state.update { it.resetCursor(payload.cursor) }
+                                    hydrate(payload.cursor)
                                 }
                                 _status.value = Status.Live
                                 promoteWorkingRoute()
@@ -875,11 +874,23 @@ class Session(
         }
     }
 
-    private suspend fun hydrate() {
+    private suspend fun hydrate(cursor: String) {
         val activeClient = client ?: return
         val fleet = hydrateFn(activeClient, 50)
-        _state.update { it.hydrate(fleet) }
-        notificationSink.setBadge(_state.value.unreadCount)
+        val waiting = mutableMapOf<String, ThreadPage>()
+        val owners = fleet.bots.map { it.threadId to it.tasks.orEmpty() } + fleet.groups.map { it.threadId to it.tasks.orEmpty() }
+        for ((selected, tasks) in owners) for (task in tasks) {
+            if (task.threadId != selected && task.activity == "waiting-on-you" && task.threadId !in waiting) {
+                currentCoroutineContext().ensureActive()
+                waiting[task.threadId] = activeClient.messages(task.threadId, limit = 50)
+            }
+        }
+        currentCoroutineContext().ensureActive()
+        gate.withLock {
+            if (client !== activeClient) throw CancellationException("The originating computer changed")
+            _state.update { it.hydrate(fleet, waiting).resetCursor(cursor) }
+            notificationSink.setBadge(_state.value.unreadCount)
+        }
         // Deliberately off hydrate's critical path: this only words the
         // composer, and the cursor commit — and with it the whole stream —
         // must not wait on a request that says nothing about the transcript.
@@ -1067,15 +1078,7 @@ class Session(
 
     // MARK: - Actions
 
-    suspend fun send(text: String, to: Chat) {
-        perform {
-            val receipt = when (to) {
-                is Chat.BotChat -> it.sendToBot(to.bot.id, text, to.threadId)
-                is Chat.RoomChat -> it.sendToRoom(to.room.id, text, to.threadId)
-            }
-            record(receipt, text, to.threadId)
-        }
-    }
+    suspend fun send(text: String, to: Chat): Boolean = send(text, emptyList(), to)
 
     /**
      * A send the harness held rather than ran has to stay on screen, or the
@@ -1154,12 +1157,13 @@ class Session(
      * delay can move the message elsewhere. Callers only clear their draft when
      * this returns true.
      */
-    suspend fun send(text: String, attachments: List<PendingMessageAttachment>, to: Chat): Boolean {
+    suspend fun send(text: String, attachments: List<PendingMessageAttachment>, to: Chat, originConnectionId: String? = _connection.value?.id): Boolean {
         val activeClient = client ?: run {
             _actionError.value = "This computer is offline."
             return false
         }
         val connectionId = _connection.value?.id
+        if (originConnectionId == null || connectionId != originConnectionId || activeClient.connection.id != originConnectionId) return false
         _actionError.value = null
         return try {
             AttachmentPolicy.validate(attachments)
@@ -1190,6 +1194,7 @@ class Session(
 
             val uploaded = attachments.map { attachment ->
                 currentCoroutineContext().ensureActive()
+                if (client !== activeClient) throw CancellationException("The originating computer changed")
                 val mime = AttachmentPolicy.normalizedMime(attachment.mime)
                 when (attachment.kind) {
                     PendingMessageAttachment.Kind.IMAGE -> SharedAttachmentReference(
@@ -1209,7 +1214,10 @@ class Session(
                 urls = emptyList(),
                 attachments = uploaded,
             )
+            if (client !== activeClient) return false
             val receipt = activeClient.send(message, destination, sendId)
+            currentCoroutineContext().ensureActive()
+            if (client !== activeClient) return false
             // The row shows what was typed, not what was sent: `message`
             // carries the <attached-file …> tags the harness reads, and a
             // held message is a person's own words waiting, not transport.
@@ -1221,6 +1229,7 @@ class Session(
         } catch (error: CancellationException) {
             throw error
         } catch (error: APIError) {
+            if (client !== activeClient) return false
             if (error.isUnauthorized) {
                 gate.withLock {
                     if (connectionId != null && _connection.value?.id == connectionId) {
@@ -1231,6 +1240,7 @@ class Session(
             _actionError.value = error.message
             false
         } catch (error: Throwable) {
+            if (client !== activeClient) return false
             _actionError.value = error.message
             false
         }

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.core
 
 data class PendingApproval(val threadId: String, val message: Message)
@@ -192,7 +193,7 @@ data class CompanionState(
 
     val pendingApprovals: List<PendingApproval>
         get() = (bots.flatMap { bot -> listOf(bot.threadId) + bot.tasks.orEmpty().map(BotTask::threadId) } +
-            rooms.map(Room::threadId)).distinct()
+            rooms.flatMap { room -> listOf(room.threadId) + room.tasks.orEmpty().map(BotTask::threadId) }).distinct()
             .flatMap { threadId ->
                 visibleTranscript(threadId)
                     .filter { it.card?.isPending == true }
@@ -206,7 +207,7 @@ data class CompanionState(
             else if ((bot.tasks == null || bot.visibleTasks.isNotEmpty()) && bot.unread) 1 else 0
         } + rooms.count(Room::unread)
 
-    fun hydrate(fleet: Fleet): CompanionState {
+    fun hydrate(fleet: Fleet, waitingThreads: Map<String, ThreadPage> = emptyMap()): CompanionState {
         val hydratedMessages = buildMap {
             fleet.bots.forEach { put(it.threadId, it.messages.orEmpty()) }
             fleet.groups.forEach { put(it.threadId, it.messages.orEmpty()) }
@@ -228,6 +229,12 @@ data class CompanionState(
             hasMore = hydratedHasMore,
             activeLeafIds = fleet.bots.associate { it.threadId to it.activeLeafId },
         )
+            .let { state ->
+                waitingThreads.entries.fold(state) { current, (threadId, page) ->
+                    if (current.botForThread(threadId) != null || current.roomOwningTask(threadId) != null)
+                        current.merge(page, threadId) else current
+                }
+            }
             .let { state -> fleet.botQueuedMessages?.let { state.replaceBotQueues(it) } ?: state }
             .reconcileAllQueued()
     }

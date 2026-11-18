@@ -34,6 +34,22 @@ import kotlin.test.assertTrue
 class ChatDraftHolderTest {
 
     @Test
+    fun failedOrStaleSendAcknowledgmentsNeverEraseDrafts() {
+        val holder = ChatDraftHolder()
+        val composer = ChatComposerDraft("thread", holder, initialSaveable = "")
+        composer.onTypedChange("original")
+        assertFalse(composer.onSendResult(false, "original"))
+        assertEquals("original", composer.text)
+        assertEquals("original", composer.saveableValue)
+        composer.onTypedChange("newer edit")
+        assertFalse(composer.onSendResult(true, "original"))
+        assertEquals("newer edit", composer.text)
+        assertTrue(composer.onSendResult(true, "newer edit"))
+        assertEquals("", composer.text)
+        assertEquals("", composer.saveableValue)
+    }
+
+    @Test
     fun taskSwitchKeepsSeparateDraftsAndRestoresTheSource() {
         val holder = ChatDraftHolder()
         holder.register("bot-1", "thread-a")

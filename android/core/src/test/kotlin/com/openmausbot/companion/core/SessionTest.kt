@@ -19,6 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -31,12 +32,65 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.encodeToString
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionTest {
+    @Test
+    fun coldReconnectFetchesWaitingChannelTasksBeforeCommittingTheCursor() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        val scope = CoroutineScope(Job() + kotlinx.coroutines.Dispatchers.Default)
+        try {
+            val connection = requireNotNull(Connection.parse(server.url("/").toString()))
+            val room = Room("room", "selected", "Fixture", emptyList(), GroupResponder("all"), "", false, 1.0,
+                tasks = listOf(BotTask("background", "Review", 1.0, activity = "waiting-on-you")))
+            val fleet = Fleet(emptyList(), listOf(room))
+            server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody("""{"messages":[{"id":"pending","role":"bot","kind":"options","at":1,"card":{"title":"Allow?","subtitle":"","options":["Allow","Deny"],"requestId":"request","tool":"fixture"}}]}"""))
+            val session = Session(scope = scope, connectionStore = FakeConnectionStore(connection),
+                tokenStore = FakeTokenStore().apply { saved[connection.id] = "fixture-token" },
+                onboardingStore = InMemoryOnboardingStore(), deviceNameProvider = { "Fixture" },
+                eventsFn = { _, _, _ -> flow { emit(StreamFrame(Frame.Hello("cold:1", false), 1)); awaitCancellation() } },
+                hydrateFn = { _, _ -> fleet.copy(groups = listOf(room)) }, instancesFn = { emptyList() },
+                metadataFn = { throw APIError.Status(404) })
+            session.awaitRestored()
+            session.connect()
+            val state = kotlinx.coroutines.withTimeout(5_000) { session.state.first { it.cursor == "cold:1" } }
+            assertEquals(listOf("background"), state.pendingApprovals.map { it.threadId })
+            assertEquals("/api/threads/background/messages?limit=50", server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)?.path)
+        } finally { scope.cancel(); server.shutdown() }
+    }
+
+    @Test
+    fun textOnlySendsReportAcknowledgmentAndKeepTheRetryIdentity() = runTest {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val connection = requireNotNull(Connection.parse(server.url("/").toString()))
+            val tokens = FakeTokenStore().apply { saved[connection.id] = "fixture-token" }
+            val session = session(connectionStore = FakeConnectionStore(connection), tokenStore = tokens)
+            session.awaitRestored()
+            val bot = decodeFixture<Fleet>("bots-paged").bots.first()
+            val chat = Chat.BotChat(bot)
+            var firstSendId: String? = null
+            for (status in listOf(500, 200)) {
+                server.enqueue(MockResponse().setResponseCode(status).setHeader("Content-Type", "application/json").setBody("{}"))
+                assertEquals(status == 200, session.send("retryable draft", chat))
+                val request = assertNotNull(server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS))
+                val body = kotlinx.serialization.json.Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+                val sendId = body["sendId"].toString()
+                assertTrue(sendId != "null")
+                if (firstSendId == null) firstSendId = sendId else assertEquals(firstSendId, sendId)
+                assertEquals("\"${bot.threadId}\"", body["threadId"].toString())
+            }
+            assertFalse(session.send("stale draft", emptyList(), chat, "other-computer"))
+            assertEquals(2, server.requestCount)
+        } finally { server.shutdown() }
+    }
+
     @Test
     fun structuredQuestionRemainsRetryableUntilTheServerAcknowledgesIt() = runTest {
         val server = MockWebServer()

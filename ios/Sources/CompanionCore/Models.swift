@@ -14,6 +14,11 @@ import Foundation
 
 // MARK: - Messages
 
+public struct SkillReferenceFile: Codable, Hashable, Sendable {
+    public var path: String
+    public var content: String
+}
+
 public struct SkillRequestCardData: Codable, Hashable, Sendable {
     public var version: Int
     public var requestId: String
@@ -30,6 +35,8 @@ public struct SkillRequestCardData: Codable, Hashable, Sendable {
     public var sha256: String?
     public var warnings: [String]
     public var createdAt: Int64
+    public var references: [SkillReferenceFile]? = nil
+    public var referencesSha256: String? = nil
 
     /// A current client echoes this only after it can show the complete
     /// proposal. Legacy cards remain visible but deny-only.
@@ -37,6 +44,13 @@ public struct SkillRequestCardData: Codable, Hashable, Sendable {
         guard let preview, !preview.isEmpty, let sha256, sha256.utf8.count == 64 else { return nil }
         let hexadecimal = CharacterSet(charactersIn: "0123456789abcdefABCDEF")
         guard sha256.unicodeScalars.allSatisfy(hexadecimal.contains) else { return nil }
+        if referencesSha256 != nil || references?.isEmpty == false {
+            guard let references, !references.isEmpty, let referencesSha256,
+                  referencesSha256.utf8.count == 64,
+                  referencesSha256.unicodeScalars.allSatisfy(hexadecimal.contains),
+                  Set(references.map(\.path)).count == references.count,
+                  references.allSatisfy({ $0.path.hasPrefix("references/") && !$0.path.contains("..") }) else { return nil }
+        }
         return sha256
     }
 }

@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import androidx.compose.runtime.saveable.Saver
@@ -85,7 +86,12 @@ class ChatComposerDraft(
         publish(merged, Dictation.afterDictation(current))
     }
 
-    /** Send of non-empty text: clear before `session.send`. */
+    fun onSendResult(acknowledged: Boolean, capturedText: String): Boolean {
+        if (!acknowledged || text != capturedText) return false
+        onSend()
+        return true
+    }
+
     fun onSend() {
         publish("", Dictation.afterClear())
     }

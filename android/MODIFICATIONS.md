@@ -36,6 +36,7 @@ Modified imported files:
 - `app/src/main/kotlin/com/openmausbot/companion/notifications/NotificationMapping.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/CallRules.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/CallScreen.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/ui/ChatComposerDraft.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ChatPolicy.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ChatScreen.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/ui/ComposerAttachments.kt`
@@ -83,6 +84,7 @@ Modified imported files:
 - `app/src/test/kotlin/com/openmausbot/companion/ui/AttachmentRulesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/CallRulesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/ChatDraftHolderTest.kt`
+- `app/src/test/kotlin/com/openmausbot/companion/ui/ChatPolicyTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/MausBodiesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/ModelRulesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/ui/NavigationTest.kt`
@@ -105,6 +107,7 @@ Modified imported files:
 - `core/src/main/kotlin/com/openmausbot/companion/core/SendReceipt.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/Session.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/SessionStorage.kt`
+- `core/src/main/kotlin/com/openmausbot/companion/core/Store.kt`
 - `core/src/main/kotlin/com/openmausbot/companion/core/ThreadNavigation.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/AskQuestionTest.kt`
 - `core/src/test/kotlin/com/openmausbot/companion/core/DecodingTest.kt`

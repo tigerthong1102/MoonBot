@@ -66,6 +66,15 @@ class SimulatorInstallationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "installation deadline"):
             module.install("owned-simulator", self.app, command, lambda _: None)
 
+    def test_debug_dylib_must_match_even_when_launcher_is_identical(self):
+        (self.app / "StartupBot.debug.dylib").write_bytes(b"new-code")
+        other = Path(self.folder.name) / "old-debug.app"
+        other.mkdir()
+        (other / "Info.plist").write_bytes(plistlib.dumps(self.info))
+        (other / "StartupBot").write_bytes(b"new-binary")
+        (other / "StartupBot.debug.dylib").write_bytes(b"old-code")
+        self.assertIsNone(module.installed_payload("owned-simulator", module.identity(self.app), self.command([], other)[0], lambda _: None))
+
     def test_wrong_version_or_bundle_is_rejected(self):
         for field, value in [("CFBundleVersion", "8"), ("CFBundleIdentifier", "other.app")]:
             with self.subTest(field=field):

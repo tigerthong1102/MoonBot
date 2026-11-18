@@ -36,6 +36,9 @@ val CompanionJson = Json {
 }
 
 @Serializable
+data class SkillReferenceFile(val path: String, val content: String)
+
+@Serializable
 data class SkillRequestCardData(
     val version: Int,
     val requestId: String,
@@ -52,6 +55,8 @@ data class SkillRequestCardData(
     val sha256: String? = null,
     val warnings: List<String> = emptyList(),
     val createdAt: Long,
+    val references: List<SkillReferenceFile>? = null,
+    val referencesSha256: String? = null,
 ) {
     /**
      * A current client echoes this hash only after it can show the complete proposal. Legacy or
@@ -61,7 +66,11 @@ data class SkillRequestCardData(
         get() = sha256?.takeIf { hash ->
             !preview.isNullOrEmpty() && hash.length == 64 && hash.all { character ->
                 character in '0'..'9' || character in 'a'..'f' || character in 'A'..'F'
-            }
+            } && (if (referencesSha256 != null || !references.isNullOrEmpty()) {
+                !references.isNullOrEmpty() && referencesSha256?.matches(Regex("[a-fA-F0-9]{64}")) == true &&
+                    references.map { it.path }.distinct().size == references.size &&
+                    references.all { it.path.startsWith("references/") && !it.path.contains("..") }
+            } else true)
         }
 }
 

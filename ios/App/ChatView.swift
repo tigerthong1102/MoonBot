@@ -2239,6 +2239,20 @@ struct CardView: View {
                             .frame(maxHeight: 220)
                             .padding(10)
                             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                            ForEach(skill.references ?? [], id: \.path) { file in
+                                Text(file.path)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .textSelection(.enabled)
+                                ScrollView(.vertical) {
+                                    Text(file.content)
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .frame(maxHeight: 220)
+                                .padding(10)
+                                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                            }
                         }
                     } else {
                         Label(

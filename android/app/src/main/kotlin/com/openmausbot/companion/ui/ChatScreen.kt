@@ -677,48 +677,29 @@ private fun LoadedChat(
         val text = (explicitText ?: draft).trim()
         // With attachments waiting, the message is the attachments plus
         // whatever was typed; the draft is cleared only once they are sent.
-        if (attachments.isNotEmpty()) {
-            if (preparingAttachments || sendingMessage) return
-            val outgoing = attachments.toList()
-            val draftAtSend = draft
-            sendingMessage = true
-            attachmentError = null
-            showingPlus = false
-            scope.launch {
-                val sent = try {
-                    session.send(text, outgoing, chat)
-                } finally {
-                    sendingMessage = false
-                }
-                if (!sent) {
-                    attachmentError = session.actionError ?: "Couldn't send this message. Try again."
-                    session.actionError = null
-                    return@launch
-                }
-                // Compare with what was in the field at tap time, so a newer
-                // edit made while uploading survives the clear.
-                if (composer.text == draftAtSend) {
-                    composer.onSend()
-                    publishFrom(composer)
-                }
-                if (attachments.map { it.id } == outgoing.map { it.id }) attachments.clear()
-                haptics.play(HapticCue.SEND)
+        if (text.isEmpty() && attachments.isEmpty()) return
+        if (preparingAttachments || sendingMessage) return
+        val outgoing = attachments.toList()
+        val draftAtSend = draft
+        val originConnectionId = connection?.id
+        sendingMessage = true
+        attachmentError = null
+        showingPlus = false
+        scope.launch {
+            val sent = try {
+                session.send(text, outgoing, chat, originConnectionId)
+            } finally {
+                sendingMessage = false
             }
-            return
+            if (composer.onSendResult(sent, draftAtSend)) publishFrom(composer)
+            if (!sent) {
+                attachmentError = session.actionError ?: "Couldn't send this message. Try again."
+                session.actionError = null
+                return@launch
+            }
+            if (attachments.map { it.id } == outgoing.map { it.id }) attachments.clear()
+            haptics.play(HapticCue.SEND)
         }
-        if (text.isEmpty()) return
-        composer.onSend()
-        // Clearing the draft closes the HUD through the rule above, which is
-        // how iOS's `showCommandHUD = false` on submit happens as well.
-        publishFrom(composer)
-        // Where iOS plays `SoundEffects.playSent()` and a medium impact. The
-        // motor only: the sound there is an Apple system id with no counterpart
-        // here, and the keyboard already owns that job on this platform.
-        haptics.play(HapticCue.SEND)
-        // Deliberately not disabled while the bot is busy: the harness answers
-        // 409 and Session surfaces "The bot is busy — stop it first." That is a
-        // clearer answer than a dead button.
-        scope.launch { session.send(text, chat) }
     }
 
     fun selectCommand(command: SlashCommand) {

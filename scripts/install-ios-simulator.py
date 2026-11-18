@@ -13,11 +13,13 @@ def identity(app):
     executable = info["CFBundleExecutable"]
     if Path(executable).name != executable:
         raise ValueError("Invalid simulator executable name")
+    debug = app / f"{executable}.debug.dylib"
+    binaries = [app / executable] + ([debug] if debug.is_file() else [])
     return {
         "bundleId": info["CFBundleIdentifier"],
         "version": info["CFBundleShortVersionString"],
         "build": info["CFBundleVersion"],
-        "executableSha256": hashlib.sha256((app / executable).read_bytes()).hexdigest(),
+        "binariesSha256": {binary.name: hashlib.sha256(binary.read_bytes()).hexdigest() for binary in binaries},
     }
 
 

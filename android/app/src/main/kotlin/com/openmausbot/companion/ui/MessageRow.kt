@@ -1155,6 +1155,20 @@ private fun CardView(chat: Chat, message: Message, haptics: Haptics) {
                                 .padding(10.dp),
                         )
                     }
+                    skill.references.orEmpty().forEach { file ->
+                        SelectionContainer {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(file.path, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                                Text(
+                                    file.content,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)
+                                        .verticalScroll(rememberScrollState()).padding(10.dp),
+                                )
+                            }
+                        }
+                    }
                 }
             } else {
                 Row(

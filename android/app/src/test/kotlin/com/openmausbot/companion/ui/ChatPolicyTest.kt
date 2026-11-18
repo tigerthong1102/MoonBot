@@ -1,3 +1,4 @@
+// Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
 import com.openmausbot.companion.core.Bot
@@ -26,6 +27,15 @@ import kotlin.test.assertTrue
  * instant it opened, so the tap led back to the roster.
  */
 class ThreadResolutionTest {
+    @Test
+    fun backgroundChannelTasksResolveWithoutChangingTheSelectedTask() {
+        val channel = room().copy(threadId = "selected", tasks = listOf(BotTask("background", "Review", 1.0)))
+        val state = CompanionState(rooms = listOf(channel))
+        val opened = ThreadResolution.resolve(state, "background") as ThreadResolution.Result.Open
+        assertEquals("background", opened.chat.threadId)
+        assertEquals("selected", state.rooms.single().threadId)
+    }
+
     private val hydratedEmpty = CompanionState(cursor = "stream-1:12")
 
     @Test

@@ -8,6 +8,17 @@ Năng Động liệt kê SQL Server 2005 trong cấu hình máy chủ Smart Pro 
 - **Cần tái hiện một bản Smart Pro dùng SQL 2005.** Dùng máy ảo Windows có license, tương thích với bộ cài được chọn. Ghi rõ bản Smart Pro, edition SQL và kiến trúc process. Ngắt card mạng ảo ở hypervisor, tháo thư mục chia sẻ chứa dữ liệu doanh nghiệp, chỉ dùng tài khoản cục bộ và công ty demo. Chụp snapshot trước cài đặt. Người vận hành có thể cài thủ công trong VM khi đủ bằng chứng.
 - **Cần cài mới cho doanh nghiệp đang chạy sổ sách.** Đây là quyết định triển khai riêng. Giữ nguyên máy và dữ liệu khi chưa có phép thử tái lập, bản sao phục hồi được và sự đồng ý của người quản trị máy đích.
 
+## Media tìm được cho Express SP4 tiếng Anh
+
+Gói cập nhật KB2463332 trên Microsoft Update Catalog có kèm trình cài Express đầy đủ. Đã kiểm tra hai lớp trực tiếp từ file tải qua HTTPS của Microsoft, không thực thi file. Đường dẫn bên trong CAB là `hotfixexpress/files/sqlexpr.exe`. Tệp con chứa `setup.exe` và `setup/sqlrun_sql.msi`; metadata PE ghi Microsoft SQL 2005 Server Express Edition, build `9.00.5000.00`. [Microsoft Update Catalog](https://www.catalog.update.microsoft.com/ScopedViewInline.aspx?updateid=48f7e3b7-2c8f-4900-ae32-f3d8f29c988d) · [Gói gốc do Microsoft lưu trữ](https://catalog.s.download.windowsupdate.com/msdownload/update/software/svpk/2011/01/sqlserver2005expresssp4-kb2463332-x86-enu_896d55b16d7d0978618378f6bbbb3b6ab23296cc.exe)
+
+| Tệp | SHA-256 | Bằng chứng |
+|---|---|---|
+| KB2463332 ENU, gói ngoài | `62118d3717bfd0dc9866dbbc4d602494f68ff4c94693236b51fa058b193b1b3e` | Khớp SHA-256 công bố trong cửa sổ Download của Catalog. |
+| SQLEXPR.EXE, bộ cài phía trong | `087bf7b1d433eed6afcfb2f983dfed3381416edf1e0dc6c7779b98c537f6d5b9` | Tính từ tệp con của gói ngoài đã đối chứng. Chữ ký nhúng của cả hai tệp cho kết quả OK với LIEF và ghi Microsoft Corporation. |
+
+Trên máy Windows hiện đại dùng để chuẩn bị media, chạy [công cụ kiểm file](../../../scripts/business-connectors/lab/verify-sql2005-media.ps1) với `-LiteralPath` trỏ đến SQLEXPR.EXE. Công cụ đối chiếu SHA-256 và yêu cầu Windows tin cậy chữ ký Microsoft theo chính sách hiện hành. Nếu Windows từ chối chữ ký cũ, giữ nguyên chính sách và dừng. Phép kiểm media độc lập với nghiệm thu cài đặt trong VM. Các hash trên chỉ áp dụng cho đúng gói Express SP4 ENU này.
+
 ## Bộ cài và thực hiện
 
 1. Lấy media cài mới đúng edition từ nguồn chính thức hoặc bộ gốc được cấp phép có nguồn gốc đối chiếu được. Với Express, kiểm tra tài liệu nêu rõ gói cài mới Database Engine. Catalog Microsoft có cả các gói chỉ nâng cấp instance đã cài. Xác nhận riêng cả service pack và build dự kiến. Microsoft từng công bố SP4 Express; thông báo lịch sử không chứng minh file tải hiện tại còn sẵn. [Microsoft SQL Server Team](https://www.microsoft.com/en-us/sql-server/blog/2010/12/20/sql-server-2005-sp4-rtm-now-available-for-download/) · [Microsoft Update Catalog](https://www.catalog.update.microsoft.com/ScopedViewInline.aspx?updateid=48f7e3b7-2c8f-4900-ae32-f3d8f29c988d)

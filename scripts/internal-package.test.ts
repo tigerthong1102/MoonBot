@@ -28,6 +28,20 @@ describe("StartupBot internal distribution boundary", () => {
     }
   });
 
+  it("verifies lossless payloads and gives each Mac architecture a separate download", () => {
+    const workflow = parse(read(".github/workflows/package-linux.yml"));
+    const mac = workflow.jobs.macos.steps;
+    const compression = mac.findIndex((step: { run?: string }) => step.run?.includes("compress-mac-images.mjs"));
+    const install = mac.findIndex((step: { name?: string }) => step.name === "Test the installed DMG on its native host");
+    expect(compression).toBeGreaterThan(-1);
+    expect(install).toBeGreaterThan(compression);
+    expect(mac[install].run).toContain("package-payload.mjs");
+    const uploads = mac.filter((step: { uses?: string; if?: string }) => step.uses?.startsWith("actions/upload-artifact") && !step.if);
+    expect(uploads.map((step: { with: { path: string } }) => step.with.path)).toEqual(["release/downloads/arm64/", "release/downloads/x64/"]);
+    expect(uploads.every((step: { with: { "compression-level": number } }) => step.with["compression-level"] === 0)).toBe(true);
+    expect(workflow.jobs.windows.steps.find((step: { name?: string }) => step.name === "Install EXE and test the installed application").run).toContain("package-payload.mjs");
+  });
+
   it("uses independent identity and the supplied logo without changing upstream attribution", () => {
     const builder = parse(read("electron-builder.yml"));
     const internal = parse(read("electron-builder.internal.yml"));
@@ -39,6 +53,8 @@ describe("StartupBot internal distribution boundary", () => {
     expect(internal.extraMetadata.homepage).toBe("https://startupbot.ai");
     expect(internal.mac.identity).toBe("-");
     expect(internal.dmg.sign).toBe(false);
+    expect(internal.compression).toBe("maximum");
+    expect(internal.dmg.format).toBe("UDZO");
     expect(builder.extraResources).toEqual(expect.arrayContaining([
       { from: "LICENSE", to: "licenses/OpenMausBot-LICENSE.txt" },
       { from: "NOTICE", to: "licenses/OpenMausBot-NOTICE.txt" },

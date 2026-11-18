@@ -33,3 +33,19 @@ echo '{"consent":"granted","data":"sql","location":"local","engine":"running","o
 Các trường checks của phương án F ghi kết quả kiểm tra do người vận hành cung cấp. Công cụ không tải, xác minh hay chạy installer, không nhận password và không xin nâng quyền. Bundle thử dùng file xuất ngay cả khi người dùng chưa có môi trường SQL.
 
 Đối với Smart Pro dùng SQL Server 2005, Setup Assistant có [quy trình cài thủ công trong VM cô lập](../../docs/startupbot/business-connectors/smartpro-sql2005-lab.md), gồm kiểm tra media, điểm dừng và phép đọc sau cài.
+
+## Pilot API MISA ASP Kế toán
+
+Trên Node 24+, kỹ sư có thể dựng một đề nghị chi tạm ứng tiền mặt VND bằng API cục bộ `prepareAdvance(input)` hoặc bằng lệnh sau. Tham số trong ví dụ là dữ liệu tổng hợp. Mã nguồn gọi phải giữ nguyên reference khi chạy lại cùng nghiệp vụ.
+
+~~~sh
+echo '{"company":"DEMO","branch":"00000000-1111-4444-aaaa-000000000001","employee":"00000000-1111-4444-aaaa-000000000002","reference":"00000000-1111-4444-aaaa-000000000003","number":"00017","date":"2026-11-18","amountVnd":"1000000","debit":"141","credit":"1111"}' | node scripts/business-connectors/asp/cli.mjs prepare
+~~~
+
+Lệnh prepare chạy offline, xuất JSON ra stdout cục bộ. Số tiền là chuỗi nguyên dương VND biểu diễn được chính xác bằng số nguyên an toàn của JavaScript. Chọn tài khoản lá, đối tượng và kỳ từ danh mục của công ty thực hành. Các mã GUID của ví dụ chỉ phục vụ kiểm thử.
+
+Lệnh `submit-demo` nhận cùng JSON qua stdin. Chỉ chạy khi đã có ClientID hợp lệ cho sản phẩm ASP, mã kết nối thuộc dữ liệu thực hành và callback đã đăng ký. Cung cấp qua môi trường cục bộ của tiến trình: `ASP_CLIENT_ID`, `ASP_ACCESS_CODE`, `ASP_DEMO_COMPANY`, `ASP_DEMO_BRANCH`. Hai biến cuối phải khớp công ty phía ứng dụng và GUID chi nhánh trong đề nghị. Công ty thực hành phải được người vận hành xác nhận: gateway dùng chung, các biến này không tự nhận biết sổ production. Theo [đặc tả ASP trên Developer Portal](https://developer.misa.vn/products-openapi/ASP), ClientID được cấp khi yêu cầu đăng ký sản phẩm được phê duyệt. Phiên Chrome đã đăng nhập chưa cung cấp ClientID cho StartupBot.
+
+Client gọi `/asp/v1/token` rồi `/asp/v1/save` trên gateway của Developer Portal. Kết quả `queued` chỉ xác nhận gateway tiếp nhận. Công cụ chưa nhận callback hoặc kiểm tra bút toán trên sổ. Mã `needs_reconciliation` yêu cầu kiểm lại trên ASP trước khi gửi tiếp. Nhật ký cục bộ trong `~/.startupbot/asp-pilot` lưu hash, trạng thái và ngăn gửi lại cùng mã trên cùng máy với cùng thư mục. Dùng một máy gửi cho mỗi pilot. Việc xóa nhật ký hoặc tạo reference mới sẽ mất khả năng nhận diện lượt gửi trước.
+
+Kiểm thử: `node --test scripts/business-connectors/asp/advance.fixture.mjs`.

@@ -1,3 +1,4 @@
+import { ReconcileError } from "./messages";
 import Papa from "papaparse";
 import { BlobReader, ZipReader, type FileEntry } from "@zip.js/zip.js/index-native.js";
 import { MAX_ROWS, table, type Cell, type Table } from "./compare";
@@ -11,13 +12,13 @@ function csv(text: string): Table {
     step(result, parser) {
       if (result.errors.length || lines.length > MAX_ROWS || result.data.length > 128) {
         parser.abort();
-        throw new Error("CSV sai cấu trúc hoặc vượt giới hạn dòng/cột.");
+        throw new ReconcileError("reconcile.csvShape");
       }
       lines.push(result.data);
     },
   });
   const width = lines[0]?.length;
-  if (lines.some(row => row.length !== width)) throw new Error("Các dòng CSV có số cột khác nhau.");
+  if (lines.some(row => row.length !== width)) throw new ReconcileError("reconcile.csvWidth");
   return table(lines);
 }
 
@@ -31,57 +32,57 @@ async function workbook(file: File): Promise<Table> {
     let size = 0, count = 0, expanded = 0;
     for await (const entry of reader.getEntriesGenerator()) {
       if (++count > 256 || entry.encrypted || entry.filename.includes("..") || /vbaProject|externalLinks|embeddings/i.test(entry.filename)) {
-        throw new Error("Workbook có liên kết ngoài, nội dung nhúng, mã hóa hoặc quá nhiều thành phần.");
+        throw new ReconcileError("reconcile.archiveContent");
       }
       if (entry.directory) continue;
       size += entry.uncompressedSize;
-      if (size > 16 * MB || entry.uncompressedSize > 6 * MB || entries.has(entry.filename)) throw new Error("Workbook vượt giới hạn hoặc trùng thành phần.");
+      if (size > 16 * MB || entry.uncompressedSize > 6 * MB || entries.has(entry.filename)) throw new ReconcileError("reconcile.archiveSize");
       entries.set(entry.filename, entry);
     }
     async function xml(name: string) {
       const entry = entries.get(name);
-      if (!entry) throw new Error("Thiếu thành phần XLSX.");
+      if (!entry) throw new ReconcileError("reconcile.missingPart");
       const chunks: Uint8Array[] = [];
       let bytes = 0;
       await entry.getData(new WritableStream<Uint8Array>({ write(chunk) {
         bytes += chunk.byteLength;
         expanded += chunk.byteLength;
-        if (bytes > entry.uncompressedSize || bytes > 6 * MB || expanded > 16 * MB) throw new Error("Workbook vượt giới hạn giải nén.");
+        if (bytes > entry.uncompressedSize || bytes > 6 * MB || expanded > 16 * MB) throw new ReconcileError("reconcile.expandedSize");
         chunks.push(chunk);
       } }), { checkSignature: true, useWebWorkers: false });
       const buffer = new Uint8Array(bytes);
       let offset = 0;
       for (const chunk of chunks) { buffer.set(chunk, offset); offset += chunk.byteLength; }
       const value = utf8(buffer);
-      if (/<!DOCTYPE|<!ENTITY/i.test(value)) throw new Error("XML có khai báo không được phép.");
+      if (/<!DOCTYPE|<!ENTITY/i.test(value)) throw new ReconcileError("reconcile.xmlDeclaration");
       const doc = new DOMParser().parseFromString(value, "application/xml");
-      if (descendants(doc, "parsererror").length) throw new Error("XML không hợp lệ.");
+      if (descendants(doc, "parsererror").length) throw new ReconcileError("reconcile.xmlInvalid");
       return doc;
     }
     const book = await xml("xl/workbook.xml");
     const rels = descendants(await xml("xl/_rels/workbook.xml.rels"), "Relationship");
     const strings = entries.has("xl/sharedStrings.xml") ? descendants(await xml("xl/sharedStrings.xml"), "si").map(textRuns) : [];
     const visible = descendants(book, "sheet").filter(s => !s.hasAttribute("state") || s.getAttribute("state") === "visible");
-    if (visible.length !== 1) throw new Error("Hãy lưu riêng một trang tính hiển thị cần đối chiếu.");
+    if (visible.length !== 1) throw new ReconcileError("reconcile.visibleSheet");
     const sheet = visible[0];
     const id = sheet.getAttribute("r:id");
     const rel = rels.find(r => r.getAttribute("Id") === id && r.getAttribute("Type")?.endsWith("/worksheet"));
     const target = rel?.getAttribute("Target")?.replace(/^\/xl\//, "");
-    if (!target || !/^worksheets\/[\w.-]+\.xml$/.test(target) || rel?.getAttribute("TargetMode") === "External") throw new Error("Đường dẫn trang tính không hợp lệ.");
+    if (!target || !/^worksheets\/[\w.-]+\.xml$/.test(target) || rel?.getAttribute("TargetMode") === "External") throw new ReconcileError("reconcile.sheetPath");
     const doc = await xml("xl/" + target);
-    if (descendants(doc, "f").length || descendants(doc, "mergeCell").length) throw new Error("Hãy xuất trang giá trị, không chứa công thức hoặc ô gộp.");
+    if (descendants(doc, "f").length || descendants(doc, "mergeCell").length) throw new ReconcileError("reconcile.flatSheet");
     const data = descendants(doc, "sheetData")[0];
-    if (!data) throw new Error("Trang tính trống.");
+    if (!data) throw new ReconcileError("reconcile.emptySheet");
     const lines: Cell[][] = [];
     for (const row of data.children) {
       const cells: Cell[] = [];
       for (const cell of row.children) {
         if (cell.localName !== "c") continue;
         const ref = /^([A-Z]{1,3})[1-9]\d*$/.exec(cell.getAttribute("r") ?? "");
-        if (!ref) throw new Error("Địa chỉ ô không hợp lệ.");
+        if (!ref) throw new ReconcileError("reconcile.cellAddress");
         let col = 0;
         for (const ch of ref[1]) col = col * 26 + ch.charCodeAt(0) - 64;
-        if (col > 128 || col <= cells.length) throw new Error("Cột Excel vượt giới hạn hoặc sai thứ tự.");
+        if (col > 128 || col <= cells.length) throw new ReconcileError("reconcile.cellOrder");
         while (cells.length < col - 1) cells.push("");
         const val = descendants(cell, "v")[0]?.textContent ?? "";
         const type = cell.getAttribute("t") ?? "n";
@@ -89,19 +90,19 @@ async function workbook(file: File): Promise<Table> {
         else if (type === "inlineStr") cells.push(textRuns(cell));
         else if (type === "n") cells.push(val ? { numeric: val } : "");
         else if (type === "str") cells.push(val);
-        else throw new Error("Có ô lỗi hoặc kiểu Excel chưa hỗ trợ. Hãy dùng bản xuất CSV UTF-8.");
+        else throw new ReconcileError("reconcile.cellType");
       }
       if (cells.some(c => c !== "")) lines.push(cells);
-      if (lines.length > MAX_ROWS + 1) throw new Error("Trang tính vượt 50.000 dòng.");
+      if (lines.length > MAX_ROWS + 1) throw new ReconcileError("reconcile.sheetRows");
     }
-    if (lines.some(row => row.length > lines[0].length)) throw new Error("Có dữ liệu ngoài phạm vi tiêu đề.");
+    if (lines.some(row => row.length > lines[0].length)) throw new ReconcileError("reconcile.sheetWidth");
     return table(lines);
   } finally { await reader.close(); }
 }
 
 export async function readFileTable(file: File): Promise<Table> {
-  if (!file.size || file.size > 4 * MB) throw new Error("Chọn tệp có dữ liệu, tối đa 4 MiB.");
+  if (!file.size || file.size > 4 * MB) throw new ReconcileError("reconcile.fileSize");
   if (/\.csv$/i.test(file.name)) return csv(utf8(new Uint8Array(await file.arrayBuffer())));
   if (/\.xlsx$/i.test(file.name)) return workbook(file);
-  throw new Error("Chọn tệp CSV UTF-8 hoặc XLSX.");
+  throw new ReconcileError("reconcile.fileType");
 }

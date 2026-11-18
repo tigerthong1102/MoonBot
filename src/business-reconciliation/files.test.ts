@@ -27,6 +27,6 @@ describe("file consent boundary", () => {
     expect((await readFileTable(file)).rows).toEqual([["00017", { numeric: "12.0400" }]]);
   });
   it("rejects cached formula values", async () => {
-    await expect(readFileTable(await spreadsheet('<row><c r="A1"><f>1+1</f><v>2</v></c></row>'))).rejects.toThrow(/công thức/);
+    await expect(readFileTable(await spreadsheet('<row><c r="A1"><f>1+1</f><v>2</v></c></row>'))).rejects.toThrow(/reconcile.flatSheet/);
   });
 });

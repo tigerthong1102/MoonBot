@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compare, fields, guess, table, titles, type Cell, type Source } from "./compare";
+import { t } from "../lib/i18n";
 import { htmlReport } from "./report";
 const header = fields.map(f => titles[f]);
 const source = (rows: Cell[][]): Source => ({ data: table([header, ...rows]), mapping: guess(header), separator: "." });
@@ -11,12 +12,12 @@ describe("đối chiếu file", () => {
     const b = source([row("00017", "9007199254740993.0099")]);
     const r = compare(a, b, scope);
     expect(r).toMatchObject({ leftCount: 1, rightCount: 1, difference: "0.0001" });
-    expect(r.exceptions[0]).toMatchObject({ document: "00017", reason: "Lệch tiền", difference: "0.0001" });
+    expect(r.exceptions[0]).toMatchObject({ document: "00017", reasons: ["reconcile.different"], difference: "0.0001" });
   });
   it("detects missing, surplus and repeated documents even when the totals match", () => {
     const r = compare(source([row("1","1"),row("1","-1"),row("2","3")]), source([row("1","0"),row("3","3")]), scope);
     expect(r.difference).toBe("0");
-    expect(r.exceptions.map(x => x.reason)).toEqual(["Nhiều dòng cùng số chứng từ","Thiếu ở báo cáo đối chứng","Thiếu ở tệp cần kiểm tra"]);
+    expect(r.exceptions.flatMap(x => x.reasons)).toEqual(["reconcile.multiple","reconcile.missingRight","reconcile.missingLeft"]);
   });
   it("rejects missing scope, unbound columns, ambiguous text and unsafe Excel numeric data", () => {
     const valid = source([row("01","1")]);
@@ -32,7 +33,7 @@ describe("đối chiếu file", () => {
     const a = { ...source([row("<script>alert(1)</script>", "-1,2300")]), separator: "," as const };
     const r = compare(a, source([row("1","-1.2300")]), scope);
     expect(r.difference).toBe("0.0000");
-    const report = htmlReport(r);
+    const report = htmlReport(r, t, "en");
     expect(report).toContain("&lt;script&gt;");
     expect(report).not.toContain("<script>");
   });

@@ -230,7 +230,7 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
   const empty = sheet && cards.length === 0 && !selection;
   const control = "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-secondary hover:bg-inset hover:text-ink";
   const controls = <>
-        <button type="button" className={control} onClick={() => setReconcileOpen(true)}>Đối chiếu chứng từ</button>
+        <button type="button" className="ui-button ui-button-sm" onClick={() => setReconcileOpen(true)}>{t("reconcile.title")}</button>
         <details className="relative" data-testid="data-history">
           <summary role="button" className={`${control} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} aria-label={t("data.history")} title={t("data.history")}>
             <History size={14} aria-hidden="true" /><span className="hidden @min-[460px]/data:inline">{t("data.history")}</span><ChevronDown size={12} aria-hidden="true" />
@@ -256,8 +256,8 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
   return (
     <div ref={panel} className="@container/data flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card text-ink fullscreen:h-full fullscreen:w-full" data-testid="data-panel">
       {reconcileOpen && <dialog ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setReconcileOpen(false)}
-        className="m-auto max-h-[90vh] w-[min(64rem,96vw)] overflow-auto rounded-xl bg-card text-ink backdrop:bg-black/30" aria-label="Đối chiếu chứng từ">
-        <Suspense fallback={<button onClick={() => setReconcileOpen(false)}>Đóng</button>}><ReconcileFiles dropdown={Select} close={() => setReconcileOpen(false)} /></Suspense>
+        className="m-auto max-h-[90vh] w-[min(64rem,96vw)] overflow-auto rounded-xl bg-card text-ink backdrop:bg-black/30" aria-label={t("reconcile.title")}>
+        <Suspense fallback={<button className="ui-button" onClick={() => setReconcileOpen(false)}>{t("reconcile.close")}</button>}><ReconcileFiles t={t} dropdown={Select} close={() => setReconcileOpen(false)} /></Suspense>
       </dialog>}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden [container-type:size]" data-testid="data-result">
         {!sheet && !loadError && (

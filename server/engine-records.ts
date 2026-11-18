@@ -195,7 +195,7 @@ export async function stopRecordedEngines(theirs: () => Promise<number[] | null>
   let left = await theirs();
   if (left === null) return null;
   if (left.length) {
-    log(`Stopping ${left.length} process${left.length === 1 ? "" : "es"} an earlier OpenMausBot server of this data folder started and left running.`);
+    log(`Stopping ${left.length} process${left.length === 1 ? "" : "es"} an earlier StartupBot server of this data folder started and left running.`);
     signal(left, "SIGTERM");
     for (const until = Date.now() + 1_500; Date.now() < until && left.length; ) {
       await new Promise((resolve) => setTimeout(resolve, 100));

@@ -21,8 +21,8 @@ const renderBot = (bot: Partial<BotAvatarProps["bot"]>) =>
   );
 
 describe("MausAvatar body", () => {
-  it("wears the cursor when no body is given", () => {
-    expect(render({})).toContain(MASCOT_BODIES.cursor.fit);
+  it("uses the approved StartupBot artwork when no body is given", () => {
+    expect(render({})).toContain('src="/startupbot-icon-192.png"');
   });
 
   it("wears the body it is given", () => {
@@ -34,7 +34,7 @@ describe("MausAvatar body", () => {
     // SAFETY: "hexagram" is deliberately not a MascotBodyId, to exercise the runtime fallback for persisted or streamed
     // data.
     expect(render({ bodyId: "hexagram" as MausAvatarProps["bodyId"] })).toContain(
-      MASCOT_BODIES.cursor.fit,
+      'src="/startupbot-icon-192.png"',
     );
   });
 
@@ -49,7 +49,7 @@ describe("MausAvatar body", () => {
 describe("mascot facial feature colors", () => {
   it.each(["white", "black"] as const)("uses %s for both eyes and mouth on every body type", (mascotFaceColor) => {
     const ink = mascotFaceColor === "white" ? "#ffffff" : "#000000";
-    for (const mascotBody of ["cursor", "star", "pumpkin", "vampire"] as const) {
+    for (const mascotBody of ["star", "pumpkin", "vampire"] as const) {
       for (const color of ["green", "chrome"] as const) {
         const markup = renderBot({ color, mascotBody, mascotFaceColor });
         expect(markup).toContain(`fill="${ink}"`);
@@ -60,9 +60,9 @@ describe("mascot facial feature colors", () => {
   });
 
   it("keeps default inks when an override is reset or comes from an older profile", () => {
-    expect(renderBot({ color: "chrome", mascotFaceColor: null })).toContain('stroke="#1E2833"');
+    expect(renderBot({ color: "chrome", mascotFaceColor: null })).toContain('src="/startupbot-icon-192.png"');
     expect(renderBot({ mascotBody: "ghost" })).toContain('stroke="#0d0a10"');
-    expect(renderBot({})).toContain('stroke="#ffffff"');
+    expect(renderBot({})).toContain('src="/startupbot-icon-192.png"');
   });
 
   it("does not paint features over an uploaded image", () => {
@@ -110,23 +110,23 @@ describe("BotAvatar's two avatar outcomes", () => {
 
   it("renders the gradient mascot when the crop is mascot, image or not", () => {
     const markup = renderBot({ avatarUrl: "/api/attachments/cat.webp", avatarCrop: "mascot" });
-    expect(markup).not.toContain("<img");
-    expect(markup).toContain("<svg");
+    expect(markup).toContain('src="/startupbot-icon-192.png"');
+    expect(markup).not.toContain("<svg");
   });
 
   it("falls back to the gradient mascot when a flat crop has no valid image", () => {
     const markup = renderBot({ avatarUrl: undefined, avatarCrop: "circle" });
-    expect(markup).not.toContain("<img");
-    expect(markup).toContain("<svg");
+    expect(markup).toContain('src="/startupbot-icon-192.png"');
+    expect(markup).not.toContain("<svg");
   });
 });
 
 describe("theme hooks on faces", () => {
   it("marks a bot's picture, its gradient mascot and its carved mascot, and leaves a decorative mascot unmarked", () => {
     expect(renderBot({ avatarUrl: "/api/attachments/a.png", avatarCrop: "circle" })).toMatch(/<span data-avatar="picture" data-avatar-kind="bot"/);
-    expect(renderBot({})).toMatch(/<span data-avatar="mascot" data-avatar-kind="bot"/);
+    expect(renderBot({})).toMatch(/<span data-avatar="picture" data-avatar-kind="bot"/);
     expect(renderBot({ mascotBody: "ghost" })).toMatch(/<span data-avatar="mascot" data-avatar-kind="bot"/);
-    expect(render({})).not.toContain("data-avatar");
+    expect(render({})).not.toMatch(/data-avatar(?:-kind)?=/);
   });
 
   it("marks the person's picture and their initials", () => {

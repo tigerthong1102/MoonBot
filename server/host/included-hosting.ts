@@ -140,7 +140,7 @@ export function hostingRefusal(status: number, body: Record<string, unknown>): H
     case "invalid_files":
       return new HostingRefusal("invalid_files", `Included hosting can't publish ${shownPath(body.path)}: it takes plain static files with an index.html at the top. Fix or leave that file out, then publish again.`);
     case "app_taken_down":
-      return new HostingRefusal("taken_down", "This app was taken down by MausBot, so it can't be published again. Tell the person; they can delete it on the Published apps page, and MausBot support can say why.");
+      return new HostingRefusal("taken_down", "This app was taken down by StartupBot, so it can't be published again. Tell the person; they can delete it on the Published apps page, and StartupBot support can say why.");
     case "change_in_progress":
       return new HostingRefusal("in_progress", "Another change to this app is still running. Wait a minute, then check it with check_app_hosting.");
     case "busy":

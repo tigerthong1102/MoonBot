@@ -225,7 +225,7 @@ export function answerConnection(id: string, sources: HandoffSources):
   }
   if (id === "composio") {
     const apiKey = cfg.composio?.apiKey?.trim(), userId = cfg.composio?.userId;
-    return apiKey && userId ? { ok: true, connection: { composio: { apiKey, userId } } } : { ok: false, error: "Connected apps here use OpenMausBot's service." };
+    return apiKey && userId ? { ok: true, connection: { composio: { apiKey, userId } } } : { ok: false, error: "Connected apps here use StartupBot's service." };
   }
   if (id === "email") {
     const accounts = sources.email?.() ?? [];

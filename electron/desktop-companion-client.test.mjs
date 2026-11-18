@@ -70,7 +70,7 @@ describe("desktop companion endpoint", () => {
     expect(normalizeDesktopCompanionEndpoint(`https://${LABEL}.mausbot.si`)).toBe(
       `https://${LABEL}.mausbot.si`,
     );
-    expect(normalizeDesktopCompanionEndpoint(` ${LABEL.toUpperCase()}.Mausbot.SI/ `)).toBe(
+    expect(normalizeDesktopCompanionEndpoint(` ${LABEL.toUpperCase()}.StartupBot.SI/ `)).toBe(
       `https://${LABEL}.mausbot.si`,
     );
     for (const endpoint of [
@@ -226,7 +226,7 @@ describe("desktop companion pairing", () => {
         requestId: "request-https-03",
         fetchImpl,
       }),
-    ).rejects.toThrow("OpenMausBot HTTPS companion address");
+    ).rejects.toThrow("StartupBot HTTPS companion address");
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 

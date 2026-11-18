@@ -1,43 +1,28 @@
 ---
 name: phone-connection
-description: "Why the MausBot phone app can't reach the person's computer, and what fixes it. Use when their phone stops connecting, works only on the same Wi-Fi, or shows No route to your computer."
+description: "Troubleshoot an authorized StartupBot phone connection over LAN, Tailscale, HTTPS or an owner-configured relay."
 ---
 
-# When the phone can't reach their computer
+# Phone connection
 
-The MausBot phone app reaches the person's computer, where the OpenMausBot
-desktop app runs, in the ways turned on in Settings → Phone & devices:
+StartupBot runs tasks on the host computer. That computer must be on, awake,
+online and running StartupBot. A phone connection does not keep tasks running
+when the host is off.
 
-- **Same Wi-Fi**: the phone and the computer are on the same network. Every
-  version of the phone app can use it.
-- **Anywhere, through MausBot**: from anywhere, through MausBot Relay, end-to-end
-  encrypted. Only a phone app with the encrypted connection can use it.
-- **Tailscale**, under More ways in, for people who use it.
+Check Settings → Phone & devices and the paired device's access scope. Use only
+routes enabled by the owner:
 
-Older phone apps reached the computer away from home through an older secure
-link instead, and that link is being switched off. Once it has ended for a
-computer, a phone with an older app still works on the same Wi-Fi, but away from
-it shows "No route to your computer at …" and keeps retrying. The phone app
-can't tell why.
+- Same Wi-Fi/LAN: both devices must be able to reach each other.
+- Tailscale: both devices need an authorized route on the owner's tailnet.
+- HTTPS: use the owner's configured endpoint with a valid certificate.
+- Relay: use an explicitly configured, authorized relay. StartupBot does not
+  provide or authorize free access to an upstream relay or cloud service.
 
-## What to say
+Check device authorization, expiry and revocation before diagnosing networking.
+Do not bypass device restrictions, disable TLS verification or fall back from
+an encrypted pairing to plaintext. Preserve E2E encryption and the protocol's
+version checks. Re-pair through Settings when credentials have been revoked.
 
-1. Look in your instructions for a line that starts "Phone link:". It is there
-   only when this computer's secure link for older phone apps has ended and a
-   paired phone still has an older app. Then that is the cause. Tell them to
-   update the MausBot app on that phone from its app store, then open it once
-   on the same Wi-Fi as this computer: that upgrades its pairing by itself. If
-   that doesn't reconnect it, they pair it again in Settings → Phone & devices
-   (the phone's row there has Pair again), then remove its old entry.
-2. With no such line, never say the link ended or that their app is too old.
-   Check the usual things, one at a time: the computer is on and awake with
-   OpenMausBot open; on the same Wi-Fi the phone connects; Anywhere, through
-   MausBot is on in Settings → Phone & devices; the phone is in the paired list
-   and its Connect from is Anywhere, not Wi-Fi and Tailscale only.
-3. If you run on My Cloud, phones reach the Cloud through its own web address,
-   not these ways: this guide is about the desktop app on their computer.
-
-For an older app after the link ended, none of these help, so don't suggest
-them: turning Anywhere, through MausBot off and on, Try reconnecting,
-force-quitting the app away from that Wi-Fi, reinstalling the same app version,
-restarting the computer, or checking for a VPN.
+Do not tell users to download a StartupBot native mobile app until an actual
+approved internal artifact or store listing is available. The phone web client
+and native applications have separate build and verification status.

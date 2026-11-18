@@ -4,7 +4,12 @@ import type { CaptureResult, PostHog } from "posthog-js";
 import { appVersion } from "@/lib/app-links";
 import { readAdvancedMode } from "@/lib/interface-mode";
 
-const TOKEN = "phc_m2hP39w8y2gLPvHgDvSXAu6xcZ3agjf4ruL56rGcMZEe";
+export function analyticsConfigured(): boolean {
+  const token = import.meta.env.VITE_STARTUPBOT_POSTHOG_TOKEN;
+  const host = import.meta.env.VITE_STARTUPBOT_POSTHOG_HOST;
+  if (!token || !host) return false;
+  try { return new URL(host).protocol === "https:"; } catch { return false; }
+}
 
 // Read before init(): an opted-out install must never call posthog.init(), so no request leaves the machine.
 const OPT_OUT_KEY = "omb-analytics-opt-out";
@@ -19,6 +24,7 @@ let pending: Array<(ph: PostHog) => void> = [];
 let choice: boolean | undefined;
 
 export function analyticsEnabled(): boolean {
+  if (!analyticsConfigured()) return false;
   if (choice !== undefined) return choice;
   const desktop = desktopSwitch()?.enabled();
   if (typeof desktop === "boolean") return desktop;
@@ -36,6 +42,7 @@ export function optAction(enabled: boolean, running: boolean): OptAction {
 }
 
 export function setAnalyticsEnabled(enabled: boolean) {
+  enabled = enabled && analyticsConfigured();
   choice = enabled;
   void desktopSwitch()?.set?.(enabled).catch(() => {});
   try {
@@ -88,8 +95,8 @@ function start(posthog: PostHog) {
     pending = [];
     return;
   }
-  posthog.init(TOKEN, {
-    api_host: "https://us.i.posthog.com",
+  posthog.init(import.meta.env.VITE_STARTUPBOT_POSTHOG_TOKEN, {
+    api_host: import.meta.env.VITE_STARTUPBOT_POSTHOG_HOST,
     autocapture: false, // never capture clicked-element text (conversation leak)
     capture_pageview: false,
     person_profiles: "identified_only",

@@ -164,8 +164,8 @@ function environmentEntryError(name: string, value: string): string | null {
   if (!ENV_NAME.test(name)) return `Environment variable “${name}” is not valid.`;
   if (isReservedMcpEnvEntry(name, value)) {
     return name === "ELECTRON_RUN_AS_NODE"
-      ? `Environment variable “${name}” is reserved by OpenMausBot; a custom server may set it to “1” only.`
-      : `Environment variable “${name}” is reserved by OpenMausBot.`;
+      ? `Environment variable “${name}” is reserved by StartupBot; a custom server may set it to “1” only.`
+      : `Environment variable “${name}” is reserved by StartupBot.`;
   }
   return null;
 }
@@ -280,7 +280,7 @@ export function mcpServerNameError(name: string): string | null {
   if (!MCP_NAME.test(name)) {
     return "Use 1–32 lowercase letters, numbers, underscores, or hyphens, starting with a letter.";
   }
-  if (RESERVED_MCP_NAMES.has(name)) return "That name is reserved by OpenMausBot.";
+  if (RESERVED_MCP_NAMES.has(name)) return "That name is reserved by StartupBot.";
   return null;
 }
 

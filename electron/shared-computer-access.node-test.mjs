@@ -525,18 +525,18 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n'); });`
   }
 });
 
-test("a protected directory spelled in another case is still refused", async t => {
+for (const product of ["StartupBot", "OpenMausBot"]) test(`${product}: a protected directory spelled in another case is still refused`, async t => {
   const { dir, folder, grant, run } = await fixture(t);
   if (!(await spellings(dir)).case) return t.skip("this filesystem is case-sensitive, so no case variant names the same directory");
-  await mkdir(path.join(dir, "OpenMausBot"));
-  await writeFile(path.join(dir, "OpenMausBot", "credentials.bin"), "credential blob");
-  grant.protectedPaths = [path.join(dir, "OpenMausBot")];
+  await mkdir(path.join(dir, product));
+  await writeFile(path.join(dir, product, "credentials.bin"), "credential blob");
+  grant.protectedPaths = [path.join(dir, product)];
   folder.write = true;
-  await assert.rejects(run({ action: "read_file", path: "OpenMausBot/credentials.bin" }), /Desktop credentials/);
-  await assert.rejects(run({ action: "read_file", path: "openmausbot/credentials.bin" }), /Desktop credentials/);
-  await assert.rejects(run({ action: "read_file", path: "OPENMAUSBOT/credentials.bin" }), /Desktop credentials/);
-  await assert.rejects(run({ action: "list_files", path: "openmausbot" }), /Desktop credentials/);
-  await assert.rejects(run({ action: "write_file", path: "openmausbot/computer-sharing.json", content: "{}" }), /sharing settings/);
+  await assert.rejects(run({ action: "read_file", path: `${product}/credentials.bin` }), /Desktop credentials/);
+  await assert.rejects(run({ action: "read_file", path: `${product.toLowerCase()}/credentials.bin` }), /Desktop credentials/);
+  await assert.rejects(run({ action: "read_file", path: `${product.toUpperCase()}/credentials.bin` }), /Desktop credentials/);
+  await assert.rejects(run({ action: "list_files", path: product.toLowerCase() }), /Desktop credentials/);
+  await assert.rejects(run({ action: "write_file", path: `${product.toLowerCase()}/computer-sharing.json`, content: "{}" }), /sharing settings/);
 });
 
 test("a protected directory spelled in another Unicode normalization is still refused", async t => {
@@ -677,11 +677,11 @@ test("with the whole home folder lent, keys, a browser profile and this app's da
     await put("Documents/plan.txt", "an ordinary file");
     const stub = stubWorkspace();
     stub.state.work.push(...secrets.map(relative => ({ action: "read_file", path: relative })),
-      { action: "read_file", path: "Library/Application Support/OpenMausBot/computer-sharing.json" },
+      { action: "read_file", path: "Library/Application Support/StartupBot/computer-sharing.json" },
       { action: "read_file", path: "Documents/plan.txt" }, { action: "list_files" });
     // Wired as main wires it: the grants file under the app's own profile, and this app's data folder in protectedPaths.
     sharing = createComputerSharing({
-      file: path.join(home, "Library", "Application Support", "OpenMausBot", "computer-sharing.json"), fetch: stub.fetchImpl, home,
+      file: path.join(home, "Library", "Application Support", "StartupBot", "computer-sharing.json"), fetch: stub.fetchImpl, home,
       environments: () => [stub.env], enabled: async () => true, cuaConnection: async () => null, protectedPaths: [path.join(home, ".openmausbot")],
     });
     const info = await sharing.identity(stub.env);

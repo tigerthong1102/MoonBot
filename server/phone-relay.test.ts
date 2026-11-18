@@ -139,7 +139,7 @@ async function pairPhone(server: Server): Promise<{ token: string; id: string; k
   return { token: reply.token, id: reply.device.id, k, session };
 }
 
-describe("phones through MausBot Relay on a server", () => {
+describe("phones through StartupBot Relay on a server", () => {
   it("stays off unless asked for, and never runs where the desktop's companion or a Cloud carries phones", () => {
     const dir = mkdtempSync(join(tmpdir(), "omb-phone-relay-off-"));
     cleanup.push(() => removeTempDir(dir));
@@ -149,8 +149,8 @@ describe("phones through MausBot Relay on a server", () => {
     const base = { dataDir: dir, sessions, handle: () => {}, serverName: () => "VPS", publicOrigin: () => null, version: "0.1.152", log: (line: string) => logs.push(line) };
     expect(startPhoneRelay({ ...base, env: {}, refusal: null })).toBeNull();
     expect(startPhoneRelay({ ...base, env: { OMB_PHONE_RELAY: "true" }, refusal: null })).toBeNull();
-    expect(startPhoneRelay({ ...base, env: { OMB_PHONE_RELAY: "1" }, refusal: "a MausBot Cloud home" })).toBeNull();
-    expect(logs).toEqual(["phone relay: off on a MausBot Cloud home"]);
+    expect(startPhoneRelay({ ...base, env: { OMB_PHONE_RELAY: "1" }, refusal: "a StartupBot Cloud home" })).toBeNull();
+    expect(logs).toEqual(["phone relay: off on a StartupBot Cloud home"]);
     expect(() => statSync(join(dir, PHONE_RELAY_KEY_FILE))).toThrow();
   });
 

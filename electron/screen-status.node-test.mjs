@@ -11,7 +11,7 @@ import { driverFailure } from "./cua-failure.mjs";
 import nativeText from "./native-text.cjs";
 
 const embedded = (extra = {}) => ({
-  mode: "embedded", socketPath: "\\\\.\\pipe\\cua-driver-1234", mcpCommand: "C:\\Program Files\\OpenMausBot\\resources\\cua-driver.exe",
+  mode: "embedded", socketPath: "\\\\.\\pipe\\cua-driver-1234", mcpCommand: "C:\\Program Files\\StartupBot\\resources\\cua-driver.exe",
   mcpArgs: ["mcp", "--embedded", "--socket", "\\\\.\\pipe\\cua-driver-1234"], mcpEnv: { CUA_DRIVER_EMBEDDED: "1", CUA_DRIVER_HOST_BUNDLE_ID: "com.openmausbot.app" }, ...extra,
 });
 
@@ -34,10 +34,10 @@ test("why a PC's apps and screen aren't lent, and the one fix", () => {
   const timedOut = screenStatus({ platform: "win32", connection: { mode: "unavailable", reason: "embedded host failed: StartupTimeout: timeoutMs 10000" } });
   assert.deepEqual({ reason: timedOut.reason, fix: timedOut.fix }, { reason: "not-running", fix: "start" });
   for (const reason of [
-    "embedded host failed: Spawn: binaryPath C:\\OpenMausBot\\resources\\cua-driver-background.exe; reason Access is denied. (os error 5)",
+    "embedded host failed: Spawn: binaryPath C:\\StartupBot\\resources\\cua-driver-background.exe; reason Access is denied. (os error 5)",
     "embedded host failed: Spawn: reason Operation did not complete successfully because the file contains a virus or potentially unwanted software. (os error 225)",
     "cua-driver binary not found",
-    "embedded host failed: Packaged background CUA driver is missing; reinstall OpenMausBot",
+    "embedded host failed: Packaged background CUA driver is missing; reinstall StartupBot",
   ]) {
     const blocked = screenStatus({ platform: "win32", connection: { mode: "unavailable", reason } });
     assert.deepEqual({ reason: blocked.reason, fix: blocked.fix }, { reason: "blocked", fix: "start" }, reason);
@@ -48,7 +48,7 @@ test("why a PC's apps and screen aren't lent, and the one fix", () => {
 });
 
 test("a Mac lacking only macOS's permissions still lends them, so a bot's first need asks macOS; Linux control is off until turned on", () => {
-  const mac = screenStatus({ platform: "darwin", connection: { mode: "unavailable", reason: "embedded host failed: Accessibility and Screen Recording required; grant access in System Settings and restart OpenMausBot" } });
+  const mac = screenStatus({ platform: "darwin", connection: { mode: "unavailable", reason: "embedded host failed: Accessibility and Screen Recording required; grant access in System Settings and restart StartupBot" } });
   assert.deepEqual(mac, { ready: false, lent: true, reason: "permissions", fix: "allow" });
   assert.equal(screenFixLabel(mac), "Allow screen control…");
   const linux = screenStatus({ platform: "linux", connection: { schemaVersion: 1, platform: "linux", mode: "unavailable", enabled: false, status: "disabled", reasonCode: "opt-in-required" } });

@@ -114,6 +114,18 @@ try {
   const capabilities = await evaluate("window.ogb.getCapabilities()");
   const catalog = await request("/api/instances");
   assert.equal(catalog.status, 200); assert(JSON.stringify(catalog.body).includes("Internal package fixture"));
+  await until(() => evaluate("Boolean(document.querySelector('[data-welcome] [data-primary]:not([disabled])'))"), "the first-run welcome");
+  assert.doesNotMatch(await evaluate("document.body.innerText"), /\b(?:OpenMausBot|MausBot)\b/);
+  await evaluate("document.querySelector('[data-welcome] [data-primary]').click()");
+  await until(() => evaluate("Boolean(document.querySelector('[data-chief-create]:not([disabled])'))"), "the StartupBot helper introduction");
+  await new Promise(resolve => setTimeout(resolve, 400));
+  await evaluate("document.querySelector('[data-chief-create]').click()");
+  await until(() => evaluate("!document.querySelector('[data-welcome], [data-chief-intro]') && Boolean(document.querySelector('[data-startupbot-avatar]'))"), "the StartupBot chat and branded helper avatar");
+  const helperText = await evaluate("document.body.innerText");
+  assert.match(helperText, /StartupBot/);
+  assert.doesNotMatch(helperText, /\b(?:OpenMausBot|MausBot)\b/);
+  const helperScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
+  writeFileSync(path.join(evidence, "startupbot-helper.png"), Buffer.from(helperScreenshot.data, "base64"));
   const created = await request("/api/bots", { name: "Internal package agent", cwd: home });
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
@@ -138,7 +150,7 @@ try {
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    dataIsolation: "PASS", rendererMutationBoundary: "PASS", capabilities,
+    dataIsolation: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
   await cdp("Browser.close").catch(() => {});
 } catch (error) {

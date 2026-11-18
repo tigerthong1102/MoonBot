@@ -19,6 +19,7 @@ import { useFestivalDress, wornBody } from "@/lib/festival-dress";
 import { t } from "@/lib/i18n";
 import { CarvedAvatar } from "./CarvedAvatar";
 import { steelBodyImage } from "@/lib/steel-body";
+import { StartupBotAvatar } from "./startupbot/StartupBotAvatar";
 
 export const EYE_SCALE = 1.12;
 export const MOUTH_WEIGHT = 11;
@@ -104,6 +105,7 @@ export type MausAvatarProps = {
 
 function MausAvatarComponent(props: MausAvatarProps, ref: React.Ref<MausAvatarHandle>) {
   const { bodyId, color, size, state, motion, motionKey, gaze, trackPointer, animated, label, kind } = props;
+  if (!isCarvedBody(bodyId) && botMascotBody(bodyId) === "cursor") return <StartupBotAvatar ref={ref} {...props} />;
   if (isCarvedBody(bodyId)) {
     return (
       <CarvedAvatar
@@ -253,9 +255,7 @@ export function resolveBotAvatarOutcome(params: {
 }
 
 export function BotAvatar({ bot, size = 44, label, readable = false, ...mascotProps }: BotAvatarProps) {
-  const savedProfile = botAvatarProfile(bot);
-  const profile = bot.defaultBot && !savedProfile.avatarUrl && !bot.mascotBody
-    ? { ...savedProfile, avatarUrl: "/startupbot-icon-192.png", avatarCrop: "circle" as const } : savedProfile;
+  const profile = botAvatarProfile(bot);
   const festival = useFestivalDress();
   const [imageFailed, setImageFailed] = useState(false);
 

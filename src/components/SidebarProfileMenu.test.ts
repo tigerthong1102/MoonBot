@@ -246,7 +246,7 @@ describe("choosing where the phone connects", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it("when the Cloud cannot be opened, lands on Settings → MausBot Cloud, which says what to do", async () => {
+  it("when the Cloud cannot be opened, lands on Settings → StartupBot Cloud, which says what to do", async () => {
     const bridge = { connectHomeForPhone: vi.fn().mockRejectedValue(new Error("offline")) };
     const dispatch = vi.fn();
     selectPhoneDestination(destinations(readyCloud)[0]!, { bridge, dispatch });
@@ -447,7 +447,7 @@ describe("Simple mode's account menu", () => {
 
   it("puts the move's row first, in its own group, above a raised update", () => {
     const move = [{ key: "cloud-move", label: "Try My Cloud move again", title: "My Cloud did not answer.", onSelect: noop }];
-    const update = { key: "update", label: "OpenMausBot 0.2.0 ready, restart", onSelect: noop };
+    const update = { key: "update", label: "StartupBot 0.2.0 ready, restart", onSelect: noop };
     expect(groups(build({ move }))).toEqual([
       ["cloud-move"],
       ["account"],

@@ -276,7 +276,7 @@ it("Connect to a server says how another computer's desktop app is opened from h
   await type(form.querySelector("[data-own-server-link]"), "192.168.1.30:8799");
   await settle();
   const line = form.querySelector("[data-connect-problem]")?.textContent ?? "";
-  expect(line).toContain("192.168.1.30:8799 is a MausBot desktop app. To open it from here, turn on Tailscale and Your other computers in its Settings → Phone & devices, then use the link shown there.");
+  expect(line).toContain("192.168.1.30:8799 is a StartupBot desktop app. To open it from here, turn on Tailscale and Your other computers in its Settings → Phone & devices, then use the link shown there.");
   expect(line).toContain("My Cloud");
   expect(line).not.toMatch(/can't connect to another|isn't a StartupBot server/);
   expect((form.querySelector("[data-own-server-connect]") as HTMLButtonElement).disabled).toBe(true);
@@ -331,7 +331,7 @@ it("Connect to a server takes an address and a code typed apart: a code pasted a
   await type(form.querySelector("[data-own-server-link]"), "192.168.1.20:8799");
   await settle();
   expect(probe).toHaveBeenLastCalledWith("192.168.1.20:8799", "ABCD-EFGH-JKLM");
-  expect(form.querySelector("[data-connect-found]")?.textContent).toBe("✓ kitchen-box · MausBot 0.1.147 · Private network, not encrypted. Fine on your own network or Tailscale.");
+  expect(form.querySelector("[data-connect-found]")?.textContent).toBe("✓ kitchen-box · StartupBot 0.1.147 · Private network, not encrypted. Fine on your own network or Tailscale.");
   expect(form.querySelector("[data-connect-problem]")).toBeNull();
   const button = form.querySelector("[data-own-server-connect]") as HTMLButtonElement;
   expect([button.disabled, button.textContent]).toEqual([false, "Connect to kitchen-box"]);
@@ -461,7 +461,7 @@ it("a server of the person's own that signed in: a small server mark, the offlin
   expect(workspaces.open.mock.calls).toHaveLength(1);
   const connect = document.querySelector('[data-place-add="connect-server"]')!;
   expect(connect.textContent).toContain("Connect Render VPS");
-  expect(connect.textContent, "it runs OpenMausBot already: only its pairing link is left").not.toContain("npx");
+  expect(connect.textContent, "it runs StartupBot already: only its pairing link is left").not.toContain("npx");
   await type(connect.querySelector("[data-own-server-link]"), "https://render.example.test/#pair=xyz");
   await submit(connect);
   expect(workspaces.add.mock.calls).toEqual([["link", "https://render.example.test/#pair=xyz", ""]]);

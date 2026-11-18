@@ -14,6 +14,7 @@ export function localizeComputerProblem(problem: string | null | undefined): str
     "The Local VM started, but Cua Driver is not ready yet": "computer.problem.cuaNotReady",
     "The existing Local VM uses an older desktop or Cua Driver; recreate it": "computer.problem.oldImage",
     "The existing container was not created by OpenMausBot; recreate it": "computer.problem.unmanaged",
+    "The existing container was not created by StartupBot; recreate it": "computer.problem.unmanaged",
     "The existing Local VM exposes its viewer publicly; recreate it": "computer.problem.publicViewer",
     "The existing Local VM is missing safety limits; recreate it": "computer.problem.missingLimits",
     "The existing Local VM is missing its durable folder; recreate it": "computer.problem.missingDurableFolder",

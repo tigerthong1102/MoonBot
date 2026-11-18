@@ -22,7 +22,7 @@ const ARI = { email: "ari@acme.test", role: "admin" as const };
 const PRIYA = { email: "priya@acme.test", role: "member" as const };
 const TOM = { email: "tom@acme.test", role: "member" as const };
 const priyaKey = personKey({ id: "", email: PRIYA.email });
-const SLACK_LABEL = "Slack (MausBot Cloud)";
+const SLACK_LABEL = "Slack (StartupBot Cloud)";
 const ENGINE = `const { existsSync } = process.getBuiltinModule("node:fs");
 const dir = process.env.FAKE_CLAUDE_FIXTURE_DIR;
 process.env.FAKE_CLAUDE_DUMP = dir + "/dump.json";
@@ -138,7 +138,7 @@ beforeAll(async () => {
   expect((await team.as(ada, "PUT", `/api/bots/${payroll.id}/access`, { everyone: "view", people: {} })).status).toBe(200);
   notes = await create(priya, { name: "Notes" });
   priyaOwn = (await bots(priya)).find((bot) => bot.defaultBot?.person === PRIYA.email)!;
-  expect(priyaOwn, "every member has a MausBot of their own").toBeTruthy();
+  expect(priyaOwn, "every member has a StartupBot of their own").toBeTruthy();
 }, hostTimeout(180_000));
 
 afterEach(async () => {
@@ -329,7 +329,7 @@ it("a channel's conversation never reads the member's private notes or About you
   }
 }, hostTimeout(180_000));
 
-it("an approval is reported as waiting, sits in the member's inbox and conversation, and is answered only in MausBot", async () => {
+it("an approval is reported as waiting, sits in the member's inbox and conversation, and is answered only in StartupBot", async () => {
   await until(idle);
   writeFileSync(file("hang-mode"), "");
   rmSync(file("release"), { force: true });

@@ -63,3 +63,28 @@ provider thật và thiết bị mobile thật không được coi là PASS tự
 License/NOTICE và attribution vẫn có trong gói. Các giới hạn trong
 `LICENSE_GAP.md`, `BRANDING_AUDIT.md` và `RELEASE_READINESS.md` vẫn áp dụng;
 merge mã nguồn hoặc artifact nội bộ không phải kết luận được phát hành thương mại.
+
+## Branding và nâng cấp dữ liệu
+
+Bản `0.1.161-internal.20261118.2` thay tên sản phẩm trong UI, thông báo,
+locale, prompt và companion. Helper mặc định đã được đánh dấu và còn mang tên
+nhà máy cũ được đổi sang StartupBot; giữ nguyên ID, lịch sử, model, quyền và
+avatar do người dùng chọn. Bot thường và helper đã đặt tên riêng được giữ nguyên.
+Không thay chữ trong nội dung hội thoại hoặc hướng dẫn do người dùng viết.
+
+Icon macOS/Windows/PWA và avatar mặc định được tạo từ đúng ảnh chủ sở hữu cung
+cấp. Icon native có khoảng đệm và góc ngoài trong suốt; từng ảnh PNG trong
+ICNS/ICO được kiểm tra kích thước. Asset mascot chrome cũ không được nhập vào UI.
+LICENSE/NOTICE, tên tác giả, các marker đồng bộ và header giao thức tương thích
+vẫn giữ nguyên. Đổi branding không phải kết luận đã giải quyết mọi quyền phân
+phối thương mại hoặc nghĩa vụ đối với lịch sử repository.
+
+Telemetry không tải hoặc gửi khi thiếu cấu hình riêng của StartupBot.
+Không dùng project PostHog của upstream. Feed thông báo và các liên kết trợ giúp
+trỏ về fork; offer Boat chưa được chấp thuận được giữ không hoạt động.
+Updater và public release vẫn tắt.
+
+Gate đóng gói phải đi qua onboarding thật, mở chat helper và kiểm tra tên/avatar
+StartupBot trong renderer, sau đó tạo agent và thử hội thoại bằng engine fixture.
+Bằng chứng đó không thay thế kiểm thử model trả phí, Computer Use tương tác thật,
+hoặc kiểm thử trên điện thoại vật lý. Kết quả theo SHA nằm trong artifact từng run.

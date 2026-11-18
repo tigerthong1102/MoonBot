@@ -80,7 +80,7 @@ beforeAll(async () => {
   ben = (await team.pair(BEN)).token!;
   mira = (await team.as(owner, "POST", "/api/bots", { name: "Mira", visibility: "everyone" })).body.bot;
   adaMaus = (await botsOf(ada)).find((bot) => bot.defaultBot?.person === ADA.email)!;
-  expect(adaMaus, "Ada has a MausBot of her own").toBeTruthy();
+  expect(adaMaus, "Ada has a StartupBot of her own").toBeTruthy();
   mainThread = mira.mainThreadId ?? mira.threadId;
   adaThread = (await team.as(ada, "POST", `/api/bots/${mira.id}/tasks`, { title: "Ada's shop" })).body.task.threadId;
   benThread = (await team.as(ben, "POST", `/api/bots/${mira.id}/tasks`, { title: "Ben's plan" })).body.task.threadId;

@@ -326,7 +326,7 @@ test("a purge of a missing folder still removes the entry (rm runs with force)",
   assert.deepEqual(plain(rmOptions), [{ recursive: true, force: true }]);
 });
 
-test("purge never deletes an OpenMausBot directory", async () => {
+test("purge never deletes an StartupBot directory", async () => {
   const old = { ...LOCAL_FIXTURE, dataDir: "/Users/me/.openmausbot-work" };
   const { calls, context } = runForget({ environments: [old], activeId: "local" });
   assert.deepEqual(plain(await context.forgetEnvironment("l1", true)), { ok: true });

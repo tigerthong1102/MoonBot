@@ -325,7 +325,7 @@ export function startPhoneRelay(options: PhoneRelayOptions): PhoneRelay | null {
     if (peer.kind === "pairing") {
       if (!PAIRING_SESSION_ROUTES.has(`${method} ${path}`)) return reply(res, 401, { error: "pair this phone first" });
       if (method === "POST" && devices.records().length >= MAX_RELAY_PHONES) {
-        return reply(res, 409, { error: `This server has ${MAX_RELAY_PHONES} phones on MausBot Relay. Remove one (openmausbot devices revoke ID), then pair again.` });
+        return reply(res, 409, { error: `This server has ${MAX_RELAY_PHONES} phones on StartupBot Relay. Remove one (openmausbot devices revoke ID), then pair again.` });
       }
     } else {
       const bearer = bearerToken(req.headers.authorization);

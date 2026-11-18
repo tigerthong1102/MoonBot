@@ -58,7 +58,7 @@ describe("createTeamRoutines", () => {
     expect(fixture(false).host.reportsElsewhere(routine({ resultsThreadId: "bob-old-results" }))).toBe(false);
   });
 
-  it("lets a member point results at any chat they read, refuses another person's MausBot, and keeps the Cloud's rule off a team", () => {
+  it("lets a member point results at any chat they read, refuses another person's StartupBot, and keeps the Cloud's rule off a team", () => {
     const { host } = fixture();
     expect(host.bodyRefusal(session(BOB), { botId: "scout", resultsThreadId: "main" })).toBeNull();
     expect(host.bodyRefusal(session(OLIVE), { botId: "bobs-mausbot", name: "x" })).toEqual({ status: 404, error: "no such bot" });

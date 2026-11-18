@@ -23,7 +23,7 @@ describe("this computer, only for the desktop app's own server", () => {
   it("finds nothing on a server the app did not launch, though the app's record, its folder and the desktop flag are all there", () => {
     const home = mkdtempSync(join(tmpdir(), "omb-desktop-computer-"));
     folders.push(home);
-    for (const folder of [join(home, "user-data"), join(home, "Library", "Application Support", "OpenMausBot")]) {
+    for (const folder of [join(home, "user-data"), join(home, "Library", "Application Support", "StartupBot")]) {
       mkdirSync(folder, { recursive: true, mode: 0o700 });
       writeFileSync(join(folder, "cua-connection.json"), JSON.stringify(READY), { mode: 0o600 });
     }
@@ -43,7 +43,7 @@ describe("this computer, only for the desktop app's own server", () => {
     const desktop = createDesktopComputer({ platform: "darwin" });
     expect(desktop.receive({ type: DESKTOP_COMPUTER_GRANT, connection: READY })).toBe(true);
     expect(desktop.connection()).toEqual({ command: "/fixture/cua-driver", args: ["mcp"], env: {}, platform: "darwin", scope: "local-computer" });
-    const reason = "embedded host failed: Screen Recording required; grant access in System Settings and restart OpenMausBot";
+    const reason = "embedded host failed: Screen Recording required; grant access in System Settings and restart StartupBot";
     expect(desktop.receive({ type: DESKTOP_COMPUTER_GRANT, connection: { mode: "unavailable", reason } })).toBe(true);
     expect(desktop.connection()).toBeNull();
     expect(desktop.unavailableReason()).toBe(reason);

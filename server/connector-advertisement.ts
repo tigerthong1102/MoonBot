@@ -131,13 +131,13 @@ export function filterToolsListFrame(
 
 const AUTH_CONFIG_PARAMETER = {
   type: "string",
-  description: "Optional, read by OpenMausBot: the id (ac_…) of an auth config in the person's own Composio project to "
+  description: "Optional, read by StartupBot: the id (ac_…) of an auth config in the person's own Composio project to "
     + "connect the one listed toolkit with. Leave it out to use their most recently created enabled config for it.",
 };
 
 const FIND_PARAMETER = {
   type: "string",
-  description: "Read by OpenMausBot, instead of toolkits: what the app is for, in plain words (\"something for spreadsheets\"). "
+  description: "Read by StartupBot, instead of toolkits: what the app is for, in plain words (\"something for spreadsheets\"). "
     + "Searches every app that can be connected and lists their slugs. Use it when you are not sure of an app's exact slug.",
 };
 

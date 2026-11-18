@@ -355,6 +355,7 @@ async function stopUtilityServer(proc, timeoutMs = UTILITY_SERVER_STOP_TIMEOUT_M
   ]).finally(() => clearTimeout(timer));
 }
 let phoneSecretIdentity = null;
+let pendingPhoneSecretIdentity = null;
 let companionE2E = null;
 let desktopRemoteAccess = null;
 let desktopCompanionRelay = null;
@@ -526,23 +527,16 @@ export async function updateSecureCredentialDocument(derive, afterPersist) {
   }
 }
 
-async function ensurePhoneSecretIdentity() {
-  const existing = readPhoneSecretIdentity(secureCredentialState?.read() ?? secureCredentials);
-  if (existing) {
-    phoneSecretIdentity = existing;
-    return existing;
-  }
+async function provisionPhoneSecretIdentity() {
   try {
     const created = await createPhoneSecretIdentity();
-    await updateSecureCredentialDocument((credentials) =>
-      withPhoneSecretIdentity(credentials, created),
-    );
+    await updateSecureCredentialDocument((credentials) => withPhoneSecretIdentity(credentials, created));
     phoneSecretIdentity = created;
-    return created;
+    if (serverProc) syncPhoneSecretKey(serverProc);
   } catch (error) {
-    phoneSecretIdentity = null;
     slog(`phone credential key unavailable: ${error?.message ?? error}`);
-    return null;
+  } finally {
+    pendingPhoneSecretIdentity = null;
   }
 }
 
@@ -652,8 +646,14 @@ async function startManagedCompanionConnection({ waitForVerification = true } = 
 async function startDesktopCompanion({ waitForHosted = true, remember = true, routes = ["wifi", "relay"] } = {}) {
   const refusal = managedRemoteAccessRefusal();
   if (refusal) throw new Error(refusal);
+  if (!companionDesiredThisLaunch) companionLaunchGeneration += 1;
   companionDesiredThisLaunch = true;
-  companionLaunchGeneration += 1;
+  const generation = companionLaunchGeneration;
+  if (app.isPackaged && serverProc && !phoneSecretIdentity) {
+    pendingPhoneSecretIdentity ??= provisionPhoneSecretIdentity();
+    await pendingPhoneSecretIdentity;
+    if (generation !== companionLaunchGeneration || desktopShutdownStarted) return desktopCompanionState();
+  }
   const localState = await startCompanion(companionLaunchOptions());
   if (!localState.enabled || localState.error) {
     companionDesiredThisLaunch = false;
@@ -2893,7 +2893,7 @@ app.whenReady().then(async () => {
     writable: !credentialStoreUnavailable,
   });
   secureCredentials = secureCredentialState.read();
-  if (app.isPackaged) await ensurePhoneSecretIdentity();
+  phoneSecretIdentity = readPhoneSecretIdentity(secureCredentials);
   companionE2E = createDesktopCompanionE2E({ isPackaged: app.isPackaged, appVersion: app.getVersion(), readCredentials: () => secureCredentialState?.read() ?? secureCredentials, updateCredentials: updateSecureCredentialDocument, powerMonitor, log: slog, onState: phoneLinkFact.observe });
   void companionE2E.start();
   desktopRemoteAccess = desktopCompanionAccess(secureCredentials);

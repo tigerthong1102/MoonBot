@@ -5,8 +5,9 @@ import type { ManagedDesktopBridge, ManagedDesktopState } from "../../electron/m
 import { setLocale, t } from "@/lib/i18n";
 import { locales } from "@/locales";
 
-const fixture = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: [] as EffectCallback[], updating: false,
+const fixture = vi.hoisted(() => ({ portal: "https://admin.example.test", values: [] as unknown[], index: 0, effects: [] as EffectCallback[], updating: false,
   store: { bots: [] as unknown[], instances: [] as unknown[], dispatch: (() => {}) as (action: unknown) => void, flushBotPatches: (async () => null) as (botId: string) => Promise<unknown> } }));
+vi.mock("@/lib/onboarding", async original => ({ ...await original<typeof import("@/lib/onboarding")>(), get DEFAULT_ADMIN_ORIGIN() { return fixture.portal; } }));
 vi.mock("react", async (original) => ({ ...await original<typeof import("react")>(),
   useState: (initial: unknown) => {
     const index = fixture.index++;
@@ -58,6 +59,7 @@ let bridge: ManagedDesktopBridge;
 let push: (state: ManagedDesktopState) => void;
 let unsubscribe = vi.fn<() => void>();
 beforeEach(() => {
+  fixture.portal = "https://admin.example.test";
   fixture.values = []; fixture.index = 0; fixture.effects = []; fixture.updating = false;
   fixture.store = { bots: [], instances: [], dispatch: vi.fn(), flushBotPatches: vi.fn(async () => null) };
   unsubscribe = vi.fn(); push = () => {};
@@ -103,6 +105,17 @@ describe("optional desktop Organisation settings", () => {
     expect(bridge.begin).not.toHaveBeenCalled();
   });
 
+  it("keeps unconfigured default enrollment disabled even when its handler is invoked", async () => {
+    fixture.portal = "";
+    await ready();
+    const signIn = button("Not configured");
+    expect(signIn.props.disabled).toBe(true);
+    signIn.props.onClick!(); await flush();
+    expect(bridge.begin).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(render().html).not.toContain("admin.startupbot.ai");
+  });
+
   it("uses the default portal from one sign-in action and keeps custom setup in a fold", async () => {
     await ready();
     let view = render();
@@ -113,7 +126,7 @@ describe("optional desktop Organisation settings", () => {
     expect(bridge.begin).not.toHaveBeenCalled();
     const signIn = () => view.nodes.find(node => node.type === "button" && (node.props as { "data-organization-sign-in"?: string })["data-organization-sign-in"] === "")!.props.onClick!();
     signIn(); signIn(); await flush();
-    expect(bridge.begin).toHaveBeenCalledExactlyOnceWith({ portalOrigin: "https://admin.openmausbot.com" });
+    expect(bridge.begin).toHaveBeenCalledExactlyOnceWith({ portalOrigin: "https://admin.example.test" });
     expect(fetch).not.toHaveBeenCalled();
     const progress = render().html;
     expect(progress).toContain("Finish signing in through your browser");

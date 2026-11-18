@@ -7,6 +7,7 @@ import { BOX_ENV_NAMES, BOX_ENV_NEVER, BOX_ENV_OMB_NAMES, BOX_ENV_OMB_PREFIXES, 
 /** Every other `OMB_` name the server's code knows: decided to stay on the server, never in a bot's environment. A name
  * ending in `_` is a family (`OMB_CLOUD_*`). */
 const SERVER_ONLY_OMB: ReadonlySet<string> = new Set([
+  "OMB_SMOKE_HOME",
   "OMB_ACP_LIMIT_QUIET_MS", "OMB_ACP_NO_SIGNS_STOP_MS", "OMB_ACP_PLAN_LINES", "OMB_ACP_QUIET_NOTICE_MS",
   "OMB_ACP_QUIET_TICK_MS", "OMB_ACP_SESSION_IDLE_", "OMB_ACP_SHARED_RECYCLE_MS", "OMB_ADMIN_", "OMB_ADMIN_MEMBERSHIP",
   "OMB_ADMIN_URL", "OMB_ADMIN_WORKSPACE", "OMB_AGENT_BROWSER_PATH", "OMB_AI_CHECKS", "OMB_ANTHROPIC_API_KEY",

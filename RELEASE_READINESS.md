@@ -2,56 +2,74 @@
 
 ## Internal desktop acceptance — 2026-11-18
 
-PR #1 is merged at `cd139d78c98c74797c1b07c9f0476f64664199d5`.
-Internal desktop work is isolated on `build/startupbot-internal-desktop-20261118`;
-its changes are not merged and no release is published. Historical sections
-below record earlier gates; they do not override this current status.
+PR #1 merged at `cd139d78c98c74797c1b07c9f0476f64664199d5`.
+The desktop branch is `build/startupbot-internal-desktop-20261118`,
+[Draft PR #3](https://github.com/tigerthong1102/MoonBot/pull/3). Native clients
+are reviewed separately in [Draft PR #4](https://github.com/tigerthong1102/MoonBot/pull/4),
+based on the desktop branch. Neither new PR is authorized for merge or release.
+Historical sections below do not override this current status.
 
-Version 2 Windows installation/onboarding/chat and bundled browser/server
-smokes **PASS** at `b2e9277f1886bf9746cfcf5b816205a71b1025c9` in
-[44207302570](https://github.com/tigerthong1102/MoonBot/actions/runs/44207302570).
-The macOS-only successor **PASS** at `d30be5c7f0d94eea83707c4ab936bbe3370ada67`
-in [44208517644](https://github.com/tigerthong1102/MoonBot/actions/runs/44208517644):
-both DMGs build and the Intel DMG installs/launches on its native runner.
+Internal version 3 is built at `b3f5e8d85b985971b6c5692cc07c423c60f77694`:
+[44215347938](https://github.com/tigerthong1102/MoonBot/actions/runs/44215347938)
+**PASS**, both Windows and macOS jobs. The EXE installs and launches on Windows;
+both DMGs build and the Intel DMG installs/launches on Intel. Onboarding,
+StartupBot helper name/avatar, isolated fake-engine chat, credential/data
+isolation, renderer authorization, and bundled browser/server smokes PASS.
+Download [Windows](https://github.com/tigerthong1102/MoonBot/actions/runs/44215347938/artifacts/14388242196)
+or [macOS](https://github.com/tigerthong1102/MoonBot/actions/runs/44215347938/artifacts/14388328720).
+The local ARM64 v3 DMG builds and verifies its ad-hoc signature, but its launch
+smoke times out while the Mac is locked. Local ARM launch is **BLOCKED**, not
+PASS. A native ARM hosted acceptance lane is prepared for version 4.
 
-**Use version 3 rather than version 2 for agents handling untrusted content.**
-Broader regression testing found that several security-marker parsers still
-recognized only the former product name. Version 3 accepts StartupBot and the
-legacy marker/error formats, preserves Unicode/lookalike defusing, retains
-private helper naming and hidden-sidebar preferences, and handles canceled
-avatar-animation promises. The metadata gate rejects stale installers and
-smoke evidence from a different version. No authorization check is relaxed.
+Version 3 fixes the StartupBot/legacy marker-security parsers and preserves
+hidden/private helper preferences. Version 4 additionally adopts unmarked,
+recolored legacy factory helpers without duplicating bots or losing history;
+two regression fixtures fail before the correction and pass afterward.
+Default organization enrollment is offline unless an approved HTTPS portal is
+explicitly configured; custom owner-provided addresses remain supported.
+Fixed decider/extractor key-check wire messages retain their legacy text for
+contract compatibility, rather than silently changing what a relay accepts.
+No upstream service, token or updater is enabled.
 
-Local corrected-source verification: 738 tests PASS in the first 25-file batch
-with two offer-fixture failures subsequently corrected; 352 tests PASS across
-nine security/helper/protocol files; 46 parser/health tests PASS, including
-legacy formats; 603 Electron Vitest tests PASS with four platform skips; 30
-branding/package/metadata tests PASS; ten focused server prompt tests PASS.
-Batches overlap. Lint, typecheck and package preparation PASS. An initial Node
-invocation incorrectly included Vitest files and failed due to the wrong test
-runner; it is not functional evidence. The correct Node runner subsequently passes 2,144 tests with 13 platform skips.
-Final artifact evidence must still be checked before approval.
+[Full CI 44216594389](https://github.com/tigerthong1102/MoonBot/actions/runs/44216594389)
+on `f49d63f730b1c2ea003a552b350fdddf46fc9785` **FAILS**, not PASS. All failed
+shards were read. Confirmed groups: inactive telemetry fixtures, image-avatar
+markup/clock fixtures, branded text/links, missing mock export, fixed relay
+wire texts, generated catalog/package/vector metadata, and the host-only smoke
+variable's explicit deny classification. Regenerate catalog goldens and package
+manifests; retain immutable recorded model replies and normalize only their
+expected product identity. Cryptographic vector bytes, package hashes, tool
+schemas and permissions remain unchanged. No test is deleted or disabled.
 
-Version 3 packaging, installed ARM64 smoke and final-SHA Windows/macOS workflow
-results are required before promoting its artifacts. Never infer a final-SHA
-PASS from version 2. The source-wide test attempt before these fixes had 56
-failures and eight animation rejections; it is not a full-suite PASS. Focused
-regressions have corrected the confirmed causes; exact-head full CI remains a
-separate merge gate. Main's post-merge Windows app-trigger fixture failure in
-44193721059 has no established root cause and is not declared flaky or fixed.
+Focused verification after these corrections: 399/400 in the first 18-file
+batch, with its final CSS assertion subsequently corrected to test the actual
+speaker-color rules; 107 tests PASS across the final helper/settings/parser
+batch; 134 related UI/privacy/wire tests PASS; 98 regenerated catalog tests
+PASS without update mode; 39 package-format tests PASS; 30 packaging/icon/
+metadata gates PASS. Batches overlap. Earlier correct Node Electron runner:
+2,144 PASS / 13 platform skips; Electron Vitest: 603 PASS / 4 skips. Version 4
+must still pass fresh lint/typecheck/build, final-head CI/review and installed
+package acceptance. Do not transfer a version 3 PASS to version 4.
 
-Native mobile work is separate on `build/startupbot-internal-mobile-20261118`.
-iOS 402 core tests PASS and the universal simulator app builds, but launch was
-rejected by SpringBoard in 44210771414; diagnosis is ongoing. Android core/app
-unit tests and APK/AAB builds PASS, but emulator startup failed in 44212644913
-because AVD creation and lookup used different locations. The explicit-directory
-fix requires a new emulator acceptance result. Neither mobile artifact is
-qualified for use yet. The owner's chosen iOS scope is Simulator only.
+Android [44215532499](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499)
+**PASS** at `5ac456cff0ff9027b9bc8ad76731b0ecadfb53a5`: native core/app tests,
+APK/AAB build, clean emulator installation, launch and StartupBot onboarding.
+The [actual artifact](https://github.com/tigerthong1102/MoonBot/actions/runs/44215532499/artifacts/14387623543)
+is downloaded and its APK/AAB SHA256 verified locally. The APK is debug-signed;
+the AAB is unsigned. Physical desktop pairing and live models are NOT RUN.
+
+iOS 402 core tests and universal app compilation PASS. Simulator launch in
+44217472146 fails with `Taskgated Invalid Signature`: manually embedded iOS
+capabilities were treated as restricted macOS-host claims. Xcode-managed
+simulated entitlements replace that signing script; the real Keychain/App Group
+canary remains mandatory. The next run diagnoses a verifier's little-endian
+`otool` decoding; four parser tests now cover real tool output and malformed
+sections. No iOS artifact is qualified yet. Scope is Simulator only.
 
 No public release, commercial clearance, real-provider acceptance, physical
-mobile pairing matrix, actual macOS Computer Use or notarization is claimed.
-Keychain/profile isolation, updater disabled state and author attribution remain
-release invariants.
+mobile pairing matrix, actual Computer Use operation or notarization is
+claimed. Main's earlier post-merge Windows app-trigger fixture failure in
+44193721059 has no established root cause and is not declared flaky or fixed.
 
 ## Reservation and cookie-cache follow-up from f61a2b1fa
 

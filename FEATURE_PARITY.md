@@ -27,3 +27,20 @@ REVIEW_AUDIT.md and test the final commit separately.
 
 A local agent requires its host to remain awake and online. A phone is a remote
 client, not an always-on backend. No paid service has been provisioned.
+
+## Internal platform delta — 2026-11-18
+
+Desktop version 3 has real Windows installer and Intel DMG installation/launch
+acceptance in 44215347938; ARM64 DMG compilation passes, local launch is blocked
+by a locked Mac. Version 4's separate native ARM lane is pending. Identity,
+private data, branded helper, fake-engine agent/chat, bundled browser/server and
+HTTP authorization are exercised. Real provider billing and actual Computer Use
+are NOT RUN. Legacy history and custom names/avatars remain user data.
+
+Android APK/AAB and clean-emulator launch PASS in 44215532499. Native iOS core
+and universal compilation PASS, but no simulator artifact has passed runtime
+qualification yet. Native client work, pinned OSS source and licenses are in
+PR #4, separate from desktop PR #3. Physical pairing/chat/approval/reconnect
+across the desktop/mobile platform matrix remain NOT RUN. Default Cloud and
+organization portals are inactive unless explicitly configured; private endpoint
+capabilities remain available. See RELEASE_READINESS.md for exact evidence.

@@ -69,8 +69,7 @@ final class Session: ObservableObject {
     private var token: String?
     private var rotation = CandidateRotation(hosts: [])
     private var streamTask: Task<Void, Never>?
-    /// Best-effort authenticated route refresh started by the latest live SSE
-    /// hello. Kept separate so endpoint discovery never stalls event delivery.
+
     private var endpointRefreshTask: Task<Void, Never>?
     private var streamGeneration = 0
     private var runtimeGeneration = 0
@@ -180,16 +179,7 @@ final class Session: ObservableObject {
         Task { await refreshNotificationAuthorization() }
     }
 
-    /// Rebuild the selected connection at launch, migrating the previous
-    /// single-computer record the first time a multi-computer build runs.
-    ///
-    /// Three outcomes, and keeping them apart is the whole point. No saved
-    /// connection: stay unpaired. A saved connection whose token reads back:
-    /// connect. A saved connection whose token cannot be read *yet* — the
-    /// locked keychain before a phone's first unlock after reboot, which is
-    /// when iOS is most likely to have launched us in the background — hold
-    /// on to it and try again. Only the middle case is a real pairing, and
-    /// only the first should ever send someone back to the pairing screen.
+    /// A locked or unavailable Keychain is temporary and must not delete saved pairing metadata.
     private func restore() {
         restorePending = false
         registry = OpenMausSharedConnectionStore.loadRegistry()
@@ -297,10 +287,7 @@ final class Session: ObservableObject {
         try commitPairing(stored, token: paired.token, winner: winner)
     }
 
-    /// The device token goes to the keychain and the connection to defaults —
-    /// deliberately apart, so the thing that gets backed up is never the
-    /// credential. Shared by companion and server pairing; `winner` is the
-    /// route that answered, which a server pairing (one route) has no use for.
+    /// Device tokens must remain in Keychain, separate from backed-up connection metadata.
     private func commitPairing(_ stored: Connection, token: String, winner: CompanionEndpoint? = nil) throws {
         try Keychain.save(token, for: stored.id)
         let firstPairing = registry.connections.isEmpty
@@ -762,10 +749,7 @@ final class Session: ObservableObject {
                 updated.reconcile(metadata)
                 self.persistActiveConnection(updated)
 
-                // Keep the currently live route first until this stream ends.
-                // CandidateRotation applies the same no-downgrade policy used
-                // by pairing, while the saved connection uses advertised
-                // security priorities on the next launch.
+                // An authenticated live connection must not be downgraded to cleartext.
                 let liveRoutes = workingEndpoint.map { route in
                     [route] + updated.orderedEndpoints.filter { $0.url != route.url }
                 } ?? updated.orderedEndpoints

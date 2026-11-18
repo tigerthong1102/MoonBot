@@ -145,7 +145,7 @@ fun PairingScreen(onCancel: () -> Unit) {
                 } else {
                     // Session decides whether this invite may be accepted at all
                     // (already paired, credential already burned) and publishes
-                    // it as `pairingInvite` for the confirm step above.
+
                     session.receivePairingURL(payload)
                     showingScanner = false
                     null

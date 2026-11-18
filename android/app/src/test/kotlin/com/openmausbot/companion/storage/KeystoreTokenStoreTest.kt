@@ -19,29 +19,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
-/**
- * The token store has two obligations that no caller can enforce for it, and
- * this pins both by watching what the store actually does to a
- * `SharedPreferences` it was handed.
- *
- * 1. **It never works on the caller's thread.** `OpenMausApp` builds `appScope`
- *    on `Dispatchers.Main.immediate` and hands this store to `Session`, so the
- *    launch-time restore and the pairing write both arrive on the main thread.
- *    `EncryptedSharedPreferences.create` — which is what the `prefs` lazy runs —
- *    is Keystore IPC plus disk I/O. The provider and every read and write must
- *    land on the injected [io] context instead. That is observable: the fake
- *    below records the thread of every touch, and the caller runs on a thread
- *    with a different name.
- * 2. **A write is durable before it returns.** `Session.pair` saves the token
- *    *before* the connection becomes restorable. `apply()` returns before the
- *    bytes land, which would allow a restorable pairing whose token was still
- *    in a background queue when the process died. The fake records which of
- *    `commit()` / `apply()` the editor was asked for.
- *
- * No Robolectric: `SharedPreferences` is an interface, so the fake is the whole
- * dependency. That also means these are assertions about *this* store's
- * behaviour, not about Android's — durability itself is Android's to keep.
- */
+
 class KeystoreTokenStoreTest {
 
     private val ioThreadName = "token-store-io"
@@ -126,13 +104,7 @@ class KeystoreTokenStoreTest {
         assertTrue(read is TokenStore.ReadResult.Unavailable && read.locked)
     }
 
-    /**
-     * The dispatcher hop above is a real suspension point, which it was not
-     * before: a cancelled caller now reaches these `catch` blocks. Reporting
-     * that as `TokenStoreException` / `Unavailable` would tell `Session` the
-     * Keystore refused when in fact nobody asked any more — and would swallow
-     * the cancellation that structured concurrency is carrying.
-     */
+
     @Test
     fun `cancellation propagates instead of becoming a store failure`() = runBlocking {
         val entered = CompletableDeferred<Unit>()

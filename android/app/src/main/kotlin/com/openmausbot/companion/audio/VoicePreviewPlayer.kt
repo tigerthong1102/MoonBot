@@ -19,24 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Plays one TTS preview at a time.
- *
- * Behaviour mirrors `AgentProfileView.previewVoice` on iOS (playback + spoken
- * audio, replace previous player, surface decode/play failures as an action
- * error string). Android lifecycle adds three hard stops the SwiftUI `@State`
- * player gets for free:
- * 1. another [play] replaces the current one;
- * 2. the bound screen lifecycle reaches [Lifecycle.Event.ON_DESTROY], or the
- *    screen owner is replaced via [bind];
- * 3. the process goes to background via [ProcessLifecycleOwner].
- *
- * The player is **not** retained across configuration changes: bind it to the
- * profile screen's [LifecycleOwner] and release on destroy so a rotated
- * Activity cannot keep a MediaPlayer from the previous instance.
- *
- * Audio bytes stay in memory (`MediaDataSource`); nothing is written to disk.
- */
+
 class VoicePreviewPlayer internal constructor(
     private val controller: VoicePreviewController,
     processLifecycle: Lifecycle = ProcessLifecycleOwner.get().lifecycle,

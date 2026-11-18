@@ -123,7 +123,7 @@ final class ConnectedAppsClientTests: XCTestCase {
             try await operation()
             XCTFail("expected badURL", file: file, line: line)
         } catch APIError.badURL {
-            // Expected: reject before sending paired credentials or opening it.
+
         } catch {
             XCTFail("unexpected error: \(error)", file: file, line: line)
         }

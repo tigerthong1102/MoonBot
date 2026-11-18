@@ -53,7 +53,7 @@ object ProfileRules {
         "To generate images, configure the shared image provider in StartupBot on your " +
             "computer. Provider keys cannot be added from a phone."
 
-    // The ElevenLabs copy below is what iOS ships and is correct under that
+
     // engine, so it stays byte-identical. Each string that names the engine or
     // its credential has a built-in-provider twin, because under `provider:
     // "system"` there is no key and "not configured" means something else
@@ -68,12 +68,7 @@ object ProfileRules {
         "Add the shared ElevenLabs key in this agent's profile on the computer. The key is " +
             "never returned to this phone."
 
-    /**
-     * The built-in engine's remedy is a different engine, not a credential.
-     * Telling the user to add a key here would name a fix that changes
-     * nothing; the computer's voice settings are where the engine is chosen,
-     * and that control stays reachable in exactly this state.
-     */
+
     private const val SYSTEM_VOICE_UNCONFIGURED_FOOTER: String =
         "Your computer's built-in voices need no key, and it reports none it can use. Switch " +
             "the voice engine in StartupBot on the computer to turn speech back on."
@@ -109,7 +104,7 @@ object ProfileRules {
         "No workspace default voice is selected. Choose an agent-specific voice above; " +
             "synthesis still uses your Chatterbox server."
 
-    // The two below name no engine and no credential. They are true word for
+
     // word under both providers, so they have no twin to choose between — and
     // that is exactly why they stay public: there is no wrong arm to draw.
 

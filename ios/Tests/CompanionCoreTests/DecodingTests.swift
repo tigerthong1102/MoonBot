@@ -367,8 +367,7 @@ final class DecodingTests: XCTestCase {
     }
 
     func testAPendingApprovalIsActionableAndAnAnsweredOneIsNot() throws {
-        // The shape a live permission request takes, which the fixture rig
-        // cannot produce without a real provider attached.
+
         let json = """
         {
           "id": "m1", "role": "bot", "kind": "options", "at": 1786742413762,

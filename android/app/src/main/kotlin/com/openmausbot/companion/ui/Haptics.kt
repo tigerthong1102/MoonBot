@@ -41,44 +41,7 @@ internal enum class TactileAction(val cue: HapticCue) {
 }
 
 object CompanionHaptics {
-    /**
-     * [HapticFeedbackConstants] for a cue, given the platform running it.
-     *
-     * The constant has to name the action, not merely produce a buzz: the
-     * platform routes each one through its own effect, and a device with a
-     * richer actuator plays them apart. So each cue is the constant Android
-     * defines for what actually happened, with a fallback chosen for the same
-     * gesture rather than for convenience.
-     *
-     * **Send.** `CONFIRM` is what the platform means by "that worked", and it
-     * arrived in API 30. Below that the view would be handed an effect it does
-     * not know and would do nothing at all, so 26..29 fall back to
-     * `KEYBOARD_TAP` — the honest description of what happened there: a key was
-     * pressed and the message went.
-     *
-     * **Select.** Every site that plays it is a move to one of a set of discrete
-     * things — a command card, a disclosure opening or closing, a discovered
-     * computer, a copy landing on the clipboard. From API 34 the platform has a
-     * constant that says precisely that: `SEGMENT_TICK`, documented as "the user
-     * is switching between a series of potential choices, for example items in a
-     * list or discrete points on a slider".
-     *
-     * Below 34 the fallback is `CLOCK_TICK` (API 21). Its javadoc names the
-     * clock — "an hour or minute tick" — but that *is* the pre-34 vocabulary for
-     * landing on the next discrete value, which is why the framework's own
-     * pickers play it, and it is the softest tick of that family. Explicitly not
-     * `CONTEXT_CLICK`: Android defines that as "the user has performed a context
-     * click on an object", the secondary gesture — a stylus button, a
-     * right-click — and not one of these sites is one. Explicitly not
-     * `KEYBOARD_TAP` either: that is the send's fallback, and a selection that
-     * felt identical to a send would collapse the two cues into one.
-     *
-     * **Success.** `CONFIRM` is Android's explicit successful-completion effect,
-     * and is therefore the cue for a bot or group the computer actually made.
-     * It arrived in API 30. Before that, there is no honest equivalent: a virtual
-     * key or long press would describe the initial tap rather than the later
-     * result, so `NO_HAPTICS` deliberately keeps the success quiet.
-     */
+    /** Android haptic CONFIRM requires API 30; SEGMENT_TICK requires API 34. */
     fun constant(cue: HapticCue, sdkInt: Int = Build.VERSION.SDK_INT): Int = when (cue) {
         HapticCue.SEND ->
             if (sdkInt >= Build.VERSION_CODES.R) {

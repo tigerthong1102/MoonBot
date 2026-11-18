@@ -223,22 +223,7 @@ internal fun onboardingPairingState(
     else -> OnboardingPairingState.UNPAIRED
 }
 
-/**
- * The notification permission, as the marker's lifecycle asks about it.
- *
- * Android answers synchronously — `areNotificationsEnabled()` and
- * `shouldShowRequestPermissionRationale()` both return immediately — so unlike
- * iOS there is no launch window here where the answer is unknown, and
- * [NotificationAuthorizationState.UNRESOLVED] is not produced by this mapping.
- * It exists in the router because the rule it carries is the marker's
- * protection, not iOS's async quirk.
- *
- * [NotificationAccess.BLOCKED] is DETERMINED rather than a fourth case: it means
- * the system will not ask again — pre-33, where there is no runtime permission
- * at all, or a prompt already spent. Education that ends in a button the OS
- * silently drops is worse than no education, so the step is skipped and Settings
- * keeps the recovery path.
- */
+
 internal fun notificationAuthorization(
     access: NotificationAccess,
 ): NotificationAuthorizationState = when (access) {

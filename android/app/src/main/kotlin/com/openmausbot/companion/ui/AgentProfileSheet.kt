@@ -605,20 +605,7 @@ internal fun ChoicePicker(
     }
 }
 
-/**
- * The Voice section: its words, and which of them stand in for the picker.
- *
- * Both come from one [ProfileRules.voiceCopy] call, so the branch and the
- * sentence explaining it cannot disagree. This exists as its own composable
- * because the defect it guards lives in the composition rather than in any
- * value a rule returns — the screen once drew a correct sentence in the wrong
- * slot with the whole suite green — and, like `DataTableCard`, the assertion
- * has to be over what is mounted. `VoiceSectionWiringTest` mounts exactly this.
- *
- * The engine picker rides above the branch: like the desktop's Voice engine
- * group it is drawn in every state, because switching away is how you repair
- * an engine whose credential is missing.
- */
+
 @Composable
 internal fun VoiceSection(
     config: ConfigStatus?,

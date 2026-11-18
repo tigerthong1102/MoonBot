@@ -338,10 +338,10 @@ class ProfileRulesTest {
 
     @Test
     fun `the provider-neutral sentences are shared, not duplicated`() {
-        // Nothing about an engine or a credential appears in these, so a
-        // provider-specific twin would be a second string to keep in sync for
-        // no reason. Pinned so a future edit cannot quietly make one of them
-        // provider-specific while the selector still hands it to both.
+
+
+
+
         listOf(
             ProfileRules.voiceCopy(speaking()).footer,
             ProfileRules.pickAVoiceHint(configuredWithoutDefault(), "").orEmpty(),

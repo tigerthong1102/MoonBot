@@ -11,14 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/**
- * Phone-local controls for how a conversation is presented.
- *
- * These are intentionally separate from pairing and from the encrypted token
- * store: they are presentation choices, not capabilities of the paired
- * computer. One instance is placed in [CompanionEnvironment], so Settings and
- * an already-open chat observe the same values immediately.
- */
+
 class ChatPreferences(
     private val prefs: SharedPreferences,
 ) {

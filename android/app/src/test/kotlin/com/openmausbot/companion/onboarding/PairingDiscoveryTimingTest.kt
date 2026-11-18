@@ -22,21 +22,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * When the pairing screen touches the network, and when it asks to be allowed to.
- *
- * Both are invisible from anything the screen exposes. A browse is a *collection
- * of a cold Flow*, so the only honest way to ask "did entering this screen start
- * a search?" is to hand it a Flow that counts collections and mount the real
- * composable — which is what [OnboardingScene.FakeDiscovery] is for. Asserting
- * that some `showingOtherWays` boolean is false would prove the boolean, not the
- * browse: the previous version of this screen had no such boolean and browsed
- * from the moment it existed.
- *
- * The permission has the same shape. `environment.requestPermissions` is the
- * only route from this screen to a system dialog, and the scene records every
- * call in order, so "the QR path asks for nothing" is measured.
- */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PairingDiscoveryTimingTest {
@@ -47,7 +33,7 @@ class PairingDiscoveryTimingTest {
     private val otherWays = "Other ways to connect"
     private val discoveryHeader = "On this network".uppercase()
 
-    /** API 37 in the permission model, so the local-network grant is in scope. */
+
     private fun scene(
         pairSuspendsUntil: CompletableDeferred<Unit>? = null,
     ) = OnboardingScene(sdkInt = 37, pairSuspendsUntil = pairSuspendsUntil)
@@ -158,12 +144,7 @@ class PairingDiscoveryTimingTest {
         assertEquals(1, cancelled)
     }
 
-    /**
-     * The port of `.disabled(!submission.allowsNavigation)` on iOS's cancel
-     * button. A one-time credential that may already have reached the computer
-     * must not be walked away from halfway (§6): the screen has to stay until
-     * the attempt settles, whichever way it settles.
-     */
+
     @Test
     fun `Not now is refused while a redemption is in flight`() {
         val gate = CompletableDeferred<Unit>()
@@ -176,8 +157,8 @@ class PairingDiscoveryTimingTest {
         )
         compose.waitUntil(5_000) { scene.session.pairingInvite.value != null }
         compose.waitForIdle()
-        // The link carried the credential, so the step is a confirmation of the
-        // computer rather than a code to type.
+
+
         compose.onNodeWithText("Not now").assertIsEnabled()
 
         compose.onNodeWithText("Pair with this computer").performClick()

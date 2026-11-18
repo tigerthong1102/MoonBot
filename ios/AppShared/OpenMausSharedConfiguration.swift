@@ -19,10 +19,7 @@ enum OpenMausSharedConfiguration {
         return trimmed
     }
 
-    /// Existing releases wrote tokens into the application's default group,
-    /// whose fully-qualified name is the signing prefix plus its bundle id.
-    /// Derive the same prefix from the configured shared group so migration
-    /// remains correct even after adding a second keychain entitlement.
+    /// Apple Keychain access-group names include the application signing prefix.
     static var legacyAppKeychainAccessGroup: String? {
         guard let shared = keychainAccessGroup,
               shared.hasSuffix(appGroupIdentifier) else { return nil }

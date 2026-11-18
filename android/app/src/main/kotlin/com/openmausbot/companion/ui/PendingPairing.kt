@@ -8,32 +8,7 @@ import com.openmausbot.companion.core.PairingInvite
 import java.util.UUID
 import kotlinx.serialization.Serializable
 
-/**
- * Pairing attempt state — the QR credential, six-digit code, and stable request
- * id — held in process memory and nowhere else.
- *
- * §6 is explicit: *never persist the QR credential or the code*. The request id
- * shares their process-only lifetime. Only the
- * long-lived device token is written down. Saved instance state does not count
- * as memory for this purpose — the system holds those Bundles across a
- * process kill, which is exactly how `rememberSaveable` survives one — so
- * nothing here may ever be handed to a `Saver`.
- *
- * The consequence is the behaviour we want anyway. A rotation keeps the same
- * process, so this store still holds the credential and the confirmation screen
- * carries on. A restore after the system killed the app gets a fresh, empty
- * store, so the credential is simply gone — which is the honest answer, because
- * `Session`'s spent-credential set died with the process too and nothing left
- * can say whether that token was already redeemed. Retrying one that may have
- * reached the computer can mint a second device record.
- *
- * One pending pairing at a time, so one slot — and the slot is what a second
- * invite must not be allowed to take. So the store, not the screen, owns
- * "an attempt is redeeming": [open] refuses while [beginAttempt] is standing,
- * and [clear] releases only the slot its own handle still owns. A caller with no
- * handle has no credential and no confirmation, so a refusal here is the whole
- * rule rather than a check something else can forget to make.
- */
+/** One-time pairing credentials and codes must remain in process memory, never saved state. */
 internal class PairingSecretStore {
     private var handle: String? = null
     private var credential: String? = null
@@ -41,19 +16,7 @@ internal class PairingSecretStore {
     private var pairRequestId: String? = null
     private var attempting: String? = null
 
-    /**
-     * Begin a pending pairing and return its handle — a random, non-secret id
-     * that is safe to put in saved state and means nothing without this store —
-     * or null when the slot it would replace is being redeemed.
-     *
-     * That refusal is this side of the credential-lifecycle rule. A deep link
-     * arriving during a commit must not take the slot: the attempt that finishes
-     * would then release a QR the user never got to use, and they would have to
-     * go back to the computer for a third one (§6). Returning null rather than
-     * asking callers to check first is deliberate — the handle is the only route
-     * to a credential, so a caller that cannot get one cannot open a
-     * confirmation either, and there is no guard left for a screen to forget.
-     */
+    /** Saved-state handles must contain no pairing credential and must be unusable without the in-memory secret. */
     @Synchronized
     fun open(credential: String? = null): String? {
         if (isRedeeming()) return null
@@ -78,13 +41,7 @@ internal class PairingSecretStore {
         if (attempting == handle) attempting = null
     }
 
-    /**
-     * True while an attempt is redeeming the credential this slot still holds.
-     *
-     * Scoped to the current slot on purpose: once the attempt's own [clear] has
-     * released it there is nothing left to protect, so a stranded [beginAttempt]
-     * cannot lock this process out of pairing for good.
-     */
+
     @Synchronized
     fun isRedeeming(): Boolean = attempting != null && attempting == handle
 
@@ -114,14 +71,7 @@ internal class PairingSecretStore {
         pairRequestId = UUID.randomUUID().toString()
     }
 
-    /**
-     * Release the slot this handle owns.
-     *
-     * Scoped on purpose. The attempt that finishes is not necessarily the
-     * attempt that owns the slot, and a global wipe would take the credential
-     * of whichever pairing came after it — a QR the user had just scanned and
-     * never got to redeem (§6).
-     */
+
     @Synchronized
     fun clear(handle: String?) {
         if (!owns(handle)) return
@@ -134,21 +84,7 @@ internal class PairingSecretStore {
 
 internal val PairingSecrets = PairingSecretStore()
 
-/**
- * The computer the user is about to pair with, held while they confirm it.
- *
- * Deliberately carries **no secret**: a connection, whether it came from a scan,
- * and the [handle] that finds the secrets in [PairingSecretStore]. This is the
- * part that is safe to put in saved instance state.
- *
- * The constructor is private and there is no `copy`, so [opening] — which asks
- * the store for a slot and binds the handle it mints to *this* connection on the
- * spot — is the only way to write one down. That is deliberate: a record that
- * showed one computer while its handle handed out another computer's credential
- * would let the user confirm B and redeem A. Saved instance state comes back
- * through the generated serializer, which is the one other way in and carries
- * the connection and handle it saved together.
- */
+/** Pairing confirmation metadata must contain no secret. */
 @Serializable
 internal class PendingPairing private constructor(
     val connection: Connection,
@@ -197,15 +133,7 @@ internal fun PendingPairing.credential(secrets: PairingSecretStore = PairingSecr
 internal fun PendingPairing.needsRescan(secrets: PairingSecretStore = PairingSecrets): Boolean =
     fromScan && secrets.credential(handle) == null
 
-/**
- * A pending pairing restored into a store that never knew it — the shape of a
- * process restart, where saved state came back and the secrets did not.
- *
- * A typed or discovered computer is given a fresh slot, because there is nothing
- * to recover and the user is about to type six digits that have to be written
- * down somewhere the next rotation can find them. A scanned one is left alone:
- * minting a slot cannot bring the credential back, and it is the rescan case.
- */
+
 internal fun PendingPairing.rebindingIfOrphaned(
     secrets: PairingSecretStore = PairingSecrets,
 ): PendingPairing {
@@ -213,22 +141,7 @@ internal fun PendingPairing.rebindingIfOrphaned(
     return PendingPairing.opening(secrets, connection, fromScan = false) ?: this
 }
 
-/**
- * The pairing screen's transaction on top of [PairingSecretStore]: open a slot
- * for a published invite and, only if that succeeded, take the invite out of
- * `Session`'s queue.
- *
- * Both halves happen or neither does, and that is the whole point. [consume] is
- * handed in rather than left to the caller because the interesting case is the
- * refusal: the store says no while the slot is being redeemed, and spending the
- * one-time invite anyway would make a QR the user just scanned disappear without
- * ever being shown or redeemed (§6). A caller that never learns the open
- * succeeded cannot spend it on its own.
- *
- * Returns what the screen should show. On a refusal that is [current], unchanged
- * — same computer, same handle, same credential — and the invite stays queued
- * for the moment the running attempt settles.
- */
+
 internal fun PairingSecretStore.takeInvite(
     current: PendingPairing?,
     invite: PairingInvite,

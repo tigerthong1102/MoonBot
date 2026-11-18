@@ -59,29 +59,7 @@ enum class NotificationAccess {
     BLOCKED,
 }
 
-/**
- * The notification permission, as a row with one button.
- *
- * Two platform facts shape this, and getting either wrong shows the user a button
- * that does nothing:
- *
- * - **Being granted the runtime permission is not the same as notifications being
- *   on.** Below API 33 there is no runtime permission at all, yet a person can
- *   still switch the app's notifications off in system settings; on 33+ they can
- *   do it after granting. `areNotificationsEnabled()` is the question that
- *   actually matters on every version, so that is what [isGranted] asks.
- * - **"Denied for good" is not directly observable.** After a refusal
- *   `shouldShowRequestPermissionRationale` stays true while the OS is still
- *   willing to prompt and goes false once it is not — but it is *also* false
- *   before the first request. The two are told apart by [hasAskedBefore], which
- *   outlives the Activity and the process, so a recreation does not turn a dead
- *   request back into a live-looking button. `PermissionRequests` sets that flag
- *   as part of launching any prompt, so every path that can ask is covered — not
- *   only the one this class starts.
- *
- * Where no request can help — pre-33, or a permanent denial — the button routes
- * to the app's notification settings instead.
- */
+/** Notification runtime permission exists on API 33+. App notifications can still be disabled in system settings, and shouldShowRequestPermissionRationale is false both before the first prompt and after permanent denial. */
 class NotificationPermissionController(
     private val isGranted: () -> Boolean,
     /** False below API 33, where there is no runtime permission to ask for. */

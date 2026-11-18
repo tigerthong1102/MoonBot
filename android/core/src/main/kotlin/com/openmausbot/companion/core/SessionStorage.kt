@@ -7,12 +7,7 @@ interface ConnectionStore {
     suspend fun save(connection: Connection)
     suspend fun clear()
 
-    /**
-     * The non-secret index of computers this phone knows about.  The original
-     * single-connection methods stay as the compatibility boundary for older
-     * stores and test doubles; the Android DataStore implementation overrides
-     * these registry methods so it never loses a second computer.
-     */
+    /** The connection registry contains no device tokens; tokens must remain in the encrypted token store. */
     suspend fun loadRegistry(): ConnectionRegistryRestore {
         val legacy = load()
         return if (legacy == null) {

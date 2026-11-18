@@ -8,7 +8,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-// Android PendingIntent equality ignores extras; identity uses filterable Intent fields and the request code.
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [26])
 class NotificationIntentsTest {

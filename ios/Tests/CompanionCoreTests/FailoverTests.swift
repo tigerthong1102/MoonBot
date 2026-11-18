@@ -189,7 +189,7 @@ final class FailoverTests: XCTestCase {
         XCTAssertEqual(dialed.host, "192.168.1.42")
         XCTAssertEqual(dialed.baseURL?.absoluteString, "http://192.168.1.42:8810")
         XCTAssertEqual(dialed.hosts, connection.hosts)
-        XCTAssertEqual(dialed.id, connection.id) // same pairing, same keychain entry
+        XCTAssertEqual(dialed.id, connection.id)
     }
 
     func testPromoteReordersAndKeepsEveryCandidate() {
@@ -286,7 +286,7 @@ final class FailoverTests: XCTestCase {
     }
 
     func testAPriorityPreferredProtectedHeadOutranksTheActiveProtectedRoute() throws {
-        // A cleartext route cannot outrank the computer's protected route order.
+
         let hosted = try XCTUnwrap(CompanionEndpoint(
             url: "https://mac.companion.example",
             kind: .hosted,

@@ -247,18 +247,7 @@ class CsvTest {
 }
 
 class ReasoningTest {
-    /**
-     * A Swift `String` is a collection of `Character` — extended grapheme
-     * clusters — so `suffix(2_000)` counts clusters, not UTF-16 units. The
-     * expectations below are written out rather than computed with `takeLast`,
-     * which is the very semantics they exist to reject.
-     *
-     * `U+1F600 GRINNING FACE` is one character and two code units;
-     * `e` + `U+0301 COMBINING ACUTE` is one character and two code units.
-     * Deliberately not asserted: regional-indicator flags and ZWJ sequences,
-     * where the JVM's `BreakIterator` implements an older UAX #29 than a
-     * device's ICU. Those belong on the device plan.
-     */
+
     private val grin = "\uD83D\uDE00"
 
     @Test
@@ -269,7 +258,7 @@ class ReasoningTest {
 
     @Test
     fun `an emoji costs one character, not two`() {
-        // 2,000 Swift Characters, 2,001 UTF-16 units: the whole thing survives.
+
         val exact = grin + "a".repeat(1_999)
         assertEquals(exact, Reasoning.visible(exact))
     }

@@ -11,26 +11,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/**
- * Drives [ChatComposerDraft] — the same mutation path `LoadedChat` calls for
- * typed edits, dictation, send, manual clear, and leave-to-roster — against a
- * real [ChatDraftHolder] and [CompanionNavigator], plus the production
- * [ChatComposerDraft.saver] that `rememberSaveable` uses.
- *
- * Not covered here (no Robolectric / compose-ui-test on this module): mounting
- * `LoadedChat` inside a composition and the SavedStateRegistry key plumbing
- * across a real Activity recreation. Those stay on the device plan. The saver
- * round-trip below is the serialization contract itself — what the registry
- * would store — not a hand-copied snapshot. Routing [ChatComposerDraft.text]
- * into [ChatComposerDraft.saver] fails these tests.
- *
- * Holder replacement while the same chat stays composed is also out of scope
- * here: production builds [ChatDraftHolder] once per Activity
- * ([MainActivity]), so the case is unreachable today. `LoadedChat` still keys
- * `heldOnEntry` / `composerSaver` / `rememberSaveable` on both `chatId` and
- * `chatDrafts` so a future environment swap cannot leave a stale saver; that
- * remember-key guard is documented in `ChatScreen`, not pinned by a JVM test.
- */
+
 class ChatDraftHolderTest {
 
     @Test

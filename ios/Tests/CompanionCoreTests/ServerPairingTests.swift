@@ -3,9 +3,7 @@ import Foundation
 import XCTest
 @testable import CompanionCore
 
-/// Pairing with a server directly (`openmausbot serve`, the Docker stack):
-/// the `https://host/pair#code=…` link, `POST /api/auth/pair`, and the
-/// connection that comes out of it.
+
 private final class ServerRequestStub: URLProtocol {
     static let lock = NSLock()
     static var requests: [URLRequest] = []

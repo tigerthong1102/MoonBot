@@ -32,13 +32,7 @@ enum class CompanionEndpointSecurityClass {
     EXPLICIT_LOCAL,
 }
 
-/**
- * One validated, complete dialing authority advertised by the companion.
- *
- * Construction is intentionally fallible and the constructor is private: an endpoint cannot
- * exist without passing the scheme, authority and kind policy below. This keeps later pairing
- * and failover work from having to revalidate a value after it has already entered the domain.
- */
+/** A validated dialing authority; construction must reject unsafe schemes, authorities and route kinds. */
 @ConsistentCopyVisibility
 @Serializable(with = CompanionEndpointSerializer::class)
 data class CompanionEndpoint private constructor(

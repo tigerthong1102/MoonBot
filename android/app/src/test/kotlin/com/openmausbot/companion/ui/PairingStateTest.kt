@@ -16,15 +16,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
-/**
- * The pending pairing has to survive a rotation and must not survive the process,
- * and §6's "never persist the QR credential or code" has to hold literally: no
- * secret may reach a saved-state Bundle, because the system keeps those across a
- * process kill.
- *
- * A fresh [PairingSecretStore] in these tests stands for the store a restarted
- * process would get: empty.
- */
+
 private fun PairingSecretStore.openIdle(credential: String? = null): String =
     assertNotNull(open(credential), "the store refused to open a slot")
 
@@ -144,7 +136,7 @@ class PairingStateTest {
         val restarted = PairingSecretStore()
         val restored = saved(scanned(PairingSecretStore()))
             ?.let(PendingPairingSaver::restore)!!
-        // Minting a slot cannot bring the credential back, so it stays orphaned.
+
         assertSame(restored, restored.rebindingIfOrphaned(restarted))
         assertTrue(restored.needsRescan(restarted))
     }
@@ -236,10 +228,10 @@ class PairingSecretStoreTest {
 
     @Test
     fun `a finished attempt cannot clear the slot a newer pairing owns`() {
-        // The shape of the bug: a deep link opens a second slot while the first
-        // attempt is still in flight, and the first attempt's cleanup runs last.
-        // Scoping the clear to its own handle is what stops it from erasing a QR
-        // credential the user had just scanned and never redeemed (§6).
+
+
+
+
         val secrets = PairingSecretStore()
         val finishing = secrets.openIdle(credential)
         val newer = secrets.openIdle("omb_pair_second")
@@ -269,16 +261,16 @@ class PairingSecretStoreTest {
             secrets.open("omb_pair_arriving_during_the_commit"),
             "a deep link opened a credential slot while the first one was being redeemed",
         )
-        // And the attempt still has the credential it is redeeming.
+
         assertEquals(credential, secrets.credential(active))
         assertTrue(secrets.owns(active))
     }
 
     @Test
     fun `an invite for a different computer is refused just the same`() {
-        // The plausible narrower rule — "only protect the slot from a repeat of
-        // the same computer or the same credential" — is the one that lets a
-        // second QR through and then has it erased by the first attempt.
+
+
+
         val secrets = PairingSecretStore()
         val active = secrets.openIdle(credential)
         assertTrue(secrets.beginAttempt(active))
@@ -358,18 +350,7 @@ class PairingSecretStoreTest {
     }
 }
 
-/**
- * The transaction `PairingScreen` runs when `Session` publishes an invite: open
- * a slot for it and, only if that succeeded, show the confirmation and empty the
- * queue. Both halves or neither.
- *
- * The half worth pinning is the refusal, and it is not hypothetical. Between
- * this screen claiming the slot and `Session.pair` marking its own attempt in
- * flight there is a real moment where a deep link is still published. Spending
- * the invite there would make a QR the user had just scanned vanish with nothing
- * shown and nothing redeemed; showing the new computer there would leave the
- * screen naming B while the handle still hands out A's credential (§6).
- */
+
 class PairingInviteTransactionTest {
     private val active = Connection(id = "a", name = "Computer A", host = "192.168.1.42", port = 8810)
     private val other = Connection(id = "b", name = "Computer B", host = "192.168.1.99", port = 8810)
@@ -401,7 +382,7 @@ class PairingInviteTransactionTest {
 
         secrets.assertRefuses(pending, PairingInvite(other, arriving))
 
-        // The attempt still owns its slot, and the slot still holds its credential.
+
         assertTrue(secrets.owns(pending.handle), "the active slot was replaced")
         assertEquals(activeCredential, secrets.credential(pending.handle))
         assertEquals(active, pending.connection)
@@ -434,7 +415,7 @@ class PairingInviteTransactionTest {
 
         assertEquals(1, consumed, "the queue was not emptied exactly once")
         assertNotEquals(pending.handle, next.handle, "the new invite reused the previous slot's handle")
-        // The record names the computer whose credential its handle hands out.
+
         assertEquals(other, next.connection)
         assertEquals(arriving, secrets.credential(next.handle))
         assertTrue(next.fromScan)
@@ -525,7 +506,7 @@ class PairingFailureDispositionTest {
     }
 }
 
-// LAN pairing authenticates devices; cleartext local HTTP does not provide encryption.
+
 class PairingConfirmationTest {
     private val connection = Connection(
         id = "conn-1",

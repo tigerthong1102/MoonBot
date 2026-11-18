@@ -54,12 +54,7 @@ object OnboardingCopy {
 
     const val NOTIFICATIONS_TITLE = "Stay in the loop"
 
-    /**
-     * The limit is stated here rather than softened, and it is the same sentence
-     * Settings shows, from [SettingsPolicy.NOTIFICATIONS_FOOTER]: someone
-     * deciding whether to grant this should be told what it can and cannot do
-     * before the system sheet appears, not after.
-     */
+
     const val NOTIFICATIONS_BODY = SettingsPolicy.NOTIFICATIONS_FOOTER
     const val NOTIFICATIONS_APPROVALS = "Approvals that are waiting for you"
     const val NOTIFICATIONS_FINISHED = "Finished work and important updates"
@@ -166,15 +161,7 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
     }
 }
 
-/**
- * The only screen in this app that asks for the notification permission, and it
- * is reached only after a first pairing has committed.
- *
- * Both buttons end the step: [onEnable] fires the system prompt through the one
- * object allowed to fire it, and "Not now" declines without one. Either way the
- * step is answered once — see the marker's lifecycle in
- * [com.openmausbot.companion.core.NotificationOnboardingPolicy].
- */
+
 @Composable
 fun NotificationOnboardingScreen(
     enabling: Boolean,

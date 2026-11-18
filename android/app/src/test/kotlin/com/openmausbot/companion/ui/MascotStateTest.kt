@@ -114,7 +114,7 @@ class MascotStateTest {
 
     @Test
     fun `the first matching role wins, in the desktop's order`() {
-        // "security" is checked before "design", and "code" before either
+
         assertEquals(MausState.SCARED, roleFace("security design"))
         assertEquals(MausState.WORKING, roleFace("code security design"))
     }

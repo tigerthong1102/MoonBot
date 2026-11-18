@@ -1,10 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-/// A small, platform-neutral decision seam for the companion's first-run flow.
-///
-/// Keeping this outside SwiftUI makes the important transitions explicit and
-/// testable: skipping setup must not look like a pairing, a pending deep link
-/// must still open pairing, and a revoked credential must never fall through
-/// to an ordinary empty state.
 public enum CompanionPairingState: Equatable, Sendable {
     case unpaired
     case paired
@@ -28,10 +22,7 @@ public enum CompanionNotificationAuthorizationState: Equatable, Sendable {
     case determined
 }
 
-/// Durable preference names shared by the app's pairing commit and its root
-/// router. The pending marker is intentionally separate from the benign
-/// "already saw this" preference: a new pairing may finish before iOS returns
-/// the current notification authorization status.
+
 public enum CompanionOnboardingPreferences {
     public static let pendingNotificationOnboardingKey =
         "companion.onboarding.notificationPending"

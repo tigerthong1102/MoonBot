@@ -27,12 +27,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowContentResolver
 
-/**
- * The loader against a real [ContentResolver], because its whole job is to turn
- * someone else's URI grant into bytes this app still owns after the trampoline
- * finishes. What may be sent is [com.openmausbot.companion.ui.SharePolicy]'s;
- * this is about what reaches the cache.
- */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ShareItemLoaderTest {
@@ -96,7 +91,7 @@ class ShareItemLoaderTest {
         assertEquals("image/png", attachment.mime)
         assertEquals("photo.png", attachment.name)
         assertEquals(png.size, attachment.bytes)
-        // The grant dies with the Activity, so only these bytes can be sent later.
+
         assertTrue(attachment.file.isFile, "${attachment.file} was never written")
         assertContentEquals(png, attachment.file.readBytes())
         assertEquals(items.inboxDir, attachment.file.parentFile)

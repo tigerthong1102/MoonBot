@@ -65,11 +65,7 @@ class OnboardingPreferencesTest {
         )
     }
 
-    /**
-     * §6: the marker is not a secret, and it must not become a place where one
-     * rides along. Every writer this class has is exercised, and then the file
-     * is read raw: three keys, all booleans, and nothing anybody added later.
-     */
+
     @Test
     fun `the store holds the three named booleans and nothing else`() = runTest {
         val file = "containment"
@@ -91,12 +87,7 @@ class OnboardingPreferencesTest {
         )
     }
 
-    /**
-     * A device-local record of what this install has already shown. Restored
-     * onto a fresh device it would skip a welcome and a notification
-     * explanation nobody there has seen — the same reason the permission
-     * bookkeeping is excluded, one file over.
-     */
+
     @Test
     fun `backup and transfer rules exclude the onboarding file`() {
         val needle = "path=\"${OnboardingPreferences.FILE}\""

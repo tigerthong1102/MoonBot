@@ -365,7 +365,7 @@ class ApprovalChoicesTest {
         val withoutKey = card(allowKey = null)
         assertTrue(ApprovalChoices.showsAlwaysAllow(withKey, Chat.BotChat(bot())))
         assertFalse(ApprovalChoices.showsAlwaysAllow(withoutKey, Chat.BotChat(bot())))
-        // A room shows the card but never a standing grant (§12).
+
         assertFalse(ApprovalChoices.showsAlwaysAllow(withKey, Chat.RoomChat(room())))
     }
 

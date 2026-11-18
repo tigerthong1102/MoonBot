@@ -41,11 +41,7 @@ class DataStoreConnectionStore(
         clearRegistry()
     }
 
-    /**
-     * v1 is an index only; its records deliberately contain no device tokens.
-     * On the first multi-computer build an old single record is lifted and then
-     * the old key is removed in the same DataStore transaction as the v1 write.
-     */
+    /** Connection metadata must contain no device tokens. */
     override suspend fun loadRegistry(): ConnectionRegistryRestore {
         return restoreFrom(dataStore.data.first())
     }

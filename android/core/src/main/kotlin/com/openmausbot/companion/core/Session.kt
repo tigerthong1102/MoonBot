@@ -490,14 +490,7 @@ class Session(
         notificationSink.setBadge(0)
     }
 
-    /**
-     * Unpairing takes the invite queue with it. An invite that outlived the
-     * binding it was meant for comes back on a later pairing screen and
-     * redeems a credential the computer retired long ago.
-     *
-     * There is never a waiting invite left to clear here: [settlePairingAttempt]
-     * releases or drops it inside the same [gate] section sign-out is waiting on.
-     */
+
     private fun emptyInviteQueue() = synchronized(inviteLock) {
         _pairingInvite.value = null
     }

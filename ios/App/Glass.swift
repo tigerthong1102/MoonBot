@@ -1,12 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// The one material the chrome is made of.
-//
-// Every floating control — the header tiles, the Updates pill, the round
-// buttons, the sheets, the chat's back pill and composer — is the same glass,
-// so the app reads as one object rather than a collection of buttons. On
-// iOS 26 it is the system's Liquid Glass, which refracts what scrolls
-// beneath it; before that, a thin material with a hairline does the same
-// job in the same shape, just without the light.
 import SwiftUI
 
 struct GlassSurface<S: InsettableShape>: ViewModifier {

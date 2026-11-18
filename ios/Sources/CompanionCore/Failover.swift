@@ -1,18 +1,5 @@
 // Modified for StartupBot; original copyright and license retained.
-// Reaching the same computer through another credential-safe route still
-// works.
-//
-// Pairing stores one host, and one host is one point of failure: a phone
-// paired over the tailnet keeps a MagicDNS name that stops resolving the
-// moment either device leaves the tailnet. The connection still carries every
-// address the computer advertised, but a bearer credential cannot safely be
-// sprayed onto whatever LAN happens to use the same private address later.
-// New pairings also persist the route kinds the person chose: hosted never
-// grows a Tailscale fallback, while an explicit Tailscale or local selection
-// may still upgrade to hosted HTTPS. Connections saved before that policy was
-// introduced retain the legacy protected-route ratchet. Both layers are pure
-// — no sockets, no clocks — so the rules can be tested without a network;
-// `Session` owns when they run.
+// A protected connection must not fall back to an unapproved cleartext route.
 import Foundation
 
 public struct CandidateRotation: Equatable, Sendable {
@@ -267,20 +254,7 @@ extension Connection {
         return out
     }
 
-    /// Every complete route in policy order. Typed endpoints win over the
-    /// legacy fields because they can represent hosted HTTPS. A connection
-    /// either walks that complete typed set or, for an older desktop, derives
-    /// direct routes from the legacy fields — never a lossy mixture of both.
-    ///
-    /// A protected route that already carried the bearer leads when — and
-    /// only when — the priority sort would otherwise hand the rotation to a
-    /// cleartext route. Without this, a hand-typed LAN origin (`priority: 0`)
-    /// wins the sort after restart and the rotation hands the token to
-    /// cleartext again. But when the sort's head is itself protected (a
-    /// tailnet invite whose active tailnet route sits behind an advertised
-    /// hosted HTTPS), the advertised priority order stands. Typing a local
-    /// address resets `activeEndpoint`, so the priority order remains the
-    /// escape hatch.
+
     public var orderedEndpoints: [CompanionEndpoint] {
         var candidates = endpoints ?? []
         if !candidates.isEmpty {
@@ -317,14 +291,7 @@ extension Connection {
         CompanionEndpoint.automaticCandidates(from: orderedEndpoints)
     }
 
-    /// Apply an authenticated endpoint snapshot. The caller owns the exact
-    /// client carrying the current live stream; this value chooses what a
-    /// future reconnect or launch may dial.
-    ///
-    /// The advertised version of the active route is retained when present.
-    /// If it disappeared, a new protected route is a safe upgrade. With no
-    /// protected replacement, the exact old route remains the first candidate
-    /// instead of silently authorizing some other cleartext LAN address.
+
     public mutating func reconcile(_ metadata: CompanionConnectionMetadata) {
         let cleanedName = metadata.serverName.trimmingCharacters(in: .whitespacesAndNewlines)
             .filter { (!$0.isASCII && !$0.isNewline) || $0.asciiValue.map { $0 >= 32 && $0 != 127 } == true }

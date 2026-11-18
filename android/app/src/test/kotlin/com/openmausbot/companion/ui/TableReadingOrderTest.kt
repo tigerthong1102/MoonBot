@@ -28,18 +28,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * The order the table card offers a screen reader, read off the merged tree.
- *
- * This is the one thing about [DataTableCard] no pure function can answer. The
- * card was once a `Row` of `Column`s, and TalkBack on an API 34 emulator read it out as
- * *"LANGUAGE, Python, Java, Rust, YEAR, 1991, 1995, 2010"* — the whole of the
- * first column before the second, so no row survived the reading. A test that
- * asserted over `card.rows` would have been green through all of that; the
- * defect lived in the semantics tree, so the assertion has to be over the
- * semantics tree, which is why this file mounts the real composition under
- * Robolectric rather than reasoning about the model.
- */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TableReadingOrderTest {
@@ -56,20 +45,7 @@ class TableReadingOrderTest {
         ),
     )
 
-    /**
-     * Everything the merged tree carries, in the order the tree carries it.
-     *
-     * That child order is the order the composition built, which is exactly the
-     * thing that was wrong before, and so the thing worth asserting on. It is
-     * not by itself the sequence TalkBack speaks: the platform delegate takes
-     * this tree, groups nodes by geometry and publishes
-     * `traversalBefore`/`traversalAfter` relations over it. The two agree for
-     * this card — the corrected tree is row-major and the corrected layout is
-     * row-major — and transposing the grid makes this walk return the exact
-     * column-major sequence that was measured on an API 34 device, which is why
-     * the walk is evidence at all. A pass with TalkBack on a device stays the
-     * final word.
-     */
+
     private fun spoken(node: SemanticsNode): List<String> = buildList {
         node.config.getOrNull(SemanticsProperties.Text)?.forEach { add(it.text) }
         node.config.getOrNull(SemanticsProperties.ContentDescription)?.forEach { add(it) }

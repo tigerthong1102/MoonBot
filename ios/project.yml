@@ -1,12 +1,4 @@
-# XcodeGen spec. The .xcodeproj is generated, not committed — a project
-# file is a merge-conflict machine and nothing in it is worth reviewing.
-#
-#   brew install xcodegen && cd ios && xcodegen generate && open StartupBot.xcodeproj
-#
-# XcodeGen is a development tool, not a dependency of the app: the app
-# itself has none. If you'd rather not install it, make an iOS App target
-# in Xcode by hand, add the App/ folder, and add the local CompanionCore
-# package — the Info.plist keys below are the part that is easy to miss.
+# Modified for StartupBot; original copyright and license retained.
 name: StartupBot
 options:
   bundleIdPrefix: ai.startupbot
@@ -51,7 +43,6 @@ targets:
         CURRENT_PROJECT_VERSION: "16"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
-        # The catalog lives in App/, which is already a source path.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     entitlements:
       path: App/StartupBot.entitlements
@@ -64,30 +55,18 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        # What appears under the icon. Distinct from the desktop app on
-        # purpose: someone may well have both, and two identical labels on
-        # one person's devices is a small cruelty.
         CFBundleDisplayName: StartupBot
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.productivity
         ITSAppUsesNonExemptEncryption: false
         OpenMausKeychainAccessGroup: $(AppIdentifierPrefix)group.ai.startupbot.shared
-        # The bot's Live Activity — its face and ask in the Dynamic Island
-        # and on the lock screen.
         NSSupportsLiveActivities: true
         CFBundleURLTypes:
           - CFBundleURLName: ai.startupbot.companion.pairing
             CFBundleURLSchemes:
               - startupbot
-        # REQUIRED, and easy to lose. Without a launch screen iOS runs the
-        # app in compatibility scaling: letterboxed inside black bars, with
-        # everything drawn oversized, on every modern iPhone. An empty
-        # dictionary is enough — it just has to exist.
-        #
-        # This cannot be an INFOPLIST_KEY_* build setting. Those are only
-        # read when Xcode generates the Info.plist itself, and this target
-        # supplies one, so they are silently ignored.
+        # iOS uses compatibility scaling when UILaunchScreen is absent.
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -98,9 +77,6 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        # Without these two, NWBrowser returns no results at all — silently.
-        # It looks exactly like "no computers on this network", which is a
-        # confusing hour if you don't know to look here.
         NSLocalNetworkUsageDescription: >-
           StartupBot finds your computer on this network so your bots can
           reach you here.
@@ -114,18 +90,7 @@ targets:
           to a bot. Recognition runs on this phone when it can.
         NSBonjourServices:
           - _openmausbot._tcp
-        # The companion listener is plain HTTP on a local address. ATS has
-        # to be told, and this is the narrowest way to say it: local
-        # networking only, not a blanket exception.
-        #
-        # NSAllowsLocalNetworking covers the private ranges — 10/8,
-        # 172.16/12, 192.168/16, .local — and that is the whole LAN story.
-        # It does *not* cover Tailscale: a tailnet address lives in
-        # 100.64.0.0/10, the CGNAT range, which ATS treats as ordinary
-        # public internet and blocks over plain HTTP. The address cannot be
-        # exempted (ATS exceptions are by name, not by subnet), but the
-        # MagicDNS name can be, and every tailnet name ends in ts.net — so
-        # connect by name and this one entry covers every machine you own.
+        # ATS hostname exceptions cover tailnet MagicDNS; no blanket HTTP exception is permitted.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
@@ -165,10 +130,6 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         TEST_TARGET_NAME: StartupBot
 
-  # The system share sheet can send a link, text, image, or document straight
-  # to a paired bot without first opening the containing app. Connection
-  # metadata lives in the App Group; the bearer remains in the shared
-  # Keychain access group.
   StartupBotShareExtension:
     type: app-extension
     platform: iOS
@@ -201,10 +162,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         OpenMausKeychainAccessGroup: $(AppIdentifierPrefix)group.ai.startupbot.shared
-        # ATS is evaluated for URLSession work performed by the extension too.
-        # Mirror the containing app's narrow local/Tailscale exceptions so a
-        # share can reach the same already-paired routes. Local-network privacy
-        # usage text remains on the containing app, per Apple's extension rules.
+        # ATS hostname exceptions cover tailnet MagicDNS; no blanket HTTP exception is permitted.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
@@ -222,8 +180,6 @@ targets:
               NSExtensionActivationSupportsFileWithMaxCount: 4
               NSExtensionActivationSupportsAttachmentsWithMaxCount: 4
 
-  # The Live Activity lives in a widget extension. It shares the mascot's
-  # drawing and data with the app, and the activity contract in Shared/.
   StartupBotWidgets:
     type: app-extension
     platform: iOS
@@ -233,9 +189,6 @@ targets:
       - path: App/MausAvatar.swift
       - path: App/MausFaceData.swift
     dependencies:
-      # MausAvatar draws whichever body a bot wears, and the body catalog and
-      # its path parser live in CompanionCore. The extension shares the
-      # drawing with the app, so it has to share the catalog too.
       - package: CompanionCore
         product: CompanionCore
     settings:

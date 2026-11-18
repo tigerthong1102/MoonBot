@@ -64,17 +64,17 @@ class RoutineRulesTest {
 
     @Test
     fun `a one-time schedule reads as its instant`() {
-        // Swift: `Date(timeIntervalSince1970: at / 1_000).formatted(date:
-        // .abbreviated, time: .shortened)`. Pinned as a literal rather than
-        // against the same helper production calls, so a shared formatting
-        // change cannot agree with itself. 1_700_000_000_000 ms is
-        // 2023-11-14T22:13:20Z: an abbreviated date and a short 12-hour time.
-        //
-        // Only the *class* of space before the meridiem is normalised. CLDR
-        // moved it from U+0020 to U+202F between JDK 17 and 25 — two runtimes on
-        // one machine disagree, Android's ICU decides for itself, and the Swift
-        // pins no such character. Everything the Swift does specify is compared
-        // literally.
+
+
+
+
+
+
+
+
+
+
+
         val summary = RoutineRules.scheduleSummary(
             RoutineSchedule.once(1_700_000_000_000.0),
             utc,
@@ -828,7 +828,7 @@ class RoutineRulesTest {
         return requireNotNull(AgentChoiceSaver.restore(requireNotNull(saved)))
     }
 
-    /** Any Unicode space separator reads as a plain space. */
+
     private fun spacesNormalized(text: String): String = buildString {
         text.forEach {
             append(if (Character.getType(it) == Character.SPACE_SEPARATOR.toInt()) ' ' else it)

@@ -65,21 +65,7 @@ class VoiceNotePlayer internal constructor(
     fun refresh() = controller.refresh()
 }
 
-/**
- * Pure playback state machine — unit-tested without MediaPlayer.
- *
- * Transitions pinned to the desktop `VoiceNoteBubble` contract:
- * Idle → Playing on successful [play]; a replacing [play] releases the old
- * engine first; [pause] keeps the position and gives the voice back;
- * [resume] re-claims; [seek] moves the clip; completion parks the clip at
- * its end (playing = false, engine released) so play restarts from zero;
- * focus loss and app background pause rather than stop. Failures surface
- * [PLAYBACK_ERROR] — synchronously from [play]/[resume], asynchronously on
- * [playbackErrors].
- *
- * All transitions are serialized on [lock] and generation-guarded so a stale
- * engine callback cannot resurrect a replaced note or leak a MediaPlayer.
- */
+
 class VoiceNoteController(
     private val engineFactory: () -> VoiceNoteEngine,
     private val focus: PreviewAudioFocus,

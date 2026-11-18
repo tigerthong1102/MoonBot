@@ -68,6 +68,7 @@ Modified imported files:
 - `app/src/main/kotlin/com/openmausbot/companion/notifications/NotificationMapping.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/notifications/NotificationText.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/permissions/CompanionPermissions.kt`
+- `app/src/main/kotlin/com/openmausbot/companion/sharing/ShareHandoff.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/sharing/ShareInbox.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/sharing/ShareItemLoader.kt`
 - `app/src/main/kotlin/com/openmausbot/companion/sharing/ShareSheetSession.kt`
@@ -201,8 +202,10 @@ Modified imported files:
 - `app/src/test/kotlin/com/openmausbot/companion/notifications/NotificationMappingTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/onboarding/OnboardingRoutingTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/onboarding/OnboardingScene.kt`
+- `app/src/test/kotlin/com/openmausbot/companion/onboarding/PairingDiscoveryTimingTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/sharing/ShareHandoffTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/sharing/ShareItemLoaderTest.kt`
+- `app/src/test/kotlin/com/openmausbot/companion/storage/ChatPreferencesTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/storage/DataStoreConnectionStoreTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/storage/KeystoreTokenStoreTest.kt`
 - `app/src/test/kotlin/com/openmausbot/companion/storage/OnboardingPreferencesTest.kt`

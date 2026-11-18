@@ -68,6 +68,7 @@ Modified imported files:
 - `App/Discovery.swift`
 - `App/Glass.swift`
 - `App/Island.swift`
+- `App/Keychain.swift`
 - `App/LiveActivities.swift`
 - `App/Localizable.xcstrings`
 - `App/MarkdownText.swift`
@@ -133,6 +134,7 @@ Modified imported files:
 - `Tests/CompanionCoreTests/BotActivityContentTests.swift`
 - `Tests/CompanionCoreTests/BotAvatarRenderingTests.swift`
 - `Tests/CompanionCoreTests/ChatPreferencesTests.swift`
+- `Tests/CompanionCoreTests/ConnectedAppsClientTests.swift`
 - `Tests/CompanionCoreTests/ConnectionTests.swift`
 - `Tests/CompanionCoreTests/DecodingTests.swift`
 - `Tests/CompanionCoreTests/DictationTests.swift`

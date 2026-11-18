@@ -1,11 +1,4 @@
 // Modified for StartupBot; original copyright and license retained.
-// Native QR scanning for the one action where typing is needless friction.
-//
-// The scanner only recognizes QR codes and never pairs by itself. A valid
-// payload is returned to PairingView, which shows the computer name and
-// address for explicit confirmation. That mirrors T3 Code's production rule:
-// an attacker-controlled deep link or QR may prefill a target, but it cannot
-// silently authorize that target.
 import AVFoundation
 import SwiftUI
 import UIKit

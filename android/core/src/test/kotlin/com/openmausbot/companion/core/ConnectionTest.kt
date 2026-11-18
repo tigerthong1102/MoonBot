@@ -379,10 +379,10 @@ class ConnectionTest {
 
     @Test
     fun anUpgradeToAProtectedRouteOutranksAStoredCleartextPriority() {
-        // `Session.updateAddress` mints a hand-typed route at priority 0, so it leads the stored
-        // order — that is the explicit choice being recorded. Once the walk has upgraded away
-        // from it, that priority must stop meaning "this is the local route the person picked",
-        // or the next launch hands the bearer straight back to cleartext.
+
+
+
+
         val local = assertNotNull(
             CompanionEndpoint.create("http://192.168.1.42:8810", CompanionEndpointKind.LAN, 0),
         )
@@ -413,7 +413,7 @@ class ConnectionTest {
 
     @Test
     fun advertisedPriorityGovernsBetweenEquallyProtectedRoutes() {
-        // A cleartext route cannot outrank the computer's protected route order.
+
         val hosted = assertNotNull(
             CompanionEndpoint.create("https://mac.example", CompanionEndpointKind.HOSTED, 0),
         )
@@ -438,8 +438,8 @@ class ConnectionTest {
             "being active earns a protected route nothing: the desktop's priority still governs",
         )
 
-        // The same connection restated by an authenticated snapshot keeps that answer, which is
-        // the whole point of the refresh — the computer gets to reassert its transport policy.
+
+
         val restated = onTailnet.reconciling(
             CompanionJson.decodeFromString<CompanionConnectionMetadata>(
                 """{"serverName":"Mac","endpoints":[{"url":"https://mac.example","kind":"hosted","priority":0},""" +

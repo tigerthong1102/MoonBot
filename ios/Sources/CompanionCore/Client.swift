@@ -1417,11 +1417,7 @@ public struct CompanionClient: Sendable {
             "/api/bots/\(botId)/secret-cards/\(messageId)/provide",
             encodedBody: envelope
         )
-        // Saving is transactional: the desktop validates provider access,
-        // commits its OS-encrypted credential document, and updates the live
-        // server before replying. Those provider checks have bounded network
-        // deadlines of their own, so this one operation deliberately gets
-        // longer than the normal twenty-second chat API timeout.
+
         request.timeoutInterval = 115
         try await send(request)
     }
@@ -1446,15 +1442,7 @@ public struct CompanionClient: Sendable {
     }
 
 
-    /// A session for a connection that is meant to stay open for hours.
-    ///
-    /// `timeoutIntervalForRequest` is the *idle* timeout — the gap between
-    /// bytes, not the lifetime of the request — so 90s is comfortably above
-    /// the harness's 25-second keepalive comment while still noticing a
-    /// connection that genuinely died.
-    ///
-    /// URLSession derives a deadline from the request timeout; an overflowing
-    /// deadline prevents event delivery.
+    /// URLSession timeoutIntervalForRequest measures idle time between received bytes, not total stream duration.
     private static let streaming: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 90

@@ -16,15 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/**
- * The only door `ACTION_SEND` may come through.
- *
- * The sending app's content URIs are granted to this Activity. Copying them
- * into the app cache has to happen here, while that grant is still alive.
- * [MainActivity] then receives an Intent with no extras, the same shape the
- * pairing trampoline uses, so shared files never become the launching Intent
- * the system keeps for the root of the main task.
- */
+/** Inbound content URIs must be read only under the sender's temporary grant; credentials must not enter persisted task state. */
 class ShareReceiveActivity : Activity() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

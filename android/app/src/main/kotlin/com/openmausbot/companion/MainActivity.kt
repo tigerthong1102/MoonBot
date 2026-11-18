@@ -36,15 +36,7 @@ import com.openmausbot.companion.ui.PermissionPreferences
 import com.openmausbot.companion.ui.PermissionRequests
 import com.openmausbot.companion.ui.PendingThreadNavigation
 
-/**
- * The single Activity. It owns the permission launchers and the one thing that
- * arrives as an Intent here — a notification tap — and hands the rest to Compose.
- * Pairing deep links and inbound shares each have their own trampoline, so this
- * root Activity never receives a credential or another app's content URI.
- *
- * Connect/disconnect is not here: `OpenMausApp` drives it from
- * `ProcessLifecycleOwner`, which is the Android shape of iOS's `scenePhase`.
- */
+
 class MainActivity : ComponentActivity() {
     private val app: OpenMausApp
         get() = application as OpenMausApp
@@ -222,15 +214,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    /**
-     * Deliberately reads only the notification extras.
-     *
-     * Pairing deep links belong to [PairingLinkActivity] and never reach here:
-     * this Activity is the root of the main task, so the system keeps and may
-     * persist its launching Intent, and a one-time credential must not live
-     * anywhere the process does not. Ignoring `intent.data` outright also means
-     * another app cannot hand this exported Activity a crafted pairing URL.
-     */
+    /** Pairing credentials must never enter the main Activity launch intent or persisted task state. */
     private fun handleIntent(intent: Intent?, fresh: Boolean = false) {
         if (intent == null) return
 
@@ -260,17 +244,7 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    /**
-     * Flip the setting, start/stop the service to match, and — only when
-     * turning it on — ask once to be exempted from battery optimizations.
-     * Without that exemption Android's Doze/App Standby can still suspend a
-     * foreground service's network access on some OEM skins, which would make
-     * the persistent notification a lie. This is a plain `startActivity`, not a
-     * permission launcher: the system dialog's own Allow/Deny is the answer,
-     * and `onResume`'s refresh (via `NotificationPermissionController` et al.)
-     * already covers "state changed while backgrounded" for the rest of the
-     * screen, so nothing here needs to await a result.
-     */
+
     private fun toggleAlwaysOn() {
         val enabling = !app.alwaysOn.enabled.value
         if (enabling && notifications.access.value != NotificationAccess.GRANTED) {

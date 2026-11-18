@@ -2,11 +2,7 @@
 import Foundation
 import Security
 
-/// Pairing tokens shared by the main app and trusted extensions.
-///
-/// The access group is deliberately explicit on every operation. Omitting
-/// `kSecAttrAccessGroup` silently selects each target's private default group,
-/// which would make a token saved by the app invisible to the share extension.
+/// Keychain queries must specify the trusted shared access group; the default group is target-private.
 enum OpenMausSharedKeychain {
     private static let service = "ai.startupbot.companion.token"
 
@@ -33,11 +29,7 @@ enum OpenMausSharedKeychain {
         return remove(connectionID, accessGroup: accessGroup)
     }
 
-    /// Main-app upgrade path from the previous app-private keychain item.
-    ///
-    /// The legacy item is deleted only after the shared item commits. If the
-    /// phone is locked or the new entitlement is unavailable, the old token
-    /// remains untouched and the error retains its locked-vs-missing meaning.
+    /// Delete the private Keychain item only after its shared replacement commits successfully.
     static func tokenMigratingLegacyItem(for connectionID: String) throws -> String? {
         if let shared = try token(for: connectionID) { return shared }
         let legacyGroup = try requiredLegacyAccessGroup()

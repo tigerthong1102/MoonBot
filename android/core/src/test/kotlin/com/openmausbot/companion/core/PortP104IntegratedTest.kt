@@ -39,14 +39,7 @@ import okhttp3.mockwebserver.SocketPolicy
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 
-/**
- * PORT-P1-04: the three security passes composed against real HTTP/TLS sockets.
- *
- * The sidecar below is deliberately not an OkHttp interceptor or a Session function seam. Each
- * logical route is DNS-mapped to a MockWebServer socket, and the server records the request after
- * it crossed the transport boundary: scheme, logical authority, Authorization and body. That
- * record is the security oracle used by every scenario.
- */
+
 class PortP104IntegratedTest {
     @Test
     fun oldAddressOnlySidecarPairsConnectsAndSurvivesStoreOnlyRestart() = runBlocking {
@@ -734,7 +727,7 @@ private class NetworkSidecar : AutoCloseable {
         attemptedTlsAuthorities.count { it == host }
     }
 
-    /** Explicit, server-side credential assertion — never inferred from the client's intent. */
+
     fun assertNoSecretsOnLocalHttp(
         secrets: Set<String>,
         explicitlyAuthorizedHosts: Set<String> = emptySet(),

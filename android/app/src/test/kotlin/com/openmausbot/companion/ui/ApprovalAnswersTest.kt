@@ -111,9 +111,9 @@ class ApprovalAnswersTest {
     fun `the separate button records the grant once, even when its choice is Always allow`() =
         runTest {
             val session = session()
-            // No literal "Allow" among the options, so the choice the button
-            // answers with is the card's own "Always allow" — the shape that
-            // would have written the grant a second time.
+
+
+
             val card = permissionCard(listOf("Always allow", "Deny"), allowKey = "Bash:git push")
             val choice = ApprovalChoices.alwaysAllowChoice(card)
             assertEquals("Always allow", choice)

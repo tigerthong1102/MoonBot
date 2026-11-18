@@ -6,27 +6,7 @@ import android.content.Intent
 import android.os.IBinder
 import java.util.concurrent.atomic.AtomicReference
 
-/**
- * The anchor for one linger window: an ordinary started service that exists
- * only so the process is a *service* process rather than a `cached` one while
- * the window is open.
- *
- * It hosts nothing. No second [com.openmausbot.companion.core.Session], no
- * socket, no thread, no I/O, no binder, no notification of its own. The stream
- * it protects is the one already running in this process.
- *
- * Deliberately **not** a foreground service: no `startForeground`, no
- * `foregroundServiceType`, no FGS permission. Since API 26 an app that has just
- * left the foreground keeps a grace window of several minutes in which a plain
- * background service may run, and twenty-five seconds is far inside that
- * intent. On API 34 the point is narrower still: work in a cached process is
- * blocked shortly after the transition, and a `Service` component is one of the
- * things that keeps the process out of that class.
- *
- * [START_NOT_STICKY] is load-bearing. If the process dies mid-window the socket
- * and the in-memory cursor die with it; recreating a process to finish an old
- * timer would restore neither, so there is nothing worth restarting for.
- */
+
 class SessionLingerService : Service() {
     private var token = NO_TOKEN
 

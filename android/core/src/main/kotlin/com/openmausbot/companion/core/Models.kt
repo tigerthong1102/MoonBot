@@ -374,13 +374,7 @@ val BotTask.isArchived: Boolean
 fun BotTask.isSnoozed(now: Long = System.currentTimeMillis()): Boolean =
     snoozedUntil != null && (snoozedUntil == 0.0 || snoozedUntil > now)
 
-/**
- * The one line under a title: who closed it once a bot has, "Archived" while
- * it stays filed away, "Snoozed" while it sleeps, otherwise who opened it,
- * otherwise nothing. Closed wins because it is the newer fact; archived and
- * snoozed win over the opener because they explain why the row sits where
- * it does.
- */
+
 fun BotTask.bylineLabel(now: Long = System.currentTimeMillis()): String? =
     when {
         closedBy != null -> "closed by ${closedBy.name}"
@@ -798,11 +792,7 @@ data class ConfigFlag(
     val apiKeyConfigured: Boolean? = null,
     val ready: Boolean? = null,
     val voice: String? = null,
-    /**
-     * The voice engine, absent on desktops older than the built-in provider.
-     * Read it through `ConfigStatus.voiceProvider`, which applies the
-     * server's own fallback; nothing should compare this string directly.
-     */
+
     val provider: String? = null,
 )
 
@@ -893,10 +883,7 @@ data class ConnectorCatalog(
 data class ConnectorStatuses(
     val configured: Boolean,
     val services: Map<String, ConnectorStatus>,
-    /**
-     * "ok", "unavailable", or absent on a desktop that predates the field.
-     * Read it through `isAuthoritative`; nothing should compare it directly.
-     */
+
     val credentialStore: String? = null,
 ) {
     /** `credentialStore: "unavailable"` means the connected-account inventory is unknown, even if `services` is empty. */

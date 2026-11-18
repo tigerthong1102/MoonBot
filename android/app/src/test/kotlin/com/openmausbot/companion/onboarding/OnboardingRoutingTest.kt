@@ -29,24 +29,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * What the first run actually does, read off the mounted composition.
- *
- * The router itself is proven in `:core` by `OnboardingTest`, on pure inputs.
- * That proves the rule and nothing about whether this app obeys it: a screen
- * that ignored the marker, or fired a permission request from its first frame,
- * would leave every one of those assertions green. So these mount the real
- * `CompanionRoot` against [OnboardingScene] and ask the two questions no value
- * on any object answers —
- *
- * 1. **which screen is on the glass**, for each shape the state can take, and
- * 2. **what the app asked the system for while getting there**, in order.
- *
- * (2) is the whole reason this pass exists. The scene's `requestPermissions` and
- * the notification controller's `request` are the only ways a prompt can reach
- * the OS from this composition, and both are recorded, so "asked nothing" is a
- * measurement rather than an assumption.
- */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class OnboardingRoutingTest {
@@ -276,15 +259,7 @@ class OnboardingRoutingTest {
         )
     }
 
-    /**
-     * The two translations between what `Session` publishes and what the router
-     * asks about. They are pure, so this proves the mapping and not that the
-     * composition uses it — the cases above do that, by mounting it. What these
-     * add is the pair of states a mounted test cannot easily arrange: a token
-     * revoked while the connection record is still on disk, which is the normal
-     * shape of a revocation, and a notification permission that is blocked
-     * rather than merely ungranted.
-     */
+
     @Test
     fun `a revoked token outranks the connection record still sitting on disk`() {
         assertEquals(
@@ -321,12 +296,7 @@ class OnboardingRoutingTest {
         )
     }
 
-    /**
-     * Below API 33 there is no notification permission to grant, and
-     * `NotificationPermissionController` reports BLOCKED because only the system
-     * settings page can change anything. Showing the education step there would
-     * end in an "Enable notifications" button that cannot enable anything.
-     */
+
     @Test
     fun `a phone with nothing left to ask is not shown the step`() {
         val scene = OnboardingScene(
@@ -343,20 +313,7 @@ class OnboardingRoutingTest {
         assertEquals(emptyList(), scene.asked())
     }
 
-    /**
-     * The honest scope of this one, measured rather than assumed: on Android a
-     * revoked phone can receive an invitation for another computer. The invite
-     * is retained safely by `Session`, but revocation still owns the visible
-     * route until the person chooses recovery or another saved computer.
-     *
-     * So this shows that a deep link arriving at a revoked phone leaves the
-     * recovery screen standing, which is the real Android case. The precedence
-     * rule itself — revocation outranking a requested pairing *and* a pending
-     * invite at once — is a state this composition cannot reach, and it is
-     * killed in `:core` by `OnboardingTest.revokedPairingAlwaysShowsRecovery`.
-     * A mutation that hoists the pairing check above the state switch survives
-     * the whole `:app` suite; it does not survive `:core`.
-     */
+
     @Test
     fun `a deep link arriving at a revoked phone leaves recovery standing`() {
         val scene = OnboardingScene(
@@ -373,8 +330,8 @@ class OnboardingRoutingTest {
         }
         compose.waitForIdle()
 
-        // The other reason this phone could be routed somewhere else is already
-        // true: an education step is pending and its permission is askable.
+
+
         compose.onNodeWithText("This phone was unpaired").assertIsDisplayed()
 
         scene.session.receivePairingURL(

@@ -19,14 +19,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/**
- * What happens to a resolve that does not answer.
- *
- * Robolectric, because both halves need a real [NsdServiceInfo]: the browse
- * hands one to `onServiceFound`, and the API 34 callback hands one back. The
- * plain JVM stub throws on every setter, so a fake service name is not
- * constructible without the framework.
- */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)

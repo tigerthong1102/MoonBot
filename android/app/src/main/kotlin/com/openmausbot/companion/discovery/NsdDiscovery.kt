@@ -28,15 +28,7 @@ data class DiscoveredService(
     val id: String get() = name
 }
 
-/**
- * The chosen service as a computer to pair with, or null when NSD listed a name
- * but never answered with an address.
- *
- * Top-level rather than a member of [NsdDiscovery] because this refusal is the
- * only way the discovery path can fail to produce a `host:port`, and the pairing
- * confirmation is not allowed to open without one (§6). [NsdDiscovery] needs a
- * `Context` to exist; this does not, so the refusal can be pinned by a test.
- */
+
 fun DiscoveredService.toConnection(): Connection? {
     val resolvedHost = host ?: return null
     val resolvedPort = port ?: return null
@@ -72,17 +64,7 @@ internal object DiscoveryRetry {
     fun delayFor(attempt: Int): Long = BASE_DELAY_MILLIS * attempt
 }
 
-/**
- * A resolve that failed is a name with no address, and a name with no address is
- * a computer the pairing screen cannot offer. The platform fails these for
- * reasons that pass: on API 33 and below `NsdManager.resolveService` refuses
- * with `FAILURE_ALREADY_ACTIVE` while another resolve is in flight, and a browse
- * that finds three computers at once starts three.
- *
- * So: one more try, after a beat, and then the name is left out — the same
- * bounded shape [DiscoveryRetry] gives the browse, for the same reason. The
- * retry runs in the Flow's own scope, so leaving the screen cancels it.
- */
+
 internal object ResolveRetry {
     const val MAX_ATTEMPTS = 2
     const val DELAY_MILLIS = 350L
@@ -118,12 +100,7 @@ internal fun browseDiscoveryFlow(
     startBrowse: (NsdManager.DiscoveryListener) -> Unit,
     stopBrowse: (NsdManager.DiscoveryListener) -> Unit,
     resolveService: (NsdServiceInfo, (NsdServiceInfo?) -> Unit) -> Unit,
-    /**
-     * Stop every resolve still listening. Called from [awaitClose] because the
-     * API 34 resolve is a *registration*: it is released when the service is
-     * updated, and otherwise not at all, so a browse that closes mid-resolve
-     * would leave one behind for the life of the process.
-     */
+    /** Android API 34 NSD resolves are registrations that require explicit release. */
     stopResolves: () -> Unit = {},
     hostAddress: (NsdServiceInfo) -> String?,
     failureMessage: (Int) -> String,
@@ -263,26 +240,7 @@ internal fun browseDiscoveryFlow(
     }
 }.distinctUntilChanged()
 
-/**
- * The API 34 side of a resolve, with the platform as two lambdas so its release
- * rules can be *observed* rather than asserted about the source.
- *
- * `registerServiceInfoCallback` is a subscription, not a question:
- * `NsdManager` documents that `onServiceUpdated` "will only be called once the
- * service is found, so may never be called if the service is never present".
- * Releasing only there — which is what the AOSP sample shows, because the sample
- * assumes the service is there — leaves a live registration behind for every
- * announced service that then goes quiet, and for every resolve still in flight
- * when the pairing screen closes. Each one is a binder registration in the system
- * server, an mDNS subscription on the network, and a strong reference to the Flow
- * that asked for it.
- *
- * So every terminal outcome releases, and [stopAll] releases whatever a closing
- * browse left behind. A registration that never happened is not released:
- * `onServiceInfoCallbackRegistrationFailed` is documented as "exactly once ... No
- * other callback will be sent in that case", and unregistering an unknown
- * listener throws on devices below T extension 22.
- */
+/** Android API 34 registerServiceInfoCallback requires unregisterServiceInfoCallback; older extension levels may throw. */
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 internal class ServiceInfoResolver(
     private val unregister: (NsdManager.ServiceInfoCallback) -> Unit,
@@ -408,12 +366,7 @@ class NsdDiscovery(
             }
             ?.asHandle()
 
-    /**
-     * One resolve attempt, reporting null when the platform refused so the browse
-     * can decide whether to try again. Pre-34 `resolveService` is a one-shot call
-     * with nothing to release; API 34 goes through [ServiceInfoResolver], which
-     * holds the registrations `awaitClose` hands back.
-     */
+
     private fun resolve(service: NsdServiceInfo, onResolved: (NsdServiceInfo?) -> Unit) {
         val manager = nsdManager ?: return onResolved(null)
         if (Build.VERSION.SDK_INT >= 34) {

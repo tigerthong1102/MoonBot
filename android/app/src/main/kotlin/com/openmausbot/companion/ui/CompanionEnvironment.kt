@@ -21,12 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class CameraAccess { UNKNOWN, GRANTED, DENIED }
 
-/**
- * Camera permission is asked for at the moment the user opens the scanner and
- * never before — the app is usable without a camera (Bonjour list, typed
- * address), so a launch-time prompt would be asking for something most sessions
- * never use.
- */
+
 class CameraPermissionController(
     private val isGranted: () -> Boolean,
     private val request: () -> Unit,
@@ -51,12 +46,7 @@ class CameraPermissionController(
     }
 }
 
-/**
- * Microphone permission for composer dictation. Asked only from the mic button,
- * through [PermissionRequests] so the asked-flag has a single owner. Callers
- * pass a result callback; a stop that races the system sheet is discarded by
- * [SpeechDictation]'s generation guard, not by dropping this callback.
- */
+
 class MicPermissionController(
     private val isGranted: () -> Boolean,
     private val request: () -> Unit,

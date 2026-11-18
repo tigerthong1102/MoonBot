@@ -14,14 +14,7 @@ struct OpenMausConnectionRegistryResolution: Equatable {
     let source: OpenMausConnectionRegistrySource
 }
 
-/// Non-secret pairing metadata shared with extensions.
-///
-/// Tokens never enter defaults; they live in `OpenMausSharedKeychain`. The
-/// standard suite is dual-written as a compatibility fallback so an unsigned
-/// preview or a temporary App Group entitlement mistake cannot erase the
-/// non-secret connection list. Pairing tokens intentionally migrate forward
-/// into the shared Keychain group; downgrading across that migration may
-/// require pairing again.
+/// Shared pairing metadata must contain no tokens; tokens belong only in Keychain.
 enum OpenMausSharedConnectionStore {
     static let registryKey = "companion.connections.v1"
     static let legacyConnectionKey = "companion.connection"

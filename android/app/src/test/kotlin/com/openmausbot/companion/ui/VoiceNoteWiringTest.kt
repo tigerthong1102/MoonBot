@@ -46,12 +46,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertEquals
 
-/**
- * The wiring half of the voice-note bubble: a bot reply with a parked audio
- * attachment renders the play button, fetches the clip through the
- * authenticated file route on first play only, and pauses/resumes without a
- * second request.
- */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

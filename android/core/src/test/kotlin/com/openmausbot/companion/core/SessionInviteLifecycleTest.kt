@@ -18,7 +18,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 
-// Pairing credentials are redeemable once and cannot be replaced by a concurrent unconfirmed invite.
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionInviteLifecycleTest {
     private val first = "omb_pair_" + "1".repeat(43)
@@ -55,8 +55,8 @@ class SessionInviteLifecycleTest {
         session.receivePairingURL(link(first, "192.168.1.2"))
         val invite = assertNotNull(session.pairingInvite.value)
         assertEquals(first, invite.credential)
-        // What the pairing screen does with a published invite: it takes it and
-        // opens a credential slot for it.
+
+
         session.consumePairingInvite()
 
         val attempt = backgroundScope.async { runCatching { session.pair(invite, "request-1") } }
@@ -160,8 +160,8 @@ class SessionInviteLifecycleTest {
 
         val attempt = backgroundScope.async { runCatching { session.pair(invite, "request-1") } }
         redeeming.await()
-        // The same QR scanned twice: the copy that waits is the credential the
-        // attempt is about to have refused and burned.
+
+
         session.receivePairingURL(link(first, "10.0.0.5"))
         release.complete(Unit)
         attempt.await()

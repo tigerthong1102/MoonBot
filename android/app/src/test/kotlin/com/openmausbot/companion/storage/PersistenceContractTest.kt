@@ -13,10 +13,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
-/**
- * Pairing persistence contract with fake stores (DataStore/Keystore glued in :app;
- * Session behavior covered in :core SessionTest).
- */
+
 class PersistenceContractTest {
     @Test
     fun connectionRoundTripsWithoutToken() = runTest {
@@ -63,21 +60,14 @@ class PersistenceContractTest {
             extraction.contains("<cloud-backup>") && extraction.contains("<device-transfer>"),
             "data_extraction_rules.xml must cover cloud-backup and device-transfer; was:\n$extraction",
         )
-        // Device-token storage must be excluded from cloud backup and device transfer.
+
         val cloud = extraction.substringAfter("<cloud-backup>").substringBefore("</cloud-backup>")
         val transfer = extraction.substringAfter("<device-transfer>").substringBefore("</device-transfer>")
         assertTrue(cloud.contains("""path="$tokenFile""""), "cloud-backup missing $tokenFile")
         assertTrue(transfer.contains("""path="$tokenFile""""), "device-transfer missing $tokenFile")
     }
 
-    /**
-     * The permission-prompt bookkeeping is not a secret, but it is device-local
-     * truth: it records that *this* install has spent its notification prompt.
-     * Restoring it onto a fresh install — where the OS has reset the permission
-     * and would ask again — would show "Open notification settings" for a prompt
-     * that was never used here, contradicting the uninstall-resets premise the
-     * design leans on.
-     */
+
     @Test
     fun backupAndTransferXmlExcludePermissionPrefsFile() {
         val prefsFile = PermissionPreferences.FILE

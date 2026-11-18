@@ -12,20 +12,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.w3c.dom.Element
 
-/**
- * The §6 guarantee for a pairing deep link lives in the manifest, so that is
- * where it is checked.
- *
- * A URL carrying `omb_pair_…` must never reach an Activity whose launching Intent
- * the system keeps: the ActivityManager hands that Intent back when it restarts
- * the Activity after a process kill, and under the default `persistRootOnly` it
- * writes a *root* Activity's Intent to task state that survives a reboot. Either
- * one would let a one-time credential outlive the process that is supposed to be
- * the only thing holding it.
- *
- * These assertions are about attributes no compiler checks and no unit test would
- * otherwise notice going missing.
- */
+
 class PairingLinkManifestTest {
     private val android = "http://schemas.android.com/apk/res/android"
 
@@ -196,15 +183,7 @@ class PairingLinkTest {
     }
 }
 
-/**
- * The trampoline's ordering invariant: this Activity must be finishing before the
- * credential reaches anything that outlives it.
- *
- * Otherwise a process death in that window leaves the system holding a newly
- * launched, *non-finishing* ActivityRecord, which AOSP relaunches with its
- * original credential-bearing Intent — the redelivery the trampoline exists to
- * prevent. `noHistory` and `persistNever` do not close that in-memory race.
- */
+
 class PairingHandoffTest {
     private val url = "openmausbot://pair?address=10.0.0.2:8810&token=omb_pair_secret"
 

@@ -121,13 +121,7 @@ object TranscriptCards {
     private const val MINIMUM_SEPARATOR_HYPHENS = 3
 }
 
-/**
- * RFC 4180 quoting. Android keeps this helper; the iOS SQL card is gone and
- * the phone now draws a markdown table (issue 1707). A field is left alone
- * unless it carries a separator, a quote or a
- * line break, and a quote inside a quoted field is doubled. Getting this wrong
- * does not look wrong — it looks like a spreadsheet with the columns shifted.
- */
+/** RFC 4180 CSV quoting. */
 object Csv {
     fun of(rows: List<List<String>>): String =
         rows.joinToString("\n") { row -> row.joinToString(",", transform = ::field) }
@@ -138,20 +132,7 @@ object Csv {
     }
 }
 
-/**
- * The last [count] characters the way Swift counts them.
- *
- * `String.suffix(n)` there walks `Character`s — extended grapheme clusters — so
- * it can never begin a tail halfway through one, and an emoji costs it one, not
- * two. `takeLast` counts UTF-16 code units, which both shortens the tail
- * wherever the text is not ASCII and can start it on the low half of a surrogate
- * pair or on a combining mark whose base it just dropped.
- *
- * Java's `BreakIterator` implements an older UAX #29 than the ICU on a device,
- * so the two agree on surrogate pairs and combining marks but not necessarily on
- * flags or ZWJ sequences. That is a difference in how many clusters a rare
- * emoji costs, never in leaving one broken — which is what the cut is for.
- */
+/** Swift String suffix counts extended grapheme clusters; Kotlin takeLast counts UTF-16 code units. */
 fun String.takeLastCharacters(count: Int): String {
     if (length <= count) return this
     val clusters = BreakIterator.getCharacterInstance(Locale.ROOT)

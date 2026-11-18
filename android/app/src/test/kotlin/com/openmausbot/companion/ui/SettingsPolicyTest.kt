@@ -87,10 +87,7 @@ class AddressEditTest {
 
 class NotificationPermissionControllerTest {
 
-    /**
-     * A whole app's worth of permission plumbing, minus Android: one prefs map
-     * that outlives "recreation", one chokepoint, one controller.
-     */
+
     private class Phone(
         var enabled: Boolean = false,
         var canRequest: Boolean = true,
@@ -276,8 +273,8 @@ class NotificationPermissionControllerTest {
 
     @Test
     fun `notifications switched off in settings stop reading as allowed`() {
-        // The pre-33 and 33+ case alike: the grant is not the question,
-        // areNotificationsEnabled is.
+
+
         val phone = Phone(enabled = true)
         assertEquals(NotificationAccess.GRANTED, phone.controller.access.value)
         phone.enabled = false
@@ -374,8 +371,8 @@ class SharePayloadTest {
 
     @Test
     fun `a filename cannot escape the cache directory`() {
-        // This names a file the app is about to write, so a directory part in it
-        // is a path traversal, not a preference.
+
+
         for (hostile in listOf(
             "../../../../data/data/com.openmausbot.companion/databases/tokens.db",
             "/etc/passwd",

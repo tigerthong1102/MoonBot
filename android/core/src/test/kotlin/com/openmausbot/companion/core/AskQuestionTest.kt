@@ -77,9 +77,9 @@ class AskQuestionTest {
     @Test
     fun `a structured ask is a question, so only an answer settles it`() {
         val card = card()
-        // `tool` is what tells a permission from a question, and the harness
-        // leaves it off a structured ask precisely so no allow/deny is offered
-        // for one. The broker rejects any behavior but "answer".
+
+
+
         assertFalse(card.isPermission)
         assertEquals("answer", OptionCard.responseBehavior("anything", card.isPermission))
     }

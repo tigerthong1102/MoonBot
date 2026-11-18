@@ -424,7 +424,7 @@ class SessionTest {
 
     @Test
     fun aSavedTailnetRecordNeverWalksToItsLegacyLanFallback() = runTest {
-        // A tailnet pairing cannot send its bearer over an unconsented cleartext fallback.
+
         val saved = Connection(
             id = "legacy",
             name = "Mac",
@@ -623,7 +623,7 @@ class SessionTest {
         assertEquals(listOf(hosted.url, local.url), stored.orderedEndpoints.map { it.url })
         assertEquals(listOf("http://192.168.1.42:8810"), dialed)
         assertEquals(local.url, stored.activeEndpoint?.url)
-        // Route metadata only: nothing the snapshot teaches is a secret.
+
         assertFalse(CompanionJson.encodeToString(stored).contains("device-token"))
     }
 
@@ -690,10 +690,10 @@ class SessionTest {
 
     @Test
     fun aProtectedFailoverDoesNotOutrankTheDesktopPolicyOnTheNextLaunch() = runTest {
-        // A transient hosted outage fails over to tailnet, the stream goes live there, and the
-        // authenticated snapshot restates the computer's policy — hosted first. A brand-new
-        // Session must go back to hosted: surviving a failover is not a promotion, and the
-        // refresh is the computer's chance to say so. Only cleartext is held down by the ratchet.
+
+
+
+
         val hosted = assertNotNull(
             CompanionEndpoint.create("https://mac.example", CompanionEndpointKind.HOSTED, 0),
         )
@@ -1087,7 +1087,7 @@ class SessionTest {
                 innerTokens.save(connectionId, token)
             override suspend fun read(connectionId: String) = innerTokens.read(connectionId)
             override suspend fun remove(connectionId: String) {
-                // Stand in for the Keystore I/O that yields on Main.immediate in production.
+
                 removeStarted.complete(Unit)
                 releaseRemove.await()
                 innerTokens.remove(connectionId)

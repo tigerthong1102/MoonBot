@@ -315,8 +315,8 @@ class AndroidThreadNavigationTest {
 
     @Test
     fun `a task that starts working under an open snooze dialog loses its presets`() {
-        // The tapped snapshot was idle; the SSE frame lands afterwards, and
-        // the dialog must follow the live task rather than that snapshot.
+
+
         val frames = MutableSharedFlow<StreamFrame>(extraBufferCapacity = 8)
         mount(events = {
             flow {

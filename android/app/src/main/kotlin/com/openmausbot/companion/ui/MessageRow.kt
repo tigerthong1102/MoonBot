@@ -654,16 +654,7 @@ private fun voiceNoteClock(ms: Long): String {
     return (wholeSeconds / 60).toString() + ":" + (wholeSeconds % 60).toString().padStart(2, '0')
 }
 
-/**
- * One voice note in the transcript, matching the desktop VoiceNoteBubble:
- * a play button, a scrub bar, and the clip's length. Playback is app-scoped
- * (CompanionEnvironment.voiceNotes), so a note keeps playing while its row
- * scrolls away, and the one-voice rule rides the same audio-focus gate the
- * TTS preview uses: starting a note (or a preview) pauses any other voice
- * rather than talking over it. The clip's bytes are fetched through the same
- * authenticated file route as image thumbnails, but only on first play — a
- * note nobody opens costs no request, and a replay never refetches.
- */
+
 @Composable
 private fun VoiceNoteAttachmentView(
     threadId: String,

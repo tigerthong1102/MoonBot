@@ -3,12 +3,7 @@ import CompanionCore
 import SwiftUI
 import UIKit
 
-/// Account-aware Composio inventory for a paired phone.
-///
-/// The companion may list accounts and start authorization, but revocation
-/// deliberately remains on the Mac. That keeps a lost phone from removing a
-/// workspace integration while still giving mobile users explicit Work,
-/// Personal, and client-account choices.
+/// A paired phone may list connectors and start authorization; connector revocation remains desktop-only.
 struct ConnectedAppsView: View {
     @EnvironmentObject private var session: Session
     @Environment(\.scenePhase) private var scenePhase
@@ -170,13 +165,7 @@ struct ConnectedAppsView: View {
         defer { if showProgress { refreshing = false } }
         guard let response = await session.loadAllConnectorStatuses() else { return }
         credentialStoreUnreadable = !response.isAuthoritative
-        // An unreadable credential store answers with an empty map that means
-        // "we could not find out", not "nothing is connected". Replacing the
-        // inventory with it would show live accounts as disconnected — and
-        // this runs on every foregrounding, so one transient failure would be
-        // enough. Keep the last answer we were sure about; when there is none
-        // to keep, `statuses` stays nil and the view says so rather than
-        // guessing on the user's behalf.
+        // An unreadable credential store is not evidence that an account has disconnected.
         guard response.isAuthoritative else { return }
         statuses = response.services
     }

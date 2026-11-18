@@ -3,13 +3,7 @@
 import XCTest
 @testable import CompanionCore
 
-/// A fake origin server that dribbles out an SSE response.
-///
-/// "Has this request been torn down?" is deliberately **per instance**, not
-/// static. URLSession calls `stopLoading()` asynchronously, so a previous
-/// test's teardown can land in the middle of the next one — which, when this
-/// flag was shared, silently truncated the next test's stream and turned a
-/// clean failure into an out-of-range crash.
+
 final class StreamingStub: URLProtocol {
     static var chunks: [String] = []
     static var status = 200
@@ -42,11 +36,7 @@ final class StreamingStub: URLProtocol {
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
 
-        // Strong `self` on purpose. URLSession does not promise to keep a
-        // protocol instance alive past `startLoading()` returning, and with a
-        // weak capture this block woke up to a nil self and delivered nothing
-        // — every test after the first one saw an empty stream. The instance
-        // is the thing doing the work, so it holds itself up until done.
+
         let stopped = self.stopped
         DispatchQueue.global().async {
             for chunk in Self.chunks {

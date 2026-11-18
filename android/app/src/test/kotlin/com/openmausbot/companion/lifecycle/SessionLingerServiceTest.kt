@@ -47,7 +47,7 @@ class SessionLingerServiceTest {
             service.onStartCommand(intent, 0, 1),
         )
         assertNull(service.onBind(intent))
-        // Never promoted: no notification of its own, no FGS type, no permission.
+
         assertNull(shadowOf(service).lastForegroundNotification)
     }
 

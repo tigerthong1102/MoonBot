@@ -15,25 +15,7 @@ internal object PairingLink {
         (scheme.equals(SCHEME, ignoreCase = true) || scheme.equals("openmausbot", ignoreCase = true)) && host.equals(HOST, ignoreCase = true)
 }
 
-/**
- * The order in which the trampoline does its three jobs, extracted so the order
- * itself can be tested.
- *
- * **The invariant: the Activity is finishing before the credential is handed to
- * anything that outlives it.**
- *
- * `noHistory` and `persistNever` are not enough on their own. Between the moment
- * the URL reaches `Session` — which holds it in a long-lived `StateFlow` the UI
- * reads — and the moment `finish()` marks the record, there is a window in which
- * the process can die while the system still holds a *newly launched,
- * non-finishing* `ActivityRecord`. AOSP preserves such a record and relaunches it
- * with its original Intent, credential and all, which is exactly the redelivery
- * this trampoline exists to prevent. `finish()` is a synchronous call into the
- * system server, so once it returns the record is marked finishing and no
- * relaunch can bring the Intent back.
- *
- * So: relaunch, mark finishing, and only then deliver.
- */
+/** The Activity must be marked finishing before a pairing credential reaches an object that outlives it. */
 internal object PairingHandoff {
 
     fun run(

@@ -20,51 +20,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/**
- * Which way a notification reads once SystemUI has it.
- *
- * On a moto g32 (API 33) with the system in the RTL pseudolocale, a bot answered
- * `1 2 3 … 12` and the shade drew the count backwards under a title that came
- * out right. Both strings arrived in the same server frame, so the difference
- * was not the pseudolocale: the title has a strong character and settled itself,
- * the digit run has none and took the shade's RTL base level.
- *
- * The tests that carry the argument do not assert that a marker was inserted —
- * an assertion like that would be green against any implementation that inserts
- * markers, right ones and wrong ones alike. They post through the real
- * [LocalNotificationPoster], read the string back out of the [Notification] the
- * platform built, and lay it out with the same [StaticLayout] the shade's
- * `TextView` uses, under [TextDirectionHeuristics.FIRSTSTRONG_RTL] — which is
- * what `TEXT_DIRECTION_FIRST_STRONG` resolves to in a mirrored window. What they
- * assert is the resolved paragraph direction and the x each digit was placed at.
- *
- * Not all 21 do that, though, and the difference is worth naming (the groups
- * overlap, so the counts do not add up to 21):
- *
- *  - **Direction, measured — 13.** They post and then measure the laid-out
- *    paragraph: its resolved direction, and for the counted ones the x of each
- *    digit. These are the ones the defect and the fix are argued from. Four of
- *    them also assert the string came back byte for byte unchanged.
- *  - **Came back unchanged — 5.** They post and compare strings without laying
- *    anything out: four against the input, because for an over-anchoring guard
- *    "unchanged" *is* the assertion, and one between the collapsed body and the
- *    expanded one.
- *  - **A marker written out — 2.** The blank line of a CRLF pair and the ceiling
- *    on what gets built spell an anchor into an expected value, because in both
- *    the subject is a character nobody can see.
- *  - **Reaching past the poster — 2.** `what the shade keeps is read off the API
- *    level` never posts; the per-level table has no other surface. And the first
- *    half of `a body longer than the shade keeps is anchored no further than
- *    that` calls [NotificationText.anchored] directly because it has to: the
- *    *posted* string cannot tell a bounded build from an unbounded one, since
- *    the platform truncates to the same length either way, so the only place to
- *    see where the building stopped is what was built.
- *
- * The level matters. What reaches the shade is
- * `min(5120, Notification.MAX_CHARSEQUENCE_LENGTH)` — 5120 up to API 30, 1024
- * from API 31 — so tests that cross that boundary run at both levels this
- * suite's `android-all` jars cover: 30 and 34.
- */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

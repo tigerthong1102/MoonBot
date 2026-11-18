@@ -23,17 +23,7 @@ enum class NotificationAuthorizationState {
     DETERMINED,
 }
 
-/**
- * Durable preference names shared by the pairing commit and the root router.
- *
- * The pending marker is deliberately separate from the benign "already saw
- * this" preference: a new pairing may finish before the app knows the current
- * notification authorization, and the two answers are not the same question.
- *
- * None of these is a secret and none may become a place where anything else
- * rides along (§6): the store that holds them accepts booleans and nothing
- * else, and `OnboardingPreferencesContractTest` in `:app` holds it to that.
- */
+
 object OnboardingPreferenceKeys {
     const val PENDING_NOTIFICATION_ONBOARDING = "companion.onboarding.notificationPending"
     const val WELCOME_SEEN = "companion.onboarding.welcomeSeen"

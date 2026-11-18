@@ -506,9 +506,7 @@ final class ShareViewModel: ObservableObject {
         return outcome.value
     }
 
-    /// Read-only hydration can safely race every credential-approved route.
-    /// This bounds initial share-sheet loading to one seven-second window,
-    /// rather than serially spending the extension's lifetime on dead routes.
+
     private func firstReachableFleet(
         connection: Connection,
         token: String

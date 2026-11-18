@@ -41,11 +41,7 @@ data class SendReceiptBody(
 
 /** A message waiting in the harness's steer queue, as this client knows it. */
 data class QueuedSend(val queueId: String, val text: String) {
-    /**
-     * The composer text after this held send is pulled back for editing. Its
-     * words lead — they were written first — and anything already typed stays
-     * below them after a blank line, so an edit never drops a draft.
-     */
+
     fun editDraft(keeping: String): String =
         if (keeping.isBlank()) text else "$text\n\n$keeping"
 }

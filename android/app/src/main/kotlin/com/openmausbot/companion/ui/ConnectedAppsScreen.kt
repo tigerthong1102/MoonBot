@@ -49,13 +49,7 @@ import com.openmausbot.companion.core.ConnectorStatus
 import com.openmausbot.companion.core.ConnectorStatuses
 import kotlinx.coroutines.launch
 
-/**
- * The paired-phone inventory for apps connected on the computer.
- *
- * Authorization deliberately leaves the app for the system browser. The
- * desktop owns provider credentials and revocation, and the paired phone only
- * starts an authorization flow and reports the inventory it was given.
- */
+/** Mobile connector authorization must use the system browser; provider credentials remain on the paired computer. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectedAppsScreen(onBack: () -> Unit) {
@@ -234,12 +228,7 @@ fun ConnectedAppsScreen(onBack: () -> Unit) {
     }
 }
 
-/**
- * What the alias dialog is about: the connector it will authorize and the name
- * it says out loud. Kept apart from [ConnectorCard] because it has to survive a
- * rotation on its own — the catalog it came from is being fetched again at that
- * moment, and a dialog holding typed text cannot wait for the network.
- */
+
 private data class AliasTarget(val slug: String, val label: String)
 
 private val AliasTargetSaver = listSaver<AliasTarget?, String>(

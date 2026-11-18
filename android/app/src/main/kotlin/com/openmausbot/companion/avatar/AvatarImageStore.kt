@@ -18,25 +18,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/**
- * Authenticated avatar bytes (and decoded bitmaps) shared by roster, header,
- * group and profile.
- *
- * Mirrors `Session.avatarCache` / `avatarData(for:)` on iOS for **encoded**
- * bytes: entry count and byte cost are bounded (64 / 32 MiB) because one valid
- * upload may be 10 MB; concurrent first renders of the same path share one
- * download; [clear] drops everything on sign-out so a finished fetch from a
- * previous pairing cannot poison the next.
- *
- * Decoded frames are an Android-only global cache (iOS keeps `UIImage` on the
- * view). They are separately byte-budgeted via [DecodedAvatar.byteCost] /
- * `allocationByteCount` and downsampled to [DEFAULT_MAX_DECODE_EDGE] — that
- * 32 MiB bitmap ceiling is not an iOS `NSCache` counterpart.
- *
- * Memory only — never writes attachment bytes, bearer tokens, or signed URLs
- * to disk (§6). [bitmapFor] must be called from a `LaunchedEffect(path)`,
- * never from a draw lambda.
- */
+/** Avatar retrieval requires the paired-device bearer. Cached bytes and decoded images must remain bounded. */
 class AvatarImageStore(
     private val fetch: suspend (Bot) -> ByteArray?,
     private val decode: (ByteArray) -> DecodedAvatar? = DEFAULT_DECODE,

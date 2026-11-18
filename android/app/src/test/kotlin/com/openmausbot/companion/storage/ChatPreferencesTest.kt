@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** Local chat choices survive the Activity/process boundary and stay non-secret. */
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class ChatPreferencesTest {

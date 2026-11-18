@@ -22,14 +22,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 
-/**
- * Shared fixtures for the linger tests.
- *
- * The rule these follow (analysis §5): the only thing faked is the *process
- * anchor*. The [Session], its `disconnect()`, the twenty-five second `delay`
- * and the SSE collection are all real, so a frame emitted after `ON_STOP` has
- * to cross the same collector a real one would.
- */
+
 
 internal val TEST_CONNECTION = Connection(
     id = "c1",

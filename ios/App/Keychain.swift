@@ -1,6 +1,4 @@
-/// Main-app compatibility facade. The implementation lives in AppShared so
-/// trusted extensions see the same credential rather than a target-private
-/// keychain item.
+
 enum Keychain {
     static func save(_ token: String, for connectionId: String) throws {
         try OpenMausSharedKeychain.save(token, for: connectionId)

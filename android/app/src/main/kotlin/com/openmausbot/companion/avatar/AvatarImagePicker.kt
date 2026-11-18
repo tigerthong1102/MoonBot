@@ -16,24 +16,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Image selection for an agent avatar.
- *
- * **minSdk 26 decision:** use AndroidX `PickVisualMedia` with `ImageOnly`.
- * - API 33+: system Photo Picker (no storage permission).
- * - API 26–32: AndroidX falls back to the Storage Access Framework
- *   (`ACTION_OPEN_DOCUMENT`) with the same image-only filter — still no
- *   `READ_EXTERNAL_STORAGE` / `READ_MEDIA_IMAGES`. The user grants access to
- *   one URI; the app never browses the gallery itself.
- *
- * Do not register a second permission owner for this path: picking an image
- * does not go through [com.openmausbot.companion.permissions.CompanionPermissions].
- *
- * [read] is suspending: query + body I/O run on [Dispatchers.IO], cooperate
- * with cancellation (closing the stream as soon as the job is cancelled,
- * including while a provider [InputStream.read] is blocked), and never block
- * the main thread the way an `ActivityResult` callback otherwise would.
- */
+/** AndroidX PickVisualMedia uses the system Photo Picker on API 33+ and ACTION_OPEN_DOCUMENT on older versions; neither requires broad storage access. */
 object AvatarImagePicker {
     fun contract(): ActivityResultContracts.PickVisualMedia =
         ActivityResultContracts.PickVisualMedia()

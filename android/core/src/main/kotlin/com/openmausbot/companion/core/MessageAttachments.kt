@@ -23,11 +23,7 @@ class PendingMessageAttachment(
 
 class AttachmentPolicyException(message: String) : Exception(message)
 
-/**
- * The same limits apply to the in-app composer and the Share target. Keeping
- * the policy in `:core` prevents either entry point from accepting an
- * attachment that the authenticated upload route will reject.
- */
+
 object AttachmentPolicy {
     const val MAXIMUM_ITEMS: Int = 4
     const val MAXIMUM_TOTAL_BYTES: Int = 50 * 1_024 * 1_024

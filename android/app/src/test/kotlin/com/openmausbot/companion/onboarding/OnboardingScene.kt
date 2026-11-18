@@ -43,19 +43,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.awaitCancellation
 import org.robolectric.RuntimeEnvironment
 
-/**
- * A whole [CompanionEnvironment] made of fakes that answer questions no boolean
- * can.
- *
- * The rules this pass installs are about *when* the app does something to the
- * outside world — asks the system for a permission, starts browsing the network
- * — and neither is visible in any value a screen exposes. So the seams that
- * reach outside are recorders: [permissionRequests] keeps every launch in order,
- * and [FakeDiscovery] counts the collections a browse would have been. A test
- * mounts the real composition against these and reads what it did.
- */
+
 class OnboardingScene(
-    /** Answers `granted(permission)`; add to it to simulate a grant. */
+
     val granted: MutableSet<String> = mutableSetOf(),
     sdkInt: Int = 34,
     notificationsEnabled: Boolean = false,
@@ -64,7 +54,7 @@ class OnboardingScene(
     hasAskedNotificationsBefore: Boolean = false,
     savedConnection: Connection? = null,
     savedToken: String? = null,
-    /** The computer answers 401: the token was revoked on the other side. */
+
     private val revoked: Boolean = false,
     private val pairSuspendsUntil: kotlinx.coroutines.CompletableDeferred<Unit>? = null,
     notificationOnboardingPending: Boolean = false,
@@ -74,7 +64,7 @@ class OnboardingScene(
     private val context: Context = RuntimeEnvironment.getApplication() as Application
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    /** Every permission launch, in order, flattened to the names asked for. */
+
     val permissionRequests = mutableListOf<List<String>>()
 
     val discovery = FakeDiscovery()

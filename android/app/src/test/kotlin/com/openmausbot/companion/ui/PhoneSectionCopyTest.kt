@@ -43,9 +43,9 @@ class PhoneSectionCopyTest {
     fun `every discovery failure points at Phone settings`() {
         val source = sourceFile("discovery/NsdDiscovery.kt").readText()
 
-        // Four exits — permission refused, an unexpected throw, an internal NSD
-        // failure and the spent-retries one — and a person who cannot browse has
-        // nowhere else to read the address from.
+
+
+
         assertEquals(
             4,
             countOf(source, "Enter the address shown in Phone settings below."),

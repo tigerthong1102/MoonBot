@@ -11,13 +11,7 @@ import kotlin.coroutines.cancellation.CancellationException
 
 internal class MissingStreamHelloException : IOException("Lost the connection.")
 
-/**
- * Walks candidates without weakening credential protection: a cleartext route may upgrade to a
- * protected route, but once protected, rotation never returns to cleartext.
- *
- * See `FailoverTest.explicitLocalRouteCanUpgradeButNeverDowngradeAgain` and
- * `FailoverTest.walksProtectedCandidatesInOrderAndWraps`.
- */
+/** Credentials may upgrade from cleartext to a protected route, but must never downgrade afterward. */
 class CandidateRotation(endpoints: List<CompanionEndpoint>) {
     var endpoints: List<CompanionEndpoint> = CompanionEndpoint.automaticCandidates(endpoints)
         private set
@@ -93,12 +87,7 @@ object ConnectionAdvice {
     fun shouldTryAnotherHost(error: Throwable): Boolean =
         shouldTryAnotherHost(classify(error))
 
-    /**
-     * Pairing may replay the same idempotent request on another identified route after an
-     * ambiguous transport result or a gateway failure. This is deliberately broader than
-     * [shouldTryAnotherRoute]: an unreadable or lost pairing response is not proof that the
-     * one-time credential was rejected, even when it is not an address failure.
-     */
+    /** An ambiguous transport failure is not evidence that a one-time pairing credential was rejected; retries must retain the idempotent request. */
     fun shouldRetryPairingOnAnotherRoute(error: APIError): Boolean = when (error) {
         is APIError.Transport -> true
         is APIError.Status -> isGatewayStatus(error.code)

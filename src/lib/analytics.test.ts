@@ -117,8 +117,12 @@ describe("the stored choice", () => {
     expect(ph.loads).toBe(0);
     expect(ph.calls).toEqual([]);
   });
-  it("is on for a fresh install", () => {
-    expect(analyticsEnabled()).toBe(true);
+  it.each([undefined, "", "invalid"])("keeps telemetry off without a saved opt-in (%s)", async (stored) => {
+    if (stored !== undefined) store.set("omb-analytics-opt-out", stored);
+    const fresh = await freshAnalytics();
+    await fresh.initAnalytics();
+    expect(fresh.analyticsEnabled()).toBe(false);
+    expect(ph.loads).toBe(0);
   });
 
   it("survives a restart once opted out", () => {
@@ -150,7 +154,8 @@ describe("the stored choice", () => {
     expect(store.get("omb-installed")).toBeUndefined();
   });
 
-  it("treats unusable storage as a fresh install rather than failing", () => {
+  it("keeps telemetry off when storage is unreadable", async () => {
+    const fresh = await freshAnalytics();
     vi.stubGlobal("localStorage", {
       getItem: () => {
         throw new Error("denied");
@@ -159,8 +164,9 @@ describe("the stored choice", () => {
         throw new Error("denied");
       },
     });
-    expect(analyticsEnabled()).toBe(true);
-    expect(() => setAnalyticsEnabled(false)).not.toThrow();
+    expect(fresh.analyticsEnabled()).toBe(false);
+    await fresh.initAnalytics();
+    expect(ph.loads).toBe(0);
   });
 });
 
@@ -180,6 +186,7 @@ describe("initAnalytics while opted out", () => {
 });
 
 describe("loading the client", () => {
+  beforeEach(() => { store.set("omb-analytics-opt-out", "0"); });
   it("leaves posthog-js out of the startup bundle until initAnalytics runs", async () => {
     const fresh = await freshAnalytics();
     expect(ph.loads).toBe(0);
@@ -346,6 +353,7 @@ describe("loading the client", () => {
 });
 
 describe("app_active", () => {
+  beforeEach(() => { store.set("omb-analytics-opt-out", "0"); });
   const DAY = "omb-analytics-active-day";
   const HOUR = 60 * 60_000;
 

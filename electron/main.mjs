@@ -2282,7 +2282,7 @@ ipcMain.handle("desktop:skin", (event, skin) => {
     if (win && !win.isDestroyed()) {
       try { win.setBackgroundColor(color); } catch {}
     }
-    if (mainWindow && event.sender === mainWindow.webContents) chromeRail.send("rail:skin", skin);
+    if (mainWindow && event.sender === mainWindow.webContents) { inbox.applySkin(mainWindow, skin); chromeRail.send("rail:skin", skin); }
   } catch {}
   return true;
 });

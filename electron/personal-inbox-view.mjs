@@ -5,6 +5,7 @@ import { jsonFile } from "./desktop-prefs.mjs";
 import { app, session, WebContentsView } from "electron";
 
 const panels = new WeakMap();
+const skins = new WeakMap();
 const partition = "persist:startupbot-personal-inbox";
 
 export async function personalAccountEmail(origin) {
@@ -88,6 +89,7 @@ export async function showPersonalInbox(window, origin, accountOnly = false, lan
   fit();
   try {
     const params = new URLSearchParams({ desktop: "1", lang: language });
+    if (skins.has(window)) params.set("skin", skins.get(window));
     if (accountOnly) params.set("account", "1");
     await page.loadURL(origin + "/?" + params);
     if (!page.isDestroyed()) page.focus();
@@ -124,5 +126,12 @@ export function createPersonalInbox(window, locale = () => app.getLocale()) {
       if (!event.sender.isDestroyed()) event.sender.send("personal-account:changed");
     });
   }
-  return { open, origin, install };
+  function applySkin(win, skin) {
+    skins.set(win, skin);
+    const page = panels.get(win)?.webContents;
+    if (page && !page.isDestroyed()) {
+      void page.executeJavaScript("document.documentElement.dataset.skin = " + JSON.stringify(skin)).catch(() => {});
+    }
+  }
+  return { open, origin, install, applySkin };
 }

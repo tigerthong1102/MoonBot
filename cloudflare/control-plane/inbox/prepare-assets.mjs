@@ -19,3 +19,20 @@ for (const locale of ["en", "vi"]) {
   messages[locale] = Object.fromEntries(Object.entries(catalog).filter(([key]) => key.startsWith("personalInbox.")));
 }
 await writeFile(new URL("./public/inbox-messages.js", import.meta.url), "export const messages = " + JSON.stringify(messages) + ";\n");
+
+const styles = await readFile(new URL("../../../src/styles.css", import.meta.url), "utf8");
+const tokens = ["--code-color-scheme", "--font-sans", ...["app", "panel", "card", "raised", "ink", "ink-secondary", "hairline", "accent-text", "focus", "bubble-user", "bubble-user-ink"].map((name) => "--color-" + name)];
+const defaults = styles.match(/@theme\s*\{([^}]+)\}/)?.[1] ?? "";
+const skins = new Map();
+for (const [, skin, declarations] of styles.matchAll(/^\[data-skin="([a-z-]+)"\] \{([^}]+)\}/gm)) {
+  const values = new Map(Array.from(declarations.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g), ([, key, value]) => [key, value.trim()]));
+  skins.set(skin, tokens.map((key) => {
+    const value = values.get(key) ?? defaults.match(new RegExp(key + ":\\s*([^;]+);"))?.[1];
+    if (!value) throw new Error("Missing inbox skin token " + skin + " " + key);
+    return key + ":" + value + ";";
+  }).join("\n"));
+}
+if (!skins.has("daylight") || !skins.has("midnight")) throw new Error("Missing reference inbox skins");
+const rules = [":root{" + skins.get("daylight") + "}", "@media (prefers-color-scheme:dark){:root{" + skins.get("midnight") + "}}"];
+for (const [skin, body] of skins) rules.push(':root[data-skin="' + skin + '"]{' + body + "}");
+await writeFile(new URL("./public/inbox-skins.css", import.meta.url), rules.join("\n"));

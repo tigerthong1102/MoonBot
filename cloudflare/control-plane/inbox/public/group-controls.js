@@ -6,9 +6,20 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
     await api("rooms/" + room.id + "/moderate", { action, ...fields });
     await refresh();
   };
-  const actionButton = (label, action, fields, confirmText) =>
+  const inverse = { promote: "demote", demote: "promote", mute: "unmute", unmute: "mute", ban: "unban" };
+  const actionButton = (label, action, fields = {}) =>
     button(label, async () => {
-      if (!confirmText || window.confirm(confirmText)) await run(action, fields);
+      await run(action, fields);
+      const toggle = typeof fields.enabled === "boolean";
+      status(t("personalInbox.groupUpdated"));
+      const clearsRestriction = action === "promote" && detail.members.some((m) => m.id === fields.person && m.muted);
+      if ((inverse[action] && !clearsRestriction) || toggle) {
+        const undo = button(t(action === "ban" ? "personalInbox.unban" : "personalInbox.undo"), async () => {
+          await run(toggle ? action : inverse[action], toggle ? { ...fields, enabled: !fields.enabled } : fields);
+          status("");
+        });
+        document.getElementById("status").append(" ", undo);
+      }
     });
   const list = document.createDocumentFragment();
   for (const m of detail.members) {
@@ -24,7 +35,7 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
           actionButton(m.admin ? t("personalInbox.demote") : t("personalInbox.promote"), m.admin ? "demote" : "promote", fields),
         );
         menu.append(
-          actionButton(t("personalInbox.transfer"), "transfer", fields, t("personalInbox.confirmTransfer", { email: m.email })),
+          actionButton(t("personalInbox.transfer"), "transfer", fields),
         );
       }
       if (!m.admin)
@@ -32,8 +43,8 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
           actionButton(m.muted ? t("personalInbox.unmute") : t("personalInbox.mute"), m.muted ? "unmute" : "mute", fields),
         );
       menu.append(
-        actionButton(t("personalInbox.removeMember"), "remove", fields, t("personalInbox.confirmRemove", { email: m.email })),
-        actionButton(t("personalInbox.ban"), "ban", fields, t("personalInbox.confirmBan", { email: m.email })),
+        actionButton(t("personalInbox.removeMember"), "remove", fields),
+        actionButton(t("personalInbox.ban"), "ban", fields),
       );
       li.append(menu);
     }
@@ -67,6 +78,7 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
     menu.append(node("summary", t("personalInbox.permissions")));
     const rename = document.createElement("form"),
       input = document.createElement("input");
+    input.dir = "auto";
     input.required = true;
     input.maxLength = 80;
     input.value = room.title;
@@ -100,12 +112,11 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
         detail.group.link ? t("personalInbox.rotate") : t("personalInbox.newLink"),
         "newLink",
         {},
-        detail.group.link ? t("personalInbox.confirmRotate") : null,
       ),
     );
     if (detail.group.link)
       menu.append(
-        actionButton(t("personalInbox.revoke"), "revokeLink", {}, t("personalInbox.confirmRevoke")),
+        actionButton(t("personalInbox.revoke"), "revokeLink", {}),
       );
     controls.append(menu);
     for (const [people, label, actions] of [
@@ -129,7 +140,6 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
               text,
               action,
               { person: p.id },
-              action === "ban" ? t("personalInbox.banApplicant", { email: p.email }) : null,
             ),
           );
         controls.append(row);

@@ -6,7 +6,9 @@ for (const back of document.querySelectorAll(".list-back")) {
   back.onclick = () => { delete document.body.dataset.thread; };
 }
 const accountOnly = !el("desktop-back").hidden && new URLSearchParams(location.search).get("account") === "1";
-const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text });
+const skin = new URLSearchParams(location.search).get("skin");
+if (skin) document.documentElement.dataset.skin = skin;
+const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text, dir: "auto" });
 const entry = new URLSearchParams(location.hash.slice(1));
 let joinToken = entry.get("join"), invitedRoom = entry.get("room"), moderators = new Set();
 let statusTimer;
@@ -439,7 +441,7 @@ el("create-room").onsubmit = run(async () => {
 });
 el("cancel-invite").onclick = run(async () => {
   const field = el("invite").elements.email;
-  if (!field.reportValidity() || !window.confirm(t("personalInbox.confirmCancel", { email: field.value.trim() }))) return;
+  if (!field.reportValidity()) return;
   await api("rooms/" + current + "/moderate", {action:"cancelInvite",email:field.value.trim()});
   status(t("personalInbox.cancelledInvite"));
 });
@@ -639,7 +641,6 @@ function renderPosts() {
       options.className="message-options";
       const toggle=node("summary","⋯"); toggle.setAttribute("aria-label",t("personalInbox.messageOptions")); toggle.title=t("personalInbox.messageOptions"); options.append(toggle);
       options.append(button(t("personalInbox.deletePost"),async () => {
-        if (!window.confirm(t("personalInbox.confirmDelete"))) return;
         await api("rooms/"+room.id+"/moderate",{action:"deletePost",seq:p.seq}); readingOlder=false; await refresh();
       })); li.append(options);
     }

@@ -61,6 +61,6 @@ describe("StartupBot internal distribution boundary", () => {
       { from: "LICENSE", to: "licenses/OpenMausBot-LICENSE.txt" },
       { from: "NOTICE", to: "licenses/OpenMausBot-NOTICE.txt" },
     ]));
-    expect(builder.publish).toEqual([{ provider: "github", owner: "tigerthong1102", repo: "StartupBot" }]);
+    expect(builder.publish).toEqual([{ provider: "github", owner: "tigerthong1102", repo: "MoonBot" }]);
   });
 });

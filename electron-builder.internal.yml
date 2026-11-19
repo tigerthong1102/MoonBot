@@ -4,7 +4,7 @@ directories:
   output: release/internal
 extraMetadata:
   name: startupbot
-  version: 0.1.161-internal.20261119.2
+  version: 0.1.162-preview.1
   homepage: https://startupbot.ai
   repository:
     type: git

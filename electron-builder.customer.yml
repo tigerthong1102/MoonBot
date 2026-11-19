@@ -1,0 +1,14 @@
+extends: ./electron-builder.yml
+forceCodeSigning: true
+extraMetadata:
+  name: startupbot
+  version: 0.1.162
+mac:
+  target: [dmg]
+dmg:
+  sign: true
+  format: UDZO
+win:
+  target: [nsis]
+nsis:
+  differentialPackage: false

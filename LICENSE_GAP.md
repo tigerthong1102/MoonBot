@@ -46,7 +46,7 @@ owner-supplied robot; implementation/protocol identifiers and attribution remain
 Android's bundled ML Kit QR scanner has Google's separate terms and potential
 SDK metrics/model communication; it is not covered by the root Apache license.
 Native localization, store privacy disclosures and full third-party review remain
-release gates. The owner-supplied image's commercial rights and the repository's
-retained Enterprise history are not cleared by internal smoke tests. No signing
+release gates. The owner subsequently confirmed the ChatGPT image's origin and authorized distribution
+with StartupBot on 2026-11-19. See BRANDING_AUDIT.md. The review of retained Enterprise history is separate. No signing
 secrets or paid services are provisioned. Internal artifacts do not authorize
 a commercial or app-store release.

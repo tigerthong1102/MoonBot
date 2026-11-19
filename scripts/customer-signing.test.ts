@@ -15,7 +15,20 @@ describe("customer installers", () => {
     expect(customer.extraMetadata.name).toBe("startupbot");
     expect(customer.extraMetadata.version).toBeUndefined();
     const { version } = JSON.parse(readFileSync("package.json", "utf8"));
-    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(version).toMatch(/^[1-9]\d*\.\d+\.\d+$/);
+  });
+
+  it("uses one product version for desktop, Android and every iOS application target", () => {
+    const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+    expect(parse(readFileSync("electron-builder.internal.yml", "utf8")).extraMetadata.version).toBeUndefined();
+    const android = readFileSync("android/app/build.gradle.kts", "utf8");
+    expect(android.match(/private val appVersionName = "([^"]+)"/)?.[1]).toBe(version);
+    const ios = parse(readFileSync("ios/project.yml", "utf8"));
+    expect(ios.settings.base.MARKETING_VERSION).toBe(version);
+    for (const name of ["StartupBot", "StartupBotWidgets", "StartupBotShareExtension"]) {
+      expect(ios.targets[name].settings.base.MARKETING_VERSION).toBeUndefined();
+      expect(ios.targets[name].settings.base.CURRENT_PROJECT_VERSION).toBeUndefined();
+    }
   });
 
   it("leaves Android Platform Tools to the user on macOS and Windows", () => {

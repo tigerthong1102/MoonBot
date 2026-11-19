@@ -4,12 +4,11 @@ import { createHash } from "node:crypto";
 import { createReadStream, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parse } from "yaml";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.resolve(process.argv[2] ?? path.join(root, "release", "internal"));
-const config = parse(readFileSync(path.join(root, "electron-builder.internal.yml"), "utf8"));
-const expected = new Set([`StartupBot-${config.extraMetadata.version}-arm64.dmg`, `StartupBot-${config.extraMetadata.version}-x64.dmg`, `StartupBot-${config.extraMetadata.version}-Setup.exe`, `StartupBot-${config.extraMetadata.version}-arm64-Setup.exe`]);
+const { version } = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+const expected = new Set([`StartupBot-${version}-arm64.dmg`, `StartupBot-${version}-x64.dmg`, `StartupBot-${version}-Setup.exe`, `StartupBot-${version}-arm64-Setup.exe`]);
 const artifacts = [];
 for (const file of readdirSync(output).filter(file => /\.(dmg|exe)$/.test(file)).sort()) {
   assert(expected.has(file), `Unexpected internal installer: ${file}`);
@@ -19,7 +18,7 @@ for (const file of readdirSync(output).filter(file => /\.(dmg|exe)$/.test(file))
 }
 assert(artifacts.length, "No internal installer was built");
 const metadata = {
-  product: "StartupBot", version: config.extraMetadata.version,
+  product: "StartupBot", version,
   commit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
   platform: process.platform, node: process.version, artifacts,
   updater: "disabled", publication: "GitHub Actions artifacts only; no release",

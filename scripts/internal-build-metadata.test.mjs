@@ -3,8 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
-const version = parse(readFileSync("electron-builder.internal.yml", "utf8")).extraMetadata.version;
+const { version } = JSON.parse(readFileSync("package.json", "utf8"));
 const script = path.resolve("scripts/internal-build-metadata.mjs");
 function fixture(run) {
   const output = mkdtempSync(path.join(tmpdir(), "startupbot-metadata-"));

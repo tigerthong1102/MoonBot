@@ -14,7 +14,7 @@ import type { DirectApply } from "./direct-apply.ts";
 
 function harness(caps?: Record<string, { driverKind: string; agentsMcp: boolean }>) {
   const bots: BotRecord[] = [];
-  const messages: Array<{ id: string; role?: string; card?: OptionCardData }> = [];
+  const messages: Array<{ id: string; role?: string; text?: string; card?: OptionCardData }> = [];
   const teams = ["", "Work", "Engineering", "Private"];
   const bot = (id: string, overrides: Partial<BotRecord> = {}) => {
     const value: BotRecord = { id, threadId: `${id}-thread`, name: id, title: "", description: "", soul: "", section: "Work",
@@ -32,7 +32,7 @@ function harness(caps?: Record<string, { driverKind: string; agentsMcp: boolean 
     }) };
     chief.lastTeamSetupReceipt = { requestId: request.requestId, result }; return result;
   });
-  const store = { bots, bot: (id: string) => bots.find((item) => item.id === id), messagesFor: () => messages,
+  const store = { bots, bot: (id: string) => bots.find((item) => item.id === id), messagesFor: () => messages, activePath: () => messages,
     appendMessage: (_thread: string, input: { card: OptionCardData }) => { const message = { id: `message-${messages.length}`, card: input.card }; messages.push(message); return message; },
     patchMessage: (_thread: string, id: string, patch: { card: OptionCardData }) => { const message = messages.find((item) => item.id === id); if (!message) return null; Object.assign(message, patch); return message; },
     applyTeamSetup: apply,
@@ -70,6 +70,41 @@ const specialist = (key: string, section: string, modelSelection = { instanceId:
   fields: { name: key, title: "Specialist", soul: "Finish the assigned work.", section, modelSelection } });
 
 describe("reviewed Chief team setup", () => {
+  it("classifies each delivered owner message without letting one topic block another", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    const ask = (id: string, topic: string, text: string) => h.service.offerFromChat(h.chief.id, h.chief.threadId, text, "", id,
+      () => ({ via: "engine", generateText: async () => JSON.stringify({ name: topic, icon: "tasks" }) }));
+    h.messages.push({ id: "vi", role: "user", text: "Cập nhật tin AI mỗi sáng" }, { id: "ja", role: "user", text: "明日の道路状況を毎日確認して" });
+    await ask("vi", "Tin tức AI", "Cập nhật tin AI mỗi sáng");
+    await ask("vi", "Tin mới", "Cập nhật tin AI mỗi sáng");
+    await ask("ja", "道路情報", "明日の道路状況を毎日確認して");
+    expect(h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer?.topic ?? [])).toEqual(["Tin tức AI", "道路情報"]);
+    expect(h.apply).not.toHaveBeenCalled();
+  });
+
+  it("redacts input and drops a delayed result after its source is cleared", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    let finish!: (answer: string) => void;
+    const answer = new Promise<string>(resolve => { finish = resolve; });
+    const secret = "sk-test-" + "a".repeat(32);
+    h.messages.push({ id: "source", role: "user", text: "每日审核 " + secret });
+    const generateText = vi.fn(async (prompt: string) => {
+      expect(prompt).not.toContain(secret);
+      return answer;
+    });
+    const ask = () => h.service.offerFromChat(h.chief.id, h.chief.threadId, "每日审核 " + secret, "", "source",
+      () => ({ via: "engine", generateText }));
+    const pending = ask();
+    await ask();
+    expect(generateText).toHaveBeenCalledTimes(1);
+    h.messages.length = 0;
+    finish('{"name":"每日审核","icon":"tasks"}');
+    await pending;
+    expect(h.messages).toHaveLength(0);
+  });
+
   it.each(["allow", "deny"])("keeps a suggested work bot pending on Full access until %s", async behavior => {
     const h = harness();
     h.autoApply.mockReturnValue("full-access");

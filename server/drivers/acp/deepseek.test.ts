@@ -367,7 +367,7 @@ describe("DeepSeek Harness after a provider was added in dsh since its process s
       await removeTempDir(entry.scratch);
     }
   });
-  const open = async () => {
+  const open = async (textReply?: string) => {
     const scratch = mkdtempSync(join(tmpdir(), "omb-deepseek-stale-"));
     const modelsFile = join(scratch, "models");
     writeFileSync(modelsFile, `${base}\n`);
@@ -376,6 +376,7 @@ describe("DeepSeek Harness after a provider was added in dsh since its process s
       config: { cli: FAKE_CLI, fullAuto: false, workspace: scratch },
       environment: {
         HOME: scratch, USERPROFILE: scratch, DSH_HOME: join(scratch, "dsh"), DEEPSEEK_API_KEY: "sk-fixture",
+        ...(textReply ? { FAKE_ACP_TEXT_REPLY: textReply, FAKE_ACP_DUMP: join(scratch, "launch.json") } : {}),
         FAKE_ACP_MODELS_FILE: modelsFile, FAKE_ACP_LAUNCH_COUNT_FILE: join(scratch, "launches"),
         FAKE_ACP_RPC_APPEND_FILE: join(scratch, "rpc.jsonl"),
       },
@@ -390,7 +391,7 @@ describe("DeepSeek Harness after a provider was added in dsh since its process s
     const launches = () => Number(readFileSync(join(scratch, "launches"), "utf8"));
     const prompts = () => readFileSync(join(scratch, "rpc.jsonl"), "utf8").trim().split("\n")
       .filter((line) => (JSON.parse(line) as { method: string }).method === "session/prompt").length;
-    return { run, launches, prompts, modelsFile };
+    return { instance, scratch, run, launches, prompts, modelsFile };
   };
 
   it("sends the wire pair for the picker id and reports it on session.started", async () => {
@@ -398,6 +399,15 @@ describe("DeepSeek Harness after a provider was added in dsh since its process s
     const { done, events } = await f.run("deepseek-official/deepseek-v4-flash");
     expect(done).toMatchObject({ ok: true });
     expect(events.find((event) => event.type === "session.started")).toMatchObject({ model: base });
+  });
+
+  it.each([false, true])("uses the native model in an isolated text call (foreground route ready: %s)", async (ready) => {
+    const f = await open("null");
+    writeFileSync(f.modelsFile, `${base}\n${added}\n`);
+    if (ready) expect((await f.run(addedPicker)).done).toMatchObject({ ok: true });
+    expect(await f.instance.generateMemoryText!("Synthetic follow-up", { model: addedPicker, sourceThreadId: "t-stale" })).toBe("null");
+    const calls = JSON.parse(readFileSync(join(f.scratch, "launch.json.config.json"), "utf8"));
+    expect(calls).toContainEqual({ method: "session/set_config_option", params: { sessionId: expect.any(String), configId: "model", value: added } });
   });
 
   it("never swaps a catalog model for another one: fails the stale process and retries on a fresh one", async () => {

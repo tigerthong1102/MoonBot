@@ -11,9 +11,9 @@ function ChatLibraryDialog({ chat, close }: { chat: SkillChatTarget; close: () =
   const panel = useRef<HTMLDivElement>(null);
   useModalDialog(panel, close);
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-3 sm:p-6">
+    <div className="ui-scrim fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6">
       <div ref={panel} role="dialog" aria-modal="true" aria-label={t("skills.library.title")} tabIndex={-1}
-        className="flex max-h-[88dvh] w-full max-w-2xl flex-col rounded-2xl bg-panel shadow-2xl">
+        className="ui-modal flex max-h-[88dvh] w-full max-w-2xl flex-col">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <h2 className="font-semibold text-ink">{t("skills.library.title")}</h2>
           <button type="button" onClick={close} aria-label={t("skills.library.close")} className="rounded-lg p-2 text-ink-secondary hover:bg-control"><X size={16} /></button>

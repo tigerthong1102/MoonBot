@@ -1,5 +1,5 @@
 """
-StartupBot modified this file on 2026-11-19 to use a locally installed LibreOffice.
+StartupBot modified this file on 2026-11-19 to use a locally installed LibreOffice and report omitted array results.
 
 Excel Formula Recalculation Script
 Recalculates all formulas in an Excel file using LibreOffice
@@ -373,6 +373,7 @@ def _report(filename, found=None):
         if error != "#NAME?":
             error_details[error] += found.get(error, [])
     error_details[UNBALANCED] = found.get(UNBALANCED, [])
+    error_details[ARRAY_RESULTS_OMITTED] = found.get(ARRAY_RESULTS_OMITTED, [])
     error_details[TOO_LONG] = _sheet_names_too_long(filename)
 
     total_errors = sum(len(locations) for locations in error_details.values())
@@ -418,6 +419,7 @@ _DELIMS = r"\s+\-*/^&=<>(),;:!%{}#@~|"
 _WORD_RE = re.compile(rf"(?<![^{_DELIMS}])[^{_DELIMS}]+(?![^{_DELIMS}]|[(!])")
 _EXTERNAL_REF_RE = re.compile(r"""(?<![\w"\[])'?\[[1-9]\d*\][^!"\[\]]*'?!""")
 _PREFIX_RE = re.compile(r"^(?:_xlfn\.|_xlws\.)+", re.I)  
+ARRAY_RESULTS_OMITTED = "array_results_omitted"
 UNBALANCED = "unbalanced brackets"
 TOO_LONG = "sheet name over 31 characters"
 _STORED_BARE = frozenset(
@@ -695,11 +697,14 @@ def _splice(xml, computed, lacked, array_cells, sheet_name, reaching, found):
         done = m.end()
     for cell, first in array_cells.items():
         new = computed.get(cell)
-        held_by_the_sheet = cell == first or cell in filled
-        if first in filling and not held_by_the_sheet and new and new[0] == b"e":
-            error = new[1].decode()
-            if error != "#NAME?" and error in EXCEL_ERRORS:
-                found.setdefault(error, []).append(f"{sheet_name}!{_coordinate(*cell)}")
+        if first not in filling or cell == first or cell in filled or not new:
+            continue
+        where = f"{sheet_name}!{_coordinate(*cell)}"
+        error = new[1].decode() if new[0] == b"e" else None
+        if error in EXCEL_ERRORS and error != "#NAME?":
+            found.setdefault(error, []).append(where)
+        else:
+            found.setdefault(ARRAY_RESULTS_OMITTED, []).append(where)
     if not out:
         return xml
     out.append(xml[done:])
@@ -781,6 +786,7 @@ def main():
         print("  - total_formulas: Number of formulas in the file")
         print("  - error_summary: Breakdown by error type with locations")
         print("    - #VALUE!, #DIV/0!, #REF!, #NAME?, #NULL!, #NUM!, #N/A, unbalanced brackets")
+        print("    - array_results_omitted: calculated values needing new cells; the workbook still needs recalculation")
         print("  - not_computed: only if LibreOffice could not compute some formulas: a function")
         print("    it lacks, or a link to another workbook. Those cells are left as they were, and")
         print("    Excel computes them when it opens a file openpyxl saved. A sound formula that")

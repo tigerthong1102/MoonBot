@@ -8,6 +8,7 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["da737541f5d48d0507fc53b35b09e202732161ccedc5b9567dda8794105ad72f", "xlsx"],
   ["54810feb5ba0cfbbb5d78687e5874c39bb654986170763b36eb384826ad25a60", "byted-seedream-image-generate"],
   ["254bbe7ac0c66175299609d72e4a7baf073891c8b3ed627c9970b03ce12fa010", "pdf"],
   ["0790c7154973a0da99d5d182bb23ffc66e2f3aa5b1a00d519ee842d6f39e9001", "byted-seedance-video-generate"],

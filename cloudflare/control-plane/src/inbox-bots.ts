@@ -138,7 +138,11 @@ export async function roomBots(
         .prepare(
           `INSERT OR IGNORE INTO inbox_bot_rounds(id,room,starter,topic,locale,first_bot,second_bot,expires)
         SELECT ?3,?1,?2,?4,?5,b.bot,c.bot,?8 FROM inbox_room_bots b JOIN inbox_room_bots c ON b.room=c.room
-        WHERE b.room=?1 AND b.bot=?6 AND c.bot=?7 AND EXISTS(${canPost})`,
+        WHERE b.room=?1 AND b.bot=?6 AND c.bot=?7 AND EXISTS(${canPost})
+          AND NOT EXISTS(SELECT 1 FROM inbox_members m JOIN inbox_rooms r ON r.id=m.room
+            WHERE m.room=?1 AND m.person IN (b.owner,c.owner)
+            AND (m.state!='active' OR m.muted!=0 OR (r.announcements=1 AND m.admin=0 AND r.owner!=m.person)))
+          AND NOT EXISTS(SELECT 1 FROM inbox_bot_usage WHERE bot IN (?6,?7) AND turns>=8 AND window_start>?9)`,
         )
         .bind(
           room,
@@ -149,6 +153,7 @@ export async function roomBots(
           a.first,
           a.second,
           now + 10 * 60_000,
+          now - 86400_000,
         ),
       db
         .prepare(

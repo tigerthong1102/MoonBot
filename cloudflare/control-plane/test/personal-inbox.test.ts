@@ -525,6 +525,9 @@ it("lets members invite only their bots and only managers remove them, even duri
     expect((await cmd(b,"start",{round,first,second,topic:"Compare two approaches",locale:"vi"})).status).toBe(200);
     return round;
   };
+  await call(room+"/moderate",a.cookie,{action:"mute",person:b.id});
+  expect((await cmd(a,"start",{round:uuid(),first,second,topic:"Muted bot owner",locale:"en"})).ok).toBe(false);
+  await call(room+"/moderate",a.cookie,{action:"unmute",person:b.id});
   const round=await start();
   const late=await login("third@example.test");
   await call(room+"/invite",a.cookie,{email:late.email});

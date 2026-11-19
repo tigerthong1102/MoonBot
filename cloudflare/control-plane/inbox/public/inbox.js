@@ -1,6 +1,8 @@
 import { language, languageNames, setLanguage, t } from "./inbox-i18n.js";
 import { groupBots } from "./group-bots.js";
 import { groupControls } from "./group-controls.js";
+import { installInboxSelects } from "./inbox-select.js";
+installInboxSelects();
 const el = (id) => document.getElementById(id);
 el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") !== "1";
 for (const back of document.querySelectorAll(".list-back")) {
@@ -1027,6 +1029,7 @@ for (const field of document.querySelectorAll('#mail-lang, select[name="locale"]
   for (const [tag, label] of Object.entries(languageNames)) field.add(new Option(label, tag));
 }
 chooseLanguage(language);
+el("mail-lang").closest("label").hidden = !el("desktop-back").hidden;
 el("mail-lang").onchange = () => {
   pickedLanguage = true;
   const url = new URL(location.href);

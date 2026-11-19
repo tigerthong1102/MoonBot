@@ -31,8 +31,16 @@
     "otpSubject": "Votre code de connexion {brand}",
     "otpBody": "Votre code de connexion est {otp}. Il expire dans 10 minutes. Si vous n'avez pas demandé ce code, vous pouvez ignorer cet e-mail."
   },
+  "hi": {
+    "emailSubject": "StartupBot पर चैट का निमंत्रण",
+    "emailIntro": "{sender} ने आपको StartupBot पर चैट करने के लिए आमंत्रित किया है।",
+    "emailOpen": "अपना निमंत्रण देखने के लिए {url} खोलें और 7 दिनों के भीतर इस ईमेल पते की पुष्टि करें।",
+    "emailStop": "निमंत्रण ईमेल बंद करें: {url}",
+    "otpSubject": "{brand} का आपका साइन-इन कोड",
+    "otpBody": "आपका साइन-इन कोड {otp} है। यह कोड 10 मिनट के लिए मान्य है। अगर आपने यह कोड नहीं माँगा था, तो इस ईमेल को अनदेखा करें।"
+  },
   "ja": {
-    "emailSubject": "StartupBotへのチャットへの招待",
+    "emailSubject": "StartupBotのチャットへの招待",
     "emailIntro": "{sender} があなたを StartupBot でのチャットに招待しました。",
     "emailOpen": "{url} を開き、7日以内にこのメールアドレスを認証して招待を確認してください。",
     "emailStop": "招待メールの配信停止: {url}",
@@ -48,7 +56,7 @@
     "otpBody": "Seu código de entrada é {otp}. Vence em 10 minutos. Se você não solicitou este código, você pode ignorar este e-mail."
   },
   "zh": {
-    "emailSubject": "在StartupBot上进行聊天的邀请",
+    "emailSubject": "StartupBot 聊天邀请",
     "emailIntro": "{sender} 邀请您在StartupBot上进行聊天。",
     "emailOpen": "打开 {url} 并在7天内验证此邮箱地址以查看您的邀请。",
     "emailStop": "停止邀请邮件: {url}",
@@ -56,12 +64,20 @@
     "otpBody": "您的登录代码是{otp}。它将在10分钟后过期。如果您没有请求此代码，可以忽略此邮件。"
   },
   "zh-tw": {
-    "emailSubject": "StartupBot對話邀請",
+    "emailSubject": "StartupBot 聊天邀請",
     "emailIntro": "{sender} 邀請您在StartupBot上對話。",
     "emailOpen": "打開 {url} 並在7天內驗證此電子信箱地址以查看您的邀請。",
     "emailStop": "停止邀請電郵：{url}",
     "otpSubject": "您的{brand}登入碼",
     "otpBody": "您的登入碼是{otp}。它將於10分鐘後過期。如果您沒有請求此碼，您可以忽略此電郵。"
+  },
+  "uk": {
+    "emailSubject": "Запрошення до чату на StartupBot",
+    "emailIntro": "{sender} запрошує вас до чату в StartupBot.",
+    "emailOpen": "Щоб переглянути запрошення, відкрийте {url} і підтвердьте цю електронну адресу протягом 7 днів.",
+    "emailStop": "Зупинити запрошення на електронну пошту: {url}",
+    "otpSubject": "Ваш код для входу в {brand}",
+    "otpBody": "Ваш код для входу {otp}. Він відкіннюється через 10 хвилин. Якщо ви не запитували цього коду, ви можете проігнорувати цю електронну пошту."
   },
   "vi": {
     "emailSubject": "Lời mời trò chuyện trên StartupBot",
@@ -71,8 +87,40 @@
     "otpSubject": "Mã đăng nhập {brand}",
     "otpBody": "Mã đăng nhập của bạn là {otp}. Mã có hiệu lực trong 10 phút. Nếu bạn không yêu cầu mã này, hãy bỏ qua email."
   },
+  "tr": {
+    "emailSubject": "StartupBot sohbet daveti",
+    "emailIntro": "{sender} sizi StartupBot’ta sohbet etmeye davet etti.",
+    "emailOpen": "Daveti görüntülemek için {url} bağlantısını açın ve bu e-posta adresini 7 gün içinde doğrulayın.",
+    "emailStop": "Davet e-postalarını durdur: {url}",
+    "otpSubject": "{brand} oturum açma kodunuz",
+    "otpBody": "Oturum açma kodunuz: {otp}. Kod 10 dakika geçerlidir. Kodu siz istemediyseniz bu e-postayı dikkate almayın."
+  },
+  "pl": {
+    "emailSubject": "Zaproszenie do rozmowy na StartupBot",
+    "emailIntro": "{sender} zaprosił Cię do rozmowy na StartupBot.",
+    "emailOpen": "Otwórz {url} i potwierdź ten adres e-mail w ciągu 7 dni, aby zobaczyć zaproszenie.",
+    "emailStop": "Zatrzymaj e-maile z zaproszeniami: {url}",
+    "otpSubject": "Kod logowania do {brand}",
+    "otpBody": "Twój kod logowania to {otp}. Wygaśnie w ciągu 10 minut. Jeśli nie żądałeś tego kodu, możesz go zignorować."
+  },
+  "ru": {
+    "emailSubject": "Приглашение в чат на StartupBot",
+    "emailIntro": "{sender} пригласил вас в чат на StartupBot.",
+    "emailOpen": "Откройте {url} и подтвердите этот адрес электронной почты в течение 7 дней, чтобы увидеть ваше приглашение.",
+    "emailStop": "Остановить приглашения на электронную почту: {url}",
+    "otpSubject": "Ваш код входа в {brand}",
+    "otpBody": "Ваш код входа {otp}. Он действителен в течение 10 минут. Если вы не запрашивали этот код, вы можете проигнорировать это сообщение."
+  },
+  "it": {
+    "emailSubject": "Invito a una chat su StartupBot",
+    "emailIntro": "{sender} ti ha invitato a chiacchierare su StartupBot.",
+    "emailOpen": "Apri {url} e verifica questo indirizzo email entro 7 giorni per vedere il tuo invito.",
+    "emailStop": "Fermo gli inviti via email: {url}",
+    "otpSubject": "Codice di accesso {brand}",
+    "otpBody": "Il tuo codice di accesso è {otp}. Scade in 10 minuti. Se non hai richiesto questo codice, puoi ignorare questo'email."
+  },
   "ko": {
-    "emailSubject": "그룹 채팅에 초대받아요 StartupBot",
+    "emailSubject": "StartupBot 채팅 초대",
     "emailIntro": "{sender}가 당신을 StartupBot에서 채팅에 초대했어요.",
     "emailOpen": "7일 이내에 {url}을 열고 이메일 주소를 확인하여 초대를 확인해주세요.",
     "emailStop": "초대 이메일 중단: {url}",

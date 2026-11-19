@@ -135,3 +135,9 @@ summary::-webkit-details-marker { display: none; }
 .message-options { font-size:.75rem; color:var(--color-ink-secondary); }
 .message-options summary { cursor:pointer; font-size:1rem; line-height:1; padding:3px 8px; }
 #post-limited { padding:.6rem 1rem; }
+
+[data-inbox-select] { position: relative; display: inline-flex; min-width: 0; max-width: 100%; }
+[data-inbox-select] select { appearance: none; width: 100%; padding-inline-end: 2rem; color-scheme: var(--code-color-scheme); text-overflow: ellipsis; }
+[data-inbox-select] > svg { position: absolute; inset-inline-end: .5rem; top: 50%; transform: translateY(-50%); color: var(--color-ink-secondary); pointer-events: none; }
+.kind [data-inbox-select] { position: absolute; inset: 0; }
+.kind [data-inbox-select] > svg { display: none; }

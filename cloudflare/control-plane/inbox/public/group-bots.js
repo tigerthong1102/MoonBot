@@ -1,5 +1,7 @@
 import { language, t } from "./inbox-i18n.js";
 
+import { inboxSelect } from "./inbox-select.js";
+
 export function groupBots({ room, me, node, button, api, refresh, status }) {
   const panel = node("details", "");
   const manager = room.isOwner || room.admin;
@@ -62,7 +64,7 @@ export function groupBots({ room, me, node, button, api, refresh, status }) {
       const form = node("form", "");
 
       const choices = [0, 1].map((position) => {
-        const select = node("select", "");
+        const { wrapper, select } = inboxSelect();
         select.setAttribute(
           "aria-label",
           t("personalInbox.bots") + " " + (position + 1),
@@ -75,7 +77,7 @@ export function groupBots({ room, me, node, button, api, refresh, status }) {
             ),
           );
         select.selectedIndex = position;
-        form.append(select);
+        form.append(wrapper);
         return select;
       });
       const topic = node("textarea", "");

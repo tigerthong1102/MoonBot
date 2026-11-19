@@ -1,4 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createServer } from "vite";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,13 +16,43 @@ for (const name of ["brotli_wasm.js", "brotli_wasm_bg.wasm"]) {
 await copyFile(join(pkg, "LICENSE"), join(out, "LICENSE"));
 
 const messages = {};
+const mail = {};
+const mailKeys = ["emailSubject", "emailIntro", "emailOpen", "emailStop", "otpSubject", "otpBody"];
 const languageNames = JSON.parse(await readFile(new URL("../../../shared/app-language-names.json", import.meta.url), "utf8"));
 for (const locale of Object.keys(languageNames)) {
   const path = new URL("../../../src/locales/" + locale + ".json", import.meta.url);
   const catalog = JSON.parse(await readFile(path, "utf8"));
-  messages[locale] = Object.fromEntries(Object.entries(catalog).filter(([key]) => key.startsWith("personalInbox.")));
+  mail[locale] = Object.fromEntries(mailKeys.map(key => {
+    const value = catalog["personalInbox." + key];
+    if (!value?.trim()) throw new Error("Missing inbox email text for " + locale + ": " + key);
+    return [key, value];
+  }));
+  messages[locale] = Object.fromEntries(Object.entries(catalog).filter(([key]) =>
+    key.startsWith("personalInbox.") && !mailKeys.includes(key.slice("personalInbox.".length))));
+
 }
-await writeFile(new URL("./public/inbox-messages.js", import.meta.url), "export const messages = " + JSON.stringify(messages) + ";\nexport const languageNames = " + JSON.stringify(languageNames) + ";\n");
+const mailPath = new URL("../src/inbox-mail-text.json", import.meta.url);
+const mailContents = JSON.stringify(mail, null, 2) + "\n";
+if (await readFile(mailPath, "utf8").catch(() => "") !== mailContents) await writeFile(mailPath, mailContents);
+
+const root = fileURLToPath(new URL("../../../", import.meta.url));
+const vite = await createServer({
+  root, configFile: false, appType: "custom", logLevel: "error",
+  resolve: { alias: { "@": join(root,"src") } },
+  server: { middlewareMode: true, hmr: false, watch: null },
+  optimizeDeps: { noDiscovery: true, include: [] },
+});
+let selectMarkup;
+try {
+  const { Select } = await vite.ssrLoadModule("/src/components/Select.tsx");
+  selectMarkup = renderToStaticMarkup(createElement(Select, { size:"sm" }));
+} finally {
+  await vite.close();
+}
+await writeFile(new URL("./public/inbox-messages.js", import.meta.url), [
+  ["messages", messages], ["languageNames", languageNames], ["selectMarkup", selectMarkup],
+].map(([name, value]) => "export const " + name + " = " + JSON.stringify(value) + ";").join("\n") + "\n");
+
 
 const styles = await readFile(new URL("../../../src/styles.css", import.meta.url), "utf8");
 const tokens = ["--code-color-scheme", "--font-sans", ...["app", "panel", "card", "raised", "ink", "ink-secondary", "hairline", "accent-text", "focus", "bubble-user", "bubble-user-ink"].map((name) => "--color-" + name)];

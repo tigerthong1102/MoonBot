@@ -38,7 +38,7 @@
         <p data-i18n="personalInbox.signInHelp">Verify your email to create your account. The internal pilot is for invited addresses. People in the same conversation can see each other’s email address.</p>
         <form id="send-code">
           <label
-            ><span data-i18n="personalInbox.language">Language</span><select id="mail-lang"></select></label
+            ><span data-i18n="personalInbox.language">Language</span><inbox-select id="mail-lang"></inbox-select></label
           >
           <label><span data-i18n="personalInbox.yourEmail">Your email</span><input dir="auto" name="email" type="email" required autocomplete="email" /></label
           ><button data-i18n="personalInbox.sendCode">Send sign-in code</button>
@@ -62,17 +62,17 @@
             <summary title="New conversation" data-i18n-title="personalInbox.newConversation"><svg class="icon" aria-hidden="true"><use href="#i-new"></use></svg><span class="sr" data-i18n="personalInbox.newConversation">New conversation</span></summary>
             <form id="create-room">
               <label
-                ><span data-i18n="personalInbox.createConversation">Start a conversation</span><select name="kind">
+                ><span data-i18n="personalInbox.createConversation">Start a conversation</span><inbox-select name="kind">
                   <option value="direct" data-i18n="personalInbox.direct">Direct chat</option>
                   <option value="group" data-i18n="personalInbox.group">Group chat</option>
-                </select></label
+                </inbox-select></label
               >
               <label
                 ><span id="target-label" data-i18n="personalInbox.recipientEmail">Recipient email</span><input dir="auto" name="target" type="email" required
               /></label>
               <details><summary data-i18n="personalInbox.mailOptions">Invitation email options</summary><fieldset>
                 <label
-                  ><span data-i18n="personalInbox.recipientLanguage">Recipient’s language</span><select name="locale"></select></label
+                  ><span data-i18n="personalInbox.recipientLanguage">Recipient’s language</span><inbox-select name="locale"></inbox-select></label
                 >
                 <label
                   ><span data-i18n="personalInbox.invitationNote">Personal note (optional)</span><textarea dir="auto" name="note" maxlength="500" rows="2"></textarea>
@@ -118,7 +118,7 @@
                 <label><span data-i18n="personalInbox.inviteEmail">Email address to invite</span><input dir="auto" name="email" type="email" required /></label>
                 <details><summary data-i18n="personalInbox.mailOptions">Invitation email options</summary><fieldset>
                   <label
-                    ><span data-i18n="personalInbox.recipientLanguage">Recipient’s language</span><select name="locale"></select></label
+                    ><span data-i18n="personalInbox.recipientLanguage">Recipient’s language</span><inbox-select name="locale"></inbox-select></label
                   >
                   <label
                     ><span data-i18n="personalInbox.invitationNote">Personal note (optional)</span><textarea dir="auto" name="note" maxlength="500" rows="2"></textarea>
@@ -142,11 +142,11 @@
                 <button id="attach" type="button" class="round" aria-label="Attach file" data-i18n-aria-label="personalInbox.attach" title="Attach file" data-i18n-title="personalInbox.attach"><svg class="icon" aria-hidden="true"><use href="#i-clip"></use></svg></button>
                 <input dir="auto" id="files" type="file" multiple hidden />
                 <label class="kind round" title="Share a skill or task" data-i18n-title="personalInbox.shareWork"><svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg>
-                  <select name="kind" aria-label="Message type" data-i18n-aria-label="personalInbox.messageKind">
+                  <inbox-select name="kind" aria-label="Message type" data-i18n-aria-label="personalInbox.messageKind">
                     <option value="text" data-i18n="personalInbox.messages">Messages</option>
                     <option value="skill" data-i18n="personalInbox.textSkill">Text skill</option>
                     <option value="task" data-i18n="personalInbox.taskHandoff">Hand off a task</option>
-                  </select>
+                  </inbox-select>
                 </label>
                 <label class="sr" id="draft-label" for="draft" data-i18n="personalInbox.messages">Messages</label>
                 <textarea dir="auto" id="draft" name="body" rows="1" placeholder="Write a message…" data-i18n-placeholder="personalInbox.messagePlaceholder" maxlength="8000"></textarea>

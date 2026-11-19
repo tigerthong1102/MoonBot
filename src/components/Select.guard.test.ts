@@ -61,3 +61,11 @@ describe("dropdowns", () => {
     expect(restyled.map(({ at }) => at)).toEqual([]);
   });
 });
+
+it("uses the shared dropdown in the hosted inbox and its group bot picker", () => {
+  const inbox = join(src, "..", "cloudflare", "control-plane", "inbox", "public");
+  for (const file of ["index.html", "inbox.js", "group-bots.js", "group-controls.js"]) {
+    const source = readFileSync(join(inbox, file), "utf8");
+    expect(source, file).not.toMatch(/<select\b|(?:createElement|node)\(["']select["']/);
+  }
+});

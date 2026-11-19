@@ -77,7 +77,7 @@ import {
   withoutDesktopCompanionAccess,
 } from "./desktop-companion-client.mjs";
 import { isKnownSkin, skinChrome } from "./skin-overlay.cjs";
-import { credentialResult, installCredentialStoreIpc, readSecureCredentials } from "./secure-credentials.mjs";
+import { credentialResult, installCredentialStoreIpc, readSecureCredentials, writeSecureCredentials } from "./secure-credentials.mjs";
 import { createControlPlaneClient } from "./control-plane-client.mjs";
 import {
   companionAccountCleanupPending, companionTunnelRetired,
@@ -386,14 +386,7 @@ async function saveSecureCredentials(credentials) {
   if (credentialStoreUnavailable) {
     throw new Error("The operating-system credential store could not be read this launch");
   }
-  if (!(await credentialResult(safeStorage.isAsyncEncryptionAvailable()))) {
-    throw new Error("The operating-system credential store is unavailable");
-  }
-  fs.mkdirSync(path.dirname(CREDENTIALS_FILE), { recursive: true });
-  const encrypted = await credentialResult(safeStorage.encryptStringAsync(JSON.stringify(credentials)));
-  const temporary = `${CREDENTIALS_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, encrypted, { mode: 0o600 });
-  fs.renameSync(temporary, CREDENTIALS_FILE);
+  await writeSecureCredentials(CREDENTIALS_FILE, credentials, safeStorage);
 }
 
 async function secureComposioConfig() {

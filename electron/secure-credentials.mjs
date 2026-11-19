@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 // "unavailable" (could not read) must never look like "empty": a caller would register a fresh installation over the real one.
 // macOS says "temporarily unavailable. Please try again." for a keychain that is busy at launch, so retry briefly first.
 export const CREDENTIAL_READ_DELAYS_MS = [100, 200, 400, 800];
@@ -18,6 +21,17 @@ export async function credentialResult(operation, timeoutMs = 12_000) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function writeSecureCredentials(file, credentials, safeStorage) {
+  if (!(await credentialResult(safeStorage.isAsyncEncryptionAvailable()))) {
+    throw new Error("The operating-system credential store is unavailable");
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const encrypted = await credentialResult(safeStorage.encryptStringAsync(JSON.stringify(credentials)));
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, encrypted, { mode: 0o600 });
+  fs.renameSync(temporary, file);
 }
 
 export async function readSecureCredentials({

@@ -9475,7 +9475,10 @@ describe("harness HTTP API", () => {
     }
   });
 
-  it("mounts the data-dashboards skill, with the folder that holds its template, when the person asks for a dashboard", async () => {
+  it.each([
+    ["data-dashboards", "Build me a sales dashboard from orders.csv", "dashboard.html", "publish_page"],
+    ["kiem-toan", "Kiểm toán doanh thu tháng 8 từ MISA và Excel", "scripts/audit.ps1", "references/thu-tuc.md"],
+  ])("mounts the %s skill and its resources in a real turn", async (id, text, resource, instruction) => {
     const bot = (await api("POST", "/api/bots", {})).body.bot;
     try {
       expect((await api("PATCH", `/api/bots/${bot.id}`, {
@@ -9483,14 +9486,14 @@ describe("harness HTTP API", () => {
       })).status).toBe(200);
       rmSync(fakeClaudeDump, { force: true });
       expect((await api("POST", `/api/bots/${bot.id}/messages`, {
-        text: "Build me a sales dashboard from orders.csv",
+        text,
       })).status).toBe(202);
       const seen = await readJsonFileWhenReady<{ systemPrompt?: string }>(fakeClaudeDump, 15_000);
       const system = seen.systemPrompt ?? "";
-      const root = /<openmaus-skill id="data-dashboards" version="[^"]+" root="([^"]+)">/.exec(system)?.[1];
+      const root = new RegExp(`<openmaus-skill id="${id}" version="[^"]+" root="([^"]+)">`).exec(system)?.[1];
       expect(root).toBeTruthy();
-      expect(existsSync(join(root!, "dashboard.html"))).toBe(true);
-      expect(system).toContain("publish_page");
+      expect(existsSync(join(root!, resource))).toBe(true);
+      expect(system).toContain(instruction);
       expect(system).not.toContain('<openmaus-skill id="create-verification-skill"');
     } finally {
       await api("POST", `/api/bots/${bot.id}/interrupt`);

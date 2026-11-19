@@ -102,7 +102,7 @@ function Measure-Source($source, $job, $table) {
             $g = $groups[$key]; $g.count++; $g.total += $amount; $g.rows.Add($row.line)
         }
     }
-    return @{groups=$groups; hits=$hits; summary=@{sourceRows=$table.rows.Count; scopedRows=$inScope; selectedRows=$selected; sha256=$table.sha256; mappedFields=$source.fields; binding=$source.bind; bindingEvidence=$source.evidence; periodFormat=$source.periodFormat; sheet=$source.sheet; headerRow=$source.headerRow; lastRow=$source.lastRow; recordPath=$source.recordPath; namespace=$source.namespace; decimalSeparator=$source.decimalSeparator; total=if ($job.op -ne 'find') { Fmt $total } }}
+    return @{groups=$groups; hits=$hits; summary=@{sourceRows=$table.rows.Count; scopedRows=$inScope; selectedRows=$selected; sha256=$table.sha256; mappedFields=$source.fields; binding=$source.bind; bindingEvidence=$source.evidence; periodFormat=$source.periodFormat; sheet=$source.sheet; headerRow=$source.headerRow; lastRow=$source.lastRow; recordPath=$source.recordPath; namespace=$source.namespace; decimalSeparator=$source.decimalSeparator; total=if ($job.op -ne 'find') { Fmt $total } else { $null } }}
 }
 
 try {
@@ -141,7 +141,7 @@ try {
                 })
                 if ($status -eq 'matched' -and $different.Count) { $status='field_difference' }
                 if ($status -eq 'matched') { $matched++; continue }
-                $exceptions.Add(@{key=$key; status=$status; differentFields=$different; leftRows=$x.rows; rightRows=$y.rows; leftAmount=if($x){Fmt $x.total}; rightAmount=if($y){Fmt $y.total}; difference=if($x -and $y){Fmt ($x.total-$y.total)}})
+                $exceptions.Add(@{key=$key; status=$status; differentFields=$different; leftRows=$x.rows; rightRows=$y.rows; leftAmount=if($x){Fmt $x.total}else{$null}; rightAmount=if($y){Fmt $y.total}else{$null}; difference=if($x -and $y){Fmt ($x.total-$y.total)}else{$null}})
             }
             $report.matched=$matched; $report.exceptions=$exceptions; $report.keys=$keys.Count
         }

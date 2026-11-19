@@ -31,10 +31,18 @@ function Format-AuditReport($report) {
             [void]$html.Append('</table>')
         }
     } elseif ($report.operation -eq 'find') {
-        [void]$html.Append('<h2>Dòng tìm thấy</h2><pre>'+(Audit-HtmlText (ConvertTo-Json -InputObject $report.matches -Depth 6))+'</pre>')
+        [void]$html.Append('<h2>Dòng tìm thấy</h2><table><tr><th>Dòng</th><th>Khóa</th><th>Giá trị đã chọn</th></tr>')
+        foreach ($hit in $report.matches) {
+            [void]$html.Append('<tr><td>'+(Audit-HtmlText $hit.row)+'</td><td>'+(Audit-HtmlText $hit.key)+'</td><td>')
+            foreach ($entry in $hit.fields.GetEnumerator()) {
+                [void]$html.Append((Audit-HtmlText $entry.Key)+' = '+(Audit-HtmlText $entry.Value)+'<br>')
+            }
+            [void]$html.Append('</td></tr>')
+        }
+        [void]$html.Append('</table>')
     }
     $meta=[ordered]@{}
-    foreach ($k in $report.Keys) { if ($k -notin @('matches','exceptions')) { $meta[$k]=$report[$k] } }
+    foreach ($entry in $report.GetEnumerator()) { if ($entry.Key -notin @('matches','exceptions')) { $meta.Add($entry.Key,$entry.Value) } }
     [void]$html.Append('<h2>Phạm vi và cách chạy lại</h2><pre>'+(Audit-HtmlText (ConvertTo-Json -InputObject $meta -Depth 8))+'</pre><p>Người soát xét đối chiếu các ngoại lệ với bằng chứng gốc trước khi kết luận. Kết quả trên chỉ áp dụng cho nguồn và phạm vi đã ghi.</p></html>')
     return $html.ToString()
 }

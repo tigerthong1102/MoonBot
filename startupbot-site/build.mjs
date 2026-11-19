@@ -39,7 +39,7 @@ function downloads(t, compact = false) {
 }
 function useCases(t) {
   const links = t.cases.map(([label], i) => `<a id="case-link-${i}" href="#case-${i}">${label}</a>`).join('');
-  const panels = t.cases.map(([label, title, body, prompt], i) => `<article id="case-${i}" class="case-panel">
+  const panels = t.cases.map(([, title, body, prompt], i) => `<article id="case-${i}" class="case-panel">
     <div><h3>${title}</h3><p>${body}</p></div><blockquote><small>${t.example}</small>${prompt}</blockquote></article>`).join('');
   return `<section class="section" id="features"><h2>${t.casesTitle}</h2><nav class="case-nav" aria-label="${t.caseNav}">${links}</nav>${panels}</section>`;
 

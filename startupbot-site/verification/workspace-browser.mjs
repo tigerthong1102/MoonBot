@@ -14,7 +14,9 @@ const temp=await mkdtemp(join(tmpdir(),'startupbot-web-fixture-'));
 const fixtures=[], registry=[], fixtureByHost=new Map();
 let browser, gateway;
 async function coreApi(base,method,path,payload) {
-  const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json'},body:payload===undefined?undefined:JSON.stringify(payload)});
+  const options = {method, headers: {'Content-Type':'application/json'}};
+  if (payload !== undefined) options.body = JSON.stringify(payload);
+  const response = await fetch(base + path, options);
   assert.ok(response.ok,method+' '+path+' '+response.status);
   return response.json();
 }

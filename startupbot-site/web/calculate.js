@@ -15,7 +15,7 @@ export function calculate(input,lang) {
     if (expr.includes('.')) return null;
     expr = expr.replaceAll(',','.');
   }
-  if (!/[+*\/%-]/.test(expr)) return null;
+  if (!/[+*/%-]/.test(expr)) return null;
   const tokens = expr.match(/\d+(?:\.\d+)?|[()+*/%-]/g);
   if (!tokens || tokens.length > 70 || tokens.join('') !== expr.replace(/\s/g,'')) return null;
   let at = 0;

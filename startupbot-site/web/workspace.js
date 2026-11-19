@@ -1,6 +1,6 @@
 export function workspaceAddress(raw) {
   const input = raw.trim();
-  if (/[\s\\\x00-\x1f]/.test(input) || !/^https?:\/\//i.test(input)) throw new Error();
+  if (/[\s\\]/.test(input) || Array.from(input).some(c => c.charCodeAt(0) < 32) || !/^https?:\/\//i.test(input)) throw new Error();
   const url = new URL(input);
   const local = ['localhost','127.0.0.1','[::1]'].includes(url.hostname);
   if (url.username || url.password || (url.protocol !== 'https:' && !(local && url.protocol === 'http:'))) throw new Error();

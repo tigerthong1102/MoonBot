@@ -36,7 +36,7 @@
         if (!text.trim() || text.indexOf('\0') !== -1 || next.length > message.maxLength) { fail(); return; }
         message.value = next;
         message.focus();
-      } catch (e) { fail(); }
+      } catch { fail(); }
     };
     reader.readAsArrayBuffer(file);
   };

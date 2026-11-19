@@ -1,3 +1,4 @@
+import { groupControls } from "./group-controls.js";
 const el = (id) => document.getElementById(id);
 el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") !== "1";
 for (const back of document.querySelectorAll(".list-back")) {
@@ -9,6 +10,8 @@ if (accountOnly) {
   document.querySelector("header strong").textContent = document.title;
 }
 const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text });
+const entry = new URLSearchParams(location.hash.slice(1));
+let joinToken = entry.get("join"), invitedRoom = entry.get("room"), moderators = new Set();
 let statusTimer;
 const status = (text, persistent = false) => {
   clearTimeout(statusTimer);
@@ -55,7 +58,7 @@ async function api(path, data) {
       ? {}
       : {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-inbox-language": el("mail-lang").value },
+          headers: { "Content-Type": "application/json", "x-inbox-language": el("mail-lang").value, ...(joinToken && path.startsWith("auth/") ? {"x-inbox-invite":joinToken} : {}) },
           body: JSON.stringify(data),
         },
   );
@@ -91,6 +94,7 @@ function clearRoom() {
   revision++;
   current = null;
   delete document.body.dataset.thread;
+  el("quick-invite").hidden = true;
   el("room-options").open = false;
   activeBatch = null;
   markdownShare = null;
@@ -123,6 +127,7 @@ function signedOut() {
   el("blocked").open = false;
   el("room").hidden = false;
   el("signin").hidden = false;
+  el("join-prompt").hidden = true;
   el("verify").hidden = true;
   el("verify").reset();
   el("create-room").reset();
@@ -183,8 +188,27 @@ async function start() {
   el("logout").hidden = false;
   status("");
   await refresh();
+  if (invitedRoom && rooms.some(r => r.id === invitedRoom)) {
+    await select(invitedRoom); invitedRoom = null; history.replaceState(null,"",location.pathname + location.search);
+  }
+  if (joinToken) await showGroupInvitation();
   connectSignals();
 }
+async function showGroupInvitation() {
+  try {
+    const info = await api("join/preview",{token:joinToken});
+    el("join-title").textContent = "Lời mời vào nhóm " + info.title;
+    el("join-button").textContent = info.approval ? "Yêu cầu tham gia" : "Tham gia nhóm";
+    el("join-button").hidden = !me;
+    el("join-prompt").hidden = false;
+  } catch { status("Liên kết mời đã hết hạn hoặc không còn hiệu lực.",true); }
+}
+el("join-button").onclick = run(async () => {
+  const response = await api("join",{token:joinToken});
+  joinToken = null; history.replaceState(null,"",location.pathname + location.search); el("join-prompt").hidden = true;
+  if (response.state === "requested") status("Đã gửi yêu cầu. Nhóm sẽ hiện trong danh sách khi được duyệt.",true);
+  else await select(response.id);
+});
 function roomName(r) {
   return r.kind === "direct" && !r.isOwner ? r.inviter : r.title;
 }
@@ -238,7 +262,7 @@ async function refreshRoom(poll) {
   if (current && !viewingSaved) {
     params.set("open", current);
     if (poll && !readingOlder && lastDetailAt && performance.now() - lastDetailAt < 5000)
-      params.set("latest", String(posts.at(-1)?.seq ?? 0));
+      { params.set("latest", String(posts.at(-1)?.seq ?? 0)); params.set("revision",String(rooms.find(r=>r.id===current)?.revision)); }
   }
   const result = await api("rooms" + (params.size ? "?" + params : ""));
   if (version !== revision || !me) return;
@@ -268,7 +292,6 @@ async function refreshRoom(poll) {
   el("title").title = roomName(r);
   el("room-meta").textContent = r.state === "pending" ? "Lời mời trò chuyện" : r.kind === "group" ? "Chat nhóm" : "Chat riêng";
   el("actions").replaceChildren();
-  el("manage").replaceChildren();
   const act = (text, route, message) =>
     button(text, async () => {
       await api("rooms/" + r.id + "/" + route, {});
@@ -295,23 +318,25 @@ async function refreshRoom(poll) {
   if (version !== revision) return;
   lastDetailAt = performance.now();
   el("conversation").hidden = false;
-  el("invite").hidden = !(r.kind === "group" && r.isOwner);
-  el("members").replaceChildren(
-    ...detail.members.map((m) => {
-      const li = node("li", m.email);
-      if (r.isOwner && r.kind === "group" && m.id !== me.id)
-        li.append(
-          button("Xóa khỏi nhóm", async () => {
-            await api("rooms/" + r.id + "/remove", { person: m.id });
-            await refresh();
-          }),
-        );
-      return li;
-    }),
-  );
-  if (r.isOwner && r.kind === "direct" && detail.members.length === 2)
+  const group = r.kind === "group";
+  const manager = group && (r.isOwner || r.admin);
+  el("invite").hidden = !manager;
+  el("quick-invite").hidden = !(group && (manager || detail.group.link));
+  el("quick-invite").textContent = manager ? "Mời vào nhóm" : "Chia sẻ liên kết mời";
+  moderators = new Set(detail.members.filter(m => m.admin || m.id === detail.group.owner).map(m => m.email));
+  const oldRevision = previousRoom?.revision;
+  if (group && oldRevision !== r.revision) readingOlder = false;
+  const panel = el("room-options");
+  if (!poll || panel.dataset.room !== r.id || panel.dataset.revision !== String(r.revision)) {
+    panel.dataset.room=r.id; panel.dataset.revision=String(r.revision);
+    el("manage").replaceChildren();
+    if (group) {
+      const ui = groupControls({room:r,detail,me,node,button,api,refresh,status});
+      el("members").replaceChildren(ui.list); el("manage").append(ui.controls);
+    } else el("members").replaceChildren(...detail.members.map(m => node("li", m.email)));
+    if (r.isOwner && r.kind === "direct" && detail.members.length === 2)
     el("manage").append(act("Chặn người này", "block", "Đã chặn."));
-  if (r.isOwner)
+    if (r.isOwner)
     el("manage").append(
       button("Đóng cuộc trò chuyện", async () => {
         if (!window.confirm("Đóng cuộc trò chuyện và xóa lịch sử chung cho tất cả thành viên?")) return;
@@ -320,13 +345,17 @@ async function refreshRoom(poll) {
         await refresh();
       }),
     );
-  else
+    else
     el("manage").append(
       act("Rời cuộc trò chuyện", "leave", "Đã rời cuộc trò chuyện."),
       act("Rời và chặn lời mời của chủ phòng", "block", "Đã rời và chặn người mời."),
     );
+  }
   const waiting = r.kind === "direct" && detail.members.length !== 2;
-  el("compose").hidden = waiting;
+  const limited = group && (r.muted || (r.announcements && !manager));
+  el("compose").hidden = !!(waiting || limited);
+  el("post-limited").hidden = !limited;
+  if (limited) el("post-limited").textContent = r.muted ? "Bạn chỉ có quyền xem trong nhóm này." : "Chỉ quản trị viên được gửi trong nhóm này.";
   if (r.kind === "group") el("room-meta").textContent = detail.members.length + " thành viên";
   if (readingOlder)
     el("actions").append(
@@ -339,7 +368,7 @@ async function refreshRoom(poll) {
     const previous = posts.at(-1)?.seq;
     const history = el("history");
     const latestVisible = history.scrollHeight - history.scrollTop - history.clientHeight < 70;
-    const changed = !el("posts").childElementCount || previous !== detail.posts.at(-1)?.seq ||
+    const changed = oldRevision !== r.revision || !el("posts").childElementCount || previous !== detail.posts.at(-1)?.seq ||
       posts[0]?.seq !== detail.posts[0]?.seq || posts.length !== detail.posts.length;
     posts = detail.posts;
     el("older").hidden = !detail.more;
@@ -363,10 +392,16 @@ async function select(id) {
   status("");
   await refresh();
 }
+el("quick-invite").onclick = () => {
+  el("room-options").open = true;
+  if (!el("invite").hidden) el("invite").elements.email.focus();
+  else el("manage").querySelector("button")?.click();
+};
 function createLabels() {
   const form = el("create-room"),
     group = form.elements.kind.value === "group";
-  form.querySelector("fieldset").hidden = group;
+  form.querySelector("details").hidden = group;
+  form.querySelector("button").textContent = group ? "Tạo nhóm" : "Mở trò chuyện";
   el("target-label").textContent = group ? "Tên nhóm" : "Email người nhận";
   form.elements.target.type = group ? "text" : "email";
   form.elements.target.maxLength = group ? 80 : 254;
@@ -565,6 +600,11 @@ function renderPosts() {
     if (p.kind === "file") bubble.append(attachmentCard(p));
     else {
       bubble.append(node("pre", p.body));
+      const invitation = p.kind === "text" && URL.canParse(p.body) ? new URL(p.body) : null;
+      const token = invitation?.origin === location.origin && new URLSearchParams(invitation.hash.slice(1)).get("join");
+      if (token && /^[a-f0-9-]{36}$/.test(token)) bubble.append(button("Mở lời mời nhóm", () => {
+        joinToken = token; return showGroupInvitation();
+      }));
       if (p.kind !== "text") bubble.append(button(p.kind === "skill" ? "Lưu bản sao skill" : "Nhận việc", async () => {
         await api("saved", {seq:p.seq,action:"save"});
         status("Đã lưu vào mục Skill và việc đã nhận của bạn.");
@@ -573,6 +613,15 @@ function renderPosts() {
     if (grouped && !type) {
       li.classList.add("continued");
       meta.className = "sr";
+    }
+    const room = rooms.find(r => r.id === current);
+    if (room?.kind === "group" && (p.author === me.email || room.isOwner || (room.admin && !moderators.has(p.author)))) {
+      const options=node("details","");
+      options.className="message-options"; options.append(node("summary","Tùy chọn tin nhắn"));
+      options.append(button("Xóa tin nhắn",async () => {
+        if (!window.confirm("Xóa tin nhắn này cho cả nhóm?")) return;
+        await api("rooms/"+room.id+"/moderate",{action:"deletePost",seq:p.seq}); readingOlder=false; await refresh();
+      })); li.append(options);
     }
     bubble.title = meta.title;
     li.append(meta, bubble);
@@ -945,4 +994,5 @@ if (stopParams.has("stop")) {
 } else
   start().catch((e) => {
     if (e.message !== "unauthorized") fail(e);
+    else if (joinToken) void showGroupInvitation();
   });

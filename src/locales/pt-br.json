@@ -1,4 +1,7 @@
 {
+  "native.menu.personalInbox": "Mensagens",
+  "settings.account.connectionFailed": "Não foi possível conectar ao StartupBot. Tente novamente.",
+  "settings.account.emailAccess": "Entrar ou criar uma conta",
   "reconcile.title": "Conferir documentos",
   "reconcile.close": "Fechar",
   "reconcile.intro": "Escolha dois arquivos CSV em UTF-8 ou XLSX com uma única planilha. Os arquivos ficam neste dispositivo.",

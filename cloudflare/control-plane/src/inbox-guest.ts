@@ -30,7 +30,7 @@ export async function claimGuestInvites(db: D1Database, user: string, email: str
       SELECT i.room,?,'pending' FROM inbox_guest_invites i JOIN inbox_rooms r ON r.id=i.room
       WHERE i.email=? AND i.created>=? AND r.owner!=? AND
       (SELECT count(*) FROM inbox_members WHERE room=r.id)<20
-      AND NOT EXISTS(SELECT 1 FROM inbox_blocks WHERE person=? AND sender=r.owner)
+      AND NOT EXISTS(SELECT 1 FROM inbox_blocks WHERE person=? AND sender IN (r.owner,i.sender))
       ORDER BY i.created LIMIT MAX(0,50-(SELECT count(*) FROM inbox_members WHERE person=? AND state='pending'))`,
       )
       .bind(user, email, Date.now() - week, user, user, user),
@@ -64,13 +64,14 @@ export async function recordGuestInvite(
     db = env.DB;
   const result = await db
     .prepare(
-      `INSERT INTO inbox_guest_invites(room,email,locale,note,created)
-    SELECT r.id,?,?,?,? FROM inbox_rooms r WHERE r.id=? AND r.owner=? AND (r.kind='group' OR r.title=?)
+      `INSERT INTO inbox_guest_invites(room,email,locale,note,created,sender)
+    SELECT r.id,?,?,?, ?,?6 FROM inbox_rooms r WHERE r.id=?5 AND (r.owner=?6 OR (r.kind='group' AND EXISTS(SELECT 1 FROM inbox_members a WHERE a.room=r.id AND a.person=?6 AND a.state='active' AND a.admin=1))) AND (r.kind='group' OR r.title=?7)
     AND NOT EXISTS(SELECT 1 FROM "user" WHERE email=? AND emailVerified=1)
     AND NOT EXISTS(SELECT 1 FROM inbox_mail_preferences WHERE email=? AND disabled=1)
     AND (SELECT count(*) FROM inbox_guest_invites WHERE email=? AND created>=?)<5
     AND (SELECT count(*) FROM inbox_members WHERE room=r.id)+(SELECT count(*) FROM inbox_guest_invites WHERE room=r.id AND created>=?)<20
-    ON CONFLICT(room,email) DO NOTHING`,
+    ON CONFLICT(room,email) DO UPDATE SET locale=excluded.locale,note=excluded.note,created=excluded.created,sender=excluded.sender,sent=NULL
+    WHERE inbox_guest_invites.created<?`,
     )
     .bind(
       email,
@@ -83,6 +84,7 @@ export async function recordGuestInvite(
       email,
       email,
       email,
+      now - week,
       now - week,
       now - week,
     )
@@ -109,7 +111,7 @@ export async function deliverGuestMail(env: InboxEnv, room: string, email: strin
       .prepare(
         `UPDATE inbox_guest_invites SET sent=? WHERE room=? AND email=? AND changes()=1 AND sent IS NULL
       RETURNING locale,note,(SELECT token FROM inbox_mail_preferences WHERE email=inbox_guest_invites.email) AS token,
-      (SELECT u.email FROM inbox_rooms r JOIN "user" u ON u.id=r.owner WHERE r.id=inbox_guest_invites.room) AS sender`,
+      coalesce((SELECT email FROM "user" WHERE id=inbox_guest_invites.sender),(SELECT u.email FROM inbox_rooms r JOIN "user" u ON u.id=r.owner WHERE r.id=inbox_guest_invites.room)) AS sender`,
       )
       .bind(now, room, email),
   ]);
@@ -118,7 +120,7 @@ export async function deliverGuestMail(env: InboxEnv, room: string, email: strin
   const vi = value.locale === "vi",
     subject = vi ? "Lời mời trò chuyện trên StartupBot" : "Invitation to chat on StartupBot";
   const url = env.BETTER_AUTH_URL;
-  const login = url + "/?lang=" + value.locale;
+  const login = url + "/?lang=" + value.locale + "#room=" + room;
   const text = [
     vi
       ? `${value.sender} mời bạn trò chuyện trên StartupBot.`

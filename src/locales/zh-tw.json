@@ -1,4 +1,7 @@
 {
+  "native.menu.personalInbox": "訊息",
+  "settings.account.connectionFailed": "無法連線至 StartupBot。請再試一次。",
+  "settings.account.emailAccess": "登入或建立帳戶",
   "connectedWorkspaces.localTitle": "這台電腦上的環境",
   "connectedWorkspaces.missing": "遺失",
   "connectedWorkspaces.current": "目前",

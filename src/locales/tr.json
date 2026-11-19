@@ -1,4 +1,8 @@
 {
+  "native.menu.personalInbox": "Mesajlar",
+  "cloudBuy.signIn.email": "E-posta",
+  "settings.account.connectionFailed": "StartupBot ile bağlantı kurulamadı. Tekrar deneyin.",
+  "settings.account.emailAccess": "Oturum aç veya hesap oluştur",
   "voice.gemini.keyPlaceholder": "Google AI Studio API anahtarınızı yapıştırın",
   "voice.gemini.model": "Gemini konuşma modeli",
   "keys.label.geminiTts": "Gemini konuşma API anahtarı",

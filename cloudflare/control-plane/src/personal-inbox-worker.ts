@@ -1,3 +1,4 @@
+import { previewGroup } from "./inbox-group";
 import { InboxSignals, notifyRoom } from "./inbox-signals";
 export { InboxSignals };
 import { inboxFile, inboxFilePart, maxFileBytes, maxBatchParts, partBytes } from "./inbox-files";
@@ -39,6 +40,7 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   const file = /^\/api\/rooms\/([a-f0-9-]{36})\/files\/([0-9a-f-]{1,36})(?:\/(gzip|start|complete|[0-9]{1,2}))?$/.exec(url.pathname);
   if (file?.[3] && request.method !== "POST") return errorResponse(405, "method_not_allowed");
   const req = file ? request : await withBoundedRequestBody(request);
+  if (req.method === "POST" && url.pathname === "/api/join/preview") return previewGroup(req,env.DB);
   if (req.method === "POST" && url.pathname === "/api/stop-invitations")
     return suppressGuestMail(req, env.DB);
   const auth = createAuth(
@@ -59,7 +61,10 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
           .catch(() => null),
       );
       if (!input.success) return errorResponse(400, "invalid_request");
-      if (!(await allowPilotLogin(env, input.data.email.toLowerCase())))
+      const inviteKey = req.headers.get("x-inbox-invite");
+      const validLink = inviteKey && z.uuid().safeParse(inviteKey).success && await env.DB.prepare(
+        "SELECT 1 FROM inbox_rooms WHERE invite_key=? AND invite_until>? AND kind='group'").bind(inviteKey,Date.now()).first();
+      if (!validLink && !(await allowPilotLogin(env, input.data.email.toLowerCase())))
         return url.pathname.endsWith("send-verification-otp")
           ? json({ ok: true })
           : errorResponse(401, "auth_failed");
@@ -107,9 +112,13 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     return json({ id: session.user.id, email: session.user.email, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts });
   }
   const result = await inboxRoutes(req, env, session.user.id, ctx);
-  const posted = /^\/api\/rooms\/([a-f0-9-]{36})\/posts$/.exec(url.pathname);
-  if (env.SIGNALS && result.ok && req.method === "POST" && posted)
-    ctx.waitUntil(notifyRoom(env, posted[1]).catch(() => console.error("inbox message notification failed")));
+  if (env.SIGNALS && result.ok && req.method === "POST") {
+    const match = /^\/api\/rooms\/([a-f0-9-]{36})\/(posts|moderate|accept|remove|leave|invite)$/.exec(url.pathname);
+    const creates = url.pathname === "/api/rooms" || url.pathname === "/api/join";
+    const room = match?.[1] ?? (creates ? (await result.clone().json<{id:string}>()).id : null);
+    if (room) ctx.waitUntil(notifyRoom(env, room, creates || match?.[2] === "invite")
+      .catch(() => console.error("inbox notification failed")));
+  }
   return result;
 }
 

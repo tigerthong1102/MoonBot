@@ -123,7 +123,8 @@ it("delivers private group invitations, enforces join history and revocation, an
   expect(view.posts.map((p) => p.body)).toEqual([payload.body]);
   const seq = view.posts[0]!.seq;
   expect(await (await call(openRoom + "&latest=0", b.cookie)).json()).toMatchObject({ detail: view });
-  const idle = await (await call(openRoom + "&latest=" + seq, b.cookie)).json();
+  const revision = (await (await call(openRoom, b.cookie)).json<{rooms:{revision:number}[]}>()).rooms[0]!.revision;
+  const idle = await (await call(openRoom + "&latest=" + seq + "&revision=" + revision, b.cookie)).json();
   expect(idle).toMatchObject({ unchanged: true });
   expect(idle).not.toHaveProperty("detail");
   expect((await call("saved", b.cookie, { action: "save", seq: seq - 1 })).status).toBe(404);
@@ -409,4 +410,76 @@ it("resumes verified parallel file parts and publishes once after checking membe
   await call(room + "/remove", a.cookie, { person: b.id });
   expect((await post(second + "/0", b.cookie, parts[0], "application/octet-stream")).status).toBe(404);
   expect((await call(second + "/complete", b.cookie, {})).status).toBe(404);
+});
+
+it("enforces group management on the server across role changes, links, bans, messages and transfers", async () => {
+  const owner = await login("owner@example.test"), admin = await login("member@example.test"), member = await login("third@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  const mod = (who: typeof owner, action: string, fields = {}) => call(room + "/moderate",who.cookie,{action,...fields});
+  const target = {person: member.id};
+  const write = (who: typeof owner) => call(room+"/posts",who.cookie,{nonce:uuid(),kind:"text",body:"message"});
+  const join = (token: string) => call("join",member.cookie,{token});
+  const detail = async (who: typeof owner) => (await call(room,who.cookie)).json<{
+    group:{link:string; owner:string}; posts:{seq:number}[]; requests:{id:string}[]; bans:{id:string}[];
+  }>();
+  await call("rooms",owner.cookie,{id,kind:"group",title:"Team"});
+  await call(room+"/invite",owner.cookie,{email:admin.email});
+  await call(room+"/accept",admin.cookie,{});
+  expect((await mod(admin,"promote",{person:admin.id})).status).toBe(404);
+  expect((await mod(owner,"promote",{person:admin.id})).status).toBe(200);
+  expect((await mod(admin,"newLink")).status).toBe(200);
+  const oldKey=(await detail(admin)).group.link;
+  expect(await (await join(oldKey)).json()).toEqual({id,state:"requested"});
+  expect((await call(room,member.cookie)).status).toBe(404);
+  expect((await detail(admin)).requests).toMatchObject([{id:member.id}]);
+  await mod(owner,"revokeLink");
+  expect((await join(oldKey)).status).toBe(404);
+  expect((await detail(admin)).requests).toEqual([]);
+  await mod(owner,"newLink");
+  const key=(await detail(admin)).group.link;
+  await join(key); expect((await mod(admin,"deny",target)).status).toBe(200);
+  await join(key); await write(owner);
+  expect((await mod(admin,"approve",target)).status).toBe(200);
+  expect((await detail(member)).posts).toEqual([]);
+  expect((await mod(member,"rename",{title:"New"})).status).toBe(404);
+  expect((await mod(admin,"rename",{title:"New"})).status).toBe(200);
+  expect((await mod(admin,"ban",{person:owner.id})).status).toBe(404);
+  expect((await mod(admin,"transfer",target)).status).toBe(404);
+  expect((await mod(admin,"announcements",{enabled:true})).status).toBe(200);
+  expect((await write(member)).status).toBe(404);
+  expect((await write(admin)).status).toBe(200);
+  await mod(admin,"announcements",{enabled:false});
+  await mod(admin,"mute",target);
+  expect((await write(member)).status).toBe(404);
+  await mod(admin,"approval",{enabled:false});
+  await call(room+"/leave",member.cookie,{});
+  expect(await (await join(key)).json()).toEqual({id,state:"active"});
+  expect((await write(member)).status).toBe(404);
+  const ctx = createExecutionContext();
+  const restrictedFile = await worker.fetch(new Request(origin+"/api/"+room+"/files/"+uuid()+"/start",{
+    method:"POST",headers:{origin,cookie:member.cookie,"x-inbox-name":"example.md","content-type":"application/json"},
+    body:JSON.stringify({size:1,hashes:["0".repeat(64)]}),
+  }),testEnv,ctx);
+  expect(restrictedFile.status).toBe(409);
+  await waitOnExecutionContext(ctx);
+  await mod(admin,"unmute",target);
+  expect((await write(member)).status).toBe(200);
+  const seq=(await detail(member)).posts.at(-1)!.seq;
+  expect((await mod(admin,"deletePost",{seq})).status).toBe(200);
+  expect((await detail(member)).posts).toEqual([]);
+  await write(owner);
+  expect((await mod(admin,"deletePost",{seq:(await detail(admin)).posts.at(-1)!.seq})).status).toBe(404);
+  await mod(admin,"ban",target);
+  expect((await detail(admin)).bans).toMatchObject([{id:member.id}]);
+  expect((await join(key)).status).toBe(404);
+  await call(room+"/invite",admin.cookie,{email:member.email});
+  expect((await call(room+"/accept",member.cookie,{})).status).toBe(404);
+  await mod(admin,"unban",target);
+  expect((await join(key)).status).toBe(200);
+  await mod(owner,"demote",{person:admin.id});
+  expect((await mod(admin,"remove",target)).status).toBe(404);
+  await mod(owner,"transfer",target);
+  expect((await detail(member)).group.owner).toBe(member.id);
+  expect((await call(room+"/close",owner.cookie,{})).status).toBe(404);
+  expect((await call(room+"/close",member.cookie,{})).status).toBe(200);
 });

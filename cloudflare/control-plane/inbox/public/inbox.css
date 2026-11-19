@@ -54,9 +54,9 @@ aside h2 { margin: 3px 45px 3px 8px; }
 summary { color: var(--ink); }
 #new-room { margin: 0; }
 #new-room:not([open]) { height: 0; margin-bottom: -12px; }
-#new-room summary, #room-options summary { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; position: absolute; inset-inline-end: 14px; top: 15px; list-style: none; }
+#new-room > summary, #room-options > summary { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; position: absolute; inset-inline-end: 14px; top: 15px; list-style: none; }
 summary::-webkit-details-marker { display: none; }
-#new-room summary { background: var(--raised); }
+#new-room > summary { background: var(--raised); }
 #new-room form { margin: 4px; }
 .search { display: flex; align-items: center; padding-inline: 12px; background: var(--card); border-radius: 22px; color: var(--subtle); }
 .search .icon { width: 16px; }
@@ -83,7 +83,7 @@ summary::-webkit-details-marker { display: none; }
 .room-heading .avatar { width: 38px; height: 38px; }
 #room-options { max-height: 46%; overflow: auto; flex: none; }
 #room-options[open] { padding: 10px 20px; border-bottom: 1px solid var(--edge); }
-#room-options summary { color: var(--accent); }
+#room-options > summary { color: var(--accent); }
 #members, #blocked-list { padding-inline-start: 16px; overflow-wrap: anywhere; }
 #members button, #manage button, #actions button { margin: 3px; }
 #actions:not(:empty), #saved { padding: 16px 20px; overflow: auto; }
@@ -135,7 +135,13 @@ summary::-webkit-details-marker { display: none; }
   body:not([data-thread]) #room, body:not([data-thread]) #saved, body[data-thread] aside { display: none; }
   .list-back { display: block; align-self: flex-start; padding: 5px 12px; border: 0; color: var(--accent); background: transparent; }
   .room-heading { min-height: 50px; padding-block: 5px; }
-  #room-options summary { top: 35px; }
+  #room-options > summary { top: 35px; }
   .message { max-width: 88%; }
   .compose-row { gap: 1px; }
 }
+#quick-invite { margin-inline-start:auto; flex:none; color:var(--accent); }
+#members details, #manage details { margin-block:.35rem; }
+#manage button, #members button { margin:.2rem; }
+.message-options { font-size:.75rem; color:var(--subtle); }
+.message-options summary { cursor:pointer; }
+#post-limited { padding:.6rem 1rem; }

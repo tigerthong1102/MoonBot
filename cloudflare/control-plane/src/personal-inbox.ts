@@ -1,3 +1,5 @@
+import { canPost } from "./inbox-files";
+import { groupManager, joinGroup, moderate } from "./inbox-group";
 import { z } from "zod";
 import { redactSecretsInText } from "../../../shared/redact";
 import { HTTPError, json, readBoundedJSON } from "./http";
@@ -55,8 +57,8 @@ function inviteMember(db: D1Database, room: string, owner: string, address: stri
     .prepare(
       `INSERT OR IGNORE INTO inbox_members(room,person,state)
     SELECT r.id,u.id,'pending' FROM inbox_rooms r JOIN "user" u ON u.email=?
-    WHERE u.emailVerified=1 AND u.id!=? AND r.id=? AND r.owner=? AND r.kind=?
-    AND NOT EXISTS (SELECT 1 FROM inbox_blocks WHERE person=u.id AND sender=r.owner)
+    WHERE u.emailVerified=1 AND u.id!=? AND r.id=? AND (r.owner=?4 OR (r.kind='group' AND EXISTS (SELECT 1 FROM inbox_members a WHERE a.room=r.id AND a.person=?4 AND a.state='active' AND a.admin=1))) AND r.kind=?5
+    AND NOT EXISTS (SELECT 1 FROM inbox_blocks WHERE person=u.id AND sender IN (r.owner,?4))
     AND (SELECT count(*) FROM inbox_members WHERE room=r.id)+(SELECT count(*) FROM inbox_guest_invites WHERE room=r.id AND created>=?)<20
     AND (SELECT count(*) FROM inbox_members WHERE person=u.id AND state='pending')<50`,
     )
@@ -69,11 +71,12 @@ function changed(result: D1Result) {
 }
 
 async function roomDetail(db: D1Database, user: string, room: string, before: number, now: number) {
-  const [access, members, posts] = await db.batch<Row>([
-    db.prepare(memberAccess).bind(room, user),
+  const [access, members, posts, requests, bans] = await db.batch<Row>([
+    db.prepare(`SELECT r.owner,r.approval,r.announcements,CASE WHEN r.invite_until>?3 THEN r.invite_key END AS link
+      FROM inbox_rooms r JOIN inbox_members m ON m.room=r.id WHERE r.id=?1 AND m.person=?2 AND m.state='active'`).bind(room,user,now),
     db
       .prepare(
-        `SELECT u.id,u.email FROM inbox_members m JOIN "user" u ON u.id=m.person
+        `SELECT u.id,u.email,m.admin,m.muted FROM inbox_members m JOIN "user" u ON u.id=m.person
       WHERE m.room=? AND m.state='active' AND EXISTS (${memberAccess}) ORDER BY u.email`,
       )
       .bind(room, room, user),
@@ -86,9 +89,14 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
       ORDER BY p.seq DESC LIMIT ?`,
       )
       .bind(user, room, before, now - inboxRetention, pageSize + 1),
+    db.prepare(`SELECT u.id,u.email FROM inbox_group_requests q JOIN "user" u ON u.id=q.person
+      JOIN inbox_rooms r ON r.id=q.room WHERE q.room=?1 AND r.invite_until>?3 AND EXISTS(${groupManager}) ORDER BY u.email`).bind(room,user,now),
+    db.prepare(`SELECT u.id,u.email FROM inbox_group_bans b JOIN "user" u ON u.id=b.person
+      WHERE b.room=?1 AND EXISTS(${groupManager}) ORDER BY u.email`).bind(room,user),
   ]);
   if (!access.results.length) return null;
   return {
+    group: access.results[0], requests: requests.results, bans: bans.results,
     members: members.results,
     posts: posts.results.slice(0, pageSize).reverse(),
     more: posts.results.length > pageSize,
@@ -98,6 +106,10 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
 export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx: ExecutionContext) {
   const db = env.DB;
   const url = new URL(req.url);
+  if (url.pathname === "/api/join" && req.method === "POST") {
+    await limit(db, user, "inbox_join", 60, 86400_000);
+    return joinGroup(req,db,user);
+  }
   if (url.pathname === "/api/blocks") {
     if (req.method === "GET") {
       const rows = await db
@@ -162,7 +174,7 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     if (req.method === "GET") {
       const rooms = await db
         .prepare(
-          `SELECT r.id,r.kind,r.title,m.state,m.after_seq AS afterSeq,r.owner=? AS isOwner,
+          `SELECT r.id,r.kind,r.title,m.state,m.after_seq AS afterSeq,CASE WHEN m.state='active' THEN r.revision ELSE 0 END AS revision,m.admin,m.muted,r.announcements,r.owner=? AS isOwner,
         last.seq AS lastSeq,substr(last.body,1,100) AS snippet,last.created AS lastAt,u.email AS inviter FROM inbox_members m JOIN inbox_rooms r ON r.id=m.room
         JOIN "user" u ON u.id=r.owner
         LEFT JOIN inbox_posts last ON last.seq=(SELECT p.seq FROM inbox_posts p
@@ -176,7 +188,7 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
       if (!open) return json({ rooms: rooms.results });
       const selected = rooms.results.find((r) => r.id === open && r.state === "active");
       if (!selected) return json({ rooms: rooms.results, detail: null });
-      if (url.searchParams.get("latest") === String(selected.lastSeq ?? 0))
+      if (url.searchParams.get("latest") === String(selected.lastSeq ?? 0) && url.searchParams.get("revision") === String(selected.revision))
         return json({ rooms: rooms.results, unchanged: true });
       const detail = await roomDetail(db, user, open, Number.MAX_SAFE_INTEGER, Date.now());
       return json({ rooms: rooms.results, detail });
@@ -207,17 +219,17 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     ]);
     const id = created.meta.changes ? input.id : existing.results[0]?.id;
     if (!id) throw new HTTPError(409, "room_limit_or_conflict");
-    if (input.kind === "direct" && input.guest && id === input.id) {
-      if (await recordGuestInvite(env, user, input.id, input.email, input.guest))
+    if (input.kind === "direct" && input.guest) {
+      if (await recordGuestInvite(env, user, id, input.email, input.guest))
         ctx.waitUntil(
-          deliverGuestMail(env, input.id, input.email).catch(() =>
+          deliverGuestMail(env, id, input.email).catch(() =>
             console.error("inbox invite delivery failed"),
           ),
         );
     }
     return json({ id });
   }
-  const match = /^\/api\/rooms\/([0-9a-f-]{36})(?:\/(invite|accept|leave|close|remove|block|posts))?$/.exec(
+  const match = /^\/api\/rooms\/([0-9a-f-]{36})(?:\/(invite|accept|leave|close|remove|block|posts|moderate))?$/.exec(
     url.pathname,
   );
   if (!match) throw new HTTPError(404, "unavailable");
@@ -236,12 +248,13 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     return json(detail);
   }
   if (req.method !== "POST") throw new HTTPError(405, "method_not_allowed");
+  if (action === "moderate") return moderate(req,db,room,user);
   if (action === "invite") {
     const input = await body(req, invite);
     await limit(db, user, "inbox_invite", 40, 86400_000);
     if (
       !(await db
-        .prepare("SELECT 1 FROM inbox_rooms WHERE id=? AND owner=? AND kind='group'")
+        .prepare(groupManager)
         .bind(room, user)
         .first())
     )
@@ -314,13 +327,11 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     const result = await db
       .prepare(
         `INSERT INTO inbox_posts(room,author,nonce,kind,body,created)
-      SELECT ?,?,?,?,?,? WHERE EXISTS (${memberAccess})
-      AND EXISTS (SELECT 1 FROM inbox_rooms r WHERE r.id=? AND (r.kind='group' OR
-        (SELECT count(*) FROM inbox_members WHERE room=r.id AND state='active')=2))
+      SELECT ?1,?2,?3,?4,?5,?6 WHERE EXISTS (${canPost})
       ON CONFLICT(room,author,nonce) DO UPDATE SET nonce=excluded.nonce
       WHERE kind=excluded.kind AND body=excluded.body`,
       )
-      .bind(room, user, input.nonce, input.kind, input.body, now, room, user, room)
+      .bind(room, user, input.nonce, input.kind, input.body, now)
       .run();
     return changed(result);
   }

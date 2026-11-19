@@ -1,4 +1,8 @@
 {
+  "native.menu.personalInbox": "Messaggi",
+  "cloudBuy.signIn.email": "Email",
+  "settings.account.connectionFailed": "Impossibile raggiungere StartupBot. Riprova.",
+  "settings.account.emailAccess": "Accedi o crea un account",
   "voice.gemini.keyPlaceholder": "Incolla la tua chiave API di Google AI Studio",
   "voice.gemini.model": "Modello vocale Gemini",
   "keys.label.geminiTts": "Chiave API vocale Gemini",

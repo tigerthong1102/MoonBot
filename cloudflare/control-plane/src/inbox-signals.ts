@@ -31,9 +31,9 @@ export class InboxSignals extends DurableObject<InboxEnv> {
   webSocketClose(socket: WebSocket) { socket.close(); }
 }
 
-export async function notifyRoom(env: InboxEnv, room: string) {
+export async function notifyRoom(env: InboxEnv, room: string, includePending = false) {
   if (!env.SIGNALS) return;
-  const { results } = await env.DB.prepare("SELECT person FROM inbox_members WHERE room=? AND state='active'")
-    .bind(room).all<{person: string}>();
+  const { results } = await env.DB.prepare("SELECT person FROM inbox_members WHERE room=? AND (state='active' OR ?=1)")
+    .bind(room,Number(includePending)).all<{person: string}>();
   await Promise.all(results.map(({ person }) => env.SIGNALS!.getByName(person).notify()));
 }

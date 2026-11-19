@@ -1,4 +1,7 @@
 {
+  "native.menu.personalInbox": "メッセージ",
+  "settings.account.connectionFailed": "StartupBot に接続できません。もう一度お試しください。",
+  "settings.account.emailAccess": "ログインまたはアカウント作成",
   "connectedWorkspaces.localTitle": "このコンピューターの環境",
   "connectedWorkspaces.missing": "見つかりません",
   "connectedWorkspaces.current": "使用中",

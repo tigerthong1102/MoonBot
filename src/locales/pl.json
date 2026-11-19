@@ -1,4 +1,7 @@
 {
+  "native.menu.personalInbox": "Wiadomości",
+  "settings.account.connectionFailed": "Nie można połączyć się ze StartupBot. Spróbuj ponownie.",
+  "settings.account.emailAccess": "Zaloguj się lub utwórz konto",
   "voice.gemini.keyPlaceholder": "Wklej swój klucz API Google AI Studio",
   "voice.gemini.model": "Model syntezy mowy Gemini",
   "keys.label.geminiTts": "Klucz API syntezy mowy Gemini",

@@ -10,9 +10,10 @@ const dailyBytes = 60_000_000;
 const retainedBytes = 180_000_000;
 // Base64 keeps each D1 binding below the row limit without expanding a binary binding to a JSON array.
 export const partBytes = 750_000;
-const canPost = `SELECT 1 FROM inbox_rooms r JOIN inbox_members m ON m.room=r.id
+export const canPost = `SELECT 1 FROM inbox_rooms r JOIN inbox_members m ON m.room=r.id
   WHERE r.id=?1 AND m.person=?2 AND m.state='active' AND
-  (r.kind='group' OR (SELECT count(*) FROM inbox_members WHERE room=r.id AND state='active')=2)`;
+  ( (r.kind='group' AND m.muted=0 AND (r.announcements=0 OR r.owner=m.person OR m.admin=1)) OR
+   (r.kind='direct' AND (SELECT count(*) FROM inbox_members WHERE room=r.id AND state='active')=2))`;
 
 function rasterType(bytes: Uint8Array) {
   const magic = Array.from(bytes.subarray(0, 12), (b) => b.toString(16).padStart(2, "0")).join("");

@@ -35,7 +35,7 @@ export interface ControlOptions {
   /** Revoked, not merely changed: the harness ends the Live call that phone holds. */
   revoked?: (deviceId: string) => void;
   /** `PUT /routes` from the desktop app: which direct ways in are on, and the tailnet name it learned. */
-  setDirectRoutes?: (body: unknown) => boolean;
+  setDirectRoutes?: (body: unknown) => boolean | Promise<boolean>;
   publicNetworks?: () => ReadonlySet<string>;
   /** End-to-end status; absent or `enabled: false` while it is off. */
   e2e?: () => E2EStatus;
@@ -271,9 +271,9 @@ export function createControlServer(options: ControlOptions): Server {
     const setRoutes = options.setDirectRoutes;
     if (method === "PUT" && path === "/routes" && setRoutes) {
       readSmallJson(req).then(
-        (body) => (setRoutes(body) ? json(res, 200, companionState(options)) : json(res, 400, { error: "routes must name wifi and tailscale as booleans" })),
+        async (body) => (await setRoutes(body) ? json(res, 200, companionState(options)) : json(res, 400, { error: "routes must name wifi and tailscale as booleans" })),
         (error: Error) => json(res, 400, { error: error.message }),
-      );
+      ).catch(() => json(res, 503, { error: "The direct phone listener is unavailable" }));
       return;
     }
     if (method === "POST" && path === "/pairing") {

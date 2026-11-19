@@ -424,7 +424,7 @@ const fields = execFileSync(
 for (const expected of [
   "Package: openmausbot",
   "Architecture: amd64",
-  "Maintainer: Milind Soni",
+  "Maintainer: StartupBot",
   "Section: utils",
   "Priority: optional",
 ]) {

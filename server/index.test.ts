@@ -16,9 +16,10 @@ import {
   DhkemP256HkdfSha256,
   HkdfSha256,
 } from "@hpke/core";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import type { InspectorPage } from "../shared/inspector.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
 import { startFakeHttpMcp } from "./testing/fake-http-mcp-server.ts";
 import { startFakeOAuth } from "./testing/fake-oauth-server.ts";
@@ -251,6 +252,17 @@ const api = async (method: string, path: string, body?: unknown): Promise<{ stat
   });
   return { status: res.status, body: await res.json() };
 };
+
+async function recordedComputerWait(request: typeof api, threadId: string) {
+  return vi.waitFor(async () => {
+    const { body } = await request("GET", `/api/threads/${threadId}/events`);
+    const events = (body as InspectorPage).entries.filter(entry => entry.kind === "runtime").map(entry => entry.data);
+    const started = events.find(event => event.type === "turn.wait_started");
+    const ended = events.find(event => event.type === "turn.wait_ended");
+    if (!started || !ended) throw new Error(`The event log for ${threadId} does not yet contain both computer wait events`);
+    return { started, ended };
+  }, { timeout: 5_000 });
+}
 
 const releaseTurn = async (botId: string) => {
   writeFileSync(fakeClaudeRelease, "release");
@@ -3605,17 +3617,16 @@ describe("harness HTTP API", () => {
       expect(siblingMessages.some((message) => (message.tool?.name ?? "").startsWith("Waiting for its turn on this computer"))).toBe(true);
       const stoppedChip = siblingMessages.find((message) => (message.tool?.name ?? "").startsWith("Stopped waiting for the computer after "));
       expect(stoppedChip?.tool?.ok).toBe(true);
-      const siblingEvents = ((await api("GET", `/api/threads/${sibling.threadId}/events`)).body.entries as Array<{ kind: string; data: any }>)
-        .filter((entry) => entry.kind === "runtime").map((entry) => entry.data);
-      expect(siblingEvents.find((event) => event.type === "turn.wait_started")).toMatchObject({
+      const siblingEvents = await recordedComputerWait(api, sibling.threadId);
+      expect(siblingEvents.started).toMatchObject({
         holder: { name: "Direct shared" },
         resource: expect.stringMatching(/^computer:/),
       });
-      expect(siblingEvents.find((event) => event.type === "turn.wait_ended")).toMatchObject({
+      expect(siblingEvents.ended).toMatchObject({
         holder: { name: "Direct shared" },
         outcome: "stopped",
       });
-      expect(siblingEvents.find((event) => event.type === "turn.wait_ended").waitedMs).toBeGreaterThanOrEqual(0);
+      expect(siblingEvents.ended.waitedMs).toBeGreaterThanOrEqual(0);
       expect(claudePrompts().length - promptBaseline, "the sibling ran from the start").toBe(2);
       expect((await api("POST", `/api/bots/${botIds[0]}/tasks/${firstThread}`, {})).status).toBe(200);
       for (const action of ["sleep", "provision"]) {
@@ -3641,12 +3652,11 @@ describe("harness HTTP API", () => {
         (group: { id: string }) => group.id === roomId,
       ).messages;
       expect(roomMessages.some((message) => (message.tool?.name ?? "").startsWith("Waiting for its turn on this computer"))).toBe(true);
-      const roomEvents = ((await api("GET", `/api/threads/${room.threadId}/events`)).body.entries as Array<{ kind: string; data: any }>)
-        .filter((entry) => entry.kind === "runtime").map((entry) => entry.data);
-      expect(roomEvents.find((event) => event.type === "turn.wait_started")).toMatchObject({
+      const roomEvents = await recordedComputerWait(api, room.threadId);
+      expect(roomEvents.started).toMatchObject({
         resource: expect.stringMatching(/^computer:/),
       });
-      expect(roomEvents.find((event) => event.type === "turn.wait_ended")).toMatchObject({
+      expect(roomEvents.ended).toMatchObject({
         outcome: "acquired",
       });
       expect(promptsOnBoat()).toBe(0);
@@ -3852,17 +3862,16 @@ describe("harness HTTP API", () => {
       expect(siblingMessages.some((message) => (message.tool?.name ?? "").startsWith("Waiting for its turn on this computer"))).toBe(true);
       const parkedChip = siblingMessages.find((message) => (message.tool?.name ?? "").startsWith("Computer still busy after "));
       expect(parkedChip?.tool?.ok).toBe(true);
-      const waitEvents = ((await isolatedApi("GET", `/api/threads/${sibling.threadId}/events`)).body.entries as Array<{ kind: string; data: any }>)
-        .filter((entry) => entry.kind === "runtime").map((entry) => entry.data);
-      expect(waitEvents.find((event) => event.type === "turn.wait_started")).toMatchObject({
+      const waitEvents = await recordedComputerWait(isolatedApi, sibling.threadId);
+      expect(waitEvents.started).toMatchObject({
         holder: { name: "Park holder" },
         resource: expect.stringMatching(/^computer:/),
       });
-      expect(waitEvents.find((event) => event.type === "turn.wait_ended")).toMatchObject({
+      expect(waitEvents.ended).toMatchObject({
         holder: { name: "Park holder" },
         outcome: "parked",
       });
-      expect(waitEvents.find((event) => event.type === "turn.wait_ended").waitedMs).toBeGreaterThanOrEqual(0);
+      expect(waitEvents.ended.waitedMs).toBeGreaterThanOrEqual(0);
       await expect.poll(async () => {
         const task = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots
           .find((entry: any) => entry.id === botId)?.tasks.find((task: any) => task.threadId === sibling.threadId);
@@ -8051,14 +8060,14 @@ describe("harness HTTP API", () => {
 
   it("a new bot greets its person by first name and is announced in its chosen look, or a fresh one, from the first frame", async () => {
     const before = (await api("GET", "/api/config")).body.profile?.name ?? "";
-    expect((await api("PUT", "/api/config", { profile: { name: "Milind Soni" } })).status).toBe(200);
+    expect((await api("PUT", "/api/config", { profile: { name: "Minh Son" } })).status).toBe(200);
     const stream = await openSse(`${BASE}/api/events`);
     let id = "";
     try {
       await stream.until((frame) => frame.kind === "hello");
       const bot = (await api("POST", "/api/bots", { name: "Scout", useDefaults: false, settings: { color: "purple", mascotBody: "star" } })).body.bot;
       id = bot.id;
-      expect(bot.messages[0].text).toBe("Hi Milind, I'm Scout. What would you like me to do?");
+      expect(bot.messages[0].text).toBe("Hi Minh, I'm Scout. What would you like me to do?");
       const announced = await stream.until((frame) => frame.kind === "bot" && frame.bot?.id === id);
       expect(announced.bot).toMatchObject({ color: "purple", mascotBody: "star" });
       const plain = (await api("POST", "/api/bots", { name: "Wren", useDefaults: false })).body.bot;
@@ -8084,7 +8093,7 @@ describe("harness HTTP API", () => {
       ids.push(created.body.bot.id);
       return created.body.bot;
     };
-    expect((await api("PUT", "/api/config", { profile: { name: "Milind Soni" }, features: { smartSetupChoices: true } })).status).toBe(200);
+    expect((await api("PUT", "/api/config", { profile: { name: "Minh Son" }, features: { smartSetupChoices: true } })).status).toBe(200);
     try {
       writeFileSync(setupAnswersFile, `${JSON.stringify(answers)}\n`);
       rmSync(setupAnswersDump, { force: true });
@@ -8098,7 +8107,7 @@ describe("harness HTTP API", () => {
       expect(seen.argv).not.toContain("--effort");
       expect(seen.env.MAX_THINKING_TOKENS).toBeUndefined();
       expect(seen.prompt).toContain("Bot name: Bookkeeper");
-      expect(seen.prompt).not.toContain("Milind");
+      expect(seen.prompt).not.toContain("Minh");
       const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
       const usage = await (await fetch(`${BASE}/api/usage.csv?from=${day(-1)}&to=${day(1)}`)).text();
       expect(usage.split("\n").some((line) => line.includes("Bookkeeper") && line.includes(",setup-suggestions-"))).toBe(true);

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { adoptComposioId, collectConnections, ConnectionMoveError, parseConnections, releaseConnections, sendConnections } from "./cloud-connections.mjs";
 
-const COMPUTER = { environmentId: "env-desktop-1", label: "Milind's MacBook" };
+const COMPUTER = { environmentId: "env-desktop-1", label: "Minh's MacBook" };
 const INSTALLATION = "0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e";
 const D1 = "1".repeat(64), D2 = "2".repeat(64);
 const linearSignIn = (refresh) => ({ url: "https://mcp.linear.app/sse", state: "signed-in", tokens: { access: `a-${refresh}`, refresh } });

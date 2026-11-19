@@ -122,7 +122,7 @@ final class ServerPairingTests: XCTestCase {
         let paired = try await CompanionClient.pairWithServer(
             connection: connection,
             code: "ABCDEFGHJKLM",
-            label: "Milind's iPhone",
+            label: "Minh's iPhone",
             attemptId: "attempt-1",
             session: session
         )
@@ -139,7 +139,7 @@ final class ServerPairingTests: XCTestCase {
         XCTAssertFalse(request.httpShouldHandleCookies)
         let sent = try XCTUnwrap(ServerRequestStub.body(of: request))
         XCTAssertEqual(sent["code"] as? String, "ABCDEFGHJKLM")
-        XCTAssertEqual(sent["label"] as? String, "Milind's iPhone")
+        XCTAssertEqual(sent["label"] as? String, "Minh's iPhone")
         XCTAssertEqual(sent["attemptId"] as? String, "attempt-1")
         XCTAssertNil(sent["cookie"], "the token is the app's; never ask for a browser cookie")
     }

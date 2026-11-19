@@ -26,15 +26,15 @@ import {
 } from "../src/mdns.ts";
 
 const service: ServiceInfo = {
-  name: "Milind's computer",
+  name: "Minh's computer",
   type: "_openmausbot._tcp",
   port: 8800,
   host: "openmausbot-1a2b3c4d.local",
   addresses: ["192.168.1.42"],
-  txt: ["v=1", "name=Milind's computer"],
+  txt: ["v=1", "name=Minh's computer"],
 };
 
-const INSTANCE = "Milind's computer._openmausbot._tcp.local";
+const INSTANCE = "Minh's computer._openmausbot._tcp.local";
 const SERVICE_NAME = "_openmausbot._tcp.local";
 
 function query(name: string, type: number, opts: { id?: number; unicast?: boolean } = {}): Buffer {

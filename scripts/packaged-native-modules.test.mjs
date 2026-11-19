@@ -35,11 +35,14 @@ describe("packaged native modules", () => {
       mkdirSync(join(checkout, file, ".."), { recursive: true });
       writeFileSync(join(checkout, file), "");
     }
+    copyFileSync(join(root, "NOTICE"), join(checkout, "NOTICE"));
     mkdirSync(join(checkout, "scripts"));
     copyFileSync(join(root, "scripts", "build-npm-package.mjs"), join(checkout, "scripts", "build-npm-package.mjs"));
     execFileSync(process.execPath, [join(checkout, "scripts", "build-npm-package.mjs")], { stdio: "pipe" });
     const manifest = JSON.parse(readFileSync(join(checkout, "release", "npm", "package.json"), "utf8"));
     expect(manifest.dependencies).toEqual(pins);
+    expect(manifest.files).toContain("NOTICE");
+    expect(readFileSync(join(checkout, "release", "npm", "NOTICE"))).toEqual(readFileSync(join(root, "NOTICE")));
   });
 
   it("stages the native tree in the Podman image where the server looks for it", () => {

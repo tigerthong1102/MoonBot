@@ -58,7 +58,8 @@ describe("StartupBot product text", () => {
     expect(pkg.homepage).toBe("https://startupbot.ai");
     expect(pkg.repository.url).toBe("https://github.com/tigerthong1102/MoonBot.git");
     expect(pkg.desktopName).toBe("ai.startupbot.desktop");
-    expect(pkg.author.name).toBe("Milind Soni");
+    expect(pkg.author.name).toBe("StartupBot");
+    expect(readFileSync("NOTICE", "utf8")).toContain("Copyright 2026 Milind Soni");
     expect(readFileSync("src/lib/steel-body.ts", "utf8")).not.toContain("assets/mausbot-steel");
     expect(readFileSync("src/lib/analytics.ts", "utf8")).not.toContain("phc_m2hP39");
   });

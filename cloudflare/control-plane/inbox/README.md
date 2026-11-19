@@ -1,6 +1,6 @@
 # StartupBot personal and group inbox
 
-This worker serves the Vietnamese inbox at its HTTPS origin. It has a dedicated D1 database, email OTP sessions, and static browser assets. On desktop, the sidebar and application menu open chat inside the StartupBot window. The panel loads the configured HTTPS origin in a sandboxed view with a separate persistent session. Use the back link to return to the bot. Browser logins and desktop logins are separate.
+This worker serves the Vietnamese inbox at its HTTPS origin. It has a dedicated D1 database, email OTP sessions, and static browser assets. On desktop, the sidebar and application menu open chat inside the StartupBot window. The panel loads the configured HTTPS origin in a sandboxed view with a separate persistent session. Use the back link to return to the bot. In the pilot desktop, Settings → Your account uses the same session as Messages. The first verified email OTP creates the account. Later sign-ins reuse its identity, and signing out from Settings also signs out of Messages. The web browser keeps a separate session.
 
 ## Use
 

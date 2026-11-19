@@ -1,3 +1,4 @@
+import { openUserSignIn } from "@/lib/user-sign-in";
 import { useEffect, useState } from "react";
 import { Cloud, Crown } from "lucide-react";
 import type { CloudAccountState } from "../../electron/cloud-account.mjs";
@@ -52,7 +53,7 @@ export function ProSettingsCard() {
           <button type="button" className="ui-button ui-button-primary" onClick={() => dispatch({ type: "openCloudAdd", source: "app_settings" })}>{t(trial ? "cloudIntro.start" : "cloudAccount.upgrade")}</button>
         </div>
         {view.kind === "signed-out" && <button type="button" className="cursor-pointer text-[13px] font-medium text-accent-text underline underline-offset-2 hover:text-ink"
-          onClick={() => dispatch({ type: "openCloudAdd", source: "app_settings", signIn: true })}>{t("cloudAccount.signIn")}</button>}
+          onClick={() => openUserSignIn(dispatch, "app_settings")}>{t("cloudAccount.signIn")}</button>}
       </div>
     </section>;
   }
@@ -82,7 +83,7 @@ export function CloudPlanRow({ place, usage = null, upgrade }: { place: "account
         <div className="flex items-center gap-3">
           {place === "plan" && plan.view.kind === "signed-out" && (
             <button type="button" className="cursor-pointer text-[13px] text-ink-secondary hover:text-ink"
-              onClick={() => dispatch({ type: "openCloudAdd", source: "app_settings", signIn: true })}>{t("cloudAccount.signIn")}</button>
+              onClick={() => openUserSignIn(dispatch, "app_settings")}>{t("cloudAccount.signIn")}</button>
           )}
           <button type="button" data-cloud-offer={trial ? "trial" : "plans"} className="ui-button ui-button-primary"
             onClick={() => dispatch({ type: "openCloudAdd", source: "app_settings" })}>{t(trial ? "cloudIntro.start" : "cloudAccount.upgrade")}</button>

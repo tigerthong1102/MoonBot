@@ -129,7 +129,7 @@ const { createDesktopWorkspaceManager } = require("./desktop-workspace.cjs");
 const { createTrustedApprovalModeCoordinator } = require("./approval-trusted-mode.cjs");
 const { DESKTOP_MUTATION_HEADER, desktopServerHeaders } = require("./desktop-server-auth.cjs");
 const { MIN_BOUNDS, normalizeUnreadCount, resolveWindowState } = require("./window-state.cjs");
-import { showPersonalInbox } from "./personal-inbox-view.mjs";
+import { personalAccountEmail, showPersonalInbox, signOutPersonalAccount } from "./personal-inbox-view.mjs";
 import { configureStartupBotIdentity, internalDeepLink, packagedSmokeHome, configuredInboxOrigin, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
 configureStartupBotIdentity(app);
 for (let index = 0; index < process.argv.length; index++) process.argv[index] = internalDeepLink(process.argv[index]);
@@ -1185,9 +1185,12 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
 
 async function startServerPackaged() {
   let everyPortForeignOwned = true;
+  const fixturePort = Number(process.env.OMB_PORT);
+  const ports = process.env.OMB_SMOKE_TEST === "1" && process.env.OMB_SMOKE_HOME &&
+    Number.isInteger(fixturePort) && fixturePort >= 1024 && fixturePort <= 65535 ? [fixturePort] : DESKTOP_PORTS;
   await systemProxy.refresh();
   for (let attempt = 0; attempt < 2; attempt++) {
-    for (const port of DESKTOP_PORTS) {
+    for (const port of ports) {
       if (desktopShutdownStarted) return false;
       const started = await startServerOn(port);
       if (started.proc) {
@@ -1500,10 +1503,10 @@ function personalInboxService() {
     jsonFile(path.join(app.getPath("userData"), "inbox-service.json")).read);
 }
 
-function openPersonalInbox() {
+function openPersonalInbox(accountOnly = false) {
   const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow();
   win.show();
-  return showPersonalInbox(win, personalInboxService());
+  return showPersonalInbox(win, personalInboxService(), accountOnly);
 }
 
 function refreshApplicationMenu() {
@@ -2317,6 +2320,19 @@ ipcMain.handle("window:state", (event) => {
 ipcMain.handle("personal-inbox:open", localOnly("personal-inbox:open", (event) => {
   requireMainWindowSender(event);
   return openPersonalInbox();
+}));
+ipcMain.handle("personal-account:open", localOnly("personal-account:open", event => {
+  requireMainWindowSender(event);
+  return openPersonalInbox(true);
+}));
+ipcMain.handle("personal-account:state", localOnly("personal-account:state", event => {
+  requireMainWindowSender(event);
+  return personalAccountEmail(personalInboxService());
+}));
+ipcMain.handle("personal-account:sign-out", localOnly("personal-account:sign-out", async event => {
+  requireMainWindowSender(event);
+  await signOutPersonalAccount(personalInboxService());
+  if (!event.sender.isDestroyed()) event.sender.send("personal-account:changed");
 }));
 ipcMain.handle("desktop:open-external", localOnly("desktop:open-external", async (_event, rawUrl) => {
   await shell.openExternal(externalLinkUrl(rawUrl));

@@ -160,6 +160,16 @@ function invokeWithPlainError(channel, ...args) {
 const bridge = {
   platform: process.platform,
   ...(isLocalPage && process.argv.includes("--startupbot-personal-inbox") ? {
+    personalAccount: {
+      open: () => ipcRenderer.invoke("personal-account:open"),
+      state: () => ipcRenderer.invoke("personal-account:state"),
+      signOut: () => ipcRenderer.invoke("personal-account:sign-out"),
+      onChange: callback => {
+        const changed = () => callback();
+        ipcRenderer.on("personal-account:changed", changed);
+        return () => ipcRenderer.removeListener("personal-account:changed", changed);
+      },
+    },
     openPersonalInbox: () => ipcRenderer.invoke("personal-inbox:open"),
   } : {}),
   /** Linux without a GPU (electron/linux-gpu.mjs): the page drops its backdrop blurs. */

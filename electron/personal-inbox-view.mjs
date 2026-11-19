@@ -1,8 +1,32 @@
-import { WebContentsView } from "electron";
+import { session, WebContentsView } from "electron";
 
 const panels = new WeakMap();
+const partition = "persist:startupbot-personal-inbox";
 
-export async function showPersonalInbox(window, origin) {
+export async function personalAccountEmail(origin) {
+  if (!origin) throw new Error("StartupBot account service is unavailable");
+  const account = session.fromPartition(partition);
+  if (!(await account.cookies.get({ url: origin })).length) return null;
+  const response = await account.fetch(origin + "/api/me", {
+    credentials: "include", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10000),
+  });
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error("StartupBot account service is unavailable");
+  const { email } = await response.json();
+  if (typeof email !== "string" || !email) throw new Error("Invalid StartupBot account");
+  return email;
+}
+
+export async function signOutPersonalAccount(origin) {
+  if (!origin) throw new Error("StartupBot account service is unavailable");
+  const response = await session.fromPartition(partition).fetch(origin + "/api/auth/sign-out", {
+    method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: "{}",
+    credentials: "include", redirect: "error", signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error("StartupBot sign-out failed");
+}
+
+export async function showPersonalInbox(window, origin, accountOnly = false) {
   if (!window || window.isDestroyed() || !origin) return;
   const existing = panels.get(window);
   if (existing) {
@@ -10,7 +34,7 @@ export async function showPersonalInbox(window, origin) {
     return;
   }
   const view = new WebContentsView({ webPreferences: {
-    partition: "persist:startupbot-personal-inbox",
+    partition,
     nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false,
   } });
   const page = view.webContents;
@@ -31,6 +55,7 @@ export async function showPersonalInbox(window, origin) {
     if (!window.isDestroyed()) {
       window.contentView.removeChildView(view);
       workspace.focus();
+      workspace.send("personal-account:changed");
     }
     if (!page.isDestroyed()) page.close();
   };
@@ -58,7 +83,7 @@ export async function showPersonalInbox(window, origin) {
   workspace.once("did-navigate", close);
   fit();
   try {
-    await page.loadURL(origin + "/?desktop=1&lang=vi");
+    await page.loadURL(origin + (accountOnly ? "/?desktop=1&account=1&lang=vi" : "/?desktop=1&lang=vi"));
     if (!page.isDestroyed()) page.focus();
   } catch (error) {
     if (panels.get(window) !== view) return;

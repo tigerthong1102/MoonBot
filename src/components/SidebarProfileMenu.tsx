@@ -564,7 +564,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
   const openSettings = (section: AppSettingsSection) => dispatch({ type: "toggleAppSettings", open: true, section });
   const move = useAccountMove(state.config?.cloudHome === true, { onOpen: () => openSettings("plan"), onPairPhone: () => dispatch(phonePairingSettingsAction()) });
   const accounts = useAccounts();
-  const openSource = desktop && !window.ogb?.cloudAccount && !window.ogb?.cloudPlan;
+  const openSource = desktop && !window.ogb?.personalAccount && !window.ogb?.cloudAccount && !window.ogb?.cloudPlan;
   const planLine = !desktop ? undefined : cloudUsage ? t("sidebar.menu.plan.used", { plan: summary.plan ?? cloudPlanLabel(planSnapshot?.tier), percent: cloudUsage.value.replace(/\D+/g, "") })
     : summary.signedIn === false || summary.plan === t("settings.account.free") ? t("sidebar.menu.plan.free") : summary.plan ?? undefined;
 
@@ -582,7 +582,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
     plan: planHere ? { key: "plan", label: t("settings.page.plan"), ...(planLine ? { subtitle: planLine } : {}), icon: <CreditCard size={16} />, onSelect: () => openSettings("plan") } : null,
     switchPlace: !besideRail && desktop && !remote && window.ogb?.workspaces && account?.place.switchable
       ? { key: "switch-place", label: t("sidebar.menu.switchPlace"), icon: <ArrowLeftRight size={16} />, chevron: true, onSelect: account.place.openMenu } : null,
-    accounts: accountMenuItems(accounts),
+    accounts: window.ogb?.personalAccount ? [] : accountMenuItems(accounts),
     // Simple's own places to go, at every width: the phone's round avatar has them too.
     ...(account || (circle && !advancedMode) ? { simple: {
       tools: toolMenuItems({
@@ -605,7 +605,8 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
     onFeedback: () => void openExternalLink(FEEDBACK_URL),
     onWhatsNew: () => void openExternalLink(RELEASES_URL),
     // Every Sign out asks first: "Sign out of MausBot?" and what keeps running.
-    signOut: accounts.view?.active ? null
+    signOut: window.ogb?.personalAccount ? (summary.signedIn ? () => setSigningOut("desktop") : null)
+      : accounts.view?.active ? null
       : !desktop && session?.kind === "session" ? () => setSigningOut("browser")
       : desktop && !remote && window.ogb?.cloudAccount && summary.signedIn ? () => setSigningOut("desktop")
       : null,
@@ -690,7 +691,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
         cloud={signingOut === "desktop" && summary.plan ? t("cloudSetup.myCloud") : null} onClose={() => setSigningOut(null)}
         onConfirm={() => signingOut === "browser"
           ? api("/api/auth/logout", { method: "POST" }).finally(() => location.reload())
-          : window.ogb?.cloudAccount?.signOut()} />}
+          : window.ogb?.personalAccount ? window.ogb.personalAccount.signOut() : window.ogb?.cloudAccount?.signOut()} />}
       {accounts.sheet && <AccountsSheet adding={accounts.sheet.email} note={accounts.sheet.note} onClose={accounts.closeSheet} />}
     </>
   );

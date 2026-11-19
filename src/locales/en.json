@@ -10829,6 +10829,8 @@
   "settings.account.fromHere": "Sign out or switch accounts from {place}",
   "settings.account.mausbot": "{app} account",
   "settings.account.nameRow": "Your name, photo and about you",
+  "settings.account.emailAccess": "Sign in or create an account",
+  "settings.account.connectionFailed": "Could not reach StartupBot. Please try again.",
   "settings.account.notSignedIn": "Not signed in",
   "settings.account.onThisDevice": "On this device",
   "settings.account.signIn": "Sign in",

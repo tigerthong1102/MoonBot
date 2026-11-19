@@ -3,6 +3,11 @@ el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") 
 for (const back of document.querySelectorAll(".list-back")) {
   back.onclick = () => { delete document.body.dataset.thread; };
 }
+const accountOnly = !el("desktop-back").hidden && new URLSearchParams(location.search).get("account") === "1";
+if (accountOnly) {
+  document.title = "Tài khoản StartupBot";
+  document.querySelector("header strong").textContent = document.title;
+}
 const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text });
 const status = (text) => {
   el("status").textContent = text;
@@ -153,6 +158,10 @@ async function start() {
   me = await api("me");
   el("account").textContent = me.email;
   el("signin").hidden = true;
+  if (accountOnly) {
+    location.assign("/desktop/back");
+    return;
+  }
   el("inbox").hidden = false;
   el("logout").hidden = false;
   status("");

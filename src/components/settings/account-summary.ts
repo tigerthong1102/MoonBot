@@ -32,10 +32,26 @@ function fromPlan(plan: CloudPlanSnapshot | null): AccountSummary {
 /** Who is signed in to MausBot on this device, as far as this page may know. */
 export function useAccountSummary(): AccountSummary {
   const account = typeof window === "undefined" || window.ogb?.remoteClient?.active ? undefined : window.ogb?.cloudAccount;
+  const personal = typeof window === "undefined" ? undefined : window.ogb?.personalAccount;
   const planBridge = account ? undefined : typeof window === "undefined" ? undefined : window.ogb?.cloudPlan;
   const [summary, setSummary] = useState<AccountSummary>({ signedIn: null, email: null, plan: null, paid: false });
   useEffect(() => {
     let alive = true;
+    if (personal) {
+      let revision = 0;
+      const refresh = () => {
+        const current = ++revision;
+        void personal.state().then(email => {
+          if (alive && current === revision) setSummary({ signedIn: !!email, email, plan: null, paid: false });
+        }).catch(() => {
+          if (alive && current === revision) setSummary({ signedIn: null, email: null, plan: null, paid: false });
+        });
+      };
+      const off = personal.onChange(refresh);
+      refresh();
+      window.addEventListener("focus", refresh);
+      return () => { alive = false; off(); window.removeEventListener("focus", refresh); };
+    }
     if (account) {
       const off = account.onState((next) => { if (alive) setSummary(fromAccount(next)); });
       void account.state().then((next) => { if (alive) setSummary(fromAccount(next)); }).catch(() => {});
@@ -46,7 +62,7 @@ export function useAccountSummary(): AccountSummary {
       return () => { alive = false; };
     }
     return () => { alive = false; };
-  }, [account, planBridge]);
+  }, [personal, account, planBridge]);
   return summary;
 }
 
@@ -65,6 +81,7 @@ export function useYou(): { profile: { name?: string; email?: string; avatarUrl?
 /** "Pro · ada@example.com", "Not signed in"; in a browser, "Signed in to My Cloud". */
 export function accountLine(summary: AccountSummary, { browser, place, openSource }: { browser: boolean; place: string; openSource: boolean }): string {
   if (browser) return t("settings.account.signedInTo", { place });
+  if (summary.signedIn === null && typeof window !== "undefined" && window.ogb?.personalAccount) return t("settings.account.mausbot", { app: "StartupBot" });
   if (openSource) return t("settings.account.onThisDevice");
   if (summary.signedIn === false) return t("settings.account.notSignedIn");
   return [summary.plan, summary.email].filter(Boolean).join(" · ") || t("settings.account.signedIn");

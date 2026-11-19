@@ -120,6 +120,12 @@ const __APP_VERSION__: string;
       softwareRendering?: boolean;
       /** This app's own version, and whether this page is this app's own: false on a server added in the Server menu,
        * whose page carries that server's version. Absent in desktop builds before it. */
+      personalAccount?: {
+        open(): Promise<void>;
+        state(): Promise<string | null>;
+        signOut(): Promise<void>;
+        onChange(callback: () => void): () => void;
+      };
       openPersonalInbox?: () => Promise<void>;
       app?: { version: string; ownPage: boolean };
       organization?: import("../../electron/managed-desktop.mjs").ManagedDesktopBridge;

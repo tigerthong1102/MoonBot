@@ -201,8 +201,19 @@ async function showGroupInvitation() {
     el("join-button").textContent = info.approval ? "Yêu cầu tham gia" : "Tham gia nhóm";
     el("join-button").hidden = !me;
     el("join-prompt").hidden = false;
-  } catch { status("Liên kết mời đã hết hạn hoặc không còn hiệu lực.",true); }
+  } catch { el("join-prompt").hidden = true; status("Liên kết mời đã hết hạn hoặc không còn hiệu lực.",true); }
 }
+window.addEventListener("hashchange", run(async () => {
+  const params = new URLSearchParams(location.hash.slice(1));
+  joinToken = params.get("join");
+  invitedRoom = params.get("room");
+  el("join-prompt").hidden = true;
+  if (joinToken) await showGroupInvitation();
+  else if (me && invitedRoom) {
+    await refresh();
+    if (rooms.some(r => r.id === invitedRoom)) await select(invitedRoom);
+  }
+}));
 el("join-button").onclick = run(async () => {
   const response = await api("join",{token:joinToken});
   joinToken = null; history.replaceState(null,"",location.pathname + location.search); el("join-prompt").hidden = true;
@@ -423,6 +434,12 @@ el("create-room").onsubmit = run(async () => {
   form.reset();
   createLabels();
   await select(id);
+});
+el("cancel-invite").onclick = run(async () => {
+  const field = el("invite").elements.email;
+  if (!field.reportValidity() || !window.confirm("Thu hồi lời mời tới " + field.value.trim() + "?")) return;
+  await api("rooms/" + current + "/moderate", {action:"cancelInvite",email:field.value.trim()});
+  status("Đã xử lý yêu cầu thu hồi lời mời.");
 });
 el("invite").onsubmit = run(async () => {
   const form = el("invite");

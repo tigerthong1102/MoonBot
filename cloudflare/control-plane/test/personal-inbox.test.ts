@@ -428,7 +428,11 @@ it("enforces group management on the server across role changes, links, bans, me
   expect((await mod(admin,"promote",{person:admin.id})).status).toBe(404);
   expect((await mod(owner,"promote",{person:admin.id})).status).toBe(200);
   expect((await mod(admin,"newLink")).status).toBe(200);
+  await call(room+"/invite",admin.cookie,{email:member.email});
+  expect((await mod(admin,"cancelInvite",{email:member.email})).status).toBe(200);
+  expect((await call(room+"/accept",member.cookie,{})).status).toBe(404);
   const oldKey=(await detail(admin)).group.link;
+  expect(await (await call("join/preview","",{token:oldKey})).json()).toEqual({title:"Team",approval:1});
   expect(await (await join(oldKey)).json()).toEqual({id,state:"requested"});
   expect((await call(room,member.cookie)).status).toBe(404);
   expect((await detail(admin)).requests).toMatchObject([{id:member.id}]);

@@ -55,7 +55,7 @@ const sentinelHash = createHash("sha256").update(readFileSync(sentinel)).digest(
 const plan = path.join(fixture, "chat-plan.json");
 writeFileSync(plan, "{}");
 const reply = "StartupBot packaged agent fixture answered successfully";
-writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", features: { smartSetupChoices: false }, instances: {
+writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", profile: { name: "Fixture Owner" }, features: { smartSetupChoices: false }, instances: {
   claude: { driver: "claudeAgent", displayName: "Internal package fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") },
     environment: { FAKE_CLAUDE_ROOM_PLAN: plan } },
 } }));
@@ -158,6 +158,74 @@ try {
   assert.doesNotMatch(helperText, /\b(?:OpenMausBot|MausBot)\b/);
   const helperScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-helper.png"), Buffer.from(helperScreenshot.data, "base64"));
+  const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
+  const send = async text => {
+    await until(() => evaluate(`Boolean(${composer})`), "an enabled chat composer");
+    await evaluate(`(${composer}).focus()`);
+    await cdp("Input.insertText", { text });
+    assert.equal(await evaluate("document.activeElement.value"), text);
+    const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
+    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
+  };
+  const roster = async () => {
+    const result = await request("/api/bots?messages=0");
+    assert.equal(result.status, 200);
+    return result.body.bots;
+  };
+  const initialBots = await roster();
+  const helper = initialBots.find(row => row.defaultBot);
+  assert(helper?.threadId, "The first-run main helper must exist");
+  assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: "full" }, "PATCH")).status, 200);
+  const workMessage = "Tôi cần theo dõi tiến độ kiểm kho mỗi tuần.";
+  const workName = "Kiểm kho";
+  assert(!initialBots.some(row => row.name === workName));
+  writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [
+    { key: "first-work", match: [workMessage], reply: "Tôi sẽ giúp theo dõi tiến độ kiểm kho." },
+  ] } }));
+  const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
+  await until(() => evaluate(`Boolean(${helperRow})`), "the main helper in the sidebar");
+  await evaluate(`${helperRow}.click()`);
+  await send(workMessage);
+  const offerCard = async () => {
+    const result = await request(`/api/threads/${helper.threadId}/messages`);
+    assert.equal(result.status, 200);
+    return result.body.messages.find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
+  };
+  const offered = await until(offerCard, "the main helper to propose a dedicated bot");
+  assert.equal(offered.teamSetupRequest.workBotOffer.icon, "box");
+  assert.equal(offered.answered, undefined);
+  assert(offered.title.includes(workName));
+  const consent = `[...document.querySelectorAll('[data-work-bot-offer] button')].find(button => button.getClientRects().length && !button.disabled && button.textContent.trim() === ${JSON.stringify(offered.options[0])})`;
+  await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(offered.title)}) && Boolean(${consent})`), "the visible work question and its consent button");
+  assert.deepEqual((await roster()).map(row => row.id).sort(), initialBots.map(row => row.id).sort());
+  const offerScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
+  writeFileSync(path.join(evidence, "work-bot-consent.png"), Buffer.from(offerScreenshot.data, "base64"));
+  await until(() => evaluate(`Boolean(${composer})`), "the composer to stay usable while the suggestion is open");
+  const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
+  await send(extra);
+  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text === extra), "a second message to be accepted with the offer pending");
+  assert.equal((await roster()).length, initialBots.length);
+  await evaluate(`(${consent}).click()`);
+  const accepted = await until(async () => {
+    const card = await offerCard();
+    return card?.teamSetupRequest.result?.state === "applied" && card.teamSetupRequest.result;
+  }, "the accepted work-bot creation receipt");
+  const afterConsent = await roster();
+  const newBots = afterConsent.filter(row => !initialBots.some(previous => previous.id === row.id));
+  assert.equal(afterConsent.length, initialBots.length + 1);
+  assert.equal(newBots.length, 1);
+  const workBot = newBots[0];
+  assert.equal(workBot.name, workName);
+  assert.equal(accepted.bots[0].id, workBot.id);
+  assert(readFileSync(path.join(data, "bots", workBot.id, "SOUL.md"), "utf8").includes(workMessage));
+  assert.match(workBot.avatarUrl, /^\/api\/attachments\/[^/]+\.png$/);
+  assert.deepEqual(await evaluate(`(async () => {
+    const img = new Image();
+    img.src = ${JSON.stringify(workBot.avatarUrl)};
+    await img.decode();
+    return [img.naturalWidth, img.naturalHeight];
+  })()`), [128, 128]);
   const created = await request("/api/bots", { name: "Internal package agent", cwd: home });
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
@@ -198,16 +266,6 @@ try {
   const selectBot = `document.querySelector('[data-sidebar-bot-row="${bot.id}"]')`;
   await until(() => evaluate(`Boolean(${selectBot})`), "the fixture bot in the sidebar");
   await evaluate(`${selectBot}.click()`);
-  const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
-  const send = async text => {
-    await until(() => evaluate(`Boolean(${composer})`), "an enabled chat composer");
-    await evaluate(`(${composer}).focus()`);
-    await cdp("Input.insertText", { text });
-    assert.equal(await evaluate("document.activeElement.value"), text);
-    const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
-    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
-    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
-  };
   const readBot = async () => (await request("/api/bots?messages=0")).body.bots.find(row => row.id === bot.id);
   const finished = async text => (await transcript()).some(row => row.role === "bot" && row.text === text) && !(await readBot()).busy;
   await send(rename);
@@ -247,6 +305,7 @@ try {
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
+    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, instructionsVerified: true, avatarDecoded: true },
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };

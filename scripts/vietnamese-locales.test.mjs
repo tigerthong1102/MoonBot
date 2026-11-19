@@ -38,3 +38,15 @@ test("Vietnamese setup instructions preserve commands, endpoint paths and config
     }
   }
 });
+
+test("inbox controls and accessible labels use keys available in both pilot languages", () => {
+  const catalogs = ["en", "vi"].map((tag) => load("src/locales/" + tag + ".json"));
+  for (const file of ["index.html", "inbox.js", "group-controls.js"]) {
+    const source = readFileSync(new URL("../cloudflare/control-plane/inbox/public/" + file, import.meta.url), "utf8");
+    const keys = [...source.matchAll(/"((?:personalInbox)\.\w+)"/g)].map((match) => match[1]);
+    assert.ok(keys.length, file);
+    for (const key of keys) {
+      for (const catalog of catalogs) assert.ok(catalog[key]?.trim(), file + ": " + key);
+    }
+  }
+});

@@ -30,7 +30,7 @@ export async function signOutPersonalAccount(origin) {
   if (!response.ok) throw new Error("StartupBot sign-out failed");
 }
 
-export async function showPersonalInbox(window, origin, accountOnly = false) {
+export async function showPersonalInbox(window, origin, accountOnly = false, language = app.getLocale()) {
   if (!window || window.isDestroyed() || !origin) return;
   const existing = panels.get(window);
   if (existing) {
@@ -87,7 +87,9 @@ export async function showPersonalInbox(window, origin, accountOnly = false) {
   workspace.once("did-navigate", close);
   fit();
   try {
-    await page.loadURL(origin + (accountOnly ? "/?desktop=1&account=1&lang=vi" : "/?desktop=1&lang=vi"));
+    const params = new URLSearchParams({ desktop: "1", lang: language });
+    if (accountOnly) params.set("account", "1");
+    await page.loadURL(origin + "/?" + params);
     if (!page.isDestroyed()) page.focus();
   } catch (error) {
     if (panels.get(window) !== view) return;
@@ -96,7 +98,7 @@ export async function showPersonalInbox(window, origin, accountOnly = false) {
   }
 }
 
-export function createPersonalInbox(window) {
+export function createPersonalInbox(window, locale = () => app.getLocale()) {
   const metadata = createRequire(import.meta.url)("../package.json");
   function origin() {
     return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
@@ -105,7 +107,7 @@ export function createPersonalInbox(window) {
   function open(accountOnly = false) {
     const win = window();
     win.show();
-    return showPersonalInbox(win, origin(), accountOnly);
+    return showPersonalInbox(win, origin(), accountOnly, locale());
   }
   function install(ipcMain, localOnly, requireMainWindowSender) {
     function handle(channel, action) {

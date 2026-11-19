@@ -1495,7 +1495,7 @@ function activeOrigin() {
   return activeEnvironment(environmentsState)?.origin ?? rendererOrigin();
 }
 
-const inbox = createPersonalInbox(() => mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow());
+const inbox = createPersonalInbox(() => mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow(), nativeText.intlTag);
 inbox.install(ipcMain, localOnly, requireMainWindowSender);
 
 function refreshApplicationMenu() {

@@ -1,3 +1,4 @@
+import { language, setLanguage, t } from "./inbox-i18n.js";
 import { groupControls } from "./group-controls.js";
 const el = (id) => document.getElementById(id);
 el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") !== "1";
@@ -5,10 +6,6 @@ for (const back of document.querySelectorAll(".list-back")) {
   back.onclick = () => { delete document.body.dataset.thread; };
 }
 const accountOnly = !el("desktop-back").hidden && new URLSearchParams(location.search).get("account") === "1";
-if (accountOnly) {
-  document.title = "Tài khoản StartupBot";
-  document.querySelector("header strong").textContent = document.title;
-}
 const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text });
 const entry = new URLSearchParams(location.hash.slice(1));
 let joinToken = entry.get("join"), invitedRoom = entry.get("room"), moderators = new Set();
@@ -34,22 +31,22 @@ let posts = [],
 
 function fail(error) {
   const errors = {
-    upload_unavailable: "Tệp chưa được gửi. Kiểm tra quyền gửi hoặc dung lượng còn lại (20 tệp, 60 MB mỗi 24 giờ; kho thử nghiệm 180 MB).",
-    invalid_filename: "Tên tệp không hợp lệ.",
-    empty_file: "Tệp trống.",
-    skill_file_text: "Chế độ skill cần tệp Markdown có nội dung văn bản UTF-8. Bạn vẫn có thể gửi nguyên tệp.",
-    skill_file_length: "Nội dung vượt giới hạn tin skill. Bạn có thể gửi nguyên tệp Markdown.",
-    request_too_large: me ? "Tệp vượt quá " + fileSize(me.maxFileBytes) + "." : "Tệp quá lớn.",
-    rate_limited: "Bạn đã thao tác nhiều lần. Vui lòng thử lại sau.",
+    upload_unavailable: t("personalInbox.uploadUnavailable"),
+    invalid_filename: t("personalInbox.invalidName"),
+    empty_file: t("personalInbox.emptyFile"),
+    skill_file_text: t("personalInbox.skillEncoding"),
+    skill_file_length: t("personalInbox.skillLength"),
+    request_too_large: me ? t("personalInbox.maxSize", { size: fileSize(me.maxFileBytes) }) : t("personalInbox.tooLarge"),
+    rate_limited: t("personalInbox.rateLimit"),
     room_limit_or_conflict:
-      "Đã đạt giới hạn 100 cuộc trò chuyện do bạn tạo hoặc yêu cầu tạo không còn hợp lệ.",
-    unavailable: "Nội dung hoặc thao tác này hiện không khả dụng.",
-    auth_failed: "Mã không hợp lệ hoặc đã hết hạn.",
-    contains_secret: "Nội dung có dấu hiệu chứa khóa truy cập. Hãy bỏ khóa trước khi gửi.",
-    unauthorized: "Vui lòng đăng nhập.",
-    invalid_request: "Kiểm tra lại nội dung đã nhập.",
+      t("personalInbox.roomLimit"),
+    unavailable: t("personalInbox.unavailable"),
+    auth_failed: t("personalInbox.invalidCode"),
+    contains_secret: t("personalInbox.secret"),
+    unauthorized: t("personalInbox.signInRequired"),
+    invalid_request: t("personalInbox.invalidInput"),
   };
-  status(errors[error.message] || "Chưa hoàn tất. Kiểm tra kết nối và thử lại.", true);
+  status(errors[error.message] || t("personalInbox.retry"), true);
 }
 async function api(path, data) {
   const res = await fetch(
@@ -158,13 +155,11 @@ el("send-code").onsubmit = run(async () => {
   el("verify").hidden = false;
   el("verify").elements.otp.focus();
   status(
-    "Kiểm tra thư mới nhất của " +
-      email +
-      ", kể cả Thư rác. Mã có hiệu lực 10 phút. Mỗi địa chỉ được yêu cầu tối đa 3 mã trong 15 phút.",
+    t("personalInbox.checkMail", { email }),
   );
-  button.textContent = "Có thể gửi lại sau 1 phút";
+  button.textContent = t("personalInbox.resendWait");
   setTimeout(() => {
-    button.textContent = "Gửi mã đăng nhập";
+    button.textContent = t("personalInbox.sendCode");
     button.disabled = false;
   }, 60_000);
 });
@@ -175,12 +170,12 @@ el("verify").onsubmit = run(async () => {
 el("logout").onclick = run(async () => {
   await api("auth/sign-out", {});
   signedOut();
-  status("Đã đăng xuất.");
+  status(t("personalInbox.signedOut"));
 });
 async function start() {
   me = await api("me");
   el("account").textContent = me.email;
-  el("attach").title = "Đính kèm tệp (tối đa " + fileSize(me.maxFileBytes) + " mỗi tệp)";
+  el("attach").title = t("personalInbox.attachLimit", { size: fileSize(me.maxFileBytes) });
   el("signin").hidden = true;
   if (accountOnly) {
     location.assign("/desktop/back");
@@ -199,11 +194,11 @@ async function start() {
 async function showGroupInvitation() {
   try {
     const info = await api("join/preview",{token:joinToken});
-    el("join-title").textContent = "Lời mời vào nhóm " + info.title;
-    el("join-button").textContent = info.approval ? "Yêu cầu tham gia" : "Tham gia nhóm";
+    el("join-title").textContent = t("personalInbox.joinTitle", { group: info.title });
+    el("join-button").textContent = info.approval ? t("personalInbox.requestJoin") : t("personalInbox.joinGroup");
     el("join-button").hidden = !me;
     el("join-prompt").hidden = false;
-  } catch { el("join-prompt").hidden = true; status("Liên kết mời đã hết hạn hoặc không còn hiệu lực.",true); }
+  } catch { el("join-prompt").hidden = true; status(t("personalInbox.expiredLink"),true); }
 }
 window.addEventListener("hashchange", run(async () => {
   const params = new URLSearchParams(location.hash.slice(1));
@@ -219,7 +214,7 @@ window.addEventListener("hashchange", run(async () => {
 el("join-button").onclick = run(async () => {
   const response = await api("join",{token:joinToken});
   joinToken = null; history.replaceState(null,"",location.pathname + location.search); el("join-prompt").hidden = true;
-  if (response.state === "requested") status("Đã gửi yêu cầu. Nhóm sẽ hiện trong danh sách khi được duyệt.",true);
+  if (response.state === "requested") status(t("personalInbox.requested"),true);
   else await select(response.id);
 });
 function roomName(r) {
@@ -235,14 +230,14 @@ function icon(name) {
   return svg;
 }
 function avatarContent(room) {
-  return room.kind === "group" ? icon("group") : roomName(room).trim().slice(0, 1).toLocaleUpperCase("vi");
+  return room.kind === "group" ? icon("group") : roomName(room).trim().slice(0, 1).toLocaleUpperCase(language);
 }
 function renderRooms() {
-  const query = el("filter").value.trim().toLocaleLowerCase("vi");
-  const visible = rooms.filter((room) => roomName(room).toLocaleLowerCase("vi").includes(query));
+  const query = el("filter").value.trim().toLocaleLowerCase(language);
+  const visible = rooms.filter((room) => roomName(room).toLocaleLowerCase(language).includes(query));
   el("rooms").replaceChildren(...visible.map((r) => {
     const name = roomName(r);
-    const title = (r.state === "pending" ? "Lời mời · " : "") + name;
+    const title = r.state === "pending" ? t("personalInbox.invitationLabel", { name }) : name;
     const row = button(title, () => select(r.id));
     const avatar = node("span", "");
     avatar.className = "avatar";
@@ -250,15 +245,15 @@ function renderRooms() {
     avatar.append(avatarContent(r));
     const text = node("span", "");
     text.className = "room-name";
-    text.append(node("strong", name), node("small", r.state === "pending" ? "Lời mời trò chuyện" :
-      r.snippet || (r.kind === "group" ? "Chat nhóm" : "Chat riêng")));
+    text.append(node("strong", name), node("small", r.state === "pending" ? t("personalInbox.invitation") :
+      r.snippet || (r.kind === "group" ? t("personalInbox.group") : t("personalInbox.direct"))));
     row.setAttribute("aria-label", title);
     row.title = title;
     row.setAttribute("aria-current", String(r.id === current && !viewingSaved));
     row.replaceChildren(avatar, text);
     return row;
   }));
-  if (!visible.length) el("rooms").append(node("p", query ? "Không tìm thấy cuộc trò chuyện." : "Chưa có cuộc trò chuyện."));
+  if (!visible.length) el("rooms").append(node("p", query ? t("personalInbox.noMatches") : t("personalInbox.noRooms")));
 }
 el("filter").oninput = renderRooms;
 async function refresh(poll = false) {
@@ -303,7 +298,7 @@ async function refreshRoom(poll) {
   el("room-avatar").replaceChildren(avatarContent(r));
   el("title").textContent = roomName(r);
   el("title").title = roomName(r);
-  el("room-meta").textContent = r.state === "pending" ? "Lời mời trò chuyện" : r.kind === "group" ? "Chat nhóm" : "Chat riêng";
+  el("room-meta").textContent = r.state === "pending" ? t("personalInbox.invitation") : r.kind === "group" ? t("personalInbox.group") : t("personalInbox.direct");
   el("actions").replaceChildren();
   const act = (text, route, message) =>
     button(text, async () => {
@@ -314,10 +309,10 @@ async function refreshRoom(poll) {
   if (r.state === "pending") {
     el("conversation").hidden = true;
     el("actions").append(
-      node("p", "Lời mời từ " + r.inviter + " · Bạn chỉ thấy tin mới sau khi tham gia."),
-      act("Tham gia", "accept", "Đã tham gia."),
-      act("Từ chối", "leave", "Đã từ chối."),
-      act("Chặn lời mời từ người này", "block", "Đã chặn người mời."),
+      node("p", t("personalInbox.inviteFrom", { email: r.inviter })),
+      act(t("personalInbox.join"), "accept", t("personalInbox.joined")),
+      act(t("personalInbox.decline"), "leave", t("personalInbox.declined")),
+      act(t("personalInbox.blockInviter"), "block", t("personalInbox.inviterBlocked")),
     );
     return;
   }
@@ -340,7 +335,7 @@ async function refreshRoom(poll) {
   const manager = group && (r.isOwner || r.admin);
   el("invite").hidden = !manager;
   el("quick-invite").hidden = !(group && (manager || detail.group.link));
-  el("quick-invite").textContent = manager ? "Mời vào nhóm" : "Chia sẻ liên kết mời";
+  el("quick-invite").textContent = manager ? t("personalInbox.inviteGroup") : t("personalInbox.shareLink");
   moderators = new Set(detail.members.filter(m => m.admin || m.id === detail.group.owner).map(m => m.email));
   const oldRevision = previousRoom?.revision;
   if (group && oldRevision !== r.revision) readingOlder = false;
@@ -353,11 +348,11 @@ async function refreshRoom(poll) {
       el("members").replaceChildren(ui.list); el("manage").append(ui.controls);
     } else el("members").replaceChildren(...detail.members.map(m => node("li", m.email)));
     if (r.isOwner && r.kind === "direct" && detail.members.length === 2)
-    el("manage").append(act("Chặn người này", "block", "Đã chặn."));
+    el("manage").append(act(t("personalInbox.blockPerson"), "block", t("personalInbox.blocked")));
     if (r.isOwner)
     el("manage").append(
-      button("Đóng cuộc trò chuyện", async () => {
-        if (!window.confirm("Đóng cuộc trò chuyện và xóa lịch sử chung cho tất cả thành viên?")) return;
+      button(t("personalInbox.closeRoom"), async () => {
+        if (!window.confirm(t("personalInbox.confirmClose"))) return;
         await api("rooms/" + r.id + "/close", {});
         clearRoom();
         await refresh();
@@ -365,19 +360,19 @@ async function refreshRoom(poll) {
     );
     else
     el("manage").append(
-      act("Rời cuộc trò chuyện", "leave", "Đã rời cuộc trò chuyện."),
-      act("Rời và chặn lời mời của chủ phòng", "block", "Đã rời và chặn người mời."),
+      act(t("personalInbox.leave"), "leave", t("personalInbox.left")),
+      act(t("personalInbox.leaveBlock"), "block", t("personalInbox.leftBlocked")),
     );
   }
   const waiting = r.kind === "direct" && detail.members.length !== 2;
   const limited = group && (r.muted || (r.announcements && !manager));
   el("compose").hidden = !!(waiting || limited);
   el("post-limited").hidden = !limited;
-  if (limited) el("post-limited").textContent = r.muted ? "Bạn chỉ có quyền xem trong nhóm này." : "Chỉ quản trị viên được gửi trong nhóm này.";
-  if (r.kind === "group") el("room-meta").textContent = detail.members.length + " thành viên";
+  if (limited) el("post-limited").textContent = r.muted ? t("personalInbox.readOnly") : t("personalInbox.adminPostOnly");
+  if (r.kind === "group") el("room-meta").textContent = t("personalInbox.memberCount", { count: detail.members.length });
   if (readingOlder)
     el("actions").append(
-      button("Về tin mới nhất", async () => {
+      button(t("personalInbox.latest"), async () => {
         readingOlder = false;
         await refresh();
       }),
@@ -396,7 +391,7 @@ async function refreshRoom(poll) {
       history.scrollTop = history.scrollHeight;
     }
   }
-  if (waiting) el("posts").replaceChildren(node("li", "Chỉ gửi tin khi cả hai đã tham gia."));
+  if (waiting) el("posts").replaceChildren(node("li", t("personalInbox.waitingDirect")));
 }
 async function select(id) {
   if (current !== id || viewingSaved) clearRoom();
@@ -419,8 +414,8 @@ function createLabels() {
   const form = el("create-room"),
     group = form.elements.kind.value === "group";
   form.querySelector("details").hidden = group;
-  form.querySelector("button").textContent = group ? "Tạo nhóm" : "Mở trò chuyện";
-  el("target-label").textContent = group ? "Tên nhóm" : "Email người nhận";
+  form.querySelector("button").textContent = group ? t("personalInbox.createGroup") : t("personalInbox.openChat");
+  el("target-label").textContent = group ? t("personalInbox.groupName") : t("personalInbox.recipientEmail");
   form.elements.target.type = group ? "text" : "email";
   form.elements.target.maxLength = group ? 80 : 254;
 }
@@ -444,9 +439,9 @@ el("create-room").onsubmit = run(async () => {
 });
 el("cancel-invite").onclick = run(async () => {
   const field = el("invite").elements.email;
-  if (!field.reportValidity() || !window.confirm("Thu hồi lời mời tới " + field.value.trim() + "?")) return;
+  if (!field.reportValidity() || !window.confirm(t("personalInbox.confirmCancel", { email: field.value.trim() }))) return;
   await api("rooms/" + current + "/moderate", {action:"cancelInvite",email:field.value.trim()});
-  status("Đã xử lý yêu cầu thu hồi lời mời.");
+  status(t("personalInbox.cancelledInvite"));
 });
 el("invite").onsubmit = run(async () => {
   const form = el("invite");
@@ -455,17 +450,17 @@ el("invite").onsubmit = run(async () => {
     guest: { locale: form.elements.locale.value, note: form.elements.note.value.trim() },
   });
   el("invite").reset();
-  status("Đã ghi nhận yêu cầu mời. Người nhận đủ điều kiện sẽ thấy lời mời trong hộp thư.");
+  status(t("personalInbox.invited"));
 });
 function composeLabels() {
   const kind = el("compose").elements.kind.value;
   el("draft-label").textContent = {
-    text: "Tin nhắn",
-    skill: "Nội dung SKILL.md",
-    task: "Yêu cầu và tiêu chí hoàn thành",
+    text: t("personalInbox.messages"),
+    skill: t("personalInbox.skillBody"),
+    task: t("personalInbox.taskBody"),
   }[kind];
-  const action = kind === "text" ? "Gửi" : "Xem lại trước khi gửi";
-  el("draft").placeholder = kind === "text" ? "Nhập tin nhắn…" : el("draft-label").textContent;
+  const action = kind === "text" ? t("personalInbox.send") : t("personalInbox.reviewSend");
+  el("draft").placeholder = kind === "text" ? t("personalInbox.messagePlaceholder") : el("draft-label").textContent;
   el("submit-post").setAttribute("aria-label", action);
   el("submit-post").title = action;
   updateComposer();
@@ -518,7 +513,7 @@ el("compose").onsubmit = run(async () => {
   else if (!pendingPost || pendingPost.room !== current || pendingPost.kind !== kind || pendingPost.body !== body)
     pendingPost = { room: current, kind, body, nonce: crypto.randomUUID() };
   if (kind === "text") return sendDraft();
-  el("audience").textContent = "Gửi vào " + el("title").textContent + ". Thành viên có thể lưu bản sao.";
+  el("audience").textContent = t("personalInbox.shareAudience", { room: el("title").textContent });
   el("preview-body").textContent = body;
   el("preview").showModal();
 });
@@ -561,20 +556,20 @@ async function previewMarkdown(item) {
     throw Error("skill_file_length");
   if (room !== current || activeBatch || !attachments.includes(item) || el("preview").open) return;
   markdownShare = { room, item, post };
-  el("audience").textContent = item.file.name + " · Gửi vào " + el("title").textContent;
+  el("audience").textContent = t("personalInbox.fileAudience", { file: item.file.name, room: el("title").textContent });
   el("preview-body").textContent = body;
   el("preview").showModal();
 }
 const canPreview = (name) => /\.(?:png|jpe?g|gif|webp)$/i.test(name);
 function fileSize(bytes) {
-  if (bytes >= 1_000_000) return new Intl.NumberFormat("vi", {maximumFractionDigits: 2}).format(bytes / 1_000_000) + " MB";
+  if (bytes >= 1_000_000) return new Intl.NumberFormat(language, {maximumFractionDigits: 2}).format(bytes / 1_000_000) + " MB";
   if (bytes < 1024) return bytes + " B";
-  return new Intl.NumberFormat("vi", {maximumFractionDigits: 1}).format(bytes / 1024) + " KiB";
+  return new Intl.NumberFormat(language, {maximumFractionDigits: 1}).format(bytes / 1024) + " KiB";
 }
 function fileDetails(name, size) {
   const details = node("span", "");
   details.className = "file-details";
-  const type = /^skill\.md$/i.test(name) ? "Skill Markdown" : isMarkdown(name) ? "Markdown" : name.match(/\.([a-z0-9]{1,8})$/i)?.[1].toUpperCase() || "Tệp";
+  const type = /^skill\.md$/i.test(name) ? t("personalInbox.markdownSkill") : isMarkdown(name) ? t("personalInbox.markdown") : name.match(/\.([a-z0-9]{1,8})$/i)?.[1].toUpperCase() || t("personalInbox.file");
   details.append(node("strong", name), node("small", size == null ? type : type + " · " + fileSize(size)));
   return details;
 }
@@ -592,7 +587,7 @@ function attachmentCard(post) {
   link.href = "/api/rooms/" + current + "/files/" + post.seq;
   link.download = post.body;
   link.className = "file-card";
-  link.setAttribute("aria-label", "Tải tệp " + post.body);
+  link.setAttribute("aria-label", t("personalInbox.downloadFile", { file: post.body }));
   if (canPreview(post.body)) link.append(thumbnail(link.href + "?preview=1"));
   const row = node("span", "");
   row.className = "file-row";
@@ -605,10 +600,10 @@ function renderPosts() {
   let lastDay, previous;
   for (const p of posts) {
     const date = new Date(p.created);
-    const day = date.toLocaleDateString("vi-VN");
+    const day = date.toLocaleDateString(language);
     const grouped = day === lastDay && previous?.author === p.author && p.created - previous.created < 120000;
     if (day !== lastDay) {
-      const divider = node("li", date.toLocaleDateString("vi-VN", {day:"numeric",month:"long",year:"numeric"}));
+      const divider = node("li", date.toLocaleDateString(language, {day:"numeric",month:"long",year:"numeric"}));
       divider.className = "day";
       items.push(divider);
       lastDay = day;
@@ -617,21 +612,21 @@ function renderPosts() {
     li.className = p.author === me.email ? "message mine" : "message";
     const bubble = node("div", "");
     bubble.className = "bubble";
-    const type = {skill:" · Skill",task:" · Công việc"}[p.kind] || "";
-    const meta = node("small", (p.author === me.email ? "Bạn" : p.author.split("@")[0]) + type + " · " +
-      date.toLocaleTimeString("vi-VN", {hour:"2-digit",minute:"2-digit"}));
-    meta.title = p.author + " · " + date.toLocaleString("vi-VN");
+    const type = {skill:t("personalInbox.skillSuffix"),task:t("personalInbox.taskSuffix")}[p.kind] || "";
+    const meta = node("small", (p.author === me.email ? t("personalInbox.you") : p.author.split("@")[0]) + type + " · " +
+      date.toLocaleTimeString(language, {hour:"2-digit",minute:"2-digit"}));
+    meta.title = p.author + " · " + date.toLocaleString(language);
     if (p.kind === "file") bubble.append(attachmentCard(p));
     else {
       bubble.append(node("pre", p.body));
       const invitation = p.kind === "text" && URL.canParse(p.body) ? new URL(p.body) : null;
       const token = invitation?.origin === location.origin && new URLSearchParams(invitation.hash.slice(1)).get("join");
-      if (token && /^[a-f0-9-]{36}$/.test(token)) bubble.append(button("Mở lời mời nhóm", () => {
+      if (token && /^[a-f0-9-]{36}$/.test(token)) bubble.append(button(t("personalInbox.openInvite"), () => {
         joinToken = token; return showGroupInvitation();
       }));
-      if (p.kind !== "text") bubble.append(button(p.kind === "skill" ? "Lưu bản sao skill" : "Nhận việc", async () => {
+      if (p.kind !== "text") bubble.append(button(p.kind === "skill" ? t("personalInbox.saveSkill") : t("personalInbox.acceptTask"), async () => {
         await api("saved", {seq:p.seq,action:"save"});
-        status("Đã lưu vào mục Skill và việc đã nhận của bạn.");
+        status(t("personalInbox.savedItem"));
       }));
     }
     if (grouped && !type) {
@@ -642,9 +637,9 @@ function renderPosts() {
     if (room?.kind === "group" && (p.author === me.email || room.isOwner || (room.admin && !moderators.has(p.author)))) {
       const options=node("details","");
       options.className="message-options";
-      const toggle=node("summary","⋯"); toggle.setAttribute("aria-label","Tùy chọn tin nhắn"); toggle.title="Tùy chọn tin nhắn"; options.append(toggle);
-      options.append(button("Xóa tin nhắn",async () => {
-        if (!window.confirm("Xóa tin nhắn này cho cả nhóm?")) return;
+      const toggle=node("summary","⋯"); toggle.setAttribute("aria-label",t("personalInbox.messageOptions")); toggle.title=t("personalInbox.messageOptions"); options.append(toggle);
+      options.append(button(t("personalInbox.deletePost"),async () => {
+        if (!window.confirm(t("personalInbox.confirmDelete"))) return;
         await api("rooms/"+room.id+"/moderate",{action:"deletePost",seq:p.seq}); readingOlder=false; await refresh();
       })); li.append(options);
     }
@@ -654,12 +649,12 @@ function renderPosts() {
     items.push(li);
   }
   el("posts").replaceChildren(...items);
-  if (!items.length) el("posts").append(node("li", "Chưa có tin nhắn."));
+  if (!items.length) el("posts").append(node("li", t("personalInbox.noMessages")));
 }
 function updateComposer() {
   const busy = Boolean(activeBatch);
   el("sending").hidden = !busy;
-  el("sending").textContent = busy ? (attachments.length ? "Đang gửi " + attachments[0].file.name + "…" : "Đang gửi…") : "";
+  el("sending").textContent = busy ? (attachments.length ? t("personalInbox.sendingFile", { file: attachments[0].file.name }) : t("personalInbox.sending")) : "";
   el("draft").readOnly = busy;
   el("attach").disabled = busy || el("compose").elements.kind.value !== "text";
   el("compose").elements.kind.disabled = busy || attachments.length > 0;
@@ -676,14 +671,14 @@ function renderAttachments() {
   el("attachments").replaceChildren(...attachments.map((item) => {
     const chip = node("div", "");
     chip.className = "file-chip";
-    const remove = button("Bỏ tệp " + item.file.name, () => removeAttachment(item));
+    const remove = button(t("personalInbox.removeFile", { file: item.file.name }), () => removeAttachment(item));
     remove.setAttribute("aria-label", remove.textContent);
     remove.title = remove.textContent;
     remove.replaceChildren(icon("close"));
     remove.disabled = Boolean(activeBatch);
     chip.append(item.preview ? thumbnail(item.preview) : icon("file"), fileDetails(item.file.name, item.file.size), remove);
     if (isMarkdown(item.file.name)) {
-      const share = button("Chia sẻ dưới dạng skill", () => previewMarkdown(item));
+      const share = button(t("personalInbox.shareAsSkill"), () => previewMarkdown(item));
       share.className = "share-markdown";
       share.disabled = Boolean(activeBatch);
       chip.querySelector(".file-details").append(share);
@@ -889,12 +884,12 @@ async function showSaved() {
     ...saved.map((p) => {
       const item = document.createElement("article");
       item.append(
-        node("small", p.kind === "skill" ? "Skill" : p.done ? "Việc đã hoàn thành" : "Việc đã nhận"),
+        node("small", p.kind === "skill" ? t("personalInbox.skill") : p.done ? t("personalInbox.completedTask") : t("personalInbox.receivedTask")),
         node("pre", p.body),
       );
       if (p.kind === "skill")
         item.append(
-          button("Tải SKILL.md", () => {
+          button(t("personalInbox.downloadSkill"), () => {
             const link = document.createElement("a");
             link.download = "SKILL.md";
             link.href = URL.createObjectURL(new Blob([p.body], { type: "text/plain;charset=utf-8" }));
@@ -904,13 +899,13 @@ async function showSaved() {
         );
       if (p.kind === "task" && !p.done)
         item.append(
-          button("Hoàn thành", async () => {
+          button(t("personalInbox.complete"), async () => {
             await api("saved", { seq: p.seq, action: "done" });
             await showSaved();
           }),
         );
       item.append(
-        button("Xóa bản sao", async () => {
+        button(t("personalInbox.deleteCopy"), async () => {
           await api("saved", { seq: p.seq, action: "delete" });
           await showSaved();
         }),
@@ -918,7 +913,7 @@ async function showSaved() {
       return item;
     }),
   );
-  if (!saved.length) el("saved-list").append(node("p", "Chưa có skill hoặc việc đã nhận."));
+  if (!saved.length) el("saved-list").append(node("p", t("personalInbox.noSaved")));
 }
 el("open-saved").onclick = run(showSaved);
 async function showBlocked() {
@@ -927,7 +922,7 @@ async function showBlocked() {
     ...people.map((p) => {
       const li = node("li", p.email);
       li.append(
-        button("Bỏ chặn", async () => {
+        button(t("personalInbox.unblock"), async () => {
           await api("blocks", { person: p.id });
           await showBlocked();
         }),
@@ -935,7 +930,7 @@ async function showBlocked() {
       return li;
     }),
   );
-  if (!people.length) el("blocked-list").append(node("li", "Chưa chặn ai."));
+  if (!people.length) el("blocked-list").append(node("li", t("personalInbox.noBlocks")));
 }
 el("blocked").ontoggle = run(async () => {
   if (el("blocked").open && me) await showBlocked();
@@ -999,22 +994,42 @@ document.addEventListener("visibilitychange", () => {
     pollRooms(true);
   }
 });
-el("mail-lang").value = (new URLSearchParams(location.search).get("lang") ?? navigator.language).startsWith(
-  "vi",
-)
-  ? "vi"
-  : "en";
+function chooseLanguage(tag) {
+  setLanguage(tag);
+  el("mail-lang").value = language;
+  for (const selector of document.querySelectorAll('select[name="locale"]')) {
+    for (const option of selector.options) option.defaultSelected = option.value === language;
+  }
+  createLabels();
+  composeLabels();
+  if (!el("verify").hidden) {
+    status(t("personalInbox.checkMail", { email: loginEmail }));
+    const send = el("send-code").querySelector("button");
+    if (send.disabled) send.textContent = t("personalInbox.resendWait");
+  }
+  if (accountOnly) {
+    document.title = t("personalInbox.account");
+    document.querySelector("header strong").textContent = document.title;
+  }
+}
+chooseLanguage(language);
+el("mail-lang").onchange = () => {
+  const url = new URL(location.href);
+  url.searchParams.set("lang", el("mail-lang").value);
+  history.replaceState(null, "", url);
+  chooseLanguage(el("mail-lang").value);
+  if (joinToken) void showGroupInvitation();
+};
 const stopParams = new URLSearchParams(location.hash.slice(1));
 if (stopParams.has("stop")) {
-  const token = stopParams.get("stop"),
-    en = stopParams.get("lang") === "en";
+  const token = stopParams.get("stop");
   history.replaceState(null, "", location.pathname);
   el("stop-mail").hidden = false;
-  el("stop-button").textContent = en ? "Stop invitation emails" : "Dừng nhận email mời";
+  el("stop-button").textContent = t("personalInbox.stopMail");
   el("stop-button").onclick = run(async () => {
     await api("stop-invitations", { token });
     el("stop-button").hidden = true;
-    el("stop-result").textContent = en ? "Invitation emails have been stopped." : "Đã dừng nhận email mời.";
+    el("stop-result").textContent = t("personalInbox.mailStopped");
   });
 } else
   start().catch((e) => {

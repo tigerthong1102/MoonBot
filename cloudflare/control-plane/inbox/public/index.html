@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Tin nhắn · StartupBot</title>
+    <title data-i18n="personalInbox.pageTitle">Messages · StartupBot</title>
     <link rel="stylesheet" href="/inbox.css?v=4" />
     <script type="module" src="/inbox.js?v=11"></script>
   </head>
@@ -22,154 +22,150 @@
       <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
     </defs></svg>
     <header>
-      <a id="desktop-back" href="/desktop/back" hidden>← Về StartupBot</a><strong>Tin nhắn</strong
-      ><span id="account"></span><button id="logout" hidden>Đăng xuất</button>
+      <a id="desktop-back" href="/desktop/back" hidden data-i18n="personalInbox.back">← Back to StartupBot</a><strong data-i18n="personalInbox.messages">Messages</strong
+      ><span id="account"></span><button id="logout" hidden data-i18n="personalInbox.logout">Sign out</button>
     </header>
     <main>
-      <h1 class="sr">Tin nhắn</h1>
+      <h1 class="sr" data-i18n="personalInbox.messages">Messages</h1>
       <p role="status" id="status"></p>
       <section id="stop-mail" hidden>
         <button id="stop-button"></button>
         <p id="stop-result" role="status"></p>
       </section>
       <section id="signin" hidden>
-        <h2>Đăng nhập hoặc tạo tài khoản StartupBot</h2>
-        <p>
-          Nếu đây là lần đầu, xác minh email sẽ tạo tài khoản cho bạn. Bản thử nội bộ dành cho các địa chỉ
-          được mời. Thành viên cùng cuộc trò chuyện có thể thấy email của nhau.
-        </p>
+        <h2 data-i18n="personalInbox.signInTitle">Sign in or create a StartupBot account</h2>
+        <p data-i18n="personalInbox.signInHelp">Verify your email to create your account. The internal pilot is for invited addresses. People in the same conversation can see each other’s email address.</p>
         <form id="send-code">
           <label
-            >Ngôn ngữ email / Email language<select id="mail-lang">
-              <option value="vi">Tiếng Việt</option>
-              <option value="en">English</option>
+            ><span data-i18n="personalInbox.language">Language</span><select id="mail-lang">
+              <option value="vi" data-i18n="personalInbox.vietnamese">Tiếng Việt</option>
+              <option value="en" data-i18n="personalInbox.english">English</option>
             </select></label
           >
-          <label>Email của bạn<input name="email" type="email" required autocomplete="email" /></label
-          ><button>Gửi mã đăng nhập</button>
+          <label><span data-i18n="personalInbox.yourEmail">Your email</span><input name="email" type="email" required autocomplete="email" /></label
+          ><button data-i18n="personalInbox.sendCode">Send sign-in code</button>
         </form>
         <form id="verify" hidden>
           <label
-            >Mã xác minh<input
+            ><span data-i18n="personalInbox.code">Verification code</span><input
               name="otp"
               inputmode="numeric"
               pattern="[0-9]{8}"
               autocomplete="one-time-code"
               required /></label
-          ><button>Đăng nhập</button>
+          ><button data-i18n="personalInbox.signIn">Sign in</button>
         </form>
       </section>
-      <div id="join-prompt" hidden><strong id="join-title"></strong> <button id="join-button">Tham gia nhóm qua liên kết</button></div>
+      <div id="join-prompt" hidden><strong id="join-title"></strong> <button id="join-button" data-i18n="personalInbox.joinByLink">Join group via link</button></div>
       <div id="inbox" hidden>
         <aside>
-          <h2>Cuộc trò chuyện</h2>
+          <h2 data-i18n="personalInbox.conversations">Conversations</h2>
           <details id="new-room">
-            <summary title="Cuộc trò chuyện mới"><svg class="icon" aria-hidden="true"><use href="#i-new"></use></svg><span class="sr">Cuộc trò chuyện mới</span></summary>
+            <summary title="New conversation" data-i18n-title="personalInbox.newConversation"><svg class="icon" aria-hidden="true"><use href="#i-new"></use></svg><span class="sr" data-i18n="personalInbox.newConversation">New conversation</span></summary>
             <form id="create-room">
               <label
-                >Tạo cuộc trò chuyện<select name="kind">
-                  <option value="direct">Chat riêng</option>
-                  <option value="group">Chat nhóm</option>
+                ><span data-i18n="personalInbox.createConversation">Start a conversation</span><select name="kind">
+                  <option value="direct" data-i18n="personalInbox.direct">Direct chat</option>
+                  <option value="group" data-i18n="personalInbox.group">Group chat</option>
                 </select></label
               >
               <label
-                ><span id="target-label">Email người nhận</span><input name="target" type="email" required
+                ><span id="target-label" data-i18n="personalInbox.recipientEmail">Recipient email</span><input name="target" type="email" required
               /></label>
-              <details><summary>Tùy chọn thư mời</summary><fieldset>
+              <details><summary data-i18n="personalInbox.mailOptions">Invitation email options</summary><fieldset>
                 <label
-                  >Ngôn ngữ người nhận<select name="locale">
-                    <option value="vi">Tiếng Việt</option>
-                    <option value="en">English</option>
+                  ><span data-i18n="personalInbox.recipientLanguage">Recipient’s language</span><select name="locale">
+                    <option value="vi" data-i18n="personalInbox.vietnamese">Tiếng Việt</option>
+                    <option value="en" data-i18n="personalInbox.english">English</option>
                   </select></label
                 >
                 <label
-                  >Lời nhắn trong email (tùy chọn)<textarea name="note" maxlength="500" rows="2"></textarea>
+                  ><span data-i18n="personalInbox.invitationNote">Personal note (optional)</span><textarea name="note" maxlength="500" rows="2"></textarea>
                 </label>
-                <small>Người nhận mới sẽ nhận một email gồm lời nhắn này và địa chỉ của bạn.</small>
+                <small data-i18n="personalInbox.firstContact">New recipients get an email with your note and email address.</small>
               </fieldset></details>
-              <button>Mở trò chuyện</button>
+              <button data-i18n="personalInbox.openChat">Open conversation</button>
             </form>
           </details>
-          <label class="search"><svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg><input type="search" id="filter" placeholder="Tìm cuộc trò chuyện" aria-label="Tìm cuộc trò chuyện" /></label>
-          <nav id="rooms" aria-label="Cuộc trò chuyện"></nav>
-          <button id="open-saved">Skill và việc đã nhận</button>
+          <label class="search"><svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg><input type="search" id="filter" placeholder="Search conversations" data-i18n-placeholder="personalInbox.search" aria-label="Search conversations" data-i18n-aria-label="personalInbox.search" /></label>
+          <nav id="rooms" aria-label="Conversations" data-i18n-aria-label="personalInbox.conversations"></nav>
+          <button id="open-saved" data-i18n="personalInbox.saved">Your skills and tasks</button>
           <details id="blocked">
-            <summary>Người đã chặn</summary>
+            <summary data-i18n="personalInbox.blockedPeople">Blocked people</summary>
             <ul id="blocked-list"></ul>
           </details>
         </aside>
         <section id="saved" hidden>
-          <button class="list-back" type="button">← Cuộc trò chuyện</button>
-          <h2>Skill và việc đã nhận</h2>
+          <button class="list-back" type="button" data-i18n="personalInbox.backRooms">← Conversations</button>
+          <h2 data-i18n="personalInbox.saved">Your skills and tasks</h2>
           <div id="saved-list"></div>
         </section>
         <section id="room">
-          <button class="list-back" type="button">← Cuộc trò chuyện</button>
-          <div id="empty-room"><svg class="icon" aria-hidden="true"><use href="#i-chat"></use></svg><h2>Chọn cuộc trò chuyện</h2></div>
+          <button class="list-back" type="button" data-i18n="personalInbox.backRooms">← Conversations</button>
+          <div id="empty-room"><svg class="icon" aria-hidden="true"><use href="#i-chat"></use></svg><h2 data-i18n="personalInbox.chooseRoom">Choose a conversation</h2></div>
           <div class="room-heading" hidden>
             <span id="room-avatar" class="avatar" aria-hidden="true"></span>
             <div><h2 id="title"></h2><small id="room-meta"></small></div>
-            <button type="button" id="quick-invite" hidden>Mời vào nhóm</button>
+            <button type="button" id="quick-invite" hidden data-i18n="personalInbox.inviteGroup">Invite to group</button>
           </div>
           <div id="actions"></div>
           <div id="conversation" hidden>
             <details id="room-options">
-              <summary title="Thông tin cuộc trò chuyện"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg><span class="sr">Thông tin cuộc trò chuyện</span></summary>
-              <h3>Thành viên</h3>
+              <summary title="Conversation info" data-i18n-title="personalInbox.roomInfo"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg><span class="sr" data-i18n="personalInbox.roomInfo">Conversation info</span></summary>
+              <h3 data-i18n="personalInbox.member">Member</h3>
               <ul id="members"></ul>
-              <input id="invite-link-field" aria-label="Liên kết mời" readonly hidden />
+              <input id="invite-link-field" aria-label="Invite link" data-i18n-aria-label="personalInbox.linkLabel" readonly hidden />
               <div id="manage"></div>
               <small class="retention"
-                >Tin nhắn được lưu trong 30 ngày. Bản sao skill và việc đã nhận được giữ riêng đến khi bạn
-                xóa.</small
+                 data-i18n="personalInbox.retention">Messages are kept for 30 days. Your saved skills and tasks remain private until you delete them.</small
               >
               <form id="invite" hidden>
-                <label>Email người muốn mời<input name="email" type="email" required /></label>
-                <details><summary>Tùy chọn thư mời</summary><fieldset>
+                <label><span data-i18n="personalInbox.inviteEmail">Email address to invite</span><input name="email" type="email" required /></label>
+                <details><summary data-i18n="personalInbox.mailOptions">Invitation email options</summary><fieldset>
                   <label
-                    >Ngôn ngữ người nhận<select name="locale">
-                      <option value="vi">Tiếng Việt</option>
-                      <option value="en">English</option>
+                    ><span data-i18n="personalInbox.recipientLanguage">Recipient’s language</span><select name="locale">
+                      <option value="vi" data-i18n="personalInbox.vietnamese">Tiếng Việt</option>
+                      <option value="en" data-i18n="personalInbox.english">English</option>
                     </select></label
                   >
                   <label
-                    >Lời nhắn trong email (tùy chọn)<textarea name="note" maxlength="500" rows="2"></textarea>
+                    ><span data-i18n="personalInbox.invitationNote">Personal note (optional)</span><textarea name="note" maxlength="500" rows="2"></textarea>
                   </label>
-                  <small>Người nhận mới sẽ nhận một email gồm lời nhắn này và địa chỉ của bạn.</small>
-                <button type="button" id="cancel-invite">Thu hồi lời mời tới email này</button>
+                  <small data-i18n="personalInbox.firstContact">New recipients get an email with your note and email address.</small>
+                <button type="button" id="cancel-invite" data-i18n="personalInbox.withdraw">Withdraw invitation to this email</button>
                 </fieldset></details>
-                <button type="submit">Gửi lời mời</button>
+                <button type="submit" data-i18n="personalInbox.sendInvitation">Send invitation</button>
               </form>
             </details>
             <div id="history">
-              <button id="older" hidden>Xem tin cũ hơn</button>
+              <button id="older" hidden data-i18n="personalInbox.older">Show older messages</button>
               <ol id="posts"></ol>
             </div>
 
             <p id="post-limited" hidden></p>
             <form id="compose">
               <small id="sending" role="status" hidden></small>
-              <div id="attachments" aria-label="Tệp chờ gửi" hidden></div>
+              <div id="attachments" aria-label="Files ready to send" data-i18n-aria-label="personalInbox.staged" hidden></div>
               <div class="compose-row">
-                <button id="attach" type="button" class="round" aria-label="Đính kèm tệp" title="Đính kèm tệp"><svg class="icon" aria-hidden="true"><use href="#i-clip"></use></svg></button>
+                <button id="attach" type="button" class="round" aria-label="Attach file" data-i18n-aria-label="personalInbox.attach" title="Attach file" data-i18n-title="personalInbox.attach"><svg class="icon" aria-hidden="true"><use href="#i-clip"></use></svg></button>
                 <input id="files" type="file" multiple hidden />
-                <label class="kind round" title="Chia sẻ skill hoặc công việc"><svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg>
-                  <select name="kind" aria-label="Nội dung gửi">
-                    <option value="text">Tin nhắn</option>
-                    <option value="skill">Skill dạng văn bản</option>
-                    <option value="task">Bàn giao công việc</option>
+                <label class="kind round" title="Share a skill or task" data-i18n-title="personalInbox.shareWork"><svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg>
+                  <select name="kind" aria-label="Message type" data-i18n-aria-label="personalInbox.messageKind">
+                    <option value="text" data-i18n="personalInbox.messages">Messages</option>
+                    <option value="skill" data-i18n="personalInbox.textSkill">Text skill</option>
+                    <option value="task" data-i18n="personalInbox.taskHandoff">Hand off a task</option>
                   </select>
                 </label>
-                <label class="sr" id="draft-label" for="draft">Tin nhắn</label>
-                <textarea id="draft" name="body" rows="1" placeholder="Nhập tin nhắn…" maxlength="8000"></textarea>
-                <button id="submit-post" class="round" aria-label="Gửi" title="Gửi"><svg class="icon" aria-hidden="true"><use href="#i-send"></use></svg></button>
+                <label class="sr" id="draft-label" for="draft" data-i18n="personalInbox.messages">Messages</label>
+                <textarea id="draft" name="body" rows="1" placeholder="Write a message…" data-i18n-placeholder="personalInbox.messagePlaceholder" maxlength="8000"></textarea>
+                <button id="submit-post" class="round" aria-label="Send" data-i18n-aria-label="personalInbox.send" title="Send" data-i18n-title="personalInbox.send"><svg class="icon" aria-hidden="true"><use href="#i-send"></use></svg></button>
               </div>
             </form>
             <dialog id="preview">
-              <h2>Xem lại nội dung chia sẻ</h2>
+              <h2 data-i18n="personalInbox.reviewShare">Review before sharing</h2>
               <p id="audience"></p>
               <pre id="preview-body"></pre>
-              <button id="confirm-share">Gửi bản sao</button><button id="cancel-share">Sửa lại</button>
+              <button id="confirm-share" data-i18n="personalInbox.sendCopy">Send copy</button><button id="cancel-share" data-i18n="personalInbox.edit">Edit</button>
             </dialog>
           </div>
         </section>

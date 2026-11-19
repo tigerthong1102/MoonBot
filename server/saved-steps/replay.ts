@@ -1,5 +1,6 @@
 import { newId, type RuntimeEvent } from "../contracts.ts";
-import { resolveStepSoon, type CallOutcome, type ComputerCaller, type Patience } from "./resolve.ts";
+import { backgroundAccessibilityAction } from "./driver-wire.ts";
+import { resolveStep, resolveStepSoon, type CallOutcome, type ComputerCaller, type Patience } from "./resolve.ts";
 import { stepLabel, type Recipe, type RecipeStep } from "./rules.ts";
 
 export interface ReplayTurn { threadId: string; turnId: string; provider: string; providerInstanceId: string }
@@ -47,16 +48,28 @@ export async function runSteps(
     const label = stepLabel(step);
     const failed = ({ error, gate }: Extract<CallOutcome, { ok: false }>): ReplayOutcome =>
       (signal.aborted ? STOPPED : { kind: "failed", done, total, tool: step.tool, label, error, ...(gate ? { gate } : {}) });
-    const target = await resolveStepSoon(step, caller, signal, patience);
+    let target = await resolveStepSoon(step, caller, signal, patience);
     if (!target.ok) return failed(target);
     const tool = engineToolName(step.tool);
     const summary = stepSummary(step.tool, label);
     const allowed = await approval.ask(tool, approvalSummary(step, label));
     if (signal.aborted) return STOPPED;
     if (!allowed) return { kind: "declined", tool: step.tool, label };
+    if (step.element?.uiaWindowChild) {
+      const current = await resolveStep(step, caller, signal);
+      if (signal.aborted) return STOPPED;
+      if (!current.ok) return failed(current);
+      if (current.args.pid !== target.args.pid || current.args.window_id !== target.args.window_id) {
+        return failed({ ok: false, error: "the approved window changed" });
+      }
+      target = current;
+    }
     const itemId = newId();
     publish({ ...base(itemId), type: "item.started", itemType: "tool", title: tool, input: summary });
-    const result = await caller.call(step.tool, target.args, signal);
+    const delivery = await caller.call(step.tool, target.args, signal);
+    const result = delivery.ok && step.element?.uiaWindowChild && !backgroundAccessibilityAction(delivery.structured)
+      ? { ok: false as const, error: "the computer did not confirm background accessibility delivery" }
+      : delivery;
     publish({ ...base(itemId), type: "item.completed", itemType: "tool", ok: result.ok, output: result.ok ? "done" : result.error });
     if (!result.ok) return failed(result);
   }

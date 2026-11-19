@@ -2,7 +2,7 @@ import type { Message } from "../store.ts";
 import { elementPath, type SlimStructured, type WireElement } from "./driver-wire.ts";
 import type { RecordedCall, RequestJournal } from "./journal.ts";
 import { exactRequest, hasMomentWords, inRequest, requestKey } from "./key.ts";
-import { matchElement } from "./resolve.ts";
+import { matchElement, matchWindowButton } from "./resolve.ts";
 import { namesFinalAction, namesSecret } from "./screen-words.ts";
 
 export type ActionTool = "click" | "double_click" | "right_click" | "type_text" | "set_value" | "press_key" | "scroll" | "launch_app" | "bring_to_front" | "hotkey";
@@ -13,8 +13,12 @@ export const OBSERVATION_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 export interface AppIdentity { bundleId?: string; name?: string }
-export interface ElementIdentity { role: string; label: string; path: string[] }
+export interface ElementIdentity { role: string; label: string; path: string[]; uiaWindowChild?: true }
 export interface RecipeStep { tool: ActionTool; args: Record<string, unknown>; app?: AppIdentity; window?: { title: string }; element?: ElementIdentity }
+export function windowButtonClick(tool: string, args: Record<string, unknown>): boolean {
+  return tool === "click" && args.delivery_mode === "background" && Object.keys(args).length === 1;
+}
+
 export interface Recipe { id: string; key: string; request: string; steps: RecipeStep[]; createdAt: number; lastUsedAt: number }
 
 export type Refusal =
@@ -148,7 +152,9 @@ export function stepLabel(step: RecipeStep): string {
   return step.window?.title ?? appName ?? "the screen";
 }
 
-interface Snapshot { pid?: number; windowId?: number; appName?: string; windowTitle?: string; elements: WireElement[]; complete: boolean }
+const WINDOW_STATE_ARGS = new Set(["pid", "window_id", "tree_format", "include_screenshot"]);
+
+interface Snapshot { pid?: number; windowId?: number; appName?: string; windowTitle?: string; elements: WireElement[]; complete: boolean; windowProjection: boolean }
 
 const fillMissing = (known: AppIdentity | undefined, next: AppIdentity): AppIdentity => ({
   bundleId: known?.bundleId ?? next.bundleId,
@@ -177,7 +183,7 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
     if (pid !== undefined && (identity.bundleId || identity.name)) appsByPid.set(pid, fillMissing(appsByPid.get(pid), identity));
   };
 
-  const observe = ({ tool, result }: RecordedCall) => {
+  const observe = ({ tool, arguments: args, result }: RecordedCall) => {
     const data: SlimStructured = result.structured ?? {};
     if (tool === "list_apps") for (const app of data.apps ?? []) if (app.running !== false) learnApp(app.pid, { bundleId: app.bundle_id, name: app.name });
     if (tool === "list_windows") {
@@ -190,6 +196,8 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
       learnApp(data.pid, { bundleId: data.bundle_id, name: data.app_name });
       if (data.window_id !== undefined && data.window_title !== undefined) windowsById.set(data.window_id, data.window_title);
       const snapshot: Snapshot = {
+        windowProjection: args.tree_format === "elements" && args.pid === data.pid && args.window_id === data.window_id
+          && Object.keys(args).every((key) => WINDOW_STATE_ARGS.has(key)),
         pid: data.pid, windowId: data.window_id, appName: data.app_name, windowTitle: data.window_title, elements: data.elements ?? [], complete: data.elements_complete === true,
       };
       const key = data.window_id !== undefined ? `w${data.window_id}` : `p${data.pid}`;
@@ -274,8 +282,14 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
       if (!element.label) return refuse("unlabelled-element");
       if (flipsToggle(tool, element.role)) return refuse("toggle-element");
       const path = elementPath(snapshot.elements, element);
-      if (!path) return refuse("unknown-target");
-      const twins = matchElement(snapshot.elements, { role: element.role, label: element.label, path });
+      const directButton = !path && snapshot.windowProjection && element.uia_window_child === true && windowButtonClick(tool, kept)
+        && result.structured?.background_accessibility_action === true
+        && !!snapshot.windowTitle && pid === snapshot.pid && windowId === snapshot.windowId
+        && typeof args.element_token === "string" && args.element_index === undefined;
+      if (!path && !directButton) return refuse("unknown-target");
+      const identity: ElementIdentity = { role: element.role, label: element.label, path: path ?? [],
+        ...(directButton ? { uiaWindowChild: true } : {}) };
+      const twins = directButton ? matchWindowButton(snapshot.elements, element.label) : matchElement(snapshot.elements, identity);
       if (!twins.ok || twins.value.element_index !== element.element_index) return refuse("ambiguous-element");
       const app = appFor(snapshot.pid ?? pid) ?? (snapshot.appName ? { name: snapshot.appName } : undefined);
       if (!app) return refuse("unknown-target");
@@ -283,7 +297,7 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
       const title = snapshot.windowTitle ?? windowsById.get(snapshot.windowId ?? windowId ?? -1);
       if (title === undefined) return refuse("unknown-target");
       step.window = { title };
-      step.element = { role: element.role, label: element.label, path };
+      step.element = identity;
       keyWindow = snapshot.windowId ?? windowId;
       const unsafe = unsafeStep(step);
       if (unsafe) return refuse(unsafe);

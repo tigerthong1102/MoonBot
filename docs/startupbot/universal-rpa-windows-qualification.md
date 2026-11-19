@@ -26,16 +26,19 @@ pnpm build:cua:win
 pnpm exec vitest run scripts/testing/cua-win-qualification.test.mjs
 pnpm smoke:cua-win
 
-$stage = Join-Path (Get-Location) 'dist-native\cua-win32-x64'
+$root = (Get-Location).Path
+$stage = Join-Path $root 'dist-native\cua-win32-x64'
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $fixture = Join-Path $stage 'cua-win-navigation-fixture.exe'
 $launcher = Join-Path $stage 'cua-win-private-desktop.exe'
+$fixtureSource = Join-Path $root 'scripts\testing\cua-win-navigation-fixture.cs'
+$launcherSource = Join-Path $root 'scripts\testing\cua-win-private-desktop.cs'
 
-& $csc /nologo /target:winexe /r:System.Windows.Forms.dll /r:System.Drawing.dll "/out:$fixture" scripts/testing/cua-win-navigation-fixture.cs
+& $csc /nologo /target:winexe /r:System.Windows.Forms.dll /r:System.Drawing.dll "/out:$fixture" $fixtureSource
 if ($LASTEXITCODE -ne 0) { throw 'Không biên dịch được fixture' }
-& $csc /nologo /target:exe "/out:$launcher" scripts/testing/cua-win-private-desktop.cs
+& $csc /nologo /target:exe "/out:$launcher" $launcherSource
 if ($LASTEXITCODE -ne 0) { throw 'Không biên dịch được launcher' }
-$entry = Join-Path (Get-Location) 'scripts/testing/cua-win-interactive-entry.mjs'
+$entry = Join-Path $root 'scripts\testing\cua-win-interactive-entry.mjs'
 $log = Join-Path $stage ('qualification-' + [guid]::NewGuid().ToString('N') + '.log')
 & $launcher (Get-Command node).Source $entry $log
 $result = $LASTEXITCODE

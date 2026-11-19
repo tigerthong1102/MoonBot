@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.Bot
 import com.openmausbot.companion.core.BotTask
 import com.openmausbot.companion.core.Chat
@@ -91,7 +93,7 @@ internal fun BotThreadTree(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 DisclosureIcon(isExpanded)
-                Text("Threads", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = secondaryTint)
+                Text(stringResource(R.string.ui_threads), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = secondaryTint)
                 Text(count.toString(), fontSize = 13.sp, color = secondaryTint)
             }
             if (isExpanded) {
@@ -99,14 +101,14 @@ internal fun BotThreadTree(
                     onClick = onCreate,
                     enabled = !creating,
                     size = 48.dp,
-                    contentDescription = "New thread with ${bot.name}",
+                    contentDescription = stringResource(R.string.ui_new_thread_with, bot.name),
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, tint = secondaryTint)
                 }
                 TouchTarget(
                     onClick = onManage,
                     size = 48.dp,
-                    contentDescription = "Manage ${bot.name}'s threads",
+                    contentDescription = stringResource(R.string.ui_manage_s_threads, bot.name),
                 ) {
                     Icon(Icons.Filled.MoreVert, contentDescription = null, tint = secondaryTint)
                 }

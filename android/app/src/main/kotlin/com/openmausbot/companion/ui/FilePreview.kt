@@ -5,8 +5,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import android.graphics.ImageDecoder
+import android.graphics.Matrix
 import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -50,17 +50,19 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.DownloadedFile
 import com.openmausbot.companion.core.LocalMessageLink
 import java.io.File
@@ -417,7 +419,7 @@ internal fun FilePreviewSheet(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = onDismiss) { Text("Done") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.ui_done)) }
                     Text(
                         text = item.filename,
                         fontSize = 17.sp,
@@ -427,8 +429,8 @@ internal fun FilePreviewSheet(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
                     )
-                    TextButton(onClick = { actionError = onShare() }) { Text("Share") }
-                    TextButton(onClick = { actionError = onOpen() }) { Text("Open") }
+                    TextButton(onClick = { actionError = onShare() }) { Text(stringResource(R.string.ui_share)) }
+                    TextButton(onClick = { actionError = onOpen() }) { Text(stringResource(R.string.ui_open)) }
                 }
                 HorizontalDivider()
                 actionError?.let { message ->
@@ -503,7 +505,7 @@ private fun FullScreenImage(item: FilePreviewItem) {
         when {
             image != null -> ZoomableImage(image, item.filename)
             !finished -> CircularProgressIndicator(color = Color.White, modifier = Modifier.size(28.dp))
-            else -> Text("This image couldn't be displayed.", color = Color.White)
+            else -> Text(stringResource(R.string.ui_this_image_couldn_t_be_displayed), color = Color.White)
         }
     }
 }
@@ -551,7 +553,7 @@ private fun ZoomableImage(image: ImageBitmap, name: String) {
                     .padding(8.dp)
                     .background(Color.Black.copy(alpha = 0.55f), androidx.compose.foundation.shape.RoundedCornerShape(18.dp)),
             ) {
-                Text("Reset", color = Color.White)
+                Text(stringResource(R.string.ui_reset), color = Color.White)
             }
         }
     }
@@ -608,7 +610,7 @@ private fun GenericFilePreview(item: FilePreviewItem) {
             modifier = Modifier.padding(top = 6.dp),
         )
         Text(
-            text = "Use Open to view this file in a compatible app.",
+            text = stringResource(R.string.ui_use_open_to_view_this_file_in_a_compatible_app),
             color = secondaryTint,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 16.dp),

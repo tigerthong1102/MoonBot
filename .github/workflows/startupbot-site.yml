@@ -20,4 +20,6 @@ jobs:
         with:
           node-version: 24
       - run: node startupbot-site/build.mjs
-      - run: node --test startupbot-site/site.test.mjs
+      - run: node --test startupbot-site/*.test.mjs
+      - run: node compile-worker.mjs && node --check dist/server/index.js
+        working-directory: startupbot-site

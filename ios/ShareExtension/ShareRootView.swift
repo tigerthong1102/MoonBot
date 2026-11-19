@@ -69,7 +69,7 @@ struct ShareRootView: View {
         .background(Color(uiColor: .secondarySystemGroupedBackground))
     }
 
-    private var headerSubtitle: String {
+    private var headerSubtitle: LocalizedStringKey {
         switch model.phase {
         case .idle, .loading: return "Preparing your share…"
         case .ready: return "Choose where this should go"
@@ -151,7 +151,7 @@ struct ShareRootView: View {
                         .foregroundStyle(.tint)
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(model.selectedComputer?.name ?? "Choose a computer")
+                        Text(model.selectedComputer?.name ?? String(localized: "Choose a computer"))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.primary)
                         if let routeLabel = model.selectedComputer?.routeLabel {
@@ -204,7 +204,7 @@ struct ShareRootView: View {
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 7) {
-                            Text(model.selectedDestination?.name ?? "Choose a bot or channel")
+                            Text(model.selectedDestination?.name ?? String(localized: "Choose a bot or channel"))
                                 .font(.body.weight(.semibold))
                                 .foregroundStyle(.primary)
                             if model.isRememberedSelection {

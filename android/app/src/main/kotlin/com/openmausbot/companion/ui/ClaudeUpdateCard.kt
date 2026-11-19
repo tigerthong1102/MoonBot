@@ -17,10 +17,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.ClaudeUpdateResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -92,16 +94,16 @@ fun ClaudeUpdateCard(messageId: String, instanceId: String) {
         when (val current = phase) {
             ClaudeUpdatePhase.Ask -> {
                 Text(
-                    "This model needs a newer Claude Code. I can update Claude for you.",
+                    stringResource(R.string.ui_this_model_needs_a_newer_claude_code_i_can_update_claude_for_you),
                     fontSize = 15.sp,
                 )
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Button(onClick = ::update) { Text("Update Claude for me") }
+                    Button(onClick = ::update) { Text(stringResource(R.string.ui_update_claude_for_me)) }
                     TextButton(onClick = { phase = ClaudeUpdatePhase.Manual }) {
-                        Text("I'll do it myself")
+                        Text(stringResource(R.string.ui_i_ll_do_it_myself))
                     }
                 }
             }
@@ -115,7 +117,7 @@ fun ClaudeUpdateCard(messageId: String, instanceId: String) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "Updating Claude Code… this can take a minute.",
+                    stringResource(R.string.ui_updating_claude_code_this_can_take_a_minute),
                     fontSize = 15.sp,
                     color = secondaryTint,
                 )
@@ -127,7 +129,7 @@ fun ClaudeUpdateCard(messageId: String, instanceId: String) {
                 val green = Color(MausPalette.argb("green"))
                 Icon(Icons.Filled.Check, contentDescription = null, tint = green, modifier = Modifier.size(16.dp))
                 Text(
-                    "Claude updated — ${current.version}. Send your message again.",
+                    stringResource(R.string.ui_claude_updated_send_your_message_again, current.version),
                     fontSize = 15.sp,
                 )
             }
@@ -138,7 +140,7 @@ fun ClaudeUpdateCard(messageId: String, instanceId: String) {
                     }
                 }
                 Text(
-                    "Run this in Terminal on your computer, then send your message again:",
+                    stringResource(R.string.ui_run_this_in_terminal_on_your_computer_then_send_your_message_aga),
                     fontSize = 15.sp,
                     color = secondaryTint,
                 )
@@ -161,10 +163,10 @@ fun ClaudeUpdateCard(messageId: String, instanceId: String) {
                                 copied = true
                             }
                         },
-                    ) { Text(if (copied) "Copied" else "Copy", fontWeight = FontWeight.Medium) }
+                    ) { Text(if (copied) stringResource(R.string.ui_copied) else stringResource(R.string.ui_copy), fontWeight = FontWeight.Medium) }
                 }
                 if (current is ClaudeUpdatePhase.Failed) {
-                    Button(onClick = ::update) { Text("Try updating again") }
+                    Button(onClick = ::update) { Text(stringResource(R.string.ui_try_updating_again)) }
                 }
             }
         }

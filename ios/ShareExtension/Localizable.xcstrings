@@ -1,0 +1,246 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Bots": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các bot"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hủy"
+          }
+        }
+      }
+    },
+    "Cancel sending": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hủy gửi"
+          }
+        }
+      }
+    },
+    "Channels": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kênh"
+          }
+        }
+      }
+    },
+    "Choose a bot or channel": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn bot hoặc kênh"
+          }
+        }
+      }
+    },
+    "Choose a computer": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn máy tính"
+          }
+        }
+      }
+    },
+    "Choose where this should go": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn nơi gửi nội dung"
+          }
+        }
+      }
+    },
+    "Computer": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính"
+          }
+        }
+      }
+    },
+    "Couldn't send": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể gửi"
+          }
+        }
+      }
+    },
+    "For example: summarize this and list the next steps": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ví dụ: tóm tắt điều này và liệt kê các bước tiếp theo"
+          }
+        }
+      }
+    },
+    "Instruction (optional)": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉ dẫn (tùy chọn)"
+          }
+        }
+      }
+    },
+    "LAST USED": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DÙNG GẦN ĐÂY"
+          }
+        }
+      }
+    },
+    "Needs your attention": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cần bạn kiểm tra"
+          }
+        }
+      }
+    },
+    "Preparing your share…": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang chuẩn bị nội dung chia sẻ…"
+          }
+        }
+      }
+    },
+    "Reading shared content": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang đọc nội dung chia sẻ"
+          }
+        }
+      }
+    },
+    "Send": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi"
+          }
+        }
+      }
+    },
+    "Send to": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi đến"
+          }
+        }
+      }
+    },
+    "Send to StartupBot": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi đến StartupBot"
+          }
+        }
+      }
+    },
+    "Sending securely…": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang gửi qua kết nối bảo mật…"
+          }
+        }
+      }
+    },
+    "Sending…": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang gửi…"
+          }
+        }
+      }
+    },
+    "Sent": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã gửi"
+          }
+        }
+      }
+    },
+    "Sharing": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chia sẻ"
+          }
+        }
+      }
+    },
+    "Try again": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử lại"
+          }
+        }
+      }
+    },
+    "Try sending again": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi lại"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

@@ -32,10 +32,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 
 
 object OnboardingCopy {
@@ -66,26 +68,26 @@ fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
     OnboardingLayout(
         actions = {
             Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
-                Text(OnboardingCopy.WELCOME_CONNECT)
+                Text(stringResource(R.string.ui_onboardingcopy_welcome_connect))
             }
             TextButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) {
-                Text(OnboardingCopy.NOT_NOW)
+                Text(stringResource(R.string.ui_not_now))
             }
         },
     ) {
         androidx.compose.foundation.Image(
             painter = androidx.compose.ui.res.painterResource(com.openmausbot.companion.R.drawable.startupbot_logo),
-            contentDescription = "StartupBot",
+            contentDescription = stringResource(R.string.ui_startupbot),
             modifier = Modifier.size(88.dp),
         )
         Text(
-            text = OnboardingCopy.WELCOME_TITLE,
+            text = stringResource(R.string.ui_onboardingcopy_welcome_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = OnboardingCopy.WELCOME_SUBTITLE,
+            text = stringResource(R.string.ui_onboardingcopy_welcome_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             color = secondaryTint,
             textAlign = TextAlign.Center,
@@ -93,18 +95,18 @@ fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
         Spacer(Modifier.height(6.dp))
         Benefit(
             icon = Icons.AutoMirrored.Filled.Send,
-            title = "Your chats, in your pocket",
-            detail = "Pick up the same conversations from your computer.",
+            title = stringResource(R.string.ui_your_chats_in_your_pocket),
+            detail = stringResource(R.string.ui_pick_up_the_same_conversations_from_your_computer),
         )
         Benefit(
             icon = Icons.Filled.CheckCircle,
-            title = "Respond when a bot needs you",
-            detail = "Review approvals without going back to your desk.",
+            title = stringResource(R.string.ui_respond_when_a_bot_needs_you),
+            detail = stringResource(R.string.ui_review_approvals_without_going_back_to_your_desk),
         )
         Benefit(
             icon = Icons.Filled.Lock,
-            title = "Private by design",
-            detail = "You choose which trusted computer this phone connects to.",
+            title = stringResource(R.string.ui_private_by_design),
+            detail = stringResource(R.string.ui_you_choose_which_trusted_computer_this_phone_connects_to),
         )
     }
 }
@@ -119,14 +121,14 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "StartupBot",
+                text = stringResource(R.string.ui_startupbot),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f).padding(start = 10.dp),
             )
             ChromeButton(
                 icon = Icons.Filled.Settings,
-                contentDescription = "Settings",
+                contentDescription = stringResource(R.string.ui_settings),
                 onClick = onOpenSettings,
             )
         }
@@ -134,25 +136,25 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
         OnboardingLayout(
             actions = {
                 Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
-                    Text(OnboardingCopy.UNPAIRED_HOME_CONNECT)
+                    Text(stringResource(R.string.ui_onboardingcopy_unpaired_home_connect))
                 }
             },
         ) {
             OnboardingHero(Icons.Filled.Phone)
             Text(
-                text = OnboardingCopy.UNPAIRED_HOME_TITLE,
+                text = stringResource(R.string.ui_onboardingcopy_unpaired_home_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = OnboardingCopy.UNPAIRED_HOME_BODY,
+                text = stringResource(R.string.ui_onboardingcopy_unpaired_home_body),
                 style = MaterialTheme.typography.bodyLarge,
                 color = secondaryTint,
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = OnboardingCopy.UNPAIRED_HOME_HINT,
+                text = stringResource(R.string.ui_onboardingcopy_unpaired_home_hint),
                 fontSize = 13.sp,
                 color = secondaryTint,
                 textAlign = TextAlign.Center,
@@ -178,7 +180,7 @@ fun NotificationOnboardingScreen(
                 if (enabling) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
-                    Text(OnboardingCopy.NOTIFICATIONS_ENABLE)
+                    Text(stringResource(R.string.ui_onboardingcopy_notifications_enable))
                 }
             }
             TextButton(
@@ -186,19 +188,19 @@ fun NotificationOnboardingScreen(
                 enabled = !enabling,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(OnboardingCopy.NOT_NOW)
+                Text(stringResource(R.string.ui_not_now))
             }
         },
     ) {
         OnboardingHero(Icons.Filled.Notifications)
         Text(
-            text = OnboardingCopy.NOTIFICATIONS_TITLE,
+            text = stringResource(R.string.ui_onboardingcopy_notifications_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = OnboardingCopy.NOTIFICATIONS_BODY,
+            text = stringResource(R.string.ui_settingspolicy_notifications_footer),
             style = MaterialTheme.typography.bodyMedium,
             color = secondaryTint,
             textAlign = TextAlign.Center,
@@ -206,12 +208,12 @@ fun NotificationOnboardingScreen(
         Spacer(Modifier.height(6.dp))
         Benefit(
             icon = Icons.Filled.CheckCircle,
-            title = OnboardingCopy.NOTIFICATIONS_APPROVALS,
+            title = stringResource(R.string.ui_onboardingcopy_notifications_approvals),
             detail = null,
         )
         Benefit(
             icon = Icons.AutoMirrored.Filled.Send,
-            title = OnboardingCopy.NOTIFICATIONS_FINISHED,
+            title = stringResource(R.string.ui_onboardingcopy_notifications_finished),
             detail = null,
         )
     }

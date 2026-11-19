@@ -5,6 +5,7 @@ import SwiftUI
 enum AppLanguage: String, CaseIterable, Identifiable {
     case system
     case english = "en"
+    case vietnamese = "vi"
     case portugueseBrazil = "pt-BR"
 
     var id: String { rawValue }
@@ -13,6 +14,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .system: "Follow the system"
         case .english: "English"
+        case .vietnamese: "Tiếng Việt"
         case .portugueseBrazil: "Português (Brasil)"
         }
     }

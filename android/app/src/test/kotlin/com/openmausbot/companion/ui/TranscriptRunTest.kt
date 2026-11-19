@@ -77,7 +77,14 @@ class TranscriptRunTest {
     }
 }
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [34], qualifiers = "en")
 class ChatActionsTest {
+    private fun label(id: Int, subject: String? = null): String {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        return if (subject == null) context.getString(id) else context.getString(id, subject)
+    }
+
 
     @Test
     fun `the sheet offers a bot everything, in the Swift's order`() {
@@ -95,22 +102,22 @@ class ChatActionsTest {
             ),
             actions.map { it.id },
         )
-        assertEquals("Photo Library", actions[0].title)
-        assertEquals("Add a photo to this message", actions[0].subtitle)
-        assertEquals("Choose File", actions[1].title)
-        assertEquals("Add a document from Files", actions[1].subtitle)
-        assertEquals("New thread", actions[2].title)
-        assertEquals("Start a fresh thread with Scout", actions[2].subtitle)
-        assertEquals("Threads", actions[3].title)
-        assertEquals("Switch, rename or remove one", actions[3].subtitle)
-        assertEquals("Bot settings", actions[4].title)
-        assertEquals("Model, profile, voice and notifications", actions[4].subtitle)
-        assertEquals("Watch computer", actions[5].title)
-        assertEquals("Live view of what Scout is doing", actions[5].subtitle)
-        assertEquals("Share transcript", actions[6].title)
-        assertEquals("This thread as Markdown", actions[6].subtitle)
-        assertEquals("Share as JSON", actions[7].title)
-        assertEquals("Structured transcript data", actions[7].subtitle)
+        assertEquals("Photo Library", label(actions[0].title))
+        assertEquals("Add a photo to this message", label(actions[0].subtitle, actions[0].subject))
+        assertEquals("Choose File", label(actions[1].title))
+        assertEquals("Add a document from Files", label(actions[1].subtitle, actions[1].subject))
+        assertEquals("New thread", label(actions[2].title))
+        assertEquals("Start a fresh thread with Scout", label(actions[2].subtitle, actions[2].subject))
+        assertEquals("Threads", label(actions[3].title))
+        assertEquals("Switch, rename or remove one", label(actions[3].subtitle, actions[3].subject))
+        assertEquals("Bot settings", label(actions[4].title))
+        assertEquals("Model, profile, voice and notifications", label(actions[4].subtitle, actions[4].subject))
+        assertEquals("Watch computer", label(actions[5].title))
+        assertEquals("Live view of what Scout is doing", label(actions[5].subtitle, actions[5].subject))
+        assertEquals("Share transcript", label(actions[6].title))
+        assertEquals("This thread as Markdown", label(actions[6].subtitle, actions[6].subject))
+        assertEquals("Share as JSON", label(actions[7].title))
+        assertEquals("Structured transcript data", label(actions[7].subtitle, actions[7].subject))
     }
 
     @Test
@@ -118,8 +125,8 @@ class ChatActionsTest {
         val actions = sheet(Chat.BotChat(bot(busy = true)))
         val interrupt = actions.last()
         assertEquals(ChatActionId.INTERRUPT, interrupt.id)
-        assertEquals("Interrupt", interrupt.title)
-        assertEquals("Stop the current turn", interrupt.subtitle)
+        assertEquals("Interrupt", label(interrupt.title))
+        assertEquals("Stop the current turn", label(interrupt.subtitle, interrupt.subject))
         assertTrue(interrupt.destructive)
         assertFalse(actions.single { it.id == ChatActionId.NEW_TASK }.enabled)
         assertTrue(actions.single { it.id == ChatActionId.TASKS }.enabled)

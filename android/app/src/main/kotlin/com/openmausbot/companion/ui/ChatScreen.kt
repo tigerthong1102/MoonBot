@@ -3,9 +3,6 @@ package com.openmausbot.companion.ui
 
 import android.view.KeyCharacterMap
 import androidx.activity.compose.BackHandler
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +16,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +35,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -50,6 +49,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -72,8 +72,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isShiftPressed
@@ -85,6 +85,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -100,14 +101,14 @@ import com.openmausbot.companion.R
 import com.openmausbot.companion.core.AttachmentPolicy
 import com.openmausbot.companion.core.Chat
 import com.openmausbot.companion.core.ChatTarget
-import com.openmausbot.companion.core.LocalMessageLink
-import com.openmausbot.companion.core.PendingMessageAttachment
-import com.openmausbot.companion.core.QueuedSend
 import com.openmausbot.companion.core.CompanionState
 import com.openmausbot.companion.core.Dictation
 import com.openmausbot.companion.core.DisplayedMessageAttachment
 import com.openmausbot.companion.core.DownloadedFile
+import com.openmausbot.companion.core.LocalMessageLink
 import com.openmausbot.companion.core.Message
+import com.openmausbot.companion.core.PendingMessageAttachment
+import com.openmausbot.companion.core.QueuedSend
 import com.openmausbot.companion.core.ThreadRef
 import com.openmausbot.companion.core.TranscriptRow
 import com.openmausbot.companion.core.target
@@ -662,7 +663,7 @@ private fun LoadedChat(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text("Load earlier messages", fontSize = 13.sp)
+                                Text(stringResource(R.string.ui_load_earlier_messages), fontSize = 13.sp)
                             }
                         }
                     }
@@ -961,13 +962,13 @@ private fun ChatHeader(
             if (chat is Chat.BotChat) {
                 ChromeButton(
                     painter = painterResource(R.drawable.ic_phone),
-                    contentDescription = "Call ${chat.name}",
+                    contentDescription = stringResource(R.string.ui_call, chat.name),
                     onClick = onCall,
                 )
                 Spacer(Modifier.size(8.dp))
                 ChromeButton(
                     painter = painterResource(R.drawable.ic_display),
-                    contentDescription = "Watch ${chat.name}'s computer",
+                    contentDescription = stringResource(R.string.ui_watch_s_computer, chat.name),
                     onClick = onWatchComputer,
                 )
             } else {
@@ -1016,7 +1017,7 @@ private fun BackPill(unreadElsewhere: Int, onBack: () -> Unit) {
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back",
+            contentDescription = stringResource(R.string.ui_back),
             modifier = Modifier.size(20.dp),
         )
         if (unreadElsewhere > 0) {
@@ -1158,13 +1159,13 @@ private fun BoxScope.PlusSheet(
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = action.title,
+                            text = stringResource(action.title),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Medium,
                             color = tint.copy(alpha = alpha),
                         )
                         Text(
-                            text = action.subtitle,
+                            text = action.subject?.let { stringResource(action.subtitle, it) } ?: stringResource(action.subtitle),
                             fontSize = 13.sp,
                             color = secondaryTint.copy(alpha = alpha),
                         )
@@ -1275,10 +1276,10 @@ private fun Composer(
             )
         }
         if (inFlight) {
-            ComposerStatusLine(if (preparing) "Preparing attachments…" else "Sending…")
+            ComposerStatusLine(if (preparing) stringResource(R.string.ui_preparing_attachments) else stringResource(R.string.ui_sending))
         }
         if (openingFileName != null) {
-            ComposerStatusLine("Opening $openingFileName…")
+            ComposerStatusLine(stringResource(R.string.ui_opening, openingFileName))
         }
         if (attachmentError != null) {
             Row(
@@ -1298,7 +1299,7 @@ private fun Composer(
                 )
                 Text(text = attachmentError, fontSize = 13.sp, modifier = Modifier.weight(1f))
                 Text(
-                    text = "Dismiss",
+                    text = stringResource(R.string.ui_dismiss),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
@@ -1355,7 +1356,7 @@ private fun Composer(
         ) {
             TouchTarget(
                 onClick = onTogglePlus,
-                contentDescription = if (plusOpen) "Close" else "More",
+                contentDescription = if (plusOpen) stringResource(R.string.ui_close) else stringResource(R.string.ui_more),
             ) {
                 Box(
                     modifier = Modifier
@@ -1395,7 +1396,7 @@ private fun Composer(
             ) {
                 TouchTarget(
                     onClick = onToggleHud,
-                    contentDescription = "Slash commands",
+                    contentDescription = stringResource(R.string.ui_slash_commands_205),
                     modifier = Modifier.semantics {
                         stateDescription = if (accessory == ComposerAccessory.HUD) {
                             "Expanded"
@@ -1464,9 +1465,9 @@ private fun Composer(
                 TouchTarget(
                     onClick = onToggleDictation,
                     contentDescription = if (dictationListening) {
-                        "Stop dictation"
+                        stringResource(R.string.ui_stop_dictation)
                     } else {
-                        "Start dictation"
+                        stringResource(R.string.ui_start_dictation)
                     },
                 ) {
                     Box(
@@ -1503,7 +1504,7 @@ private fun Composer(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
+                            contentDescription = stringResource(R.string.ui_send),
                             tint = if (canSend) BubbleColor.mineText else secondaryTint,
                             modifier = Modifier.size(16.dp),
                         )

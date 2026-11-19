@@ -32,11 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 
 
 @Composable
@@ -63,13 +65,13 @@ fun CommandSkillHud(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "SLASH COMMANDS",
+                text = stringResource(R.string.ui_slash_commands),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = secondaryTint,
                 modifier = Modifier.weight(1f),
             )
-            TouchTarget(onClick = onClose, contentDescription = "Close slash commands") {
+            TouchTarget(onClick = onClose, contentDescription = stringResource(R.string.ui_close_slash_commands)) {
                 Icon(
                     imageVector = Icons.Filled.Close,
                     contentDescription = null,

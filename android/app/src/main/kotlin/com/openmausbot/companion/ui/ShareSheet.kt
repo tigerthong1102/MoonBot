@@ -34,9 +34,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.SharedAttachmentKind
 import com.openmausbot.companion.core.SharedAttachmentReference
 import com.openmausbot.companion.core.SharedMessageComposer
@@ -354,7 +356,7 @@ private fun ShareSheetContent(
             ) {
                 HeaderBackButton(onBack = { if (canCancel) cancel() })
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Send to StartupBot", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.ui_send_to_startupbot), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Text(headerSubtitle(phase), color = secondaryTint, fontSize = 13.sp)
                 }
                 if (phase == ShareSheetPhase.SENDING) {
@@ -398,14 +400,14 @@ private fun ShareSheetContent(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(selectedComputer?.name ?: "Choose a computer", fontWeight = FontWeight.SemiBold)
+                            Text(selectedComputer?.name ?: stringResource(R.string.ui_choose_a_computer), fontWeight = FontWeight.SemiBold)
                             selectedComputer?.routeLabel?.let { Text(it, color = secondaryTint, fontSize = 13.sp) }
                         }
                     }
                 }
 
                 if (destinations.isNotEmpty()) {
-                    Text("SEND TO", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = secondaryTint)
+                    Text(stringResource(R.string.ui_send_to), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = secondaryTint)
                     TextButton(
                         onClick = { choosingDestination = true },
                         enabled = canEdit,
@@ -414,11 +416,11 @@ private fun ShareSheetContent(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
-                                    selectedDestination?.name ?: "Choose a bot or channel",
+                                    selectedDestination?.name ?: stringResource(R.string.ui_choose_a_bot_or_channel),
                                     fontWeight = FontWeight.SemiBold,
                                 )
                                 if (selectedDestinationId != null && selectedDestinationId == rememberedDestinationId) {
-                                    Text("LAST USED", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                    Text(stringResource(R.string.ui_last_used), fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
                             selectedDestination?.subtitle?.let {
@@ -435,8 +437,8 @@ private fun ShareSheetContent(
                             instruction = it
                             pendingDelivery = null
                         },
-                        label = { Text("Instruction (optional)") },
-                        placeholder = { Text("For example: summarize this and list the next steps") },
+                        label = { Text(stringResource(R.string.ui_instruction_optional)) },
+                        placeholder = { Text(stringResource(R.string.ui_for_example_summarize_this_and_list_the_next_steps)) },
                         enabled = canEdit,
                         minLines = 2,
                         modifier = Modifier.fillMaxWidth(),
@@ -454,7 +456,7 @@ private fun ShareSheetContent(
                 if (phase == ShareSheetPhase.LOADING && preview.isEmpty) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                        Text("Reading shared content", color = secondaryTint)
+                        Text(stringResource(R.string.ui_reading_shared_content), color = secondaryTint)
                     }
                 }
             }
@@ -466,12 +468,12 @@ private fun ShareSheetContent(
                 horizontalArrangement = Arrangement.End,
             ) {
                 if (phase == ShareSheetPhase.FAILED) {
-                    TextButton(onClick = ::retry) { Text(if (pendingDelivery != null) "Retry send" else "Try again") }
+                    TextButton(onClick = ::retry) { Text(if (pendingDelivery != null) stringResource(R.string.ui_retry_send) else stringResource(R.string.ui_try_again)) }
                 }
                 Button(
                     onClick = ::send,
                     enabled = canSend,
-                ) { Text("Send") }
+                ) { Text(stringResource(R.string.ui_send)) }
             }
         }
     }
@@ -479,7 +481,7 @@ private fun ShareSheetContent(
     if (choosingComputer) {
         AlertDialog(
             onDismissRequest = { choosingComputer = false },
-            title = { Text("Computer") },
+            title = { Text(stringResource(R.string.ui_computer)) },
             text = {
                 Column {
                     computers.forEach { computer ->
@@ -511,14 +513,14 @@ private fun ShareSheetContent(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { choosingComputer = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { choosingComputer = false }) { Text(stringResource(R.string.ui_cancel)) } },
         )
     }
 
     if (choosingDestination) {
         AlertDialog(
             onDismissRequest = { choosingDestination = false },
-            title = { Text("Send to") },
+            title = { Text(stringResource(R.string.ui_send_to_38)) },
             text = {
                 Column {
                     destinations.forEach { destination ->
@@ -539,7 +541,7 @@ private fun ShareSheetContent(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { choosingDestination = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { choosingDestination = false }) { Text(stringResource(R.string.ui_cancel)) } },
         )
     }
 }

@@ -21,11 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.QueuedSend
 
 @Composable
@@ -76,7 +78,7 @@ fun QueuedSendRow(
                     )
                 }
                 Text(
-                    text = if (steering) "Steering…" else "Steer",
+                    text = if (steering) stringResource(R.string.ui_steering) else stringResource(R.string.ui_steer),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -84,7 +86,7 @@ fun QueuedSendRow(
         }
         Icon(
             imageVector = Icons.Filled.Edit,
-            contentDescription = "Edit this queued message",
+            contentDescription = stringResource(R.string.ui_edit_this_queued_message),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
@@ -94,7 +96,7 @@ fun QueuedSendRow(
         )
         Icon(
             imageVector = Icons.Filled.Delete,
-            contentDescription = "Delete this queued message",
+            contentDescription = stringResource(R.string.ui_delete_this_queued_message),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clip(RoundedCornerShape(50))

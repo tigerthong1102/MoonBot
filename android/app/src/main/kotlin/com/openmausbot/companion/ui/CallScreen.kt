@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -248,7 +249,7 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
                     bot = current,
                     size = 160.dp,
                     state = if (phase == CallPhase.SPEAKING) MausState.HAPPY else MausState.forChat(Chat.BotChat(current), messages.lastOrNull()),
-                    contentDescription = "${current.name} avatar",
+                    contentDescription = stringResource(R.string.ui_avatar_96, current.name),
                     modifier = Modifier.graphicsLayer {
                         val scale = if (phase == CallPhase.SPEAKING) breathe else 1f
                         scaleX = scale
@@ -300,7 +301,7 @@ internal fun CallScreen(bot: Bot, onDismiss: () -> Unit) {
                             )
                         }
                     }
-                    TouchTarget(onClick = ::hangUp, size = 68.dp, contentDescription = "End call") {
+                    TouchTarget(onClick = ::hangUp, size = 68.dp, contentDescription = stringResource(R.string.ui_end_call)) {
                         Box(
                             modifier = Modifier
                                 .size(68.dp)

@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,10 +41,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.openmausbot.companion.R
 import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,10 +64,10 @@ fun QrScannerScreen(onCancel: () -> Unit, validate: (String) -> String?) {
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
             TextButton(onClick = onCancel, modifier = Modifier.align(Alignment.CenterStart)) {
-                Text("Cancel")
+                Text(stringResource(R.string.ui_cancel))
             }
             Text(
-                text = "Scan QR Code",
+                text = stringResource(R.string.ui_scan_qr_code),
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.align(Alignment.Center),
             )
@@ -73,21 +75,21 @@ fun QrScannerScreen(onCancel: () -> Unit, validate: (String) -> String?) {
 
         when {
             cameraFailure != null -> EmptyState(
-                title = "Scanner unavailable",
+                title = stringResource(R.string.ui_scanner_unavailable),
                 description = cameraFailure!!,
             )
 
             access == CameraAccess.UNKNOWN -> EmptyState(
-                title = "Requesting camera access…",
-                description = "Allow camera access to scan the pairing QR code shown by StartupBot.",
+                title = stringResource(R.string.ui_requesting_camera_access),
+                description = stringResource(R.string.ui_allow_camera_access_to_scan_the_pairing_qr_code_shown_by_startup),
             )
 
             access == CameraAccess.DENIED -> EmptyState(
-                title = "Camera access needed",
+                title = stringResource(R.string.ui_camera_access_needed),
                 description = "Allow camera access to scan the pairing QR code shown by " +
                     "StartupBot, or go back and enter the address and code by hand.",
             ) {
-                Button(onClick = environment.openAppSettings) { Text("Open Settings") }
+                Button(onClick = environment.openAppSettings) { Text(stringResource(R.string.ui_open_settings)) }
             }
 
             else -> ScannerSurface(
@@ -176,7 +178,7 @@ private fun ScannerSurface(
         )
 
         Text(
-            text = validationError ?: "Point the camera at the QR code on your computer",
+            text = validationError ?: stringResource(R.string.ui_point_the_camera_at_the_qr_code_on_your_computer),
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,

@@ -31,10 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.Bot
 import com.openmausbot.companion.core.CompanionState
 import kotlinx.coroutines.launch
@@ -75,10 +77,10 @@ internal fun NewSectionSheet(onDismiss: () -> Unit) {
                     enabled = SectionRules.canDismiss(saving),
                     modifier = Modifier.align(Alignment.CenterStart),
                 ) {
-                    Text(if (lastCreated == null) "Cancel" else "Done")
+                    Text(if (lastCreated == null) stringResource(R.string.ui_cancel) else stringResource(R.string.ui_done))
                 }
                 Text(
-                    text = "Organize bots",
+                    text = stringResource(R.string.ui_organize_bots),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.align(Alignment.Center),
@@ -101,14 +103,14 @@ internal fun NewSectionSheet(onDismiss: () -> Unit) {
                     },
                     modifier = Modifier.align(Alignment.CenterEnd),
                 ) {
-                    Text("Save")
+                    Text(stringResource(R.string.ui_save))
                 }
             }
 
             lastCreated?.let { section ->
                 SectionNote(
-                    text = "$section is ready",
-                    detail = "Choose more bots for another section, or tap Done.",
+                    text = stringResource(R.string.ui_is_ready, section),
+                    detail = stringResource(R.string.ui_choose_more_bots_for_another_section_or_tap_done),
                     container = MaterialTheme.colorScheme.secondaryContainer,
                     content = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
@@ -117,12 +119,12 @@ internal fun NewSectionSheet(onDismiss: () -> Unit) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Section name") },
+                label = { Text(stringResource(R.string.ui_section_name)) },
                 isError = trimmed.length > SectionRules.MAX_NAME_LENGTH,
                 supportingText = {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = if (joinsExisting) "Adds to existing section" else "Creates a new section",
+                            text = if (joinsExisting) stringResource(R.string.ui_adds_to_existing_section) else stringResource(R.string.ui_creates_a_new_section),
                             fontSize = 13.sp,
                             modifier = Modifier.weight(1f),
                         )
@@ -159,7 +161,7 @@ internal fun NewSectionSheet(onDismiss: () -> Unit) {
             }
 
             Text(
-                text = "Bots",
+                text = stringResource(R.string.ui_bots),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = secondaryTint,

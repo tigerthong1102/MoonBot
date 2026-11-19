@@ -1,0 +1,107 @@
+[
+  {
+    "id": "mac",
+    "platform": "macOS",
+    "version": "v11",
+    "files": [
+      {
+        "name": "StartupBot-0.1.161-internal.20261118.11-arm64.dmg",
+        "label": "Apple Silicon",
+        "format": "DMG",
+        "sha256": "01f92a9712030327d329723e1eb5ab8f860006848347ad3a7b639ada712c9325",
+        "artifact": {
+          "url": "https://github.com/tigerthong1102/MoonBot/actions/runs/44286893426/artifacts/14419339299",
+          "expires": "2026-12-02T10:57:13Z"
+        },
+        "bytes": 241304191
+      },
+      {
+        "name": "StartupBot-0.1.161-internal.20261118.11-x64.dmg",
+        "label": "Intel",
+        "format": "DMG",
+        "sha256": "61b065a5ff04337ddb37e62e35a13571341df96df90b946eb97f9f240bc74cd7",
+        "artifact": {
+          "url": "https://github.com/tigerthong1102/MoonBot/actions/runs/44286893426/artifacts/14420272869",
+          "expires": "2026-12-02T10:57:21Z"
+        },
+        "bytes": 274088813
+      }
+    ]
+  },
+  {
+    "id": "win",
+    "platform": "Windows",
+    "version": "v11",
+    "files": [
+      {
+        "name": "StartupBot-0.1.161-internal.20261118.11-Setup.exe",
+        "label": "Windows x64",
+        "format": "EXE",
+        "sha256": "d8abaa6cb2f9eba7eac42992ef739b20f800af6ab9b5f00b9faad10c6e7db892",
+        "artifact": {
+          "url": "https://github.com/tigerthong1102/MoonBot/actions/runs/44286893426/artifacts/14419337902",
+          "expires": "2026-12-02T10:46:18Z"
+        },
+        "bytes": 227732556
+      },
+      {
+        "name": "StartupBot-0.1.161-internal.20261118.11-arm64-Setup.exe",
+        "label": "Windows ARM64",
+        "format": "EXE",
+        "bytes": 241300719,
+        "sha256": "acb9db28884b8fb903506fc26fa839ea256a1be03524efe0a9e901c59eec968f",
+        "artifact": {
+          "url": "https://github.com/tigerthong1102/MoonBot/actions/runs/44429218326/artifacts/14485849635",
+          "expires": "2026-12-03T00:46:40Z"
+        }
+      }
+    ]
+  },
+  {
+    "id": "android",
+    "platform": "Android",
+    "version": "0.1.9",
+    "files": [
+      {
+        "name": "StartupBot-0.1.9-arm64-v8a-INTERNAL-debug.apk",
+        "label": "ARM64",
+        "format": "APK",
+        "sha256": "210ba9fc8ae62bc441646e6465904dcf8ad9793bfc8950b0558d21386b548158",
+        "artifact": {
+          "url": "https://github.com/tigerthong1102/MoonBot/actions/runs/44317248918/artifacts/14433038436",
+          "expires": "2026-12-02T13:54:30Z"
+        },
+        "bytes": 23829354
+      }
+    ]
+  },
+  {
+    "id": "ios",
+    "platform": "iOS Simulator",
+    "version": "0.1.2 · 16",
+    "files": [
+      {
+        "name": "StartupBot-0.1.2-build16-arm64-SIMULATOR.zip",
+        "label": "Apple Silicon",
+        "format": "ZIP",
+        "sha256": "f7efab9966a977ad3702ed7f1ed1bf114bb95cee829fcd7cbf6b1d019549bf8b",
+        "artifact": {
+          "url": "https://github.com/tigerthong1102/MoonBot/actions/runs/44318082421/artifacts/14436217082",
+          "expires": "2026-12-02T14:26:08Z"
+        },
+        "bytes": 10677453
+      },
+      {
+        "name": "StartupBot-0.1.2-build16-x86_64-SIMULATOR.zip",
+        "label": "Intel",
+        "format": "ZIP",
+        "sha256": "45a453da73f74bdc5726c6c1c2cae16c321e7ad8de8c17f4d3f27e1d8609ea2e",
+        "artifact": {
+          "url": "https://github.com/tigerthong1102/MoonBot/actions/runs/44318082421/artifacts/14435922766",
+          "expires": "2026-12-02T14:26:11Z"
+        },
+        "bytes": 14457243
+      }
+    ]
+  }
+]

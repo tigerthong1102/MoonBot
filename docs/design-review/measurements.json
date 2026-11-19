@@ -1,0 +1,86 @@
+{
+  "base": "84a401a03b7de9d02b28d7633d966a9faeae2e3d",
+  "os": "Darwin 25.6 arm64",
+  "electronDev": {
+    "freshControlMs": 2225,
+    "reopenedMessageMs": [
+      940,
+      914
+    ]
+  },
+  "chrome": {
+    "seeded": {
+      "bots": 45,
+      "threads": 100,
+      "messages": 1000,
+      "botsJsonKb": 42.5,
+      "messagesDbKb": 1596
+    },
+    "serverReadyMs": 1792,
+    "load": {
+      "shown": true,
+      "domContentLoaded": 40,
+      "load": 40,
+      "firstContentfulPaint": 628,
+      "sidebar": 395,
+      "transcript": 395,
+      "lcp": 628,
+      "scriptKb": 4772,
+      "cssKb": 333,
+      "apiRequests": 24,
+      "apiKb": 222,
+      "commits": 20,
+      "componentsMounted": 1280,
+      "longTasks": 1,
+      "longTaskMs": 91,
+      "longestTaskMs": 91,
+      "rows": 1,
+      "domNodes": 1990,
+      "opened": "Conversation with StartupBot",
+      "usefulMs": 395,
+      "jsHeapMb": 19.1,
+      "scriptMs": 142,
+      "taskMs": 270,
+      "bigConversationShown": false,
+      "rendererRssMb": 199
+    },
+    "switchConversation": {
+      "toSmall": {
+        "clicked": true,
+        "ms": 79
+      },
+      "backToBig": {
+        "clicked": true,
+        "ms": 164
+      },
+      "toSmallAgain": {
+        "clicked": true,
+        "ms": 41
+      },
+      "backToBigAgain": {
+        "clicked": true,
+        "ms": 73
+      }
+    },
+    "scroll": {
+      "wheelEvents": 400,
+      "frames": 878,
+      "frameMsP50": 16.7,
+      "frameMsP95": 18.1,
+      "frameMsMax": 227.2,
+      "framesOver33ms": 3,
+      "longTasks": 1,
+      "longestTaskMs": 72,
+      "rowsBefore": 60,
+      "rowsAfter": 101,
+      "domNodesBefore": 4898,
+      "domNodesAfter": 9655,
+      "scrollHeightBefore": 15193,
+      "scrollHeightAfter": 25926,
+      "scrollTopAfter": 0,
+      "jsHeapMbBefore": 40.2,
+      "jsHeapMbAfter": 26.7,
+      "rendererRssMbAfter": 265
+    }
+  }
+}

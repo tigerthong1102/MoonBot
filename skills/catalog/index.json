@@ -73,7 +73,9 @@
     "license": "Apache-2.0",
     "modified": [
       "SKILL.md",
-      "scripts/extract_form_field_info.py"
+      "scripts/extract_form_field_info.py",
+      "scripts/check_bounding_boxes.py",
+      "FORMS.md"
     ],
     "excludedFiles": [],
     "category": "office",
@@ -800,7 +802,8 @@
     "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedance-video-generate/LICENSE.txt",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/video_generate.py"
     ],
     "excludedFiles": [],
     "category": "media",

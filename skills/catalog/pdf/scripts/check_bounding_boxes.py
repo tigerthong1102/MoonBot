@@ -1,6 +1,7 @@
+# StartupBot modified this file to compare image-based bounds and font size in PDF points.
+from argparse import ArgumentParser
 from dataclasses import dataclass
 import json
-import sys
 
 
 
@@ -12,7 +13,7 @@ class RectAndField:
     field: dict
 
 
-def get_bounding_box_messages(fields_json_stream) -> list[str]:
+def get_bounding_box_messages(fields_json_stream, pdf_heights=None) -> list[str]:
     messages = []
     fields = json.load(fields_json_stream)
     messages.append(f"Read {len(fields['form_fields'])} fields")
@@ -27,6 +28,7 @@ def get_bounding_box_messages(fields_json_stream) -> list[str]:
         rects_and_fields.append(RectAndField(f["label_bounding_box"], "label", f))
         rects_and_fields.append(RectAndField(f["entry_bounding_box"], "entry", f))
 
+    pages = {page["page_number"]: page for page in fields.get("pages", [])}
     has_error = False
     for i, ri in enumerate(rects_and_fields):
         for j in range(i + 1, len(rects_and_fields)):
@@ -44,9 +46,18 @@ def get_bounding_box_messages(fields_json_stream) -> list[str]:
             if "entry_text" in ri.field:
                 font_size = ri.field["entry_text"].get("font_size", 14)
                 entry_height = ri.rect[3] - ri.rect[1]
+                page_number = ri.field["page_number"]
+                page = pages.get(page_number, {})
+                if "pdf_width" not in page and "image_height" in page:
+                    height = (pdf_heights or {}).get(page_number)
+                    if not height or page["image_height"] <= 0:
+                        has_error = True
+                        messages.append(f"FAILURE: image coordinates on page {page_number} require a valid image height and the source PDF (--pdf).")
+                        continue
+                    entry_height *= height / page["image_height"]
                 if entry_height < font_size:
                     has_error = True
-                    messages.append(f"FAILURE: entry bounding box height ({entry_height}) for `{ri.field['description']}` is too short for the text content (font size: {font_size}). Increase the box height or decrease the font size.")
+                    messages.append(f"FAILURE: entry bounding box height ({entry_height:g} pt) for `{ri.field['description']}` is too short for the text content (font size: {font_size}). Increase the box height or decrease the font size.")
                     if len(messages) >= 20:
                         messages.append("Aborting further checks; fix bounding boxes and try again")
                         return messages
@@ -56,10 +67,15 @@ def get_bounding_box_messages(fields_json_stream) -> list[str]:
     return messages
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: check_bounding_boxes.py [fields.json]")
-        sys.exit(1)
-    with open(sys.argv[1]) as f:
-        messages = get_bounding_box_messages(f)
+    parser = ArgumentParser(description="Check PDF form bounding boxes")
+    parser.add_argument("fields")
+    parser.add_argument("--pdf", help="Source PDF, required for image coordinates")
+    args = parser.parse_args()
+    pdf_heights = None
+    if args.pdf:
+        from pypdf import PdfReader
+        pdf_heights = {i: float(page.mediabox.height) for i, page in enumerate(PdfReader(args.pdf).pages, 1)}
+    with open(args.fields) as f:
+        messages = get_bounding_box_messages(f, pdf_heights)
     for msg in messages:
         print(msg)

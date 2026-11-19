@@ -1,4 +1,4 @@
-# StartupBot modified this file to preserve complete PDF choice values and labels.
+# StartupBot modified this file to preserve complete PDF choice values and labels and include fields with child widgets.
 import json
 import sys
 
@@ -47,15 +47,14 @@ def make_field_dict(field, field_id):
 
 
 def get_field_info(reader: PdfReader):
-    fields = reader.get_fields()
+    fields = reader.get_fields() or {}
 
     field_info_by_id = {}
     possible_radio_names = set()
 
     for field_id, field in fields.items():
-        if field.get("/Kids"):
-            if field.get("/FT") == "/Btn":
-                possible_radio_names.add(field_id)
+        if field.get("/Kids") and field.get("/FT") == "/Btn" and field.get("/Ff", 0) & (1 << 15):
+            possible_radio_names.add(field_id)
             continue
         field_info_by_id[field_id] = make_field_dict(field, field_id)
 
@@ -67,8 +66,8 @@ def get_field_info(reader: PdfReader):
         for ann in annotations:
             field_id = get_full_annotation_field_id(ann)
             if field_id in field_info_by_id:
-                field_info_by_id[field_id]["page"] = page_index + 1
-                field_info_by_id[field_id]["rect"] = ann.get('/Rect')
+                field_info_by_id[field_id].setdefault("page", page_index + 1)
+                field_info_by_id[field_id].setdefault("rect", ann.get('/Rect'))
             elif field_id in possible_radio_names:
                 try:
                     on_values = [v for v in ann["/AP"]["/N"] if v != "/Off"]

@@ -1,3 +1,4 @@
+# StartupBot modified this file to keep task IDs when polling fails.
 import argparse
 import asyncio
 import json
@@ -248,10 +249,17 @@ async def _poll_task_status(
     poll_interval: int = 10,
 ) -> VideoTaskResult:
     max_polls = max_wait_seconds // poll_interval
-    polls = 0
 
-    while polls < max_polls:
-        result = await _get_task_status(task_id)
+    for poll in range(max_polls + 1):
+        try:
+            result = await _get_task_status(task_id)
+        except (httpx.HTTPError, ValueError):
+            return VideoTaskResult(
+                video_name=video_name,
+                task_id=task_id,
+                error="status_request_failed",
+                status="pending",
+            )
         status = result.get("status")
 
         if status == "succeeded":
@@ -275,11 +283,10 @@ async def _poll_task_status(
                 execution_expires_after=result.get("execution_expires_after"),
             )
 
-        print(f"Video {video_name} status: {status}, waiting...")
-        await asyncio.sleep(poll_interval)
-        polls += 1
+        if poll < max_polls:
+            print(f"Video {video_name} status: {status}, waiting...")
+            await asyncio.sleep(poll_interval)
 
-    result = await _get_task_status(task_id)
     return VideoTaskResult(
         video_name=video_name,
         task_id=task_id,
@@ -371,7 +378,8 @@ async def video_generate(
                         "video_name": result.video_name,
                         "task_id": result.task_id,
                         "execution_expires_after": result.execution_expires_after,
-                        "message": f"Task still running. Use video_task_query('{result.task_id}') to check status later.",
+                        "reason": result.error,
+                        "message": f"Task status is not final. Use video_task_query('{result.task_id}') to check status later.",
                     }
                 )
 

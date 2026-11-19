@@ -8,10 +8,12 @@ import { installLibrarySkill, readSkillLibraryIndex, retireLibrarySkill, setLibr
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
-  ["pdf", "bae1fee03ea09067461c2f436a211a0f8ff7e6178356f81a6f61ccb04a3fd706"],
-  ["dcf-model", "b2d2e4e5a884469a63ae0abef7d0e95d756b70619f94736fd9b62efe34895f98"],
-  ["webapp-testing", "5a0400264fe9b7e20522ff39ab59535636b98a182448e641798554ef5d988f11"],
-  ["byted-seedream-image-generate", "ad2bd0eecf45c277877237eeb0096898e0e727dddf66dc7d3fd8d2e03b4399cf"],
+  ["254bbe7ac0c66175299609d72e4a7baf073891c8b3ed627c9970b03ce12fa010", "pdf"],
+  ["0790c7154973a0da99d5d182bb23ffc66e2f3aa5b1a00d519ee842d6f39e9001", "byted-seedance-video-generate"],
+  ["bae1fee03ea09067461c2f436a211a0f8ff7e6178356f81a6f61ccb04a3fd706", "pdf"],
+  ["b2d2e4e5a884469a63ae0abef7d0e95d756b70619f94736fd9b62efe34895f98", "dcf-model"],
+  ["5a0400264fe9b7e20522ff39ab59535636b98a182448e641798554ef5d988f11", "webapp-testing"],
+  ["ad2bd0eecf45c277877237eeb0096898e0e727dddf66dc7d3fd8d2e03b4399cf", "byted-seedream-image-generate"],
 ]);
 
 const catalogSchema = z.array(z.object({
@@ -52,7 +54,7 @@ export function installStartupBotSkillCatalog({
   for (const entry of entries) {
     const previous = Object.hasOwn(existing, entry.name) ? existing[entry.name] : undefined;
     if (previous && (previous.source !== entry.source || !previous.filesSha256 ||
-        previous.filesSha256 !== supersededFolders.get(entry.name))) continue;
+        entry.name !== supersededFolders.get(previous.filesSha256))) continue;
     try {
       const folder = prepareSkillFolder(readCatalogFolder(join(catalog, entry.name)));
       if ("error" in folder) throw new Error(folder.error);

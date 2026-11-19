@@ -11,7 +11,17 @@ for (const back of document.querySelectorAll(".list-back")) {
 const accountOnly = !el("desktop-back").hidden && new URLSearchParams(location.search).get("account") === "1";
 const skin = new URLSearchParams(location.search).get("skin");
 if (skin) document.documentElement.dataset.skin = skin;
-const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text, dir: "auto" });
+else {
+  const preferred = matchMedia("(prefers-color-scheme: dark)");
+  const syncSkin = () => { document.documentElement.dataset.skin = preferred.matches ? "midnight" : "daylight"; };
+  syncSkin();
+  preferred.addEventListener("change", syncSkin);
+}
+const node = (tag, text) => {
+  const element = Object.assign(document.createElement(tag), { textContent: text, dir: "auto" });
+  if (tag === "button") element.classList.add("ui-button");
+  return element;
+};
 const entry = new URLSearchParams(location.hash.slice(1));
 let joinToken = entry.get("join"), invitedRoom = entry.get("room"), moderators = new Set();
 let statusTimer;
@@ -720,7 +730,7 @@ function renderAttachments() {
     chip.append(item.preview ? thumbnail(item.preview) : icon("file"), fileDetails(item.file.name, item.file.size), remove);
     if (isMarkdown(item.file.name)) {
       const share = button(t("personalInbox.shareAsSkill"), () => previewMarkdown(item));
-      share.className = "share-markdown";
+      share.classList.add("share-markdown");
       share.disabled = Boolean(activeBatch);
       chip.querySelector(".file-details").append(share);
     }

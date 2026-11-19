@@ -11,13 +11,13 @@
   <body>
     <header>
       <a id="desktop-back" href="/desktop/back" hidden data-i18n="personalInbox.back">← Back to StartupBot</a><strong data-i18n="personalInbox.messages">Messages</strong
-      ><span id="account"></span><label id="language-control"><span class="sr" data-i18n="personalInbox.language">Language</span><inbox-select id="mail-lang"></inbox-select></label><button id="logout" hidden data-i18n="personalInbox.logout">Sign out</button>
+      ><span id="account"></span><label id="language-control"><span class="sr" data-i18n="personalInbox.language">Language</span><inbox-select id="mail-lang"></inbox-select></label><button class="ui-button" id="logout" hidden data-i18n="personalInbox.logout">Sign out</button>
     </header>
     <main>
       <h1 class="sr" data-i18n="personalInbox.messages">Messages</h1>
       <p role="status" id="status"></p>
       <section id="stop-mail" hidden>
-        <button id="stop-button"></button>
+        <button class="ui-button" id="stop-button"></button>
         <p id="stop-result" role="status"></p>
       </section>
       <section id="signin" hidden>
@@ -25,7 +25,7 @@
         <p data-i18n="personalInbox.signInHelp">Verify your email to create your account. The internal pilot is for invited addresses. People in the same conversation can see each other’s email address.</p>
         <form id="send-code">
           <label><span data-i18n="personalInbox.yourEmail">Your email</span><input dir="auto" name="email" type="email" required autocomplete="email" /></label
-          ><button data-i18n="personalInbox.sendCode">Send sign-in code</button>
+          ><button class="ui-button" data-i18n="personalInbox.sendCode">Send sign-in code</button>
         </form>
         <form id="verify" hidden>
           <label
@@ -35,10 +35,10 @@
               pattern="[0-9]{8}"
               autocomplete="one-time-code"
               required /></label
-          ><button data-i18n="personalInbox.signIn">Sign in</button>
+          ><button class="ui-button" data-i18n="personalInbox.signIn">Sign in</button>
         </form>
       </section>
-      <div id="join-prompt" hidden><strong dir="auto" id="join-title"></strong> <button id="join-button" data-i18n="personalInbox.joinByLink">Join group via link</button></div>
+      <div id="join-prompt" hidden><strong dir="auto" id="join-title"></strong> <button class="ui-button" id="join-button" data-i18n="personalInbox.joinByLink">Join group via link</button></div>
       <div id="inbox" hidden>
         <aside>
           <h2 data-i18n="personalInbox.conversations">Conversations</h2>
@@ -63,29 +63,29 @@
                 </label>
                 <small data-i18n="personalInbox.firstContact">New recipients get an email with your note and email address.</small>
               </fieldset></details>
-              <button data-i18n="personalInbox.openChat">Open conversation</button>
+              <button class="ui-button" data-i18n="personalInbox.openChat">Open conversation</button>
             </form>
           </details>
           <label class="search"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-search"></use></svg><input dir="auto" type="search" id="filter" placeholder="Search conversations" data-i18n-placeholder="personalInbox.search" aria-label="Search conversations" data-i18n-aria-label="personalInbox.search" /></label>
           <nav id="rooms" aria-label="Conversations" data-i18n-aria-label="personalInbox.conversations"></nav>
-          <button id="open-saved" data-i18n="personalInbox.saved">Your skills and tasks</button>
+          <button class="ui-button" id="open-saved" data-i18n="personalInbox.saved">Your skills and tasks</button>
           <details id="blocked">
             <summary data-i18n="personalInbox.blockedPeople">Blocked people</summary>
             <ul id="blocked-list"></ul>
           </details>
         </aside>
         <section id="saved" hidden>
-          <button class="list-back" type="button" data-i18n="personalInbox.backRooms">← Conversations</button>
+          <button class="ui-button list-back" type="button" data-i18n="personalInbox.backRooms">← Conversations</button>
           <h2 data-i18n="personalInbox.saved">Your skills and tasks</h2>
           <div id="saved-list"></div>
         </section>
         <section id="room">
-          <button class="list-back" type="button" data-i18n="personalInbox.backRooms">← Conversations</button>
+          <button class="ui-button list-back" type="button" data-i18n="personalInbox.backRooms">← Conversations</button>
           <div id="empty-room"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-chat"></use></svg><h2 data-i18n="personalInbox.chooseRoom">Choose a conversation</h2></div>
           <div class="room-heading" hidden>
             <span id="room-avatar" class="avatar" aria-hidden="true"></span>
             <div><h2 dir="auto" id="title"></h2><small id="room-meta"></small></div>
-            <button type="button" id="quick-invite" hidden data-i18n="personalInbox.inviteGroup">Invite to group</button>
+            <button class="ui-button" type="button" id="quick-invite" hidden data-i18n="personalInbox.inviteGroup">Invite to group</button>
           </div>
           <div id="actions"></div>
           <div id="conversation" hidden>
@@ -108,13 +108,13 @@
                     ><span data-i18n="personalInbox.invitationNote">Personal note (optional)</span><textarea dir="auto" name="note" maxlength="500" rows="2"></textarea>
                   </label>
                   <small data-i18n="personalInbox.firstContact">New recipients get an email with your note and email address.</small>
-                <button type="button" id="cancel-invite" data-i18n="personalInbox.withdraw">Withdraw invitation to this email</button>
+                <button class="ui-button" type="button" id="cancel-invite" data-i18n="personalInbox.withdraw">Withdraw invitation to this email</button>
                 </fieldset></details>
-                <button type="submit" data-i18n="personalInbox.sendInvitation">Send invitation</button>
+                <button class="ui-button" type="submit" data-i18n="personalInbox.sendInvitation">Send invitation</button>
               </form>
             </details>
             <div id="history">
-              <button id="older" hidden data-i18n="personalInbox.older">Show older messages</button>
+              <button class="ui-button" id="older" hidden data-i18n="personalInbox.older">Show older messages</button>
               <ol id="posts"></ol>
             </div>
 
@@ -123,7 +123,7 @@
               <small id="sending" role="status" hidden></small>
               <div id="attachments" aria-label="Files ready to send" data-i18n-aria-label="personalInbox.staged" hidden></div>
               <div class="compose-row">
-                <button id="attach" type="button" class="round" aria-label="Attach file" data-i18n-aria-label="personalInbox.attach" title="Attach file" data-i18n-title="personalInbox.attach"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-clip"></use></svg></button>
+                <button id="attach" type="button" class="ui-icon-button round" aria-label="Attach file" data-i18n-aria-label="personalInbox.attach" title="Attach file" data-i18n-title="personalInbox.attach"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-clip"></use></svg></button>
                 <input dir="auto" id="files" type="file" multiple hidden />
                 <label class="kind round" title="Share a skill or task" data-i18n-title="personalInbox.shareWork"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-more"></use></svg>
                   <inbox-select name="kind" aria-label="Message type" data-i18n-aria-label="personalInbox.messageKind">
@@ -134,14 +134,14 @@
                 </label>
                 <label class="sr" id="draft-label" for="draft" data-i18n="personalInbox.messages">Messages</label>
                 <textarea dir="auto" id="draft" name="body" rows="1" placeholder="Write a message…" data-i18n-placeholder="personalInbox.messagePlaceholder" maxlength="8000"></textarea>
-                <button id="submit-post" class="round" aria-label="Send" data-i18n-aria-label="personalInbox.send" title="Send" data-i18n-title="personalInbox.send"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-send"></use></svg></button>
+                <button id="submit-post" class="ui-icon-button round" aria-label="Send" data-i18n-aria-label="personalInbox.send" title="Send" data-i18n-title="personalInbox.send"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-send"></use></svg></button>
               </div>
             </form>
-            <dialog id="preview">
+            <dialog class="ui-modal" id="preview">
               <h2 data-i18n="personalInbox.reviewShare">Review before sharing</h2>
               <p id="audience"></p>
               <pre dir="auto" id="preview-body"></pre>
-              <button id="confirm-share" data-i18n="personalInbox.sendCopy">Send copy</button><button id="cancel-share" data-i18n="personalInbox.edit">Edit</button>
+              <button class="ui-button" id="confirm-share" data-i18n="personalInbox.sendCopy">Send copy</button><button class="ui-button" id="cancel-share" data-i18n="personalInbox.edit">Edit</button>
             </dialog>
           </div>
         </section>

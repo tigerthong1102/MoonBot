@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { performance } from "node:perf_hooks";
 
 const capability = "accounting.draft.create";
+const approvalTimeoutMs = 30_000;
 const adapter = Object.freeze({
   vendor: "StartupBot fixtures",
   product: "Synthetic Accounting",
@@ -107,6 +108,24 @@ function connect(path) {
   return db;
 }
 
+function waitForApproval(approve, binding, signal) {
+  if (signal?.aborted) return Promise.resolve({ reason: "stopped" });
+  return new Promise((resolve) => {
+    function finish(outcome) {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", stopped);
+      resolve(outcome);
+    }
+    const stopped = () => finish({ reason: "stopped" });
+    const timeout = setTimeout(() => finish({ reason: "approval-timeout" }), approvalTimeoutMs);
+    signal?.addEventListener("abort", stopped, { once: true });
+    Promise.resolve().then(() => signal?.aborted ? undefined : approve(binding)).then(
+      (proof) => finish({ proof }),
+      () => finish({ reason: "approval-unavailable" }),
+    );
+  });
+}
+
 function runner(db) {
   const reservation = db.prepare("SELECT digest FROM reservations WHERE id = ?");
   const reserve = db.prepare("INSERT INTO reservations (id, digest) VALUES (?, ?) ON CONFLICT(id) DO NOTHING");
@@ -178,10 +197,10 @@ function runner(db) {
     states.push("AWAITING_APPROVAL");
     interventions++;
     const binding = digest({ bot, machine, actor, company, key, fingerprint, workflow: trustedDigest });
-    let granted;
-    try { granted = await approve(binding); } catch { return finish("BLOCKED", "approval-unavailable"); }
+    const decision = await waitForApproval(approve, binding, signal);
+    if (decision.reason) return finish("BLOCKED", decision.reason);
     if (!permitted()) return finish("BLOCKED", signal?.aborted ? "stopped" : "permission");
-    if (granted !== binding) return finish("BLOCKED", "approval-required");
+    if (decision.proof !== binding) return finish("BLOCKED", "approval-required");
 
     try {
       if (reserve.run(key, fingerprint).changes !== 1) return recover() ?? finish("UNKNOWN", "reservation-unavailable");

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { mockGrant, mockScope, openAccountingFixture, workflow } from "./mock-accounting-rpa.mjs";
 
 function voucher(id, details = {}) {
@@ -174,4 +174,36 @@ test("restart after ambiguous writes uses read-back only and preserves UNKNOWN",
   assert.equal(recovered.status, "VERIFIED");
   assert.equal(unresolved.status, "UNKNOWN");
   assert.deepEqual([recovered.writeAttempts, unresolved.writeAttempts, reopened.count()], [0, 0, 1]);
+});
+
+test("Stop settles an unanswered approval and a late approval cannot write", async (t) => {
+  const { runtime } = setup(t);
+  const controller = new AbortController();
+  let approveLate;
+  const result = runtime.run(input(voucher("cancel-pending"), {
+    signal: controller.signal,
+    approve: (binding) => new Promise((resolve) => { approveLate = () => resolve(binding); }),
+  }));
+  await Promise.resolve();
+  assert.equal(typeof approveLate, "function");
+  controller.abort();
+  assert.equal((await result).reason, "stopped");
+  approveLate();
+  assert.equal(runtime.count(), 0);
+});
+
+test("an unanswered approval expires without dispatch", async (t) => {
+  const { runtime } = setup(t);
+  vi.useFakeTimers();
+  try {
+    const result = runtime.run(input(voucher("approval-timeout"), { approve: () => new Promise(() => {}) }));
+    await vi.advanceTimersByTimeAsync(30_000);
+    const outcome = await result;
+    assert.equal(outcome.status, "BLOCKED");
+    assert.equal(outcome.reason, "approval-timeout");
+    assert.equal(outcome.writeAttempts, 0);
+    assert.equal(runtime.count(), 0);
+  } finally {
+    vi.useRealTimers();
+  }
 });

@@ -1,9 +1,16 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
 import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
 
-it.each(["deny", "allow"])("the main helper offers a bot without interrupting the work, then handles %s once", async behavior => {
+it.each(["deny", "allow", "queued"])("the main helper offers a bot without interrupting the work, then handles %s once", async scenario => {
+  const queued = scenario === "queued";
+  const behavior = queued ? "allow" : scenario;
+  const gates = mkdtempSync(join(tmpdir(), "work-bot-delivery-"));
+  const finishGate = join(gates, "finish");
   const token = randomBytes(32).toString("base64url");
   const fetchNormally = globalThis.fetch;
   globalThis.fetch = (input, init = {}) => fetchNormally(input, { ...init, headers: {
@@ -11,7 +18,7 @@ it.each(["deny", "allow"])("the main helper offers a bot without interrupting th
   } });
   let fixture: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
   try {
-    fixture = await launchVerificationServer({ ...process.env, OMB_TEST_DESKTOP_OWNER_TOKEN: token });
+    fixture = await launchVerificationServer({ ...process.env, ...(queued ? { FAKE_CLAUDE_MODE: "slow", FAKE_CLAUDE_SLOW_FINISH_GATE: finishGate } : {}), OMB_TEST_DESKTOP_OWNER_TOKEN: token });
     const url = fixture.info.url;
     const api = async <T = unknown>(path: string, body?: unknown, method = body ? "POST" : "GET") => {
       const response = await fetch(url + path, { method, headers: { origin: url, "content-type": "application/json" },
@@ -28,9 +35,22 @@ it.each(["deny", "allow"])("the main helper offers a bot without interrupting th
     const messages = async (): Promise<Message[]> => (await api<{ messages: Message[] }>(path + "/messages")).messages;
     const work = "Giúp tôi theo dõi các hồ sơ ứng tuyển mỗi tuần.";
     const send = { threadId: helper.threadId, text: work, sendId: randomUUID() };
-    await api(`/api/bots/${helper.id}/messages`, send);
-    await expect.poll(async () => (await messages()).some(m => m.text?.includes("hello from fake claude")), { timeout: 15000 }).toBe(true);
-    await api(`/api/bots/${helper.id}/messages`, send);
+    const sendPath = `/api/bots/${helper.id}/messages`;
+    if (queued) {
+      await api(sendPath, { ...send, text: "Xin chào", sendId: randomUUID() });
+      const cancelled = await api<{ queueId: string }>(sendPath, { ...send, text: "Theo dõi hàng tồn kho mỗi ngày.", followUp: "queue", sendId: randomUUID() });
+      expect(cancelled.queueId).toBeTruthy();
+      await api(`/api/bots/${helper.id}/queue/${cancelled.queueId}`, { threadId: helper.threadId }, "DELETE");
+      const receipt = await api<{ queued: boolean }>(sendPath, { ...send, followUp: "queue" });
+      expect(receipt.queued).toBe(true);
+      expect((await messages()).some(row => row.card?.teamSetupRequest?.workBotOffer)).toBe(false);
+      writeFileSync(finishGate, "release");
+      await expect.poll(async () => (await messages()).some(row => row.card?.teamSetupRequest?.workBotOffer), { timeout: 20000 }).toBe(true);
+    } else {
+      await api(sendPath, send);
+      await expect.poll(async () => (await messages()).some(m => m.text === "hello from fake claude"), { timeout: 15000 }).toBe(true);
+    }
+    await api(sendPath, send);
     const offers = (await messages()).flatMap(m => m.card?.teamSetupRequest?.workBotOffer ? [m.card] : []);
     expect(offers).toHaveLength(1);
     expect(await roster()).toHaveLength(original.length);
@@ -50,9 +70,10 @@ it.each(["deny", "allow"])("the main helper offers a bot without interrupting th
       expect(Buffer.from(await png.arrayBuffer()).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
     }
     const replies = (await messages()).filter(m => m.role === "bot" && m.kind === "text" && m.text === "hello from fake claude");
-    expect(replies).toHaveLength(1);
+    if (!queued) expect(replies).toHaveLength(1);
   } finally {
     globalThis.fetch = fetchNormally;
     await fixture?.close();
+    rmSync(gates, { recursive: true, force: true });
   }
 }, 60000);

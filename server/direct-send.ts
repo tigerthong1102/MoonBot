@@ -17,6 +17,7 @@ export interface DirectSendInput {
   callId?: string;
   dataContext?: DataContext;
   personPresent: boolean;
+  workBotOfferOwner?: string;
   app?: { context?: string; fromApp?: Message["fromApp"]; pointed?: Message["pointed"] };
   /** Sent while the bot works: steer into the running turn, queue after it, or restart it (shared/follow-up.ts). */
   followUp?: FollowUp;

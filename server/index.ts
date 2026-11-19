@@ -469,7 +469,6 @@ import { createChatAppRoutes, createChatApps, createChatAppsMcp } from "./routes
 import { buildBotOverview, type BotOverview, connectedAppsFacts } from "./bot-overview.ts";
 import { ProfileRequestService } from "./profile-requests.ts"; import { browserProfileLabel } from "./bot-browser-profile.ts";
 import { ModelRequestService } from "./model-requests.ts";
-import { workBotTopic, workBotName } from "./work-bot-offer.ts";
 import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts";
 import { startsWithoutCloudComputer, teamSetupDecisionText as decisionText, type TeamSetupRequest } from "../shared/team-setup.ts";
 import { profileRevision, profileSnapshot } from "./profile-revision.ts";
@@ -7160,10 +7159,11 @@ function drainQueuedSendsNow() {
     // Provider completion can precede its dispatch promise: keep the queue until that exact handshake releases its claim.
     (botId, threadId, head) => threadBusy(botId, threadId) || botAtThreadCapacity(botId, head.peerAsk ? undefined : threadId, Boolean(head.peerAsk)) || roomTurnHolds(activeGroupTurnForBot(botId), threadId, !head.peerAsk)
       || directRootQueued(threadId) || (!head.peerAsk?.incident && parksBehindCoordination(botId, threadId)),
+    offerWorkBot,
   );
 }
 
-async function startOrQueueDirectMessage(botId: string, threadId: string, text: string, replyTo?: ReplyTarget, sendId?: string, sender?: ResolvedSender, trigger?: UsageTrigger, via?: "call", callId?: string, dataContext?: DataContext, app?: { context?: string; fromApp?: Message["fromApp"]; pointed?: Message["pointed"] }, mentions?: string[]) {
+async function startOrQueueDirectMessage(botId: string, threadId: string, text: string, replyTo?: ReplyTarget, sendId?: string, sender?: ResolvedSender, trigger?: UsageTrigger, via?: "call", callId?: string, dataContext?: DataContext, app?: { context?: string; fromApp?: Message["fromApp"]; pointed?: Message["pointed"] }, mentions?: string[], workBotOfferOwner?: string) {
   const decision = admit("direct", {}, {
     atCapacity: botAtThreadCapacity(botId, threadId),
     threadBusy: threadBusy(botId, threadId),
@@ -7174,7 +7174,7 @@ async function startOrQueueDirectMessage(botId: string, threadId: string, text: 
     const queued = queueSteeredMessage(botId, threadId, text, {
       replyToId: replyTo?.id,
       sendId,
-      dataContext, fromApp: app?.fromApp, mentions,
+      dataContext, fromApp: app?.fromApp, mentions, workBotOfferOwner,
       reason: decision.reason,
       prompt: (app?.context ?? "") + personPrompt(threadId, sender, promptWithReply(promptWithDataContext(text, dataContext), replyTo, userNameFor(threadId))),
       sender,
@@ -7215,7 +7215,7 @@ async function acceptDirectSend(
   input: DirectSendInput,
   guardedStart?: (currentAtStart: BotRecord) => Promise<DirectSendReceipt>,
 ): Promise<DirectSendReceipt> {
-  const { botId, threadId, text, sendId, replyTo, sender, trigger, via, callId, dataContext, personPresent, app, followUp, mentions, admin } = input;
+  const { botId, threadId, text, sendId, replyTo, sender, trigger, via, callId, dataContext, personPresent, app, followUp, mentions, admin, workBotOfferOwner } = input;
   const refused = directSendRefusal(botId, threadId);
   if (refused) throw refused;
   return sendSequencer.run(
@@ -7269,7 +7269,7 @@ async function acceptDirectSend(
       const typedStop = await stopOnTypedCommand({ botId, threadId, text, trigger, personPresent, fromApp: Boolean(app), busy: currentAtStart.busy === true, row: { replyToId: replyTo?.id, sendId, sender, ...spokenLineFields(via, callId) }, by: { ...(sender?.id ? { person: sender.id } : {}), admin: admin === true } });
       if (typedStop) return typedStop;
       if (currentAtStart.busy) {
-        const personsOwn = personPresent && !app && (trigger.kind === "user" || trigger.kind === "owner"), queuedPrompt = (app?.context ?? "") + personPrompt(threadId, sender, promptWithReply(promptWithDataContext(text, dataContext), replyTo, userNameFor(threadId))); if (runOwners.arrival(threadId, sender, personPresent && Boolean(sender?.id)) === "queue") return { ok: true as const, queued: true as const, threadId, queueId: queueSteeredMessage(currentAtStart.id, threadId, text, { replyToId: replyTo?.id, sendId, dataContext, fromApp: app?.fromApp, mentions, prompt: queuedPrompt, sender, trigger, via, callId, first: personPresent && Boolean(sender?.id) }).id };
+        const personsOwn = personPresent && !app && (trigger.kind === "user" || trigger.kind === "owner"), queuedPrompt = (app?.context ?? "") + personPrompt(threadId, sender, promptWithReply(promptWithDataContext(text, dataContext), replyTo, userNameFor(threadId))); if (runOwners.arrival(threadId, sender, personPresent && Boolean(sender?.id)) === "queue") return { ok: true as const, queued: true as const, threadId, queueId: queueSteeredMessage(currentAtStart.id, threadId, text, { replyToId: replyTo?.id, sendId, dataContext, fromApp: app?.fromApp, mentions, workBotOfferOwner, prompt: queuedPrompt, sender, trigger, via, callId, first: personPresent && Boolean(sender?.id) }).id };
         const instance = runningTurnInstance(currentAtStart, threadId);
         let steered: SteerOutcome = "refused";
         const steerInput = extractTurnImages(text);
@@ -7325,12 +7325,12 @@ async function acceptDirectSend(
           return { ok: true as const, steered: true as const, threadId, message };
         }
         if (!current.busy) {
-          return startOrQueueDirectMessage(botId, threadId, text, replyTo, sendId, sender, trigger, via, callId, dataContext, app, mentions);
+          return startOrQueueDirectMessage(botId, threadId, text, replyTo, sendId, sender, trigger, via, callId, dataContext, app, mentions, workBotOfferOwner);
         }
         const queued = queueSteeredMessage(current.id, threadId, text, {
           replyToId: replyTo?.id,
           sendId,
-          dataContext, fromApp: app?.fromApp, mentions,
+          dataContext, fromApp: app?.fromApp, mentions, workBotOfferOwner,
           prompt: queuedPrompt,
           sender,
           trigger,
@@ -7342,7 +7342,7 @@ async function acceptDirectSend(
         if (chose === "restart") await restartForPerson(botId, threadId, trigger);
         return { ok: true as const, queued: true as const, queueId: queued.id, threadId };
       }
-      return startOrQueueDirectMessage(botId, threadId, text, replyTo, sendId, sender, trigger, via, callId, dataContext, app, mentions);
+      return startOrQueueDirectMessage(botId, threadId, text, replyTo, sendId, sender, trigger, via, callId, dataContext, app, mentions, workBotOfferOwner);
     },
   );
 }
@@ -9234,6 +9234,10 @@ const teamSetupRequests = new TeamSetupRequestService({
     if (result.status >= 400) throw new TeamSetupError(result.body.error ?? "The bot could not be deleted", result.status);
   },
 });
+
+function offerWorkBot(botId: string, threadId: string, text: string, owner: string) {
+  if (botMainThread(botId) === threadId) teamSetupRequests.offerFromChat(botId, threadId, text, owner);
+}
 
 async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: string; threadId: string; requestId: string; behavior: string }, ownerReview: boolean): Promise<boolean> {
   const card = store.messagesFor(args.threadId).find((item) => item.card?.requestId === args.requestId && item.card.teamSetupRequest)?.card;
@@ -12063,22 +12067,7 @@ ROUTES.push(createSharedComputerRoutes({ enabled: (auth) => lendingEnabled() || 
 ROUTES.push(createBotMessageRoutes({
   store, registry, handoffs, liveTurn: (threadId) => liveTurns.running(threadId), phoneSecretSubmissions, directTurnDispatchClaims, groupSpeakers,
   routines: () => routines,
-  offerWorkBot(bot, threadId, text) {
-    if (!chiefLevel(bot) || botMainThread(bot.id) !== threadId || store.bots.length >= MAX_WORKSPACE_BOTS) return;
-    const topic = workBotTopic(text, !store.bots.some(row => !row.defaultBot && !row.hidden));
-    if (!topic) return;
-    const name = workBotName(topic.name, store.bots);
-    try {
-      teamSetupRequests.proposeWorkBot({
-        botId: bot.id, threadId,
-        plan: { reason: name, operations: [{ action: "create", key: "follow_up", fields: {
-          name, title: topic.name, description: [...topic.brief].slice(0, 120).join(""), soul: topic.instructions, modelSelection: bot.modelSelection,
-        } }] },
-      }, { icon: topic.icon, topic: topic.name });
-    } catch (error) {
-      if (!(error instanceof TeamSetupError)) console.warn("Work bot suggestion could not be saved", error instanceof Error ? error.name : "unknown error");
-    }
-  },
+  offerWorkBot,
   fromPhone: phones.fromPhone, notePhoneSend: phones.noteSend,
   desktopManaged: DESKTOP_MANAGED, cloudHome: Boolean(CLOUD_HOME), DirectSendRefused,
   acceptDirectSend, directSendRefusal, startTurn, usageTriggerFor, messageSender, cloudGuestSendRefusal, cloudThreadRefusal, runOwners, runActor, resolveAccessRequest: (threadId, requestId, behavior, message) => lendingLifts?.resolve(threadId, requestId, behavior) ?? accessRequests.resolve(threadId, requestId, behavior, message), relayRefusal: CLOUD_TEAM ? (bot, email) => relayedSendRefusal(bot, email, Boolean(email && teamOwners.people?.list().some((one) => one.email === email && one.role !== "member"))) : undefined,

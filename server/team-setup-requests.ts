@@ -1,4 +1,5 @@
-import { workBotAvatar } from "./work-bot-offer.ts";
+import { defaultBotPerson } from "../shared/default-bot.ts";
+import { workBotAvatar, workBotName, workBotTopic } from "./work-bot-offer.ts";
 import { conversationLanguage, serverLine } from "./server-lines.ts";
 import { createHash } from "node:crypto";
 import { botOwner, chiefScope } from "../shared/bot-owner.ts";
@@ -273,6 +274,25 @@ export class TeamSetupRequestService {
   }
 
   propose(args: SetupArgs) { return this.card(this.prepare(args), args.from); }
+  offerFromChat(botId: string, threadId: string, text: string, owner: string) {
+    const { store, maxBots } = this.options;
+    const bot = store.bot(botId);
+    if (!bot?.defaultBot || defaultBotPerson(bot) !== owner || !chiefLevel(bot) || store.bots.length >= maxBots) return;
+    try {
+      const topic = workBotTopic(text, !store.bots.some(row => !row.defaultBot && !row.hidden));
+      if (!topic) return;
+      const name = workBotName(topic.name, store.bots);
+      this.proposeWorkBot({ botId, threadId, plan: {
+        reason: name, operations: [{ action: "create", key: "follow_up", fields: {
+          name, title: topic.name, description: [...topic.brief].slice(0, 120).join(""),
+          soul: topic.instructions, modelSelection: bot.modelSelection,
+        } }],
+      } }, { icon: topic.icon, topic: topic.name });
+    } catch (error) {
+      if (!(error instanceof TeamSetupError)) console.warn("Work bot suggestion could not be saved", error instanceof Error ? error.name : "unknown error");
+    }
+  }
+
   proposeWorkBot(args: SetupArgs, offer: NonNullable<TeamSetupRequest["workBotOffer"]>) {
     const recentlySuggested = this.options.store.messagesFor(args.threadId).some(({ card }) => {
       const previous = card?.teamSetupRequest;

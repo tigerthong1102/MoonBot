@@ -207,3 +207,18 @@ test("an unanswered approval expires without dispatch", async (t) => {
     vi.useRealTimers();
   }
 });
+
+test("revocation after reservation blocks dispatch and leaves read-only recovery", async (t) => {
+  const { runtime } = setup(t);
+  const draft = voucher("revoked-at-dispatch");
+  const scope = mockScope();
+  let checks = 0;
+  const revoked = await runtime.run(input(draft, {
+    readGrant: () => ({ ...mockGrant(scope), revoked: ++checks >= 3 }),
+  }));
+  assert.equal(revoked.reason, "permission");
+  assert.equal(revoked.writeAttempts, 0);
+  const later = await runtime.run(input(draft, { approve: () => assert.fail("recovery cannot dispatch") }));
+  assert.equal(later.status, "UNKNOWN");
+  assert.deepEqual([later.writeAttempts, runtime.count()], [0, 0]);
+});

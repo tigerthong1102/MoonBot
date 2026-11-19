@@ -10,7 +10,7 @@ Chạy từ root với Node 24.
 pnpm exec vitest run scripts/testing/mock-accounting-rpa.test.mjs
 ```
 
-**PASS trên Windows x64 với Node 24.13.1.** Bảy bài kiểm thử, gồm 10.000 ca với oracle kỳ vọng. Kết quả 6.000 VERIFIED, 2.500 BLOCKED, 1.000 UNKNOWN và 500 FAILED được cố tình đưa vào. Tất cả ca khớp oracle. Có 7.500 lần dispatch và 7.000 bản ghi trong bảng thử, gồm một số bản ghi seed hoặc sai giá trị có chủ đích. Stop và timeout 30 giây chặn cả phê duyệt đến muộn. Hai kết nối đồng thời và mở lại SQLite cùng dữ liệu kiểm tra mỗi khóa chỉ ghi một lần. Không thấy sai lệch bị bỏ qua, ghi trùng sau retry hay UNKNOWN bị báo VERIFIED trong các ca kiểm tra.
+**PASS trên Windows x64 với Node 24.13.1.** Tám bài kiểm thử, gồm 10.000 ca với oracle kỳ vọng. Kết quả 6.000 VERIFIED, 2.500 BLOCKED, 1.000 UNKNOWN và 500 FAILED được cố tình đưa vào. Tất cả ca khớp oracle. Có 7.500 lần dispatch và 7.000 bản ghi trong bảng thử, gồm một số bản ghi seed hoặc sai giá trị có chủ đích. Stop và timeout 30 giây chặn cả phê duyệt đến muộn. Thu hồi quyền sau reservation vẫn chặn dispatch, khóa được giữ để chỉ đọc khi phục hồi. Hai kết nối đồng thời và mở lại SQLite cùng dữ liệu kiểm tra mỗi khóa chỉ ghi một lần. Không thấy sai lệch bị bỏ qua, ghi trùng sau retry hay UNKNOWN bị báo VERIFIED trong các ca kiểm tra.
 
 Fixture báo 0 lần gọi AI, 0 input/output tokens, 0 lần gọi CUA và 7.500 lần gọi callback phê duyệt mô phỏng. Con số phê duyệt chỉ đo test. Kết quả timing cơ sở dữ liệu cục bộ chưa dùng để so với thao tác UI từng bước của AI.
 

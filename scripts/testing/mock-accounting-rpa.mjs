@@ -208,6 +208,7 @@ function runner(db) {
       return finish("UNKNOWN", "reservation-unavailable");
     }
     if (getDraft.get(key)) return finish("BLOCKED", "duplicate-draft");
+    if (!permitted()) return finish("BLOCKED", signal?.aborted ? "stopped" : "permission");
     states.push("EXECUTING");
     writeAttempts++;
     try { persist(structuredClone(draft), key, fault); } catch { /* Dispatch may have changed the fixture. */ }

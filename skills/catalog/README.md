@@ -2,7 +2,9 @@
 
 This catalog contains 57 curated skill candidates and four Google Workspace helper skills. Each directory includes the instructions, Apache-2.0 terms, upstream notices where present and a source record. The index pins the reviewed upstream commits. Each source record lists the files omitted from that snapshot.
 
-StartupBot copies the catalog into the workspace skill library at startup when `features.skillsLibrary` is enabled. The imports are disabled for review and have no bot assignments. An existing library entry with the same name takes precedence. Existing choices persist on restart.
+StartupBot copies the catalog into the workspace skill library at startup unless the workspace explicitly sets `features.skillsLibrary` to false. The imports are disabled for review and have no bot assignments. An existing library entry with the same name takes precedence. Existing choices persist on restart.
+
+Open Settings → Skills library to search by task, source, or category. Vietnamese search accepts words with or without accents. Open a skill to read its instructions, enable it, then assign it to a bot. Type `/skill-name` in that bot’s chat to use it.
 
 ## Distribution
 

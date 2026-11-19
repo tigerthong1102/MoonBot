@@ -14,7 +14,7 @@ import { isSkillName, parseSkillMd, SKILL_FILE_MAX_BYTES } from "../shared/skill
 import type { SkillPackageStamp } from "./skills.ts";
 
 export function skillsLibraryEnabled(cfg: AppConfig): boolean {
-  return cfg.features?.skillsLibrary === true;
+  return cfg.features?.skillsLibrary !== false;
 }
 
 export interface SkillManifest {
@@ -355,13 +355,13 @@ export function setLibrarySkillOptOut(botId: string, name: string, optedOut: boo
 /** Library skills this bot has: an explicit assignment, or every bot unless this bot opted out. */
 export function librarySkillsForBot(botId: string, assigned: ReadonlySet<string>, owned: ReadonlySet<string>): LibrarySkillListing[] {
   const optedOut = librarySkillOptOuts(botId);
-  return listLibrarySkills().filter((skill) => !owned.has(skill.name) && (assigned.has(skill.name) || (skill.everyBot && !optedOut.has(skill.name))));
+  return listLibrarySkills(skillsLibraryRoot(), (skill) => !owned.has(skill.name) && (assigned.has(skill.name) || (skill.everyBot === true && !optedOut.has(skill.name))));
 }
 
 /** Library skills this bot can still add: not owned, not assigned, and not already on for every bot. */
 export function librarySkillsToOffer(botId: string, assigned: ReadonlySet<string>, owned: ReadonlySet<string>): LibrarySkillListing[] {
   const optedOut = librarySkillOptOuts(botId);
-  return listLibrarySkills().filter((entry) => !owned.has(entry.name) && !assigned.has(entry.name) && (!entry.everyBot || optedOut.has(entry.name)));
+  return listLibrarySkills(skillsLibraryRoot(), (entry) => !owned.has(entry.name) && !assigned.has(entry.name) && (!entry.everyBot || optedOut.has(entry.name)));
 }
 
 /** Drops one bot's assignment. A skill on for every bot is opted out here so the others keep it. */
@@ -371,7 +371,7 @@ export function unassignLibrarySkill(
   assigned: readonly string[] | undefined,
 ): { unassigned: true; assignedSkills?: string[] } | { absent: true } {
   if (!isSkillName(name)) return { absent: true };
-  const listing = listLibrarySkills().find((skill) => skill.name === name);
+  const listing = readSkillLibraryIndex()[name];
   if (!listing) return { absent: true };
   const explicit = assigned?.includes(name) === true;
   const viaEvery = listing.everyBot && !librarySkillOptOuts(botId).has(name);
@@ -399,8 +399,8 @@ export function setLibrarySkillEveryBot(
   return librarySkillListing(root, entry);
 }
 
-export function listLibrarySkills(root: string = skillsLibraryRoot()): LibrarySkillListing[] {
-  return Object.values(readSkillLibraryIndex(root))
+export function listLibrarySkills(root: string = skillsLibraryRoot(), include: (entry: SkillLibraryEntry) => boolean = () => true): LibrarySkillListing[] {
+  return Object.values(readSkillLibraryIndex(root)).filter(include)
     .map((entry) => librarySkillListing(root, entry))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

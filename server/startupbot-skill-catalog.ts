@@ -66,3 +66,13 @@ export function installStartupBotSkillCatalog({
   }
   return { installed, failed };
 }
+
+export function seedStartupBotSkillCatalog(): void {
+  try {
+    const { installed, failed } = installStartupBotSkillCatalog();
+    if (installed) console.log(`[skills-library] added ${installed} catalog skills for review`);
+    for (const failure of failed) console.warn(`[skills-library] catalog: ${failure}`);
+  } catch (error) {
+    console.error(`[skills-library] catalog could not be read: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}

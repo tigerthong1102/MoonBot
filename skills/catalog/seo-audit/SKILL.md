@@ -11,7 +11,7 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 
 # /seo-audit
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../../CONNECTORS.md).
+> Use the workspace’s configured connectors for the data sources named below. Ask for an export if a connector is unavailable.
 
 Audit a website's SEO health, research keyword opportunities, identify content gaps, and benchmark against competitors. Produces a prioritized action plan a marketer can execute immediately.
 

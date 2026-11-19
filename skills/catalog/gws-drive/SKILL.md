@@ -28,7 +28,7 @@ gws drive <resource> <method> [flags]
 
 | Command | Description |
 |---------|-------------|
-| [`+upload`](../gws-drive-upload/SKILL.md) | Upload a file with automatic metadata |
+| `+upload` | Upload a file with automatic metadata |
 
 ## API Resources
 

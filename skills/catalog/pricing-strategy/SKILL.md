@@ -1,13 +1,6 @@
 ---
 name: pricing-strategy
-description: >-
-  Sets and reworks software pricing: which unit to charge for, how to split features and limits
-  into plans, where to set each price, and how to move new and existing customers to it. Covers a
-  first price for a product with no customers yet, diagnosis of the weak lever from billing and
-  usage data, willingness-to-pay research, revenue modelling, and the migration and notice plan.
-  Use when someone says "how much should I charge", "pricing tiers", "packaging", "value metric",
-  "per seat or usage-based", "should we raise prices", "grandfather existing customers", "Van
-  Westendorp", "willingness to pay", "free plan or trial", or "annual discount".
+description: "Sets and reworks software pricing: which unit to charge for, how to split features and limits into plans, where to set each price, and how to move new and existing customers to it. Covers a first price for a product with no customers yet, diagnosis of the weak lever from billing and usage data, willingness-to-pay research, revenue modelling, and the migration and notice plan. Use when someone says \"how much should I charge\", \"pricing tiers\", \"packaging\", \"value metric\", \"per seat or usage-based\", \"should we raise prices\", \"grandfather existing customers\", \"Van Westendorp\", \"willingness to pay\", \"free plan or trial\", or \"annual discount\"."
 license: Apache-2.0
 compatibility: >-
   Subscription and usage-billed software with customer and usage data to analyse. The survey script

@@ -17,6 +17,7 @@ it("stages the catalog with notices and preserves existing library choices on re
     expect(Object.values(index).every((entry) => entry.reviewState === "disabled" && !entry.everyBot)).toBe(true);
     for (const entry of Object.values(index).filter(({ name }) => name !== "pdf")) {
       expect(entry.license).toBe("Apache-2.0");
+      expect(entry.description.length).toBeGreaterThan(8);
       expect(entry.files).toEqual(expect.arrayContaining(["LICENSE", "SOURCE.md"]));
       expect(readFileSync(join(root, "skills", entry.name, "LICENSE"), "utf8")).toContain("4. Redistribution");
     }

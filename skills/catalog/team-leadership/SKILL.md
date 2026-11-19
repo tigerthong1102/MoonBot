@@ -1,10 +1,6 @@
 ---
 name: team-leadership
-description: >-
-  Six team-leadership frameworks from The Personal MBA (commander's intent, communication overhead,
-  golden trifecta, earned regard, forcing functions, bystander apathy) for aligning a team, cutting
-  meeting load and assigning clear ownership.
-  Use when: managing teams, improving team collaboration, setting goals and accountability.
+description: "Six team-leadership frameworks from The Personal MBA (commander's intent, communication overhead, golden trifecta, earned regard, forcing functions, bystander apathy) for aligning a team, cutting meeting load and assigning clear ownership. Use when: managing teams, improving team collaboration, setting goals and accountability."
 license: Apache-2.0
 compatibility: "Any AI agent"
 metadata:

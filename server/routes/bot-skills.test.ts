@@ -28,6 +28,7 @@ async function serve(botId: string) {
   const routes = [createBotSkillsRoutes({
     store,
     cfg: {} as AppConfig,
+    visibleBot: () => true,
     listBotSkills: () => [],
     readBotSkillFile: () => null,
     stagedSkillListing: (staged) => staged,
@@ -111,6 +112,7 @@ describe("removing a skill from one bot", () => {
     const routes = [createBotSkillsRoutes({
       store,
       cfg: { features: { skillsLibrary: true } } as AppConfig,
+      visibleBot: (_auth, id) => id !== second,
       listBotSkills: () => [
         { name: brought, origin: "imported" },
         { name: "engine-notes", origin: "native" },
@@ -151,6 +153,19 @@ describe("removing a skill from one bot", () => {
     expect(native.body.error).toMatch(/can't be removed here/);
     expect((await call("DELETE", `/api/bots/${first}/skills/missing-skill`)).status).toBe(404);
 
+    const catalog = await (await fetch(`${base}/api/skills-library`)).json() as { skills: Array<{ name: string; assignedBots: Array<{ id: string; name: string }> }> };
+    expect(catalog.skills.find((skill) => skill.name === shared)?.assignedBots).toEqual([{ id: third, name: "Third" }]);
+
+    const assign = (assigned: boolean) => fetch(`${base}/api/bots/${first}/skills-library`, {
+      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: shared, assigned }),
+    });
+    expect((await assign(true)).status).toBe(200);
+    expect(bots.get(first)!.assignedSkills).toEqual([]);
+    expect(resolveBotSkills(first, []).map((skill) => skill.name)).toContain(shared);
+    expect((await assign(false)).status).toBe(200);
+    expect(resolveBotSkills(first, []).map((skill) => skill.name)).not.toContain(shared);
+    expect(bots.get(second)!.assignedSkills).toEqual([shared]);
+
     const put = await fetch(`${base}/api/bots/${first}/skills-library`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
@@ -178,6 +193,7 @@ describe("removing a skill from one bot", () => {
     const routes = [createBotSkillsRoutes({
       store,
       cfg: { features: { skillsLibrary: true } } as AppConfig,
+      visibleBot: () => true,
       listBotSkills: () => [],
       readBotSkillFile: () => null,
       stagedSkillListing: (staged) => staged,

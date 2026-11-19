@@ -1,7 +1,8 @@
 // Security: local browse only, with no registry and no network fetch, so an import is exactly the bytes pasted here.
 import { Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { intlLocale, t } from "@/lib/i18n";
+import catalog from "../../skills/catalog/index.json";
+import { activeLocale, intlLocale, t, tFromServer } from "@/lib/i18n";
 import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { useStore } from "@/state/store";
 import { Card, Switch } from "./SettingsPrimitives";
@@ -9,16 +10,38 @@ import type { SkillsLibrarySkillWire } from "../../shared/wire";
 import { Layer } from "./Layer";
 import { Select } from "./Select";
 
+const catalogBySource = new Map(catalog.map((entry) => [entry.source, entry]));
+
+function catalogEntry(skill: SkillsLibrarySkillWire) {
+  const entry = catalogBySource.get(skill.source);
+  return entry?.name === skill.name ? entry : undefined;
+}
+
+function skillTags(skill: SkillsLibrarySkillWire): string[] {
+  const entry = catalogEntry(skill);
+  return entry ? [...new Set([entry.category, ...skill.tags])] : skill.tags;
+}
+
+function tagLabel(tag: string): string {
+  return tFromServer(`skills.category.${tag}`, tag);
+}
+
+function searchText(text: string): string {
+  return text.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replaceAll("đ", "d");
+}
+
 export function filterLibrarySkills(
   skills: readonly SkillsLibrarySkillWire[],
   query: string,
   tag: string | null,
 ): SkillsLibrarySkillWire[] {
-  const q = query.trim().toLowerCase();
+  const terms = searchText(query).split(/\s+/).filter(Boolean);
   return skills.filter((skill) => {
-    if (tag && !skill.tags.includes(tag)) return false;
-    if (!q) return true;
-    return [skill.name, skill.description, skill.source].some((part) => part.toLowerCase().includes(q));
+    const tags = skillTags(skill);
+    if (tag && !tags.includes(tag)) return false;
+    if (!terms.length) return true;
+    const text = searchText([skill.name, skill.description, skill.source, skill.license, catalogEntry(skill)?.summaryVi, ...tags, ...tags.map(tagLabel)].join(" "));
+    return terms.every((term) => text.includes(term));
   });
 }
 
@@ -28,8 +51,9 @@ export function LibrarySkillMeta({ skill }: { skill: SkillsLibrarySkillWire }) {
       <span className="truncate" title={skill.source}>{t("skills.source", { source: skill.source })}</span>
       <span>{skill.version ? t("skills.library.version", { version: skill.version }) : t("skills.library.noVersion")}</span>
       <span>{t("skills.library.importedAt", { date: new Date(skill.importedAt).toLocaleDateString(intlLocale()) })}</span>
-      {skill.tags.map((tag) => (
-        <span key={tag} className="rounded bg-control px-1.5 py-0.5 font-mono">{tag}</span>
+      {skill.license && <span>{skill.license}</span>}
+      {skillTags(skill).map((tag) => (
+        <span key={tag} className="rounded bg-control px-1.5 py-0.5 font-mono">{tagLabel(tag)}</span>
       ))}
     </div>
   );
@@ -52,7 +76,7 @@ export function SkillsSection() {
 
   const bots = state.bots.filter((bot) => !bot.hidden);
   const tags = useMemo(
-    () => [...new Set(skills.flatMap((skill) => skill.tags))].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set(skills.flatMap(skillTags))].sort((a, b) => a.localeCompare(b)),
     [skills],
   );
   const visible = filterLibrarySkills(skills, query, activeTag);
@@ -88,17 +112,10 @@ export function SkillsSection() {
     setWorking(label);
     setError("");
     try {
-      // Read the complete current list while mutations are serialized, so a second row never overwrites an earlier
-      // assignment.
-      const listing = await fetch("/api/skills-library");
-      const listed = (await listing.json()) as { skills?: SkillsLibrarySkillWire[]; error?: string };
-      if (!listing.ok) throw new Error(listed.error ?? t("skills.library.loadError"));
-      const current = (listed.skills ?? []).filter((skill) => skill.assignedBots.some((bot) => bot.id === botId)).map((skill) => skill.name);
-      const next = remove ? current.filter((skill) => skill !== name) : [...new Set([...current, name])];
       const response = await fetch(`/api/bots/${encodeURIComponent(botId)}/skills-library`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ skills: next }),
+        body: JSON.stringify({ name, assigned: !remove }),
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? t("skills.error.assignments"));
@@ -208,7 +225,7 @@ export function SkillsSection() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title={t("skills.library.title")} subtitle={t("skills.library.subtitle")}>
+      <Card subtitle={t("skills.library.subtitle")}>
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
             <Search size={15} className="shrink-0 text-ink-secondary" />
@@ -224,6 +241,7 @@ export function SkillsSection() {
             <div className="flex flex-wrap items-center gap-1.5">
               <button
                 type="button"
+                aria-pressed={activeTag === null}
                 onClick={() => setActiveTag(null)}
                 className={
                   activeTag === null
@@ -237,6 +255,7 @@ export function SkillsSection() {
                 <button
                   key={tag}
                   type="button"
+                  aria-pressed={activeTag === tag}
                   onClick={() => setActiveTag(activeTag === tag ? null : tag)}
                   className={
                     activeTag === tag
@@ -244,7 +263,7 @@ export function SkillsSection() {
                       : "rounded-full px-2.5 py-1 font-mono text-[12px] text-ink-secondary hover:bg-control/50 hover:text-ink"
                   }
                 >
-                  {tag}
+                  {tagLabel(tag)}
                 </button>
               ))}
             </div>
@@ -263,7 +282,7 @@ export function SkillsSection() {
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => void view(skill)} className="min-w-0 flex-1 text-left" aria-label={t("skills.library.view", { skill: skill.name })}>
                       <div className="truncate font-mono text-[13px] text-ink">{skill.name}</div>
-                      <div className="mt-0.5 line-clamp-2 text-[12px] text-ink-secondary">{skill.description}</div>
+                      <div className="mt-0.5 line-clamp-2 text-[12px] text-ink-secondary">{(activeLocale().startsWith("vi") && catalogEntry(skill)?.summaryVi) || skill.description}</div>
                     </button>
                     <Switch
                       checked={skill.enabled}
@@ -326,7 +345,7 @@ export function SkillsSection() {
                       </Select>
                       <button
                         type="button"
-                        disabled={!assignBot || Boolean(working || importing)}
+                        disabled={!assignBot || !skill.enabled || skill.assignedBots.some((bot) => bot.id === assignBot) || Boolean(working || importing)}
                         onClick={() => void assign(skill)}
                         className="rounded-lg bg-control px-2.5 py-1 text-[12px] text-ink hover:bg-raised-hover disabled:opacity-50"
                       >
@@ -405,7 +424,7 @@ function SkillSourceDialog({ viewing, error, working, onClose, onEnable }: {
                 {t("skills.library.close")}
               </button>
             </div>
-            {viewing.review && <LibrarySkillMeta skill={viewing.skill} />}
+            <LibrarySkillMeta skill={viewing.skill} />
             {viewing.skill.warnings.length > 0 && <div className="mt-2 text-[12px] text-warning">{viewing.skill.warnings.join(" · ")}</div>}
             <pre
               tabIndex={0}

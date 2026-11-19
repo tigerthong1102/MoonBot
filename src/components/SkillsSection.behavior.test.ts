@@ -82,31 +82,19 @@ describe("Skills library review and assignment controls", () => {
     }));
   });
 
-  it("blocks a simultaneous second assignment and reads current assignments before the next PUT", async () => {
-    const rows = [skill("alpha"), skill("beta")];
-    fixture.values[0] = rows;
+  it("sends only the changed assignment and serializes clicks while the write is pending", async () => {
+    fixture.values[0] = [{ ...skill("alpha"), enabled: true }, { ...skill("beta"), enabled: true }];
     let unblock!: (value: Response) => void;
-    const delayed = new Promise<Response>((resolve) => { unblock = resolve; });
-    const writes: string[][] = [];
-    vi.mocked(fetch).mockImplementation(async (_url, options) => {
-      if (options?.method === "PUT") {
-        const next = JSON.parse(options.body as string).skills as string[];
-        writes.push(next);
-        for (const row of rows) row.assignedBots = next.includes(row.name) ? [{ id: "bot", name: "Pepper" }] : [];
-      }
-      return response({ skills: rows }) as Response;
-    }).mockImplementationOnce(() => delayed);
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise<Response>((resolve) => { unblock = resolve; }));
     const buttons = render().filter((node) => node.type === "button" && node.props.children === "Assign");
     buttons[0]!.props.onClick!();
     buttons[1]!.props.onClick!();
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith("/api/bots/bot/skills-library", expect.objectContaining({ method: "PATCH", body: '{"name":"alpha","assigned":true}' }));
     expect(render().filter((node) => node.props.children === "Assign").every((node) => node.props.disabled)).toBe(true);
-    unblock(response({ skills: rows }) as Response);
+    unblock(response({ ok: true }) as Response);
     await flush();
-    expect(writes).toEqual([["alpha"]]);
-    render().filter((node) => node.type === "button" && node.props.children === "Assign")[1]!.props.onClick!();
-    await flush();
-    expect(writes).toEqual([["alpha"], ["alpha", "beta"]]);
+    expect(fetch).toHaveBeenLastCalledWith("/api/skills-library");
   });
 
   it("requires the same source review before enabling a per-bot library skill", async () => {

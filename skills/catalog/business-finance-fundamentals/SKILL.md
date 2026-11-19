@@ -1,9 +1,6 @@
 ---
 name: business-finance-fundamentals
-description: >-
-  Understand essential business finance — profit margins, unit economics, cash flow, LTV/CAC,
-  and the 4 methods to increase revenue. Use when: analyzing business profitability, making
-  pricing decisions, evaluating SaaS unit economics, financial planning.
+description: "Understand essential business finance — profit margins, unit economics, cash flow, LTV/CAC, and the 4 methods to increase revenue. Use when: analyzing business profitability, making pricing decisions, evaluating SaaS unit economics, financial planning."
 license: Apache-2.0
 compatibility: "Any AI agent"
 metadata:

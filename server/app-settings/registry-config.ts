@@ -188,7 +188,7 @@ export function configEntries(deps: Pick<RegistryDeps, "cfg" | "saveConfig" | "b
       write: (awake: string[]) => deps.call("starterAwake", "POST", "/api/starter/awake", { awake }),
     }),
     writable({
-      id: "skills.library", label: "Skills library", help: "Turn a library skill on or off, or give it to every bot. Library skills are listed in Settings.", where: "skills",
+      id: "skills.library", label: "Skills library", help: "Turn a library skill on or off, or give it to every bot. Library skills are listed in Settings.", where: "page:skills",
       synonyms: ["skills", "skill library", "library", "every bot skill"],
       value: z.object({ name: z.string().regex(/^[a-z0-9-]{1,64}$/), enabled: z.boolean().optional(), everyBot: z.boolean().optional() }).strict().refine((value) => (value.enabled === undefined) !== (value.everyBot === undefined), "send enabled or everyBot, one of them"),
       allowed: '{"name","enabled":true|false} or {"name","everyBot":true|false}', read: () => "",

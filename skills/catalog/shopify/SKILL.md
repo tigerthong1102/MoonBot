@@ -1,13 +1,6 @@
 ---
 name: shopify
-description: >-
-  Build and customize Shopify stores — themes with Liquid, Storefront API,
-  custom apps, and headless commerce with Hydrogen. Use when someone asks to
-  "build a Shopify store", "Shopify theme", "Liquid templates", "Shopify API",
-  "Shopify app", "headless Shopify", "Hydrogen storefront", "customize Shopify",
-  "Shopify product management", or "e-commerce with Shopify". Covers Liquid
-  templating, theme development, Storefront/Admin APIs, custom apps, checkout
-  extensions, and Hydrogen (React-based headless).
+description: "Build and customize Shopify stores — themes with Liquid, Storefront API, custom apps, and headless commerce with Hydrogen. Use when someone asks to \"build a Shopify store\", \"Shopify theme\", \"Liquid templates\", \"Shopify API\", \"Shopify app\", \"headless Shopify\", \"Hydrogen storefront\", \"customize Shopify\", \"Shopify product management\", or \"e-commerce with Shopify\". Covers Liquid templating, theme development, Storefront/Admin APIs, custom apps, checkout extensions, and Hydrogen (React-based headless)."
 license: Apache-2.0
 compatibility: "Liquid (themes). Node.js 22.12+ and Git 2.38+ for Shopify CLI. React (Hydrogen)."
 metadata:

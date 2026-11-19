@@ -1,9 +1,6 @@
 ---
 name: woocommerce
-description: >-
-  Build e-commerce stores with WooCommerce for WordPress. Use when a user asks
-  to add a shop to WordPress, manage products and orders, customize checkout,
-  integrate payment gateways, or build a WordPress-based online store.
+description: "Build e-commerce stores with WooCommerce for WordPress. Use when a user asks to add a shop to WordPress, manage products and orders, customize checkout, integrate payment gateways, or build a WordPress-based online store."
 license: Apache-2.0
 compatibility: 'WordPress 7.0+, PHP 7.4+ (WooCommerce 11.x); Node.js 18+ for the REST client'
 metadata:

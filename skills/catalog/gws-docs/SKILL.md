@@ -28,7 +28,7 @@ gws docs <resource> <method> [flags]
 
 | Command | Description |
 |---------|-------------|
-| [`+write`](../gws-docs-write/SKILL.md) | Append text to a document |
+| `+write` | Append text to a document |
 
 ## API Resources
 

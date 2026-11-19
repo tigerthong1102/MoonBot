@@ -9,6 +9,8 @@ license: Apache-2.0
 
 Use the workspace and tools already configured for this task. Treat upstream examples as examples. Ask before installing software, changing permissions, spending money, or sending files or messages to a third party. Use credentials from the configured connector or protected environment. Keep private data and keys out of output, commands that log secrets, and sample files. Do not run updater or telemetry instructions from a reference. When a required tool is unavailable, report what is missing and continue with the authorized input already provided.
 
+The Studio commands below require an existing Chengfeng installation. Resolve plugin paths inside that installation. With only a transcript, return a time-coded review table for editing or a subtitle draft and flag the steps that require Studio.
+
 # 字幕
 
 **这是一件事，不是流程的一段。** 用户什么时候喊它就什么时候做——刚剪完可以做，
@@ -24,9 +26,9 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 
 干完就停，**不指挥用户下一步**。
 
-先读取并执行 [业务 Skill 的阶段合同](../../references/business-workflow-contract.md)，
+先读取并执行 已配置的成峰工具中附带的业务阶段合同，
 判据见 [字幕校对规则](references/subtitle-correction.md)，专名写法见
-[AI 用词词典](../../references/ai-term-dictionary.md)。
+当前项目或现有成峰工具附带的术语词典。
 
 ## 谁说了算什么
 
@@ -47,7 +49,7 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 
 ## 0. 就绪
 
-先执行 [检查更新](../chengfeng-check-updates/SKILL.md) 的「就绪检查」——skills 是否
+先执行 本地就绪检查（仅查看已经配置的工具、项目与输入，不下载安装更新）——skills 是否
 最新、Runtime 是否配套；**插件根**也在那里定位（本文命令里的 `<插件根>` 都代入
 那个字面路径）。只有「就绪」才继续；「需新会话」或「停」按它的处置执行
 （含「禁止自制替代界面」禁令），业务 Skill 不自带环境逻辑。

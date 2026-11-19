@@ -50,4 +50,4 @@ gws workflow +email-to-task --message-id MSG_ID --tasklist LIST_ID
 ## See Also
 
 - [gws-shared](../gws-shared/SKILL.md) — Global flags and auth
-- [gws-workflow](../gws-workflow/SKILL.md) — All cross-service productivity workflows commands
+- `gws workflow --help` — Available cross-service workflows

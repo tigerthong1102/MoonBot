@@ -4,7 +4,7 @@ Upstream directory https://github.com/fabricioctelles/skills/tree/c491efea06e200
 
 Upstream license https://github.com/fabricioctelles/skills/blob/c491efea06e200e847c416effb87e566d6face3b/LICENSE
 
-StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. Other included upstream files retain their original contents.
+StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. StartupBot folded the YAML description to one line for the app’s skill reader. Other included upstream files retain their original contents.
 
 ## Excluded upstream files
 

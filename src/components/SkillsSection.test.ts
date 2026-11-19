@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
+import catalog from "../../skills/catalog/index.json";
 import { setLocale } from "@/lib/i18n";
 import { filterLibrarySkills, LibrarySkillMeta } from "./SkillsSection";
 import type { SkillsLibrarySkillWire } from "../../shared/wire";
@@ -39,6 +40,13 @@ describe("filterLibrarySkills", () => {
     expect(filterLibrarySkills(skills, "", "review").map((s) => s.name)).toEqual(["order-audit"]);
     expect(filterLibrarySkills(skills, "formula", "sheets").map((s) => s.name)).toEqual(["spreadsheet-math"]);
     expect(filterLibrarySkills(skills, "friendly", "sheets").map((s) => s.name)).toEqual([]);
+  });
+
+  it("finds a pinned catalog entry by Vietnamese words without accents and keeps same-name local imports distinct", () => {
+    const row = catalog.find((entry) => entry.name === "dcf-model")!;
+    const bundled = skill({ name: row.name, source: row.source });
+    const local = skill({ name: row.name });
+    expect(filterLibrarySkills([local, bundled], "dinh gia", "finance")).toEqual([bundled]);
   });
 
   it("returns everything for an empty query and no tag", () => {

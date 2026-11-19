@@ -1,4 +1,6 @@
 """
+StartupBot modified this file on 2026-11-19 to use a locally installed LibreOffice.
+
 Excel Formula Recalculation Script
 Recalculates all formulas in an Excel file using LibreOffice
 
@@ -13,7 +15,6 @@ import io
 import json
 import math
 import os
-import platform
 import posixpath
 import re
 import shutil
@@ -21,67 +22,13 @@ import signal
 import subprocess
 import sys
 import tempfile
-import time
 import zipfile
 from pathlib import Path
 from xml.parsers import expat
 
-from office.soffice import get_soffice_env, run_soffice
 
-MACRO_FILENAME = "Module1.xba"
 SOFFICE_MISSING = "soffice not found on PATH; LibreOffice is required to recalculate"
-
 MAX_LOCATIONS = 100
-
-RECALCULATE_MACRO = """<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
-<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Module1" script:language="StarBasic">
-    Sub RecalculateAndSave()
-      ThisComponent.calculateAll()
-      ThisComponent.store()
-      ThisComponent.close(True)
-    End Sub
-</script:module>"""
-
-
-def has_gtimeout():
-    try:
-        subprocess.run(
-            ["gtimeout", "--version"], capture_output=True, timeout=1, check=False
-        )
-        return True
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
-
-
-def _stamp(path):
-    st = os.stat(path)
-    return st.st_mtime_ns, st.st_size
-
-
-def setup_libreoffice_macro(profile_dir: Path, timeout=30):
-    url = profile_dir.as_uri()
-    try:
-        run_soffice(
-            ["--headless", "--terminate_after_init", f"-env:UserInstallation={url}"],
-            capture_output=True,
-            timeout=timeout,
-        )
-    except FileNotFoundError:
-        return None, SOFFICE_MISSING
-    except subprocess.TimeoutExpired:
-        return None, "LibreOffice timed out creating its profile; formulas were NOT recalculated"
-
-    macro_dir = profile_dir / "user" / "basic" / "Standard"
-    if not macro_dir.exists():
-        return None, "LibreOffice did not create a usable profile; formulas were NOT recalculated"
-
-    try:
-        (macro_dir / MACRO_FILENAME).write_text(RECALCULATE_MACRO)
-    except OSError as e:
-        return None, f"Could not install the recalculation macro: {e}"
-
-    return url, None
 
 
 def _existing_cells(ws):
@@ -152,11 +99,6 @@ def recalc(filename, timeout=30, force=False):
             "error": f"{filename} or its folder is not writable; recalc.py needs to write to both"
         }
 
-    try:
-        get_soffice_env()
-    except Exception as e:  
-        return {"error": f"Could not prepare the LibreOffice environment: {e}"}
-
     with tempfile.TemporaryDirectory(prefix="recalc-lo-", ignore_cleanup_errors=True) as work:
         copy = os.path.join(work, "copy", os.path.basename(abs_path))
         profile_dir = Path(work) / "profile"
@@ -170,62 +112,23 @@ def recalc(filename, timeout=30, force=False):
 
 
 def _recalc_with_profile(filename, abs_path, copy, timeout, profile_dir: Path):
-    started = time.monotonic()
-    profile_url, err = setup_libreoffice_macro(profile_dir, timeout=timeout)
-    if err:
-        return {"error": err}
-
-    timeout = max(5, int(timeout - (time.monotonic() - started)))
-
-    before = _stamp(copy)
-
+    output = profile_dir.parent / (Path(copy).stem + ".xlsx")
     cmd = [
-        "soffice",
-        "--headless",
-        "--norestore",
-        f"-env:UserInstallation={profile_url}",
-        "vnd.sun.star.script:Standard.Module1.RecalculateAndSave?language=Basic&location=application",
-        copy,
+        "soffice", "--headless", "--norestore", f"-env:UserInstallation={profile_dir.as_uri()}",
+        "--convert-to", "xlsx:Calc MS Excel 2007 XML", "--outdir", str(output.parent), copy,
     ]
-
-    if platform.system() == "Linux" and shutil.which("timeout"):
-        cmd = ["timeout", str(timeout)] + cmd
-    elif platform.system() == "Darwin" and has_gtimeout():
-        cmd = ["gtimeout", str(timeout)] + cmd
-
-    timed_out = f"LibreOffice timed out after {timeout}s; formulas were NOT recalculated. Re-run with a longer timeout."
-
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, env=get_soffice_env(), timeout=timeout + 15
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return {"error": timed_out}
+        return {"error": f"LibreOffice timed out after {timeout}s; the workbook is unchanged"}
     except FileNotFoundError:
         return {"error": SOFFICE_MISSING}
-
-    if result.returncode == 124:
-        return {"error": timed_out}
-
-    if result.returncode != 0:
-        detail = (result.stderr or "").strip() or f"soffice exited {result.returncode}"
-        return {"error": f"LibreOffice failed to recalculate: {detail}"}
+    if result.returncode or not output.is_file():
+        detail = (result.stderr or result.stdout).strip() or f"exit code {result.returncode}"
+        return {"error": f"LibreOffice could not convert its copy: {detail}"}
 
     try:
-        rewritten = _stamp(copy) != before
-    except OSError:  
-        rewritten = False
-    if not rewritten:
-        return {
-            "error": (
-                "LibreOffice exited cleanly but never rewrote its copy of the file, so nothing was "
-                "recalculated. Run it again; if the same happens, LibreOffice is not running the "
-                "recalculation macro on this machine."
-            )
-        }
-
-    try:
-        found = _write_values(abs_path, copy)
+        found = _write_values(abs_path, output)
     except Exception as e:  
         why = f"which is unchanged: {str(e) or type(e).__name__}"
         return {"error": f"Could not write the new values into {filename}, {why}"}

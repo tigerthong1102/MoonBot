@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { productName } from "@/lib/brand";
-import { skillsLibraryEnabled } from "@/lib/feature-flags";
 import { useStore } from "@/state/store";
 import { AdminOnly } from "../../AdminOnly";
 import { AutomaticRecoverySettings } from "../../AutomaticRecoverySettings";
@@ -28,7 +27,6 @@ import { SavedStepsRow } from "../../SavedStepsRow";
 import { Card, SettingRow, SettingsDisclosureRow, SettingsFoldRow, SettingsGroup, SettingsLinkRow, SettingsRows } from "../../SettingsPrimitives";
 import { KEY_SECTIONS } from "../../keys/key-catalog";
 import { DesktopKinds } from "../DesktopKinds";
-import { SkillsSection } from "../../SkillsSection";
 import { ThreadConcurrencySettings } from "../../ThreadConcurrencySettings";
 import { usePhonePlaceState } from "../phone-status";
 import { KeysPage } from "../../keys/KeysPage";
@@ -170,7 +168,6 @@ export function BotsPage() {
         <div data-settings-block="keep-warm" className="contents"><CacheKeepWarmSettings /></div>
       </SettingsRows>
     </SettingsGroup></AdvancedSection>}
-    {skillsLibraryEnabled(state.config) && <div data-settings-block="skills"><SkillsSection /></div>}
     <AdvancedSection anchor="early"><div data-settings-block="early"><ExperimentalFeaturesRow /></div></AdvancedSection>
   </>;
 }

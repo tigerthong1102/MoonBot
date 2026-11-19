@@ -28,8 +28,8 @@ gws sheets <resource> <method> [flags]
 
 | Command | Description |
 |---------|-------------|
-| [`+append`](../gws-sheets-append/SKILL.md) | Append a row to a spreadsheet |
-| [`+read`](../gws-sheets-read/SKILL.md) | Read values from a spreadsheet |
+| `+append` | Append a row to a spreadsheet |
+| `+read` | Read values from a spreadsheet |
 
 ## API Resources
 

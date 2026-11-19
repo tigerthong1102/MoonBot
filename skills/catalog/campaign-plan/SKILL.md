@@ -11,7 +11,7 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 
 # Campaign Plan
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../../CONNECTORS.md).
+> Use the workspace’s configured connectors for the data sources named below. Ask for an export if a connector is unavailable.
 
 Generate a comprehensive marketing campaign brief with objectives, audience, messaging, channel strategy, content calendar, and success metrics.
 

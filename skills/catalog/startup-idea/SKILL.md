@@ -1,10 +1,6 @@
 ---
 name: startup-idea
-description: >
-  Analyze startups with Paul Graham mindset (pressure, founder-market fit, brutal validation),
-  Dan Koe discipline (monetization, offer, distribution, sales), and Seth Godin principles
-  (differentiation, narrative, smallest viable audience). Triggers on startup idea, business
-  validation, MVP, first customers, revenue model, GTM, product-market fit, "I have an idea".
+description: "Analyze startups with Paul Graham mindset (pressure, founder-market fit, brutal validation), Dan Koe discipline (monetization, offer, distribution, sales), and Seth Godin principles (differentiation, narrative, smallest viable audience). Triggers on startup idea, business validation, MVP, first customers, revenue model, GTM, product-market fit, \"I have an idea\"."
 metadata:
   author: ft.ia.br
   version: "1.3"

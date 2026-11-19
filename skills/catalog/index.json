@@ -5,7 +5,8 @@
     "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/xlsx/LICENSE.txt",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/recalc.py"
     ],
     "excludedFiles": [
       "scripts/office/helpers/__init__.py",
@@ -58,7 +59,9 @@
       "scripts/office/validators/docx.py",
       "scripts/office/validators/pptx.py",
       "scripts/office/validators/redlining.py"
-    ]
+    ],
+    "category": "office",
+    "summaryVi": "Tạo, sửa và kiểm tra công thức trong bảng tính Excel."
   },
   {
     "name": "pdf",
@@ -68,7 +71,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Đọc, trích xuất, tách hoặc ghép tài liệu PDF."
   },
   {
     "name": "docx",
@@ -138,7 +143,9 @@
       "scripts/templates/commentsExtensible.xml",
       "scripts/templates/commentsIds.xml",
       "scripts/templates/people.xml"
-    ]
+    ],
+    "category": "office",
+    "summaryVi": "Soạn và chỉnh sửa tài liệu Word."
   },
   {
     "name": "pptx",
@@ -205,7 +212,9 @@
       "scripts/office/validators/redlining.py",
       "scripts/slide_text.py",
       "scripts/thumbnail.py"
-    ]
+    ],
+    "category": "office",
+    "summaryVi": "Thiết kế và kiểm tra bài trình chiếu PowerPoint."
   },
   {
     "name": "internal-comms",
@@ -215,7 +224,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Soạn bản tin, thông báo và báo cáo nội bộ."
   },
   {
     "name": "frontend-design",
@@ -225,7 +236,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "web",
+    "summaryVi": "Thiết kế giao diện website và ứng dụng."
   },
   {
     "name": "gws-sheets",
@@ -235,7 +248,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Đọc và chỉnh sửa bảng tính Google Sheets."
   },
   {
     "name": "recipe-compare-sheet-tabs",
@@ -245,7 +260,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Đối chiếu dữ liệu giữa hai trang tính Google Sheets."
   },
   {
     "name": "recipe-backup-sheet-as-csv",
@@ -255,7 +272,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Sao lưu bảng tính Google Sheets thành tệp CSV."
   },
   {
     "name": "recipe-generate-report-from-sheet",
@@ -265,7 +284,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Lập báo cáo từ dữ liệu Google Sheets."
   },
   {
     "name": "recipe-create-doc-from-template",
@@ -275,7 +296,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Tạo tài liệu Google Docs từ mẫu có sẵn."
   },
   {
     "name": "gws-workflow-meeting-prep",
@@ -285,7 +308,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Chuẩn bị tài liệu và thông tin trước cuộc họp."
   },
   {
     "name": "gws-workflow-email-to-task",
@@ -295,7 +320,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Chuyển email thành công việc cần theo dõi."
   },
   {
     "name": "recipe-collect-form-responses",
@@ -305,7 +332,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Thu thập và xem phản hồi từ Google Forms."
   },
   {
     "name": "webapp-testing",
@@ -315,7 +344,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "web",
+    "summaryVi": "Kiểm thử ứng dụng web trong trình duyệt."
   },
   {
     "name": "google-analytics-data-api-basics",
@@ -325,7 +356,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Đọc dữ liệu Google Analytics để đo hiệu quả website."
   },
   {
     "name": "web-perf",
@@ -337,7 +370,9 @@
     ],
     "excludedFiles": [
       "references/skill-feedback.md"
-    ]
+    ],
+    "category": "web",
+    "summaryVi": "Đo tốc độ tải và tìm nguyên nhân website chậm."
   },
   {
     "name": "site-md",
@@ -347,7 +382,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "web",
+    "summaryVi": "Chuyển yêu cầu thiết kế website thành tài liệu SITE.md cho Stitch."
   },
   {
     "name": "earnings-analysis",
@@ -357,7 +394,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "finance",
+    "summaryVi": "Phân tích kết quả kinh doanh và báo cáo lợi nhuận doanh nghiệp."
   },
   {
     "name": "comps-analysis",
@@ -367,7 +406,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "finance",
+    "summaryVi": "So sánh định giá với các doanh nghiệp cùng ngành."
   },
   {
     "name": "dcf-model",
@@ -377,7 +418,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "finance",
+    "summaryVi": "Lập mô hình định giá dòng tiền chiết khấu DCF."
   },
   {
     "name": "thesis-tracker",
@@ -387,7 +430,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "finance",
+    "summaryVi": "Theo dõi luận điểm đầu tư và bằng chứng mới."
   },
   {
     "name": "hyperframes",
@@ -478,7 +523,9 @@
       "scripts/locate.test.mjs",
       "scripts/plugin-cli.mjs",
       "scripts/plugin-cli.test.mjs"
-    ]
+    ],
+    "category": "media",
+    "summaryVi": "Dựng video từ HTML với HyperFrames."
   },
   {
     "name": "hyperframes-cli",
@@ -501,7 +548,9 @@
       "references/lint-validate-inspect.md",
       "references/preview-render.md",
       "references/upgrade-info-misc.md"
-    ]
+    ],
+    "category": "media",
+    "summaryVi": "Sử dụng công cụ dòng lệnh HyperFrames để dựng và xuất video."
   },
   {
     "name": "gemini-api",
@@ -522,7 +571,9 @@
       "references/safety.md",
       "references/structured_and_tools.md",
       "references/text_and_multimodal.md"
-    ]
+    ],
+    "category": "media",
+    "summaryVi": "Tạo video bằng Gemini hoặc Veo qua kết nối đã cấu hình."
   },
   {
     "name": "campaign-plan",
@@ -532,7 +583,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Lập kế hoạch chiến dịch marketing."
   },
   {
     "name": "competitive-brief",
@@ -542,7 +595,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Soạn báo cáo so sánh đối thủ cạnh tranh."
   },
   {
     "name": "performance-report",
@@ -552,7 +607,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Tổng hợp kết quả và hiệu suất chiến dịch marketing."
   },
   {
     "name": "seo-audit",
@@ -562,7 +619,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Kiểm tra SEO và đề xuất cải thiện khả năng tìm thấy website."
   },
   {
     "name": "google-ads-api-mcp-setup",
@@ -574,7 +633,9 @@
     ],
     "excludedFiles": [
       "references/tools.md"
-    ]
+    ],
+    "category": "marketing",
+    "summaryVi": "Kiểm tra kết nối MCP của Google Ads."
   },
   {
     "name": "google-ads-api-account-diagnostics",
@@ -584,7 +645,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Kiểm tra cấu hình và chẩn đoán tài khoản quảng cáo Google Ads."
   },
   {
     "name": "apify-ecommerce",
@@ -594,7 +657,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "commerce",
+    "summaryVi": "Thu thập dữ liệu sản phẩm thương mại điện tử qua Apify."
   },
   {
     "name": "shopify",
@@ -606,7 +671,9 @@
     ],
     "excludedFiles": [
       "_scores.json"
-    ]
+    ],
+    "category": "commerce",
+    "summaryVi": "Làm việc với cửa hàng và dữ liệu Shopify."
   },
   {
     "name": "woocommerce",
@@ -618,7 +685,9 @@
     ],
     "excludedFiles": [
       "_scores.json"
-    ]
+    ],
+    "category": "commerce",
+    "summaryVi": "Làm việc với cửa hàng và dữ liệu WooCommerce."
   },
   {
     "name": "byted-seedance-video-generate",
@@ -628,7 +697,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Tạo video bằng mô hình Seedance của ByteDance."
   },
   {
     "name": "byted-seedream-image-generate",
@@ -638,7 +709,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Tạo hình ảnh bằng Seedream của ByteDance."
   },
   {
     "name": "byted-text-to-speech",
@@ -654,7 +727,9 @@
       "requirements.txt",
       "scripts/api_key.py",
       "scripts/text_to_speech.py"
-    ]
+    ],
+    "category": "media",
+    "summaryVi": "Chuyển văn bản thành giọng đọc và thuyết minh."
   },
   {
     "name": "byted-las-asr-pro",
@@ -664,7 +739,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Chuyển giọng nói thành văn bản bằng dịch vụ nhận dạng âm thanh."
   },
   {
     "name": "byted-kickart-video-subtitler",
@@ -692,7 +769,9 @@
       "scripts/subtitler.py",
       "scripts/upgrade.py",
       "scripts/upload.py"
-    ]
+    ],
+    "category": "media",
+    "summaryVi": "Tạo phụ đề cho video."
   },
   {
     "name": "byted-las-pdf-parse-doubao",
@@ -702,7 +781,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Trích xuất nội dung PDF bằng dịch vụ Doubao."
   },
   {
     "name": "generated-ui",
@@ -712,7 +793,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "web",
+    "summaryVi": "Tạo bảng so sánh hoặc công cụ tính toán tương tác trong StartupBot."
   },
   {
     "name": "dataviz",
@@ -722,7 +805,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Trực quan hóa dữ liệu bằng biểu đồ."
   },
   {
     "name": "translate-docs",
@@ -732,7 +817,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Đồng bộ thay đổi giữa tài liệu gốc và bản dịch."
   },
   {
     "name": "chengfeng-cut",
@@ -742,7 +829,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Rà bản ghi lời thoại tiếng Trung, đánh dấu câu lặp và đoạn đề xuất cắt."
   },
   {
     "name": "chengfeng-subtitle",
@@ -752,7 +841,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Tạo và chỉnh phụ đề video."
   },
   {
     "name": "startup-idea",
@@ -764,7 +855,9 @@
     ],
     "excludedFiles": [
       "evals/evals.json"
-    ]
+    ],
+    "category": "startup",
+    "summaryVi": "Đánh giá ý tưởng khởi nghiệp và giả định cần kiểm chứng."
   },
   {
     "name": "product-discovery",
@@ -776,7 +869,9 @@
     ],
     "excludedFiles": [
       "_scores.json"
-    ]
+    ],
+    "category": "startup",
+    "summaryVi": "Khám phá nhu cầu khách hàng và cơ hội sản phẩm."
   },
   {
     "name": "synthesize-research",
@@ -786,7 +881,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Tổng hợp nghiên cứu và phản hồi từ khách hàng."
   },
   {
     "name": "write-spec",
@@ -796,7 +893,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Viết đặc tả tính năng và yêu cầu sản phẩm."
   },
   {
     "name": "pricing-strategy",
@@ -808,7 +907,9 @@
     ],
     "excludedFiles": [
       "_scores.json"
-    ]
+    ],
+    "category": "startup",
+    "summaryVi": "Xây dựng chiến lược định giá sản phẩm."
   },
   {
     "name": "business-finance-fundamentals",
@@ -820,7 +921,9 @@
     ],
     "excludedFiles": [
       "_scores.json"
-    ]
+    ],
+    "category": "finance",
+    "summaryVi": "Tính và hiểu các chỉ số tài chính khi vận hành công ty."
   },
   {
     "name": "producthunt",
@@ -832,7 +935,9 @@
     ],
     "excludedFiles": [
       ".claude-plugin/plugin.json"
-    ]
+    ],
+    "category": "startup",
+    "summaryVi": "Nghiên cứu sản phẩm ra mắt, chủ đề và xu hướng trên Product Hunt."
   },
   {
     "name": "draft-outreach",
@@ -842,7 +947,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Soạn thư tiếp cận khách hàng tiềm năng."
   },
   {
     "name": "pipeline-review",
@@ -852,7 +959,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Rà soát cơ hội bán hàng và bước tiếp theo."
   },
   {
     "name": "roadmap-update",
@@ -862,7 +971,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Cập nhật lộ trình phát triển sản phẩm."
   },
   {
     "name": "sprint-planning",
@@ -872,7 +983,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Lập kế hoạch sprint và phân chia công việc cho nhóm."
   },
   {
     "name": "team-leadership",
@@ -884,7 +997,9 @@
     ],
     "excludedFiles": [
       "_scores.json"
-    ]
+    ],
+    "category": "startup",
+    "summaryVi": "Quản lý đội ngũ và phát triển kỹ năng lãnh đạo."
   },
   {
     "name": "gws-shared",
@@ -894,7 +1009,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Dùng cấu hình và quy ước chung của Google Workspace CLI."
   },
   {
     "name": "gws-docs",
@@ -904,7 +1021,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Đọc và soạn tài liệu Google Docs."
   },
   {
     "name": "gws-drive",
@@ -914,7 +1033,9 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Tìm và quản lý tệp trong Google Drive."
   },
   {
     "name": "gws-forms",
@@ -924,6 +1045,8 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": []
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Làm việc với biểu mẫu và phản hồi Google Forms."
   }
 ]

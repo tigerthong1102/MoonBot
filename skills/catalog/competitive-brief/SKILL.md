@@ -11,7 +11,7 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 
 # Competitive Brief
 
-> If you see unfamiliar placeholders or need to check which tools are connected, see [CONNECTORS.md](../../CONNECTORS.md).
+> Use the workspace’s configured connectors for the data sources named below. Ask for an export if a connector is unavailable.
 
 Research competitors and generate a structured competitive analysis comparing positioning, messaging, content strategy, and market presence.
 

@@ -1,0 +1,443 @@
+diff --git a/server/saved-steps/dispatch.ts b/server/saved-steps/dispatch.ts
+--- a/server/saved-steps/dispatch.ts
++++ b/server/saved-steps/dispatch.ts
+@@ -7,7 +7,7 @@
+ import { requestKey } from "./key.ts";
+ import { declinedReply, fallbackNote, replayedReply, runSteps, type ReplayOutcome, type ReplayTurn } from "./replay.ts";
+ import type { ComputerCaller } from "./resolve.ts";
+-import { personTextRequest, recipeFitsRequest, stepLabel, type Recipe } from "./rules.ts";
++import { personTextRequest, recipeFitsRequest, stepLabel, windowButtonClick, type Recipe } from "./rules.ts";
+ import type { RecipeStore } from "./store.ts";
+ 
+ export interface EngineSlots { get(threadId: string): ProviderInstance | undefined; set(threadId: string, engine: ProviderInstance): void }
+@@ -21,6 +21,7 @@
+ }
+ export interface DispatchDeps {
+   recipes: Pick<RecipeStore, "find" | "forget">;
++  platform: NodeJS.Platform;
+   enabled(): boolean;
+   publish(event: RuntimeEvent): void;
+   engines: EngineSlots;
+@@ -141,7 +142,7 @@
+   /** Whether the thread's latest turn met every condition for replaying this recipe, so "next time no AI" would hold. */
+   wouldReplay(threadId: string, recipe: Recipe): boolean {
+     const turn = this.replayable.get(threadId);
+-    return turn !== undefined && toolsAllowed(recipe, turn.toolScope);
++    return turn !== undefined && this.permitsRecipe(recipe, turn.toolScope);
+   }
+ 
+   /** True for the events of a replay still answering without the AI, its turn.completed included. */
+@@ -156,8 +157,17 @@
+     return answer?.turnId === turnId ? answer.recipeId : undefined;
+   }
+ 
++  private permitsRecipe(recipe: Recipe, toolScope: unknown): boolean {
++    const windows = this.deps.platform === "win32";
++    const supported = recipe.steps.every((step) => windows
++      ? step.element?.uiaWindowChild === true && windowButtonClick(step.tool, step.args)
++      : !step.element?.uiaWindowChild);
++    return supported && toolsAllowed(recipe, toolScope);
++  }
++
+   private replayHolds(request: ReplayRequest, input: SendTurnInput): boolean {
+     return this.deps.enabled() && input.approvalMode === "full" && input.integrations?.localComputer?.scope === "local-computer"
++      && (this.deps.platform !== "win32" || input.integrations.localComputer.platform === "win32")
+       && request.placePicked && personTextRequest(request.message) && request.turnText === request.message.text;
+   }
+ 
+@@ -165,7 +175,7 @@
+     if (!this.replayHolds(request, input)) return undefined;
+     const text = request.turnText;
+     const recipe = this.deps.recipes.find(request.botId, requestKey(text));
+-    return recipe && recipeFitsRequest(recipe, text) && toolsAllowed(recipe, input.toolScope) ? recipe : undefined;
++    return recipe && recipeFitsRequest(recipe, text) && this.permitsRecipe(recipe, input.toolScope) ? recipe : undefined;
+   }
+ 
+   private standIn(run: Run, approval: Approval, asked: ReadonlySet<string>): ProviderInstance {
+@@ -195,7 +205,10 @@
+     this.emit(run, { type: "turn.started" });
+     const outcome = await this.runSteps(run, computer, approval);
+     approval.close();
+-    if (outcome.kind === "failed") return this.fallBack(run, outcome, input, start);
++    if (outcome.kind === "failed") {
++      if (this.deps.platform === "win32") return this.end(run, { kind: "error", message: outcome.error });
++      return this.fallBack(run, outcome, input, start);
++    }
+     if (outcome.kind === "error") this.forget(run);
+     this.end(run, outcome);
+   }
+diff --git a/server/saved-steps/dispatch.test.ts b/server/saved-steps/dispatch.test.ts
+--- a/server/saved-steps/dispatch.test.ts
++++ b/server/saved-steps/dispatch.test.ts
+@@ -122,6 +122,7 @@
+   withholdHandoff = vi.fn(() => handOn);
+   contextChanged = vi.fn();
+   deps = {
++    platform: "darwin",
+     recipes,
+     enabled: () => true,
+     publish: (event) => {
+@@ -200,6 +201,32 @@
+     taint.mockReturnValueOnce(false);
+     await dispatch.sendTurn(engine, REQ, INPUT, start);
+     expect(dispatch.takeUnmarked("t1")).toBe(false);
++  });
++
++  it("admits only background UIA button recipes for Windows learning and replay", async () => {
++    const windows = new SavedStepsDispatch({ ...deps, platform: "win32" });
++    recipes.find.mockReturnValue(RECIPE);
++    await windows.sendTurn(engine, REQ, { ...INPUT, integrations: { localComputer: { ...COMPUTER, platform: "win32" } } }, start);
++    expect(start).toHaveBeenCalledTimes(1);
++    expect(openCaller).not.toHaveBeenCalled();
++    const button: RecipeStep = { tool: "click", app: { name: "Fixture" }, window: { title: "Demo" },
++      element: { role: "Button", label: "Navigate", path: [], uiaWindowChild: true }, args: { delivery_mode: "background" } };
++    expect(windows.wouldReplay("t1", RECIPE)).toBe(false);
++    expect(windows.wouldReplay("t1", { ...RECIPE, steps: [button] })).toBe(true);
++    expect(windows.wouldReplay("t1", { ...RECIPE, steps: [button, RECIPE.steps[1]!] })).toBe(false);
++    expect(windows.wouldReplay("t1", { ...RECIPE, steps: [{ ...button, args: { delivery_mode: "foreground" } }] })).toBe(false);
++  });
++
++  it("ends a failed Windows repeat without handing the same action to the engine", async () => {
++    const windows = new SavedStepsDispatch({ ...deps, platform: "win32" });
++    recipes.find.mockReturnValue({ ...RECIPE, steps: [{ tool: "click", args: { delivery_mode: "background" },
++      app: { name: "Fixture" }, window: { title: "Demo" }, element: { role: "Button", label: "Navigate", path: [], uiaWindowChild: true } }] });
++    openCaller.mockRejectedValueOnce(new Error("Demo is unavailable"));
++    await windows.sendTurn(engine, REQ, { ...INPUT, integrations: { localComputer: { ...COMPUTER, platform: "win32" } } }, start);
++    await settled();
++    expect(start).not.toHaveBeenCalled();
++    expect(acted).toEqual([]);
++    expect(turnCompleted()).toMatchObject([{ ok: false }]);
+   });
+ 
+   it("runs the AI when the request cannot be kept from saving", async () => {
+diff --git a/server/saved-steps/saved-steps.ts b/server/saved-steps/saved-steps.ts
+--- a/server/saved-steps/saved-steps.ts
++++ b/server/saved-steps/saved-steps.ts
+@@ -50,7 +50,7 @@
+   dispatch: SavedStepsDispatch;
+   gateChecked(capability: JournalCapability): void;
+   journals(owner: RequestOwner | undefined): boolean;
+-  /** Saved steps can run on this server (macOS only in v1), whatever the setting says; clients show the switch only then. */
++  /** Whether the host supports saved steps regardless of the current setting; clients show the switch only then. */
+   here(): boolean;
+   routes: RouteHandler;
+   journalRoutes(internal: { capability: JournalCapability; readBody(): Promise<unknown> }): RouteHandler;
+@@ -59,8 +59,8 @@
+   observe(event: RuntimeEvent): void;
+ }
+ 
+-export function savedStepsEnabled(cfg: Pick<AppConfig, "features">): boolean {
+-  return cfg.features?.savedSteps !== false;
++export function savedStepsEnabled(cfg: Pick<AppConfig, "features">, platform: NodeJS.Platform = process.platform): boolean {
++  return cfg.features?.savedSteps ?? (platform !== "win32");
+ }
+ 
+ const keepsFromSaving = (event: RuntimeEvent): boolean =>
+@@ -68,8 +68,8 @@
+ 
+ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
+   const platform = deps.platform ?? process.platform;
+-  // Linux and Windows ship the cua-driver 0.41.3 Rust build; neither has been shown to answer list_windows and elements_complete as replay needs.
+-  const enabled = () => platform === "darwin" && deps.enabled();
++  const supported = platform === "darwin" || platform === "win32";
++  const enabled = () => supported && deps.enabled();
+   const journal = new ComputerJournal();
+   const now = deps.now ?? Date.now;
+   const recipes = new RecipeStore({ folder: deps.folder ?? botFolder, now: deps.now });
+@@ -81,6 +81,7 @@
+   };
+   const dispatch = new SavedStepsDispatch({
+     recipes,
++    platform,
+     enabled,
+     publish: deps.publish,
+     engines: deps.engines,
+@@ -100,6 +101,7 @@
+       return;
+     }
+     if (!enabled() || automated || !taken?.calls.length || !personTextRequest(request) || after.some((line) => line.role === "user") || !otherToolsHarmless(after)) return;
++    if (platform === "win32" && taken.calls.some((call) => call.tool === "click" && call.result.structured?.background_effect_confirmed !== true)) return;
+     const built = buildRecipe({ request: request.text ?? "", journal: taken, id: randomUUID(), now: now() });
+     if (!built.ok || !dispatch.wouldReplay(threadId, built.recipe)) return;
+     recipes.save(botId, built.recipe);
+@@ -117,7 +119,7 @@
+       else if (capability.kind === "computer") journal.taint({ threadId: capability.threadId, generation: capability.generation });
+     },
+     journals: (owner) => owner?.personLine === true && personRequest(owner) && enabled(),
+-    here: () => platform === "darwin",
++    here: () => supported,
+     journalRoutes: (internal) => createComputerJournalRoutes({ ...internal, enabled, record: (scope, entry) => journal.record(scope, entry) }),
+     requestSettled(settled) {
+       const taken = journal.take(settled.threadId, settled.generations);
+diff --git a/server/saved-steps/saved-steps.test.ts b/server/saved-steps/saved-steps.test.ts
+--- a/server/saved-steps/saved-steps.test.ts
++++ b/server/saved-steps/saved-steps.test.ts
+@@ -7,6 +7,7 @@
+ import type { Message } from "../store.ts";
+ import { textEditJournal } from "../testing/saved-steps-fixtures.ts";
+ import type { RecordedCall } from "./journal.ts";
++import { slimResponse } from "./driver-wire.ts";
+ import { requestKey } from "./key.ts";
+ import type { ReplayRequest } from "./dispatch.ts";
+ import type { Recipe, RecipeStep } from "./rules.ts";
+@@ -30,9 +31,9 @@
+ });
+ 
+ describe("savedStepsEnabled", () => {
+-  it("is on unless turned off", () => {
+-    expect(savedStepsEnabled({})).toBe(true);
+-    expect(savedStepsEnabled({ features: {} })).toBe(true);
++  it("requires opt-in on Windows and defaults on for macOS", () => {
++    expect(savedStepsEnabled({}, "darwin")).toBe(true);
++    expect(savedStepsEnabled({ features: {} }, "win32")).toBe(false);
+     expect(savedStepsEnabled({ features: { savedSteps: true } })).toBe(true);
+     expect(savedStepsEnabled({ features: { savedSteps: false } })).toBe(false);
+   });
+@@ -166,6 +167,34 @@
+     expect(start).toHaveBeenCalledTimes(1);
+   };
+ 
++  it.each(["confirmed", "unverifiable"])("persists a Windows chat recipe only for a confirmed click (%s)", async (effect) => {
++    steps = facade({ platform: "win32" });
++    const text = "Navigate the demo";
++    const message = { ...LINE, text };
++    const computer = { command: process.execPath, args: [FAKE], env: {}, scope: "local-computer" as const, platform: "win32" as const };
++    await sentThrough({ text, integrations: { localComputer: computer } }, { turnText: text, message });
++    const address = { pid: 100, window_id: 7 };
++    const read = { ...address, tree_format: "elements" };
++    const button = { role: "Button", label: "Navigate", depth: 1, element_index: 1, element_token: "s00000001:1", enabled: true };
++    const state = { ...read, app_name: "Fixture", window_title: "Demo", elements_complete: true,
++      returned_element_count: 1, total_element_count: 1, elements: [button] };
++    const result = (structuredContent: object) => slimResponse({ result: { structuredContent } }, "win32");
++    record([
++      { generation: "g1", tool: "get_window_state", arguments: read, result: result(state) },
++      { generation: "g1", tool: "click", arguments: { ...address, element_token: button.element_token, delivery_mode: "background" },
++        result: result({ effect, route: "accessibility", delivery: { mode: "background" } }) },
++    ]);
++    steps.requestSettled(settled({ request: message }));
++    const reopened = facade({ platform: "win32" }).recipes.find("b1", requestKey(text));
++    if (effect === "confirmed") {
++      expect(reopened?.steps[0]?.element).toMatchObject({ label: "Navigate", uiaWindowChild: true });
++      expect(patches).toMatchObject([["t1", "reply-1", { savedSteps: { learned: true } }]]);
++    } else {
++      expect(reopened).toBeUndefined();
++      expect(patches).toEqual([]);
++    }
++  });
++
+   it("saves a settled host run and marks the reply", async () => {
+     await sentThrough();
+     record(textEditJournal().calls);
+@@ -251,12 +280,12 @@
+     expect(facade({ platform: "linux" }).journals(person)).toBe(false);
+   });
+ 
+-  it("says saved steps can run only on a Mac, setting or not, so clients hide the switch elsewhere", () => {
++  it("shows the switch on Windows and macOS even when saving is off", () => {
+     expect(facade({ platform: "darwin" }).here()).toBe(true);
+     enabled = false;
+     expect(facade({ platform: "darwin" }).here()).toBe(true);
+     expect(facade({ platform: "linux" }).here()).toBe(false);
+-    expect(facade({ platform: "win32" }).here()).toBe(false);
++    expect(facade({ platform: "win32" }).here()).toBe(true);
+   });
+ 
+   it("never records a turn a peer handed on, though it carries the person's origin", () => {
+@@ -266,7 +295,7 @@
+     expect(steps.journals({ ...handed, personLine: true })).toBe(true);
+   });
+ 
+-  it.each(["linux", "win32"] as const)("neither saves nor replays on %s", async (platform) => {
++  it.each(["linux", "win32"] as const)("neither saves nor replays a macOS TextEdit recipe on %s", async (platform) => {
+     steps = facade({ platform });
+     record(textEditJournal().calls);
+     steps.requestSettled(settled());
+diff --git a/server/saved-steps/driver-wire.ts b/server/saved-steps/driver-wire.ts
+--- a/server/saved-steps/driver-wire.ts
++++ b/server/saved-steps/driver-wire.ts
+@@ -25,6 +25,7 @@
+   /** The driver read the whole tree and every element survived slimming. */
+   elements_complete?: true;
+   background_accessibility_action?: true;
++  background_effect_confirmed?: true;
+   refusal?: { code?: string; message?: string };
+ }
+ export interface SlimResult { isError: boolean; rpcError?: true; structured?: SlimStructured }
+@@ -111,7 +112,10 @@
+     out.elements_complete = true;
+     if (platform === "win32" && !raw.refusal) markWindowButtons(raw, elements);
+   }
+-  if (platform === "win32" && backgroundAccessibilityAction(raw)) out.background_accessibility_action = true;
++  if (platform === "win32" && backgroundAccessibilityAction(raw)) {
++    out.background_accessibility_action = true;
++    if (raw.effect === "confirmed") out.background_effect_confirmed = true;
++  }
+   if (apps) out.apps = apps;
+   if (windows) out.windows = windows;
+   if (isRec(raw.refusal)) {
+diff --git a/server/saved-steps/windows-button.test.ts b/server/saved-steps/windows-button.test.ts
+--- a/server/saved-steps/windows-button.test.ts
++++ b/server/saved-steps/windows-button.test.ts
+@@ -1,7 +1,8 @@
+ import { describe, expect, it } from "vitest";
+ import { slimResponse } from "./driver-wire.ts";
+ import { buildRecipe } from "./rules.ts";
+-import { matchWindowButton } from "./resolve.ts";
++import { matchWindowButton, type ComputerCaller } from "./resolve.ts";
++import { runSteps } from "./replay.ts";
+ 
+ const address = { pid: 100, window_id: 7 };
+ const button = { role: "Button", label: "Navigate", depth: 1, element_index: 1, element_token: "s00000001:1", enabled: true };
+@@ -44,6 +45,30 @@
+     expect(record(tree, click, action, { ...lookup, pid: 99 }).ok).toBe(false);
+     expect(record(tree, click, action, { ...lookup, role_filter: "Button" }).ok).toBe(false);
+     expect(record(tree, click, action, lookup, "darwin").ok).toBe(false);
++  });
++
++  it("keeps unverified delivery distinct from a confirmed effect in the journal", () => {
++    expect(slim(action).structured?.background_effect_confirmed).toBeUndefined();
++    expect(slim({ ...action, effect: "confirmed" }).structured?.background_effect_confirmed).toBe(true);
++    expect(slim({ ...action, effect: "confirmed", route: "global_input" }).structured?.background_effect_confirmed).toBeUndefined();
++  });
++
++  it.runIf(process.platform === "win32")("reports an unverified click once and does not claim replay succeeded", async () => {
++    const built = record();
++    if (!built.ok) throw Error(built.reason);
++    let clicks = 0;
++    const caller: ComputerCaller = { async call(tool) {
++      if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid: address.pid, name: tree.app_name }] } };
++      if (tool === "list_windows") return { ok: true, structured: { windows: [{ ...address, title: tree.window_title }] } };
++      if (tool === "get_window_state") return { ok: true, structured: tree };
++      if (tool !== "click") throw Error(tool);
++      clicks++;
++      return { ok: true, structured: action };
++    } };
++    const outcome = await runSteps(built.recipe, { threadId: "thread", turnId: "turn", provider: "fixture", providerInstanceId: "fixture" },
++      { caller, approval: { ask: async () => true }, publish() {}, signal: new AbortController().signal });
++    expect(outcome).toMatchObject({ kind: "failed", done: 0, error: expect.stringContaining("effect could not be verified") });
++    expect(clicks).toBe(1);
+   });
+ 
+   it("refuses twins at any depth, duplicate addresses and a newly disabled button", () => {
+diff --git a/server/saved-steps/replay.ts b/server/saved-steps/replay.ts
+--- a/server/saved-steps/replay.ts
++++ b/server/saved-steps/replay.ts
+@@ -35,7 +35,7 @@
+ export async function runSteps(
+   recipe: Recipe,
+   turn: ReplayTurn,
+-  deps: { caller: ComputerCaller; approval: StepApproval; publish(event: RuntimeEvent): void; signal: AbortSignal; patience?: Patience },
++  deps: { caller: ComputerCaller; approval: StepApproval; publish(event: RuntimeEvent): void; signal: AbortSignal; patience?: Patience; verifyWindowsEffect?: (step: RecipeStep) => Promise<boolean> },
+ ): Promise<ReplayOutcome> {
+   const { caller, approval, publish, signal, patience } = deps;
+   const total = recipe.steps.length;
+@@ -67,9 +67,14 @@
+     const itemId = newId();
+     publish({ ...base(itemId), type: "item.started", itemType: "tool", title: tool, input: summary });
+     const delivery = await caller.call(step.tool, target.args, signal);
+-    const result = delivery.ok && step.element?.uiaWindowChild && !backgroundAccessibilityAction(delivery.structured)
+-      ? { ok: false as const, error: "the computer did not confirm background accessibility delivery" }
+-      : delivery;
++    let result: CallOutcome = delivery;
++    if (delivery.ok && step.element?.uiaWindowChild) {
++      if (!backgroundAccessibilityAction(delivery.structured)) {
++        result = { ok: false, error: "the computer did not confirm background accessibility delivery" };
++      } else if (delivery.structured.effect !== "confirmed" && !(await deps.verifyWindowsEffect?.(step))) {
++        result = { ok: false, error: "The click was delivered, but its effect could not be verified. Check the application before repeating the request." };
++      }
++    }
+     publish({ ...base(itemId), type: "item.completed", itemType: "tool", ok: result.ok, output: result.ok ? "done" : result.error });
+     if (!result.ok) return failed(result);
+   }
+diff --git a/scripts/cua-win-qualification.mjs b/scripts/cua-win-qualification.mjs
+--- a/scripts/cua-win-qualification.mjs
++++ b/scripts/cua-win-qualification.mjs
+@@ -175,6 +175,7 @@
+   let liveToken;
+   const outcome = await runSteps(recipe, { threadId: "qualification", turnId: "replay", provider: "fixture", providerInstanceId: BOT }, {
+     signal: AbortSignal.timeout(10_000), publish() {},
++    verifyWindowsEffect: async () => (await fixture.verify()).value === "After navigation",
+     approval: { async ask(tool) {
+       assert.equal(tool, "mcp__computer__click");
+       approved++;
+diff --git a/docs/feature-flags.md b/docs/feature-flags.md
+--- a/docs/feature-flags.md
++++ b/docs/feature-flags.md
+@@ -58,7 +58,7 @@
+ | `parallelRoomJobs` | Off | Runs jobs assigned to several room members side by side, each in its own thread. | Allows concurrent engine work rather than sequential jobs. |
+ | `acpPlanLines` | Off | Shows an ACP agent's plan as activity lines. | Each emitted line counts as a tool call wherever tool calls are counted; environment override below. |
+ | `agentsToolBridge` | Off, except eligible local-model turns | Lists a smaller tool catalog with `find_tool` and `use_tool`. | Tool lookup can add model calls; smaller initial context is not a guaranteed saving. See [Agents tool bridge](agents-tool-bridge.md) for eligibility and measurements. |
+-| `savedSteps` | On | Allows saving and repeating computer tasks from their steps on a supported host. | Currently requires a Mac server. Enabling it does not add host support. |
++| `savedSteps` | On for macOS, off for Windows | Allows saving and repeating computer tasks from their steps on a supported host. | Windows learns background clicks on uniquely identified UI Automation buttons only when the driver confirms their effect. Enable Saved Steps in Settings and explicitly select this computer for the chat. |
+ | `usbPhoneTakeover` | Off | Shows the server's USB Android phone live in the Screen panel and lets a person take it over from the bots. | Not offered on a Cloud home or a hosted workspace. The first use downloads the scrcpy server (734 KB) from GitHub. |
+ 
+ With `skillsLibrary` on, the every-bot skills a bot was taken off live in
+diff --git a/docs/verification/saved-steps.md b/docs/verification/saved-steps.md
+--- a/docs/verification/saved-steps.md
++++ b/docs/verification/saved-steps.md
+@@ -21,7 +21,8 @@
+ - A conversation that follows the bot's Auto place does not replay, though this
+   computer is mounted at Full access and the bot has steps for those words.
+ - With the switch off, the AI runs and nothing is saved, though steps exist.
+-- A failed step hands the request to the AI with a note of what already
++- On Windows, a failed saved step ends the turn. If the driver delivered a click but could not confirm its effect, check the application before repeating the request.
++- On macOS, a failed step hands the request to the AI with a note of what already
+   happened, deletes the steps, and that request does not save even though the
+   AI's own run is clean.
+ 
+@@ -33,8 +34,11 @@
+ pnpm exec vitest run server/saved-steps server/routes/saved-steps.test.ts server/routes/computer-journal.test.ts server/local-computer-proxy.test.ts server/local-computer.test.ts server/delta-context.test.ts src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts server/testing/fake-cua-driver.test.ts
+ ```
+ 
+-The fixture runs on macOS. A Linux server never mounts this computer from this
+-record, and Windows was not tried. The driver is
++The TextEdit fixture below runs on macOS. A Linux server never mounts this computer from this record.
++
++For a Windows chat smoke, turn on Saved Steps in the fixture's settings, choose this computer explicitly and use Full access. Use a read-only navigation request in a verified demo session. On the first turn, read the exact window with `get_window_state` (`pid`, `window_id`, `tree_format: "elements"`), then click the unique enabled button using its fresh token and `delivery_mode: "background"`. Check the visible destination and the learned marker. Reopen the application on the same demo, send the identical request, and verify both the replay marker and the destination. An unreadable window, ambiguous target or missing result leaves this smoke incomplete.
++
++For the macOS run, the driver is
+ `server/testing/fake-cua-driver.ts`: TextEdit's one window in cua-driver
+ 0.28.2's answer shapes, whose element tokens (`s<snapshot>-e<index>`) go stale
+ at the next `get_window_state` and whose document reports what it holds as its
+diff --git a/server/config.ts b/server/config.ts
+--- a/server/config.ts
++++ b/server/config.ts
+@@ -245,7 +245,7 @@
+   /** Room jobs to several members run side by side, each in a thread of its own. Off unless true. */
+   parallelRoomJobs: z.boolean().optional(),
+   acpPlanLines: z.boolean().optional(), // An ACP agent's plan as activity lines. Off unless true.
+-}).extend({ agentsToolBridge: z.boolean().optional(), savedSteps: z.boolean().optional(), usbPhoneTakeover: z.boolean().optional(), cloudComputerAutoReplace: z.boolean().optional(), phonePush: z.boolean().optional() }); // cloudComputerAutoReplace: delete and replace a dead cloud computer by itself, off unless true (OMB_CLOUD_COMPUTER_AUTO_REPLACE wins); agentsToolBridge: the find_tool / use_tool bridge, off unless true; savedSteps: repeat a computer task from its saved steps, on unless false; usbPhoneTakeover: watch and take over the bots' USB phone, off unless true; phonePush: wake a paired phone whose app is closed through the hosted push relay, off unless true (OMB_PHONE_PUSH wins)
++}).extend({ agentsToolBridge: z.boolean().optional(), savedSteps: z.boolean().optional(), usbPhoneTakeover: z.boolean().optional(), cloudComputerAutoReplace: z.boolean().optional(), phonePush: z.boolean().optional() }); // cloudComputerAutoReplace: delete and replace a dead cloud computer by itself, off unless true (OMB_CLOUD_COMPUTER_AUTO_REPLACE wins); agentsToolBridge: the find_tool / use_tool bridge, off unless true; savedSteps: repeat a computer task from its saved steps, opt-in on Windows; usbPhoneTakeover: watch and take over the bots' USB phone, off unless true; phonePush: wake a paired phone whose app is closed through the hosted push relay, off unless true (OMB_PHONE_PUSH wins)
+ const onboardingConfigSchema = z.object({
+   completedAt: z.string().trim().max(40).optional(),
+   version: z.number().int().min(0).max(1000).optional(),
+diff --git a/server/index.test.ts b/server/index.test.ts
+--- a/server/index.test.ts
++++ b/server/index.test.ts
+@@ -9972,7 +9972,7 @@
+   it("keeps skill authoring on by default and persists an explicit opt-out", async () => {
+     const before = await api("GET", "/api/config");
+     expect(before.status).toBe(200);
+-    expect(before.body.features).toEqual({ browser: false, skillAuthoring: true, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: false, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: true, savedStepsHere: process.platform === "darwin", usbPhoneTakeover: false });
++    expect(before.body.features).toEqual({ browser: false, skillAuthoring: true, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: false, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: process.platform !== "win32", savedStepsHere: ["darwin", "win32"].includes(process.platform), usbPhoneTakeover: false });
+     const untouched = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
+     expect(untouched.features?.skillAuthoring).toBeUndefined();
+     expect(untouched.features?.skillReview).toBeUndefined();
+@@ -9982,7 +9982,7 @@
+       features: { skillAuthoring: false },
+     });
+     expect(saved.status).toBe(200);
+-    expect(saved.body.features).toEqual({ browser: false, skillAuthoring: false, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: false, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: true, savedStepsHere: process.platform === "darwin", usbPhoneTakeover: false });
++    expect(saved.body.features).toEqual({ browser: false, skillAuthoring: false, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: false, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: process.platform !== "win32", savedStepsHere: ["darwin", "win32"].includes(process.platform), usbPhoneTakeover: false });
+ 
+     const disk = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
+     // Earlier browser coverage may have persisted its own toggle: opting out must preserve sibling settings.
+@@ -9990,7 +9990,7 @@
+ 
+     const tools = await api("PATCH", "/api/config", { features: { showToolCalls: true } });
+     expect(tools.status).toBe(200);
+-    expect(tools.body.features).toEqual({ browser: false, skillAuthoring: false, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: true, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: true, savedStepsHere: process.platform === "darwin", usbPhoneTakeover: false });
++    expect(tools.body.features).toEqual({ browser: false, skillAuthoring: false, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: true, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: process.platform !== "win32", savedStepsHere: ["darwin", "win32"].includes(process.platform), usbPhoneTakeover: false });
+ 
+     const bot = (await api("POST", "/api/bots", {})).body.bot;
+     try {

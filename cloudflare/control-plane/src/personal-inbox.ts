@@ -1,3 +1,4 @@
+import { pendingBotTurns, roomBots } from "./inbox-bots";
 import { canPost } from "./inbox-files";
 import { groupManager, joinGroup, moderate } from "./inbox-group";
 import { z } from "zod";
@@ -82,7 +83,7 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
       .bind(room, room, user),
     db
       .prepare(
-        `SELECT p.seq,CASE WHEN f.post IS NULL AND upload.post IS NULL THEN p.kind ELSE 'file' END AS kind,coalesce(upload.size,length(f.bytes)) AS fileSize,p.body,p.created,u.email AS author FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
+        `SELECT p.seq,CASE WHEN f.post IS NULL AND upload.post IS NULL THEN p.kind ELSE 'file' END AS kind,coalesce(upload.size,length(f.bytes)) AS fileSize,p.body,p.created,p.bot_name AS botName,u.email AS author FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
       LEFT JOIN inbox_uploads upload ON upload.post=p.seq
       JOIN inbox_members m ON m.room=p.room AND m.person=? AND m.state='active'
       JOIN "user" u ON u.id=p.author WHERE p.room=? AND p.seq>m.after_seq AND p.seq<? AND p.created>=?
@@ -106,6 +107,15 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
 export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx: ExecutionContext) {
   const db = env.DB;
   const url = new URL(req.url);
+  if (url.pathname === "/api/bot-turns" && req.method === "GET") return pendingBotTurns(db,user);
+  const botRoom = /^\/api\/rooms\/([a-f0-9-]{36})\/bots$/.exec(url.pathname);
+  if (botRoom) {
+    if (req.method === "POST") {
+      const input = await req.clone().json<{action?:string}>().catch(() => ({} as {action?:string}));
+      if (input?.action === "start") await limit(db,user,"inbox_bot_discussions",8,86400_000);
+    }
+    return roomBots(req,db,botRoom[1],user);
+  }
   if (url.pathname === "/api/join" && req.method === "POST") {
     await limit(db, user, "inbox_join", 60, 86400_000);
     return joinGroup(req,db,user);

@@ -1,10 +1,11 @@
+import { inboxLanguage, mailText, supportedInboxLanguage } from "./inbox-language";
 import { z } from "zod";
 import { redactSecretsInText } from "../../../shared/redact";
 import type { InboxEnv } from "./personal-inbox-worker";
 import { HTTPError, json, readBoundedJSON } from "./http";
 
 export const guestOptions = z.object({
-  locale: z.enum(["vi", "en"]),
+  locale: z.string().refine(supportedInboxLanguage),
   note: z.string().trim().max(500).default(""),
 });
 export type GuestOptions = z.infer<typeof guestOptions>;
@@ -117,26 +118,14 @@ export async function deliverGuestMail(env: InboxEnv, room: string, email: strin
   ]);
   if (!reservation.meta.changes || !delivery.results.length) return;
   const value = delivery.results[0] as { locale: string; note: string; token: string; sender: string };
-  const vi = value.locale === "vi",
-    subject = vi ? "Lời mời trò chuyện trên StartupBot" : "Invitation to chat on StartupBot";
+  const language = inboxLanguage(value.locale);
+  const subject = mailText(language,"emailSubject");
   const url = env.BETTER_AUTH_URL;
-  const login = url + "/?lang=" + value.locale + "#room=" + room;
+  const login = url + "/?lang=" + language + "#room=" + room;
+  const stop = url + "/#stop=" + value.token + "&lang=" + language;
   const text = [
-    vi
-      ? `${value.sender} mời bạn trò chuyện trên StartupBot.`
-      : `${value.sender} invited you to chat on StartupBot.`,
-    value.note,
-    vi
-      ? `Mở ${login} và xác minh địa chỉ này trong 7 ngày để xem lời mời.`
-      : `Open ${login} and verify this email address within 7 days to see your invitation.`,
-    (vi ? "Dừng nhận email mời: " : "Stop invitation emails: ") +
-      url +
-      "/#stop=" +
-      value.token +
-      "&lang=" +
-      value.locale,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+    mailText(language,"emailIntro",{sender:value.sender}), value.note,
+    mailText(language,"emailOpen",{url:login}), mailText(language,"emailStop",{url:stop}),
+  ].filter(Boolean).join("\n\n");
   await env.EMAIL.send({ from: { email: env.EMAIL_FROM, name: "StartupBot" }, to: email, subject, text });
 }

@@ -36,7 +36,7 @@ export function helperSelection(cfg: HelperConfig, env: Record<string, string | 
 }
 
 /** "representative": a person's assistant answering a teammate's question for them, which must never get tools. */
-export type SideJob = "compaction" | "memory" | "skill-review" | "setup-suggestions" | "representative" | "status-reply";
+export type SideJob = "compaction" | "memory" | "skill-review" | "setup-suggestions" | "representative" | "status-reply" | "inbox-discussion";
 
 export type SideJobInstance = Pick<ProviderInstance, "instanceId" | "driverKind" | "enabled" | "generateText" | "generateMemoryText" | "models" | "quickModelsUsable"> & {
   adapter: { capabilities: Pick<ProviderAdapter["capabilities"], "agentsMcp"> };
@@ -85,6 +85,10 @@ type TextCall = (prompt: string, options?: TextGenerationOptions) => Promise<str
 const ONE_OFF_ONLY: ReadonlySet<SideJob> = new Set(["compaction", "setup-suggestions", "representative", "status-reply"]);
 
 function ownCall(job: SideJob, instance: SideJobInstance): TextCall | undefined {
+  if (job === "inbox-discussion") {
+    const writer = instance.generateText ?? (instance.driverKind === "codex" ? instance.generateMemoryText : undefined);
+    return writer?.bind(instance);
+  }
   const call = ONE_OFF_ONLY.has(job) ? instance.generateText : instance.generateText ?? instance.generateMemoryText;
   return call?.bind(instance);
 }

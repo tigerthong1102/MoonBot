@@ -39,14 +39,24 @@ test("Vietnamese setup instructions preserve commands, endpoint paths and config
   }
 });
 
-test("inbox controls and accessible labels use keys available in both pilot languages", () => {
-  const catalogs = ["en", "vi"].map((tag) => load("src/locales/" + tag + ".json"));
-  for (const file of ["index.html", "inbox.js", "group-controls.js"]) {
+test("inbox controls, invitation emails and codes follow every supported app language", () => {
+  const tags = Object.keys(load("shared/app-language-names.json"));
+  const mail = load("cloudflare/control-plane/src/inbox-mail-text.json");
+  const reference = load("src/locales/en.json");
+  const keys = Object.keys(reference).filter(key => key.startsWith("personalInbox."));
+  const args = value => (value.match(/\{\w+\}/g) ?? []).sort();
+  assert.deepEqual(Object.keys(mail).sort(), [...tags].sort());
+  for (const file of ["index.html", "inbox.js", "group-controls.js", "group-bots.js"]) {
     const source = readFileSync(new URL("../cloudflare/control-plane/inbox/public/" + file, import.meta.url), "utf8");
-    const keys = [...source.matchAll(/"((?:personalInbox)\.\w+)"/g)].map((match) => match[1]);
-    assert.ok(keys.length, file);
+    for (const [, key] of source.matchAll(/"(personalInbox\.\w+)"/g)) assert.ok(reference[key], file + ": " + key);
+  }
+  for (const tag of tags) {
+    const catalog = load("src/locales/" + tag + ".json");
     for (const key of keys) {
-      for (const catalog of catalogs) assert.ok(catalog[key]?.trim(), file + ": " + key);
+      assert.ok(catalog[key]?.trim(), tag + ": " + key);
+      if (!["zh","zh-tw","ja"].includes(tag)) assert.doesNotMatch(catalog[key], /[\p{Script=Han}\p{Script=Katakana}\p{Script=Hiragana}]/u, tag + ": " + key);
+      assert.deepEqual(args(catalog[key]), args(reference[key]), tag + ": " + key);
     }
+    for (const key of Object.keys(mail.en)) assert.equal(mail[tag][key], catalog["personalInbox." + key]);
   }
 });

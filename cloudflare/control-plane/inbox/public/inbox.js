@@ -1,4 +1,5 @@
-import { language, setLanguage, t } from "./inbox-i18n.js";
+import { language, languageNames, setLanguage, t } from "./inbox-i18n.js";
+import { groupBots } from "./group-bots.js";
 import { groupControls } from "./group-controls.js";
 const el = (id) => document.getElementById(id);
 el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") !== "1";
@@ -17,6 +18,7 @@ const status = (text, persistent = false) => {
   el("status").textContent = text;
   if (text && !persistent) statusTimer = setTimeout(() => { el("status").textContent = ""; }, 4500);
 };
+let pickedLanguage = false;
 let me,
   rooms = [],
   current = null,
@@ -57,7 +59,7 @@ async function api(path, data) {
       ? {}
       : {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-inbox-language": el("mail-lang").value, ...(joinToken && path.startsWith("auth/") ? {"x-inbox-invite":joinToken} : {}) },
+          headers: { "Content-Type": "application/json", "x-inbox-language": language, "x-inbox-language-source": pickedLanguage || !el("desktop-back").hidden ? "app" : "default", ...(joinToken && path.startsWith("auth/") ? {"x-inbox-invite":joinToken} : {}) },
           body: JSON.stringify(data),
         },
   );
@@ -176,6 +178,10 @@ el("logout").onclick = run(async () => {
 });
 async function start() {
   me = await api("me");
+  if (pickedLanguage || !el("desktop-back").hidden || !me.locale) {
+    if (me.locale !== language) await api("language",{locale:language});
+  } else chooseLanguage(me.locale);
+  pickedLanguage = false;
   el("account").textContent = me.email;
   el("attach").title = t("personalInbox.attachLimit", { size: fileSize(me.maxFileBytes) });
   el("signin").hidden = true;
@@ -344,10 +350,14 @@ async function refreshRoom(poll) {
   const panel = el("room-options");
   if (!poll || panel.dataset.room !== r.id || panel.dataset.revision !== String(r.revision)) {
     panel.dataset.room=r.id; panel.dataset.revision=String(r.revision);
+    const botPanelOpen = panel.dataset.botRoom === r.id && el("manage").querySelector("[data-bots]")?.open;
+    panel.dataset.botRoom = r.id;
     el("manage").replaceChildren();
     if (group) {
       const ui = groupControls({room:r,detail,me,node,button,api,refresh,status});
       el("members").replaceChildren(ui.list); el("manage").append(ui.controls);
+      const bots = groupBots({room:r,me,node,button,api,refresh,status});
+      bots.dataset.bots = ""; el("manage").append(bots); bots.open = !!botPanelOpen;
     } else el("members").replaceChildren(...detail.members.map(m => node("li", m.email)));
     if (r.isOwner && r.kind === "direct" && detail.members.length === 2)
     el("manage").append(act(t("personalInbox.blockPerson"), "block", t("personalInbox.blocked")));
@@ -603,7 +613,7 @@ function renderPosts() {
   for (const p of posts) {
     const date = new Date(p.created);
     const day = date.toLocaleDateString(language);
-    const grouped = day === lastDay && previous?.author === p.author && p.created - previous.created < 120000;
+    const grouped = day === lastDay && previous?.author === p.author && previous?.botName === p.botName && p.created - previous.created < 120000;
     if (day !== lastDay) {
       const divider = node("li", date.toLocaleDateString(language, {day:"numeric",month:"long",year:"numeric"}));
       divider.className = "day";
@@ -615,7 +625,7 @@ function renderPosts() {
     const bubble = node("div", "");
     bubble.className = "bubble";
     const type = {skill:t("personalInbox.skillSuffix"),task:t("personalInbox.taskSuffix")}[p.kind] || "";
-    const meta = node("small", (p.author === me.email ? t("personalInbox.you") : p.author.split("@")[0]) + type + " · " +
+    const meta = node("small", (p.botName ? t("personalInbox.botOwner",{bot:p.botName,owner:p.author}) : p.author === me.email ? t("personalInbox.you") : p.author.split("@")[0]) + type + " · " +
       date.toLocaleTimeString(language, {hour:"2-digit",minute:"2-digit"}));
     meta.title = p.author + " · " + date.toLocaleString(language);
     if (p.kind === "file") bubble.append(attachmentCard(p));
@@ -1013,8 +1023,12 @@ function chooseLanguage(tag) {
     document.querySelector("header strong").textContent = document.title;
   }
 }
+for (const field of document.querySelectorAll('#mail-lang, select[name="locale"]')) {
+  for (const [tag, label] of Object.entries(languageNames)) field.add(new Option(label, tag));
+}
 chooseLanguage(language);
 el("mail-lang").onchange = () => {
+  pickedLanguage = true;
   const url = new URL(location.href);
   url.searchParams.set("lang", el("mail-lang").value);
   history.replaceState(null, "", url);
@@ -1037,3 +1051,17 @@ if (stopParams.has("stop")) {
     if (e.message !== "unauthorized") fail(e);
     else if (joinToken) void showGroupInvitation();
   });
+
+window.addEventListener("inbox-language", event => {
+  if (typeof event.detail !== "string") return;
+  chooseLanguage(event.detail);
+  const url = new URL(location.href);
+  url.searchParams.set("lang", language);
+  history.replaceState(null, "", url);
+  renderAttachments();
+  if (joinToken) void showGroupInvitation().catch(fail);
+  if (me) void api("language", {locale:language}).then(() => viewingSaved ? showSaved() : refresh()).catch(fail);
+});
+window.addEventListener("inbox-bots-changed", () => void refresh().catch(fail));
+window.addEventListener("inbox-bots-empty", () => status(t("personalInbox.botNone"),true));
+window.addEventListener("inbox-bots-error", () => status(t("personalInbox.unavailable"),true));

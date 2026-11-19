@@ -44,11 +44,13 @@ async function call(
   data?: unknown,
   overrides: Partial<InboxEnv> = {},
   from = origin,
+  language = "en",
+  languageSource = "app",
 ) {
   const ctx = createExecutionContext();
   const req = new Request(origin + "/api/" + path, {
     method: data === undefined ? "GET" : "POST",
-    headers: { cookie, origin: from, "content-type": "application/json" },
+    headers: { cookie, origin: from, "content-type": "application/json", "x-inbox-language": language, "x-inbox-language-source": languageSource },
     body: JSON.stringify(data),
   });
   const res = await worker.fetch(req, { ...testEnv, ...overrides }, ctx);
@@ -234,15 +236,18 @@ it("delivers one localized first contact, admits its verified recipient, and hon
     kind: "direct",
     id: room,
     email,
-    guest: { locale: "en", note: "Can you check the invoice?" },
+    guest: { locale: "fr", note: "On en parle demain ?" },
   };
   expect((await call("rooms", a.cookie, options, mail)).status).toBe(200);
   await call("rooms", a.cookie, options, mail);
   expect(messages).toHaveLength(1);
-  expect(messages[0]).toMatchObject({ to: email, subject: "Invitation to chat on StartupBot" });
+  expect(messages[0]).toMatchObject({ to: email, subject: "Invitation à discuter sur StartupBot" });
   expect(messages[0].text).toContain(options.guest.note);
+  expect(messages[0].text).toContain("/?lang=fr#room=" + room);
   const token = messages[0].text.match(/#stop=([a-f0-9-]{36})/)![1];
   const b = await login(email);
+  expect((await call("language", b.cookie, {locale:"ja"})).status).toBe(200);
+  expect(await (await call("me", b.cookie)).json()).toMatchObject({locale:"ja"});
   expect(await (await call("rooms", b.cookie)).json()).toMatchObject({
     rooms: [{ id: room, state: "pending" }],
   });
@@ -272,6 +277,20 @@ it("delivers one localized first contact, admits its verified recipient, and hon
     ).status,
   ).toBe(200);
   expect(messages).toHaveLength(1);
+});
+
+it("uses a verified recipient's saved language for default email and honors an explicit app selection", async () => {
+  const owner = await login("peer@example.test");
+  expect((await call("language", owner.cookie, {locale:"fr"})).status).toBe(200);
+  const delivered: { subject: string; text: string }[] = [];
+  const mail = {EMAIL:{send:async (message: typeof delivered[number]) => { delivered.push(message); }} as unknown as InboxEnv["EMAIL"]};
+  const send = (source: string) => call("auth/email-otp/send-verification-otp", "", {email:owner.email, type:"sign-in"},
+    mail, origin, "en-US", source);
+  expect((await send("default")).status).toBe(200);
+  expect(delivered[0]?.subject).toBe("Votre code de connexion StartupBot");
+  expect(delivered[0]?.text).toMatch(/Votre code de connexion est \d{8}/);
+  expect((await send("app")).status).toBe(200);
+  expect(delivered[1]?.subject).toBe("Your StartupBot sign-in code");
 });
 
 it("stores one attachment on retry, enforces size and withdraws download access after removal", async () => {
@@ -488,4 +507,50 @@ it("enforces group management on the server across role changes, links, bans, me
   expect((await detail(member)).group.owner).toBe(member.id);
   expect((await call(room+"/close",owner.cookie,{})).status).toBe(404);
   expect((await call(room+"/close",member.cookie,{})).status).toBe(200);
+});
+
+it("lets members invite only their bots and only managers remove them, even during a discussion", async () => {
+  const a=await login("owner@example.test"), b=await login("member@example.test");
+  const id=uuid(), first=uuid(), second=uuid(), room="rooms/"+id;
+  const cmd=(who:typeof a,action:string,fields={})=>call(room+"/bots",who.cookie,{action,...fields});
+  await call("rooms",a.cookie,{id,kind:"group",title:"Peer discussion"});
+  await call(room+"/invite",a.cookie,{email:b.email});await call(room+"/accept",b.cookie,{});
+  expect((await cmd(a,"invite",{owner:a.id,bot:first,name:"Planner"})).status).toBe(200);
+  expect((await cmd(b,"invite",{owner:a.id,bot:first,name:"Other"})).status).toBe(403);
+  expect((await cmd(b,"invite",{owner:b.id,bot:first,name:"Other"})).status).toBe(409);
+  expect((await cmd(b,"invite",{owner:b.id,bot:second,name:"Reviewer"})).status).toBe(200);
+  expect((await cmd(b,"remove",{bot:second})).status).toBe(409);
+  const start=async()=>{
+    const round=uuid();
+    expect((await cmd(b,"start",{round,first,second,topic:"Compare two approaches",locale:"vi"})).status).toBe(200);
+    return round;
+  };
+  const round=await start();
+  const late=await login("third@example.test");
+  await call(room+"/invite",a.cookie,{email:late.email});
+  await call(room+"/accept",late.cookie,{});
+  expect(await (await call(room+"/bots",late.cookie)).json()).toMatchObject({round:{topic:null}});
+  expect(await (await call(room+"/bots",a.cookie)).json()).toMatchObject({round:{topic:"Compare two approaches"}});
+  expect(await (await call("bot-turns",b.cookie)).json()).toEqual({jobs:[]});
+  expect(await (await call("bot-turns",a.cookie)).json()).toEqual({jobs:[{bot:first,room:id}]});
+  const claim=async(who:typeof a,bot:string)=>(await cmd(who,"claim",{bot})).json<{job:null|{claim:string;prior:string|null}}>();
+  const one=(await claim(a,first)).job!;
+  expect(one.prior).toBeNull();expect((await claim(a,first)).job).toBeNull();
+  const reply={round,bot:first,claim:one.claim,text:"First suggestion"};
+  expect((await cmd(b,"reply",reply)).ok).toBe(false);expect((await cmd(a,"reply",reply)).ok).toBe(true);
+  expect((await cmd(a,"reply",reply)).ok).toBe(false);
+  const two=(await claim(b,second)).job!;
+  expect(two.prior).toBe("First suggestion");
+  expect((await cmd(b,"reply",{round,bot:second,claim:two.claim,text:"I agree with the first suggestion"})).ok).toBe(true);
+  expect(await (await call("bot-turns",a.cookie)).json()).toEqual({jobs:[]});
+  expect(await (await call(room,a.cookie)).json()).toMatchObject({posts:[{body:"Compare two approaches"},{botName:"Planner",author:a.email},{botName:"Reviewer",author:b.email}]});
+  const withdrawn=await start();
+  const claimed=(await claim(a,first)).job!;
+  const {posts}=await (await call(room,b.cookie)).json<{posts:{seq:number}[]}>();
+  await call(room+"/moderate",b.cookie,{action:"deletePost",seq:posts.at(-1)!.seq});
+  expect((await cmd(a,"reply",{round:withdrawn,bot:first,claim:claimed.claim,text:"Withdrawn topic"})).ok).toBe(false);
+  const other=await start();const inFlight=(await claim(a,first)).job!;
+  await call(room+"/moderate",a.cookie,{action:"promote",person:b.id});
+  expect((await cmd(b,"remove",{bot:first})).ok).toBe(true);
+  expect((await cmd(a,"reply",{round:other,bot:first,claim:inFlight.claim,text:"Late reply"})).ok).toBe(false);
 });

@@ -10,7 +10,7 @@ export function createAuth(
   config: Pick<ControlPlaneConfig, "authBaseURL" | "allowedOrigins" | "emailFrom">,
   requestId: string,
   brand: "OpenMausBot" | "StartupBot" = "OpenMausBot",
-  language: "vi" | "en" = "en",
+  language = "en",
 ) {
   return betterAuth({
     appName: brand,

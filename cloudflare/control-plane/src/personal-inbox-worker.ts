@@ -1,3 +1,4 @@
+import { inboxLanguage, supportedInboxLanguage } from "./inbox-language";
 import { previewGroup } from "./inbox-group";
 import { InboxSignals, notifyRoom } from "./inbox-signals";
 export { InboxSignals };
@@ -43,16 +44,17 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   if (req.method === "POST" && url.pathname === "/api/join/preview") return previewGroup(req,env.DB);
   if (req.method === "POST" && url.pathname === "/api/stop-invitations")
     return suppressGuestMail(req, env.DB);
-  const auth = createAuth(
+  const authFor = (language: string) => createAuth(
     env,
     ctx,
     { authBaseURL: url.origin, allowedOrigins: new Set([url.origin]), emailFrom: env.EMAIL_FROM },
     crypto.randomUUID(),
     "StartupBot",
-    req.headers.get("x-inbox-language") === "vi" ? "vi" : "en",
+    language,
   );
   if (authPaths.has(url.pathname)) {
     if (req.method !== "POST") return errorResponse(405, "method_not_allowed");
+    let language = inboxLanguage(req.headers.get("x-inbox-language"));
     if (!url.pathname.endsWith("/sign-out")) {
       const input = z.object({ email: z.email().max(254) }).safeParse(
         await req
@@ -68,6 +70,12 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
         return url.pathname.endsWith("send-verification-otp")
           ? json({ ok: true })
           : errorResponse(401, "auth_failed");
+      if (url.pathname.endsWith("send-verification-otp") && req.headers.get("x-inbox-language-source") === "default") {
+        const saved = await env.DB.prepare(
+          'SELECT l.locale FROM inbox_languages l JOIN "user" u ON u.id=l.person WHERE u.email=? AND u.emailVerified=1',
+        ).bind(input.data.email.toLowerCase()).first<string>("locale");
+        if (saved) language = inboxLanguage(saved);
+      }
     }
     if (url.pathname.endsWith("send-verification-otp")) {
       const input = (await req
@@ -78,6 +86,7 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
       const limited = await limitedOTPResponse(req, env);
       if (limited) return json({ ok: true });
     }
+    const auth = authFor(language);
     const res = await auth.handler(req);
     if (res.ok) ctx.waitUntil(deleteExpiredVerifications(auth).catch(() => {}));
     if (!res.ok) return errorResponse(res.status, res.status === 429 ? "rate_limited" : "auth_failed");
@@ -86,10 +95,17 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     for (const cookie of res.headers.getSetCookie()) response.headers.append("set-cookie", cookie);
     return response;
   }
-  const session = await auth.api.getSession({
+  const session = await authFor("en").api.getSession({
     headers: new Headers({ cookie: req.headers.get("cookie") ?? "" }),
   });
   if (!session?.user.emailVerified) return errorResponse(401, "unauthorized");
+  if (url.pathname === "/api/language" && req.method === "POST") {
+    const input = z.object({locale:z.string().refine(supportedInboxLanguage)}).safeParse(await req.json().catch(()=>null));
+    if (!input.success) return errorResponse(400,"invalid_request");
+    await env.DB.prepare("INSERT INTO inbox_languages(person,locale) VALUES(?,?) ON CONFLICT(person) DO UPDATE SET locale=excluded.locale")
+      .bind(session.user.id,input.data.locale).run();
+    return json({ok:true});
+  }
   if (url.pathname === "/api/events") {
     if (req.method !== "GET" || req.headers.get("origin") !== url.origin || req.headers.get("upgrade") !== "websocket")
       return errorResponse(403, "forbidden");
@@ -109,11 +125,12 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   }
   if (req.method === "GET" && url.pathname === "/api/me") {
     await claimGuestInvites(env.DB, session.user.id, session.user.email.toLowerCase());
-    return json({ id: session.user.id, email: session.user.email, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts });
+    const locale = await env.DB.prepare("SELECT locale FROM inbox_languages WHERE person=?").bind(session.user.id).first<string>("locale");
+    return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts });
   }
   const result = await inboxRoutes(req, env, session.user.id, ctx);
   if (env.SIGNALS && result.ok && req.method === "POST") {
-    const match = /^\/api\/rooms\/([a-f0-9-]{36})\/(posts|moderate|accept|remove|leave|invite)$/.exec(url.pathname);
+    const match = /^\/api\/rooms\/([a-f0-9-]{36})\/(posts|moderate|accept|remove|leave|invite|bots)$/.exec(url.pathname);
     const creates = url.pathname === "/api/rooms" || url.pathname === "/api/join";
     const room = match?.[1] ?? (creates ? (await result.clone().json<{id:string}>()).id : null);
     if (room) ctx.waitUntil(notifyRoom(env, room, creates || match?.[2] === "invite")
@@ -150,6 +167,7 @@ export default {
   },
   async scheduled(_event, env) {
     await env.DB.batch([
+      env.DB.prepare("DELETE FROM inbox_bot_rounds WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_uploads WHERE ready=0 AND created<?").bind(Date.now() - 3600_000),
       env.DB.prepare("DELETE FROM inbox_posts WHERE created<?").bind(Date.now() - inboxRetention),
       env.DB.prepare("DELETE FROM inbox_guest_invites WHERE created<?").bind(Date.now() - 7 * 86400_000),

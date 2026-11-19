@@ -1,3 +1,4 @@
+import { personalInboxBots } from "./personal-inbox-bots.mjs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { configuredInboxOrigin } from "./startupbot-identity.mjs";
@@ -44,9 +45,14 @@ export async function showPersonalInbox(window, origin, accountOnly = false, lan
   } });
   const page = view.webContents;
   const workspace = window.webContents;
+  const bots = !accountOnly && personalInboxBots(window, page, origin);
   page.session.setPermissionCheckHandler(() => false);
   page.session.setPermissionRequestHandler((_contents, _permission, reply) => reply(false));
-  page.setWindowOpenHandler(() => ({ action: "deny" }));
+  const invitePath = origin + "/desktop/invite-bot/";
+  page.setWindowOpenHandler(({ url }) => {
+    if (bots && url.startsWith(invitePath)) bots.invite(url.slice(invitePath.length));
+    return { action: "deny" };
+  });
   const fit = () => {
     const [width, height] = window.getContentSize();
     view.setBounds({ x: 0, y: 40, width, height: Math.max(1, height - 40) });
@@ -65,7 +71,10 @@ export async function showPersonalInbox(window, origin, accountOnly = false, lan
     if (!page.isDestroyed()) page.close();
   };
   const navigate = (event, target) => {
-    if (target === origin + "/desktop/back") {
+    if (bots && target.startsWith(invitePath)) {
+      event.preventDefault();
+      bots.invite(target.slice(invitePath.length));
+    } else if (target === origin + "/desktop/back") {
       event.preventDefault();
       close();
     } else if (!URL.canParse(target) || new URL(target).origin !== origin) {
@@ -90,6 +99,7 @@ export async function showPersonalInbox(window, origin, accountOnly = false, lan
   try {
     const params = new URLSearchParams({ desktop: "1", lang: language });
     if (skins.has(window)) params.set("skin", skins.get(window));
+    if (bots) params.set("bots", "1");
     if (accountOnly) params.set("account", "1");
     await page.loadURL(origin + "/?" + params);
     if (!page.isDestroyed()) page.focus();
@@ -133,5 +143,12 @@ export function createPersonalInbox(window, locale = () => app.getLocale()) {
       void page.executeJavaScript("document.documentElement.dataset.skin = " + JSON.stringify(skin)).catch(() => {});
     }
   }
-  return { open, origin, install, applySkin };
+  function applyLanguage(win) {
+    const page = panels.get(win)?.webContents;
+    if (page && !page.isDestroyed()) {
+      const tag = JSON.stringify(locale());
+      void page.executeJavaScript('window.dispatchEvent(new CustomEvent("inbox-language", { detail: ' + tag + ' }))').catch(() => {});
+    }
+  }
+  return { open, origin, install, applySkin, applyLanguage };
 }

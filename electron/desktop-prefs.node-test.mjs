@@ -320,7 +320,10 @@ test("the preload gives every page of the window the app language this computer 
 
 test("production wiring: main answers this computer's page, My Cloud's own page and the active saved server's own page, and no other", async () => {
   const main = readFileSync(new URL("./main.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  assert.match(main, /for \(const port of DESKTOP_PORTS\)/, "main tries the ports this module names, in order");
+  assert.match(main, /for \(const port of startupPorts\(process\.env, DESKTOP_PORTS\)\)/);
+  const { startupPorts } = await import("./startupbot-identity.mjs");
+  assert.equal(startupPorts({ OMB_PORT: "19950" }, DESKTOP_PORTS), DESKTOP_PORTS);
+  assert.deepEqual(startupPorts({ OMB_PORT: "19950", OMB_SMOKE_TEST: "1", OMB_SMOKE_HOME: "/fixture" }, DESKTOP_PORTS), [19950]);
   assert.deepEqual([...DESKTOP_PORTS], [8799, 18799, 28799]);
   const start = main.indexOf("  desktopPrefs = nativeText.prefs;"), end = main.indexOf("\n", main.indexOf("page:", start));
   assert.ok(start >= 0 && end > start, "main.mjs registers the desktop prefs");

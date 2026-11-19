@@ -13,12 +13,13 @@ for (const name of ["brotli_wasm.js", "brotli_wasm_bg.wasm"]) {
 await copyFile(join(pkg, "LICENSE"), join(out, "LICENSE"));
 
 const messages = {};
-for (const locale of ["en", "vi"]) {
+const languageNames = JSON.parse(await readFile(new URL("../../../shared/app-language-names.json", import.meta.url), "utf8"));
+for (const locale of Object.keys(languageNames)) {
   const path = new URL("../../../src/locales/" + locale + ".json", import.meta.url);
   const catalog = JSON.parse(await readFile(path, "utf8"));
   messages[locale] = Object.fromEntries(Object.entries(catalog).filter(([key]) => key.startsWith("personalInbox.")));
 }
-await writeFile(new URL("./public/inbox-messages.js", import.meta.url), "export const messages = " + JSON.stringify(messages) + ";\n");
+await writeFile(new URL("./public/inbox-messages.js", import.meta.url), "export const messages = " + JSON.stringify(messages) + ";\nexport const languageNames = " + JSON.stringify(languageNames) + ";\n");
 
 const styles = await readFile(new URL("../../../src/styles.css", import.meta.url), "utf8");
 const tokens = ["--code-color-scheme", "--font-sans", ...["app", "panel", "card", "raised", "ink", "ink-secondary", "hairline", "accent-text", "focus", "bubble-user", "bubble-user-ink"].map((name) => "--color-" + name)];

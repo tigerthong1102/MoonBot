@@ -16,7 +16,7 @@ import { GrokAgentDriver } from "./grok.ts";
 import { QwenAgentDriver } from "./qwen.ts";
 
 const FAKE_CLI = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "testing", "fake-acp-cli.ts");
-const ENV_KEYS = ["FAKE_ACP_MODE", "FAKE_ACP_DUMP", "FAKE_ACP_TEXT_REPLY"];
+const ENV_KEYS = ["FAKE_ACP_MODE", "FAKE_ACP_DUMP", "FAKE_ACP_TEXT_REPLY", "FAKE_ACP_MODELS"];
 
 describe("ACP memory one-shot (generateMemoryText)", () => {
   let instance: ProviderInstance | undefined;
@@ -63,16 +63,16 @@ describe("ACP memory one-shot (generateMemoryText)", () => {
   it.each([false, true])("selects the requested model before exposing text (refusal: %s)", async refused => {
     process.env.FAKE_ACP_TEXT_REPLY = "null";
     process.env.FAKE_ACP_DUMP = join(scratch, "selected-model");
-    if (refused) process.env.FAKE_ACP_MODE = "set-model-invalid-params";
+    process.env.FAKE_ACP_MODELS = "initial-model,fixture-selected";
     const engine = await create(QwenAgentDriver);
-    const answer = engine.generateMemoryText!("private synthetic message", { model: "fixture-selected" });
+    const answer = engine.generateMemoryText!("private synthetic message", { model: refused ? "unavailable-model" : "fixture-selected" });
     if (refused) {
       await expect(answer).rejects.toThrow();
       expect(existsSync(process.env.FAKE_ACP_DUMP + ".prompt.json")).toBe(false);
     } else {
       expect(await answer).toBe("null");
       const calls = JSON.parse(readFileSync(process.env.FAKE_ACP_DUMP + ".config.json", "utf8"));
-      expect(calls).toContainEqual(expect.objectContaining({ method: "session/set_model", params: expect.objectContaining({ modelId: "fixture-selected" }) }));
+      expect(calls).toContainEqual(expect.objectContaining({ method: "session/set_config_option", params: expect.objectContaining({ value: "fixture-selected" }) }));
     }
   });
 

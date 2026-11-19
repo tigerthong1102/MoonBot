@@ -1566,7 +1566,7 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
             env: spawnEnv,
             cwd,
             prompt,
-            defaultModel: catalog.models.default,
+            defaultModel: catalog.models.default, selection: support.selectModel,
             pickAuthMethod: (methods) => support.pickAuthMethod(methods, spawnEnv),
             authRequired: support.authFailure === "fail-request" ? "if-requested" : support.authFailure === "fail",
             loginNote: support.loginNote,

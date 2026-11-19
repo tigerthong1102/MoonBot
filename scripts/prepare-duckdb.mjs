@@ -38,7 +38,7 @@ export function platformPackage(platform, arch) {
  *  platform-arch; the Electron targets map to these. */
 export const RESVG_SCOPE = "@resvg";
 export const RESVG_PACKAGE = "resvg-js";
-const RESVG_TARGETS = { "darwin-arm64": "darwin-arm64", "darwin-x64": "darwin-x64", "win32-x64": "win32-x64-msvc", "linux-x64": "linux-x64-gnu", "linux-arm64": "linux-arm64-gnu" };
+const RESVG_TARGETS = { "darwin-arm64": "darwin-arm64", "darwin-x64": "darwin-x64", "win32-x64": "win32-x64-msvc", "win32-arm64": "win32-arm64-msvc", "linux-x64": "linux-x64-gnu", "linux-arm64": "linux-arm64-gnu" };
 export function resvgPlatformPackage(platform, arch) {
   const target = RESVG_TARGETS[`${platform}-${arch}`];
   if (!target) throw new Error(`No resvg build for ${platform}-${arch}`);
@@ -113,9 +113,9 @@ export async function packedPackage(name, version, cache, scope = SCOPE) {
  *  single-arch), x64 elsewhere, matching electron-builder.yml. On Linux the
  *  Docker build names the image's CPU in OMB_DUCKDB_ARCH: it stages on the
  *  build host's CPU for either image. */
-export function targetsFor(platform = process.platform, env = process.env) {
+export function targetsFor(platform = process.platform, env = process.env, hostArch = process.arch) {
   if (platform === "darwin") return resolveCuaMacArches(env).map((arch) => ({ platform, arch }));
-  const arch = (platform === "linux" && env.OMB_DUCKDB_ARCH) || "x64";
+  const arch = platform === "win32" ? hostArch : (platform === "linux" && env.OMB_DUCKDB_ARCH) || "x64";
   if (arch !== "x64" && arch !== "arm64") throw new Error(`OMB_DUCKDB_ARCH must be x64 or arm64; found ${arch}`);
   return [{ platform, arch }];
 }

@@ -26,6 +26,12 @@ function image(signed = true) {
 }
 
 describe("background CUA executable", () => {
+  it("preserves ARM64 machine type and rejects a mismatched executable", () => {
+    const bytes = image();
+    bytes.writeUInt16LE(0xaa64, pe + 4);
+    expect(createBackgroundExecutable(bytes, "arm64").readUInt16LE(pe + 4)).toBe(0xaa64);
+    expect(() => createBackgroundExecutable(image(), "arm64")).toThrow();
+  });
   it.each([true, false])("preserves executable bytes, entry point and original (signed=%s)", signed => {
     const source = image(signed), original = Buffer.from(source);
     const result = createBackgroundExecutable(source);

@@ -7,7 +7,7 @@ import { delimiter, dirname, join, resolve } from "node:path";
 
 import { writeFileAtomic } from "./atomic.ts";
 import { DATA_DIR } from "./config.ts";
-import { browserBundlePaths } from "./browser-bundle-release.ts";
+import { bundledBrowserTarget, browserBundlePaths } from "./browser-bundle-release.ts";
 import { browserProcessesRunning, browserProcessTree, releaseBrowserProfile, stopBrowserProcesses } from "./browser-processes.ts";
 import { BROWSER_VIEWPORT, viewportArgs, type PageSize } from "./browser-page-size.ts";
 import { browserRuntimeEnv, ownsBrowserViewport } from "./browser-runtime.ts";
@@ -376,7 +376,7 @@ function packagedBrowser(options: BrowserLookupOptions) {
   const resources = (options.env ?? process.env).OMB_RESOURCES_PATH;
   if (!resources) return null;
   try {
-    return browserBundlePaths(join(resolve(resources), "browser-engine"), `${options.platform ?? process.platform}-${options.arch ?? process.arch}`);
+    return browserBundlePaths(join(resolve(resources), "browser-engine"), bundledBrowserTarget(options.platform ?? process.platform, options.arch ?? process.arch));
   } catch {
     return null;
   }

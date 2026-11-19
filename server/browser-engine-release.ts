@@ -60,6 +60,10 @@ export function agentBrowserReleaseVersion(asset: AgentBrowserReleaseAsset | nul
   return asset?.version ?? AGENT_BROWSER_VERSION;
 }
 
+export function bundledBrowserTarget(platform: string, arch: string): string {
+  return platform === "win32" && arch === "arm64" ? "win32-x64" : `${platform}-${arch}`;
+}
+
 /**
  * The Linux-family key for this platform, or null when Vercel publishes nothing usable.
  *
@@ -69,10 +73,10 @@ export function agentBrowserReleaseVersion(asset: AgentBrowserReleaseAsset | nul
  * interpreter at all. Keying Android to `linux-musl-<arch>` therefore picks the one
  * asset that runs, instead of reporting a build that does exist as missing.
  */
-function linuxFamilyKey(platform: NodeJS.Platform, arch: string, musl: boolean): string {
+function releaseKey(platform: NodeJS.Platform, arch: string, musl: boolean): string {
   if (platform === "android") return `linux-musl-${arch}`;
   if (platform === "linux" && musl) return `linux-musl-${arch}`;
-  return `${platform}-${arch}`;
+  return bundledBrowserTarget(platform, arch);
 }
 
 /** The asset for this machine, or null where Vercel publishes none. */
@@ -81,6 +85,6 @@ export function resolveAgentBrowserReleaseAsset(
   arch: string = process.arch,
   musl = false,
 ): AgentBrowserReleaseAsset | null {
-  return RELEASES.get(linuxFamilyKey(platform, arch, musl)) ?? null;
+  return RELEASES.get(releaseKey(platform, arch, musl)) ?? null;
 }
 

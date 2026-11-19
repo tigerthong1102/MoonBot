@@ -9,7 +9,7 @@ import { parse } from "yaml";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.resolve(process.argv[2] ?? path.join(root, "release", "internal"));
 const config = parse(readFileSync(path.join(root, "electron-builder.internal.yml"), "utf8"));
-const expected = new Set([`StartupBot-${config.extraMetadata.version}-arm64.dmg`, `StartupBot-${config.extraMetadata.version}-x64.dmg`, `StartupBot-${config.extraMetadata.version}-Setup.exe`]);
+const expected = new Set([`StartupBot-${config.extraMetadata.version}-arm64.dmg`, `StartupBot-${config.extraMetadata.version}-x64.dmg`, `StartupBot-${config.extraMetadata.version}-Setup.exe`, `StartupBot-${config.extraMetadata.version}-arm64-Setup.exe`]);
 const artifacts = [];
 for (const file of readdirSync(output).filter(file => /\.(dmg|exe)$/.test(file)).sort()) {
   assert(expected.has(file), `Unexpected internal installer: ${file}`);

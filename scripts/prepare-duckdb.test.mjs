@@ -96,8 +96,9 @@ describe("the pin", () => {
     expect(targetsFor("linux", { OMB_DUCKDB_ARCH: "arm64" })).toEqual([{ platform: "linux", arch: "arm64" }]);
     expect(targetsFor("linux", { OMB_DUCKDB_ARCH: "x64" })).toEqual([{ platform: "linux", arch: "x64" }]);
     expect(() => targetsFor("linux", { OMB_DUCKDB_ARCH: "amd64" })).toThrow(/OMB_DUCKDB_ARCH/);
-    expect(targetsFor("win32", { OMB_DUCKDB_ARCH: "arm64" })).toEqual([{ platform: "win32", arch: "x64" }]);
-    expect(targetsFor("win32", {})).toEqual([{ platform: "win32", arch: "x64" }]);
+    expect(targetsFor("win32", { OMB_DUCKDB_ARCH: "arm64" }, "x64")).toEqual([{ platform: "win32", arch: "x64" }]);
+    expect(targetsFor("win32", {}, "arm64")).toEqual([{ platform: "win32", arch: "arm64" }]);
+    expect(targetsFor("win32", {}, "x64")).toEqual([{ platform: "win32", arch: "x64" }]);
   });
 });
 

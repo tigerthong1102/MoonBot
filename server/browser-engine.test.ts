@@ -644,6 +644,7 @@ describe("finding the browser engine", () => {
 
   it("pins the native-verified Windows revision in both download and desktop manifests", () => {
     const asset = resolveAgentBrowserReleaseAsset("win32", "x64")!;
+    expect(resolveAgentBrowserReleaseAsset("win32", "arm64")).toEqual(asset);
     expect(asset).toEqual({
       target: "win32-x64", version: "0.36.0-omb.1",
       asset: "agent-browser-win32-x64-0.36.0-omb.1.exe",

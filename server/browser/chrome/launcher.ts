@@ -138,7 +138,7 @@ export class ChromeLauncher implements BrowserLaunch {
   /** What agent-browser's environment gains: nothing while the engine keeps its own browser. */
   env(): Record<string, string> {
     if (this.state.kind === "failed" || this.plan().kind === "legacy") return {};
-    void this.prepare();
+    this.start();
     this.followTimeZone();
     this.followLanguage();
     return { AGENT_BROWSER_EXECUTABLE_PATH: this.path, AGENT_BROWSER_HIDE_SCROLLBARS: "0" };
@@ -177,7 +177,7 @@ export class ChromeLauncher implements BrowserLaunch {
   }
 
   start(): void {
-    if (this.plan().kind !== "legacy") void this.prepare();
+    if (this.options.env.OMB_DESKTOP_PARENT !== "1" && this.plan().kind !== "legacy") void this.prepare();
   }
 
   prepare(): Promise<void> {

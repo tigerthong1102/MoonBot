@@ -61,6 +61,19 @@ function launcher(machine: ReturnType<typeof mac>, overrides: Partial<Constructo
 const headless = (path: string) => ({ command: "/engine/agent-browser", env: { AGENT_BROWSER_EXECUTABLE_PATH: path, AGENT_BROWSER_HEADLESS: "1" } });
 
 describe("the Chrome launcher", () => {
+  it("starts desktop Chrome only when the first browser tool needs it", async () => {
+    const machine = mac({ env: { OMB_DESKTOP_PARENT: "1" } });
+    const calibrate = vi.fn(async () => identity("155"));
+    const chrome = launcher(machine, { calibrate });
+    chrome.start();
+    const env = chrome.env();
+    expect(calibrate).not.toHaveBeenCalled();
+    expect(existsSync(chrome.path)).toBe(false);
+    await chrome.ready({ command: "/engine/agent-browser", env });
+    expect(calibrate).toHaveBeenCalledOnce();
+    expect(existsSync(chrome.path)).toBe(true);
+  });
+
   it("gives agent-browser a launcher for the installed Google Chrome, with the identity read from that binary", async () => {
     const machine = mac();
     const calibrate = vi.fn(async () => identity("155"));

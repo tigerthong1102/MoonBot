@@ -1,8 +1,38 @@
+import fs from "node:fs";
+import path from "node:path";
+
 // "unavailable" (could not read) must never look like "empty": a caller would register a fresh installation over the real one.
 // macOS says "temporarily unavailable. Please try again." for a keychain that is busy at launch, so retry briefly first.
 export const CREDENTIAL_READ_DELAYS_MS = [100, 200, 400, 800];
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
+
+class CredentialTimeout extends Error {}
+
+export async function credentialResult(operation, timeoutMs = 12_000) {
+  let timer;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new CredentialTimeout("Timed out waiting for the operating-system credential store")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function writeSecureCredentials(file, credentials, safeStorage) {
+  if (!(await credentialResult(safeStorage.isAsyncEncryptionAvailable()))) {
+    throw new Error("The operating-system credential store is unavailable");
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const encrypted = await credentialResult(safeStorage.encryptStringAsync(JSON.stringify(credentials)));
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, encrypted, { mode: 0o600 });
+  fs.renameSync(temporary, file);
+}
 
 export async function readSecureCredentials({
   exists,
@@ -11,6 +41,7 @@ export async function readSecureCredentials({
   decrypt,
   sleep,
   delays = CREDENTIAL_READ_DELAYS_MS,
+  timeoutMs,
 }) {
   if (!exists()) return { status: "empty", credentials: {} };
 
@@ -18,11 +49,11 @@ export async function readSecureCredentials({
   for (let attempt = 0; attempt <= delays.length; attempt++) {
     if (attempt > 0) await sleep(delays[attempt - 1]);
     try {
-      if (!(await isAvailable())) {
+      if (!(await credentialResult(isAvailable(), timeoutMs))) {
         lastError = "the operating-system credential store is unavailable";
         continue;
       }
-      const decrypted = await decrypt(readFile());
+      const decrypted = await credentialResult(decrypt(readFile()), timeoutMs);
       const text = typeof decrypted === "string" ? decrypted : decrypted?.result;
       try {
         const parsed = JSON.parse(text);
@@ -35,6 +66,7 @@ export async function readSecureCredentials({
       }
     } catch (error) {
       lastError = message(error);
+      if (error instanceof CredentialTimeout) break;
     }
   }
   return { status: "unavailable", credentials: {}, error: lastError };

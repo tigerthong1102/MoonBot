@@ -54,6 +54,10 @@ describe("Windows owned CUA host", () => {
     });
     expect(fixture.start.mock.calls[0][0].signal).toBeInstanceOf(AbortSignal);
     expect(fixture.hosts[0].binary).toBe(process.env.CUA_DRIVER_PATH);
+    expect(fixture.hosts[0].options.environment).toEqual(expect.arrayContaining([
+      { name: "CUA_DRIVER_RS_UPDATE_CHECK", value: "false" },
+      { name: "CUA_DRIVER_RS_TELEMETRY_ENABLED", value: "0" },
+    ]));
     await cua.stopCua();
     expect(fixture.hosts[0].stop).toHaveBeenCalledOnce();
     expect(fixture.hosts[0].uniffiDestroy).toHaveBeenCalledOnce();

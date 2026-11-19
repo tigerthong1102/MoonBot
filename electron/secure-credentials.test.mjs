@@ -20,6 +20,14 @@ describe("readSecureCredentials", () => {
     expect(result).toEqual({ status: "empty", credentials: {} });
   });
 
+  it.each(["isAvailable", "decrypt"])("continues with an unreadable vault when %s stays pending", async (method) => {
+    const pending = vi.fn(() => new Promise(() => {}));
+    const result = await readSecureCredentials(deps({ [method]: pending, timeoutMs: 5 }));
+    expect(result.status).toBe("unavailable");
+    expect(result.error).toMatch(/timed out/i);
+    expect(pending).toHaveBeenCalledOnce();
+  });
+
   it("returns the stored credentials when the store opens", async () => {
     const result = await readSecureCredentials(deps());
     expect(result.status).toBe("ok");

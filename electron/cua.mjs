@@ -41,7 +41,7 @@ const STANDALONE_SOCKET = path.join(
   "Library/Caches/cua-driver/cua-driver.sock",
 );
 const HOST_BUNDLE_ID = "ai.startupbot.desktop";
-const CUA_ENV = { CUA_DRIVER_RS_TELEMETRY_ENABLED: "0" };
+const CUA_ENV = { CUA_DRIVER_RS_TELEMETRY_ENABLED: "0", CUA_DRIVER_RS_UPDATE_CHECK: "false" };
 const execFileAsync = promisify(execFile);
 process.env.CUA_DRIVER_RS_TELEMETRY_ENABLED ??= "0";
 
@@ -290,7 +290,7 @@ async function startEmbedded(binary, signal) {
     approveCapabilityManifest: false,
     approveSessionPolicy: false,
     dangerouslyBypassApprovals: false,
-    environment: [],
+    environment: Object.entries(CUA_ENV).map(([name, value]) => ({ name, value })),
     inheritStderr: true,
     noOverlay: false,
     captureStderr: false,

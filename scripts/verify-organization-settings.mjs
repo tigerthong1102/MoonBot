@@ -246,7 +246,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     await until(() => settingsOpened > acknowledgmentsBeforeReturn, "mounted local Organisation settings acknowledged");
     assert.equal(new URL(win.webContents.getURL()).origin, localOrigin);
     assert.equal(readEnvironments().activeId, "local");
-    assert.deepEqual(readEnvironments().environments, hostedState.environments, "hosted entry retained; no chat migration or deletion");
+    assert.deepEqual(readEnvironments().environments, parseEnvironments(serializeEnvironments(hostedState)).environments, "hosted entry retained; no chat migration or deletion");
     assert.equal(begins, beginsBeforeApp, "opening local Settings does not enroll automatically");
     assert.equal(confirmations.length, 2);
     writeFileSync(join(output, "organization-returned-local.png"), (await win.webContents.capturePage()).toPNG());

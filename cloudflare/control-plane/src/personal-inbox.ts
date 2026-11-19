@@ -248,7 +248,10 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     return json(detail);
   }
   if (req.method !== "POST") throw new HTTPError(405, "method_not_allowed");
-  if (action === "moderate") return moderate(req,db,room,user);
+  if (action === "moderate") {
+    await limit(db,user,"inbox_moderate",60,60000);
+    return moderate(req,db,room,user);
+  }
   if (action === "invite") {
     const input = await body(req, invite);
     await limit(db, user, "inbox_invite", 40, 86400_000);

@@ -94,6 +94,8 @@ function clearRoom() {
   revision++;
   current = null;
   delete document.body.dataset.thread;
+  el("invite-link-field").value = "";
+  el("invite-link-field").hidden = true;
   el("quick-invite").hidden = true;
   el("room-options").open = false;
   activeBatch = null;
@@ -329,6 +331,11 @@ async function refreshRoom(poll) {
   if (version !== revision) return;
   lastDetailAt = performance.now();
   el("conversation").hidden = false;
+  const field = el("invite-link-field");
+  if (field.value && (!detail.group.link || new URL(field.value).hash !== "#join=" + detail.group.link)) {
+    field.hidden = true;
+    field.value = "";
+  }
   const group = r.kind === "group";
   const manager = group && (r.isOwner || r.admin);
   el("invite").hidden = !manager;

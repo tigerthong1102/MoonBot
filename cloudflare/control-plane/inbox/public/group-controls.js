@@ -51,11 +51,9 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
           await navigator.clipboard.writeText(address.href);
           status("Đã sao chép liên kết mời.");
         } catch {
-          const field = document.createElement("input");
-          field.readOnly = true;
+          const field = document.getElementById("invite-link-field");
           field.value = address.href;
-          field.setAttribute("aria-label", "Liên kết mời");
-          document.getElementById("manage").prepend(field);
+          field.hidden = false;
           field.focus();
           field.select();
           status("Sao chép liên kết đang được chọn.");

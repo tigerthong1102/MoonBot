@@ -16,7 +16,7 @@ protocols:
 publish:
   - provider: github
     owner: tigerthong1102
-    repo: StartupBot
+    repo: MoonBot
 
 directories:
   buildResources: build

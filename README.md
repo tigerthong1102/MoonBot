@@ -287,6 +287,8 @@ StartupBot installers have not passed the release gates yet. No public StartupBo
 | Linux | Not released; package and restricted-host sandbox verification pending. |
 | iOS / Android | Not released; native builds and device validation pending. |
 
+For signed customer installers, see the [macOS and Windows packaging instructions](docs/startupbot/customer-packaging.md).
+
 See the [StartupBot support guide](docs/startupbot/support.md) for installation and incident reports, and [release readiness](RELEASE_READINESS.md) for build evidence and blockers. Only link downloadable StartupBot artifacts after they exist and are approved.
 
 See the [Ubuntu Desktop guide](docs/linux-desktop.md) for installation, capabilities, and troubleshooting.

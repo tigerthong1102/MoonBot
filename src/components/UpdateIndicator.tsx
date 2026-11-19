@@ -147,7 +147,7 @@ export function UpdateCard({
     if (!updater) return;
     if (status === "downloaded") {
       setPending(true);
-      void updater.install();
+      void updater.install().then(started => { if (started === false) setPending(false); }, () => setPending(false));
     } else if (failed && state.retryable !== false) {
       setPending(true);
       void updater.check();
@@ -249,7 +249,7 @@ export function UpdateCard({
           </div>
         )}
 
-        <p id="update-card-note" className="mt-4 text-[13px] leading-5 text-ink-secondary">{note}</p>
+        <p id="update-card-note" className="mt-4 text-[13px] leading-5 text-ink-secondary">{state.restartDeferred ? t("place.busy") : note}</p>
 
         <div className="mt-5 flex items-center justify-end gap-2">
           <button

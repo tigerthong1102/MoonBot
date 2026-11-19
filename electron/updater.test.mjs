@@ -100,7 +100,7 @@ function mainRule() {
 
 async function load(pageAllowed, serverPage = undefined, confirmRestart = undefined) {
   vi.resetModules();
-  vi.doMock("./updater-config.mjs", () => ({ STARTUPBOT_UPDATES_ENABLED: true }));
+  vi.doMock("./updater-config.mjs", () => ({ desktopUpdatePolicy: () => ({}), configureDesktopUpdater: async () => {} }));
   fixture.handlers.clear();
   const autoUpdater = new EventEmitter();
   autoUpdater.checkForUpdates = vi.fn(async () => {
@@ -244,7 +244,7 @@ it("a downloaded update installs when the app quits, except a system package, wh
       if (image) process.env.APPIMAGE = image;
       else delete process.env.APPIMAGE;
       const { updater, autoUpdater } = await load(() => false);
-      updater.startUpdater();
+      await updater.startUpdater();
       expect(autoUpdater.autoInstallOnAppQuit, `${os} ${marker ?? image ?? ""}`).toBe(installsOnQuit);
       expect(autoUpdater.autoDownload).toBe(false);
     }
@@ -257,43 +257,21 @@ it("a downloaded update installs when the app quits, except a system package, wh
   }
 });
 
-it("a downloaded update installs by itself at a quiet moment on macOS and Windows, and Linux installs stay the person's", async () => {
-  const platform = Object.getOwnPropertyDescriptor(process, "platform");
-  const resourcesPath = process.resourcesPath;
-  const appImage = process.env.APPIMAGE;
-  const resources = mkdtempSync(join(tmpdir(), "omb-updater-quiet-"));
-  const quiet = { locked: () => true, idleMs: () => 0, typedAt: () => 0, shown: () => true, busy: () => null, work: async () => null, watch: () => {} };
-  try {
-    for (const [os, marker, image, installs] of [
-      ["darwin", null, null, true],
-      ["win32", null, null, true],
-      ["linux", null, "/home/a/StartupBot.AppImage", false],
-      ["linux", "deb", null, false],
-      ["linux", "rpm", null, false],
-    ]) {
-      Object.defineProperty(process, "platform", { ...platform, value: os });
-      process.resourcesPath = resources;
-      rmSync(join(resources, "package-type"), { force: true });
-      if (marker) writeFileSync(join(resources, "package-type"), marker);
-      if (image) process.env.APPIMAGE = image;
-      else delete process.env.APPIMAGE;
-      const { updater, autoUpdater, handlers } = await load(() => true);
-      updater.startUpdater(quiet);
-      await vi.advanceTimersByTimeAsync(15_000);
-      await settle();
-      expect(autoUpdater.quitAndInstall, `${os} ${marker ?? image ?? ""} waits for a quiet moment`).not.toHaveBeenCalled();
-      expect((await handlers.get("update:get-state")({})).installsByItself, os).toBe(installs ? true : undefined);
-      await vi.advanceTimersByTimeAsync(30_000);
-      await settle();
-      expect(autoUpdater.quitAndInstall.mock.calls, `${os} ${marker ?? image ?? ""}`).toEqual(installs ? [[true, true]] : []);
-    }
-  } finally {
-    Object.defineProperty(process, "platform", platform);
-    process.resourcesPath = resourcesPath;
-    if (appImage === undefined) delete process.env.APPIMAGE;
-    else process.env.APPIMAGE = appImage;
-    rmSync(resources, { recursive: true, force: true });
-  }
+it("stages updates without restarting on idle and defers explicit restarts while work is active or unknown", async () => {
+  const { updater, autoUpdater, handlers } = await load(() => true);
+  const signals = { busy: vi.fn(() => null), work: vi.fn(async () => "turn") };
+  await updater.startUpdater(signals);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(autoUpdater.downloadUpdate).toHaveBeenCalledOnce();
+  expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  const restart = handlers.get("update:install");
+  expect(await restart({})).toBe(false);
+  signals.work.mockRejectedValueOnce(new Error("offline"));
+  expect(await restart({})).toBe(false);
+  expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled();
+  signals.work.mockResolvedValueOnce(null);
+  expect(await restart({})).toBe(true);
+  expect(autoUpdater.quitAndInstall).toHaveBeenCalledOnce();
 });
 
 it("My Cloud's page hears \"Restart to update\" once the sign-in it loaded before is restored", async () => {
@@ -304,7 +282,7 @@ it("My Cloud's page hears \"Restart to update\" once the sign-in it loaded befor
   const cloud = page(CLOUD);
   rule.show(cloud, "cloud");
   updater.attachUpdaterWindow(rule.window);
-  updater.startUpdater();
+  await updater.startUpdater();
 
   await vi.advanceTimersByTimeAsync(15_000);
   await settle();
@@ -332,7 +310,7 @@ it("downloads an update by itself: the first check after launch starts it, and n
   rule.show(local);
   const { updater, autoUpdater } = await load(rule.pageAllowed);
   updater.attachUpdaterWindow(rule.window);
-  updater.startUpdater();
+  await updater.startUpdater();
 
   await vi.advanceTimersByTimeAsync(15_000);
   await settle();
@@ -381,7 +359,7 @@ it("sends update news only to a page allowed to read it", async () => {
   const rule = mainRule();
   const { updater, autoUpdater, handlers } = await load(rule.pageAllowed);
   updater.attachUpdaterWindow(rule.window);
-  updater.startUpdater();
+  await updater.startUpdater();
 
   let finish;
   autoUpdater.downloadUpdate = vi.fn(() => new Promise((resolve) => { finish = resolve; }).then(() => {
@@ -412,7 +390,7 @@ it("sends updater progress to a reopened window without restarting the updater",
   rule.show(first);
   const { updater, autoUpdater, handlers } = await load(rule.pageAllowed);
   updater.attachUpdaterWindow({ webContents: first.webContents });
-  updater.startUpdater();
+  await updater.startUpdater();
   const listenerCount = autoUpdater.eventNames().reduce((count, name) => count + autoUpdater.listenerCount(name), 0);
   const timerCount = vi.getTimerCount();
 
@@ -446,7 +424,7 @@ it("a server's page the window shows may ask for the app's own update: it learns
   await expect(Promise.resolve().then(() => ask({ sender: page(OTHER).webContents, senderFrame: { url: `${OTHER}/` } }))).rejects.toThrow(/only available/);
   expect(await ask(other.event)).toBe("unavailable");
   updater.attachUpdaterWindow(rule.window);
-  updater.startUpdater();
+  await updater.startUpdater();
   // Checked and downloaded at the page's request; the person said Not now. Five asks at once open one dialog, which
   // names the asking server.
   vi.advanceTimersByTime(updater.SERVER_PAGE_ASK_COOLDOWN_MS);
@@ -475,7 +453,7 @@ it("keeps packaged updates disabled in the shipped configuration", async () => {
   autoUpdater.checkForUpdates = vi.fn();
   fixture.autoUpdater = autoUpdater;
   updater.registerUpdaterIpc({ pageAllowed: () => true });
-  updater.startUpdater();
+  await updater.startUpdater();
   const state = await fixture.handlers.get("update:get-state")(page(LOCAL).event);
   expect(state).toMatchObject({ status: "idle", disabled: true });
   expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();

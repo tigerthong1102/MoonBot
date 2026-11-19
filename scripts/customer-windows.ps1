@@ -59,11 +59,15 @@ try {
   Invoke-Pnpm install --frozen-lockfile
   Invoke-Pnpm package:prepare
   Invoke-Pnpm build:cua:win
-  Invoke-Pnpm exec electron-builder --config electron-builder.customer.yml --win nsis --x64 --publish never "-c.directories.output=$out" "-c.win.signtoolOptions.certificateSha1=$Thumbprint"
+  $env:STARTUPBOT_SIGNED_ARCH = 'x64'
+  $env:STARTUPBOT_SIGNED_PUBLISHER = $cert.Subject
+  Invoke-Pnpm exec electron-builder --config electron-builder.updates.cjs --win nsis --x64 --publish never "-c.directories.output=$out" "-c.win.signtoolOptions.certificateSha1=$Thumbprint"
   $images = @(Get-ChildItem -LiteralPath $out -File -Filter '*-setup.exe')
   if ($images.Count -ne 1) { throw 'Expected one NSIS installer.' }
   Confirm-Signature $images[0].FullName
   Confirm-Signature (Join-Path $out 'win-unpacked/StartupBot.exe')
+  & node scripts/desktop-update-manifest.mjs $out win32 x64
+  if ($LASTEXITCODE -ne 0) { throw 'Invalid Windows update manifest.' }
   Write-Output "Signed installer for clean-machine acceptance: $($images[0].FullName)"
 } finally {
   Pop-Location

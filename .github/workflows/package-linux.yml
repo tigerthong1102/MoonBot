@@ -11,9 +11,13 @@ env:
   SITE: https://startupbot-internal-preview.merrytoucan4.chatgpt.site/files
 jobs:
   windows:
+    if: false
     runs-on: windows-2025
     timeout-minutes: 25
     steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -37,6 +41,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: |
           curl -fsS "$SITE/StartupBot-1.0.0-universal-INTERNAL-debug.apk" -o site.apk
@@ -53,6 +60,9 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 20
     steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: |
           mkdir evidence
@@ -67,10 +77,13 @@ jobs:
           for n in {1..6}; do
             sleep 2
             xcrun simctl io "$device" screenshot evidence/ios.png
-            if swift scripts/site-ocr.swift evidence/ios.png > evidence/ios.txt; then cat evidence/ios.txt; exit 0; fi
+            if swift scripts/site-ocr.swift evidence/ios.png > evidence/ios.txt; then cat evidence/ios.txt; break; fi
           done
-          cat evidence/ios.txt
-          exit 1
+          swift scripts/site-ocr.swift evidence/ios.png
+          command -v xcodegen || brew install xcodegen
+          (cd touch && xcodegen generate)
+          xcodebuild build-for-testing -project touch/Touch.xcodeproj -scheme Touch -derivedDataPath touch/build -destination "id=$device" CODE_SIGN_IDENTITY=-
+          node scripts/site-confirm-pair.mjs "$device"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:

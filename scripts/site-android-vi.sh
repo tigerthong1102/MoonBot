@@ -33,5 +33,5 @@ adb pull /sdcard/startupbot-ui.xml mobile-artifacts/android/ui.xml
 grep -q 'Chào mừng bạn đến với StartupBot' mobile-artifacts/android/ui.xml
 if grep -Eqi 'MausBot|OpenMausMobile' mobile-artifacts/android/ui.xml; then exit 1; fi
 adb exec-out screencap -p > mobile-artifacts/android/startupbot-android.png
-adb logcat -d > mobile-artifacts/android/logcat.txt
+node scripts/site-confirm-pair.mjs android
 printf '{"status":"PASS","scope":"APK installation, real emulator launch and onboarding branding","pairing":"NOT RUN","liveProvider":"NOT RUN"}\n' > mobile-artifacts/android/smoke.json

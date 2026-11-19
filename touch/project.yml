@@ -1,0 +1,29 @@
+name: Touch
+options:
+  bundleIdPrefix: ai.startupbot.qa
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  GENERATE_INFOPLIST_FILE: YES
+  CODE_SIGN_IDENTITY: "-"
+targets:
+  Touch:
+    type: application
+    platform: iOS
+    sources: [App]
+  TouchTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: Touch
+    settings:
+      TEST_TARGET_NAME: Touch
+schemes:
+  Touch:
+    build:
+      targets:
+        Touch: all
+        TouchTests: [test]
+    test:
+      targets: [TouchTests]

@@ -2128,7 +2128,9 @@ describe("scrollback pages", () => {
     const threadId = bot.threadId;
     const cleared = reducer(state, { type: "messagesCleared", threadId });
     const replied = reducer(cleared, { type: "messageAdded", threadId, message: message("fresh", 10) });
-    const landed = reducer(replied, { type: "taskSwitched", bot, clearRevision: 0 });
+    const hydrated = reducer(replied, { type: "hydrate", bots: replied.bots, groups: [], computerControl: {} });
+    const paged = reducer(hydrated, { type: "olderMessages", threadId, generation: 0, messages: [message("old", 1)], hasMore: true });
+    const landed = reducer(paged, { type: "taskSwitched", bot, clearRevision: 0 });
     expect(landed.bots[0].messages.map((row) => row.id)).toEqual(["fresh"]);
   });
 

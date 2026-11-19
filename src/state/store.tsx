@@ -886,7 +886,9 @@ export function reducer(state: AppState, action: Action): AppState {
         hydrated: true as const,
         backgroundThreadEvents: {},
         loadingOlder: {},
-        transcriptGeneration: {}, clearRevisions: {},
+        transcriptGeneration: Object.fromEntries(
+          Object.entries(state.transcriptGeneration).map(([threadId, generation]) => [threadId, generation + 1]),
+        ),
         modelVariantSessions: {},
       };
       const held = [...hydrated.bots, ...hydrated.groups].find((owner) => owner.threadId === state.unreadDivider?.threadId);
@@ -1802,7 +1804,8 @@ export const initialState: AppState = {
   modelVariantSessions: {},
   backgroundThreadEvents: {},
   loadingOlder: {},
-  transcriptGeneration: {}, clearRevisions: {},
+  transcriptGeneration: {},
+  clearRevisions: {},
   bots: [],
   groups: [],
   sections: [],

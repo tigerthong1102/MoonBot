@@ -1444,7 +1444,6 @@ final class Session: ObservableObject {
             if let botId = hit.botId, var bot = state.bot(botId) {
                 if bot.threadId != hit.threadId {
                     bot = try currentResult(try await switchBotTask(using: client, botId: bot.id, threadId: hit.threadId), using: client, generation: requestGeneration)
-                    state.apply(.bot(bot))
                 }
                 if !hit.onActivePath {
                     let leaf = try currentResult(try await client.setActiveBranch(botId: bot.id, messageId: hit.messageId, threadId: hit.threadId), using: client, generation: requestGeneration)
@@ -1507,8 +1506,13 @@ final class Session: ObservableObject {
 
     private func switchBotTask(using client: CompanionClient, botId: String, threadId: String) async throws -> Bot {
         let revision = state.clearRevisions[threadId]
+        let generation = runtimeGeneration
+        let stream = streamGeneration
         let bot = try await client.switchTask(botId: botId, threadId: threadId)
-        guard state.clearRevisions[threadId] == revision else { throw CancellationError() }
+        try requireCurrent(client, generation: generation)
+        guard stream == streamGeneration, state.clearRevisions[threadId] == revision else { throw CancellationError() }
+        guard bot.threadId == threadId else { throw APIError.status(code: 409, message: AppLanguage.message("That task could not be opened. Try again.")) }
+        state.apply(.bot(bot))
         return bot
     }
 
@@ -1518,7 +1522,6 @@ final class Session: ObservableObject {
         guard let client else { return nil }
         do {
             let updated = try currentResult(try await switchBotTask(using: client, botId: bot.id, threadId: task.threadId), using: client, generation: requestGeneration)
-            state.apply(.bot(updated))
             return updated
         } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
@@ -1818,7 +1821,6 @@ final class Session: ObservableObject {
             if target.requiresTaskSwitch(activeThreadId: selected.threadId) {
                 selected = try currentResult(try await switchBotTask(using: client, botId: selected.id, threadId: target.threadId), using: client, generation: requestGeneration)
                 guard selected.threadId == target.threadId else { throw APIError.status(code: 409, message: AppLanguage.message("That task could not be opened. Try again.")) }
-                state.apply(.bot(selected))
             }
             notificationChat = .bot(selected)
         } catch is CancellationError {
@@ -1851,7 +1853,6 @@ final class Session: ObservableObject {
                 do {
                     selected = try await switchBotTask(using: client, botId: selected.id, threadId: ref.threadId)
                     guard requestIsCurrent() else { return nil }
-                    state.apply(.bot(selected))
                 } catch APIError.status(code: 404, message: _) {
                     guard requestIsCurrent() else { return nil }
                     actionError = AppLanguage.message("That thread is no longer on your computer.")

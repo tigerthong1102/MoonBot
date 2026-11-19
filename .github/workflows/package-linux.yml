@@ -1,531 +1,75 @@
-name: Internal package verification
-
-on:
-  workflow_dispatch:
-    inputs:
-      ios_runner:
-        description: "Standard macOS runner for internal simulator tests"
-        required: false
-        type: choice
-        options: [macos-26, macos-26-intel, macos-15]
-        default: macos-26
-      mobile_os:
-        description: "Internal native mobile platform to build"
-        required: false
-        type: choice
-        options: [all, android, ios]
-        default: all
-      mobile:
-        description: "Build internal Android APK/AAB and iOS simulator app"
-        required: false
-        type: boolean
-        default: false
-      desktop:
-        description: "Build StartupBot internal macOS and Windows installers instead of Ubuntu"
-        required: false
-        type: boolean
-        default: false
-      windows_arch:
-        description: "Windows processor"
-        type: choice
-        options: [x64, arm64]
-        default: x64
-      macos_runner:
-        description: "Standard macOS runner for native DMG acceptance"
-        required: false
-        type: choice
-        options: [macos-26-intel, macos-26]
-        default: macos-26-intel
-      desktop_os:
-        description: "Internal desktop platform to build"
-        required: false
-        type: choice
-        options: [all, macos, windows]
-        default: all
-      ref:
-        description: "Commit/tag/branch to build (defaults to the branch this is run from)"
-        required: false
-        type: string
-
+name: Verify Vietnamese installers downloaded from website
+on: workflow_dispatch
 permissions:
   contents: read
-
+env:
+  SITE: https://startupbot-internal-preview.merrytoucan4.chatgpt.site/files
 jobs:
-  package:
-    if: ${{ !inputs.desktop && !inputs.mobile }}
-    name: DEB + AppImage (Ubuntu 24.04 x64)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-          persist-credentials: false
-      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
-      - name: Install package validation and native smoke tools
-        run: >-
-          sudo apt-get update && sudo apt-get install -y
-          at-spi2-core dbus-x11 desktop-file-utils libxi6 libxkbcommon0 openbox squashfs-tools x11-utils xdotool xvfb
-      - run: pnpm install --frozen-lockfile
-      - name: Clean generated output
-        run: pnpm clean
-      - name: Stage the pinned CUA runtime
-        run: pnpm build:cua:linux
-      - name: Prove overlay-free X11 input routing
-        run: dbus-run-session -- xvfb-run -a pnpm smoke:cua-x11-input
-      - name: Package from the verified offline CUA stage
-        run: pnpm package:linux:offline
-      - name: Verify package contents and metadata
-        run: node scripts/verify-linux-package.mjs
-      - name: Match a normal Ubuntu package parent on the ephemeral runner
-        run: |
-          test ! -L /opt
-          test "$(stat -c '%F %U:%G' /opt)" = "directory root:root"
-          case "$(stat -c '%a' /opt)" in
-            755) ;;
-            775|777) sudo chmod 0755 /opt ;;
-            *) echo "Unexpected /opt mode: $(stat -c '%a' /opt)" >&2; exit 1 ;;
-          esac
-          test "$(stat -c '%U:%G %a' /opt)" = "root:root 755"
-      - name: Reproduce and verify an in-place DEB upgrade
-        run: |
-          deb=(release/*.deb)
-          test "${#deb[@]}" -eq 1
-          sudo --preserve-env=CI,RUNNER_TEMP node scripts/smoke-deb-upgrade.mjs "${deb[0]}"
-      - name: Prove the handed-over Ubuntu command installs
-        # The .deb path ends with a command on the user's clipboard, so the
-        # command is the deliverable. Runs it as root on a clean Ubuntu through
-        # a real shell, and checks that the `dpkg -i` it replaced still fails
-        # there — the reason the app must not run that itself.
-        run: |
-          deb=(release/*.deb)
-          test "${#deb[@]}" -eq 1
-          pnpm smoke:deb-command "${deb[0]}"
-      - name: Prove an AppImage update lands on the launched path
-        # Installs the current published release over a copy named after a
-        # version, which is the shape that used to orphan the launcher. Runs
-        # against the real feed, so it also covers the differential download.
-        run: pnpm smoke:linux-update
-      - name: Configure Chromium sandbox for the unpacked app
-        run: |
-          sudo chown root:root release/linux-unpacked/chrome-sandbox
-          sudo chmod 4755 release/linux-unpacked/chrome-sandbox
-          test "$(stat -c '%U:%G %a' release/linux-unpacked/chrome-sandbox)" = "root:root 4755"
-      - name: Verify the installed browser with Ubuntu sandbox restrictions
-        run: node scripts/smoke-browser-bundle.mjs --resources /opt/StartupBot/resources
-      - name: Launch packaged app and verify lifecycle
-        env:
-          OMB_KEEP_SMOKE_DIR: "1"
-          OMB_SMOKE_INSTALLED_DEB: "1"
-        run: pnpm smoke:linux-package
-      - name: Remove the installed upgrade fixture
-        if: always()
-        run: sudo dpkg --purge openmausbot || true
-      - name: Prepare release assets
-        id: release
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
-          appimage="release/StartupBot-${version}-x86_64.AppImage"
-          deb="release/StartupBot-${version}-amd64.deb"
-          test -f "$appimage"
-          test -f "$deb"
-          cp "$appimage" release/StartupBot.AppImage
-          cp "$deb" release/StartupBot-amd64.deb
-          chmod 0755 release/StartupBot.AppImage
-          (
-            cd release
-            sha256sum \
-              "$(basename "$appimage")" \
-              "$(basename "$deb")" \
-              StartupBot.AppImage \
-              StartupBot-amd64.deb > SHA256SUMS-ubuntu-x64.txt
-          )
-          echo "artifact-name=StartupBot-ubuntu-${version}-x64" >> "$GITHUB_OUTPUT"
-          echo "version: $version"
-          echo "commit:  $(git rev-parse HEAD)"
-          cat release/SHA256SUMS-ubuntu-x64.txt
-      - name: Upload smoke diagnostics on failure
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
-        with:
-          name: StartupBot-ubuntu-smoke-diagnostics
-          path: |
-            /tmp/omb-linux-smoke-*
-            /tmp/omb-linux-smoke-runtime-*
-          if-no-files-found: warn
-          include-hidden-files: true
-          retention-days: 7
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ${{ steps.release.outputs.artifact-name }}
-          path: |
-            release/StartupBot-*-amd64.deb
-            release/StartupBot-*-x86_64.AppImage
-            release/StartupBot-amd64.deb
-            release/StartupBot.AppImage
-            release/SHA256SUMS-ubuntu-x64.txt
-          if-no-files-found: error
-          retention-days: 14
-
-  macos:
-    if: inputs.desktop && (inputs.desktop_os == 'all' || inputs.desktop_os == 'macos')
-    name: StartupBot macOS internal DMGs
-    runs-on: ${{ inputs.macos_runner || 'macos-26-intel' }}
-    timeout-minutes: 60
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      NODE_OPTIONS: --max-old-space-size=4096
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-          persist-credentials: false
-      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Verify StartupBot branding and native icon assets
-        run: |
-          pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
-          node --test scripts/package-payload.node-test.mjs
-      - run: pnpm package:prepare
-      - run: pnpm build:speech && pnpm build:cua
-      - run: pnpm exec electron-builder --config electron-builder.internal.yml --mac dmg --arm64 --x64 --publish never
-      - name: Compress DMGs and verify unchanged application payloads
-        run: node scripts/compress-mac-images.mjs
-      - name: Test the installed DMG on its native host
-        shell: bash
-        run: |
-          set -euo pipefail
-          case "$(uname -m)" in
-            arm64) smoke_arch=arm64 ;;
-            x86_64) smoke_arch=x64 ;;
-            *) echo "Unsupported native macOS architecture" >&2; exit 1 ;;
-          esac
-          volume="$RUNNER_TEMP/StartupBotVolume"
-          mkdir -p "$volume" "$RUNNER_TEMP/StartupBotInstalled"
-          hdiutil attach -nobrowse -readonly -mountpoint "$volume" release/internal/*-"$smoke_arch".dmg
-          trap 'hdiutil detach "$volume"' EXIT
-          ditto "$volume/StartupBot.app" "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app"
-          codesign --verify --deep --strict "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app"
-          case "$smoke_arch" in arm64) source_directory=mac-arm64 ;; x64) source_directory=mac ;; esac
-          mkdir -p release/internal/smoke
-          node scripts/package-payload.mjs --source "release/internal/$source_directory/StartupBot.app" --installed "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --report release/internal/smoke/payload-integrity.json
-          node scripts/smoke-internal-desktop.mjs --app "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --output release/internal/smoke
-      - name: Test the packaged browser and server
-        shell: bash
-        run: |
-          case "$(uname -m)" in
-            arm64) app_directory=mac-arm64 ;;
-            x86_64) app_directory=mac ;;
-            *) echo "Unsupported native macOS architecture" >&2; exit 1 ;;
-          esac
-          resources="$PWD/release/internal/$app_directory/StartupBot.app/Contents/Resources"
-          node scripts/smoke-browser-bundle.mjs --resources "$resources"
-          OMB_SMOKE_DIST="$resources/server" node scripts/smoke-packaged-server.mjs --browser-bundle "$resources/browser-engine"
-      - run: node scripts/internal-build-metadata.mjs
-      - name: Stage separate verified architecture downloads
-        run: |
-          node scripts/stage-internal-arch.mjs --source release/internal --destination release/downloads/arm64 --arch arm64
-          node scripts/stage-internal-arch.mjs --source release/internal --destination release/downloads/x64 --arch x64
-          for arch in arm64 x64; do cp docs/STARTUPBOT_INTERNAL_TEST.md "release/downloads/$arch/STARTUPBOT_INTERNAL_TEST.md"; done
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-macOS-arm64-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: release/downloads/arm64/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-macOS-x64-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: release/downloads/x64/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: failure()
-        with:
-          name: StartupBot-macOS-failure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: release/internal/smoke/
-          retention-days: 7
-
   windows:
-    if: inputs.desktop && (inputs.desktop_os == 'all' || inputs.desktop_os == 'windows')
-    name: StartupBot Windows internal EXE
-    runs-on: ${{ inputs.windows_arch == 'arm64' && 'windows-11-arm' || 'windows-latest' }}
-    timeout-minutes: 60
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      NODE_OPTIONS: --max-old-space-size=4096
+    runs-on: windows-2025
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          ref: ${{ inputs.ref || github.ref }}
-          persist-credentials: false
+          node-version: 24
       - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-          cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Verify StartupBot branding and native icon assets
+      - shell: pwsh
         run: |
-          pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
-          node --test scripts/package-payload.node-test.mjs
-      - run: pnpm build:cua:win
-      - name: Test ARM64 native modules and Computer Use driver
-        if: inputs.windows_arch == 'arm64'
-        run: |
-          node scripts/smoke-cua-win-embedded.mjs
-      - run: pnpm package:prepare
-      - name: Build for the selected Windows architecture
-        env:
-          TARGET_ARCH: ${{ inputs.windows_arch || 'x64' }}
-        run: |
-          if ((node -p process.arch) -ne $env:TARGET_ARCH) { throw 'Expected a native Node.js build host' }
-          $options = @("--$env:TARGET_ARCH")
-          if ($env:TARGET_ARCH -eq 'arm64') {
-            # https://github.com/electron-userland/electron-builder/issues/9983
-            $env:ELECTRON_BUILDER_7Z_FILTER = 'BCJ'
-            $options += '-c.nsis.artifactName=StartupBot-${version}-arm64-Setup.${ext}'
-          }
-          pnpm exec electron-builder --config electron-builder.internal.yml --win nsis @options --publish never
-      - name: Install EXE and test the installed application
-        shell: pwsh
-        run: |
-          $installer = @(Get-ChildItem release/internal/*-Setup.exe)
-          if ($installer.Count -ne 1) { throw 'Expected exactly one StartupBot installer' }
-          $destination = Join-Path $env:RUNNER_TEMP 'StartupBotInstalled'
-          $install = Start-Process -FilePath $installer[0].FullName -ArgumentList '/S', "/D=$destination" -Wait -PassThru
-          if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
-          New-Item -ItemType Directory -Force release/internal/smoke | Out-Null
-          $unpacked = if ((node -p process.arch) -eq 'arm64') { 'win-arm64-unpacked' } else { 'win-unpacked' }
-          node scripts/package-payload.mjs --source "release/internal/$unpacked" --installed "$destination" --report release/internal/smoke/payload-integrity.json
-          if ($LASTEXITCODE -ne 0) { throw 'Installed payload bytes differ' }
-          if ((node -p process.arch) -eq 'arm64') {
-            node scripts/smoke-windows-arm64.mjs "$destination"
-            if ($LASTEXITCODE -ne 0) { throw 'Installed ARM64 payload failed' }
-          }
-          node scripts/smoke-internal-desktop.mjs --app "$destination/StartupBot.exe" --output release/internal/smoke
-          if ($LASTEXITCODE -ne 0) { throw 'Installed application smoke failed' }
-      - name: Test the packaged browser and server
-        env:
-          OMB_SMOKE_DIST: ${{ runner.temp }}/StartupBotInstalled/resources/server
-        run: |
-          node scripts/smoke-browser-bundle.mjs --resources "$env:RUNNER_TEMP/StartupBotInstalled/resources"
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged browser smoke failed' }
-          node scripts/smoke-packaged-server.mjs --browser-bundle "$env:RUNNER_TEMP/StartupBotInstalled/resources/browser-engine"
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged server smoke failed' }
-      - run: node scripts/internal-build-metadata.mjs
+          curl.exe --fail --silent --show-error "$env:SITE/StartupBot-1.0.0-Setup.exe" -o "$env:RUNNER_TEMP/site.exe"
+          if ((Get-FileHash "$env:RUNNER_TEMP/site.exe").Hash -ne '1e1124d31e10f24d420d06f8eb19442e9d17bb35a05e018639d4c6d85d742cdc') {throw 'Checksum mismatch'}
+          $destination = "$env:RUNNER_TEMP/StartupBotInstalled"
+          $p = Start-Process "$env:RUNNER_TEMP/site.exe" -ArgumentList '/S', "/D=$destination" -Wait -PassThru
+          if ($p.ExitCode) {throw "Installer exited $($p.ExitCode)"}
+          node scripts/site-desktop-vi.smoke.mjs --app "$destination/StartupBot.exe" --output evidence
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
         with:
-          name: StartupBot-Windows-${{ inputs.windows_arch || 'x64' }}-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          compression-level: 0
-          path: |
-            release/internal/*-Setup.exe
-            release/internal/SHA256SUMS.txt
-            release/internal/build-metadata.json
-            release/internal/smoke/
-            docs/STARTUPBOT_INTERNAL_TEST.md
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: failure()
-        with:
-          name: StartupBot-Windows-failure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: release/internal/smoke/
-          retention-days: 7
-
+          name: windows-site-smoke
+          path: evidence/
   android:
-    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'android')
-    name: StartupBot Android internal APK and AAB
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-      - name: Verify canonical native question fixtures
-        run: |
-          node --experimental-strip-types scripts/generate-mobile-question-vectors.ts
-          git diff --exit-code -- ios/Tests/CompanionCoreTests/Fixtures/question-answer-v1.json
-      - name: Select Java 17 and verify native boundaries
-        run: |
-          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
-          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
-          node scripts/verify-startupbot-mobile.mjs
-          python3 scripts/verify-android-apk-payload-test.py
-      - name: Build and test native Android code
-        working-directory: android
-        run: ./gradlew --no-daemon --max-workers=2 :core:test :app:testDebugUnitTest :app:assembleDebug :app:bundleRelease
-      - name: Test APK on a clean emulator
-        run: |
+      - run: |
+          curl -fsS "$SITE/StartupBot-1.0.0-universal-INTERNAL-debug.apk" -o site.apk
+          echo 'f9b8044d96d20fdfdb57bacd5c98ab35e4127845aafb5ad2ca336b4390944388  site.apk' | sha256sum -c -
           sudo chmod a+rw /dev/kvm
-          bash scripts/smoke-android-internal.sh
-      - name: Verify every ABI payload and APK signature
-        run: |
-          python3 scripts/verify-android-apk-payload.py --directory android/app/build/outputs/apk/debug --report mobile-artifacts/android/payload-integrity.json
-          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)"
-          test -n "$signer"
-          aligner="$(dirname "$signer")/zipalign"
-          for apk in android/app/build/outputs/apk/debug/*.apk; do "$aligner" -c -P 16 -v 4 "$apk" > "mobile-artifacts/android/$(basename "$apk").alignment.txt"; done
-          for apk in android/app/build/outputs/apk/debug/*.apk; do "$signer" verify --verbose --print-certs "$apk" > "mobile-artifacts/android/$(basename "$apk").signature.txt"; done
-      - name: Prepare separate verified internal downloads
-        run: python3 scripts/stage-android-internal.py
+          bash scripts/site-android-vi.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
         with:
-          name: StartupBot-Android-arm64-v8a-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/downloads/android/arm64-v8a/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-Android-armeabi-v7a-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/downloads/android/armeabi-v7a/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-Android-x86_64-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/downloads/android/x86_64/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-Android-x86-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/downloads/android/x86/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-Android-universal-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/downloads/android/universal/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-Android-bundle-INTERNAL-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/downloads/android/bundle/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: failure()
-        with:
-          name: StartupBot-Android-diagnostics-${{ github.run_id }}
-          path: |
-            mobile-artifacts/android/
-            android/core/build/reports/tests/
-            android/app/build/reports/tests/
-          retention-days: 7
-
+          name: android-site-smoke
+          path: mobile-artifacts/android/
   ios:
-    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')
-    name: StartupBot iOS internal simulator
-    runs-on: ${{ inputs.ios_runner || 'macos-26' }}
-    timeout-minutes: 90
+    runs-on: macos-26
+    timeout-minutes: 20
     steps:
-      - name: Select Xcode 26.2 on macOS 15
-        if: inputs.ios_runner == 'macos-15'
-        run: |
-          test -d /Applications/Xcode_26.2.app/Contents/Developer
-          echo 'DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer' >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-      - name: Verify canonical native question fixtures
-        run: |
-          node --experimental-strip-types scripts/generate-mobile-question-vectors.ts
-          git diff --exit-code -- ios/Tests/CompanionCoreTests/Fixtures/question-answer-v1.json
-      - name: Verify native boundaries and core protocol
-        run: |
-          node scripts/verify-startupbot-mobile.mjs
-          python3 scripts/mobile-command-test.py
-          python3 scripts/install-ios-simulator-test.py
-          node --test scripts/ios-simulator-entitlements.node-test.mjs scripts/package-payload.node-test.mjs scripts/opaque-icon.node-test.mjs
-          xcodebuild -version
-          swift test --package-path ios
-      - name: Generate StartupBot Xcode project
-        run: |
-          command -v xcodegen || brew install xcodegen
-          cd ios
-          xcodegen generate
-      - name: Build and verify separate ARM and Intel simulator apps
-        run: bash scripts/build-ios-simulators.sh
-      - name: Run the real app and navigation tests on simulator
-        timeout-minutes: 45
-        run: bash scripts/smoke-ios-internal.sh
-      - name: Prepare and verify separate simulator downloads
-        run: bash scripts/stage-ios-simulators.sh
+      - run: |
+          mkdir evidence
+          curl -fsS "$SITE/StartupBot-1.0.0-build17-arm64-SIMULATOR.zip" -o site.zip
+          echo '56233b8f40fe7eafe1be2caae7b0b9b69a0fcfdd7291ac7a3071e205eca859a7  site.zip' | shasum -a 256 -c -
+          ditto -x -k site.zip evidence
+          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys;print(next(d["udid"] for k,ds in sorted(json.load(sys.stdin)["devices"].items(),reverse=True) if ".iOS-" in k for d in ds if d["name"].startswith("iPhone")))')
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          python3 scripts/install-ios-simulator.py "$device" "$PWD/evidence/StartupBot.app" evidence/install.json
+          xcrun simctl launch "$device" ai.startupbot.ios -AppleLanguages '(vi)' -AppleLocale vi_VN -companion.prefs.language vi
+          for n in {1..6}; do
+            sleep 2
+            xcrun simctl io "$device" screenshot evidence/ios.png
+            if swift scripts/site-ocr.swift evidence/ios.png > evidence/ios.txt; then cat evidence/ios.txt; exit 0; fi
+          done
+          cat evidence/ios.txt
+          exit 1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
         with:
-          name: StartupBot-iOS-arm64-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/ios-arm64/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-iOS-x86_64-SIMULATOR-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/ios-x86_64/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: failure()
-        with:
-          name: StartupBot-iOS-diagnostics-${{ github.run_id }}
-          path: mobile-artifacts/ios/
-          retention-days: 7
-
-  ios-device:
-    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')
-    name: StartupBot iOS unsigned device Release archive
-    runs-on: ${{ inputs.ios_runner || 'macos-26' }}
-    timeout-minutes: 45
-    steps:
-      - name: Select Xcode 26.2 on macOS 15
-        if: inputs.ios_runner == 'macos-15'
-        run: |
-          test -d /Applications/Xcode_26.2.app/Contents/Developer
-          echo 'DEVELOPER_DIR=/Applications/Xcode_26.2.app/Contents/Developer' >> "$GITHUB_ENV"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-          persist-credentials: false
-      - name: Generate StartupBot Xcode project
-        run: |
-          command -v xcodegen || brew install xcodegen
-          cd ios
-          xcodegen generate
-      - name: Compile device SDK and archive without signing or uploading
-        run: bash scripts/archive-ios-device.sh
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: StartupBot-iOS-DEVICE-UNSIGNED-${{ github.sha }}-${{ github.run_attempt }}
-          path: mobile-artifacts/ios-device/
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
+          name: ios-site-smoke
+          path: |
+            evidence/*.png
+            evidence/*.txt
+            evidence/*.json

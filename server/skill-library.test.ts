@@ -172,3 +172,13 @@ describe("bundled phone-connection skill", () => {
     expect(guide.split("\n").length).toBeLessThanOrEqual(60);
   });
 });
+
+describe("Vietnamese accounting audit skill", () => {
+  const skills = loadBundledSkills(join(process.cwd(), "skills"));
+  it("selects the read-only workflow for accented and plain Vietnamese audit commands", () => {
+    for (const text of ["Kiểm toán doanh thu tháng 8", "kiem toan so ban hang", "Tìm chứng từ 00017", "$kiem-toan"]) {
+      expect(selectBundledSkills(text, [], skills).map(s => s.manifest.id)).toContain("kiem-toan");
+    }
+    expect(selectBundledSkills("so sánh hai bức ảnh", [], skills).map(s => s.manifest.id)).not.toContain("kiem-toan");
+  });
+});

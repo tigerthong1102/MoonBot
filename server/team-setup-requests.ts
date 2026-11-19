@@ -1,3 +1,6 @@
+import { defaultBotPerson } from "../shared/default-bot.ts";
+import { workBotAvatar, workBotName, workBotTopic } from "./work-bot-offer.ts";
+import { conversationLanguage, serverLine } from "./server-lines.ts";
 import { createHash } from "node:crypto";
 import { botOwner, chiefScope } from "../shared/bot-owner.ts";
 import { z } from "zod";
@@ -86,7 +89,7 @@ interface SetupStore {
   messagesFor(threadId: string): Array<{ id: string; role?: string; card?: OptionCardData }>;
   appendMessage(threadId: string, message: { role: "bot"; kind: "options"; card: OptionCardData; from?: { botId: string; name: string; color: string } }): { id: string };
   patchMessage(threadId: string, messageId: string, patch: { card: OptionCardData }): unknown;
-  applyTeamSetup(request: TeamSetupRequest): TeamSetupResult;
+  applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">): TeamSetupResult;
   patchBot(id: string, patch: Partial<BotRecord>): unknown;
 }
 
@@ -199,6 +202,7 @@ export class TeamSetupRequestService {
     for (const operation of request.operations) {
       const candidate = projected.find((bot) => bot.id === operation.botId)!;
       if (projected.some((bot) => bot.id !== candidate.id && !bot.hidden && bot.section === candidate.section && bot.name.trim().toLowerCase() === candidate.name.trim().toLowerCase())) throw new TeamSetupError(`@${candidate.name} already exists in that team`, 409);
+      if (request.workBotOffer && projected.some(bot => bot.id !== candidate.id && bot.name.normalize("NFC").trim().toLowerCase() === candidate.name.normalize("NFC").trim().toLowerCase())) throw new TeamSetupError("The suggested name is now in use. Ask for another name.", 409);
       if (candidate.chiefOfStaff && projected.some((bot) => bot.id !== candidate.id && bot.chiefOfStaff && chiefScope(bot) === chiefScope(candidate))) throw new TeamSetupError("Each team can have one Chief. Include the current Chief's demotion in this plan.", 409);
     }
     if (request.deletion) {
@@ -270,6 +274,43 @@ export class TeamSetupRequestService {
   }
 
   propose(args: SetupArgs) { return this.card(this.prepare(args), args.from); }
+  offerFromChat(botId: string, threadId: string, text: string, owner: string) {
+    const { store, maxBots } = this.options;
+    const bot = store.bot(botId);
+    if (!bot?.defaultBot || defaultBotPerson(bot) !== owner || !chiefLevel(bot) || store.bots.length >= maxBots) return;
+    try {
+      const topic = workBotTopic(text, !store.bots.some(row => !row.defaultBot && !row.hidden));
+      if (!topic) return;
+      const name = workBotName(topic.name, store.bots);
+      this.proposeWorkBot({ botId, threadId, plan: {
+        reason: name, operations: [{ action: "create", key: "follow_up", fields: {
+          name, title: topic.name, description: [...topic.brief].slice(0, 120).join(""),
+          soul: topic.instructions, modelSelection: bot.modelSelection,
+        } }],
+      } }, { icon: topic.icon, topic: topic.name });
+    } catch (error) {
+      if (!(error instanceof TeamSetupError)) console.warn("Work bot suggestion could not be saved", error instanceof Error ? error.name : "unknown error");
+    }
+  }
+
+  proposeWorkBot(args: SetupArgs, offer: NonNullable<TeamSetupRequest["workBotOffer"]>) {
+    const recentlySuggested = this.options.store.messagesFor(args.threadId).some(({ card }) => {
+      const previous = card?.teamSetupRequest;
+      if (!previous?.workBotOffer) return false;
+      const pending = !card?.answered && !card?.expired && !card?.dismissed;
+      if (pending) return true;
+      if (card?.expired || card?.dismissed) return false;
+      const sameTopic = previous.workBotOffer.topic === offer.topic;
+      const existing = previous.result?.bots.some(bot => this.options.store.bot(bot.id));
+      return (sameTopic && (previous.result?.state === "denied" || existing)) ||
+        Date.now() - previous.createdAt < 24 * 60 * 60 * 1000;
+    });
+    if (recentlySuggested) return { state: "skipped" as const };
+    const request = this.prepare(args);
+    request.workBotOffer = offer;
+    return { ...this.card(request, args.from), state: "pending" as const };
+  }
+
   proposeDeletion(args: DeletionArgs) { return this.card(this.prepareDeletion(args), args.from); }
 
   async submit(args: SetupArgs & SubmitAuthority) {
@@ -288,6 +329,15 @@ export class TeamSetupRequestService {
     const permission = this.options.canPersist(request.botId, request.threadId);
     if (!permission.ok) throw new TeamSetupError(permission.error, permission.status);
     const chief = this.chief(request.botId);
+    if (request.workBotOffer) {
+      const lang = conversationLanguage(request.threadId);
+      const fields = request.operations[0]!.fields;
+      return {
+        title: serverLine(lang, "server.workBot.question", { name: fields.name ?? "" }),
+        subtitle: fields.soul ?? "", options: [serverLine(lang, "server.workBot.create"), "Cancel"],
+        requestId: request.requestId, tool: "set_up_team", teamSetupRequest: request,
+      };
+    }
     const lines = [`Why: ${request.reason}`];
     if (request.deletion) lines.push(`Delete @${request.deletion.name} (${request.deletion.botId}).`, "Permanently removes this bot, all its conversations, memory, instructions, skills, and any computer owned only by it. Generated project files and shared department computers remain. Active work or an unavailable provider can block deletion safely.");
     if (request.newTeams.length) {
@@ -351,7 +401,8 @@ export class TeamSetupRequestService {
       const bot = operation.action === "update" ? this.options.store.bot(operation.botId) : undefined;
       return bot ? [{ id: bot.id, profile: profileSnapshot(bot) }] : [];
     });
-    const result = this.options.store.applyTeamSetup(request);
+    const avatar = request.workBotOffer && { avatarUrl: workBotAvatar(request.workBotOffer.icon, request.operations[0]!.botId), avatarCrop: "rounded" as const };
+    const result = this.options.store.applyTeamSetup(request, avatar);
     for (const { id, profile } of before) {
       const bot = this.options.store.bot(id);
       if (bot) recordProfileChange(id, actor, via, profile, profileSnapshot(bot));

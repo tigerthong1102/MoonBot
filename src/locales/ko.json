@@ -7983,7 +7983,7 @@
   "personalInbox.botWaiting": "봇 대기 중",
   "personalInbox.botStart": "토론 시작",
   "personalInbox.botNoDevice": "StartupBot 데스크톱 앱의 메시지에서 봇을 초대하세요.",
-  "personalInbox.botNone": "이 작업공간에는 사용 가능한 봇이 없습니다.",
+  "personalInbox.botNone": "이 컴퓨터에는 초대할 수 있는 봇이 없습니다.",
   "personalInbox.botFailed": "봇이 대답할 수 없습니다.",
   "personalInbox.botDone": "토론 완료",
   "personalInbox.botCancel": "토론 중지"

@@ -11340,7 +11340,7 @@
   "personalInbox.botWaiting": "Đang chờ bot",
   "personalInbox.botStart": "Bắt đầu thảo luận",
   "personalInbox.botNoDevice": "Mở Tin nhắn trong ứng dụng StartupBot trên máy tính để mời bot.",
-  "personalInbox.botNone": "Không có bot khả dụng trong không gian làm việc này.",
+  "personalInbox.botNone": "Chưa có bot nào có thể mời trên máy này.",
   "personalInbox.botFailed": "Bot chưa thể trả lời.",
   "personalInbox.botDone": "Đã kết thúc thảo luận",
   "personalInbox.botCancel": "Dừng thảo luận"

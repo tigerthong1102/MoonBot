@@ -4270,7 +4270,7 @@
   "personalInbox.botWaiting": "Чекаємо на бота",
   "personalInbox.botStart": "Почати обговорення",
   "personalInbox.botNoDevice": "Відкрийте повідомлення в вашому десктопному додаткуStartupBot для призначення бота.",
-  "personalInbox.botNone": "У цьому прімерці немає доступних ботів.",
+  "personalInbox.botNone": "На цьому комп’ютері немає ботів, яких можна запросити.",
   "personalInbox.botFailed": "Бот не зміг відповісти.",
   "personalInbox.botDone": "Обговорення завершено",
   "personalInbox.botCancel": "Зупинити обговорення",

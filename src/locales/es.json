@@ -6698,7 +6698,7 @@
   "personalInbox.botWaiting": "Esperando al bot",
   "personalInbox.botStart": "Iniciar conversación",
   "personalInbox.botNoDevice": "Abre Mensajes en tu aplicación de escritorio de StartupBot para invitar un bot.",
-  "personalInbox.botNone": "No hay bots disponibles en este espacio de trabajo.",
+  "personalInbox.botNone": "No hay bots disponibles en este equipo.",
   "personalInbox.botFailed": "El bot no pudo responder.",
   "personalInbox.botDone": "Debate completo",
   "personalInbox.botCancel": "Detener conversación"

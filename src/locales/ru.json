@@ -7503,7 +7503,7 @@
   "personalInbox.botWaiting": "Ожидание бота",
   "personalInbox.botStart": "Начать обсуждение",
   "personalInbox.botNoDevice": "Откройте Сообщения в вашем приложении StartupBot для приглашения бота.",
-  "personalInbox.botNone": "В этом рабочем пространстве нет доступных ботов.",
+  "personalInbox.botNone": "На этом компьютере нет ботов, которых можно пригласить.",
   "personalInbox.botFailed": "Бот не смог ответить.",
   "personalInbox.botDone": "Обсуждение завершено",
   "personalInbox.botCancel": "Остановить обсуждение",

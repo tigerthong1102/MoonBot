@@ -4000,7 +4000,7 @@
   "personalInbox.botWaiting": "En attente du bot",
   "personalInbox.botStart": "Démarrer la discussion",
   "personalInbox.botNoDevice": "Ouvrez les messages dans votre application de bureau StartupBot pour inviter un bot.",
-  "personalInbox.botNone": "Aucun bot disponible dans cet espace de travail.",
+  "personalInbox.botNone": "Aucun bot disponible sur cet ordinateur.",
   "personalInbox.botFailed": "Le bot n'a pas pu répondre.",
   "personalInbox.botDone": "Discussion terminée",
   "personalInbox.botCancel": "Arrêter la discussion"

@@ -6186,7 +6186,7 @@
   "personalInbox.botWaiting": "Bot yanıt veriyor",
   "personalInbox.botStart": "Tartışmayı başlat",
   "personalInbox.botNoDevice": "StartupBot masaüstü uygulamanızdaki Mesajlar'ı açın ve bir botu davet et.",
-  "personalInbox.botNone": "Bu çalışma alanında mevcut bot yok.",
+  "personalInbox.botNone": "Bu bilgisayarda davet edilebilecek bot yok.",
   "personalInbox.botFailed": "Bot yanıt veremedi.",
   "personalInbox.botDone": "Konuşma tamamlandı",
   "personalInbox.botCancel": "Tartışmayı durdur",

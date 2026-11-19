@@ -7323,7 +7323,7 @@
   "personalInbox.botWaiting": "In attesa del bot",
   "personalInbox.botStart": "Inizia la discussione",
   "personalInbox.botNoDevice": "Apri i Messaggi nel tuo'app desktop di StartupBot per invitare un bot.",
-  "personalInbox.botNone": "Nessun bot disponibile in questo spazio di lavoro.",
+  "personalInbox.botNone": "Nessun bot disponibile su questo computer.",
   "personalInbox.botFailed": "Il bot non ha risposto.",
   "personalInbox.botDone": "Discussione completata",
   "personalInbox.botCancel": "Fermare la discussione"

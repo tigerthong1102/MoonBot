@@ -10442,7 +10442,7 @@
   "personalInbox.botWaiting": "等待机器人回复",
   "personalInbox.botStart": "开始讨论",
   "personalInbox.botNoDevice": "在StartupBot桌面应用中打开消息以邀请机器人。",
-  "personalInbox.botNone": "此工作空间中没有可用的机器人。",
+  "personalInbox.botNone": "这台电脑上没有可邀请的机器人。",
   "personalInbox.botFailed": "机器人无法回复。",
   "personalInbox.botDone": "讨论完成",
   "personalInbox.botCancel": "停止讨论"

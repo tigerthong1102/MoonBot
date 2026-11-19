@@ -10546,7 +10546,7 @@
   "personalInbox.botWaiting": "等待機器人回應",
   "personalInbox.botStart": "開始討論",
   "personalInbox.botNoDevice": "在StartupBot桌面應用程式中的訊息中邀請機器人。",
-  "personalInbox.botNone": "此工作空間中沒有可用的機器人。",
+  "personalInbox.botNone": "這台電腦沒有可邀請的機器人。",
   "personalInbox.botFailed": "機器人無法回應。",
   "personalInbox.botDone": "討論完成",
   "personalInbox.botCancel": "停止討論"

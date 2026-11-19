@@ -4215,7 +4215,7 @@
   "personalInbox.botWaiting": "Warte auf den Bot",
   "personalInbox.botStart": "Diskussion starten",
   "personalInbox.botNoDevice": "Öffne die Nachrichten in deiner StartupBot Desktop-App, um einen Bot einzuladen.",
-  "personalInbox.botNone": "Keine verfügbaren Bots in diesem Workspace.",
+  "personalInbox.botNone": "Auf diesem Computer sind keine Bots verfügbar.",
   "personalInbox.botFailed": "Der Bot konnte nicht antworten.",
   "personalInbox.botDone": "Diskussion abgeschlossen",
   "personalInbox.botCancel": "Diskussion beenden"

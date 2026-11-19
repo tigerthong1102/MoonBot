@@ -7462,7 +7462,7 @@
   "personalInbox.botWaiting": "Oczekuję na bota",
   "personalInbox.botStart": "Rozpocznij dyskusję",
   "personalInbox.botNoDevice": "Otwórz Wiadomości w aplikacji StartupBot na stoliku do pracy, aby zaprosić bota.",
-  "personalInbox.botNone": "Brak dostępnych botów w tym obszarze roboczym.",
+  "personalInbox.botNone": "Na tym komputerze nie ma botów, które można zaprosić.",
   "personalInbox.botFailed": "Bot nie mógł odpowiedzieć.",
   "personalInbox.botDone": "Dyskusja zakończona",
   "personalInbox.botCancel": "Zatrzymaj dyskusję"

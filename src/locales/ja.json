@@ -8293,7 +8293,7 @@
   "personalInbox.botWaiting": "ボットの応答待ち",
   "personalInbox.botStart": "ディスカッションを開始",
   "personalInbox.botNoDevice": "ボットを招待するには、StartupBot デスクトップアプリのメッセージを開いてください。",
-  "personalInbox.botNone": "このワークスペースには利用可能なボットがありません。",
+  "personalInbox.botNone": "このコンピューターには招待できるボットがありません。",
   "personalInbox.botFailed": "ボットが返信できませんでした。",
   "personalInbox.botDone": "ディスカッション完了",
   "personalInbox.botCancel": "ディスカッションを停止"

@@ -3854,7 +3854,7 @@
   "personalInbox.botWaiting": "बॉट के जवाब की प्रतीक्षा है",
   "personalInbox.botStart": "चर्चा शुरू करें",
   "personalInbox.botNoDevice": "बॉट को आमंत्रित करने के लिए StartupBot डेस्कटॉप ऐप में संदेश खोलें।",
-  "personalInbox.botNone": "इस कार्यक्षेत्र में कोई बॉट उपलब्ध नहीं है।",
+  "personalInbox.botNone": "इस कंप्यूटर पर आमंत्रित करने के लिए कोई बॉट उपलब्ध नहीं है।",
   "personalInbox.botFailed": "बॉट जवाब नहीं दे सका।",
   "personalInbox.botDone": "चर्चा पूरी हुई",
   "personalInbox.botCancel": "चर्चा रोकें"

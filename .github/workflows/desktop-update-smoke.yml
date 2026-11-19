@@ -1,0 +1,48 @@
+name: Desktop update smoke
+on:
+  pull_request:
+    paths:
+      - 'electron/updater*.mjs'
+      - 'electron/desktop-update-source.cjs'
+      - 'electron/vendor/electron-updater.cjs'
+      - 'electron-builder.customer.yml'
+      - 'electron-builder.updates.cjs'
+      - 'scripts/desktop-update-manifest.mjs'
+      - 'scripts/customer-*'
+      - 'scripts/smoke-desktop-update*'
+      - '.github/workflows/desktop-update-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  packaged:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Create a disposable macOS test publisher
+        if: runner.os == 'macOS'
+        run: bash scripts/smoke-desktop-update-identity.sh
+      - name: Create a disposable Windows test publisher
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if ($env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Only ephemeral GitHub-hosted runners are supported.' }
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=StartupBot Update Fixture' -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(1)
+          $public = Join-Path $env:RUNNER_TEMP 'fixture.cer'
+          Export-Certificate -Cert $cert -FilePath $public | Out-Null
+          Import-Certificate -FilePath $public -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
+          "STARTUPBOT_SMOKE_CERT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
+      - run: node scripts/smoke-desktop-update.mjs

@@ -237,7 +237,7 @@ struct PairingView: View {
                     return
                 }
                 guard let connection = Self.parse(manualAddress) else {
-                    failure = "That address doesn't look right. Copy it from Phone settings and try again."
+                    failure = AppLanguage.message("That address doesn't look right. Copy it from Phone settings and try again.")
                     return
                 }
                 choiceGeneration += 1

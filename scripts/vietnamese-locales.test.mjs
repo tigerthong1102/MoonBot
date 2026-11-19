@@ -26,3 +26,15 @@ test("Vietnamese iOS app and share catalogs preserve every localized format argu
     }
   }
 });
+
+test("Vietnamese setup instructions preserve commands, endpoint paths and configuration identifiers", () => {
+  const english = load("src/locales/en.json");
+  const vietnamese = load("src/locales/vi.json");
+  const literal = /(?<![\w:/.])\/(?:[A-Za-z][A-Za-z0-9_-]*)(?:\/[A-Za-z0-9_-]+)*|\b(?:acknowledgePeerScope|decider\.workersAiAccountId|NAME=value)\b/g;
+  for (const [key, source] of Object.entries(english)) {
+    for (const match of source.match(literal) ?? []) {
+      if (match === "/month") continue;
+      assert.ok(vietnamese[key].includes(match), key + " must preserve " + match);
+    }
+  }
+});

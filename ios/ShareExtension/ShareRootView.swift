@@ -99,13 +99,13 @@ struct ShareRootView: View {
                 FlowLayout(spacing: 8) {
                     if model.preview.linkCount > 0 {
                         previewChip(
-                            model.preview.linkCount == 1 ? "Link" : "\(model.preview.linkCount) links",
+                            model.preview.linkCount == 1 ? String(localized: "Link") : String(localized: "\(model.preview.linkCount) links"),
                             icon: "link"
                         )
                     }
                     if model.preview.textCount > 0 {
                         previewChip(
-                            model.preview.textCount == 1 ? "Text" : "\(model.preview.textCount) text items",
+                            model.preview.textCount == 1 ? String(localized: "Text") : String(localized: "\(model.preview.textCount) text items"),
                             icon: "text.alignleft"
                         )
                     }
@@ -115,8 +115,8 @@ struct ShareRootView: View {
                 }
                 if model.preview.ignoredCount > 0 {
                     Text(model.preview.ignoredCount == 1
-                         ? "1 unsupported item was left out."
-                         : "\(model.preview.ignoredCount) unsupported items were left out.")
+                         ? String(localized: "1 unsupported item was left out.")
+                         : String(localized: "\(model.preview.ignoredCount) unsupported items were left out."))
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }

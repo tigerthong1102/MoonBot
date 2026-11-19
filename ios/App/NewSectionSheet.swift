@@ -557,7 +557,7 @@ struct NewSectionSheet: View {
             saving = false
             guard result != nil else {
                 let message = session.actionError
-                    ?? "The section could not be saved. Your bot selection is still here."
+                    ?? AppLanguage.message("The section could not be saved. Your bot selection is still here.")
                 session.actionError = nil
                 saveError = message
                 return

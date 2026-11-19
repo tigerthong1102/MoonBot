@@ -105,7 +105,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chi tiết tài khoản không sẵn sàng từ nhà cung cấp này. Hãy làm mới lại sau khi việc ủy quyền hoàn tất."
+            "value": "Nhà cung cấp chưa cung cấp thông tin tài khoản. Hãy làm mới sau khi hoàn tất cấp quyền."
           }
         }
       }
@@ -313,7 +313,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thông báo tác nhân"
+            "value": "Thông báo từ trợ lý"
           }
         }
       }
@@ -457,7 +457,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hướng nghệ thuật"
+            "value": "Phong cách hình ảnh"
           }
         }
       }
@@ -489,7 +489,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Avatar"
+            "value": "Ảnh đại diện"
           }
         }
       }
@@ -579,7 +579,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đoạn chat với bot"
+            "value": "Các luồng trò chuyện của bot"
           }
         }
       }
@@ -611,7 +611,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bộ điều khiển bạn tạo trên máy tính hiển thị ở đây."
+            "value": "Các bot bạn tạo trên máy tính sẽ xuất hiện tại đây."
           }
         }
       }
@@ -867,7 +867,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chọn ảnh PNG, JPEG, GIF hoặc WebP."
+            "value": "Hãy chọn ảnh PNG, JPEG, GIF hoặc WebP."
           }
         }
       }
@@ -898,6 +898,16 @@
         }
       }
     },
+    "Choose a supported schedule before saving this routine.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy chọn lịch được hỗ trợ trước khi lưu tác vụ định kỳ."
+          }
+        }
+      }
+    },
     "Choose an agent": {
       "localizations": {
         "pt-BR": {
@@ -909,7 +919,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chọn một đại lý"
+            "value": "Chọn trợ lý"
           }
         }
       }
@@ -942,6 +952,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chọn nhà cung cấp có sẵn để thay đổi mô hình của bot này."
+          }
+        }
+      }
+    },
+    "Choose an interval from 5 to 1,440 minutes.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy chọn khoảng thời gian từ 5 đến 1.440 phút."
           }
         }
       }
@@ -1037,7 +1057,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đóng lệnh \" slash \""
+            "value": "Đóng danh sách lệnh /"
           }
         }
       }
@@ -1426,6 +1446,16 @@
         }
       }
     },
+    "Connection cancelled.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã hủy kết nối."
+          }
+        }
+      }
+    },
     "Connection details": {
       "localizations": {
         "pt-BR": {
@@ -1453,7 +1483,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không rõ kết nối"
+            "value": "Chưa xác định được trạng thái kết nối"
           }
         }
       }
@@ -1532,6 +1562,16 @@
         }
       }
     },
+    "Conversations changed while loading. Please try opening this notification again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danh sách cuộc trò chuyện đã thay đổi trong lúc tải. Hãy mở lại thông báo này."
+          }
+        }
+      }
+    },
     "Copied": {
       "localizations": {
         "pt-BR": {
@@ -1591,7 +1631,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chép CSV"
+            "value": "Sao chép CSV"
           }
         }
       }
@@ -1607,7 +1647,17 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chép Diff"
+            "value": "Sao chép phần thay đổi"
+          }
+        }
+      }
+    },
+    "Couldn't create a thread. Check the connection and try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể tạo luồng trò chuyện. Hãy kiểm tra kết nối rồi thử lại."
           }
         }
       }
@@ -1644,6 +1694,26 @@
         }
       }
     },
+    "Couldn't open that file. Try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể mở tệp này. Hãy thử lại."
+          }
+        }
+      }
+    },
+    "Couldn't send this message. Try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể gửi tin nhắn. Hãy thử lại."
+          }
+        }
+      }
+    },
     "Couldn't start the microphone.": {
       "localizations": {
         "pt-BR": {
@@ -1672,6 +1742,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Không sao chép được."
+          }
+        }
+      }
+    },
+    "Couldn't work out that computer's address.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không xác định được địa chỉ của máy tính đó."
           }
         }
       }
@@ -2021,7 +2101,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thải bỏ"
+            "value": "Đóng"
           }
         }
       }
@@ -2101,7 +2181,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mỗi máy tính được ghép đôi riêng. Chỉ máy tính đã chọn hoạt động cùng lúc."
+            "value": "Mỗi máy tính được ghép nối riêng. Tại mỗi thời điểm, chỉ máy tính được chọn mới hoạt động."
           }
         }
       }
@@ -2427,6 +2507,16 @@
         }
       }
     },
+    "Every bot that may answer in this channel must use a model that supports images.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mọi bot có thể trả lời trong kênh này phải dùng mô hình hỗ trợ hình ảnh."
+          }
+        }
+      }
+    },
     "Every step a bot takes.": {
       "localizations": {
         "pt-BR": {
@@ -2566,7 +2656,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tạo ra trên máy tính"
+            "value": "Tạo trên máy tính"
           }
         }
       }
@@ -2618,7 +2708,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Group"
+            "value": "Nhóm"
           }
         }
       }
@@ -2666,7 +2756,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ẩn Diff"
+            "value": "Ẩn phần thay đổi"
           }
         }
       }
@@ -2987,6 +3077,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đang tìm máy tính"
+          }
+        }
+      }
+    },
+    "Lost the connection.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã mất kết nối."
           }
         }
       }
@@ -3912,7 +4012,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mở màn hình nền"
+            "value": "Mở màn hình máy tính"
           }
         }
       }
@@ -4018,7 +4118,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mở nhánh"
+            "value": "Mở luồng trò chuyện"
           }
         }
       }
@@ -4124,7 +4224,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Máy tính khác"
+            "value": "Các máy tính khác"
           }
         }
       }
@@ -4225,6 +4325,26 @@
         }
       }
     },
+    "Pair this device with your computer to open that task.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy ghép nối thiết bị này với máy tính để mở tác vụ."
+          }
+        }
+      }
+    },
+    "Pair this device with your computer to open that thread.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy ghép nối thiết bị này với máy tính để mở luồng trò chuyện."
+          }
+        }
+      }
+    },
     "Past run receipts remain available.": {
       "localizations": {
         "pt-BR": {
@@ -4316,7 +4436,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chọn giọng nói đại diện hoặc cấu hình workspace default trên máy tính trước."
+            "value": "Trước tiên, hãy chọn giọng cho trợ lý hoặc đặt giọng mặc định của không gian làm việc trên máy tính."
           }
         }
       }
@@ -4431,7 +4551,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Giọng nói xem thử"
+            "value": "Nghe thử giọng"
           }
         }
       }
@@ -4479,7 +4599,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nhắc"
+            "value": "Chỉ dẫn"
           }
         }
       }
@@ -4559,7 +4679,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nỗ lực lý luận"
+            "value": "Mức suy luận"
           }
         }
       }
@@ -4979,7 +5099,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tên hàm"
+            "value": "Tên tác vụ định kỳ"
           }
         }
       }
@@ -5059,7 +5179,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chạy biên nhận"
+            "value": "Kết quả các lượt chạy"
           }
         }
       }
@@ -5091,7 +5211,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chạy mọi"
+            "value": "Chạy mỗi"
           }
         }
       }
@@ -5139,7 +5259,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "CÂU LỆNH TRẮNG"
+            "value": "LỆNH BẮT ĐẦU BẰNG /"
           }
         }
       }
@@ -5267,7 +5387,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bộ quét không sẵn sàng"
+            "value": "Chưa dùng được trình quét"
           }
         }
       }
@@ -5406,6 +5526,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chọn tất cả"
+          }
+        }
+      }
+    },
+    "Select the computer that sent this request before answering it.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trước khi trả lời, hãy chọn máy tính đã gửi yêu cầu này."
           }
         }
       }
@@ -5629,7 +5759,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lệnh Slash"
+            "value": "Lệnh bắt đầu bằng /"
           }
         }
       }
@@ -5693,7 +5823,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Phát âm câu trả lời"
+            "value": "Đọc to câu trả lời"
           }
         }
       }
@@ -5725,7 +5855,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bắt đầu đọc chính tả"
+            "value": "Bắt đầu nhập bằng giọng nói"
           }
         }
       }
@@ -5828,7 +5958,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dừng đọc chính tả"
+            "value": "Dừng nhập bằng giọng nói"
           }
         }
       }
@@ -6142,7 +6272,27 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Địa chỉ đó có vẻ không đúng. Sao chép nó từ thiết lập điện thoại và thử lại."
+            "value": "Địa chỉ có vẻ chưa đúng. Hãy sao chép địa chỉ từ mục Điện thoại trong phần Cài đặt rồi thử lại."
+          }
+        }
+      }
+    },
+    "That agent no longer exists.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trợ lý đó không còn tồn tại."
+          }
+        }
+      }
+    },
+    "That computer didn't answer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính đó chưa phản hồi."
           }
         }
       }
@@ -6158,7 +6308,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hình ảnh đó lớn hơn 10 MB."
+            "value": "Ảnh này vượt quá 10 MB."
           }
         }
       }
@@ -6195,6 +6345,36 @@
         }
       }
     },
+    "That pairing invitation is not valid. Start pairing again on your computer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lời mời ghép nối không hợp lệ. Hãy bắt đầu ghép nối lại trên máy tính."
+          }
+        }
+      }
+    },
+    "That task could not be opened. Try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể mở tác vụ đó. Hãy thử lại."
+          }
+        }
+      }
+    },
+    "That thread is no longer on your computer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luồng trò chuyện đó không còn trên máy tính của bạn."
+          }
+        }
+      }
+    },
     "The authorization page could not be opened. Try again after checking your browser restrictions.": {
       "localizations": {
         "pt-BR": {
@@ -6206,7 +6386,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không thể mở trang xác thực. Hãy thử lại sau khi kiểm tra các hạn chế của trình duyệt."
+            "value": "Không mở được trang cấp quyền. Hãy kiểm tra các hạn chế của trình duyệt rồi thử lại."
           }
         }
       }
@@ -6222,7 +6402,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dòng chip bị ẩn trong khi danh sách này trống."
+            "value": "Khi danh sách trống, các nút gợi ý sẽ được ẩn."
           }
         }
       }
@@ -6286,7 +6466,17 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không thể phát âm thanh được tạo ra."
+            "value": "Không thể phát âm thanh vừa tạo."
+          }
+        }
+      }
+    },
+    "The section could not be saved. Your bot selection is still here.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể lưu mục này. Các bot bạn đã chọn vẫn được giữ lại."
           }
         }
       }
@@ -6318,7 +6508,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Suy nghĩ..."
+            "value": "Đang suy nghĩ…"
           }
         }
       }
@@ -6383,6 +6573,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Máy tính này đã được kết nối và hoạt động bình thường."
+          }
+        }
+      }
+    },
+    "This computer is offline.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính này đang ngoại tuyến."
           }
         }
       }
@@ -6515,6 +6715,16 @@
         }
       }
     },
+    "This link can't be opened securely.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể mở liên kết này qua kết nối an toàn."
+          }
+        }
+      }
+    },
     "This notification has no saved computer. Open the conversation from your computer list.": {
       "localizations": {
         "en": {
@@ -6526,7 +6736,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thông báo này không có máy tính đã lưu. Hãy mở cuộc hội thoại từ danh sách máy tính."
+            "value": "Thông báo này không gắn với máy tính nào đã lưu. Hãy mở cuộc trò chuyện từ danh sách máy tính của bạn."
           }
         }
       }
@@ -6542,7 +6752,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thông báo này từ máy tính khác. Hãy chọn máy tính đó và mở lại."
+            "value": "Thông báo này đến từ một máy tính khác. Hãy chọn đúng máy tính rồi mở lại thông báo."
           }
         }
       }
@@ -6611,6 +6821,26 @@
         }
       }
     },
+    "This request cannot create a standing permission.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu này không thể cấp quyền lâu dài."
+          }
+        }
+      }
+    },
+    "This request has changed. Open the chat to review it.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu đã thay đổi. Hãy mở cuộc trò chuyện để xem lại."
+          }
+        }
+      }
+    },
     "This restores the four chips the app came with and discards your own.": {
       "localizations": {
         "pt-BR": {
@@ -6622,7 +6852,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Điều này khôi phục lại bốn chip đi kèm với ứng dụng và loại bỏ chip của bạn."
+            "value": "Bốn gợi ý mặc định sẽ được khôi phục và thay thế các gợi ý do bạn tạo."
           }
         }
       }
@@ -6639,6 +6869,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Thủ tục này sử dụng lịch được thêm bởi StartupBot mới hơn. Hãy chọn Một lần, Ngày đã chọn hoặc Mỗi X phút trước khi lưu."
+          }
+        }
+      }
+    },
+    "This saved connection is no longer available on this device. Remove it and pair again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối đã lưu không còn sử dụng được trên thiết bị này. Hãy gỡ kết nối rồi ghép nối lại."
           }
         }
       }
@@ -6736,7 +6976,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tựa"
+            "value": "Tiêu đề"
           }
         }
       }
@@ -6936,6 +7176,26 @@
         }
       }
     },
+    "Unlock this device to reach your computer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy mở khóa thiết bị này để kết nối với máy tính của bạn."
+          }
+        }
+      }
+    },
+    "Unlock this device, then try switching computers again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy mở khóa thiết bị này rồi thử chuyển máy tính lần nữa."
+          }
+        }
+      }
+    },
     "Unread": {
       "localizations": {
         "vi": {
@@ -6958,6 +7218,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tác vụ không tên"
+          }
+        }
+      }
+    },
+    "Update StartupBot on this computer before sending images.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy cập nhật StartupBot trên máy tính này trước khi gửi ảnh."
           }
         }
       }
@@ -7159,7 +7429,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Xem Diff"
+            "value": "Xem phần thay đổi"
           }
         }
       }
@@ -7223,7 +7493,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đang đợi bạn"
+            "value": "Đang chờ bạn phản hồi"
           }
         }
       }
@@ -7303,7 +7573,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đặc vụ nên làm gì?"
+            "value": "Bạn muốn trợ lý làm gì?"
           }
         }
       }
@@ -7335,7 +7605,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Những gì trợ lý này làm"
+            "value": "Vai trò của trợ lý này"
           }
         }
       }
@@ -7351,7 +7621,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Robot này làm gì?"
+            "value": "Vai trò của bot này"
           }
         }
       }
@@ -7399,7 +7669,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nó chạy ở đâu?"
+            "value": "Chạy ở đâu?"
           }
         }
       }
@@ -7511,7 +7781,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vùng làm việc"
+            "value": "Không gian làm việc"
           }
         }
       }
@@ -7528,6 +7798,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mặc định vùng làm việc"
+          }
+        }
+      }
+    },
+    "Write a message or attach a file first.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trước tiên, hãy nhập tin nhắn hoặc đính kèm tệp."
           }
         }
       }

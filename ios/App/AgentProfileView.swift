@@ -406,11 +406,11 @@ struct AgentProfileView: View {
         guard let data = try? await item.loadTransferable(type: Data.self),
               let mime = Self.imageMIME(data)
         else {
-            session.actionError = "Choose a PNG, JPEG, GIF, or WebP image."
+            session.actionError = AppLanguage.message("Choose a PNG, JPEG, GIF, or WebP image.")
             return
         }
         if data.count > 10 * 1_024 * 1_024 {
-            session.actionError = "That image is larger than 10 MB."
+            session.actionError = AppLanguage.message("That image is larger than 10 MB.")
             return
         }
         let intendedCrop = crop == .mascot ? AvatarCrop.circle : crop
@@ -451,7 +451,7 @@ struct AgentProfileView: View {
 
     private func previewVoice() async {
         guard selectedVoiceCanSpeak else {
-            session.actionError = "Pick an agent voice or configure a workspace default on your computer first."
+            session.actionError = AppLanguage.message("Pick an agent voice or configure a workspace default on your computer first.")
             return
         }
         let request = voicePreview.begin()
@@ -461,7 +461,7 @@ struct AgentProfileView: View {
         do {
             try voicePreview.play(data, request: request)
         } catch {
-            session.actionError = "The generated audio could not be played."
+            session.actionError = AppLanguage.message("The generated audio could not be played.")
         }
     }
 

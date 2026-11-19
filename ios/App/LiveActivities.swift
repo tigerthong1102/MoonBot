@@ -25,7 +25,7 @@ final class LiveActivityCoordinator {
               Activity<BotActivityAttributes>.activities.contains(where: {
             $0.attributes.connectionID == connectionID && $0.content.state.canAnswer(connectionID: connectionID, threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission)
         }) else {
-            session?.actionError = "This request has changed. Open the chat to review it."
+            session?.actionError = AppLanguage.message("This request has changed. Open the chat to review it.")
             return
         }
         await session?.answer(threadId: threadId, requestId: requestId, choice: choice, isPermission: isPermission, originConnectionID: connectionID)

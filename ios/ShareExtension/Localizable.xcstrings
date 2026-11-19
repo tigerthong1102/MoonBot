@@ -1,6 +1,76 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ is larger than %lld MB.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ vượt quá %lld MB."
+          }
+        }
+      }
+    },
+    "%@ isn't a supported document. Try PDF, text, Word, Excel, or PowerPoint.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Định dạng của %@ chưa được hỗ trợ. Hãy thử tệp PDF, văn bản, Word, Excel hoặc PowerPoint."
+          }
+        }
+      }
+    },
+    "%lld links": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld liên kết"
+          }
+        }
+      }
+    },
+    "%lld text items": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld mục văn bản"
+          }
+        }
+      }
+    },
+    "%lld unsupported items were left out.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã bỏ qua %lld mục chưa được hỗ trợ."
+          }
+        }
+      }
+    },
+    "1 unsupported item was left out.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã bỏ qua 1 mục chưa được hỗ trợ."
+          }
+        }
+      }
+    },
+    "Bot · %@": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bot · %@"
+          }
+        }
+      }
+    },
     "Bots": {
       "localizations": {
         "vi": {
@@ -27,6 +97,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hủy gửi"
+          }
+        }
+      }
+    },
+    "Channel": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kênh"
+          }
+        }
+      }
+    },
+    "Channel · %@": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kênh · %@"
           }
         }
       }
@@ -81,6 +171,26 @@
         }
       }
     },
+    "Couldn't reach %@. Keep StartupBot open and Phone access on, then try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể kết nối với %@. Hãy mở StartupBot, bật quyền truy cập từ điện thoại rồi thử lại."
+          }
+        }
+      }
+    },
+    "Couldn't reach your computer. Keep StartupBot open and Phone access on, then try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không kết nối được với máy tính. Hãy mở StartupBot, bật quyền truy cập từ điện thoại rồi thử lại."
+          }
+        }
+      }
+    },
     "Couldn't send": {
       "localizations": {
         "vi": {
@@ -121,12 +231,42 @@
         }
       }
     },
+    "Link": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liên kết"
+          }
+        }
+      }
+    },
+    "Local network": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mạng cục bộ"
+          }
+        }
+      }
+    },
     "Needs your attention": {
       "localizations": {
         "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "Cần bạn kiểm tra"
+          }
+        }
+      }
+    },
+    "Open the StartupBot app once after updating. If this phone still isn't connected, pair it before sharing.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sau khi cập nhật, hãy mở StartupBot một lần. Nếu điện thoại vẫn chưa kết nối, hãy ghép nối trước khi chia sẻ."
           }
         }
       }
@@ -147,6 +287,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Đang đọc nội dung chia sẻ"
+          }
+        }
+      }
+    },
+    "Secure HTTPS": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối HTTPS bảo mật"
           }
         }
       }
@@ -181,12 +331,32 @@
         }
       }
     },
+    "Send up to %lld items at a time.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi lần bạn có thể gửi tối đa %lld mục."
+          }
+        }
+      }
+    },
     "Sending securely…": {
       "localizations": {
         "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "Đang gửi qua kết nối bảo mật…"
+          }
+        }
+      }
+    },
+    "Sending took too long. Check your connection and try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi nội dung quá lâu. Hãy kiểm tra kết nối rồi thử lại."
           }
         }
       }
@@ -221,6 +391,76 @@
         }
       }
     },
+    "StartupBot couldn't open its secure sharing folder. Open the app once, then try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "StartupBot không mở được thư mục chia sẻ bảo mật. Hãy mở ứng dụng một lần rồi thử lại."
+          }
+        }
+      }
+    },
+    "StartupBot couldn't read %@. Try exporting it to Files first.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "StartupBot không đọc được %@. Hãy thử xuất sang ứng dụng Tệp trước."
+          }
+        }
+      }
+    },
+    "Text": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Văn bản"
+          }
+        }
+      }
+    },
+    "That text is too large to share. Send a shorter selection.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Văn bản quá dài để chia sẻ. Hãy chọn một đoạn ngắn hơn."
+          }
+        }
+      }
+    },
+    "There aren't any bots or channels to send this to yet. Create one on your computer first.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có bot hoặc kênh nào để nhận nội dung này. Hãy tạo bot hoặc kênh trên máy tính trước."
+          }
+        }
+      }
+    },
+    "There isn't any text, link, image, or supported document to send.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có văn bản, liên kết, hình ảnh hoặc tài liệu được hỗ trợ để gửi."
+          }
+        }
+      }
+    },
+    "This phone's pairing has expired. Open StartupBot and pair it again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liên kết ghép nối của điện thoại đã hết hạn. Hãy mở StartupBot và ghép nối lại."
+          }
+        }
+      }
+    },
     "Try again": {
       "localizations": {
         "vi": {
@@ -237,6 +477,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gửi lại"
+          }
+        }
+      }
+    },
+    "Update StartupBot on this computer before sharing images.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy cập nhật StartupBot trên máy tính này trước khi chia sẻ ảnh."
           }
         }
       }

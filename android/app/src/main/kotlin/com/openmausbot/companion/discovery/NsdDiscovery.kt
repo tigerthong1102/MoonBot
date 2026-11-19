@@ -2,6 +2,7 @@
 package com.openmausbot.companion.discovery
 
 import android.content.Context
+import com.openmausbot.companion.R
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
@@ -54,7 +55,6 @@ internal object DiscoveryRetry {
     const val MAX_ATTEMPTS = 3
     const val BASE_DELAY_MILLIS = 350L
 
-    const val RETRYING = "Local discovery was interrupted. Retrying…"
 
     fun isRecoverable(errorCode: Int): Boolean = errorCode == NsdManager.FAILURE_MAX_LIMIT
 
@@ -95,6 +95,7 @@ internal fun WifiManager.MulticastLock.asHandle(): MulticastLockHandle =
     }
 
 internal fun browseDiscoveryFlow(
+    getString: (Int) -> String,
     serviceType: String,
     acquireMulticastLock: () -> MulticastLockHandle?,
     startBrowse: (NsdManager.DiscoveryListener) -> Unit,
@@ -194,7 +195,7 @@ internal fun browseDiscoveryFlow(
                 return
             }
             attempts += 1
-            failure = DiscoveryRetry.RETRYING
+            failure = getString(R.string.pairing_discovery_retrying)
             emit()
             launch {
                 delay(DiscoveryRetry.delayFor(attempts))
@@ -219,15 +220,13 @@ internal fun browseDiscoveryFlow(
         } catch (error: SecurityException) {
             started = false
             terminal(
-                "Local Network access is off. Enable nearby devices permission, " +
-                    "or enter a Tailscale address below.",
+                getString(R.string.pairing_discovery_off),
             )
         } catch (error: Exception) {
             started = false
             terminal(
                 error.message
-                    ?: "Local discovery isn't available right now. " +
-                    "Enter the address shown in Phone settings below.",
+                    ?: getString(R.string.pairing_discovery_unavailable),
             )
         }
     }
@@ -329,7 +328,7 @@ class NsdDiscovery(
                     DiscoveryState.Active(
                         browsing = false,
                         found = emptyList(),
-                        failure = "Local discovery isn't available right now. Enter the address shown in Phone settings below.",
+                        failure = appContext.getString(R.string.pairing_discovery_unavailable),
                     ),
                 )
             }
@@ -340,6 +339,7 @@ class NsdDiscovery(
         // nothing even when NEARBY_WIFI_DEVICES is granted. Acquire only when
         // the cold Flow is collected so close→reopen gets a fresh held lock.
         return browseDiscoveryFlow(
+            getString = appContext::getString,
             serviceType = serviceType,
             acquireMulticastLock = ::acquireMulticastLock,
             startBrowse = { listener ->
@@ -407,12 +407,11 @@ class NsdDiscovery(
 
     private fun failureMessage(errorCode: Int): String = when (errorCode) {
         NsdManager.FAILURE_INTERNAL_ERROR ->
-            "Local discovery isn't available right now. Enter the address shown in Phone settings below."
+            appContext.getString(R.string.pairing_discovery_unavailable)
         NsdManager.FAILURE_MAX_LIMIT ->
-            "Local discovery keeps getting interrupted on this phone. " +
-                "Enter the address shown in Phone settings below."
+            appContext.getString(R.string.pairing_discovery_interrupted)
         else ->
-            "Local Network access is off. Enable nearby devices permission, or enter a Tailscale address below."
+            appContext.getString(R.string.pairing_discovery_off)
     }
 
     companion object {

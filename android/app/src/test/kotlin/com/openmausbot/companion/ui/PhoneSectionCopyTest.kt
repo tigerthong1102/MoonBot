@@ -36,15 +36,12 @@ class PhoneSectionCopyTest {
     @Test
     fun `every discovery failure points at Phone settings`() {
         val source = sourceFile("discovery/NsdDiscovery.kt").readText()
-
-
-
-
-        assertEquals(
-            4,
-            countOf(source, "Enter the address shown in Phone settings below."),
-            "every discovery failure must send the person to Phone settings",
-        )
+        val hints = mapOf("pairing_discovery_unavailable" to 3, "pairing_discovery_interrupted" to 1)
+        for ((id, uses) in hints) {
+            assertEquals(uses, countOf(source, "R.string.$id"))
+            assertTrue(message("values", id).contains("Enter the address shown in Phone settings below."))
+            assertTrue(message("values-vi", id).contains("Điện thoại"))
+        }
     }
 
     @Test

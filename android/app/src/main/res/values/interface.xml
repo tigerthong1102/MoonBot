@@ -359,4 +359,8 @@
     <string name="settings_turned_off_in_system_settings">Turned off in system settings</string>
     <string name="settings_notifications_are_on">Notifications are on</string>
     <string name="settings_open_notification_settings">Open notification settings</string>
+    <string name="pairing_discovery_retrying">Local discovery was interrupted. Retrying…</string>
+    <string name="pairing_discovery_off">Local Network access is off. Enable nearby devices permission, or enter a Tailscale address below.</string>
+    <string name="pairing_discovery_unavailable">Local discovery isn\'t available right now. Enter the address shown in Phone settings below.</string>
+    <string name="pairing_discovery_interrupted">Local discovery keeps getting interrupted on this phone. Enter the address shown in Phone settings below.</string>
 </resources>

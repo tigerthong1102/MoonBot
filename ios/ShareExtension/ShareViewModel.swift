@@ -609,10 +609,10 @@ final class ShareViewModel: ObservableObject {
     private func friendlyMessage(for error: Error) -> String {
         if let apiError = error as? APIError {
             if apiError.isUnauthorized {
-                return "This phone's pairing has expired. Open StartupBot and pair it again."
+                return String(localized: "This phone's pairing has expired. Open StartupBot and pair it again.")
             }
             if isAmbiguousTransport(error) {
-                return "Couldn't reach your computer. Keep StartupBot open and Phone access on, then try again."
+                return String(localized: "Couldn't reach your computer. Keep StartupBot open and Phone access on, then try again.")
             }
         }
         return (error as? LocalizedError)?.errorDescription
@@ -635,7 +635,7 @@ final class ShareViewModel: ObservableObject {
                 return ShareDestination(
                     id: "bot:\(bot.id)", routeID: bot.id, threadID: bot.threadId,
                     name: bot.name,
-                    subtitle: task.map { "Bot · \($0)" } ?? "Bot",
+                    subtitle: task.map { String(localized: "Bot · \($0)") } ?? "Bot",
                     kind: .bot,
                     latestActivity: bot.messages?.map(\.at).max() ?? bot.createdAt,
                     supportsImages: imageCapableInstances.contains(bot.currentTaskModelSelection.instanceId)
@@ -646,7 +646,7 @@ final class ShareViewModel: ObservableObject {
             return ShareDestination(
                 id: "channel:\(room.id)", routeID: room.id, threadID: room.threadId,
                 name: room.name,
-                subtitle: task.map { "Channel · \($0)" } ?? "Channel",
+                subtitle: task.map { String(localized: "Channel · \($0)") } ?? String(localized: "Channel"),
                 kind: .channel,
                 latestActivity: room.messages?.map(\.at).max() ?? room.createdAt,
                 supportsImages: !room.memberIds.isEmpty && room.memberIds.allSatisfy { id in
@@ -667,9 +667,9 @@ final class ShareViewModel: ObservableObject {
             ?? connection.automaticEndpoints.first?.kind
             ?? CompanionEndpoint.inferredDirectKind(connection.host)
         switch kind {
-        case .hosted: return "Secure HTTPS"
+        case .hosted: return String(localized: "Secure HTTPS")
         case .tailnet: return "Tailscale"
-        case .lan, .bonjour: return "Local network"
+        case .lan, .bonjour: return String(localized: "Local network")
         }
     }
 }
@@ -684,15 +684,15 @@ private enum ShareExtensionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notPaired:
-            return "Open the StartupBot app once after updating. If this phone still isn't connected, pair it before sharing."
+            return String(localized: "Open the StartupBot app once after updating. If this phone still isn't connected, pair it before sharing.")
         case .noDestinations:
-            return "There aren't any bots or channels to send this to yet. Create one on your computer first."
+            return String(localized: "There aren't any bots or channels to send this to yet. Create one on your computer first.")
         case .imageSupportUnavailable:
-            return "Update StartupBot on this computer before sharing images."
+            return String(localized: "Update StartupBot on this computer before sharing images.")
         case let .offline(name):
-            return "Couldn't reach \(name). Keep StartupBot open and Phone access on, then try again."
+            return String(localized: "Couldn't reach \(name). Keep StartupBot open and Phone access on, then try again.")
         case .sendTimedOut:
-            return "Sending took too long. Check your connection and try again."
+            return String(localized: "Sending took too long. Check your connection and try again.")
         }
     }
 }

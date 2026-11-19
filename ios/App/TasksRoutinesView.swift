@@ -447,7 +447,7 @@ private struct RoutineEditorView: View {
     private func save() async {
         guard let connectionID, connectionID == session.connection?.id else { return }
         guard kind != .unknown else {
-            session.actionError = "Choose a supported schedule before saving this routine."
+            session.actionError = AppLanguage.message("Choose a supported schedule before saving this routine.")
             return
         }
         saving = true
@@ -464,7 +464,7 @@ private struct RoutineEditorView: View {
             schedule = .daily(time: formatter.string(from: dailyTime), weekdays: weekdays.sorted())
         case .interval:
             guard let minutes = selectedIntervalMinutes else {
-                session.actionError = "Choose an interval from 5 to 1,440 minutes."
+                session.actionError = AppLanguage.message("Choose an interval from 5 to 1,440 minutes.")
                 saving = false
                 return
             }

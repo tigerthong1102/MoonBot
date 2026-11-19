@@ -8,10 +8,10 @@ import { resolveCli } from "./procs.ts";
 
 function installedPython(): string | null {
   if (process.platform !== "win32") return null;
-  const configured = process.env.HERMES_TEST_PYTHON;
-  if (configured) {
-    if (!existsSync(configured)) throw new Error("The configured Python executable for the Hermes fixture is missing.");
-    return configured;
+  if (process.env.pythonLocation) {
+    const executable = join(process.env.pythonLocation, "python.exe");
+    if (!existsSync(executable)) throw new Error("The configured Python executable for the Hermes fixture is missing.");
+    return executable;
   }
   try {
     return execFileSync("python.exe", ["-c", "import sys; print(sys.executable)"], { encoding: "utf8", timeout: 5000 }).trim();

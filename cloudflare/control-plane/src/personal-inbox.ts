@@ -2,6 +2,9 @@ import { z } from "zod";
 import { redactSecretsInText } from "../../../shared/redact";
 import { HTTPError, json, readBoundedJSON } from "./http";
 
+import type { InboxEnv } from "./personal-inbox-worker";
+import { guestOptions, recordGuestInvite, deliverGuestMail } from "./inbox-guest";
+
 type Row = Record<string, string | number>;
 
 const email = z
@@ -9,7 +12,7 @@ const email = z
   .max(254)
   .transform((value) => value.toLowerCase());
 const create = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("direct"), id: z.uuid(), email }),
+  z.object({ kind: z.literal("direct"), id: z.uuid(), email, guest: guestOptions.optional() }),
   z.object({ kind: z.literal("group"), id: z.uuid(), title: z.string().trim().min(1).max(80) }),
 ]);
 const post = z.object({
@@ -17,7 +20,7 @@ const post = z.object({
   kind: z.enum(["text", "skill", "task"]),
   body: z.string().trim().min(1).max(8000),
 });
-const invite = z.object({ email });
+const invite = z.object({ email, guest: guestOptions.optional() });
 const remove = z.object({ person: z.string().min(1).max(128) });
 const pageSize = 50;
 export const inboxRetention = 30 * 86400_000;
@@ -54,10 +57,10 @@ function inviteMember(db: D1Database, room: string, owner: string, address: stri
     SELECT r.id,u.id,'pending' FROM inbox_rooms r JOIN "user" u ON u.email=?
     WHERE u.emailVerified=1 AND u.id!=? AND r.id=? AND r.owner=? AND r.kind=?
     AND NOT EXISTS (SELECT 1 FROM inbox_blocks WHERE person=u.id AND sender=r.owner)
-    AND (SELECT count(*) FROM inbox_members WHERE room=r.id)<20
+    AND (SELECT count(*) FROM inbox_members WHERE room=r.id)+(SELECT count(*) FROM inbox_guest_invites WHERE room=r.id AND created>=?)<20
     AND (SELECT count(*) FROM inbox_members WHERE person=u.id AND state='pending')<50`,
     )
-    .bind(address, owner, room, owner, kind);
+    .bind(address, owner, room, owner, kind, Date.now() - 7 * 86400_000);
 }
 
 function changed(result: D1Result) {
@@ -65,7 +68,8 @@ function changed(result: D1Result) {
   return json({ ok: true });
 }
 
-export async function inboxRoutes(req: Request, db: D1Database, user: string) {
+export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx: ExecutionContext) {
+  const db = env.DB;
   const url = new URL(req.url);
   if (url.pathname === "/api/blocks") {
     if (req.method === "GET") {
@@ -163,6 +167,14 @@ export async function inboxRoutes(req: Request, db: D1Database, user: string) {
         .first())
     )
       throw new HTTPError(409, "room_limit_or_conflict");
+    if (input.kind === "direct" && input.guest) {
+      if (await recordGuestInvite(env, user, input.id, input.email, input.guest))
+        ctx.waitUntil(
+          deliverGuestMail(env, input.id, input.email).catch(() =>
+            console.error("inbox invite delivery failed"),
+          ),
+        );
+    }
     return json({ id: input.id });
   }
   const match = /^\/api\/rooms\/([0-9a-f-]{36})(?:\/(invite|accept|leave|close|remove|block|posts))?$/.exec(
@@ -189,7 +201,7 @@ export async function inboxRoutes(req: Request, db: D1Database, user: string) {
         .bind(room, room, user),
       db
         .prepare(
-          `SELECT p.seq,p.kind,p.body,p.created,u.email AS author FROM inbox_posts p
+          `SELECT p.seq,CASE WHEN f.post IS NULL THEN p.kind ELSE 'file' END AS kind,p.body,p.created,u.email AS author FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
         JOIN inbox_members m ON m.room=p.room AND m.person=? AND m.state='active'
         JOIN "user" u ON u.id=p.author WHERE p.room=? AND p.seq>m.after_seq AND p.seq<? AND p.created>=?
         ORDER BY p.seq DESC LIMIT ?`,
@@ -214,6 +226,10 @@ export async function inboxRoutes(req: Request, db: D1Database, user: string) {
         .first())
     )
       throw new HTTPError(404, "unavailable");
+    if (input.guest && (await recordGuestInvite(env, user, room, input.email, input.guest)))
+      ctx.waitUntil(
+        deliverGuestMail(env, room, input.email).catch(() => console.error("inbox invite delivery failed")),
+      );
     await inviteMember(db, room, user, input.email, "group").run();
     return json({ ok: true });
   }

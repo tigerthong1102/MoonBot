@@ -14,12 +14,22 @@
     <main>
       <h1>Hộp thư</h1>
       <p role="status" id="status"></p>
+      <section id="stop-mail" hidden>
+        <button id="stop-button"></button>
+        <p id="stop-result" role="status"></p>
+      </section>
       <section id="signin" hidden>
         <p>
           Đăng nhập bằng email để nhận lời mời. Thành viên cùng cuộc trò chuyện có thể thấy địa chỉ email của
           bạn.
         </p>
         <form id="send-code">
+          <label
+            >Ngôn ngữ email / Email language<select id="mail-lang">
+              <option value="vi">Tiếng Việt</option>
+              <option value="en">English</option>
+            </select></label
+          >
           <label>Email của bạn<input name="email" type="email" required autocomplete="email" /></label
           ><button>Gửi mã đăng nhập</button>
         </form>
@@ -47,9 +57,22 @@
               </select></label
             >
             <label
-              ><span id="target-label">Email người nhận</span
-              ><input name="target" type="email" required /></label
-            ><button>Tạo</button>
+              ><span id="target-label">Email người nhận</span><input name="target" type="email" required
+            /></label>
+            <fieldset>
+              <legend>Email mời người chưa đăng ký</legend>
+              <label
+                >Ngôn ngữ người nhận<select name="locale">
+                  <option value="vi">Tiếng Việt</option>
+                  <option value="en">English</option>
+                </select></label
+              >
+              <label
+                >Lời nhắn trong email (tùy chọn)<textarea name="note" maxlength="500" rows="2"></textarea>
+              </label>
+              <small>Người nhận mới sẽ nhận một email gồm lời nhắn này và địa chỉ của bạn.</small>
+            </fieldset>
+            <button>Tạo</button>
           </form>
           <details id="blocked">
             <summary>Người đã chặn</summary>
@@ -69,8 +92,25 @@
               <ul id="members"></ul>
             </details>
             <form id="invite" hidden>
-              <label>Email người muốn mời<input name="email" type="email" required /></label
-              ><button>Mời vào nhóm</button>
+              <label>Email người muốn mời<input name="email" type="email" required /></label>
+              <fieldset>
+                <legend>Email mời người chưa đăng ký</legend>
+                <label
+                  >Ngôn ngữ người nhận<select name="locale">
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="en">English</option>
+                  </select></label
+                >
+                <label
+                  >Lời nhắn trong email (tùy chọn)<textarea name="note" maxlength="500" rows="2"></textarea>
+                </label>
+                <small>Người nhận mới sẽ nhận một email gồm lời nhắn này và địa chỉ của bạn.</small>
+              </fieldset>
+              <button>Mời vào nhóm</button>
+            </form>
+            <form id="send-file" hidden>
+              <label>Chia sẻ tệp (tối đa 1 MiB)<input type="file" name="file" required /></label
+              ><button>Gửi tệp</button>
             </form>
             <button id="older" hidden>Xem tin cũ hơn</button>
             <ol id="posts"></ol>

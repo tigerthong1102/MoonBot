@@ -9,13 +9,18 @@ let me,
   revision = 0,
   loginEmail = "",
   pendingPost,
-  pendingCreate;
+  pendingCreate,
+  pendingFile;
 let posts = [],
   viewingSaved = false,
   readingOlder = false;
 
 function fail(error) {
   const errors = {
+    upload_unavailable: "Tệp chưa được gửi. Kiểm tra quyền và giới hạn 20 tệp mỗi ngày.",
+    invalid_filename: "Tên tệp không hợp lệ.",
+    empty_file: "Tệp trống.",
+    request_too_large: "Tệp vượt quá 1 MiB.",
     rate_limited: "Bạn đã thao tác nhiều lần. Vui lòng thử lại sau.",
     room_limit_or_conflict:
       "Đã đạt giới hạn 100 cuộc trò chuyện do bạn tạo hoặc yêu cầu tạo không còn hợp lệ.",
@@ -34,7 +39,7 @@ async function api(path, data) {
       ? {}
       : {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-inbox-language": el("mail-lang").value },
           body: JSON.stringify(data),
         },
   );
@@ -67,6 +72,8 @@ function clearRoom() {
   current = null;
   posts = [];
   pendingPost = null;
+  pendingFile = null;
+  el("send-file").reset();
   readingOlder = false;
   if (el("preview").open) el("preview").close();
   el("compose").reset();
@@ -200,6 +207,7 @@ async function refresh() {
     );
   const waiting = r.kind === "direct" && detail.members.length !== 2;
   el("compose").hidden = waiting;
+  el("send-file").hidden = waiting;
   if (readingOlder)
     el("actions").append(
       button("Về tin mới nhất", async () => {
@@ -226,6 +234,7 @@ async function select(id) {
 function createLabels() {
   const form = el("create-room"),
     group = form.elements.kind.value === "group";
+  form.querySelector("fieldset").hidden = group;
   el("target-label").textContent = group ? "Tên nhóm" : "Email người nhận";
   form.elements.target.type = group ? "text" : "email";
   form.elements.target.maxLength = group ? 80 : 254;
@@ -235,12 +244,13 @@ el("create-room").onsubmit = run(async () => {
   const form = el("create-room"),
     kind = form.elements.kind.value,
     target = form.elements.target.value.trim();
-  const key = JSON.stringify([kind, target]);
+  const guest = { locale: form.elements.locale.value, note: form.elements.note.value.trim() };
+  const key = JSON.stringify([kind, target, guest]);
   if (pendingCreate?.key !== key) pendingCreate = { key, id: crypto.randomUUID() };
   const { id } = await api("rooms", {
     kind,
     id: pendingCreate.id,
-    ...(kind === "group" ? { title: target } : { email: target }),
+    ...(kind === "group" ? { title: target } : { email: target, guest }),
   });
   pendingCreate = null;
   form.reset();
@@ -248,7 +258,11 @@ el("create-room").onsubmit = run(async () => {
   await select(id);
 });
 el("invite").onsubmit = run(async () => {
-  await api("rooms/" + current + "/invite", { email: el("invite").elements.email.value.trim() });
+  const form = el("invite");
+  await api("rooms/" + current + "/invite", {
+    email: form.elements.email.value.trim(),
+    guest: { locale: form.elements.locale.value, note: form.elements.note.value.trim() },
+  });
   el("invite").reset();
   status("Đã ghi nhận yêu cầu mời. Người nhận đủ điều kiện sẽ thấy lời mời trong hộp thư.");
 });
@@ -290,12 +304,17 @@ function renderPosts() {
   el("posts").replaceChildren(
     ...posts.map((p) => {
       const li = document.createElement("li"),
-        label = { skill: " · Skill", task: " · Công việc", text: "" }[p.kind];
+        label = { skill: " · Skill", task: " · Công việc", text: "", file: " · Tệp" }[p.kind];
       li.append(
         node("small", p.author + label + " · " + new Date(p.created).toLocaleString("vi-VN")),
         node("pre", p.body),
       );
-      if (p.kind !== "text")
+      if (p.kind === "file") {
+        const link = node("a", "Tải tệp");
+        link.href = "/api/rooms/" + current + "/files/" + p.seq;
+        link.download = p.body;
+        li.append(link);
+      } else if (p.kind !== "text")
         li.append(
           button(p.kind === "skill" ? "Lưu bản sao skill" : "Nhận việc", async () => {
             await api("saved", { seq: p.seq, action: "save" });
@@ -307,6 +326,29 @@ function renderPosts() {
   );
   if (!posts.length) el("posts").append(node("li", "Chưa có tin nhắn."));
 }
+el("send-file").onsubmit = run(async () => {
+  const form = el("send-file"),
+    file = form.elements.file.files[0],
+    room = current;
+  if (!file || !file.size) throw Error("empty_file");
+  if (file.size > 1048576) throw Error("request_too_large");
+  if (file !== pendingFile?.file || room !== pendingFile.room)
+    pendingFile = { file, room, nonce: crypto.randomUUID() };
+  const res = await fetch("/api/rooms/" + room + "/files/" + pendingFile.nonce, {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream", "x-inbox-name": encodeURIComponent(file.name) },
+    body: file,
+  });
+  if (!res.ok) {
+    if (res.status === 401) signedOut();
+    throw Error((await res.json()).error);
+  }
+  if (room === current && pendingFile?.file === file) {
+    form.reset();
+    pendingFile = null;
+    await refresh();
+  }
+});
 el("older").onclick = run(async () => {
   if (!posts.length) return;
   const id = current,
@@ -386,6 +428,24 @@ el("blocked").ontoggle = run(async () => {
 setInterval(() => {
   if (me && !viewingSaved && !document.hidden) refresh().catch(fail);
 }, 5000);
-start().catch((e) => {
-  if (e.message !== "unauthorized") fail(e);
-});
+el("mail-lang").value = (new URLSearchParams(location.search).get("lang") ?? navigator.language).startsWith(
+  "vi",
+)
+  ? "vi"
+  : "en";
+const stopParams = new URLSearchParams(location.hash.slice(1));
+if (stopParams.has("stop")) {
+  const token = stopParams.get("stop"),
+    en = stopParams.get("lang") === "en";
+  history.replaceState(null, "", location.pathname);
+  el("stop-mail").hidden = false;
+  el("stop-button").textContent = en ? "Stop invitation emails" : "Dừng nhận email mời";
+  el("stop-button").onclick = run(async () => {
+    await api("stop-invitations", { token });
+    el("stop-button").hidden = true;
+    el("stop-result").textContent = en ? "Invitation emails have been stopped." : "Đã dừng nhận email mời.";
+  });
+} else
+  start().catch((e) => {
+    if (e.message !== "unauthorized") fail(e);
+  });

@@ -129,7 +129,7 @@ const { createDesktopWorkspaceManager } = require("./desktop-workspace.cjs");
 const { createTrustedApprovalModeCoordinator } = require("./approval-trusted-mode.cjs");
 const { DESKTOP_MUTATION_HEADER, desktopServerHeaders } = require("./desktop-server-auth.cjs");
 const { MIN_BOUNDS, normalizeUnreadCount, resolveWindowState } = require("./window-state.cjs");
-import { configureStartupBotIdentity, internalDeepLink, packagedSmokeHome, personalInboxOrigin, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
+import { configureStartupBotIdentity, internalDeepLink, packagedSmokeHome, configuredInboxOrigin, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
 configureStartupBotIdentity(app);
 for (let index = 0; index < process.argv.length; index++) process.argv[index] = internalDeepLink(process.argv[index]);
 
@@ -1495,7 +1495,8 @@ function activeOrigin() {
 }
 
 function refreshApplicationMenu() {
-  const inbox = personalInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN);
+  const inbox = configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, require("../package.json").startupbotInboxOrigin,
+    jsonFile(path.join(app.getPath("userData"), "inbox-service.json")).read);
   Menu.setApplicationMenu(
     buildApplicationMenu({
       environments: environmentsState.environments,

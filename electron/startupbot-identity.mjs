@@ -46,3 +46,12 @@ export function personalInboxOrigin(value) {
     return null;
   }
 }
+
+export function configuredInboxOrigin(launchOrigin, packagedOrigin, readProfile) {
+  if (launchOrigin || packagedOrigin) return personalInboxOrigin(launchOrigin || packagedOrigin);
+  try {
+    return personalInboxOrigin(readProfile()?.origin);
+  } catch {
+    return null;
+  }
+}

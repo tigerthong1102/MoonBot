@@ -68,3 +68,11 @@ test("personal messaging opens only the operator-configured HTTPS origin", async
     assert.equal(personalInboxOrigin(value), null);
   }
 });
+
+test("the inbox supports installed desktop profiles and a missing configuration", async () => {
+  const { configuredInboxOrigin } = await import("./startupbot-identity.mjs");
+  const read = () => ({origin:"https://pilot.example.test"});
+  assert.equal(configuredInboxOrigin(undefined,undefined,read),"https://pilot.example.test");
+  assert.equal(configuredInboxOrigin(undefined,"https://build.example.test",read),"https://build.example.test");
+  assert.equal(configuredInboxOrigin(undefined,undefined,()=>{throw Error("missing")}),null);
+});

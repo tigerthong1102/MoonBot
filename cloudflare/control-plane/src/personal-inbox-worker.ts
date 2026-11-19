@@ -1,3 +1,5 @@
+import { inboxFile } from "./inbox-files";
+import { allowPilotLogin, claimGuestInvites, suppressGuestMail } from "./inbox-guest";
 import { z } from "zod";
 import { createAuth, deleteExpiredVerifications } from "./auth";
 import { errorResponse, HTTPError, json, withBoundedRequestBody } from "./http";
@@ -7,6 +9,7 @@ import { inboxRetention, inboxRoutes } from "./personal-inbox";
 export type InboxEnv = Pick<Env, "DB" | "EMAIL" | "BETTER_AUTH_SECRET"> & {
   BETTER_AUTH_URL: string;
   EMAIL_FROM: string;
+  INBOX_PILOT_EMAILS?: string;
   ASSETS: Pick<Fetcher, "fetch">;
 };
 
@@ -30,16 +33,33 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   if (request.method !== "GET" && request.method !== "POST") return errorResponse(405, "method_not_allowed");
   if (request.method === "POST" && request.headers.get("origin") !== url.origin)
     return errorResponse(403, "forbidden");
-  const req = await withBoundedRequestBody(request);
+  const file = /^\/api\/rooms\/([a-f0-9-]{36})\/files\/([0-9a-f-]{1,36})$/.exec(url.pathname);
+  const req = file ? request : await withBoundedRequestBody(request);
+  if (req.method === "POST" && url.pathname === "/api/stop-invitations")
+    return suppressGuestMail(req, env.DB);
   const auth = createAuth(
     env,
     ctx,
     { authBaseURL: url.origin, allowedOrigins: new Set([url.origin]), emailFrom: env.EMAIL_FROM },
     crypto.randomUUID(),
     "StartupBot",
+    req.headers.get("x-inbox-language") === "vi" ? "vi" : "en",
   );
   if (authPaths.has(url.pathname)) {
     if (req.method !== "POST") return errorResponse(405, "method_not_allowed");
+    if (!url.pathname.endsWith("/sign-out")) {
+      const input = z.object({ email: z.email().max(254) }).safeParse(
+        await req
+          .clone()
+          .json()
+          .catch(() => null),
+      );
+      if (!input.success) return errorResponse(400, "invalid_request");
+      if (!(await allowPilotLogin(env, input.data.email.toLowerCase())))
+        return url.pathname.endsWith("send-verification-otp")
+          ? json({ ok: true })
+          : errorResponse(401, "auth_failed");
+    }
     if (url.pathname.endsWith("send-verification-otp")) {
       const input = (await req
         .clone()
@@ -61,9 +81,12 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     headers: new Headers({ cookie: req.headers.get("cookie") ?? "" }),
   });
   if (!session?.user.emailVerified) return errorResponse(401, "unauthorized");
-  if (req.method === "GET" && url.pathname === "/api/me")
+  if (file) return inboxFile(req, env.DB, session.user.id, file[1], file[2], inboxRetention);
+  if (req.method === "GET" && url.pathname === "/api/me") {
+    await claimGuestInvites(env.DB, session.user.id, session.user.email.toLowerCase());
     return json({ id: session.user.id, email: session.user.email });
-  return inboxRoutes(req, env.DB, session.user.id);
+  }
+  return inboxRoutes(req, env, session.user.id, ctx);
 }
 
 export default {
@@ -88,8 +111,9 @@ export default {
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(_event, env) {
-    await env.DB.prepare("DELETE FROM inbox_posts WHERE created<?")
-      .bind(Date.now() - inboxRetention)
-      .run();
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM inbox_posts WHERE created<?").bind(Date.now() - inboxRetention),
+      env.DB.prepare("DELETE FROM inbox_guest_invites WHERE created<?").bind(Date.now() - 7 * 86400_000),
+    ]);
   },
 } satisfies ExportedHandler<InboxEnv>;

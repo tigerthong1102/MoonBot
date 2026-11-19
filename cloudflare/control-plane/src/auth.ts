@@ -10,6 +10,7 @@ export function createAuth(
   config: Pick<ControlPlaneConfig, "authBaseURL" | "allowedOrigins" | "emailFrom">,
   requestId: string,
   brand: "OpenMausBot" | "StartupBot" = "OpenMausBot",
+  language: "vi" | "en" = "en",
 ) {
   return betterAuth({
     appName: brand,
@@ -64,7 +65,7 @@ export function createAuth(
             async send(message) {
               await env.EMAIL.send(message);
             },
-          }, config.emailFrom, input, requestId, brand);
+          }, config.emailFrom, input, requestId, brand, language);
         },
       }),
       bearer({ requireSignature: true }),

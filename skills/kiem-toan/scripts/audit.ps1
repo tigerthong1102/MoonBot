@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$JobFile, [Parameter(Mandatory=$true)][string]$OutFile)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'local-path.ps1')
 . (Join-Path $PSScriptRoot 'tables.ps1')
 
 function Money($cell, $separator) {
@@ -24,11 +25,11 @@ function Measure-Source($source, $job, $table) {
         if ($table.headers -cnotcontains $p.Value) { Stop-Audit 'FIELD_NOT_FOUND' }
         $map[$p.Name] = $p.Value
     }
-    if ($map.Values.Count -ne @($map.Values | Sort-Object -Unique).Count) { Stop-Audit 'AMBIGUOUS_MAPPING' }
+    if ($map.psbase.Values.Count -ne @($map.psbase.Values | Sort-Object -Unique).Count) { Stop-Audit 'AMBIGUOUS_MAPPING' }
     $bound=@{}
     foreach ($p in $source.bind.PSObject.Properties) {
         if ($map.ContainsKey($p.Name) -or !$source.evidence -or $source.sha256 -cne $table.sha256 -or
-            $job.scope.PSObject.Properties.Name -notcontains $p.Name -or $p.Value -cne $job.scope.($p.Name)) { Stop-Audit 'INVALID_SCOPE_BINDING' }
+            $job.scope.PSObject.Properties.Name -notcontains $p.Name -or ![string]::Equals($p.Value,$job.scope.($p.Name),[StringComparison]::Ordinal)) { Stop-Audit 'INVALID_SCOPE_BINDING' }
         $bound[$p.Name]=$p.Value
     }
     foreach ($name in @($job.compareFields) + @($job.select) + @($job.keyFields)) {
@@ -106,11 +107,13 @@ function Measure-Source($source, $job, $table) {
 }
 
 try {
+    $JobFile = Get-AuditLocalPath $JobFile
+    $OutFile = Get-AuditLocalPath $OutFile
     if ((Get-Item -LiteralPath $JobFile).Length -gt 65536) { Stop-Audit 'JOB_SIZE' }
     $job = [IO.File]::ReadAllText($JobFile) | ConvertFrom-Json
     if ($job.op -notin @('inspect','find','total','compare')) { Stop-Audit 'OPERATION' }
     $left = Read-AuditTable $job.left
-    $report = [ordered]@{version='0.1.0'; generatedUtc=[DateTime]::UtcNow.ToString('o'); operation=$job.op}
+    $report = [ordered]@{version='0.1.1'; generatedUtc=[DateTime]::UtcNow.ToString('o'); operation=$job.op}
     if ($job.op -ne 'inspect' -and ($left.metadataOnly -or ($job.op -eq 'compare' -and !$job.right))) { Stop-Audit 'SOURCE_SELECTION' }
     if ($job.op -eq 'inspect' -and $left.metadataOnly) {
         $report.source=$left
@@ -128,8 +131,8 @@ try {
             $b = Measure-Source $job.right $job $right
             $report.right=$b.summary
             $keys=[Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
-            foreach ($key in $a.groups.Keys) { [void]$keys.Add($key) }
-            foreach ($key in $b.groups.Keys) { [void]$keys.Add($key) }
+            foreach ($key in $a.groups.psbase.Keys) { [void]$keys.Add($key) }
+            foreach ($key in $b.groups.psbase.Keys) { [void]$keys.Add($key) }
             $exceptions=[Collections.Generic.List[object]]::new(); $matched=0
             foreach ($key in $keys) {
                 $x=$a.groups[$key]; $y=$b.groups[$key]

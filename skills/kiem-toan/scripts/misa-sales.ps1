@@ -2,9 +2,12 @@ param([Parameter(Mandatory=$true)][string]$Profile,
       [Parameter(Mandatory=$true)][string]$Month,
       [Parameter(Mandatory=$true)][string]$OutFile)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'local-path.ps1')
 $conn=$null; $reader=$null; $out=$null; $writer=$null
 $created=$false; $complete=$false
 try {
+    $Profile = Get-AuditLocalPath $Profile
+    $OutFile = Get-AuditLocalPath $OutFile
     $p=[IO.File]::ReadAllText($Profile) | ConvertFrom-Json
     if ($p.instance -cnotmatch '^[A-Za-z][A-Za-z0-9_]{0,15}$' -or !$p.database -or !$p.company -or !$p.reader -or
         $Month -cnotmatch '^\d{4}-(0[1-9]|1[0-2])$') { throw 'AUDIT_PROFILE' }

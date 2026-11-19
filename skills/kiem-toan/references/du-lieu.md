@@ -1,6 +1,6 @@
 # Sử dụng nguồn cục bộ
 
-Người dùng nói mục tiêu bằng tiếng Việt. Bot tự tạo job JSON trong thư mục hồ sơ riêng đã được phép ghi. Tệp cấu hình, bản trích và báo cáo có thể chứa định danh thật. Đặt chúng trong thư mục của người dùng được bảo vệ bằng ACL, ngoài Git, OneDrive và thư mục chia sẻ. Chọn tên đầu ra mới mỗi lần. Giữ riêng nguồn và hồ sơ của từng khách hàng.
+Người dùng nói mục tiêu bằng tiếng Việt. Bot tự tạo job JSON trong thư mục hồ sơ riêng đã được phép ghi. Tệp cấu hình, bản trích và báo cáo có thể chứa định danh thật. Đặt chúng trong thư mục của người dùng được bảo vệ bằng ACL, ngoài Git, OneDrive và thư mục chia sẻ. Chọn tên đầu ra mới mỗi lần. Giữ riêng nguồn và hồ sơ của từng khách hàng. Trên Windows dùng đường dẫn ổ cục bộ. Với tệp OneDrive theo yêu cầu hoặc đường dẫn chuyển hướng, dùng bản sao cục bộ được duyệt và đối chiếu SHA-256 trước khi đọc.
 
 ## SQL MISA
 

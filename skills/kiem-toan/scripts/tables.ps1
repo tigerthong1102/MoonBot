@@ -91,7 +91,7 @@ function Get-XlsxTable($stream, $source) {
                 }
                 if ($value -ceq '') { continue }
                 if ($n -eq $headerRow) {
-                    if ($names.ContainsValue($value) -or $names.ContainsKey($col) -or $names.Values -contains $value) { Stop-Audit 'AMBIGUOUS_HEADER' }
+                    if ($names.ContainsValue($value) -or $names.ContainsKey($col) -or $names.psbase.Values -contains $value) { Stop-Audit 'AMBIGUOUS_HEADER' }
                     $names[$col] = $value
                 } else {
                     if (!$names.ContainsKey($col)) { Stop-Audit 'XLSX_HEADER_WIDTH' }
@@ -100,11 +100,11 @@ function Get-XlsxTable($stream, $source) {
                     $values[$name] = @{text=$value; numeric=($kind -in @('', 'n'))}
                 }
             }
-            if ($n -gt $headerRow -and $values.Count) { $data.Add(@{line=$n; cells=$values}) }
+            if ($n -gt $headerRow -and $values.psbase.Count) { $data.Add(@{line=$n; cells=$values}) }
             if ($data.Count -gt 20000) { Stop-Audit 'ROW_LIMIT' }
         }
-        if (!$names.Count) { Stop-Audit 'MISSING_HEADER' }
-        return @{rows=$data; headers=@($names.Values); sheet=$source.sheet; epoch1904=$epoch1904}
+        if (!$names.psbase.Count) { Stop-Audit 'MISSING_HEADER' }
+        return @{rows=$data; headers=@($names.psbase.Values); sheet=$source.sheet; epoch1904=$epoch1904}
     } finally { $zip.Dispose() }
 }
 
@@ -159,11 +159,11 @@ function Get-XmlTable($stream, $source) {
         }
         $data.Add(@{line=$data.Count+1; cells=$cells})
     }
-    return @{rows=$data; headers=@($headers.Keys); recordPath=$source.recordPath}
+    return @{rows=$data; headers=@($headers.psbase.Keys); recordPath=$source.recordPath}
 }
 
 function Read-AuditTable($source) {
-    $path = [IO.Path]::GetFullPath($source.path)
+    $path = Get-AuditLocalPath $source.path
     $stream = [IO.File]::Open($path, 'Open', 'Read', 'Read')
     try {
         if ($stream.Length -le 0 -or $stream.Length -gt 8388608) { Stop-Audit 'FILE_SIZE' }

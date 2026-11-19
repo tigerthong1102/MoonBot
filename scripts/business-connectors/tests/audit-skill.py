@@ -75,6 +75,8 @@ class AuditSkill(unittest.TestCase):
         proc = subprocess.run([os.environ.get("AUDIT_PWSH", "pwsh"), "-NoProfile", "-NonInteractive", "-File",
                                str(SCRIPTS / "audit.ps1"), "-JobFile", str(config), "-OutFile", str(report)],
                               capture_output=True, timeout=30)
+        if isinstance(fail, bytes):
+            self.assertIn(fail, proc.stderr)
         if fail:
             self.assertNotEqual(proc.returncode, 0)
             self.assertFalse(report.exists())
@@ -111,6 +113,13 @@ class AuditSkill(unittest.TestCase):
         make_xlsx(self.xlsx,[(*ROWS[0][:-1],"khác"),*ROWS[1:]])
         self.assertIn("field_difference",[v["status"] for v in self.run_job("compare",compareFields=["label"])["exceptions"]])
 
+    def test_voucher_numbers_that_are_dictionary_properties(self):
+        rows = [("A", "2026-08", key, "1", "Q") for key in ("Keys", "Count", "Values", "002")]
+        make_xml(self.xml, rows)
+        make_xlsx(self.xlsx, rows)
+        result = self.run_job("compare")
+        self.assertEqual((result["keys"], result["matched"], result["exceptions"]), (4, 4, []))
+
     def test_inspect_and_scope_binding(self):
         self.assertEqual(self.run_job("inspect",left=dict(path=str(self.xlsx)))["source"]["sheets"],["Data"])
         self.assertEqual(self.run_job("inspect",left=dict(path=str(self.xml)))["source"]["paths"]["/sales/row"],5)
@@ -128,6 +137,9 @@ class AuditSkill(unittest.TestCase):
         self.assertNotIn("<script>", html)
         self.assertIn("&lt;script&gt;",html)
         self.assertIn("Content-Security-Policy",html)
+
+    def test_network_paths_are_rejected_before_open(self):
+        self.run_job("inspect", left=dict(path="//reserved.invalid/share/file.xlsx"), fail=b"AUDIT_LOCAL_PATH_REQUIRED")
 
     def test_invalid_inputs(self):
         make_xlsx(self.xlsx, ROWS, formula=True)

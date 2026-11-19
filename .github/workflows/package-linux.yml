@@ -52,7 +52,7 @@ jobs:
           echo '1e1124d31e10f24d420d06f8eb19442e9d17bb35a05e018639d4c6d85d742cdc  desktop.exe' | sha256sum -c -
           7z x -y -odesktop desktop.exe '*.7z' -r >/dev/null
           archive=$(find desktop -name '*.7z' | head -1)
-          7z x -y -odesktop "$archive" 'resources/companion/*' -r >/dev/null
+          7z x -y -odesktop "$archive" 'resources/companion/*' 'resources/server/*' 'resources/ui/*' -r >/dev/null
           export SITE_COMPANION="$PWD/desktop/resources/companion/index.js"
           test -f "$SITE_COMPANION"
           sudo chmod a+rw /dev/kvm

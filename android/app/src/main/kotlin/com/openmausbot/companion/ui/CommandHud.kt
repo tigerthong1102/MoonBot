@@ -27,7 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,7 +49,8 @@ fun CommandSkillHud(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val visible = remember(commands, draft) { SlashCommands.matching(commands, draft) }
+    val resources = LocalResources.current
+    val visible = SlashCommands.matching(commands, draft, resources::getString)
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -124,7 +125,7 @@ private fun CommandCard(command: SlashCommand, onSelect: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = command.description,
+                text = stringResource(command.description),
                 fontSize = 11.sp,
                 color = secondaryTint,
                 maxLines = 2,

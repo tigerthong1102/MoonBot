@@ -340,13 +340,13 @@ sealed interface SlashEffect {
 
     data object OpenTasks : SlashEffect
 
-    data class Send(val prompt: String) : SlashEffect
+    data class Send(@param:androidx.annotation.StringRes val prompt: Int) : SlashEffect
 }
 
 data class SlashCommand(
     val id: SlashCommandId,
     val title: String,
-    val description: String,
+    @param:androidx.annotation.StringRes val description: Int,
     val effect: SlashEffect,
 )
 
@@ -355,32 +355,32 @@ object SlashCommands {
         SlashCommand(
             id = SlashCommandId.COMPUTER,
             title = "/computer",
-            description = "Open live screen & desktop controls",
+            description = R.string.ui_command_computer,
             effect = SlashEffect.OpenComputer,
         ),
         SlashCommand(
             id = SlashCommandId.TASKS,
             title = "/threads",
-            description = "View and manage threads",
+            description = R.string.ui_command_threads,
             effect = SlashEffect.OpenTasks,
         ),
         SlashCommand(
             id = SlashCommandId.DIFF,
             title = "/diff",
-            description = "Inspect latest git changes and patches",
-            effect = SlashEffect.Send("Show git diff and list modified files"),
+            description = R.string.ui_command_diff,
+            effect = SlashEffect.Send(R.string.ui_diff_prompt),
         ),
         SlashCommand(
             id = SlashCommandId.RETRY,
             title = "/retry",
-            description = "Retry the last turn with fresh context",
-            effect = SlashEffect.Send("Please retry the last turn"),
+            description = R.string.ui_command_retry,
+            effect = SlashEffect.Send(R.string.ui_retry_prompt),
         ),
         SlashCommand(
             id = SlashCommandId.STEER,
             title = "/steer",
-            description = "Steer and redirect active execution",
-            effect = SlashEffect.Send("Pause and explain your current plan"),
+            description = R.string.ui_command_steer,
+            effect = SlashEffect.Send(R.string.ui_steer_prompt),
         ),
     )
 
@@ -397,11 +397,11 @@ object SlashCommands {
 
     fun openOnEntry(restoredDraft: String): Boolean = opensOnDraft(restoredDraft)
 
-    fun matching(commands: List<SlashCommand>, draft: String): List<SlashCommand> {
+    fun matching(commands: List<SlashCommand>, draft: String, describe: (Int) -> String): List<SlashCommand> {
         if (!draft.startsWith("/") || draft.length <= 1) return commands
         val query = draft.drop(1).lowercase()
         return commands.filter {
-            it.title.lowercase().contains(query) || it.description.lowercase().contains(query)
+            it.title.lowercase().contains(query) || describe(it.description).lowercase().contains(query)
         }
     }
 

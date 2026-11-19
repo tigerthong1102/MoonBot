@@ -7927,6 +7927,76 @@
           }
         }
       }
+    },
+    "Show git diff and list modified files": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiển thị thay đổi bằng git diff và liệt kê các tệp đã sửa"
+          }
+        }
+      }
+    },
+    "Please retry the last turn": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy thử lại lượt vừa rồi"
+          }
+        }
+      }
+    },
+    "Pause and explain your current plan": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy tạm dừng và giải thích kế hoạch hiện tại"
+          }
+        }
+      }
+    },
+    "Keep this answer under 2,000 characters.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vui lòng trả lời dưới 2.000 ký tự."
+          }
+        }
+      }
+    },
+    "Other answer": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Câu trả lời khác"
+          }
+        }
+      }
+    },
+    "This question format is not supported. Open it on your computer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điện thoại chưa hỗ trợ dạng câu hỏi này. Hãy mở câu hỏi trên máy tính."
+          }
+        }
+      }
+    },
+    "View and manage threads": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem và quản lý cuộc trò chuyện"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

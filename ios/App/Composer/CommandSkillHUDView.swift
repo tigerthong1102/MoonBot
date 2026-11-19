@@ -28,48 +28,50 @@ public struct CommandSkillHUDView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    public static let defaultCommands: [CommandSkillItem] = [
-        CommandSkillItem(
-            id: "computer",
-            title: "/computer",
-            description: "Open live screen & desktop controls",
-            iconName: "desktopcomputer",
-            brandColor: Color(hex: "#38BDF8"),
-            command: "/computer"
-        ),
-        CommandSkillItem(
-            id: "tasks",
-            title: "/threads",
-            description: "View and manage threads",
-            iconName: "square.stack.fill",
-            brandColor: Color(hex: "#A855F7"),
-            command: "/threads"
-        ),
-        CommandSkillItem(
-            id: "diff",
-            title: "/diff",
-            description: "Inspect latest git changes and patches",
-            iconName: "arrow.triangle.pull",
-            brandColor: Color(hex: "#22C55E"),
-            command: "Show git diff and list modified files"
-        ),
-        CommandSkillItem(
-            id: "retry",
-            title: "/retry",
-            description: "Retry the last turn with fresh context",
-            iconName: "arrow.clockwise",
-            brandColor: Color(hex: "#EAB308"),
-            command: "Please retry the last turn"
-        ),
-        CommandSkillItem(
-            id: "steer",
-            title: "/steer",
-            description: "Steer and redirect active execution",
-            iconName: "steeringwheel",
-            brandColor: Color(hex: "#F97316"),
-            command: "Pause and explain your current plan"
-        )
-    ]
+    public static var defaultCommands: [CommandSkillItem] {
+        [
+            CommandSkillItem(
+                id: "computer",
+                title: "/computer",
+                description: AppLanguage.message("Open live screen & desktop controls"),
+                iconName: "desktopcomputer",
+                brandColor: Color(hex: "#38BDF8"),
+                command: "/computer"
+            ),
+            CommandSkillItem(
+                id: "tasks",
+                title: "/threads",
+                description: AppLanguage.message("View and manage threads"),
+                iconName: "square.stack.fill",
+                brandColor: Color(hex: "#A855F7"),
+                command: "/threads"
+            ),
+            CommandSkillItem(
+                id: "diff",
+                title: "/diff",
+                description: AppLanguage.message("Inspect latest git changes and patches"),
+                iconName: "arrow.triangle.pull",
+                brandColor: Color(hex: "#22C55E"),
+                command: AppLanguage.message("Show git diff and list modified files")
+            ),
+            CommandSkillItem(
+                id: "retry",
+                title: "/retry",
+                description: AppLanguage.message("Retry the last turn with fresh context"),
+                iconName: "arrow.clockwise",
+                brandColor: Color(hex: "#EAB308"),
+                command: AppLanguage.message("Please retry the last turn")
+            ),
+            CommandSkillItem(
+                id: "steer",
+                title: "/steer",
+                description: AppLanguage.message("Steer and redirect active execution"),
+                iconName: "steeringwheel",
+                brandColor: Color(hex: "#F97316"),
+                command: AppLanguage.message("Pause and explain your current plan")
+            )
+        ]
+    }
 
     public init(
         text: Binding<String>,

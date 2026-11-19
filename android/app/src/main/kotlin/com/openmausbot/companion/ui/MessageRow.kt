@@ -517,6 +517,7 @@ private fun SharedAttachmentView(
         SharedImageAttachment(threadId, message, attachment, onOpen)
         return
     }
+    val previewLabel = stringResource(R.string.ui_file_preview, attachment.name)
     Row(
         modifier = Modifier
             .widthIn(max = 360.dp)
@@ -526,11 +527,11 @@ private fun SharedAttachmentView(
                 onOpen?.invoke(attachment, message, null)
             }
             .padding(horizontal = 12.dp, vertical = 10.dp)
-            .semantics { contentDescription = "File attachment: ${attachment.name}. Tap to preview." },
+            .semantics { contentDescription = previewLabel },
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("FILE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BubbleColor.mineText.copy(alpha = 0.68f))
+        Text(stringResource(R.string.ui_file_badge), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BubbleColor.mineText.copy(alpha = 0.68f))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 attachment.name,
@@ -584,6 +585,7 @@ private fun SharedImageAttachment(
             ?: AttachmentThumbnailState.Failed
     }
 
+    val previewLabel = stringResource(R.string.ui_image_preview, attachment.name)
     val ready = state as? AttachmentThumbnailState.Ready
     Column(
         modifier = Modifier
@@ -593,7 +595,7 @@ private fun SharedImageAttachment(
             .clickable(enabled = ready != null && onOpen != null, role = Role.Button) {
                 ready?.let { onOpen?.invoke(attachment, message, it.file) }
             }
-            .semantics { contentDescription = "Image attachment: ${attachment.name}. Tap to preview." },
+            .semantics { contentDescription = previewLabel },
     ) {
         Box(
             modifier = Modifier
@@ -731,6 +733,7 @@ private fun VoiceNoteAttachmentView(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val playbackLabel = stringResource(if (playing) R.string.ui_pause_voice else R.string.ui_play_voice)
         Box(
             modifier = Modifier
                 .size(28.dp)
@@ -748,7 +751,7 @@ private fun VoiceNoteAttachmentView(
                     }
                 }
                 .semantics {
-                    contentDescription = if (playing) "Pause voice note" else "Play voice note"
+                    contentDescription = playbackLabel
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -768,6 +771,7 @@ private fun VoiceNoteAttachmentView(
                 )
             }
         }
+        val seekLabel = stringResource(R.string.ui_seek_voice)
         Slider(
             value = if (durationSeconds > 0f) (positionMs / 1000f).coerceIn(0f, durationSeconds) else 0f,
             valueRange = if (durationSeconds > 0f) 0f..durationSeconds else 0f..1f,
@@ -780,7 +784,7 @@ private fun VoiceNoteAttachmentView(
             enabled = active != null && durationMs != null,
             modifier = Modifier
                 .weight(1f)
-                .semantics { contentDescription = "Seek voice note" },
+                .semantics { contentDescription = seekLabel },
         )
         Text(
             voiceNoteClock(positionMs) + " / " + (durationMs?.let(::voiceNoteClock) ?: "--:--"),
@@ -915,7 +919,8 @@ fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = n
     val haptics = rememberHaptics()
     var expanded by remember(items.first().id) { mutableStateOf(false) }
     val running = items.any { it.tool?.ok == null }
-    val summary = if (running) "Running ${items.size} steps" else "Ran ${items.size} steps"
+    val summary = stringResource(if (running) R.string.ui_running_steps else R.string.ui_ran_steps, items.size)
+    val expansion = stringResource(if (expanded) R.string.ui_expanded else R.string.ui_collapsed)
     Column(
         modifier = Modifier.padding(start = 4.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
@@ -928,7 +933,7 @@ fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = n
                     haptics.play(TactileAction.TOGGLE_ACTIVITY_RUN)
                 }
                 .semantics {
-                    contentDescription = "$summary, ${if (expanded) "expanded" else "collapsed"}"
+                    contentDescription = "$summary, $expansion"
                 },
             contentAlignment = Alignment.CenterStart,
         ) {
@@ -950,7 +955,7 @@ fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = n
                     )
                 }
                 Text(summary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text(if (expanded) "Hide" else "Show", fontSize = 12.sp, color = secondaryTint)
+                Text(stringResource(if (expanded) R.string.ui_hide else R.string.ui_show), fontSize = 12.sp, color = secondaryTint)
             }
         }
         if (expanded) {
@@ -1124,7 +1129,7 @@ private fun CardView(chat: Chat, message: Message, haptics: Haptics) {
                     },
                     enabled = !answering,
                 ) {
-                    Text("Always allow this tool", fontSize = 14.sp)
+                    Text(stringResource(R.string.ui_always_allow_tool), fontSize = 14.sp)
                 }
             }
         } else {
@@ -1199,12 +1204,12 @@ private fun ScreenShot(threadId: String, message: Message) {
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(20.dp),
                     )
-                    Text("Screenshot unavailable", fontSize = 13.sp, color = secondaryTint)
-                    TextButton(onClick = { attempt += 1 }) { Text("Retry") }
+                    Text(stringResource(R.string.ui_screenshot_unavailable), fontSize = 13.sp, color = secondaryTint)
+                    TextButton(onClick = { attempt += 1 }) { Text(stringResource(R.string.ui_retry)) }
                 }
                 is ScreenShotState.Ready -> Image(
                     bitmap = current.image,
-                    contentDescription = "A frame of this bot's computer",
+                    contentDescription = stringResource(R.string.ui_frame_description),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),
                 )

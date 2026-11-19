@@ -441,10 +441,11 @@ internal fun RoutineEditorSheet(
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.padding(vertical = 12.dp),
                             )
+                            val changeStart = stringResource(R.string.ui_change_interval)
                             TextButton(
                                 onClick = { pickingDate = true },
                                 modifier = Modifier.semantics {
-                                    contentDescription = "Change when the interval starts"
+                                    contentDescription = changeStart
                                 },
                             ) {
                                 Text(
@@ -661,13 +662,14 @@ internal fun RoutineEditorSheet(
 @Composable
 private fun TimeoutPicker(value: Int?, onSelect: (Int?) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
+    val timeoutLabel = stringResource(R.string.ui_routine_timeout)
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = it },
         modifier = Modifier.fillMaxWidth(),
     ) {
         OutlinedTextField(
-            value = value?.let { "$it minutes" } ?: "No limit",
+            value = value?.let { stringResource(R.string.ui_minutes_264, it) } ?: stringResource(R.string.ui_no_limit),
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(R.string.ui_stop_if_still_running_after)) },
@@ -675,7 +677,7 @@ private fun TimeoutPicker(value: Int?, onSelect: (Int?) -> Unit) {
             modifier = Modifier
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 .fillMaxWidth()
-                .semantics { contentDescription = "Routine timeout" },
+                .semantics { contentDescription = timeoutLabel },
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             DropdownMenuItem(
@@ -706,7 +708,7 @@ private fun AgentPicker(
     onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val label = bots.firstOrNull { it.id == selected }?.name ?: "Choose an agent"
+    val label = bots.firstOrNull { it.id == selected }?.name ?: stringResource(R.string.ui_choose_an_agent)
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = it },

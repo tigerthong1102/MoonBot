@@ -377,7 +377,7 @@ private fun ShareSheetContent(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Text("SHARING", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = secondaryTint)
+                            Text(stringResource(R.string.ui_sharing_heading), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = secondaryTint)
                             SharePolicy.previewChip(preview).forEach { label ->
                                 Text(label, fontSize = 15.sp)
                             }
@@ -393,7 +393,7 @@ private fun ShareSheetContent(
                 }
 
                 if (computers.isNotEmpty()) {
-                    Text("COMPUTER", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = secondaryTint)
+                    Text(stringResource(R.string.ui_computer_heading), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = secondaryTint)
                     TextButton(
                         onClick = { choosingComputer = true },
                         enabled = (phase == ShareSheetPhase.READY || phase == ShareSheetPhase.FAILED) && computers.size > 1,

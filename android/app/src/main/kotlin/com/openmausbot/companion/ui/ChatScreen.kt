@@ -271,7 +271,7 @@ private fun LoadedChat(
             haptics.play(HapticCue.SELECT)
         } catch (error: Exception) {
             if (error is kotlinx.coroutines.CancellationException) throw error
-            target.error.value = error.message ?: "Couldn't add that attachment."
+            target.error.value = error.message ?: context.getString(R.string.ui_attach_failure)
         } finally {
             target.preparing.value = false
         }
@@ -321,7 +321,7 @@ private fun LoadedChat(
             if (!filePreviews.isCurrent(requestGeneration)) return@launch
             openingFileName = null
             if (fetched == null) {
-                fileOpenError = session.actionError ?: "Couldn't open that file. Try again."
+                fileOpenError = session.actionError ?: context.getString(R.string.ui_open_file_failure)
                 session.actionError = null
                 return@launch
             }
@@ -331,7 +331,7 @@ private fun LoadedChat(
                 throw error
             } catch (_: Throwable) {
                 if (!filePreviews.isCurrent(requestGeneration)) return@launch
-                fileOpenError = "The downloaded file couldn't be previewed."
+                fileOpenError = context.getString(R.string.ui_preview_file_failure)
                 return@launch
             } ?: return@launch
             if (!filePreviews.isCurrent(requestGeneration)) return@launch
@@ -342,9 +342,9 @@ private fun LoadedChat(
     fun openLink(url: String, message: Message) {
         when (val target = LocalMessageLink.resolve(url)) {
             is LocalMessageLink.Web -> runCatching { uriHandler.openUri(target.url) }
-                .onFailure { fileOpenError = "This link can't be opened on this phone." }
+                .onFailure { fileOpenError = context.getString(R.string.ui_open_link_failure) }
             is LocalMessageLink.DesktopFile -> openFile(target.path, message)
-            null -> fileOpenError = "This link can't be opened securely."
+            null -> fileOpenError = context.getString(R.string.ui_unsafe_link)
         }
     }
 
@@ -521,7 +521,7 @@ private fun LoadedChat(
                                 ?.let(Chat::RoomChat) else null
                         }
                         if (created == null) {
-                            attachmentError = session.actionError ?: "Couldn't create this thread. Try again."
+                            attachmentError = session.actionError ?: context.getString(R.string.ui_create_thread_failure)
                             session.actionError = null
                         } else onSelectTask(created.target)
                     } finally {
@@ -568,7 +568,7 @@ private fun LoadedChat(
             }
             if (composer.onSendResult(sent, draftAtSend)) publishFrom(composer)
             if (!sent) {
-                attachmentError = session.actionError ?: "Couldn't send this message. Try again."
+                attachmentError = session.actionError ?: context.getString(R.string.ui_send_failure)
                 session.actionError = null
                 return@launch
             }
@@ -592,7 +592,7 @@ private fun LoadedChat(
                 showingTasks = true
             }
 
-            is SlashEffect.Send -> submit(effect.prompt)
+            is SlashEffect.Send -> submit(context.getString(effect.prompt))
         }
         hudOpen = false
     }
@@ -983,6 +983,7 @@ private fun ChatHeader(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            val settingsLabel = stringResource(R.string.ui_open_chat_settings, chat.name)
             ChatAvatar(
                 chat = chat,
                 size = 60.dp,
@@ -990,7 +991,7 @@ private fun ChatHeader(
                 modifier = if (chat is Chat.BotChat) {
                     Modifier
                         .clickable(role = Role.Button, onClick = onOpenProfile)
-                        .semantics { contentDescription = "Open ${chat.name} settings" }
+                        .semantics { contentDescription = settingsLabel }
                 } else {
                     Modifier
                 },
@@ -1047,9 +1048,9 @@ private fun NamePill(chat: Chat, onOpen: () -> Unit) {
             .clickable(
                 role = Role.Button,
                 onClickLabel = if (hasThreads) {
-                    "Switch thread"
+                    stringResource(R.string.ui_switch_thread)
                 } else {
-                    "Open ${chat.name} chat options"
+                    stringResource(R.string.ui_chat_options, chat.name)
                 },
                 onClick = onOpen,
             )
@@ -1098,6 +1099,7 @@ private fun BoxScope.PlusSheet(
         exit = fadeOut(tween(PLUS_MILLIS)),
         modifier = Modifier.matchParentSize(),
     ) {
+        val closeLabel = stringResource(R.string.ui_close)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1108,7 +1110,7 @@ private fun BoxScope.PlusSheet(
                     role = Role.Button,
                     onClick = onDismiss,
                 )
-                .semantics { contentDescription = "Close" },
+                .semantics { contentDescription = closeLabel },
         )
     }
 
@@ -1394,15 +1396,12 @@ private fun Composer(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
+                val hudState = stringResource(if (accessory == ComposerAccessory.HUD) R.string.ui_expanded else R.string.ui_collapsed)
                 TouchTarget(
                     onClick = onToggleHud,
                     contentDescription = stringResource(R.string.ui_slash_commands_205),
                     modifier = Modifier.semantics {
-                        stateDescription = if (accessory == ComposerAccessory.HUD) {
-                            "Expanded"
-                        } else {
-                            "Collapsed"
-                        }
+                        stateDescription = hudState
                     },
                 ) {
                     Text(

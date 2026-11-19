@@ -1,7 +1,12 @@
 # StartupBot native mobile — internal testing
 
-Current audit: [independent PR #4 review](STARTUPBOT_PR4_REVIEW.md). Android 0.1.9 / iOS build 16 contain further scoped-request, transport and memory-limit corrections; final-head native acceptance is required. Earlier results below apply only to their named SHA.
+StartupBot uses its own release series starting at **1.0.0** across macOS, Windows, iOS and Android.
+Use 1.0.1 for a patch and 1.1.0 for a compatible feature release. For each release, update the version in
+`package.json`, `android/app/build.gradle.kts` and the project-level `MARKETING_VERSION` in `ios/project.yml`.
+Increase the iOS `CURRENT_PROJECT_VERSION` for each submission. Android derives its version code from the three version components.
+Run `node scripts/record-data-format.mjs` and the package version tests before building.
 
+Historical mobile security findings and acceptance results are recorded in [the PR #4 audit](STARTUPBOT_PR4_REVIEW.md).
 
 Native source is kept separately from desktop delivery. Android is imported
 from OpenMausBot commit `16ad4080f20fcd2fb310e27d527ce0f6a36e3724` and iOS from

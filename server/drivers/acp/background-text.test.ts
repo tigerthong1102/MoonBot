@@ -12,11 +12,12 @@ import { BACKGROUND_TEXT_TIMEOUT_MS } from "./background-text.ts";
 import { createAcpDriver, type AcpConfig, type AcpSupport } from "./core.ts";
 import { CursorAgentDriver } from "./cursor.ts";
 import { GeminiAgentDriver } from "./gemini.ts";
+import { HermesAgentDriver, HERMES_CONFIG_MODEL_ID } from "./hermes.ts";
 import { GrokAgentDriver } from "./grok.ts";
 import { QwenAgentDriver } from "./qwen.ts";
 
 const FAKE_CLI = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "testing", "fake-acp-cli.ts");
-const ENV_KEYS = ["FAKE_ACP_MODE", "FAKE_ACP_DUMP", "FAKE_ACP_TEXT_REPLY"];
+const ENV_KEYS = ["FAKE_ACP_MODE", "FAKE_ACP_DUMP", "FAKE_ACP_TEXT_REPLY", "FAKE_ACP_MODELS", "FAKE_ACP_SESSION_MODELS"];
 
 describe("ACP memory one-shot (generateMemoryText)", () => {
   let instance: ProviderInstance | undefined;
@@ -58,6 +59,44 @@ describe("ACP memory one-shot (generateMemoryText)", () => {
     expect(session.cwd).toMatch(/omb-acp-memory-/);
     expect(existsSync(session.cwd)).toBe(false);
     expect(usage).toEqual([expect.objectContaining({ input: 12, output: 4 })]);
+  });
+
+  it.each([false, true])("selects the requested model before exposing text (refusal: %s)", async refused => {
+    process.env.FAKE_ACP_TEXT_REPLY = "null";
+    process.env.FAKE_ACP_DUMP = join(scratch, "selected-model");
+    process.env.FAKE_ACP_MODELS = "initial-model,fixture-selected";
+    const engine = await create(QwenAgentDriver);
+    const answer = engine.generateMemoryText!("private synthetic message", { model: refused ? "unavailable-model" : "fixture-selected" });
+    if (refused) {
+      await expect(answer).rejects.toThrow();
+      expect(existsSync(process.env.FAKE_ACP_DUMP + ".prompt.json")).toBe(false);
+    } else {
+      expect(await answer).toBe("null");
+      const calls = JSON.parse(readFileSync(process.env.FAKE_ACP_DUMP + ".config.json", "utf8"));
+      expect(calls).toContainEqual(expect.objectContaining({ method: "session/set_config_option", params: expect.objectContaining({ value: "fixture-selected" }) }));
+    }
+  });
+
+  it.each([true, false])("keeps Cursor’s confirmed native model for the picker alias (already selected: %s)", async alreadySelected => {
+    process.env.FAKE_ACP_TEXT_REPLY = "null";
+    process.env.FAKE_ACP_DUMP = join(scratch, "cursor-alias");
+    process.env.FAKE_ACP_SESSION_MODELS = alreadySelected ? "default[]|Auto,other|Other" : "other|Other,default[]|Auto";
+    process.env.FAKE_ACP_MODE = "set-model-invalid-after-first";
+    const engine = await create(CursorAgentDriver);
+    expect(await engine.generateMemoryText!("Synthetic request", { model: "auto" })).toBe("null");
+    const file = process.env.FAKE_ACP_DUMP + ".config.json";
+    const calls = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) as {method: string; params: {modelId: string}}[] : [];
+    expect(calls.filter(call => call.method === "session/set_model").map(call => call.params.modelId))
+      .toEqual(alreadySelected ? [] : ["default[]"]);
+  });
+
+  it("leaves the agent-selected Hermes default in place", async () => {
+    process.env.FAKE_ACP_MODE = "set-model-invalid-params";
+    process.env.FAKE_ACP_TEXT_REPLY = "null";
+    process.env.FAKE_ACP_DUMP = join(scratch, "hermes-default");
+    const engine = await create(HermesAgentDriver);
+    expect(await engine.generateMemoryText!("Synthetic request", { model: HERMES_CONFIG_MODEL_ID })).toBe("null");
+    expect(existsSync(process.env.FAKE_ACP_DUMP + ".config.json")).toBe(false);
   });
 
   it("runs in the interactive mode even on an instance set to full auto", async () => {

@@ -96,6 +96,14 @@ describe("Cline ACP driver", () => {
     expect(readFileSync(path, "utf8")).toBe(before);
   });
 
+  it("classifies with the configured Cline model when the picker uses its default label", async () => {
+    const { instance } = await create();
+    vi.stubEnv("FAKE_ACP_TEXT_REPLY", "null");
+    expect(await instance.generateMemoryText!("Synthetic request", { model: "cline-default", sourceThreadId: "new-main" })).toBe("null");
+    const calls = JSON.parse(readFileSync(join(scratch, "launch.json.config.json"), "utf8")) as {method: string; params: {modelId: string}}[];
+    expect(calls.filter(call => call.method === "session/set_model").map(call => call.params.modelId)).toEqual(["fixture-model"]);
+  });
+
   it("isolates native MCP settings by thread, removes revoked tools and leaves the user's settings intact", async () => {
     const ambient = join(scratch, "user-mcp.json");
     const before = '{"mcpServers":{"private-server":{"command":"must-not-run"}}}';

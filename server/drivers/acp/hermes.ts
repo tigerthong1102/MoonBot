@@ -449,6 +449,7 @@ const support: AcpSupport = {
   isAuthenticated: () => true,
   async configureSession({ request, sessionId, turn }) {
     // Decode only: ensure* here would read process.env and rewrite the user's real ~/.hermes/config.yaml.
+    if (turn.model === HERMES_CONFIG_MODEL_ID) return null;
     const native = hermesAcpModelId(turn.model);
     if (!native) return;
     await applySetting(
@@ -457,6 +458,7 @@ const support: AcpSupport = {
       { sessionId, modelId: native },
       `model "${native}"`,
     );
+    return native;
   },
   buildPromptText: (turn) => (turn.system ? `${turn.system}\n\n${turn.text}` : turn.text),
 };

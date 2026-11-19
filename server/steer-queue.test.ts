@@ -84,7 +84,7 @@ describe("steer-queue module", () => {
     expect(called).not.toHaveBeenCalled();
     bot.busy = false;
     drainSteeredMessages(store, () => {}, undefined, called);
-    expect(called.mock.calls).toEqual([[bot.id, bot.threadId, "eligible work", "person-a"]]);
+    expect(called.mock.calls).toEqual([[bot.id, bot.threadId, "eligible work", "person-a", expect.any(String)]]);
   });
 
   it("keeps readable citation prompts byte-for-byte through queue, hold, and drain", () => {

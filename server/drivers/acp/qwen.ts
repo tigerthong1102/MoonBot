@@ -173,6 +173,11 @@ export function resolveQwenTurnModel(model: string | undefined, env: Record<stri
   if (!model) return model;
   const injected = decodeInjectId(model);
   if (injected) ensureQwenInjectModel(model, env);
+  return configuredQwenModel(model, env);
+}
+
+function configuredQwenModel(model: string, env: Record<string, string | undefined>): string {
+  const injected = decodeInjectId(model);
   const routes = readQwenRoutes(env);
   if (injected) {
     const route = routes.find((row) => row.protocol === "openai" && row.model === injected.model
@@ -212,6 +217,7 @@ const support: AcpSupport = {
   models: EMPTY,
   resolveModels,
   resolveTurnModel: resolveQwenTurnModel,
+  readInjectedModel: configuredQwenModel,
   defaultCli: "qwen",
   nativeSource: "qwen.acp",
   loginNote: "Qwen Code CLI is not installed",

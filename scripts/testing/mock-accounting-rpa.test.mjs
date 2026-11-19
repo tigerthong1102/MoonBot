@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import { mockGrant, mockScope, openAccountingFixture, workflow } from "./mock-accounting-rpa.mjs";
 
 function voucher(id, details = {}) {
@@ -19,11 +19,11 @@ function input(draft, changes = {}) {
 
 function setup(t) {
   const fixture = openAccountingFixture();
-  t.after(() => fixture.dispose());
+  t.onTestFinished(() => fixture.dispose());
   return { fixture, runtime: fixture.connect() };
 }
 
-test("10,000-case synthetic corpus verifies every accepted draft and rejects known bad outcomes", async (t) => {
+test("10,000-case synthetic corpus verifies every accepted draft and rejects known bad outcomes", { timeout: 60_000 }, async (t) => {
   const { runtime } = setup(t);
   const totals = { VERIFIED: 0, UNKNOWN: 0, FAILED: 0, BLOCKED: 0 };
   let attempts = 0;
@@ -91,7 +91,7 @@ test("10,000-case synthetic corpus verifies every accepted draft and rejects kno
   assert.equal(runtime.count(), 7000);
   assert.equal(attempts, 7500);
   assert.equal(interventionCount, 7500);
-  t.diagnostic(JSON.stringify({ cases: 10_000, totals, persisted: runtime.count(), attempts, interventionCount, aiCalls: 0, inputTokens: 0, outputTokens: 0, cuaCalls: 0 }));
+  console.info(JSON.stringify({ cases: 10_000, totals, persisted: runtime.count(), attempts, interventionCount, aiCalls: 0, inputTokens: 0, outputTokens: 0, cuaCalls: 0 }));
 });
 
 test("validation uses exact money and calendar rules", async (t) => {

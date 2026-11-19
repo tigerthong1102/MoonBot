@@ -7,7 +7,7 @@ Một khóa SHA-256 theo công ty, niên độ, kiểu draft và mã chứng t�
 Chạy từ root với Node 24.
 
 ```powershell
-node --test scripts/testing/mock-accounting-rpa.test.mjs
+pnpm exec vitest run scripts/testing/mock-accounting-rpa.test.mjs
 ```
 
 **PASS trên Windows x64 với Node 24.13.1.** Năm bài kiểm thử, gồm 10.000 ca với oracle kỳ vọng. Kết quả 6.000 VERIFIED, 2.500 BLOCKED, 1.000 UNKNOWN và 500 FAILED được cố tình đưa vào. Tất cả ca khớp oracle. Có 7.500 lần dispatch và 7.000 bản ghi trong bảng thử, gồm một số bản ghi seed hoặc sai giá trị có chủ đích. Hai kết nối đồng thời và mở lại SQLite cùng dữ liệu kiểm tra mỗi khóa chỉ ghi một lần. Không thấy sai lệch bị bỏ qua, ghi trùng sau retry hay UNKNOWN bị báo VERIFIED trong các ca kiểm tra.

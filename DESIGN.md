@@ -55,6 +55,10 @@ where they belong instead of adding new places.
 - **No new asks.** No new permission asks, approval cards, confirm dialogs,
   nags or waits that interrupt the person, and no default below Full access.
   A bot gets on with the work; a change that needs undoing gets **Undo**.
+  Permanently clearing the current conversation's messages is an exception.
+  Show one confirmation in that conversation naming what will be erased and
+  what will be kept. The person can cancel before deletion. Retaining a copy
+  for Undo would defeat the request to erase the transcript.
 - **Bots set themselves up.** A new bot asks its questions in chat
   (`/setup`). Don't add form fields for things the bot can learn by asking.
 - **Simple mode comes first.** It is the default for new installs. Design the

@@ -177,7 +177,6 @@ try {
     assert.equal(transcript.status, 200);
     return JSON.stringify(transcript.body).includes(reply);
   }, "the packaged agent's completed response", 60_000);
-  const messageRoute = `/api/bots/${encodeURIComponent(bot.id)}/messages`;
   const transcript = async () => {
     const result = await request(`/api/threads/${encodeURIComponent(bot.threadId)}/messages`);
     assert.equal(result.status, 200);
@@ -188,9 +187,15 @@ try {
   const selectBot = `document.querySelector('[data-sidebar-bot-row="${bot.id}"]')`;
   await until(() => evaluate(`Boolean(${selectBot})`), "the fixture bot in the sidebar");
   await evaluate(`${selectBot}.click()`);
+  const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
   const send = async text => {
-    const result = await request(messageRoute, { threadId: bot.threadId, text });
-    assert.equal(result.status, 202, JSON.stringify(result.body));
+    await until(() => evaluate(`Boolean(${composer})`), "an enabled chat composer");
+    await evaluate(`(${composer}).focus()`);
+    await cdp("Input.insertText", { text });
+    assert.equal(await evaluate("document.activeElement.value"), text);
+    const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
+    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
   };
   await send(clear);
   const confirm = `[...document.querySelectorAll('[data-settings-card="clear-messages"] button')].find(button => button.textContent.trim() === "Delete messages")`;

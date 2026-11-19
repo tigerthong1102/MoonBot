@@ -113,10 +113,10 @@ fun RosterScreen(navigator: CompanionNavigator) {
 
     val query = bar.query
 
-    LaunchedEffect(query) {
+    LaunchedEffect(query, state.clearRevisions) {
+        hits = emptyList()
         when (val decision = SearchPolicy.decide(query)) {
             SearchPolicy.Decision.Clear -> {
-                hits = emptyList()
                 searching = false
             }
             is SearchPolicy.Decision.Remote -> {

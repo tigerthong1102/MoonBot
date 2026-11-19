@@ -21,6 +21,8 @@ describe("which frames are printed", () => {
 
   it("prints hello always, never pings, and otherwise filters by kind and conversation", () => {
     const threads = new Set(["t1"]);
+    expect(wantFrame({ kind: "messages.cleared", threadId: "t1" }, kinds, threads)).toBe(true);
+    expect(wantFrame({ kind: "messages.cleared", threadId: "t9" }, kinds, threads)).toBe(false);
     expect(wantFrame({ kind: "hello", resumed: false }, kinds, threads)).toBe(true);
     expect(wantFrame({ kind: "ping" }, kinds, null)).toBe(false);
     expect(wantFrame({ kind: "message", threadId: "t1" }, kinds, threads)).toBe(true);

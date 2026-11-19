@@ -2124,6 +2124,14 @@ describe("scrollback pages", () => {
     expect(switched.bots[0]).toMatchObject({ threadId, messages: [], hasMore: false });
   });
 
+  it("ignores stale search navigation rows after clearing and keeps the fresh reply", () => {
+    const threadId = bot.threadId;
+    const cleared = reducer(state, { type: "messagesCleared", threadId });
+    const replied = reducer(cleared, { type: "messageAdded", threadId, message: message("fresh", 10) });
+    const landed = reducer(replied, { type: "taskSwitched", bot, clearRevision: 0 });
+    expect(landed.bots[0].messages.map((row) => row.id)).toEqual(["fresh"]);
+  });
+
   it("drops a page that was in flight across a rewind, and stops the spinner", () => {
     const withLeaf = { ...bot, activeLeafId: "m4" } as never as Bot;
     const loading = reducer({ ...initialState, bots: [withLeaf] }, { type: "loadOlderMessages", threadId: "thread-1" });

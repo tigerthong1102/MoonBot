@@ -2,6 +2,11 @@
 import SwiftUI
 import CompanionCore
 
+private struct SearchRequest: Equatable {
+    let query: String
+    let clearRevisions: [String: Int]
+}
+
 struct ChatListView: View {
     @EnvironmentObject private var session: Session
     @State private var query = ""
@@ -146,10 +151,10 @@ struct ChatListView: View {
                     path.append(Chat.bot(bot))
                 }
             }
-            .task(id: query) {
+            .task(id: SearchRequest(query: query, clearRevisions: session.state.clearRevisions)) {
+                searchHits = []
                 let expected = query
                 guard expected.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 else {
-                    searchHits = []
                     searching = false
                     return
                 }

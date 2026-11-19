@@ -568,6 +568,7 @@ export interface AppState {
   loadingOlder: Record<string, true>;
   /** Bumped when a transcript is replaced or its branch moves, never on append; stale scrollback pages are dropped. */
   transcriptGeneration: Record<string, number>;
+  clearRevisions: Record<string, number>;
 }
 
 export type BotAnnouncement = Omit<Bot, "messages"> & { messages?: Message[] };
@@ -694,7 +695,7 @@ export type Action =
   | { type: "newTask"; botId: string; projectId?: string; cwd?: string; onCreated?: () => void; onError?: (message: string) => void }
   | { type: "switchTask"; botId: string; threadId: string; whole?: true }
   | { type: "switchTaskFailed"; botId: string; threadId: string }
-  | { type: "taskSwitched"; bot: Bot }
+  | { type: "taskSwitched"; bot: Bot; clearRevision?: number }
   | { type: "renameTask"; botId: string; threadId: string; title: string }
   | { type: "regenerateTaskTitle"; botId: string; threadId: string; onSettled?: (ok: boolean) => void }
   | { type: "deleteTask"; botId: string; threadId: string }
@@ -885,7 +886,7 @@ export function reducer(state: AppState, action: Action): AppState {
         hydrated: true as const,
         backgroundThreadEvents: {},
         loadingOlder: {},
-        transcriptGeneration: {},
+        transcriptGeneration: {}, clearRevisions: {},
         modelVariantSessions: {},
       };
       const held = [...hydrated.bots, ...hydrated.groups].find((owner) => owner.threadId === state.unreadDivider?.threadId);
@@ -1693,6 +1694,13 @@ export function reducer(state: AppState, action: Action): AppState {
       if (!action.dm) return patchGroupTask(state, action.groupId, action.threadId, { turnTimeoutMinutes: action.minutes ?? undefined });
       return { ...state, groups: state.groups.map((group) => group.id === action.groupId ? { ...group, turnTimeoutMinutes: action.minutes ?? undefined } : group) };
     case "taskSwitched": {
+      const threadId = action.bot.threadId;
+      if (action.clearRevision !== undefined && action.clearRevision !== (state.clearRevisions[threadId] ?? 0)) {
+        const current = state.bots.find((bot) => bot.id === action.bot.id && bot.threadId === threadId);
+        return reducer(state, { type: "taskSwitched", bot: {
+          ...action.bot, messages: current?.messages ?? [], hasMore: current?.hasMore ?? false, activeLeafId: current?.activeLeafId ?? null,
+        } });
+      }
       let switched = updateBot(bumpTranscriptGeneration(state, action.bot.threadId), action.bot.id, (bot) => ({
         ...bot,
         ...action.bot,
@@ -1794,7 +1802,7 @@ export const initialState: AppState = {
   modelVariantSessions: {},
   backgroundThreadEvents: {},
   loadingOlder: {},
-  transcriptGeneration: {},
+  transcriptGeneration: {}, clearRevisions: {},
   bots: [],
   groups: [],
   sections: [],
@@ -2740,6 +2748,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const revision = (navigation.get(action.botId) ?? 0) + 1;
           navigation.set(action.botId, revision);
           const selectedAtStart = selectionRevision.current;
+          const clearRevision = action.type === "switchTask" ? stateRef.current.clearRevisions[action.threadId] ?? 0 : undefined;
           const ready = action.type === "newTask"
             ? botPatchQueue.flush(action.botId)
             : Promise.resolve();
@@ -2752,7 +2761,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               if (!r?.bot) { if (action.type === "switchTask") rawDispatch({ type: "switchTaskFailed", botId: action.botId, threadId: action.threadId }); return; }
               const selectsAfterCreation = action.type === "newTask" && action.cwd !== undefined;
               if (selectsAfterCreation && selectionRevision.current !== selectedAtStart) return;
-              dispatch({ type: "taskSwitched", bot: r.bot });
+              dispatch({ type: "taskSwitched", bot: r.bot, clearRevision });
               if (selectsAfterCreation) rawDispatch({ type: "select", id: action.botId });
             })
             .catch((error) => {

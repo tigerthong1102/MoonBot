@@ -1332,7 +1332,8 @@ class Session(
     }
 
     suspend fun loadThread(threadId: String) {
-        requestCurrent(apply = { page -> _state.update { it.merge(page, threadId) } }) {
+        val revision = _state.value.clearRevisions[threadId]
+        requestCurrent(apply = { page -> _state.update { if (it.clearRevisions[threadId] == revision) it.merge(page, threadId) else it } }) {
             it.messages(threadId, limit = 50)
         }
     }
@@ -1344,7 +1345,8 @@ class Session(
     suspend fun loadOlder(threadId: String) {
         val origin = client ?: return
         val oldest = _state.value.transcript(threadId).firstOrNull() ?: return
-        requestCurrent(origin, apply = { page -> _state.update { it.prepend(page, threadId) } }) {
+        val revision = _state.value.clearRevisions[threadId]
+        requestCurrent(origin, apply = { page -> _state.update { if (it.clearRevisions[threadId] == revision) it.prepend(page, threadId) else it } }) {
             it.messages(threadId, before = oldest.id, limit = 50)
         }
     }
@@ -1419,6 +1421,13 @@ class Session(
 
     private suspend fun connectSearchHistory(hit: SearchHit, activeClient: CompanionClient) {
         val landing = SearchLanding(hit.threadId, hit.messageId)
+        val revision = _state.value.clearRevisions[hit.threadId]
+        fun mergeSearchPage(page: ThreadPage, leafAtRequest: String?) {
+            _state.update {
+                if (it.clearRevisions[hit.threadId] != revision) throw CancellationException("The conversation was cleared")
+                landing.merge(page, it, leafAtRequest)
+            }
+        }
         val rendered = gate.withLock {
             if (client !== activeClient) throw CancellationException("The originating computer changed")
             landing.isRendered(_state.value)
@@ -1429,7 +1438,7 @@ class Session(
         currentCoroutineContext().ensureActive()
         gate.withLock {
             if (client !== activeClient) throw CancellationException("The originating computer changed")
-            _state.update { landing.merge(page, it, leafAtRequest) }
+            mergeSearchPage(page, leafAtRequest)
         }
         while (true) {
             val cursor = gate.withLock {
@@ -1444,7 +1453,7 @@ class Session(
             currentCoroutineContext().ensureActive()
             gate.withLock {
                 if (client !== activeClient) throw CancellationException("The originating computer changed")
-                _state.update { landing.merge(page, it, leafAtRequest) }
+                mergeSearchPage(page, leafAtRequest)
             }
         }
     }
@@ -1554,8 +1563,14 @@ class Session(
     suspend fun switchTask(task: BotTask, forBot: Bot): Bot? {
         if (task.threadId == forBot.threadId) return forBot
         return mutateTask(null) { client ->
+            val revision = _state.value.clearRevisions[task.threadId]
             client.switchTask(forBot.id, task.threadId).also { updated ->
-                acceptCurrent(client) { _state.update { it.apply(Frame.Bot(updated)) } }
+                acceptCurrent(client) {
+                    _state.update {
+                        if (it.clearRevisions[task.threadId] != revision) throw CancellationException("The conversation was cleared")
+                        it.apply(Frame.Bot(updated))
+                    }
+                }
             }
         }
     }

@@ -24,6 +24,27 @@ final class StoreTests: XCTestCase {
     }
 
 
+    func testClearedFrameResetsOnlyItsThreadAndAcceptsNewMessages() throws {
+        var state = CompanionState()
+        state.hydrate(try fleet())
+        let thread = try XCTUnwrap(state.bots.first?.threadId)
+        let old = message("synthetic-old")
+        state.merge(ThreadPage(messages: [old], hasMore: true, activeLeafId: old.id), intoThread: thread)
+        state.apply(.message(threadId: "sibling", message: old))
+        let data = try JSONSerialization.data(withJSONObject: ["kind": "messages.cleared", "threadId": thread])
+        state.apply(try JSONDecoder().decode(Frame.self, from: data))
+        XCTAssertEqual(state.clearRevisions[thread], 1)
+        XCTAssertNil(state.clearRevisions["sibling"])
+        XCTAssertTrue(state.visibleTranscript(forThread: thread).isEmpty)
+        XCTAssertEqual(state.hasMore[thread], false)
+        XCTAssertNil(state.activeLeafIds[thread])
+        XCTAssertNil(state.bots.first?.activeLeafId)
+        XCTAssertEqual(state.bots.first?.messages?.count, 0)
+        XCTAssertEqual(state.transcript(forThread: "sibling").first?.id, old.id)
+        state.apply(.message(threadId: thread, message: message("fresh")))
+        XCTAssertEqual(state.visibleTranscript(forThread: thread).map(\.id), ["fresh"])
+    }
+
     func testHydrateIndexesEveryThread() throws {
         let state = try hydrated()
         XCTAssertFalse(state.bots.isEmpty)

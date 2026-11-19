@@ -33,7 +33,7 @@ async function loadThroughMessage(
 
 export async function landOnSearchHit(
   hit: SearchHit,
-  state: Pick<AppState, "bots" | "groups" | "transcriptGeneration">,
+  state: Pick<AppState, "bots" | "groups" | "transcriptGeneration" | "clearRevisions">,
   dispatch: React.Dispatch<Action>,
   threadsShown: boolean,
 ): Promise<void> {
@@ -46,7 +46,7 @@ export async function landOnSearchHit(
   if (!switchAlone) dispatch({ type: "select", id: ownerId });
   if (bot && bot.threadId !== hit.threadId && !switchAlone) {
     const result = await api(`/api/bots/${bot.id}/tasks/${hit.threadId}`, { method: "POST" });
-    if (result?.bot) dispatch({ type: "taskSwitched", bot: result.bot });
+    if (result?.bot) dispatch({ type: "taskSwitched", bot: result.bot, clearRevision: state.clearRevisions[hit.threadId] ?? 0 });
   }
   if (group && group.threadId !== hit.threadId) {
     const result = await api(`/api/groups/${group.id}/tasks/${hit.threadId}`, { method: "POST" });

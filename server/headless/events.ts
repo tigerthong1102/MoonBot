@@ -7,7 +7,7 @@ import { redactDeep } from "./output.ts";
 
 type Frame = Record<string, any>;
 
-export const DEFAULT_EVENT_KINDS = ["message", "message.patch", "thread", "bot", "group"];
+export const DEFAULT_EVENT_KINDS = ["message", "message.patch", "messages.cleared", "thread", "bot", "group"];
 const FINAL = new Set(["needs-input", "completed", "failed", "stalled", "idle"]);
 
 export function frameThreads(frame: Frame): string[] {

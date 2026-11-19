@@ -81,6 +81,7 @@ export function clearTranscript(state: AppState, action: Extract<Action, { type:
   if (owner && (owner.switchingTo === threadId || owner.awaitingThreadSnapshot)) backgroundThreadEvents[threadId] = [action];
   return {
     ...bumpTranscriptGeneration(state, threadId), backgroundThreadEvents,
+    clearRevisions: { ...state.clearRevisions, [threadId]: (state.clearRevisions[threadId] ?? 0) + 1 },
     forkPanel: state.forkPanel?.threadId === threadId ? null : state.forkPanel,
     unreadDivider: state.unreadDivider?.threadId === threadId ? null : state.unreadDivider,
     notifications: state.notifications.filter((entry) => entry.threadId !== threadId),

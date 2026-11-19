@@ -1399,8 +1399,10 @@ final class Session: ObservableObject {
     func loadOlder(threadId: String) async {
         let requestGeneration = runtimeGeneration
         guard let client, let oldest = state.transcript(forThread: threadId).first else { return }
+        let revision = state.clearRevisions[threadId]
         do {
             let page = try currentResult(try await client.messages(threadId: threadId, before: oldest.id, limit: 50), using: client, generation: requestGeneration)
+            guard state.clearRevisions[threadId] == revision else { return }
             state.prepend(page, toThread: threadId)
         } catch {
             if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }
@@ -1410,8 +1412,10 @@ final class Session: ObservableObject {
     func loadThreadIfNeeded(_ threadId: String) async {
         let requestGeneration = runtimeGeneration
         guard let client, !state.hasLoadedPage(forThread: threadId) else { return }
+        let revision = state.clearRevisions[threadId]
         do {
             let page = try currentResult(try await client.messages(threadId: threadId), using: client, generation: requestGeneration)
+            guard state.clearRevisions[threadId] == revision else { return }
             state.merge(page, intoThread: threadId)
         } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription } }
     }
@@ -1439,7 +1443,7 @@ final class Session: ObservableObject {
         do {
             if let botId = hit.botId, var bot = state.bot(botId) {
                 if bot.threadId != hit.threadId {
-                    bot = try currentResult(try await client.switchTask(botId: bot.id, threadId: hit.threadId), using: client, generation: requestGeneration)
+                    bot = try currentResult(try await switchBotTask(using: client, botId: bot.id, threadId: hit.threadId), using: client, generation: requestGeneration)
                     state.apply(.bot(bot))
                 }
                 if !hit.onActivePath {
@@ -1468,8 +1472,10 @@ final class Session: ObservableObject {
         var landing = SearchLanding(threadID: hit.threadId, messageID: hit.messageId)
         guard isCurrent(client, generation: generation) else { throw CancellationError() }
         if landing.isRendered(in: state) { return }
+        let revision = state.clearRevisions[hit.threadId]
         var leafAtRequest = landing.leaf(in: state)
         var page = try currentResult(try await client.messages(threadId: hit.threadId, around: hit.messageId), using: client, generation: generation)
+        guard state.clearRevisions[hit.threadId] == revision else { throw CancellationError() }
         state = try landing.merge(page, into: state, leafAtRequest: leafAtRequest)
         while let cursor = try landing.next(in: state) {
             leafAtRequest = landing.leaf(in: state)
@@ -1479,6 +1485,7 @@ final class Session: ObservableObject {
             case let .around(parent):
                 page = try currentResult(try await client.messages(threadId: hit.threadId, around: parent, limit: 200), using: client, generation: generation)
             }
+            guard state.clearRevisions[hit.threadId] == revision else { throw CancellationError() }
             state = try landing.merge(page, into: state, leafAtRequest: leafAtRequest)
         }
     }
@@ -1498,12 +1505,19 @@ final class Session: ObservableObject {
         } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
+    private func switchBotTask(using client: CompanionClient, botId: String, threadId: String) async throws -> Bot {
+        let revision = state.clearRevisions[threadId]
+        let bot = try await client.switchTask(botId: botId, threadId: threadId)
+        guard state.clearRevisions[threadId] == revision else { throw CancellationError() }
+        return bot
+    }
+
     @discardableResult
     func switchTask(_ task: BotTask, for bot: Bot) async -> Bot? {
         let requestGeneration = runtimeGeneration
         guard let client else { return nil }
         do {
-            let updated = try currentResult(try await client.switchTask(botId: bot.id, threadId: task.threadId), using: client, generation: requestGeneration)
+            let updated = try currentResult(try await switchBotTask(using: client, botId: bot.id, threadId: task.threadId), using: client, generation: requestGeneration)
             state.apply(.bot(updated))
             return updated
         } catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
@@ -1802,7 +1816,7 @@ final class Session: ObservableObject {
             }
             guard var selected = bot else { throw APIError.status(code: 404, message: AppLanguage.message("That agent no longer exists.")) }
             if target.requiresTaskSwitch(activeThreadId: selected.threadId) {
-                selected = try currentResult(try await client.switchTask(botId: selected.id, threadId: target.threadId), using: client, generation: requestGeneration)
+                selected = try currentResult(try await switchBotTask(using: client, botId: selected.id, threadId: target.threadId), using: client, generation: requestGeneration)
                 guard selected.threadId == target.threadId else { throw APIError.status(code: 409, message: AppLanguage.message("That task could not be opened. Try again.")) }
                 state.apply(.bot(selected))
             }
@@ -1835,7 +1849,7 @@ final class Session: ObservableObject {
             guard var selected = bot else { throw APIError.status(code: 404, message: AppLanguage.message("That agent no longer exists.")) }
             if selected.threadId != ref.threadId {
                 do {
-                    selected = try await client.switchTask(botId: selected.id, threadId: ref.threadId)
+                    selected = try await switchBotTask(using: client, botId: selected.id, threadId: ref.threadId)
                     guard requestIsCurrent() else { return nil }
                     state.apply(.bot(selected))
                 } catch APIError.status(code: 404, message: _) {

@@ -1,6 +1,9 @@
 // Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
+import android.content.res.Resources
+import com.openmausbot.companion.R
+
 import com.openmausbot.companion.core.Connection
 import com.openmausbot.companion.core.Session
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,11 +34,11 @@ object SettingsPolicy {
     const val EDIT_ADDRESS_MESSAGE =
         "Enter whatever Phone settings on your computer shows. The pairing itself is kept."
 
-    fun statusText(status: Session.Status): String = when (status) {
-        Session.Status.Live -> "Connected"
-        Session.Status.Connecting -> "Connecting…"
-        Session.Status.Unpaired -> "Not paired"
-        Session.Status.Unauthorized -> "Unpaired on the computer"
+    fun statusText(resources: Resources, status: Session.Status): String = when (status) {
+        Session.Status.Live -> resources.getString(R.string.ui_connected)
+        Session.Status.Connecting -> resources.getString(R.string.ui_connecting)
+        Session.Status.Unpaired -> resources.getString(R.string.settings_not_paired)
+        Session.Status.Unauthorized -> resources.getString(R.string.settings_unpaired_on_the_computer)
         is Session.Status.Offline -> status.message
     }
 
@@ -102,16 +105,16 @@ class NotificationPermissionController(
     }
 
     companion object {
-        fun statusText(access: NotificationAccess): String = when (access) {
-            NotificationAccess.GRANTED -> "Allowed"
-            NotificationAccess.ASKABLE -> "Not allowed"
-            NotificationAccess.BLOCKED -> "Turned off in system settings"
+        fun statusText(resources: Resources, access: NotificationAccess): String = when (access) {
+            NotificationAccess.GRANTED -> resources.getString(R.string.settings_allowed)
+            NotificationAccess.ASKABLE -> resources.getString(R.string.settings_not_allowed)
+            NotificationAccess.BLOCKED -> resources.getString(R.string.settings_turned_off_in_system_settings)
         }
 
-        fun buttonText(access: NotificationAccess): String = when (access) {
-            NotificationAccess.GRANTED -> "Notifications are on"
-            NotificationAccess.ASKABLE -> "Enable notifications"
-            NotificationAccess.BLOCKED -> "Open notification settings"
+        fun buttonText(resources: Resources, access: NotificationAccess): String = when (access) {
+            NotificationAccess.GRANTED -> resources.getString(R.string.settings_notifications_are_on)
+            NotificationAccess.ASKABLE -> resources.getString(R.string.ui_onboardingcopy_notifications_enable)
+            NotificationAccess.BLOCKED -> resources.getString(R.string.settings_open_notification_settings)
         }
 
         fun buttonEnabled(access: NotificationAccess): Boolean =

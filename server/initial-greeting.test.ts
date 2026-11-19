@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { initialGreeting, setupRequestLine } from "./initial-greeting.ts";
+import { initialGreeting, initialGreetingMessage, setupRequestLine } from "./initial-greeting.ts";
 
 describe("the line after Set me up", () => {
   it("is written in the app's language, by region, with English for any other", () => {
@@ -32,4 +32,11 @@ describe("a new bot's greeting", () => {
       expect(initialGreeting("Scout", "en", person)).toBe("Hi, I'm Scout. What would you like me to do?");
     }
   });
+});
+
+it("greets a new bot owner and offers setup choices in Vietnamese", () => {
+  const message = initialGreetingMessage("Kế toán", "vi-VN", true);
+  expect(message.text).toBe("Chào bạn, mình là Kế toán. Bạn muốn mình giúp việc gì?");
+  expect(message.setupChoices).toContain("Dữ liệu, bảng tính và báo cáo");
+  expect(setupRequestLine("vi-VN")).toContain("sắp xếp hộp thư mỗi sáng");
 });

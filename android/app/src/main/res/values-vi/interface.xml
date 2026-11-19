@@ -352,4 +352,11 @@
     <string name="chat_structured_transcript_data">Dữ liệu hội thoại có cấu trúc</string>
     <string name="chat_interrupt">Ngắt lượt xử lý</string>
     <string name="chat_stop_the_current_turn">Dừng lượt xử lý hiện tại</string>
+    <string name="settings_not_paired">Chưa ghép nối</string>
+    <string name="settings_unpaired_on_the_computer">Máy tính đã hủy ghép nối</string>
+    <string name="settings_allowed">Đã cho phép</string>
+    <string name="settings_not_allowed">Chưa cho phép</string>
+    <string name="settings_turned_off_in_system_settings">Đã tắt trong cài đặt hệ thống</string>
+    <string name="settings_notifications_are_on">Thông báo đang bật</string>
+    <string name="settings_open_notification_settings">Mở cài đặt thông báo</string>
 </resources>

@@ -60,6 +60,7 @@ fun SettingsScreen(
     onOpenVoice: (() -> Unit)? = null,
     onConnect: (() -> Unit)? = null,
 ) {
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val environment = LocalCompanion.current
     val session = environment.session
     val connection by session.connection.collectAsState()
@@ -130,7 +131,7 @@ fun SettingsScreen(
                 } else if (onConnect != null) {
                     SettingsButton(stringResource(R.string.ui_connect_a_computer), onClick = onConnect)
                 }
-                SettingsRow(stringResource(R.string.ui_connection), SettingsPolicy.statusText(status))
+                SettingsRow(stringResource(R.string.ui_connection), SettingsPolicy.statusText(resources, status))
                 if (bound != null) {
                     SettingsButton(stringResource(R.string.ui_connect_another_computer)) {
                         haptics.play(TactileAction.CONNECT_ANOTHER_COMPUTER)
@@ -182,10 +183,10 @@ fun SettingsScreen(
             SettingsSection(stringResource(R.string.ui_notifications)) {
                 SettingsRow(
                     stringResource(R.string.ui_status),
-                    NotificationPermissionController.statusText(notifications),
+                    NotificationPermissionController.statusText(resources, notifications),
                 )
                 SettingsButton(
-                    text = NotificationPermissionController.buttonText(notifications),
+                    text = NotificationPermissionController.buttonText(resources, notifications),
                     enabled = NotificationPermissionController.buttonEnabled(notifications),
                     onClick = environment.notifications::act,
                 )

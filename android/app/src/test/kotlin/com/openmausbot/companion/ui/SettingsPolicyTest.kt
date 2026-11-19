@@ -10,20 +10,24 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [34], qualifiers = "en")
 class SettingsPolicyTest {
+    private val resources get() = org.robolectric.RuntimeEnvironment.getApplication().resources
+
 
     @Test
     fun `every connection state has words for it`() {
-        assertEquals("Connected", SettingsPolicy.statusText(Session.Status.Live))
-        assertEquals("Connecting…", SettingsPolicy.statusText(Session.Status.Connecting))
-        assertEquals("Not paired", SettingsPolicy.statusText(Session.Status.Unpaired))
+        assertEquals("Connected", SettingsPolicy.statusText(resources, Session.Status.Live))
+        assertEquals("Connecting…", SettingsPolicy.statusText(resources, Session.Status.Connecting))
+        assertEquals("Not paired", SettingsPolicy.statusText(resources, Session.Status.Unpaired))
         assertEquals(
             "Unpaired on the computer",
-            SettingsPolicy.statusText(Session.Status.Unauthorized),
+            SettingsPolicy.statusText(resources, Session.Status.Unauthorized),
         )
         assertEquals(
             "You're offline.",
-            SettingsPolicy.statusText(Session.Status.Offline("You're offline.")),
+            SettingsPolicy.statusText(resources, Session.Status.Offline("You're offline.")),
         )
     }
 
@@ -85,7 +89,11 @@ class AddressEditTest {
     }
 }
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [34], qualifiers = "en")
 class NotificationPermissionControllerTest {
+    private val resources get() = org.robolectric.RuntimeEnvironment.getApplication().resources
+
 
 
     private class Phone(
@@ -149,7 +157,7 @@ class NotificationPermissionControllerTest {
         val phone = Phone(enabled = true)
         assertEquals(NotificationAccess.GRANTED, phone.controller.access.value)
         assertFalse(NotificationPermissionController.buttonEnabled(NotificationAccess.GRANTED))
-        assertEquals("Allowed", NotificationPermissionController.statusText(NotificationAccess.GRANTED))
+        assertEquals("Allowed", NotificationPermissionController.statusText(resources, NotificationAccess.GRANTED))
     }
 
     @Test
@@ -343,11 +351,11 @@ class NotificationPermissionControllerTest {
     fun `the blocked button names the settings page it opens`() {
         assertEquals(
             "Open notification settings",
-            NotificationPermissionController.buttonText(NotificationAccess.BLOCKED),
+            NotificationPermissionController.buttonText(resources, NotificationAccess.BLOCKED),
         )
         assertEquals(
             "Turned off in system settings",
-            NotificationPermissionController.statusText(NotificationAccess.BLOCKED),
+            NotificationPermissionController.statusText(resources, NotificationAccess.BLOCKED),
         )
     }
 }

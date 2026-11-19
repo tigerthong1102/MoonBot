@@ -352,4 +352,11 @@
     <string name="chat_structured_transcript_data">Structured transcript data</string>
     <string name="chat_interrupt">Interrupt</string>
     <string name="chat_stop_the_current_turn">Stop the current turn</string>
+    <string name="settings_not_paired">Not paired</string>
+    <string name="settings_unpaired_on_the_computer">Unpaired on the computer</string>
+    <string name="settings_allowed">Allowed</string>
+    <string name="settings_not_allowed">Not allowed</string>
+    <string name="settings_turned_off_in_system_settings">Turned off in system settings</string>
+    <string name="settings_notifications_are_on">Notifications are on</string>
+    <string name="settings_open_notification_settings">Open notification settings</string>
 </resources>

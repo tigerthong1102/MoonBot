@@ -477,7 +477,7 @@ struct PairingView: View {
             ?? false
     }
 
-    private func connectionBadge(for connection: Connection) -> (title: String, systemImage: String) {
+    private func connectionBadge(for connection: Connection) -> (title: LocalizedStringKey, systemImage: String) {
         let kind = connection.activeEndpoint?.kind ?? connection.automaticEndpoints.first?.kind
         if kind == .hosted {
             return ("HTTPS connection", "lock.shield.fill")

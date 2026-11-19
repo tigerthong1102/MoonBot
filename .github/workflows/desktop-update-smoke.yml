@@ -47,3 +47,6 @@ jobs:
           Import-Certificate -FilePath $public -CertStoreLocation Cert:\LocalMachine\Root -Confirm:$false | Out-Null
           "STARTUPBOT_SMOKE_CERT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
       - run: node scripts/smoke-desktop-update.mjs
+        env:
+          CSC_FOR_PULL_REQUEST: 'true'
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'

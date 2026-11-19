@@ -11,9 +11,7 @@ export const CHROME_VERSION = "153.0.8010.47";
 export const SUPPORTED_BROWSER_TARGETS = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64", "win32-x64"] as const;
 export type BrowserBundleTarget = typeof SUPPORTED_BROWSER_TARGETS[number];
 
-export function bundledBrowserTarget(platform: string, arch: string): string {
-  return platform === "win32" && arch === "arm64" ? "win32-x64" : `${platform}-${arch}`;
-}
+export { bundledBrowserTarget } from "./browser-engine-release.ts";
 
 const CHROME_ASSETS = {
   "darwin-arm64": { platform: "mac-arm64", bytes: 98668949, sha256: "6d28839675b6f22dbd7ba8775dbdabcae7a5be37b482380b27b12f05b748b955", executableSha256: "111ee425ea5b0a01dcb19fda16452a9be0319749cba374b1c987d2437d8dcedb" },

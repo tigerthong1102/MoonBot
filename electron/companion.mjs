@@ -11,7 +11,7 @@ import {
   createCompanionOriginEndpoint,
 } from "./companion-origin-gateway.mjs";
 
-import { choosePhonePort, phonePorts } from "./companion-port.mjs";
+const phonePorts = [8810, 18810];
 
 let controlPort = null;
 let phonePort = phonePorts[0];
@@ -92,13 +92,23 @@ export function rememberCompanionKeepAwake(keepAwake) {
 }
 
 /** Turns one way in on or off for good, and tells a running sidecar which direct ways in to listen on. */
-export async function rememberCompanionRoute(route, on, extra) {
+export function rememberCompanionRoute(route, on, extra) {
+  return serialize(() => changeCompanionRoute(route, on, extra));
+}
+
+async function changeCompanionRoute(route, on, extra) {
   const next = setRoute(companionSettings(), route, on, extra);
-  writeCompanionSettings(next);
   if (proc && (route === "wifi" || route === "tailscale")) {
-    await control("PUT", "/routes", { ...directRoutesOn(next), tailnetName: next.routes.tailscale.name ?? null }).catch(() => {});
+    try {
+      await control("PUT", "/routes", { ...directRoutesOn(next), tailnetName: next.routes.tailscale.name ?? null });
+    } catch (error) {
+      if (on) throw error;
+      await stop();
+    }
   }
-  return next;
+  const saved = setRoute(companionSettings(), route, on, extra);
+  writeCompanionSettings(saved);
+  return saved;
 }
 
 /** The person saw the update's note about a route kept on. */
@@ -198,8 +208,7 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
   const portFile = path.join(app.getPath("userData"), "phone-port");
   let preferred;
   try { preferred = Number(fs.readFileSync(portFile, "utf8")); } catch {}
-  try { phonePort = await choosePhonePort(preferred); }
-  catch { lastError = "No available StartupBot phone port"; return companionState(); }
+  phonePort = phonePorts.includes(preferred) ? preferred : phonePorts[0];
   controlPort = null;
   let allocatedOrigin;
   try {
@@ -240,6 +249,7 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
         ...childEnvironment,
         OMB_PORT: String(harnessPort),
         OMB_COMPANION_PORT: String(phonePort),
+        OMB_COMPANION_ALTERNATE_PORT: String(phonePorts.find(port => port !== phonePort)),
         OMB_CONTROL_PORT: "0",
       },
       execArgv: resolved.execArgv,
@@ -263,6 +273,10 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
     }
   });
   child.on("message", (message) => {
+    if (message?.type === "startupbot:companion-direct-listening" && phonePorts.includes(message.port) && !exited) {
+      phonePort = message.port;
+      try { fs.writeFileSync(portFile, String(phonePort)); } catch {}
+    }
     if (message?.type === "startupbot:companion-ready" && Number.isInteger(message.port) && message.port > 0 && message.port <= 65535 && !exited) controlPort = message.port;
     if (message?.type === "openmausbot:companion-e2e-token-rejected") e2eHooks.tokenRejected();
   });
@@ -308,7 +322,6 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
       const target = { pid: child.pid, socketPath: allocatedOrigin.socketPath };
       if (!(await companionOriginHealth(target))) throw new Error("private origin not ready");
       proc = child;
-      try { fs.writeFileSync(portFile, String(phonePort)); } catch {}
       advertisedHostedUrl = hostedUrl;
       originTarget = Object.freeze(target);
       return companionState();

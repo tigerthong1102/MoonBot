@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { once } from "node:events";
 import test from "node:test";
-import { choosePhonePort } from "./companion-port.mjs";
+import { listenOnPhonePort } from "../companion/src/phone-port.ts";
 
 test("a busy listener stays intact and a previously paired port is preferred on restart", async () => {
   const occupy = async () => {
@@ -14,14 +14,23 @@ test("a busy listener stays intact and a previously paired port is preferred on 
   const first = await occupy();
   const second = await occupy();
   const ports = [first.address().port, second.address().port];
+  const listener = createServer();
+  const bind = port => new Promise((resolve, reject) => {
+    listener.once("error", reject);
+    listener.listen(port, "0.0.0.0", resolve);
+  });
+  const close = () => new Promise(done => listener.close(done));
   try {
-    await assert.rejects(choosePhonePort(ports[0], ports), /No available/);
+    await assert.rejects(listenOnPhonePort(ports, bind), /No available/);
     await new Promise(done => second.close(done));
-    assert.equal(await choosePhonePort(ports[0], ports), ports[1]);
+    assert.equal(await listenOnPhonePort(ports, bind), ports[1]);
+    await close();
     await new Promise(done => first.close(done));
-    assert.equal(await choosePhonePort(ports[1], ports), ports[1]);
-    assert.equal(await choosePhonePort(-1, ports), ports[0]);
+    assert.equal(await listenOnPhonePort([ports[1], ports[0]], bind), ports[1]);
+    await close();
+    assert.equal(await listenOnPhonePort(ports, bind), ports[0]);
   } finally {
+    if (listener.listening) await close();
     if (first.listening) first.close();
     if (second.listening) second.close();
   }

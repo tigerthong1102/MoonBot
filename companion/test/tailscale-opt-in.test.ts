@@ -82,3 +82,46 @@ describe("the phone link and Tailscale", () => {
     expect(out).not.toContain("http://0.0.0.0");
   }, 30_000);
 });
+
+it("keeps its hosted route available when the device port is busy and accepts Wi-Fi once it is free", async () => {
+  const home = mkdtempSync(join(tmpdir(), "startupbot-hosted-only-"));
+  dirs.push(home);
+  const busy = createServer();
+  await new Promise<void>(resolve => busy.listen(0, "127.0.0.1", resolve));
+  const phonePort = (busy.address() as { port: number }).port;
+  const controlPort = await freePort();
+  const token = "a".repeat(43);
+  const child = spawn(process.execPath, [ENTRY], {
+    env: {
+      PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, HOME: home, USERPROFILE: home,
+      OMB_COMPANION_DIR: home, OMB_COMPANION_NAME: "Fixture", OMB_COMPANION_ROUTES: "", OMB_COMPANION_BONJOUR: "0",
+      OMB_PORT: String(await freePort()), OMB_WEBHOOK_PORT: String(await freePort()),
+      OMB_COMPANION_PORT: String(phonePort), OMB_CONTROL_PORT: String(controlPort), OMB_CONTROL_TOKEN: token,
+      OMB_COMPANION_HOSTED_URL: "https://phone.example.test",
+    },
+    stdio: "ignore",
+  });
+  const exited = new Promise<void>(resolve => child.once("close", () => resolve()));
+  const request = (route: string, method: "GET" | "POST" | "PUT", body?: unknown) => fetch(`http://127.0.0.1:${controlPort}${route}`, {
+    method, ...(body === undefined ? {} : { body: JSON.stringify(body) }), headers: { "x-openmausbot-control-token": token, "content-type": "application/json" },
+  });
+  type CompanionState = ReturnType<typeof import("../src/control.ts").companionState>;
+  try {
+    await expect.poll(async () => (await request("/state", "GET").catch(() => null))?.status, { timeout: 10_000 }).toBe(200);
+    expect((await request("/routes", "PUT", { wifi: true, tailscale: false })).status).toBe(503);
+    const before = await (await request("/pairing", "POST")).json() as CompanionState;
+    expect(before.directRoutes).toEqual({ wifi: false, tailscale: false });
+    expect(before.endpoints.map((endpoint: { kind: string }) => endpoint.kind)).toEqual(["hosted"]);
+    await new Promise<void>(resolve => busy.close(() => resolve()));
+    const after = await (await request("/routes", "PUT", { wifi: true, tailscale: false })).json() as CompanionState;
+    expect(after.directRoutes.wifi).toBe(true);
+    expect(after.port).toBe(phonePort);
+    expect(after.pid).toBe(before.pid);
+    expect(before.pairing?.token).toMatch(/^omb_pair_/);
+    expect(after.pairing?.token).toBe(before.pairing?.token);
+  } finally {
+    if (busy.listening) busy.close();
+    child.kill("SIGTERM");
+    await exited;
+  }
+}, 20_000);

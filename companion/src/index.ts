@@ -34,6 +34,7 @@ import { RelayClient } from "./e2e/relay-client.ts";
 import { companionOriginSocket, listenCompanionOrigin } from "./origin.ts";
 import { gzipTunnelReplies } from "./tunnel-gzip.ts";
 import { normalizedPhoneSecretPublicKey } from "./phone-secret-key.ts";
+import { listenOnPhonePort } from "./phone-port.ts";
 import { machineNameFromConfig } from "./machine-name.ts";
 
 // Only Electron supplies this port; Electron children fail closed until initialized.
@@ -70,7 +71,9 @@ const num = (value: string | undefined, fallback: number): number => {
 
 const HARNESS_PORT = num(process.env.OMB_PORT, 8799);
 const WEBHOOK_PORT = num(process.env.OMB_WEBHOOK_PORT, HARNESS_PORT + 1);
-const COMPANION_PORT = num(process.env.OMB_COMPANION_PORT, 8810);
+const preferredPort = num(process.env.OMB_COMPANION_PORT, 8810);
+let phonePort = preferredPort;
+const alternatePort = parentPort ? num(process.env.OMB_COMPANION_ALTERNATE_PORT, phonePort) : phonePort;
 const CONTROL_PORT = parentPort && process.env.OMB_CONTROL_PORT === "0" ? 0 : num(process.env.OMB_CONTROL_PORT, 8811);
 const SERVICE_TYPE = "_openmausbot._tcp";
 let hostedUrl = hostedCompanionUrl(process.env.OMB_COMPANION_HOSTED_URL);
@@ -142,7 +145,7 @@ const watcher = createAddressWatcher({
 const service = (): ServiceInfo => ({
   name: dnsLabel(machineName()),
   type: SERVICE_TYPE,
-  port: COMPANION_PORT,
+  port: phonePort,
   host: defaultHostName(),
   addresses: advertisableAddresses(),
   txt: ["v=1", `name=${clampBytes(machineName(), 200)}`],
@@ -158,7 +161,7 @@ const proxy = createProxyHandler({
     serverName: machineName,
     version: process.env.OMB_APP_VERSION,
     hosts: () => hostCandidates(),
-    endpoints: () => companionEndpointCandidates(COMPANION_PORT, undefined, undefined, hostedUrl),
+    endpoints: () => companionEndpointCandidates(phonePort, undefined, undefined, hostedUrl),
     connected: connectedDevices.open,
     e2eDescriptor: (deviceId) => e2e.descriptor(deviceId),
     e2ePaired: (context, deviceId) => e2e.paired(context, deviceId),
@@ -174,12 +177,16 @@ companion.on("connection", (socket) => {
 let directListening = false;
 
 /** Binds the device port while Same Wi-Fi or Tailscale is on, and drops connections on a way in just turned off. */
-async function syncDirectListener(): Promise<void> {
-  for (const socket of directSockets) if (!acceptsConnection(socket.localAddress, socket.remoteAddress)) socket.destroy();
-  if (anyDirectRoute() && !directListening) {
-    await listen(companion, COMPANION_PORT, "0.0.0.0");
+async function syncDirectListener(next = directRoutes()): Promise<void> {
+  if (anyDirectRoute(next) && !directListening) {
+    const ports = [...new Set([phonePort, preferredPort, alternatePort])].filter(port => !HARNESS_PORTS.has(port) && port !== CONTROL_PORT);
+    phonePort = await listenOnPhonePort(ports, port => listen(companion, port, "0.0.0.0"));
+    parentPort?.postMessage({ type: "startupbot:companion-direct-listening", port: phonePort });
     directListening = true;
-  } else if (!anyDirectRoute() && directListening) {
+  }
+  setDirectRoutes(next);
+  for (const socket of directSockets) if (!anyDirectRoute(next) || !acceptsConnection(socket.localAddress, socket.remoteAddress)) socket.destroy();
+  if (!anyDirectRoute(next) && directListening) {
     directListening = false;
     companion.closeAllConnections?.();
     await new Promise<void>((resolve) => companion.close(() => resolve()));
@@ -253,10 +260,11 @@ devices.onReplaced((deviceId) => setImmediate(() => {
   deviceRevoked(deviceId);
 }));
 
+let routeChange = Promise.resolve();
 const control = createControlServer({
   devices,
   controlToken: () => controlToken,
-  companionPort: COMPANION_PORT,
+  get companionPort() { return phonePort; },
   secretPublicKey: () => SECRET_PUBLIC_KEY,
   hostedUrl: () => hostedUrl,
   setHostedUrl: (next) => {
@@ -269,10 +277,10 @@ const control = createControlServer({
   setDirectRoutes: (body) => {
     const next = body && typeof body === "object" ? (body as Record<string, unknown>) : null;
     if (!next || typeof next.wifi !== "boolean" || typeof next.tailscale !== "boolean") return false;
-    setDirectRoutes(next);
-    void syncDirectListener().catch((error: Error) => console.warn(`companion: ${error.message}`));
-    void watcher.check();
-    return true;
+    const routes = { wifi: next.wifi, tailscale: next.tailscale, tailnetName: typeof next.tailnetName === "string" ? next.tailnetName : null };
+    const apply = routeChange.then(() => syncDirectListener(routes));
+    routeChange = apply.catch(() => {});
+    return apply.then(() => { void watcher.check(); return true; });
   },
   e2e: () => ({ enabled: e2e.enabled, relay: relay?.status ?? "off", node: relay?.node ?? null, relayProblem: relay?.problem ?? null, descriptor: e2e.descriptor(null) }),
   liveRoutes: () => e2e.routes(),
@@ -301,11 +309,11 @@ const listen = (server: ReturnType<typeof createServer>, port: number, host: str
     const onError = (error: NodeJS.ErrnoException) => {
       server.removeListener("listening", onListening);
       const hint = ` — another copy of the companion may already be running; ${
-        port === COMPANION_PORT ? "OMB_COMPANION_PORT" : "OMB_CONTROL_PORT"
+        server === companion ? "OMB_COMPANION_PORT" : "OMB_CONTROL_PORT"
       } chooses a different one`;
       reject(
         error.code === "EADDRINUSE"
-          ? new Error(`port ${port} is already in use${hint}`)
+          ? Object.assign(new Error(`port ${port} is already in use${hint}`), { code: error.code })
           : error,
       );
     };
@@ -313,9 +321,9 @@ const listen = (server: ReturnType<typeof createServer>, port: number, host: str
       server.removeListener("error", onError);
       // A listening socket still emits `error` (EMFILE on accept, a vanished
       // interface), and an unhandled one is an uncaught exception.
-      server.on("error", (error: NodeJS.ErrnoException) => {
-        console.warn(`companion: error on ${host}:${port} — ${error.message}`);
-      });
+      const warn = (error: NodeJS.ErrnoException) => console.warn(`companion: error on ${host}:${port} — ${error.message}`);
+      server.on("error", warn);
+      server.once("close", () => server.removeListener("error", warn));
       resolve();
     };
     server.once("error", onError);
@@ -325,13 +333,13 @@ const listen = (server: ReturnType<typeof createServer>, port: number, host: str
 
 async function main(): Promise<void> {
   const clash =
-    conflict("OMB_COMPANION_PORT", COMPANION_PORT) ?? conflict("OMB_CONTROL_PORT", CONTROL_PORT);
+    conflict("OMB_COMPANION_PORT", phonePort) ?? conflict("OMB_CONTROL_PORT", CONTROL_PORT);
   if (clash) throw new Error(`${clash}. Pick another port.`);
 
   // 127.0.0.1 and 0.0.0.0 on one port collide; name it rather than EADDRINUSE.
-  if (COMPANION_PORT === CONTROL_PORT) {
+  if (phonePort === CONTROL_PORT) {
     throw new Error(
-      `OMB_COMPANION_PORT and OMB_CONTROL_PORT are both port ${COMPANION_PORT}, and they cannot share one: ` +
+      `OMB_COMPANION_PORT and OMB_CONTROL_PORT are both port ${phonePort}, and they cannot share one: ` +
         `the first is open to your network and the second must never be. Pick another port.`,
     );
   }
@@ -370,10 +378,10 @@ async function main(): Promise<void> {
   const reach = tailnetName() ?? tailscale ?? addresses[0];
   const on = Object.entries(directRoutes()).filter(([name, value]) => name !== "tailnetName" && value).map(([name]) => name);
   console.log(directListening
-    ? `companion  http://0.0.0.0:${COMPANION_PORT} (${on.join(", ")})  →  harness 127.0.0.1:${HARNESS_PORT}`
+    ? `companion  http://0.0.0.0:${phonePort} (${on.join(", ")})  →  harness 127.0.0.1:${HARNESS_PORT}`
     : `companion  no direct way in is on  →  harness 127.0.0.1:${HARNESS_PORT}`);
   if (!parentPort) console.log(`pair here  http://127.0.0.1:${CONTROL_PORT}/#token=${controlToken}`);
-  if (reach && directListening) console.log(`on your phone, enter  ${reach}:${COMPANION_PORT}`);
+  if (reach && directListening) console.log(`on your phone, enter  ${reach}:${phonePort}`);
 }
 
 const shutdown = async (signal: string): Promise<void> => {

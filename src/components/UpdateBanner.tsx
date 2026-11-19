@@ -96,8 +96,8 @@ export function UpdateBanner({ sidebarIndicator = false }: UpdateBannerProps) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[14px] font-semibold text-ink">{title}</div>
-          <div className="mt-0.5 text-[13px] text-ink-secondary" title={subtitle}>
-            {subtitle}
+          <div className="mt-0.5 text-[13px] text-ink-secondary" title={s.restartDeferred ? t("place.busy") : subtitle}>
+            {s.restartDeferred ? t("place.busy") : subtitle}
           </div>
         </div>
         {!installing && (
@@ -134,7 +134,7 @@ export function UpdateBanner({ sidebarIndicator = false }: UpdateBannerProps) {
             <button
               onClick={() => {
                 setPending("install");
-                void updater.install();
+                void updater.install().then(started => { if (started === false) setPending(null); }, () => setPending(null));
               }}
               disabled={pending !== null}
               className={primaryAction}

@@ -14,8 +14,11 @@ import {
 import type { UpdateCheck } from "./update-check.ts";
 
 const dirs: string[] = [];
-afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+afterEach(async () => {
+  for (const root of dirs.splice(0)) {
+    await flushAdminActivity(join(root, "data"));
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 const NOW = 1_800_000_000_000;

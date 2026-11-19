@@ -8,17 +8,21 @@ import { CodexDeviceAuthController, codexDevicePrompt } from "./codex-device-aut
 
 // Every subprocess is this script in a disposable HOME: no real Codex, network or credentials.
 const FAKE = `#!/usr/bin/env node
-import { appendFileSync, existsSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 const home = process.env.HOME;
 const mode = process.env.FAKE_AUTH_MODE || 'success';
 const args = process.argv.slice(2);
+const recordPid = () => {
+  writeFileSync(join(home, 'pid.tmp'), String(process.pid));
+  renameSync(join(home, 'pid.tmp'), join(home, 'pid'));
+};
 appendFileSync(join(home, 'calls.jsonl'), JSON.stringify({args, home, codexHome: process.env.CODEX_HOME, marker: process.env.INSTANCE_MARKER}) + '\\n');
 if (args.join(' ') === 'login status') {
   if (mode === 'unconfirmed' && existsSync(join(home, 'authenticated'))) {
     // Account confirmation can exceed the assertion library's default 1s poll window.
     setTimeout(() => { process.stderr.write('Not logged in\\n'); process.exit(1); }, 1200);
-  } else if (mode === 'status-hang') setInterval(() => {}, 1000);
+  } else if (mode === 'status-hang') { recordPid(); setInterval(() => {}, 1000); }
   else if (mode === 'already' || (existsSync(join(home, 'authenticated')) && mode !== 'unconfirmed')) {
     process.stderr.write('Logged in using ChatGPT\\n'); process.exit(0);
   } else if (mode === 'api') {
@@ -29,7 +33,7 @@ if (args.join(' ') === 'login status') {
     process.stderr.write('Unrecognized login status secret-token\\n'); process.exit(0);
   } else { process.stderr.write('Not logged in\\n'); process.exit(1); }
 } else if (args.join(' ') === 'login --device-auth') {
-  writeFileSync(join(home, 'pid'), String(process.pid));
+  recordPid();
   if (mode === 'old') { console.error("error: unexpected argument '--device-auth' found secret-token"); process.exit(2); }
   if (mode === 'disabled') { console.error('Device code authentication is not enabled secret-token'); process.exit(1); }
   if (mode === 'overflow') { console.error('secret-token'.repeat(4000)); setInterval(() => {}, 1000); }
@@ -301,10 +305,12 @@ describe("Codex server-owned device authentication", () => {
   });
 
   it.each(["evil", "no-prompt", "status-hang"])("bounds startup and reaps a %s process", async (mode) => {
-    const controller = create(mode, { startupTimeoutMs: 250 });
+    const controller = create(mode, { startupTimeoutMs: 1_500 });
     await expect(controller.start()).rejects.toThrow("did not provide a sign-in code in time");
     await controller.cancel();
-    if (existsSync(join(home, "pid"))) expect(alive(Number(readFileSync(join(home, "pid"), "utf8")))).toBe(false);
+    const pid = Number(readFileSync(join(home, "pid"), "utf8"));
+    expect(pid).toBeGreaterThan(1);
+    expect(alive(pid), `login process ${pid} survived cancellation`).toBe(false);
   });
 
   it("requires a confirmed ChatGPT login even after an exit-0 device command", async () => {

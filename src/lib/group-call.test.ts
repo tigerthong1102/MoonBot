@@ -5,7 +5,7 @@ import { routeSpokenGroupMessage } from "./group-call";
 
 const members = [
   { id: "atlas", name: "Atlas" },
-  { id: "milind", name: "Milind" },
+  { id: "minh", name: "Minh" },
   { id: "research", name: "Deep Research" },
 ] as Bot[];
 
@@ -37,8 +37,8 @@ describe("routeSpokenGroupMessage", () => {
   });
 
   it("preserves explicit tags and ordinary speech", () => {
-    expect(routeSpokenGroupMessage("@Milind please continue", members)).toEqual({
-      text: "@Milind please continue",
+    expect(routeSpokenGroupMessage("@Minh please continue", members)).toEqual({
+      text: "@Minh please continue",
       addressed: true,
     });
     expect(routeSpokenGroupMessage("What should we build next?", members)).toEqual({

@@ -341,7 +341,7 @@ describe("a server's result size limit", () => {
 });
 
 describe("a server of another computer's", () => {
-  const MAC = { environmentId: "env-desktop-1", label: "Milind's MacBook" };
+  const MAC = { environmentId: "env-desktop-1", label: "Minh's MacBook" };
 
   it("keeps the computer it runs on, which an edit keeps unless it says null, and lists it", () => {
     const stored = parseStoredMcpServer("notes", { command: "/usr/local/bin/notes-mcp", runsOn: MAC });

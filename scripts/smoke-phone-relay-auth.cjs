@@ -65,7 +65,7 @@ app.whenReady().then(async () => {
     HOME: home, USERPROFILE: home, OMB_DATA_DIR: home, PATH: "",
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
     OMB_PORT: String(harnessPort), OMB_WEBHOOK_PORT: String(webhookPort),
-    OMB_COMPANION_PORT: String(phonePort), OMB_CONTROL_PORT: String(controlPort),
+    OMB_COMPANION_PORT: String(phonePort), OMB_CONTROL_PORT: String(controlPort), OMB_COMPANION_ROUTES: "wifi",
     FAKE_CLAUDE_MODE: "happy",
   };
   const harness = fork("dist-server/index.js", { ...env, OMB_DESKTOP_PARENT: "1" });

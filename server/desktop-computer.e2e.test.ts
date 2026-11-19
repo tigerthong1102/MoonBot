@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeFileAtomic } from "./atomic.ts";
 import { freePortBlock } from "./testing/ports.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
@@ -101,7 +101,7 @@ describe("this computer belongs to the desktop app's own server", () => {
   }
   const itHost = process.platform === "linux" ? it.skip : it;
 
-  beforeAll(() => {
+  beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), "omb-desktop-computer-"));
     data = join(home, "data");
     ui = join(home, "static");
@@ -119,14 +119,13 @@ describe("this computer belongs to the desktop app's own server", () => {
     }
     writeFileSync(join(data, "config.json"), JSON.stringify({ instances: { claude: {
       driver: "claudeAgent", config: { cli: join(ROOT, "server/testing/fake-claude-cli.ts") },
-      environment: { FAKE_CLAUDE_MODE: "slow", FAKE_CLAUDE_DUMP: dumpFile, FAKE_CLAUDE_SLOW_FINISH_GATE: finishFile },
+      environment: { FAKE_CLAUDE_MODE: "slow", FAKE_CLAUDE_DUMP: dumpFile, FAKE_CLAUDE_TEXT_DUMP: join(home, "text-dump.json"), FAKE_CLAUDE_SLOW_FINISH_GATE: finishFile },
     } } }));
   });
-  afterAll(async () => {
+  afterEach(async () => {
     await stop();
     if (home) await removeTempDir(home);
   });
-  afterEach(async () => { await stop(); resetTurn(); });
 
   it("a server the app did not launch mounts no computer on Auto, though the app's record is on disk", async () => {
     await start(false);

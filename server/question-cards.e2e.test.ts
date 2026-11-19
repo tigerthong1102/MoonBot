@@ -5,10 +5,11 @@
 // hears the result once. Ledger's NEEDS INPUT question becomes the same card with a reply field. Cleo is never sent a
 // question twice. It proves where things land, not a model's judgement.
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { launchCloudSendFixture, type CloudSendFixture, type CloudTeamFixture } from "../scripts/testing/cloud-send-fixture.ts";
+import { recordedRoomTurns } from "./testing/room-handoff-agent.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 
 const CLEO = { email: "cleo@acme.test", role: "owner" as const };
@@ -41,8 +42,7 @@ const script = (botId: string, ...entries: unknown[]) => {
   writeFileSync(file("room-plan.json"), JSON.stringify(plan));
 };
 const turns = (botId: string): Array<{ planKey?: string; threadId?: string; prompt: unknown }> => {
-  const path = file("room-plan.json.evidence.jsonl");
-  return existsSync(path) ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((turn) => turn.botId === botId) : [];
+  return recordedRoomTurns(file("room-plan.json")).filter(turn => turn.botId === botId);
 };
 const told = (botId: string, key: string) => JSON.stringify(turns(botId).find((turn) => turn.planKey === key)?.prompt ?? "");
 const messages = async (threadId: string) => ((await team.as(cleo, "GET", `/api/threads/${threadId}/messages?limit=200`)).body.messages ?? []) as Row[];

@@ -2113,7 +2113,7 @@ Its sheet asks "Before you go: what's the main reason?" with one-tap chips
 (Missing a feature, Too expensive, Hard to set up, Didn't work as I expected,
 Not using it right now, Something else; tap again to let one go), two optional
 boxes ("What did you expect MausBot to do?", "What could we have done
-better?"), "Rather talk it through? Book 30 minutes with Milind", and **Keep my
+better?"), and **Keep my
 plan** and **Cancel my trial** / **Cancel my plan**. Cancelling never needs an
 answer. The page sends only the survey's words: `cloudAccount.cancelPlan` on
 this computer's page, `cloudPlan.cancel` on the Cloud's page (only from the

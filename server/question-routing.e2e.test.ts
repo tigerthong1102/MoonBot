@@ -6,11 +6,12 @@
 // settles it, a restart neither drops nor posts it again, and a question whose turn is gone leaves Needs you and his
 // inbox. The engine is the scripted synthetic Claude CLI, so this proves where things land, not a model's judgement.
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { launchCloudSendFixture, type CloudSendFixture, type CloudTeamFixture } from "../scripts/testing/cloud-send-fixture.ts";
+import { recordedRoomTurns } from "./testing/room-handoff-agent.ts";
 import { removeTempDir } from "./testing/cleanup.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 
@@ -41,8 +42,7 @@ const script = (botId: string, ...entries: unknown[]) => {
   writeFileSync(file("room-plan.json"), JSON.stringify(plan));
 };
 const turns = (botId: string): Array<{ planKey?: string; prompt: unknown }> => {
-  const path = file("room-plan.json.evidence.jsonl");
-  return existsSync(path) ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)).filter((turn) => turn.botId === botId) : [];
+  return recordedRoomTurns(file("room-plan.json")).filter(turn => turn.botId === botId);
 };
 const keys = (botId: string, job: string) => turns(botId).map((turn) => turn.planKey).filter((key) => key?.startsWith(job));
 const told = (botId: string, key: string) => JSON.stringify(turns(botId).find((turn) => turn.planKey === key)?.prompt ?? "");

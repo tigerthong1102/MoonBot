@@ -1,9 +1,9 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { removeTempDir } from "./cleanup.ts";
-import { ownTurnText, runRoomHandoffAgent } from "./room-handoff-agent.ts";
+import { ownTurnText, recordedRoomTurns, runRoomHandoffAgent } from "./room-handoff-agent.ts";
 
 async function withMcp(script: string, test: (run: () => Promise<string>, dir: string) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "omb-handoff-process-"));
@@ -70,3 +70,19 @@ it("runs the script entry a turn was itself asked for, a one-shot entry once, an
   const evidence = readFileSync(`${plan}.evidence.jsonl`, "utf8").trim().split("\n").map((line) => JSON.parse(line));
   expect(evidence.map((record) => record.planKey ?? (record.unplanned ? "unplanned" : null))).toEqual(["loop", "job", "unplanned", "loop"]);
 }));
+
+it("reads completed fixture turns while another turn is being appended and rejects malformed completed rows", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "startupbot-room-evidence-"));
+  const plan = join(dir, "plan");
+  const path = `${plan}.evidence.jsonl`;
+  try {
+    writeFileSync(path, '{"botId":"a"}\n{"botId":"');
+    expect(recordedRoomTurns(plan)).toEqual([{ botId: "a" }]);
+    appendFileSync(path, 'b"}\n');
+    expect(recordedRoomTurns(plan)).toEqual([{ botId: "a" }, { botId: "b" }]);
+    appendFileSync(path, 'broken\n');
+    expect(() => recordedRoomTurns(plan)).toThrow(SyntaxError);
+  } finally {
+    await removeTempDir(dir);
+  }
+});

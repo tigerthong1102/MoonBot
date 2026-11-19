@@ -46,7 +46,7 @@ function teamData(root: string): void {
   file(join(root, "task-workspaces", "bot", "main", "plan.md"), "shared plan");
   file(join(root, "task-workspaces", "bot", "bob-chat", "draft.md"), "Bob's draft");
   file(join(root, "people", BOB, "about.json"), "{\"aboutMe\":\"interviewing elsewhere\"}");
-  const db = new DatabaseSync(join(root, "messages.db"));
+  const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE messages(thread_id TEXT, id TEXT, at INTEGER, role TEXT, kind TEXT, text TEXT, json TEXT, PRIMARY KEY(thread_id,id)); CREATE TABLE thread_state(thread_id TEXT PRIMARY KEY, active_leaf_id TEXT);"
     + " CREATE TABLE chat_followups(id TEXT PRIMARY KEY, kind TEXT, owner_id TEXT, thread_id TEXT, send_id TEXT, status TEXT, payload TEXT);"
     + " CREATE TABLE notification_log(id TEXT PRIMARY KEY, at INTEGER, kind TEXT, bot_id TEXT, bot_name TEXT, thread_id TEXT, group_id TEXT, title TEXT, body TEXT, avatar_url TEXT, for_person TEXT, read INTEGER);");
@@ -63,6 +63,7 @@ function teamData(root: string): void {
     db.prepare("INSERT INTO chat_followups VALUES (?, 'bot', 'bot', ?, 's', 'pending', ?)").run(`${thread}-f`, thread, JSON.stringify({ text }));
     db.prepare("INSERT INTO notification_log VALUES (?, 1, 'mention', 'bot', 'Scout', ?, NULL, ?, ?, NULL, ?, 0)").run(`${thread}-n`, thread, text, text, BOB);
   }
+  db.prepare("VACUUM INTO ?").run(join(root, "messages.db"));
   db.close();
   const runtime = openRuntimeStore(join(root, "runtime.db"));
   try {

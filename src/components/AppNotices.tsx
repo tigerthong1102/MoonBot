@@ -1,3 +1,4 @@
+import { openUserSignIn } from "@/lib/user-sign-in";
 import { useEffect, useState } from "react";
 import { Rocket, Star } from "lucide-react";
 import type { CloudAccountState } from "../../electron/cloud-account.mjs";
@@ -342,7 +343,7 @@ export function AppNotices({ quiet = false, viewer = null, now = Date.now }: { q
     return <CloudTrialIntroCard offer={offer}
       onStart={() => { done("start"); dispatch({ type: "openCloudAdd", source: "app_card" }); }}
       onHowTo={() => { done("howto"); dispatch({ type: "cloudHowTo", open: true }); }}
-      onSignIn={view?.kind === "signed-out" ? () => { track("cloud_card_action", { action: "signin" }); close(); dispatch({ type: "openCloudAdd", source: "app_card", signIn: true }); } : undefined}
+      onSignIn={view?.kind === "signed-out" ? () => { track("cloud_card_action", { action: "signin" }); close(); openUserSignIn(dispatch, "app_card"); } : undefined}
       onNotNow={() => { done("not_now"); setToast(t("cloudIntro.later")); }}
       onDismiss={() => { done("close"); setToast(t("cloudIntro.later")); }} />;
   }

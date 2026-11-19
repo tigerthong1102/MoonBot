@@ -1,8 +1,10 @@
-import { Mic, MicOff, Phone, PhoneOff } from "lucide-react";
+import type { ComponentProps } from "react";
+import { MessagesSquare, Mic, MicOff, Phone, PhoneOff } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 import { isMacPlatform } from "@/lib/keyboard-shortcuts";
 import { hangUpLiveCall, isLiveCallRunning, liveCallChord, setLiveMuted, useLiveMedia, type LiveMediaState } from "@/lib/live-call-media";
+import { useStoreDispatch } from "@/state/store-select";
 import { useStore } from "@/state/store";
 import type { LiveCallState } from "../../shared/wire";
 
@@ -104,4 +106,18 @@ export function LiveCallChip({ currentBotId, onOpen }: { currentBotId: string; o
       {t("call.live.back")}
     </button>
   );
+}
+
+export function SidebarConversationActions(props: ComponentProps<typeof LiveCallPill>) {
+  const openInbox = window.ogb?.openPersonalInbox;
+  const dispatch = useStoreDispatch();
+  const label = t("native.menu.personalInbox");
+  return <>
+    {openInbox && <button type="button" title={label} aria-label={label}
+      onClick={() => void openInbox().catch(() => dispatch({ type: "error", message: t("settings.account.connectionFailed") }))}
+      className={cn("flex min-h-9 items-center gap-2 rounded-xl px-3 text-sm font-medium text-ink hover:bg-raised", props.iconOnly ? "mx-auto" : "mx-2")}>
+      <MessagesSquare size={18} />{!props.iconOnly && label}
+    </button>}
+    <LiveCallPill {...props} />
+  </>;
 }

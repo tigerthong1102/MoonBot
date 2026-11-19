@@ -74,6 +74,7 @@ const whereItLives = (environment) => (environment.kind === "local" ? environmen
  * @param {() => void} input.onAddFromClipboard
  * @param {() => void} input.onConnect
  * @param {(id: string) => void} input.onForget
+ * @param {(() => void) | null} [input.onPersonalInbox]
  * @param {() => void} input.onOpenSettings
  * @param {() => void} input.onOrganizationSignIn
  * @param {{ origin: string, onBack: () => void } | null} [input.home] My Cloud once the person's bots moved there: the
@@ -82,7 +83,7 @@ const whereItLives = (environment) => (environment.kind === "local" ? environmen
  * @param {{ checked: boolean, onToggle: (on: boolean) => void } | null} [input.openAtLogin] Open at Login, in the app
  *   menu on macOS and the File menu elsewhere; absent when this build cannot add a login item.
  */
-export function buildApplicationMenu({ environments, activeId, onSwitch, onAddFromClipboard, onConnect, onForget, onOpenSettings, onOrganizationSignIn, onAddCloud, sublabels = {}, home = null, openAtLogin = null, t = nativeText.englishText.t }) {
+export function buildApplicationMenu({ environments, activeId, onSwitch, onAddFromClipboard, onConnect, onForget, onOpenSettings, onPersonalInbox, onOrganizationSignIn, onAddCloud, sublabels = {}, home = null, openAtLogin = null, t = nativeText.englishText.t }) {
   const isMac = process.platform === "darwin";
   const active = environments.find((e) => e.id === activeId) ?? null;
   const others = home ? environments.filter((e) => e.origin !== home.origin && e.kind !== "local") : [];
@@ -122,11 +123,13 @@ export function buildApplicationMenu({ environments, activeId, onSwitch, onAddFr
   };
   const atLogin = openAtLogin ? [{ id: "open-at-login", label: t("native.menu.openAtLogin"), type: "checkbox", checked: openAtLogin.checked, click: () => openAtLogin.onToggle(!openAtLogin.checked) }] : [];
   const roles = roleMenus(t, isMac);
+  const inbox = onPersonalInbox ? [{ id: "personal-inbox", label: t("native.menu.personalInbox"), click: onPersonalInbox }] : [];
   const appMenu = {
     label: app.name,
     submenu: [
       role(t, "about", "native.role.about", { app: app.name }),
       { label: t("native.menu.settings"), accelerator: "CmdOrCtrl+,", click: () => onOpenSettings() },
+      ...inbox,
       ...atLogin,
       { type: "separator" },
       role(t, "hide", "native.role.hide", { app: app.name }),
@@ -138,7 +141,7 @@ export function buildApplicationMenu({ environments, activeId, onSwitch, onAddFr
   };
   const template = [
     ...(isMac ? [appMenu] : []),
-    !isMac && openAtLogin ? { ...roles.file, submenu: [...atLogin, { type: "separator" }, role(t, "quit", "native.role.quit")] } : roles.file,
+    !isMac && (openAtLogin || inbox.length) ? { ...roles.file, submenu: [...inbox, ...atLogin, { type: "separator" }, role(t, "quit", "native.role.quit")] } : roles.file,
     roles.edit,
     ...(home && !others.length ? [] : [server]),
     roles.view,

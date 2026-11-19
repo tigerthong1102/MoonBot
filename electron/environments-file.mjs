@@ -37,3 +37,17 @@ export function createEnvironmentsFile({ file, fs, path, log = () => {} }) {
     },
   };
 }
+
+export function createWorkspaceMenuAction(dialog, t) {
+  return async action => {
+    try {
+      await action();
+    } catch (error) {
+      await dialog.showMessageBox({
+        type: "error",
+        message: t("native.dialog.updateServers.title"),
+        detail: error?.code === ENVIRONMENTS_SAVE_FAILED ? t("native.dialog.updateServers.saveFailed") : error.message,
+      });
+    }
+  };
+}

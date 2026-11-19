@@ -184,7 +184,7 @@ export function SettingsNav({ ctx, place, pages, current, query, hits, keyHits, 
   const appLine = useAppSubLine(ctx.desktop);
   const phone = usePhonePlaceState(!ctx.client);
   const listRef = useRef<HTMLDivElement>(null);
-  const openSource = ctx.desktop && !window.ogb?.cloudAccount && !window.ogb?.cloudPlan;
+  const openSource = ctx.desktop && !window.ogb?.personalAccount && !window.ogb?.cloudAccount && !window.ogb?.cloudPlan;
   const lines: Record<SettingsOwner, { badge: ReactNode; name: string; line: string; page: SettingsPageId }> = {
     place: { badge: <PlaceBadge place={place} size={24} />, name: place.name, line: placeLine, page: "overview" },
     account: { badge: <YouAvatar size={24} />, name: t("settings.page.account"), line: accountLine(account, { browser: !ctx.desktop, place: place.name, openSource }), page: "account" },

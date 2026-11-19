@@ -8,14 +8,16 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260825.1",
     "@cloudflare/vitest-plugin": "1.0.0",
+    "@cloudflare/workers-types": "5.20260825.1",
     "@types/node": "^26.2.0",
+    "brotli-wasm": "3.0.1",
     "typescript": "7.0.2",
     "vitest": "^4.1.11",
     "wrangler": "4.125.0"
   },
   "scripts": {
+    "inbox:assets": "node inbox/prepare-assets.mjs",
     "check": "pnpm types && tsc -p tsconfig.json",
     "test": "vitest run",
     "types": "wrangler types --config wrangler.jsonc worker-configuration.d.ts",

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 // A direct navigator.clipboard.writeText fails silently where Chromium refuses (or never settles) the write.
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..");
-const HELPER = "lib/copy-text.ts";
+const HELPER = "lib/clipboard-write.ts";
 const DIRECT_WRITE = /navigator\s*\??\.\s*clipboard\s*\??\.\s*writeText/;
 
 function sourceFiles(dir: string): string[] {
@@ -22,6 +22,13 @@ describe("clipboard writes", () => {
   it("go through copyText, never navigator.clipboard.writeText directly", () => {
     const direct = files.filter((file) => file.name !== HELPER && DIRECT_WRITE.test(file.text)).map((file) => file.name);
     expect(direct).toEqual([]);
+  });
+
+  it("routes hosted inbox clipboard writes through the shared helper", () => {
+    const inbox = join(SRC, "../cloudflare/control-plane/inbox/public");
+    const files = readdirSync(inbox).filter(name => name.endsWith(".js") && name !== "inbox-copy-text.js");
+    expect(files).toContain("group-controls.js");
+    expect(files.filter(name => DIRECT_WRITE.test(readFileSync(join(inbox, name), "utf8")))).toEqual([]);
   });
 
   it("scans the real sources: the helper itself is the one direct write it finds", () => {

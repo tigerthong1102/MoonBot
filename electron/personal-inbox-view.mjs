@@ -1,3 +1,5 @@
+import { personalAccountUpdates } from "./personal-account-updates.mjs";
+import { cleanEmail } from "./cloud-signin.mjs";
 import { personalInboxBots } from "./personal-inbox-bots.mjs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -32,7 +34,7 @@ export async function signOutPersonalAccount(origin) {
   if (!response.ok) throw new Error("StartupBot sign-out failed");
 }
 
-export async function showPersonalInbox(window, origin, accountOnly = false, language = app.getLocale()) {
+export async function showPersonalInbox(window, origin, language, requestSignIn) {
   if (!window || window.isDestroyed() || !origin) return;
   const existing = panels.get(window);
   if (existing) {
@@ -45,7 +47,7 @@ export async function showPersonalInbox(window, origin, accountOnly = false, lan
   } });
   const page = view.webContents;
   const workspace = window.webContents;
-  const bots = !accountOnly && personalInboxBots(window, page, origin);
+  const bots = personalInboxBots(window, page, origin);
   page.session.setPermissionCheckHandler(() => false);
   page.session.setPermissionRequestHandler((_contents, _permission, reply) => reply(false));
   const invitePath = origin + "/desktop/invite-bot/";
@@ -74,6 +76,10 @@ export async function showPersonalInbox(window, origin, accountOnly = false, lan
     if (bots && target.startsWith(invitePath)) {
       event.preventDefault();
       bots.invite(target.slice(invitePath.length));
+    } else if (target === origin + "/desktop/sign-in") {
+      event.preventDefault();
+      close();
+      void requestSignIn().catch(() => {});
     } else if (target === origin + "/desktop/back") {
       event.preventDefault();
       close();
@@ -97,10 +103,9 @@ export async function showPersonalInbox(window, origin, accountOnly = false, lan
   workspace.once("did-navigate", close);
   fit();
   try {
-    const params = new URLSearchParams({ desktop: "1", lang: language });
+    const params = new URLSearchParams({ desktop: "1", hostAuth: "1", lang: language });
     if (skins.has(window)) params.set("skin", skins.get(window));
     if (bots) params.set("bots", "1");
-    if (accountOnly) params.set("account", "1");
     await page.loadURL(origin + "/?" + params);
     if (!page.isDestroyed()) page.focus();
   } catch (error) {
@@ -110,27 +115,70 @@ export async function showPersonalInbox(window, origin, accountOnly = false, lan
   }
 }
 
-export function createPersonalInbox(window, locale = () => app.getLocale()) {
+export function createPersonalInbox({ window, locale, isLocal, showLocal, previousChoice }) {
   const metadata = createRequire(import.meta.url)("../package.json");
   function origin() {
     return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
       jsonFile(path.join(app.getPath("userData"), "inbox-service.json")).read);
   }
-  function open(accountOnly = false) {
+  async function requestSignIn(inbox) {
+    if (!isLocal(window())) await showLocal();
+    const win = window();
+    if (!isLocal(win)) throw Error("Open StartupBot on this computer.");
+    win.webContents.send("personal-account:prompt", inbox);
+  }
+  async function open(accountOnly = false) {
     const win = window();
     win.show();
-    return showPersonalInbox(win, origin(), accountOnly, locale());
+    if (accountOnly) return requestSignIn(false);
+    const existing = panels.get(win);
+    if (existing) { existing.webContents.focus(); return; }
+    const base = origin();
+    const email = await personalAccountEmail(base);
+    if (win.isDestroyed()) return;
+    if (!email) return requestSignIn(true);
+    return showPersonalInbox(win, base, locale(), () => requestSignIn(true));
   }
   function install(ipcMain, localOnly, requireMainWindowSender) {
     function handle(channel, action) {
-      ipcMain.handle(channel, localOnly(channel, event => {
+      ipcMain.handle(channel, localOnly(channel, (event, ...args) => {
         requireMainWindowSender(event);
-        return action(event);
+        return action(event, ...args);
       }));
     }
     handle("personal-inbox:open", () => open());
+    const updates = personalAccountUpdates({ account: () => session.fromPartition(partition), origin, previousChoice,
+      deviceChoice: () => jsonFile(path.join(app.getPath("userData"), "personal-email-updates.json")) });
+    handle("personal-account:updates", () => updates());
+    handle("personal-account:set-updates", (_event, enabled) => {
+      if (typeof enabled !== "boolean") throw Error("Invalid email preference");
+      return updates(enabled);
+    });
     handle("personal-account:open", () => open(true));
     handle("personal-account:state", () => personalAccountEmail(origin()));
+    async function auth(email, otp) {
+      const address = cleanEmail(email);
+      if (!address || (otp !== undefined && (typeof otp !== "string" || !/^\d{8}$/.test(otp)))) return "invalid";
+      const base = origin();
+      if (!base) return "unavailable";
+      const verify = otp !== undefined;
+      const response = await session.fromPartition(partition).fetch(base + (verify
+        ? "/api/auth/sign-in/email-otp" : "/api/auth/email-otp/send-verification-otp"), {
+        method: "POST", credentials: "include", redirect: "error", signal: AbortSignal.timeout(20000),
+        headers: { Origin: base, "Content-Type": "application/json", "x-inbox-language": locale(), "x-inbox-language-source": "app" },
+        body: JSON.stringify(verify ? { email: address, otp } : { email: address, type: "sign-in" }),
+      });
+      if (response.status === 429) return "limited";
+      if (!response.ok) return response.status >= 500 ? "unavailable" : "invalid";
+      return "ok";
+    }
+    handle("personal-account:send-code", (_event, email) => auth(email));
+    handle("personal-account:verify", async (event, email, code) => {
+      if (typeof code !== "string") return "invalid";
+      const result = await auth(email, code);
+      if (result === "ok" && !event.sender.isDestroyed()) event.sender.send("personal-account:changed");
+      return result;
+    });
     handle("personal-account:sign-out", async event => {
       await signOutPersonalAccount(origin());
       if (!event.sender.isDestroyed()) event.sender.send("personal-account:changed");

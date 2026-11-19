@@ -570,3 +570,18 @@ it("lets members invite only their bots and only managers remove them, even duri
   expect((await cmd(b,"remove",{bot:first})).ok).toBe(true);
   expect((await cmd(a,"reply",{round:other,bot:first,claim:inFlight.claim,text:"Late reply"})).ok).toBe(false);
 });
+
+it("keeps explicit email-update choices with the verified account across devices", async () => {
+  const email = "a@example.test";
+  const { cookie: first } = await login(email);
+  const { cookie: second } = await login(email);
+  const { cookie: peer } = await login("b@example.test");
+  const route = "account/updates";
+  expect((await call(route)).status).toBe(401);
+  expect(await (await call(route, first)).json()).toEqual({ email, enabled: null });
+  expect((await call(route, peer, { email, enabled: false })).status).toBe(409);
+  expect((await call(route, first, { email, enabled: false })).status).toBe(200);
+  expect(await (await call(route, second, { email, enabled: true, initial: true })).json()).toEqual({ email, enabled: false });
+  expect(await (await call(route, second, { email, enabled: true })).json()).toEqual({ email, enabled: true });
+  expect(await (await call(route, peer)).json()).toEqual({ email: "b@example.test", enabled: null });
+});

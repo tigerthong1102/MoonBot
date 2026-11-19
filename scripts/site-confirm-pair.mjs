@@ -46,8 +46,7 @@ try {
      opened=true;
      try {
        const url=await invite();
-       exec('xcrun',['simctl','openurl',process.argv[2],url]);
-       res.writeHead(200).end();
+       res.writeHead(200,{'Content-Type':'text/plain','Cache-Control':'no-store'}).end(url);
      } catch {res.writeHead(500).end();}
    });
    coordinator.listen(19812,'127.0.0.1'); await once(coordinator,'listening');

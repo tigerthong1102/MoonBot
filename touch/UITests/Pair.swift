@@ -1,20 +1,19 @@
 import XCTest
 
 final class Pair: XCTestCase {
-    @MainActor func testConfirmRequestedPhone() async throws {
+    @MainActor func testConfirmRequestedPhone() throws {
+        let launcher = XCUIApplication()
+        launcher.launch()
+        launcher.buttons["Open StartupBot invitation"].tap()
         let app = XCUIApplication(bundleIdentifier: "ai.startupbot.ios")
-        app.activate()
-        var open = URLRequest(url: URL(string: "http://127.0.0.1:19812/open")!)
-        open.httpMethod = "POST"
-        let (_, response) = try await URLSession.shared.data(for: open)
-        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        for title in ["Open", "Mở"] {
-            let button = springboard.alerts.buttons[title]
-            if button.exists { button.tap(); break }
+        if !app.wait(for: .runningForeground, timeout: 3) {
+            let button = springboard.alerts.buttons.matching(NSPredicate(format:"label IN %@", ["Open","Mở"])).firstMatch
+            if button.waitForExistence(timeout: 5) { button.tap() }
         }
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 15))
         let button = app.buttons["Kết nối"]
-        guard button.waitForExistence(timeout: 20) else {
+        guard button.waitForExistence(timeout: 12) else {
             XCTFail("No confirmation. Buttons: " + app.buttons.allElementsBoundByIndex.map { $0.label }.joined(separator: ", "))
             return
         }

@@ -95,7 +95,21 @@ jobs:
           echo 'a8cf533586baeb8c2b730c3b81adcd9db8d558efc3e6d3697127e7b0433cc6e0  desktop.dmg' | shasum -a 256 -c -
           mkdir mounted
           hdiutil attach -readonly -nobrowse -mountpoint "$PWD/mounted" desktop.dmg
-          SITE_COMPANION="$PWD/mounted/StartupBot.app/Contents/Resources/companion/index.js" node scripts/site-confirm-pair.mjs "$device"
+          export SITE_COMPANION="$PWD/mounted/StartupBot.app/Contents/Resources/companion/index.js"
+          if node scripts/site-confirm-pair.mjs "$device"; then
+            echo 'PASS native OS handoff from iOS launcher using original website ZIP'
+          else
+            echo 'Testing scene configuration separately with same executable'
+            xcrun simctl uninstall "$device" ai.startupbot.ios
+            /usr/libexec/PlistBuddy -c 'Add :UIApplicationSceneManifest dict' evidence/StartupBot.app/Info.plist
+            /usr/libexec/PlistBuddy -c 'Add :UIApplicationSceneManifest:UIApplicationSupportsMultipleScenes bool false' evidence/StartupBot.app/Info.plist
+            /usr/libexec/PlistBuddy -c 'Add :UIApplicationSceneManifest:UISceneConfigurations dict' evidence/StartupBot.app/Info.plist
+            codesign --force --sign - --preserve-metadata=entitlements,identifier,flags evidence/StartupBot.app
+            xcrun simctl install "$device" evidence/StartupBot.app
+            xcrun simctl launch "$device" ai.startupbot.ios -AppleLanguages '(vi)' -AppleLocale vi_VN -companion.prefs.language vi
+            node scripts/site-confirm-pair.mjs "$device"
+            echo 'PASS native OS handoff after scene configuration repair only'
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:

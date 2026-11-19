@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - scripts/business-connectors/**
+      - skills/kiem-toan/**
       - .github/workflows/business-discovery.yml
 permissions:
   contents: read
@@ -21,6 +22,11 @@ jobs:
       - run: node --test scripts/business-connectors/discovery.fixture.ts
       - run: node --test scripts/business-connectors/compatibility.fixture.ts
       - run: node --test scripts/business-connectors/setup-plan.fixture.ts
+      - name: Run audit skill on synthetic Excel and XML using Windows PowerShell
+        shell: powershell
+        run: |
+          $env:AUDIT_PWSH = 'powershell.exe'
+          python scripts/business-connectors/tests/audit-skill.py
       - name: Check synthetic legacy registry layouts without a database service
         shell: powershell
         run: ./scripts/business-connectors/lab/legacy-registry.ps1

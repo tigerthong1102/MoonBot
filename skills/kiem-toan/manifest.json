@@ -1,0 +1,9 @@
+{
+  "id": "kiem-toan",
+  "name": "Trợ lý kiểm toán Việt Nam",
+  "version": "0.1.0",
+  "description": "Tra cứu, kiểm tra và đối chiếu số liệu MISA, Excel, XML theo phạm vi được duyệt; lập giấy làm việc phục vụ soát xét.",
+  "defaultEnabled": true,
+  "triggerTerms": ["kiểm toán", "kiem toan", "kiem-toan", "rà soát sổ", "đối chiếu sổ", "soát xét doanh thu", "đối chiếu doanh thu", "kiểm tra sổ cái", "tra cứu chứng từ", "tìm chứng từ", "doi chieu so", "doi chieu doanh thu"],
+  "requiredCapabilities": []
+}

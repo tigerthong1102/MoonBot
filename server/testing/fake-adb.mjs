@@ -73,7 +73,7 @@ if (startsServer) {
   let connections = 0;
   let viewer;
   let control;
-  const phone = createServer((socket) => {
+  const phone = createServer({ allowHalfOpen: mode === "delayed-control" }, (socket) => {
     connections += 1;
     socket.on("error", () => {});
     if (mode === "silent") return;
@@ -87,6 +87,14 @@ if (startsServer) {
       phone.close();
       control = socket;
       if (mode === "drops-control") socket.end("unread");
+      else if (mode === "delayed-control") {
+        const pending = [];
+        socket.on("data", bytes => pending.push(bytes));
+        socket.on("end", () => setTimeout(() => {
+          writeFileSync(state("control.hex"), Buffer.concat(pending).toString("hex"));
+          socket.end();
+        }, 100));
+      }
       // scrcpy 5.0.1 stops when its control connection closes.
       else {
         socket.on("data", (bytes) => appendFileSync(state("control.hex"), bytes.toString("hex"))).on("close", () => {

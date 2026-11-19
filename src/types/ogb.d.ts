@@ -469,7 +469,7 @@ const __APP_VERSION__: string;
         check(): Promise<void>;
         /** apply the download: quit-and-install, or copy the command and open
          * a terminal. On a server's page, only from the person's click. */
-        install(): Promise<void>;
+        install(): Promise<boolean | void>;
         /** The person saw the line that the app updated itself: it is not shown again. */
         seen?(): Promise<void>;
         onState(cb: (s: UpdaterState) => void): () => void;
@@ -538,6 +538,7 @@ export interface UpdaterState {
   terminalOpened?: boolean;
   /** downloaded only: the app installs it by itself the next time the person is away and nothing is running */
   installsByItself?: boolean;
+  restartDeferred?: boolean;
   /** the version the app updated itself to while the person was away, until they have seen it said */
   updated?: string;
 }

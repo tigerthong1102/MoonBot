@@ -72,6 +72,18 @@ function firstByte(port: number, starting: AbortSignal): Promise<Socket | null> 
   });
 }
 
+async function finishControlWrites(socket: Socket): Promise<void> {
+  if (socket.destroyed || !socket.writable || socket.connecting) return;
+  await new Promise<void>((resolve) => {
+    const deadline = setTimeout(() => socket.destroy(), 1_000);
+    socket.once("close", () => {
+      clearTimeout(deadline);
+      resolve();
+    });
+    socket.end();
+  });
+}
+
 // adb accepts a connection to the forwarded port before the phone listens, then closes it without a byte.
 async function connectVideo(port: number, starting: AbortSignal): Promise<Socket> {
   for (;;) {
@@ -105,6 +117,7 @@ export async function openPhoneSession(deps: PhoneSessionDeps, serial: string): 
   });
 
   const end = (reason: PhoneSessionEnd): Promise<void> => (ending ??= (async () => {
+    if (reason === "closed" && controlSocket) await finishControlWrites(controlSocket);
     socket?.destroy();
     controlSocket?.destroy();
     if (server) await killCliTree(server);

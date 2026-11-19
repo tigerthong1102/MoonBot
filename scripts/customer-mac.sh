@@ -55,7 +55,7 @@ pnpm install --frozen-lockfile
 pnpm package:prepare
 pnpm build:speech
 pnpm build:cua
-pnpm exec electron-builder --config electron-builder.customer.yml --mac dmg --arm64 --publish never \
+STARTUPBOT_SIGNED_ARCH=arm64 pnpm exec electron-builder --config electron-builder.updates.cjs --mac dmg zip --arm64 --publish never \
   "-c.directories.output=$out" "-c.mac.identity=$fingerprint"
 images=("$out"/*.dmg)
 [[ ${#images[@]} == 1 && -f ${images[0]} ]] || die "Expected one DMG."
@@ -79,6 +79,14 @@ ditto "$mount/StartupBot.app" "$installed"
 hdiutil detach "$mount" >/dev/null
 rmdir "$mount"
 trap - EXIT
+archive="$out/StartupBot-$(node -p 'require("./package.json").version')-arm64.zip"
+mkdir "$out/zip-verify"
+ditto -x -k "$archive" "$out/zip-verify"
+zip_app="$out/zip-verify/StartupBot.app"
+codesign --verify --deep --strict "$zip_app"
+codesign --verify --strict -R "=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"$team\" and identifier \"ai.startupbot.desktop\"" "$zip_app"
+spctl --assess --type execute "$zip_app"
+node scripts/desktop-update-manifest.mjs "$out" darwin arm64
 node scripts/package-payload.mjs --source "$out/mac-arm64/StartupBot.app" --installed "$installed" --report "$out/payload.json"
 node scripts/smoke-internal-desktop.mjs --app "$installed" --output "$out/smoke"
 mkdir "$out/customer"

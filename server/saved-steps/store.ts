@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 import { z } from "zod";
 import { writeFileAtomic } from "../atomic.ts";
 import { exactRequest, requestKey } from "./key.ts";
-import { ELEMENT_TOOLS, KEPT_ARGS, KEY_TOOLS, flipsToggle, holdsPersonWords, recipeFitsRequest, unsafeStep, windowScoped, type Recipe } from "./rules.ts";
+import { ELEMENT_TOOLS, KEPT_ARGS, KEY_TOOLS, flipsToggle, holdsPersonWords, recipeFitsRequest, unsafeStep, windowButtonClick, windowScoped, type Recipe } from "./rules.ts";
 
 export const MAX_RECIPES = 200;
 export const UNUSED_MS = 60 * 24 * 60 * 60 * 1000;
@@ -17,13 +17,15 @@ const step = z.object({
   args: z.record(z.string(), z.unknown()),
   app: identity.optional(),
   window: z.object({ title: z.string() }).optional(),
-  element: z.object({ role: z.string(), label: z.string(), path: z.array(z.string()) }).optional(),
+  element: z.object({ role: z.string(), label: z.string(), path: z.array(z.string()), uiaWindowChild: z.literal(true).optional() }).optional(),
 });
 const ADDRESSING_KEYS = new Set(["x", "y", "element_token", "element_index", "pid", "window_id", "session"]);
 const argsFitTool = (tool: keyof typeof KEPT_ARGS, args: Record<string, unknown>) =>
   Object.keys(args).every((name) => !ADDRESSING_KEYS.has(name) && KEPT_ARGS[tool].includes(name));
 const targetsFitTool = (entry: z.infer<typeof step>) => (!ELEMENT_TOOLS.has(entry.tool) || (entry.element !== undefined && entry.app !== undefined))
   && (!KEY_TOOLS.has(entry.tool) || (entry.app !== undefined && entry.window !== undefined))
+  && (!entry.element?.uiaWindowChild || (entry.element.role === "Button" && entry.element.path.length === 0
+    && !!entry.element.label && !!entry.window?.title && windowButtonClick(entry.tool, entry.args)))
   && !(entry.element && flipsToggle(entry.tool, entry.element.role)) && unsafeStep(entry) === null;
 const safeBotId = (botId: string) => botId !== "" && botId !== "." && botId !== ".." && basename(botId) === botId && !/[\\/]/.test(botId);
 

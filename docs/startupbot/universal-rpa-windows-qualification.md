@@ -1,6 +1,14 @@
 # Qualification CUA Windows 0.45.4
 
-## Kết quả ngày 19/11/2026
+## Saved Steps sau khi mở lại ứng dụng
+
+Smoke tương tác dùng CUA 0.45.4 trên Windows x64 và chạy hai tiến trình WinForms nối tiếp trong desktop riêng. Lượt đầu ghi thao tác điều hướng từ phản hồi MCP qua `ComputerJournal`, chạy `buildRecipe` và lưu bằng `RecipeStore`. Lượt sau mở ứng dụng với PID mới, mở lại kho recipe từ đĩa và gọi `runSteps`. Scope thử nghiệm chỉ cho phép một click nền vào nút của fixture. Chỉ tính PASS khi snapshot UIA mới đọc được `After navigation` từ ô trạng thái vốn hiển thị `Before navigation`.
+
+Selector `uiaWindowChild` chỉ dùng cho nút UIA `Button` có nhãn duy nhất trong cửa sổ, đang enabled, ở depth 1, thiếu parent trong projection đầy đủ lược root. Capture và replay kiểm tra cùng bằng chứng. Sau approval, replay tìm lại app, cùng PID và HWND, đọc lại nút và lấy token mới trước click. Recipe chỉ lưu identity. Token cũ, cây thiếu, nút trùng nhãn, depth lớn hơn 1 thiếu cha hoặc delivery khác background accessibility đều không đạt điều kiện cho selector này.
+
+Chạy khối PowerShell ở mục **Tái lập** để kiểm chứng từ đầu. Mỗi lượt dùng thư mục tạm riêng và xóa recipe sau smoke. Đây là kết quả qua các thành phần Saved Steps của server. Gate phát hành Windows, UI chat và nghiệm thu trên ứng dụng nghiệp vụ còn ngoài phạm vi của smoke.
+
+## Kết quả ban đầu ngày 19/11/2026
 
 Máy Windows x64 build 26300, Node 24.13.1, WinForms fixture được biên dịch bằng csc của .NET Framework. Source base `7a17c824767dc01fdf79cc6d0c96a2ade58a5774`. Asset upstream khớp SHA-256 ghim `949927b4cb0519c6fb1377878d67d79a8d6fae7bc56cbed17c7aa26448d82cb5`. Phiên Windows chạy ứng dụng tổng hợp trong desktop Win32 riêng, không cần chuyển màn hình ở lần chạy cuối. [Release upstream](https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.45.4)
 

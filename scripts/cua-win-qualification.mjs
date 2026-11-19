@@ -2,9 +2,15 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { resolve } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { elementPath, slimResponse, treeDegraded, wholeTree } from "../server/saved-steps/driver-wire.ts";
+import { slimResponse, treeDegraded, wholeTree } from "../server/saved-steps/driver-wire.ts";
+import { callOutcome } from "../server/saved-steps/computer-client.ts";
+import { ComputerJournal } from "../server/saved-steps/journal.ts";
+import { runSteps } from "../server/saved-steps/replay.ts";
+import { RecipeStore } from "../server/saved-steps/store.ts";
 import { matchWindow } from "../server/saved-steps/resolve.ts";
 import { buildRecipe } from "../server/saved-steps/rules.ts";
 
@@ -92,7 +98,7 @@ export function checkNavigationDelivery(result) {
   assert.ok(["confirmed", "unverifiable"].includes(action.effect), "unexpected navigation delivery effect");
 }
 
-async function exerciseFixture(call, title, navigation) {
+async function withFixture(call, title, exercise) {
   assert.equal(process.env.OMB_CUA_ISOLATED_DESKTOP, "1", "private desktop confirmation is required");
   const fixturePath = resolve(import.meta.dirname, "../dist-native/cua-win32-x64/cua-win-navigation-fixture.exe");
   const fixture = spawn(fixturePath, [title], { stdio: "ignore" });
@@ -108,33 +114,20 @@ async function exerciseFixture(call, title, navigation) {
       ownWindowCount = Array.isArray(list.windows) ? list.windows.filter((window) => window?.pid === pid).length : -1;
       const window = matchWindow(list.windows, pid, { title });
       assert.notEqual(window.ok ? "" : window.reason, "ambiguous", "duplicate fixture window");
-      return window.ok ? { target: readTarget(pid, window.value), row: list.windows.find((entry) => entry.window_id === window.value) } : null;
+      return window.ok ? readTarget(pid, window.value) : null;
     }, Boolean, () => "fixture window not found (windows for launched PID: " + ownWindowCount + ")");
-    const { target, row } = discovered;
-    const apps = structured(await call("list_apps", {})).apps;
-    const ownedApps = Array.isArray(apps) ? apps.filter((app) => app?.pid === pid && app.running && typeof app.name === "string") : [];
-    assert.equal(ownedApps.length, 1, "fixture app identity is unavailable or ambiguous");
-
-    const snapshot = async () => {
-      const raw = await call("get_window_state", target);
-      return { raw, ...fixtureSnapshot(raw, target) };
-    };
+    const target = discovered;
+    const snapshot = async (invoke = call) => fixtureSnapshot(await invoke("get_window_state", target), target);
+    const verify = (invoke = call) => waitFor(() => snapshot(invoke), (state) => state.value === "After navigation", "navigation postcondition was not observed");
     const first = await snapshot();
     const current = await snapshot();
-    assert.equal(current.value, "Before navigation", "fixture is not at its starting screen");
+    assert.equal(current.value, "Before navigation");
     assert.notEqual(first.token, current.token, "snapshot token did not rotate");
-
     const clickArgs = (token) => ({ pid, window_id: target.window_id, element_token: token, delivery_mode: "background" });
     const stale = await call("click", clickArgs(first.token));
     assert.ok(stale?.isError === true || stale?.structuredContent?.effect === "refused", "driver accepted a stale token");
-    const fresh = await snapshot();
-    assert.equal(fresh.value, "Before navigation", "stale token changed the fixture");
-    const verify = () => waitFor(snapshot, (state) => state.value === "After navigation", "navigation postcondition was not observed");
-    const args = clickArgs(fresh.token);
-    const action = await call("click", args);
-    checkNavigationDelivery(action);
-    const after = await verify();
-    return navigation ? navigation({ target, fresh, args, action, after, window: row, app: ownedApps[0] }) : undefined;
+    assert.equal((await snapshot()).value, "Before navigation", "stale token changed the fixture");
+    return await exercise({ target, snapshot, verify, clickArgs });
   } finally {
     if (fixture.pid && fixture.exitCode === null && fixture.signalCode === null) {
       fixture.kill();
@@ -143,29 +136,77 @@ async function exerciseFixture(call, title, navigation) {
   }
 }
 
-function journalEntry(tool, args, result) {
-  return { tool, arguments: args, result: slimResponse({ result }), generation: "capture" };
+const REQUEST = "Navigate the qualification fixture";
+const BOT = "qualification";
+
+async function recordNavigation(call, fixture, store) {
+  const journal = new ComputerJournal();
+  const scope = { botId: BOT, threadId: "qualification", generation: "record" };
+  async function recorded(tool, args) {
+    journal.gateChecked(scope);
+    const result = await call(tool, args);
+    journal.record(scope, { tool, arguments: args, result: slimResponse({ result }) });
+    return result;
+  }
+  await recorded("list_apps", {});
+  await recorded("list_windows", { pid: fixture.target.pid, on_screen_only: false });
+  const before = await fixture.snapshot(recorded);
+  assert.equal(before.value, "Before navigation");
+  checkNavigationDelivery(await recorded("click", fixture.clickArgs(before.token)));
+  await fixture.verify(recorded);
+  const built = buildRecipe({ request: REQUEST, journal: journal.take(scope.threadId, new Set([scope.generation])),
+    id: randomUUID(), now: Date.now() });
+  assert.ok(built.ok, "recording rejected: " + built.reason);
+  const { recipe } = built;
+  assert.equal(recipe.steps.length, 1);
+  assert.deepEqual(recipe.steps[0].element, { role: "Button", label: "Navigate fixture", path: [], uiaWindowChild: true });
+  assert.deepEqual(recipe.steps[0].args, { delivery_mode: "background" });
+  store.save(BOT, recipe);
+  return { key: recipe.key, id: recipe.id, pid: fixture.target.pid, token: before.token };
 }
 
-function assessRecording({ target, fresh, args, action, after, window, app }) {
-  const calls = [
-    journalEntry("list_apps", {}, { structuredContent: { apps: [app] } }),
-    journalEntry("list_windows", { pid: target.pid }, { structuredContent: { windows: [window] } }),
-    journalEntry("get_window_state", target, fresh.raw),
-    journalEntry("click", args, action),
-    journalEntry("get_window_state", target, after.raw),
-  ];
-  const built = buildRecipe({
-    request: "Navigate the qualification fixture", journal: { calls, complete: true, tainted: false },
-    id: randomUUID(), now: Date.now(),
+async function replayNavigation(call, fixture, store, recording) {
+  const { target } = fixture;
+  assert.notEqual(recording.pid, target.pid, "fixture did not restart with a new PID");
+  const recipe = store.find(BOT, recording.key);
+  assert.equal(recipe?.id, recording.id, "saved recipe missing from reopened store");
+  let approved = 0;
+  let clicks = 0;
+  let liveToken;
+  const outcome = await runSteps(recipe, { threadId: "qualification", turnId: "replay", provider: "fixture", providerInstanceId: BOT }, {
+    signal: AbortSignal.timeout(10_000), publish() {},
+    approval: { async ask(tool) {
+      assert.equal(tool, "mcp__computer__click");
+      approved++;
+      const duringApproval = await fixture.snapshot();
+      assert.notEqual(duringApproval.token, liveToken, "approval did not invalidate the previous snapshot");
+      return true;
+    } },
+    caller: { async call(tool, args) {
+      assert.ok(["list_apps", "list_windows", "get_window_state", "click"].includes(tool));
+      if (tool !== "list_apps") assert.equal(args.pid, target.pid);
+      if (tool === "click" || tool === "get_window_state") assert.equal(args.window_id, target.window_id);
+      if (tool === "click") {
+        assert.equal(approved, 1);
+        assert.equal(++clicks, 1);
+        assert.ok(liveToken && liveToken !== recording.token);
+        assert.deepEqual(args, fixture.clickArgs(liveToken));
+      }
+      const result = await call(tool, args);
+      if (tool === "get_window_state") {
+        const before = fixtureSnapshot(result, target);
+        assert.equal(before.value, "Before navigation");
+        liveToken = before.token;
+      }
+      if (tool === "click") checkNavigationDelivery(result);
+      return callOutcome(result);
+    } },
   });
-  if (built.ok) return { status: "UNVERIFIED", reason: "capture candidate requires replay qualification" };
-  const rows = fresh.raw.structuredContent.elements;
-  const chosen = rows.find((row) => row.element_token === fresh.token);
-  return {
-    status: "BLOCKED", reason: built.reason, knownSelectorPath: elementPath(rows, chosen) !== null,
-    depth: chosen.depth, hasParentIndex: chosen.parent_index !== undefined,
-  };
+  assert.deepEqual(outcome, { kind: "done" });
+  assert.equal(clicks, 1);
+  const after = await fixture.verify();
+  return { status: "PASS", persisted: true, reopenedStore: true, newPid: true, freshToken: true,
+    approvedClicks: approved, before: "Before navigation", after: after.value };
 }
 
 export async function qualifyNavigation(invoke) {
@@ -177,8 +218,15 @@ export async function qualifyNavigation(invoke) {
     try { return await invoke(tool, args); }
     finally { metrics.push({ tool, elapsedMs: Math.round(performance.now() - before) }); }
   }
-  const savedSteps = await exerciseFixture(call, title, assessRecording);
-  await exerciseFixture(call, title);
+  const folder = mkdtempSync(join(tmpdir(), "startupbot-win-saved-steps-"));
+  let savedSteps;
+  try {
+    const openStore = () => new RecipeStore({ folder: () => folder });
+    const recording = await withFixture(call, title, (fixture) => recordNavigation(call, fixture, openStore()));
+    savedSteps = await withFixture(call, title, (fixture) => replayNavigation(call, fixture, openStore(), recording));
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
   return {
     driver: PIN, contract: CONTRACT, fixture: "WinForms", navigationRounds: 2, evidence: "UIA read-back",
     savedSteps, aiCalls: 0, cuaCalls: metrics.length, elapsedMs: Math.round(performance.now() - started), metrics,

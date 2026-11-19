@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { installLibrarySkill, readSkillLibraryIndex, setLibrarySkillReviewState } from "./skill-library.ts";
+import { installLibrarySkill, readSkillLibraryIndex, setLibrarySkillReviewState, skillLibraryEvents } from "./skill-library.ts";
 import { installStartupBotSkillCatalog } from "./startupbot-skill-catalog.ts";
 
 it("stages the catalog with notices and preserves existing library choices on restart", () => {
@@ -10,7 +10,16 @@ it("stages the catalog with notices and preserves existing library choices on re
   try {
     const instructions = "---\nname: pdf\ndescription: My existing PDF skill.\n---\n\nMy local instructions.\n";
     expect(installLibrarySkill({ root, name: "pdf", instructions, source: "local-import" })).not.toHaveProperty("error");
-    expect(installStartupBotSkillCatalog({ root })).toEqual({ installed: 60, failed: [] });
+    const publishedSizes: number[] = [];
+    const onInstall = () => publishedSizes.push(Object.keys(readSkillLibraryIndex(root)).length);
+    skillLibraryEvents.on("invalidate", onInstall);
+    try {
+      expect(installStartupBotSkillCatalog({ root })).toEqual({ installed: 60, failed: [] });
+    } finally {
+      skillLibraryEvents.off("invalidate", onInstall);
+    }
+    expect(publishedSizes).toHaveLength(60);
+    expect(new Set(publishedSizes)).toEqual(new Set([61]));
     const index = readSkillLibraryIndex(root);
     expect(Object.keys(index)).toHaveLength(61);
     expect(index.pdf?.source).toBe("local-import");

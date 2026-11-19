@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { isSkillName } from "../shared/skill-md.ts";
 import { prepareSkillFolder, type SkillFolderFile } from "./skill-folder.ts";
-import { installLibrarySkill, readSkillLibraryIndex, retireLibrarySkill, setLibrarySkillEveryBot, skillsLibraryRoot } from "./skill-library.ts";
+import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill, skillsLibraryRoot } from "./skill-library.ts";
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
@@ -54,7 +54,7 @@ export function installStartupBotSkillCatalog({
   }
 
   const existing = readSkillLibraryIndex(root);
-  let installed = 0;
+  const pending: Parameters<typeof installBundledLibrarySkills>[0][number][] = [];
   const failed: string[] = [];
   for (const entry of entries) {
     const previous = Object.hasOwn(existing, entry.name) ? existing[entry.name] : undefined;
@@ -74,26 +74,21 @@ export function installStartupBotSkillCatalog({
         if ("error" in archived) throw new Error(archived.error);
         if ("stale" in archived) continue;
       }
-      const result = installLibrarySkill({
+      pending.push({
         ...entry,
         instructions: folder.skillMd,
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
         reviewState: "disabled",
-        root,
+        everyBot: previous?.everyBot,
       });
-      if ("error" in result) throw new Error(result.error);
-      if (previous?.everyBot) {
-        const restored = setLibrarySkillEveryBot(entry.name, true, root);
-        if ("error" in restored) throw new Error(restored.error);
-      }
-      installed++;
     } catch (error) {
       failed.push(`${entry.name}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  return { installed, failed };
+  const result = installBundledLibrarySkills(pending, root);
+  return { installed: result.installed, failed: [...failed, ...result.failed] };
 }
 
 export function seedStartupBotSkillCatalog(): void {

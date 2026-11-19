@@ -25,6 +25,7 @@ const modelSelectionText = (selection: ModelSelection) =>
 /** One setup may edit a whole department at once (a model switch, an added rule), but each new bot still needs a close review. */
 const MAX_SETUP_BOTS = 40;
 const MAX_NEW_BOTS = 8;
+const WORK_OFFER_TIMEOUT_MS = 90_000;
 const fieldsSchema = z.object({
   chiefOfStaff: z.boolean().optional(),
   name: z.string().optional(), title: z.string().optional(), description: z.string().optional(), soul: z.string().optional(),
@@ -310,8 +311,8 @@ export class TeamSetupRequestService {
       const excerpt = brief.length > 6000 ? brief.slice(0, 4000) + "…" + brief.slice(-1900) : brief;
       const previousTopics = this.activeOfferTopics(threadId);
       const prompt = workBotPrompt(excerpt, !store.bots.some(row => !row.defaultBot && !row.hidden), previousTopics.slice(-20));
-      const signal = AbortSignal.timeout(30_000);
-      const reply = await engine.generateText(prompt, { timeoutMs: 30_000, signal, started: () => {
+      const signal = AbortSignal.timeout(WORK_OFFER_TIMEOUT_MS);
+      const reply = await engine.generateText(prompt, { timeoutMs: WORK_OFFER_TIMEOUT_MS, signal, started: () => {
         if (!eligible() || !writer()) throw new TeamSetupError("Source conversation changed");
       } });
       const topic = readWorkBotTopic(reply);

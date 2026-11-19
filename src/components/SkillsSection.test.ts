@@ -55,11 +55,11 @@ describe("filterLibrarySkills", () => {
 });
 
 describe("LibrarySkillMeta", () => {
-  it("shows the source, a version when one exists, the import date, and tags", () => {
+  it("shows version and tags while keeping the source off the card", () => {
     const html = renderToStaticMarkup(createElement(LibrarySkillMeta, {
       skill: skill({ tags: ["orders"], version: "2.1.0" }),
     }));
-    expect(html).toContain("Source: local-import");
+    expect(html).not.toContain("local-import");
     expect(html).toContain("Version 2.1.0");
     expect(html).toContain("orders");
   });

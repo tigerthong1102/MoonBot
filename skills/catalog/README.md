@@ -4,7 +4,7 @@ This catalog contains 57 curated skill candidates and four Google Workspace help
 
 StartupBot copies the catalog into the workspace skill library at startup unless the workspace explicitly sets `features.skillsLibrary` to false. The imports are disabled for review and have no bot assignments. An existing library entry with the same name takes precedence. Existing choices persist on restart.
 
-Open Settings → Skills library to search by task, source, or category. Vietnamese search accepts words with or without accents. Open a skill to read its instructions, enable it, then assign it to a bot. Type `/skill-name` in that bot’s chat to use it.
+Open Skills library above the chat to browse the complete list and choose Use in chat. The first use opens the instructions for review. Settings → Skills library also offers assignment and import controls. Vietnamese search accepts words with or without accents. Open a skill to read its instructions, enable it, then assign it to a bot. Type `/skill-name` in that bot’s chat to use it.
 
 ## Distribution
 

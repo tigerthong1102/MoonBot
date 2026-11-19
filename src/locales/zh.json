@@ -5919,7 +5919,7 @@
   "settings.section.skills": "技能",
   "skills.library.title": "技能库",
   "skills.library.subtitle": "查找技能并查看说明，然后启用技能并将其分配给机器人。在与该机器人的聊天中输入 / 加技能名称即可使用。",
-  "skills.library.searchPlaceholder": "按名称、说明或来源搜索",
+  "skills.library.searchPlaceholder": "按名称或说明搜索",
   "skills.library.allTags": "全部",
   "skills.library.empty": "技能库为空。在下方导入一个技能以开始使用。",
   "skills.library.noMatches": "没有符合该搜索条件的技能。",

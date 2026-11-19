@@ -5923,7 +5923,7 @@
   "settings.section.skills": "技能",
   "skills.library.title": "技能庫",
   "skills.library.subtitle": "尋找技能並查看說明，接著啟用技能並指派給機器人。在與該機器人的對話中輸入 / 加上技能名稱即可使用。",
-  "skills.library.searchPlaceholder": "依名稱、說明或來源搜尋",
+  "skills.library.searchPlaceholder": "依名稱或說明搜尋",
   "skills.library.allTags": "全部",
   "skills.library.empty": "技能庫是空的。請在下方匯入技能以開始使用。",
   "skills.library.noMatches": "沒有符合搜尋條件的技能。",

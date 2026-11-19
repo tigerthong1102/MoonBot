@@ -1,9 +1,16 @@
+import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { isSkillName } from "../shared/skill-md.ts";
 import { prepareSkillFolder, type SkillFolderFile } from "./skill-folder.ts";
-import { installLibrarySkill, readSkillLibraryIndex, skillsLibraryRoot } from "./skill-library.ts";
+import { installLibrarySkill, readSkillLibraryIndex, retireLibrarySkill, setLibrarySkillEveryBot, skillsLibraryRoot } from "./skill-library.ts";
+
+// Only these exact bundled folders contain the superseded Seedream logger or server launcher.
+const supersededFolders = new Map([
+  ["webapp-testing", "5a0400264fe9b7e20522ff39ab59535636b98a182448e641798554ef5d988f11"],
+  ["byted-seedream-image-generate", "ad2bd0eecf45c277877237eeb0096898e0e727dddf66dc7d3fd8d2e03b4399cf"],
+]);
 
 const catalogSchema = z.array(z.object({
   name: z.string().refine(isSkillName),
@@ -41,13 +48,21 @@ export function installStartupBotSkillCatalog({
   let installed = 0;
   const failed: string[] = [];
   for (const entry of entries) {
-    if (Object.hasOwn(existing, entry.name)) continue;
+    const previous = Object.hasOwn(existing, entry.name) ? existing[entry.name] : undefined;
+    if (previous && (previous.source !== entry.source || !previous.filesSha256 ||
+        previous.filesSha256 !== supersededFolders.get(entry.name))) continue;
     try {
       const folder = prepareSkillFolder(readCatalogFolder(join(catalog, entry.name)));
       if ("error" in folder) throw new Error(folder.error);
       if (folder.skipped.length || folder.parsed.name !== entry.name ||
           !folder.files.some(({ path }) => path === "LICENSE")) {
         throw new Error("catalog name, files or license do not match the package");
+      }
+      if (previous) {
+        if (previous.sha256 !== createHash("sha256").update(folder.skillMd).digest("hex")) continue;
+        const archived = retireLibrarySkill(entry.name, previous.sha256, root);
+        if ("error" in archived) throw new Error(archived.error);
+        if ("stale" in archived) continue;
       }
       const result = installLibrarySkill({
         ...entry,
@@ -59,6 +74,10 @@ export function installStartupBotSkillCatalog({
         root,
       });
       if ("error" in result) throw new Error(result.error);
+      if (previous?.everyBot) {
+        const restored = setLibrarySkillEveryBot(entry.name, true, root);
+        if ("error" in restored) throw new Error(restored.error);
+      }
       installed++;
     } catch (error) {
       failed.push(`${entry.name}: ${error instanceof Error ? error.message : String(error)}`);

@@ -5490,7 +5490,7 @@
   "settings.section.skills": "스킬",
   "skills.library.title": "스킬 라이브러리",
   "skills.library.subtitle": "스킬을 찾아 지침을 확인한 다음 활성화하고 봇에 할당하세요. 해당 봇과의 채팅에서 / 뒤에 스킬 이름을 입력하면 사용할 수 있습니다.",
-  "skills.library.searchPlaceholder": "이름, 설명, 출처로 검색",
+  "skills.library.searchPlaceholder": "이름 또는 설명으로 검색",
   "skills.library.allTags": "전체",
   "skills.library.empty": "라이브러리가 비어 있어요. 아래에서 스킬을 가져와 시작하세요.",
   "skills.library.noMatches": "검색과 일치하는 스킬이 없어요.",

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# StartupBot modified this file to stop the server process tree and avoid blocking on undrained output.
 """
 Start one or more servers, wait for them to be ready, run a command, then clean up.
 
@@ -14,6 +15,8 @@ Usage:
       -- python test.py
 """
 
+import os
+import signal
 import subprocess
 import socket
 import time
@@ -30,6 +33,18 @@ def is_server_ready(port, timeout=30):
         except (socket.error, ConnectionRefusedError):
             time.sleep(0.5)
     return False
+
+
+def stop_server(process):
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    process.wait()
 
 
 def main():
@@ -69,8 +84,7 @@ def main():
             process = subprocess.Popen(
                 server['cmd'],
                 shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                start_new_session=os.name == "posix",
             )
             server_processes.append(process)
 
@@ -92,12 +106,7 @@ def main():
         # Clean up all servers
         print(f"\nStopping {len(server_processes)} server(s)...")
         for i, process in enumerate(server_processes):
-            try:
-                process.terminate()
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
+            stop_server(process)
             print(f"Server {i+1} stopped")
         print("All servers stopped")
 

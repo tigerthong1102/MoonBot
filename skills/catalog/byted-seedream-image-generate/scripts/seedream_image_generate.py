@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# StartupBot modified this file to keep authorization headers and request bodies out of diagnostic output.
 # Copyright (c) 2026 Beijing Volcano Engine Technology Co., Ltd. and/or its affiliates.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -110,14 +111,6 @@ def _build_request_body(item: dict, model_name: str, version: str) -> dict:
     Build API request body
     Only add parameters supported by the selected version
     """
-    print("\n" + "="*80)
-    print("📋 构建请求体 - 输入参数:")
-    print("="*80)
-    print(f"item: {json.dumps(item, indent=2, ensure_ascii=False, default=str)}")
-    print(f"model_name: {model_name}")
-    print(f"version: {version}")
-    print("="*80 + "\n")
-    
     body = {
         "model": model_name,
         "prompt": item.get("prompt", ""),
@@ -137,12 +130,6 @@ def _build_request_body(item: dict, model_name: str, version: str) -> dict:
         if options:
             body["sequential_image_generation_options"] = options
 
-    print("\n" + "="*80)
-    print("✅ 构建请求体 - 最终输出:")
-    print("="*80)
-    print(f"body: {json.dumps(body, indent=2, ensure_ascii=False, default=str)}")
-    print("="*80 + "\n")
-    
     return body
 
 async def _call_image_api(item: dict, model_name: str, version: str, timeout: int) -> dict:
@@ -151,15 +138,6 @@ async def _call_image_api(item: dict, model_name: str, version: str, timeout: in
     url = f"{API_BASE}/images/generations"
     body = _build_request_body(item, model_name, version)
     
-    # 打印完整请求入参
-    print("\n" + "="*80)
-    print("📤 完整 API 请求入参:")
-    print("="*80)
-    print(f"URL: {url}")
-    print(f"Headers: {json.dumps(_get_headers(), indent=2, ensure_ascii=False)}")
-    print(f"Request Body: {json.dumps(body, indent=2, ensure_ascii=False)}")
-    print("="*80 + "\n")
-
     async with httpx.AsyncClient(timeout=float(timeout)) as client:
         response = await client.post(url, headers=_get_headers(), json=body)
         response.raise_for_status()
@@ -467,7 +445,6 @@ def main():
 
     print(f"  Generating image using Seedream {args.version}...")
     print(f"  {VERSION_DESCRIPTIONS[args.version]}")
-    print(f"  Prompt: {args.prompt}")
     print(f"  Size: {args.size}")
     print(f"  Response format: {args.response_format}")
     if args.version == "5.0":

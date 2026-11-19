@@ -5077,7 +5077,7 @@
   "settings.section.skills": "Umiejętności",
   "skills.library.title": "Biblioteka umiejętności",
   "skills.library.subtitle": "Znajdź umiejętność, przeczytaj jej instrukcje, włącz ją i przypisz do bota. Aby jej użyć, wpisz / i nazwę umiejętności na czacie z tym botem.",
-  "skills.library.searchPlaceholder": "Szukaj według nazwy, opisu lub źródła",
+  "skills.library.searchPlaceholder": "Szukaj według nazwy lub opisu",
   "skills.library.allTags": "Wszystkie",
   "skills.library.empty": "Biblioteka jest pusta. Zaimportuj umiejętność poniżej, aby zacząć.",
   "skills.library.noMatches": "Żadna umiejętność nie pasuje do tego wyszukiwania.",

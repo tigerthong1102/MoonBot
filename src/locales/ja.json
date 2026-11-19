@@ -5717,7 +5717,7 @@
   "settings.section.skills": "スキル",
   "skills.library.title": "スキルライブラリー",
   "skills.library.subtitle": "スキルを検索して手順を確認し、有効にしてボットに割り当てます。そのボットのチャットで / に続けてスキル名を入力すると使えます。",
-  "skills.library.searchPlaceholder": "名前、説明、提供元で検索",
+  "skills.library.searchPlaceholder": "名前または説明で検索",
   "skills.library.allTags": "すべて",
   "skills.library.empty": "ライブラリーは空です。下でスキルをインポートして始めましょう。",
   "skills.library.noMatches": "検索に一致するスキルはありません。",

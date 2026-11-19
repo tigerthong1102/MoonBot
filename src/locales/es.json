@@ -4720,7 +4720,7 @@
   "settings.section.skills": "Habilidades",
   "skills.library.title": "Biblioteca de habilidades",
   "skills.library.subtitle": "Busca una habilidad, revisa sus instrucciones, actívala y asígnala a un bot. Para usarla, escribe / seguido del nombre de la habilidad en el chat de ese bot.",
-  "skills.library.searchPlaceholder": "Buscar por nombre, descripción u origen",
+  "skills.library.searchPlaceholder": "Buscar por nombre o descripción",
   "skills.library.allTags": "Todas",
   "skills.library.empty": "La biblioteca está vacía. Importa una habilidad abajo para empezar.",
   "skills.library.noMatches": "Ninguna habilidad coincide con esa búsqueda.",

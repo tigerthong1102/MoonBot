@@ -246,9 +246,6 @@ export function SkillReviewDialog({
         <div id="skill-review-title" className="text-[16px] font-semibold text-ink">
           {t("skills.reviewTitle", { name: skill.name })}
         </div>
-        <div className="mt-1 break-all text-[12px] text-ink-secondary">
-          {t("skills.source", { source: skill.source })}
-        </div>
         {skill.warnings.length > 0 && (
           <div className="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-[12px] text-warning">
             {skill.warnings.join(" · ")}
@@ -515,7 +512,6 @@ export function SkillsSection({ bot }: { bot: Bot }) {
                     </button>
                   )}
                 </div>
-                <div className="mt-1 truncate text-[11px] text-ink-secondary" title={skill.source}>{t("skills.source", { source: skill.source })}</div>
                 {skill.warnings.length > 0 && (
                   <div className="mt-1 text-[11px] text-warning">{skill.warnings.join(" · ")}</div>
                 )}

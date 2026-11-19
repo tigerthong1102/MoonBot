@@ -342,7 +342,8 @@
     "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/webapp-testing/LICENSE.txt",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/with_server.py"
     ],
     "excludedFiles": [],
     "category": "web",
@@ -707,7 +708,8 @@
     "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedream-image-generate/LICENSE",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/seedream_image_generate.py"
     ],
     "excludedFiles": [],
     "category": "media",

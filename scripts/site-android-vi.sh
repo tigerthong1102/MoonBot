@@ -20,7 +20,9 @@ done
 [[ "$booted" == 1 ]]
 adb shell input keyevent 82
 adb install -r site.apk
-adb shell cmd locale set-app-locales ai.startupbot.android --user 0 vi-VN
+adb shell cmd locale set-app-locales ai.startupbot.android --user 0 --locales vi-VN
+adb shell cmd locale get-app-locales ai.startupbot.android --user 0 | tee mobile-artifacts/android/locale.txt
+grep -q vi mobile-artifacts/android/locale.txt
 adb logcat -c
 adb shell am start -W -n ai.startupbot.android/com.openmausbot.companion.MainActivity | tee mobile-artifacts/android/launch.txt
 sleep 4

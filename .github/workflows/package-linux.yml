@@ -1,5 +1,10 @@
 name: Verify Vietnamese installers downloaded from website
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      ios:
+        type: boolean
+        default: false
 permissions:
   contents: read
 env:
@@ -19,7 +24,7 @@ jobs:
         run: |
           curl.exe --fail --silent --show-error "$env:SITE/StartupBot-1.0.0-Setup.exe" -o "$env:RUNNER_TEMP/site.exe"
           if ((Get-FileHash "$env:RUNNER_TEMP/site.exe").Hash -ne '1e1124d31e10f24d420d06f8eb19442e9d17bb35a05e018639d4c6d85d742cdc') {throw 'Checksum mismatch'}
-          $destination = "$env:RUNNER_TEMP/StartupBotInstalled"
+          $destination = Join-Path $env:RUNNER_TEMP 'StartupBotInstalled'
           $p = Start-Process "$env:RUNNER_TEMP/site.exe" -ArgumentList '/S', "/D=$destination" -Wait -PassThru
           if ($p.ExitCode) {throw "Installer exited $($p.ExitCode)"}
           node scripts/site-desktop-vi.smoke.mjs --app "$destination/StartupBot.exe" --output evidence
@@ -44,6 +49,7 @@ jobs:
           name: android-site-smoke
           path: mobile-artifacts/android/
   ios:
+    if: inputs.ios
     runs-on: macos-26
     timeout-minutes: 20
     steps:

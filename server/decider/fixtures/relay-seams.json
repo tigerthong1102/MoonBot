@@ -110,7 +110,7 @@
         "state": {
           "room": "Launch",
           "humans_in_room": [
-            "Milind"
+            "Minh"
           ],
           "bots_in_room": [
             "Maya",
@@ -118,12 +118,12 @@
           ],
           "recent_messages": [
             {
-              "from": "Milind",
+              "from": "Minh",
               "text": "we ship Friday"
             }
           ],
           "new_message": {
-            "from": "Milind",
+            "from": "Minh",
             "text": "the navbar overlaps on Safari"
           }
         },

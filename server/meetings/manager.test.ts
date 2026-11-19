@@ -55,9 +55,9 @@ describe("meetings", () => {
       [{ ...at(6), type: "ended", reason: "meeting_ended" }],
     ]);
     const { meetings, followUps, cards, dataDir } = setup(engine);
-    const { record } = meetings.join({ botId: "b1", botName: "Ada", threadId: "t1", owner: "b1", link: MEET, person: "Milind" });
+    const { record } = meetings.join({ botId: "b1", botName: "Ada", threadId: "t1", owner: "b1", link: MEET, person: "Minh" });
     await until(() => record.notes === "asked");
-    expect(engine.join).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: "Ada (notes)", consent: expect.stringContaining("taking notes for Milind") }));
+    expect(engine.join).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: "Ada (notes)", consent: expect.stringContaining("taking notes for Minh") }));
     expect(engine.supplied).toEqual([{ kind: "eleven", token: "sutkn_fresh" }]);
     expect(followUps[0]).toContain("[Meeting question]");
     expect(followUps[0]).toContain("[Records from the meeting chat.");

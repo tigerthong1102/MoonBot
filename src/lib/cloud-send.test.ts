@@ -67,7 +67,7 @@ describe("the one-time move's line", () => {
     expect(moveLine({ phase: "copy", slow: { until } }, "local")).toMatchObject({ kind: "sending", text: `My Cloud is slow to answer. Your move goes on from where it was at ${time}.` });
     expect(moveLine({ phase: "finishing", checking: { step: "chats", done: 5, total: 9, bots: 2 }, slow: { until } }, "local")?.text).toContain("My Cloud is slow to answer");
     expect(moveLine({ phase: "copy", slow: { until }, failing: { error: "My Cloud did not answer." } }, "local")?.kind, "a day of failing still says so, with Try again").toBe("failed");
-    expect(moveLine({ phase: "copy", queued: { name: "Milind's Mac" } }, "local")?.text).toBe("Waiting for Milind's Mac to finish moving to My Cloud. Your bots move right after.");
+    expect(moveLine({ phase: "copy", queued: { name: "Minh's Mac" } }, "local")?.text).toBe("Waiting for Minh's Mac to finish moving to My Cloud. Your bots move right after.");
     expect(moveLine({ phase: "wait", queued: { name: "" } }, "local")?.text).toBe("Waiting for your other computer to finish moving to My Cloud. Your bots move right after.");
     expect(moveLine({ phase: "finishing", checking: { step: "chats", done: 1, total: 2, bots: 3 }, place: "Garage server" }, "local")?.text).toBe("Moving to Garage server… checking 3 bots' chats there, 50%");
     setLocale("pt-br");

@@ -174,15 +174,15 @@ describe("login and logout against the control plane", () => {
 
   it("an emailed code signs this machine in and reserves its public address; logout releases it", async () => {
     const wrong = fakeIo(["00000000"]);
-    expect(await runLogin(options(dir, { email: "milind@example.test" }), wrong.io)).toBe(1);
+    expect(await runLogin(options(dir, { email: "minh@example.test" }), wrong.io)).toBe(1);
     expect(wrong.err.join("\n")).toMatch(/sign-in failed/);
     expect(describeTunnelAccount(openTunnelCredentials(dir).read()).email).toBeNull();
 
     const right = fakeIo([stub.otp]);
-    expect(await runLogin(options(dir, { email: "milind@example.test" }), right.io)).toBe(0);
+    expect(await runLogin(options(dir, { email: "minh@example.test" }), right.io)).toBe(0);
     expect(right.out.join("\n")).toContain(`This machine's public address: ${stub.endpointUrl}`);
     const doc = openTunnelCredentials(dir).read();
-    expect(describeTunnelAccount(doc)).toMatchObject({ email: "milind@example.test", address: stub.endpointUrl });
+    expect(describeTunnelAccount(doc)).toMatchObject({ email: "minh@example.test", address: stub.endpointUrl });
     expect(tunnelAccess(doc)?.token).toBe(stub.connectorToken);
     expect(stub.calls).toContain("POST /v1/installations");
     expect(stub.calls).toContain("POST /v1/installations/self/endpoint");
@@ -203,18 +203,18 @@ describe("login and logout against the control plane", () => {
 
   it("tells the control plane the release this server runs, and no version at all when it cannot read one", async () => {
     vi.stubEnv("OMB_APP_VERSION", "0.1.153");
-    expect(await runLogin(options(dir, { email: "milind@example.test" }), fakeIo([stub.otp]).io)).toBe(0);
+    expect(await runLogin(options(dir, { email: "minh@example.test" }), fakeIo([stub.otp]).io)).toBe(0);
     expect([...stub.installations.values()][0]?.appVersion).toBe("0.1.153");
 
     expect(await runLogout(options(dir, { command: "logout" }), fakeIo([]).io)).toBe(0);
     stub.installations.clear();
     vi.stubEnv("OMB_APP_VERSION", "unknown");
-    expect(await runLogin(options(dir, { email: "milind@example.test" }), fakeIo([stub.otp]).io)).toBe(0);
+    expect(await runLogin(options(dir, { email: "minh@example.test" }), fakeIo([stub.otp]).io)).toBe(0);
     expect([...stub.installations.values()][0]?.appVersion).toBeNull();
   });
 
   it("a running serve --tunnel re-creates a reclaimed endpoint behind the same address and reconnects", async () => {
-    expect(await runLogin(options(dir, { email: "milind@example.test" }), fakeIo([stub.otp]).io)).toBe(0);
+    expect(await runLogin(options(dir, { email: "minh@example.test" }), fakeIo([stub.otp]).io)).toBe(0);
     const pending = new Map<number, () => void>();
     let nextTimer = 1;
     let clock = 1_000_000;

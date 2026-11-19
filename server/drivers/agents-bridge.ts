@@ -4,6 +4,7 @@
 // by its name (an outbound tool, a tool selection, an engine's own rules) never runs through it.
 import { isOutboundTool } from "../../shared/outbound.ts";
 import { READ_ONLY_ANNOTATIONS } from "../agent-tool-policy.ts";
+import { foldSearchText } from "../search-text.ts";
 import { bm25Ranker } from "../mcp-directory.ts";
 import { AGENTS_TOOL_ALIASES } from "../../shared/agents-tool-names.ts";
 import { vietnameseToolHints } from "./agents-vietnamese-search.ts";
@@ -193,7 +194,7 @@ export function createToolBridge(tools: readonly BridgeTool[]): ToolBridge {
     const suggested = hints.flatMap(hint => hidden.filter(tool => tool.name === hint));
     const directHelp = direct.map(name => `${name} is in your tool list: call it directly.`).join(" ");
     const remaining = hints.length
-      ? query.split(/(?:^|\s)(?:and|then|và|v[aà] sau đó|rồi|roi)(?:\s|$)/iu).filter(part => !vietnameseToolHints(part).length).join(" ").trim()
+      ? foldSearchText(query).split(/\s+(?:va sau do|sau do|and then|and|then|va|roi)\s+/u).filter(part => !vietnameseToolHints(part).length).join(" ").trim()
       : named;
     const lexical = remaining ? await bm25Ranker(remaining, hidden, FIND_MATCHES_MAX) : [];
     const ranked = [...suggested, ...lexical.filter(tool => !suggested.some(match => match.name === tool.name))];

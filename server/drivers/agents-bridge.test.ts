@@ -272,7 +272,10 @@ describe("find_tool", () => {
     const mixed = await found(bridgeFor(), "Liệt kê bot rồi tạo lịch");
     expect(mixed.next).toContain("list_bots is in your tool list");
     expect(mixed.matches[0]?.name).toBe("trigger");
-    const bilingual = await found(bridgeFor(), "Đổi tên hội thoại and list_models");
+  });
+
+  it.each(["and", "và", "va", "và sau đó", "va sau do", "rồi"])("retains mixed search clauses joined by %s", async joiner => {
+    const bilingual = await found(bridgeFor(), `Đổi tên hội thoại ${joiner} list_models`);
     expect(names(bilingual.matches)).toEqual(expect.arrayContaining(["rename_thread", "list_models"]));
   });
 

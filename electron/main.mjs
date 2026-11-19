@@ -77,7 +77,7 @@ import {
   withoutDesktopCompanionAccess,
 } from "./desktop-companion-client.mjs";
 import { isKnownSkin, skinChrome } from "./skin-overlay.cjs";
-import { installCredentialStoreIpc, readSecureCredentials } from "./secure-credentials.mjs";
+import { credentialResult, installCredentialStoreIpc, readSecureCredentials } from "./secure-credentials.mjs";
 import { createControlPlaneClient } from "./control-plane-client.mjs";
 import {
   companionAccountCleanupPending, companionTunnelRetired,
@@ -386,11 +386,11 @@ async function saveSecureCredentials(credentials) {
   if (credentialStoreUnavailable) {
     throw new Error("The operating-system credential store could not be read this launch");
   }
-  if (!(await safeStorage.isAsyncEncryptionAvailable())) {
+  if (!(await credentialResult(safeStorage.isAsyncEncryptionAvailable()))) {
     throw new Error("The operating-system credential store is unavailable");
   }
   fs.mkdirSync(path.dirname(CREDENTIALS_FILE), { recursive: true });
-  const encrypted = await safeStorage.encryptStringAsync(JSON.stringify(credentials));
+  const encrypted = await credentialResult(safeStorage.encryptStringAsync(JSON.stringify(credentials)));
   const temporary = `${CREDENTIALS_FILE}.${process.pid}.tmp`;
   fs.writeFileSync(temporary, encrypted, { mode: 0o600 });
   fs.renameSync(temporary, CREDENTIALS_FILE);
@@ -406,8 +406,9 @@ async function secureComposioConfig() {
     const apiKey = config?.composio?.apiKey;
     if (typeof apiKey === "string" && apiKey.trim().startsWith("ak_")) {
       if (!secureCredentials.composioApiKey) {
-        secureCredentials.composioApiKey = apiKey.trim();
-        await saveSecureCredentials(secureCredentials);
+        const next = { ...secureCredentials, composioApiKey: apiKey.trim() };
+        await saveSecureCredentials(next);
+        secureCredentials = next;
       }
       config.composio.apiKey = "";
       changed = true;
@@ -1112,6 +1113,8 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
     OMB_DATA_DIR: dataDir,
     // Fail-closed until this process sends the private connection; never a descriptor inherited from the shell.
     OMB_DESKTOP_PARENT: "1",
+    OMB_DISABLE_MODEL_MANIFEST_FETCH: "1",
+    OMB_DISABLE_ANNOUNCEMENTS: "1",
     OMB_DESKTOP_LAUNCH_ID: desktopLaunchId,
     OMB_STATIC_DIR: path.join(process.resourcesPath, "ui"),
     OMB_RESOURCES_PATH: process.resourcesPath,
@@ -2734,7 +2737,7 @@ async function saveWorkspaceCredential(name, value, options) {
   if (!patchFor || typeof value !== "string") {
     throw new Error("Unsupported credential");
   }
-  if (app.isPackaged && !(await safeStorage.isAsyncEncryptionAvailable())) {
+  if (app.isPackaged && !(await credentialResult(safeStorage.isAsyncEncryptionAvailable()))) {
     throw new Error("The operating-system credential store is unavailable");
   }
   const secret = value.trim();

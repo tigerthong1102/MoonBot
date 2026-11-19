@@ -281,7 +281,8 @@ StartupBot installers have not passed the release gates yet. No public StartupBo
 
 | Platform | StartupBot availability |
 |---|---|
-| macOS Apple Silicon / Intel | Not released; internal package and clean-machine verification pending. |
+| macOS Apple Silicon | Internal arm64 DMG verified on an M1 Pro. Public release and independent clean-machine validation pending. |
+| macOS Intel | Build and device verification pending. |
 | Windows | Not released; installer and clean-machine verification pending. |
 | Linux | Not released; package and restricted-host sandbox verification pending. |
 | iOS / Android | Not released; native builds and device validation pending. |

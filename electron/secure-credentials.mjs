@@ -4,6 +4,22 @@ export const CREDENTIAL_READ_DELAYS_MS = [100, 200, 400, 800];
 
 const message = (error) => (error instanceof Error ? error.message : String(error));
 
+class CredentialTimeout extends Error {}
+
+export async function credentialResult(operation, timeoutMs = 12_000) {
+  let timer;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new CredentialTimeout("Timed out waiting for the operating-system credential store")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function readSecureCredentials({
   exists,
   isAvailable,
@@ -11,6 +27,7 @@ export async function readSecureCredentials({
   decrypt,
   sleep,
   delays = CREDENTIAL_READ_DELAYS_MS,
+  timeoutMs,
 }) {
   if (!exists()) return { status: "empty", credentials: {} };
 
@@ -18,11 +35,11 @@ export async function readSecureCredentials({
   for (let attempt = 0; attempt <= delays.length; attempt++) {
     if (attempt > 0) await sleep(delays[attempt - 1]);
     try {
-      if (!(await isAvailable())) {
+      if (!(await credentialResult(isAvailable(), timeoutMs))) {
         lastError = "the operating-system credential store is unavailable";
         continue;
       }
-      const decrypted = await decrypt(readFile());
+      const decrypted = await credentialResult(decrypt(readFile()), timeoutMs);
       const text = typeof decrypted === "string" ? decrypted : decrypted?.result;
       try {
         const parsed = JSON.parse(text);
@@ -35,6 +52,7 @@ export async function readSecureCredentials({
       }
     } catch (error) {
       lastError = message(error);
+      if (error instanceof CredentialTimeout) break;
     }
   }
   return { status: "unavailable", credentials: {}, error: lastError };

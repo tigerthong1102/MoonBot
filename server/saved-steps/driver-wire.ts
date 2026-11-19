@@ -7,6 +7,8 @@ export interface WireElement {
   depth: number;
   /** The driver reported what the element holds; what it holds never leaves the bridge. */
   value_read?: true;
+  /** Windows UIA projected this enabled button directly under the window it omitted. */
+  uia_window_child?: true;
 }
 export interface WireApp { pid: number; name: string; bundle_id?: string; running?: boolean }
 export interface WireWindow { window_id: number; pid?: number; title: string; app_name?: string }
@@ -22,6 +24,7 @@ export interface SlimStructured {
   window_title?: string;
   /** The driver read the whole tree and every element survived slimming. */
   elements_complete?: true;
+  background_accessibility_action?: true;
   refusal?: { code?: string; message?: string };
 }
 export interface SlimResult { isError: boolean; rpcError?: true; structured?: SlimStructured }
@@ -74,13 +77,41 @@ export function wholeTree(state: Record<string, unknown>): boolean {
 
 export const treeDegraded = (state: Record<string, unknown>) => state.degraded === true || hasText(state.degraded_reason);
 
-function slimStructured(raw: Rec): SlimStructured {
+function markWindowButtons(raw: Rec, elements: WireElement[]): void {
+  if (raw.tree_format !== "elements" || !Number.isSafeInteger(raw.pid) || !Number.isSafeInteger(raw.window_id)
+    || !hasText(raw.window_title) || !Array.isArray(raw.elements)
+    || raw.total_element_count !== elements.length || raw.returned_element_count !== elements.length
+    || !COUNTS.every((key) => raw[key] === undefined || raw[key] === elements.length)) return;
+  const rows = raw.elements;
+  if (!rows.every((row) => isRec(row) && Number.isSafeInteger(row.depth) && Number(row.depth) >= 1
+    && Number.isSafeInteger(row.element_index) && Number(row.element_index) >= 0
+    && (row.parent_index === undefined || Number.isSafeInteger(row.parent_index))
+    && (row.label === undefined || typeof row.label === "string"))
+    || new Set(elements.map((row) => row.element_index)).size !== elements.length) return;
+  const tokens = elements.flatMap((row) => row.element_token === undefined ? [] : [row.element_token]);
+  if (new Set(tokens).size !== tokens.length) return;
+  for (const [index, row] of elements.entries()) {
+    if (row.role === "Button" && row.depth === 1 && row.parent_index === undefined && rows[index].enabled === true
+      && /^s[0-9a-f]{8}:\d+$/u.test(row.element_token ?? "")) row.uia_window_child = true;
+  }
+}
+
+export function backgroundAccessibilityAction(raw: Rec): boolean {
+  return raw.route === "accessibility" && isRec(raw.delivery) && raw.delivery.mode === "background"
+    && (raw.effect === "confirmed" || raw.effect === "unverifiable");
+}
+
+function slimStructured(raw: Rec, platform: NodeJS.Platform): SlimStructured {
   const out: SlimStructured = pick(raw, Object.keys(TOP_TYPES), TOP_TYPES);
   const elements = slimList<WireElement>(raw.elements, ELEMENT_TYPES, ["element_index", "role", "depth"], MAX_ELEMENTS, markValueRead);
   const apps = slimList<WireApp>(raw.apps, APP_TYPES, ["pid", "name"]);
   const windows = slimList<WireWindow>(raw.windows, WINDOW_TYPES, ["window_id", "title"]);
   if (elements) out.elements = elements;
-  if (elements && elements.length === (raw.elements as unknown[]).length && wholeTree(raw) && !treeDegraded(raw)) out.elements_complete = true;
+  if (elements && elements.length === (raw.elements as unknown[]).length && wholeTree(raw) && !treeDegraded(raw)) {
+    out.elements_complete = true;
+    if (platform === "win32" && !raw.refusal) markWindowButtons(raw, elements);
+  }
+  if (platform === "win32" && backgroundAccessibilityAction(raw)) out.background_accessibility_action = true;
   if (apps) out.apps = apps;
   if (windows) out.windows = windows;
   if (isRec(raw.refusal)) {
@@ -90,12 +121,12 @@ function slimStructured(raw: Rec): SlimStructured {
   return out;
 }
 
-export function slimResponse(frame: unknown): SlimResult {
+export function slimResponse(frame: unknown, platform: NodeJS.Platform = process.platform): SlimResult {
   if (!isRec(frame)) return { isError: true, rpcError: true };
   if (frame.error !== undefined) return { isError: true, rpcError: true };
   const result = isRec(frame.result) ? frame.result : {};
   const slim: SlimResult = { isError: result.isError === true };
-  if (isRec(result.structuredContent)) slim.structured = slimStructured(result.structuredContent);
+  if (isRec(result.structuredContent)) slim.structured = slimStructured(result.structuredContent, platform);
   return slim;
 }
 

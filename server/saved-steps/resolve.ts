@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { elementPath, treeDegraded, wholeTree, type WireElement } from "./driver-wire.ts";
-import { KEY_TOOLS, holdsTypedText, type AppIdentity, type ElementIdentity, type RecipeStep } from "./rules.ts";
+import { elementPath, slimResponse, treeDegraded, wholeTree, type WireElement } from "./driver-wire.ts";
+import { KEY_TOOLS, holdsTypedText, windowButtonClick, type AppIdentity, type ElementIdentity, type RecipeStep } from "./rules.ts";
 
 /** `gate`: the computer's control gate refused the call (a person holds it, another turn has it): the step was not tried. */
 export type CallOutcome = { ok: true; structured: Record<string, unknown> } | { ok: false; error: string; gate?: true };
@@ -94,6 +94,12 @@ export function matchElement(elements: unknown, element: ElementIdentity): Match
   return match.value.path === null ? NONE : { ok: true, value: match.value.live };
 }
 
+export function matchWindowButton(elements: readonly WireElement[], label: string): Match<WireElement> {
+  const match = only(elements.filter((row) => row.role === "Button" && row.label === label));
+  if (!match.ok) return match;
+  return match.value.uia_window_child === true ? match : NONE;
+}
+
 function heldValue(elements: unknown, index: number): string | undefined {
   const live = Array.isArray(elements) ? elements.find((item) => isRecord(item) && item.element_index === index) : undefined;
   return isRecord(live) && typeof live.value === "string" ? live.value : undefined;
@@ -137,13 +143,21 @@ export async function resolveStep(step: RecipeStep, caller: ComputerCaller, sign
   args.window_id = windowId.value;
   if (!element) return { ok: true, args };
 
-  const state = await caller.call("get_window_state", { pid: pid.value, window_id: windowId.value, include_screenshot: false }, signal);
+  const directButton = element.uiaWindowChild === true;
+  if (directButton && (!windowButtonClick(step.tool, step.args) || element.role !== "Button" || element.path.length !== 0)) {
+    return fail("invalid saved Windows button");
+  }
+  const state = await caller.call("get_window_state", { pid: pid.value, window_id: windowId.value, include_screenshot: false,
+    ...(directButton ? { tree_format: "elements" } : {}) }, signal);
   if (!state.ok) return state;
   const tree = state.structured;
   if (tree.pid !== pid.value || tree.window_id !== windowId.value) return fail("the computer answered for a different window");
   if (treeDegraded(tree)) return fail(`${window.title} could not be read reliably`);
   if (!wholeTree(tree)) return fail(`only part of ${window.title} could be read`);
-  const found = matchElement(tree.elements, element);
+  if (directButton && tree.window_title !== window.title) return fail("the window title changed");
+  const found = directButton
+    ? matchWindowButton(slimResponse({ result: { structuredContent: tree } }).structured?.elements ?? [], element.label)
+    : matchElement(tree.elements, element);
   const target = `"${element.label}" (${element.role}) in ${window.title}`;
   if (!found.ok) return found.reason === "none" ? missing(`no ${target}`) : fail(`more than one ${target}`);
   const { element_token: token, element_index: index } = found.value;

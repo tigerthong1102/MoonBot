@@ -20,6 +20,7 @@ import { yourComputerAsk } from "@/lib/your-computer";
 import { computerAskWords } from "@/lib/computer-ask";
 import { mcpRequestActionLabel } from "@/lib/mcp-request-label";
 import { TriggerCard } from "./TriggerCard";
+import { WorkBotOfferCard } from "./WorkBotOfferCard";
 import { CardHint } from "./CardHint";
 
 interface ToolLabels {
@@ -86,7 +87,6 @@ export const titledCard = (card: OptionCardData | undefined) =>
 
 export function titledCardAction(card: OptionCardData): string {
   if (card.mcpRequest) return mcpRequestActionLabel(card.mcpRequest.action);
-  if (card.teamSetupRequest?.workBotOffer) return card.options[0] ?? t("sidebar.newChat.createBot");
   if (card.teamSetupRequest) return t(card.teamSetupRequest.deletion ? "approval.action.deleteBot" : "approval.action.applySetup");
   return card.options[0] ?? t("approval.action.confirm");
 }
@@ -459,6 +459,7 @@ export function ApprovalCard({
 }) {
   const card = message.card;
   if (!card) return null;
+  if (card.teamSetupRequest?.workBotOffer) return <WorkBotOfferCard card={card} threadId={threadId} />;
   if (cardAutomation(card)) return <TriggerCard card={card} threadId={threadId} />;
   const applied = card.autoApplied === true && card.answered === "allow" && !card.held
     ? appliedChange(card, bot?.name ?? t("approval.someone"))

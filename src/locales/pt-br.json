@@ -536,6 +536,7 @@
   "server.lendingLift.outside": "Um webhook ou uma rotina que você não criou publicou uma mensagem nesta conversa. “Permitir” autoriza o uso do seu {device} só para atender a esta mensagem sua.",
   "server.lendingLift.more": "Mais detalhes nas configurações deste bot, em Memória.",
   "server.lendingLift.allow": "Permitir",
+  "workBotOffer.created": "Bot “{name}” criado",
   "server.workBot.question": "Quer criar o bot “{name}” para acompanhar este trabalho?",
   "server.workBot.create": "Criar bot",
   "server.lendingLift.notNow": "Agora não",

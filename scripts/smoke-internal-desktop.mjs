@@ -196,11 +196,16 @@ try {
   assert.equal(offered.teamSetupRequest.workBotOffer.icon, "box");
   assert.equal(offered.answered, undefined);
   assert(offered.title.includes(workName));
-  const consent = `[...document.querySelectorAll('button')].find(button => button.getClientRects().length && !button.disabled && button.textContent.trim() === ${JSON.stringify(offered.options[0])})`;
+  const consent = `[...document.querySelectorAll('[data-work-bot-offer] button')].find(button => button.getClientRects().length && !button.disabled && button.textContent.trim() === ${JSON.stringify(offered.options[0])})`;
   await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(offered.title)}) && Boolean(${consent})`), "the visible work question and its consent button");
   assert.deepEqual((await roster()).map(row => row.id).sort(), initialBots.map(row => row.id).sort());
   const offerScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "work-bot-consent.png"), Buffer.from(offerScreenshot.data, "base64"));
+  await until(() => evaluate(`Boolean(${composer})`), "the composer to stay usable while the suggestion is open");
+  const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
+  await send(extra);
+  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text === extra), "a second message to be accepted with the offer pending");
+  assert.equal((await roster()).length, initialBots.length);
   await evaluate(`(${consent}).click()`);
   const accepted = await until(async () => {
     const card = await offerCard();

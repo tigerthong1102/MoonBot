@@ -47,7 +47,7 @@ export function isProfileApproval(pending: Pending): boolean {
 export function pendingApprovals(messages: Message[]): Pending[] {
   return messages
     // A routine card left open from before Triggers v2 can't be confirmed: trigger changes apply on their own.
-    .filter((m) => m.kind === "options" && m.card?.requestId && m.card.tool && !m.card.answered && !m.card.dismissed && !m.card.expired && !m.card.routineRequest)
+    .filter((m) => m.kind === "options" && m.card?.requestId && m.card.tool && !m.card.answered && !m.card.dismissed && !m.card.expired && !m.card.routineRequest && !m.card.teamSetupRequest?.workBotOffer)
     .map((m) => ({
       message: m,
       requestId: m.card!.requestId!,

@@ -216,7 +216,7 @@ export interface FollowupPayload {
   trigger?: UsageTrigger;
   origin?: WorkOrigin;
   queuedAt?: number;
-  rowId?: string; mentions?: string[];
+  rowId?: string; mentions?: string[]; workBotOfferOwner?: string;
 }
 export type FollowupStatus = "pending" | "dispatching" | "interrupted" | "cancelled";
 export interface ChatFollowup {

@@ -56,6 +56,8 @@ SELECT CONVERT(varchar(32), SERVERPROPERTY('ProductVersion')),
     $command.Dispose()
     . "$PSScriptRoot/readonly.ps1"
     Test-ScopedRead $connection
+    . "$PSScriptRoot/../tests/audit-sales.ps1"
+    Test-AuditSales $connection
     Write-Host "Verified LocalDB $version, $transport, $auth; System.Data $([Data.SqlClient.SqlConnection].Assembly.GetName().Version), $([IntPtr]::Size * 8)-bit."
 } finally {
     if ($connection) { $connection.Dispose() }

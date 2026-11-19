@@ -44,6 +44,7 @@ interface QueueEntry {
     rowId?: string;
     /** Bot ids picked from the @ list. */
     mentions?: string[];
+    workBotOfferOwner?: string;
   }>;
 }
 
@@ -109,13 +110,14 @@ export function queueSteeredMessage(
   botId: string,
   threadId: string,
   text: string,
-  options: { prompt?: string; replyToId?: string; sendId?: string; dataContext?: Message["dataContext"]; reason?: SteerQueueReason; unattended?: boolean; peerAsk?: Message["peerAsk"]; origin?: WorkOrigin; sender?: ResolvedSender; trigger?: UsageTrigger; callId?: string; via?: "call"; reaction?: string; fromApp?: Message["fromApp"]; relay?: Message["relay"]; rowId?: string; first?: boolean; queuedAt?: number; mentions?: string[]; aheadOfOthers?: string } = {},
+  options: { workBotOfferOwner?: string; prompt?: string; replyToId?: string; sendId?: string; dataContext?: Message["dataContext"]; reason?: SteerQueueReason; unattended?: boolean; peerAsk?: Message["peerAsk"]; origin?: WorkOrigin; sender?: ResolvedSender; trigger?: UsageTrigger; callId?: string; via?: "call"; reaction?: string; fromApp?: Message["fromApp"]; relay?: Message["relay"]; rowId?: string; first?: boolean; queuedAt?: number; mentions?: string[]; aheadOfOthers?: string } = {},
 ): QueuedSteer {
   const id = newId();
   const entry = queues.get(threadId) ?? { botId, items: [] };
   if (entry.botId !== botId) throw new Error("queued task belongs to another bot");
   const item = {
     messageId: id,
+    ...(options.workBotOfferOwner !== undefined ? { workBotOfferOwner: options.workBotOfferOwner } : {}),
     text,
     prompt: options.prompt ?? text,
     replyToId: options.replyToId,
@@ -186,6 +188,7 @@ export function drainSteeredMessages(
     head: SteerQueueHead,
   ) => void | Promise<void>,
   isBlocked?: (botId: string, threadId: string, head: SteerQueueHead) => boolean,
+  offerWorkBot?: (botId: string, threadId: string, text: string, owner: string) => void,
 ): void {
   // deleting only the entry being visited is safe under Map iteration
   for (const [threadId, entry] of queues) {
@@ -231,6 +234,7 @@ export function drainSteeredMessages(
     }
     const last = appended.at(-1);
     if (!last) continue;
+    for (const item of group) if (typeof item.workBotOfferOwner === "string") offerWorkBot?.(entry.botId, threadId, item.text, item.workBotOfferOwner);
     // A blank line keeps each message its own Markdown block; otherwise a trailing attachment tag merges into the next and stops being an image.
     const prompt = group.map((item) => item.prompt).join("\n\n");
     const mentions = group.flatMap((item) => item.mentions ?? []);

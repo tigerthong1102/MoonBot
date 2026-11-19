@@ -1,5 +1,7 @@
 import type { ModelSelection } from "./wire.ts";
 
+export type WorkBotIcon = "ledger" | "chart" | "calendar" | "mail" | "tasks" | "box";
+
 export interface TeamSetupFields {
   name?: string;
   title?: string;
@@ -38,6 +40,8 @@ export interface TeamSetupRequest {
   requesterRevision: string;
   operations: TeamSetupOperation[];
   newTeams: string[];
+  /** A specialist suggested by the main helper; creation requires a user decision even on Full access. */
+  workBotOffer?: { icon: WorkBotIcon; topic: string };
   deletion?: { botId: string; name: string; expectedRevision: string };
   result?: TeamSetupResult;
   resumed?: boolean;

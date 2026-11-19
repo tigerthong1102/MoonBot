@@ -33,6 +33,7 @@ import { cancelSteeredMessage, holdSteeredQueue, queuedSteerSender, queuedSteere
 import { routeRunOwners, type Actor, type RouteRunOwners } from "../host/run-owner.ts";
 import type { BotRecord, GroupRecord, Message, Store } from "../store.ts";
 import { extractSteerImages } from "../turn-images.ts";
+import { defaultBotPerson } from "../../shared/default-bot.ts";
 import { followupFacts, helperFollowup, helperFollowupBody, mayFollowUp } from "../helper-followup.ts";
 import type { UsageTrigger } from "../usage-ledger.ts";
 import { noteTypedSend } from "../typed-sends.ts";
@@ -60,6 +61,7 @@ export interface BotMessageRouteDeps {
   registry: Pick<ProviderRegistry, "get">;
   /** On a team: the words for a turn with no AI to answer with, having told who can connect one. */
   noAiRefusal?(threadId: string, sender: ResolvedSender | undefined, instanceId?: string): Error | null;
+  offerWorkBot?(botId: string, threadId: string, text: string, owner: string): void;
   routines(): RoutineManager | null;
   handoffs: Pick<Handoffs, "current" | "steered">;
   /** The turn running in a thread now, as its runtime events name it. */
@@ -339,11 +341,14 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
       if (personPresent && sendId && !guarded && !press && !appSent) noteTypedSend(threadId, sendId, text);
       if (pressKey) pressesInFlight.set(pressKey, sendId);
       try {
+        const workBotOfferOwner = !retried && !guarded && !press && !appSent && !pointing && !mentions?.length &&
+          personPresent && bot.defaultBot && mayFollowUp(bot, auth) ? defaultBotPerson(bot) : undefined;
         const receipt = await acceptDirectSend({
           botId: bot.id, threadId, text, sendId, replyTo, sender, trigger, dataContext, ...(app ? { app } : {}),
-          personPresent, admin: owners.admin(auth), ...(followUp ? { followUp } : {}),
+          personPresent, workBotOfferOwner, admin: owners.admin(auth), ...(followUp ? { followUp } : {}),
           ...(mentions?.length && !press && !appSent ? { mentions } : {}),
         }, guardedStart);
+        if ("message" in receipt && workBotOfferOwner !== undefined) deps.offerWorkBot?.(bot.id, threadId, typed, workBotOfferOwner);
         press?.settle("queueId" in receipt ? receipt.queueId : undefined);
         appContext?.deliver();
         if (relayed && target && onBehalfOf) relayedReaction(threadId, target.id, onBehalfOf, relayed);
@@ -438,6 +443,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         for (const message of messages) handoffs.steered(bot.threadId, steerTarget, instance?.instanceId, message.id);
         const queueIds = held.items.map((item) => item.messageId);
         settleHeldSteeredQueue(held);
+        for (const item of held.items) if (typeof item.workBotOfferOwner === "string") deps.offerWorkBot?.(bot.id, bot.threadId, item.text, item.workBotOfferOwner);
         return json(res, 200, { ok: true, steered: true, threadId: bot.threadId, messages, queueIds });
       }
       if (steered === "indeterminate") {

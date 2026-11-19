@@ -7,12 +7,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { SessionRegistry } from "./sessions.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
-import { workerPort } from "./testing/worker-port.ts";
+import { freePortBlock } from "./testing/ports.ts";
 
 const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
 const FAKE_CLI = join(SERVER_DIR, "testing", "fake-acp-cli.ts");
-const PORT = workerPort(28800, 10_000);
-const BASE = `http://127.0.0.1:${PORT}`;
+let base: string;
 const OWNER = "owner@example.test";
 const posixOnly = describe.skipIf(process.platform === "win32");
 
@@ -22,7 +21,7 @@ let log = "";
 let token = "";
 
 const api = async (method: string, path: string, body?: unknown): Promise<{ status: number; body: any }> => {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     method,
     headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -46,7 +45,7 @@ function openStream() {
   const state: { hello: any } = { hello: null };
   void (async () => {
     try {
-      const res = await fetch(`${BASE}/api/events`, { headers: { authorization: `Bearer ${token}` }, signal: controller.signal });
+      const res = await fetch(`${base}/api/events`, { headers: { authorization: `Bearer ${token}` }, signal: controller.signal });
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -74,6 +73,8 @@ function openStream() {
 
 posixOnly("a routine run's task on the event stream", () => {
   beforeAll(async () => {
+    const port = await freePortBlock([0, 1]);
+    base = `http://127.0.0.1:${port}`;
     chmodSync(FAKE_CLI, 0o755);
     home = mkdtempSync(join(tmpdir(), "omb-routine-broadcast-"));
     const data = join(home, ".startupbot");
@@ -90,7 +91,7 @@ posixOnly("a routine run's task on the event stream", () => {
       cwd: join(SERVER_DIR, ".."),
       env: {
         ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-        HOME: home, OMB_PORT: String(PORT), OMB_WEBHOOK_PORT: String(PORT + 1),
+        HOME: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -98,7 +99,8 @@ posixOnly("a routine run's task on the event stream", () => {
     child.stderr!.on("data", (c) => (log += c));
     const up = await waitFor(async () => {
       try {
-        return (await fetch(`${BASE}/api/health`)).ok;
+        const response = await fetch(`${base}/api/health`);
+        return response.ok && (await response.json()).pid === child.pid;
       } catch {
         return false;
       }

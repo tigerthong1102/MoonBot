@@ -11,6 +11,24 @@ const panels = new WeakMap();
 const skins = new WeakMap();
 const partition = "persist:startupbot-personal-inbox";
 
+async function waitForWorkspace(win) {
+  const page = win.webContents;
+  if (page.getURL() && !page.isLoadingMainFrame()) return;
+  await new Promise((resolve, reject) => {
+    const done = () => finish(resolve);
+    const stopped = () => finish(() => reject(Error("StartupBot workspace is unavailable")));
+    const timer = setTimeout(stopped, 20000);
+    function finish(callback) {
+      clearTimeout(timer);
+      page.off("did-stop-loading", done);
+      win.off("closed", stopped);
+      callback();
+    }
+    page.once("did-stop-loading", done);
+    win.once("closed", stopped);
+  });
+}
+
 export async function personalAccountEmail(origin) {
   if (!origin) throw new Error("StartupBot account service is unavailable");
   const account = session.fromPartition(partition);
@@ -121,23 +139,28 @@ export function createPersonalInbox({ window, locale, isLocal, showLocal, previo
     return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
       jsonFile(path.join(app.getPath("userData"), "inbox-service.json")).read);
   }
-  async function requestSignIn(inbox) {
-    if (!isLocal(window())) await showLocal();
-    const win = window();
+  async function requestSignIn(win, inbox) {
+    await waitForWorkspace(win);
+    if (!isLocal(win)) {
+      await showLocal();
+      if (win.isDestroyed()) return;
+      await waitForWorkspace(win);
+    }
     if (!isLocal(win)) throw Error("Open StartupBot on this computer.");
     win.webContents.send("personal-account:prompt", inbox);
   }
   async function open(accountOnly = false) {
     const win = window();
     win.show();
-    if (accountOnly) return requestSignIn(false);
+    if (accountOnly) return requestSignIn(win, false);
     const existing = panels.get(win);
     if (existing) { existing.webContents.focus(); return; }
     const base = origin();
     const email = await personalAccountEmail(base);
     if (win.isDestroyed()) return;
-    if (!email) return requestSignIn(true);
-    return showPersonalInbox(win, base, locale(), () => requestSignIn(true));
+    if (!email) return requestSignIn(win, true);
+    await waitForWorkspace(win);
+    return showPersonalInbox(win, base, locale(), () => requestSignIn(win, true));
   }
   function install(ipcMain, localOnly, requireMainWindowSender) {
     function handle(channel, action) {

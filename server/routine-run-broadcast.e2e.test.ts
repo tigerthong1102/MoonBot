@@ -100,7 +100,9 @@ posixOnly("a routine run's task on the event stream", () => {
     const up = await waitFor(async () => {
       try {
         const response = await fetch(`${base}/api/health`);
-        return response.ok && (await response.json()).pid === child.pid;
+        if (!response.ok) return false;
+        const health = await response.json() as { pid?: number };
+        return health.pid === child.pid;
       } catch {
         return false;
       }

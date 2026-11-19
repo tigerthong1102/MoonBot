@@ -634,7 +634,8 @@ function renderPosts() {
     const room = rooms.find(r => r.id === current);
     if (room?.kind === "group" && (p.author === me.email || room.isOwner || (room.admin && !moderators.has(p.author)))) {
       const options=node("details","");
-      options.className="message-options"; options.append(node("summary","Tùy chọn tin nhắn"));
+      options.className="message-options";
+      const toggle=node("summary","⋯"); toggle.setAttribute("aria-label","Tùy chọn tin nhắn"); toggle.title="Tùy chọn tin nhắn"; options.append(toggle);
       options.append(button("Xóa tin nhắn",async () => {
         if (!window.confirm("Xóa tin nhắn này cho cả nhóm?")) return;
         await api("rooms/"+room.id+"/moderate",{action:"deletePost",seq:p.seq}); readingOlder=false; await refresh();

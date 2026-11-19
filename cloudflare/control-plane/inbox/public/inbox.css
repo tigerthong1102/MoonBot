@@ -143,5 +143,5 @@ summary::-webkit-details-marker { display: none; }
 #members details, #manage details { margin-block:.35rem; }
 #manage button, #members button { margin:.2rem; }
 .message-options { font-size:.75rem; color:var(--subtle); }
-.message-options summary { cursor:pointer; }
+.message-options summary { cursor:pointer; font-size:1rem; line-height:1; padding:3px 8px; }
 #post-limited { padding:.6rem 1rem; }

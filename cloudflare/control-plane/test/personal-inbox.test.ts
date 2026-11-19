@@ -432,6 +432,8 @@ it("enforces group management on the server across role changes, links, bans, me
   expect((await mod(admin,"cancelInvite",{email:member.email})).status).toBe(200);
   expect((await call(room+"/accept",member.cookie,{})).status).toBe(404);
   const oldKey=(await detail(admin)).group.link;
+  expect(await (await mod(admin,"ensureLink")).json()).toEqual({token:oldKey});
+  expect((await mod(member,"ensureLink")).status).toBe(404);
   expect(await (await call("join/preview","",{token:oldKey})).json()).toEqual({title:"Team",approval:1});
   expect(await (await join(oldKey)).json()).toEqual({id,state:"requested"});
   expect((await call(room,member.cookie)).status).toBe(404);

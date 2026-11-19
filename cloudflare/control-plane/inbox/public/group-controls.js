@@ -39,11 +39,14 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
     list.append(li);
   }
   const controls = document.createDocumentFragment();
-  if (detail.group.link) {
-    const address = new URL("/", location.origin);
-    address.hash = "join=" + detail.group.link;
+  if (detail.group.link || manager) {
     controls.append(
       button("Sao chép liên kết mời", async () => {
+        const token = manager
+          ? (await api("rooms/" + room.id + "/moderate", { action: "ensureLink" })).token
+          : detail.group.link;
+        const address = new URL("/", location.origin);
+        address.hash = "join=" + token;
         try {
           await navigator.clipboard.writeText(address.href);
           status("Đã sao chép liên kết mời.");

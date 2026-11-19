@@ -33,7 +33,7 @@ const command = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancelInvite"), email: z.email().max(254) }),
   z.object({ action: z.literal("rename"), title: z.string().trim().min(1).max(80) }),
   z.object({ action: z.enum(["approval", "announcements"]), enabled: z.boolean() }),
-  z.object({ action: z.enum(["newLink", "revokeLink"]) }),
+  z.object({ action: z.enum(["ensureLink", "newLink", "revokeLink"]) }),
 ]);
 const week = 7 * 86400_000;
 function changed(r: D1Result) {
@@ -136,6 +136,22 @@ export async function moderate(req: Request, db: D1Database, room: string, user:
         .bind(...args, Number(cmd.enabled))
         .run(),
     );
+  if (cmd.action === "ensureLink") {
+    const now = Date.now();
+    const [, link] = await db.batch<{ token: string }>([
+      db
+        .prepare(
+          `UPDATE inbox_rooms SET invite_key=?3,invite_until=?4,revision=revision+1
+        WHERE id=?1 AND ${manager} AND (invite_key IS NULL OR invite_until<=?5)`,
+        )
+        .bind(...args, crypto.randomUUID(), now + week, now),
+      db
+        .prepare(`SELECT invite_key AS token FROM inbox_rooms WHERE id=?1 AND ${manager} AND invite_until>?3`)
+        .bind(...args, now),
+    ]);
+    if (!link.results[0]) throw new HTTPError(404, "unavailable");
+    return json(link.results[0]);
+  }
   if (cmd.action === "newLink" || cmd.action === "revokeLink")
     return changed(
       await db

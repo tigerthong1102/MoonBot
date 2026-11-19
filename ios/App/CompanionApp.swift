@@ -10,6 +10,14 @@ struct CompanionApp: App {
     @State private var liveActivities = LiveActivityCoordinator()
     @AppStorage(PrefKey.language) private var language = AppLanguage.system.rawValue
 
+    #if DEBUG && targetEnvironment(simulator)
+    init() {
+        if ProcessInfo.processInfo.arguments.contains("--startupbot-test-fresh-welcome") {
+            UserDefaults.standard.removeObject(forKey: CompanionOnboardingPreferences.welcomeSeenKey)
+        }
+    }
+    #endif
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -43,7 +51,7 @@ struct CompanionApp: App {
 
 struct RootView: View {
     @EnvironmentObject private var session: Session
-    @AppStorage("companion.onboarding.welcomeSeen") private var hasSeenWelcome = false
+    @AppStorage(CompanionOnboardingPreferences.welcomeSeenKey) private var hasSeenWelcome = false
     @AppStorage("companion.onboarding.notificationsSeen") private var hasSeenNotificationPrompt = false
     @AppStorage(CompanionOnboardingPreferences.pendingNotificationOnboardingKey)
     private var notificationOnboardingPending = false

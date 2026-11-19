@@ -144,7 +144,8 @@ describe("old links", () => {
     expect(where("import")).toEqual({ page: "transfer", anchor: "bring-in" });
     expect(where("activity")).toEqual({ page: "data", anchor: "activity" });
     expect(where("experimental")).toEqual({ page: "bots", anchor: "early" });
-    expect(where("skills")).toEqual({ page: "bots", anchor: "skills" });
+    expect(resolveSettingsTarget("skills", { ...ctx, skills: true, advanced: false })).toEqual({ page: "skills" });
+    expect(where("skills")).toEqual({ page: "overview", missing: "skills" });
     expect(where("updates")).toEqual({ page: "app", anchor: "updates" });
     expect(resolveSettingsTarget("updates", PEOPLE["My Cloud in a browser (owner)"])).toEqual({ page: "overview" });
     expect(where("usage")).toEqual({ page: "usage" });

@@ -1,0 +1,1244 @@
+[
+  {
+    "name": "xlsx",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/xlsx",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/xlsx/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md",
+      "scripts/recalc.py"
+    ],
+    "excludedFiles": [
+      "scripts/office/helpers/__init__.py",
+      "scripts/office/helpers/pptx_chart.py",
+      "scripts/office/helpers/pptx_slide.py",
+      "scripts/office/helpers/pptx_theme.py",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "scripts/office/schemas/mce/mc.xsd",
+      "scripts/office/schemas/microsoft/wml-2010.xsd",
+      "scripts/office/schemas/microsoft/wml-2012.xsd",
+      "scripts/office/schemas/microsoft/wml-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "scripts/office/soffice.py",
+      "scripts/office/validate.py",
+      "scripts/office/validators/__init__.py",
+      "scripts/office/validators/base.py",
+      "scripts/office/validators/docx.py",
+      "scripts/office/validators/pptx.py",
+      "scripts/office/validators/redlining.py"
+    ],
+    "category": "office",
+    "summaryVi": "Tạo, sửa và kiểm tra công thức trong bảng tính Excel.",
+    "instructionsSha256": "c5c862d6d8ae4b9a7bed37c5a16f24d9415747479dd535fb7ca6011fa4d71cb0",
+    "summaryZh": "在 Excel 电子表格中创建、编辑和测试公式。",
+    "summaryZhTw": "在 Excel 電子表格中建立、編輯和測試公式。"
+  },
+  {
+    "name": "pdf",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pdf",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pdf/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md",
+      "scripts/extract_form_field_info.py",
+      "scripts/check_bounding_boxes.py",
+      "FORMS.md"
+    ],
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Đọc, trích xuất, tách hoặc ghép tài liệu PDF.",
+    "instructionsSha256": "c5c5e09f1c0b7811a5ae9fd3ae2e1f10b92ff291c1b596203015e19cdf90bd0c",
+    "summaryZh": "阅读、提取、分割或合并 PDF 文档。",
+    "summaryZhTw": "閱讀、擷取、分割或合併 PDF 文件。"
+  },
+  {
+    "name": "docx",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/docx",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/docx/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "scripts/__init__.py",
+      "scripts/accept_changes.py",
+      "scripts/comment.py",
+      "scripts/merge_runs.py",
+      "scripts/office/helpers/__init__.py",
+      "scripts/office/helpers/pptx_chart.py",
+      "scripts/office/helpers/pptx_slide.py",
+      "scripts/office/helpers/pptx_theme.py",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "scripts/office/schemas/mce/mc.xsd",
+      "scripts/office/schemas/microsoft/wml-2010.xsd",
+      "scripts/office/schemas/microsoft/wml-2012.xsd",
+      "scripts/office/schemas/microsoft/wml-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "scripts/office/soffice.py",
+      "scripts/office/validate.py",
+      "scripts/office/validators/__init__.py",
+      "scripts/office/validators/base.py",
+      "scripts/office/validators/docx.py",
+      "scripts/office/validators/pptx.py",
+      "scripts/office/validators/redlining.py",
+      "scripts/templates/comments.xml",
+      "scripts/templates/commentsExtended.xml",
+      "scripts/templates/commentsExtensible.xml",
+      "scripts/templates/commentsIds.xml",
+      "scripts/templates/people.xml"
+    ],
+    "category": "office",
+    "summaryVi": "Soạn và chỉnh sửa tài liệu Word.",
+    "instructionsSha256": "a100df67e78f4a30ce32a95abcaf02d4418013924f9d15f72e78fe52ca439020",
+    "summaryZh": "撰写和编辑 Word 文档。",
+    "summaryZhTw": "撰寫和編輯 Word 文件。"
+  },
+  {
+    "name": "pptx",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pptx",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pptx/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "scripts/__init__.py",
+      "scripts/add_slide.py",
+      "scripts/apply_theme.js",
+      "scripts/clean.py",
+      "scripts/office/helpers/__init__.py",
+      "scripts/office/helpers/pptx_chart.py",
+      "scripts/office/helpers/pptx_slide.py",
+      "scripts/office/helpers/pptx_theme.py",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "scripts/office/schemas/mce/mc.xsd",
+      "scripts/office/schemas/microsoft/wml-2010.xsd",
+      "scripts/office/schemas/microsoft/wml-2012.xsd",
+      "scripts/office/schemas/microsoft/wml-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "scripts/office/soffice.py",
+      "scripts/office/validate.py",
+      "scripts/office/validators/__init__.py",
+      "scripts/office/validators/base.py",
+      "scripts/office/validators/docx.py",
+      "scripts/office/validators/pptx.py",
+      "scripts/office/validators/redlining.py",
+      "scripts/slide_text.py",
+      "scripts/thumbnail.py"
+    ],
+    "category": "office",
+    "summaryVi": "Thiết kế và kiểm tra bài trình chiếu PowerPoint.",
+    "instructionsSha256": "7cc3d0066b6036227241edb9ff640ce7aa22781c34530f9550d69651c7a5cea2",
+    "summaryZh": "设计和测试 PowerPoint 演示文稿。",
+    "summaryZhTw": "設計和測試 PowerPoint 簡報。"
+  },
+  {
+    "name": "internal-comms",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/internal-comms",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/internal-comms/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Soạn bản tin, thông báo và báo cáo nội bộ.",
+    "instructionsSha256": "0251ff3a1c5ebfd93d3000e7a95ccccdbc751aac84b06e5ac320f6cafde603fa",
+    "summaryZh": "准备时事通讯、公告和内部报告。",
+    "summaryZhTw": "準備時事通訊、公告和內部報告。"
+  },
+  {
+    "name": "frontend-design",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/frontend-design",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/frontend-design/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "web",
+    "summaryVi": "Thiết kế giao diện website và ứng dụng.",
+    "instructionsSha256": "8ab8eaefdd66d02bc3867ae65237d671775a6b12f4e414688296ac2cae63eaf8",
+    "summaryZh": "设计网站和应用程序界面。",
+    "summaryZhTw": "設計網站和應用程式介面。"
+  },
+  {
+    "name": "gws-sheets",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-sheets",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Đọc và chỉnh sửa bảng tính Google Sheets.",
+    "instructionsSha256": "e23a2e3db1853af5ec836f6b04f04259b26e572062b9b56c2e8acdd9264121db",
+    "summaryZh": "阅读和编辑 Google Sheets 电子表格。",
+    "summaryZhTw": "閱讀並編輯 Google Sheets 電子表格。"
+  },
+  {
+    "name": "recipe-compare-sheet-tabs",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-compare-sheet-tabs",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Đối chiếu dữ liệu giữa hai trang tính Google Sheets.",
+    "instructionsSha256": "9e5d7d295ce9815aba0a3fd17a8dccb4ea98085870a69ae63c2db691d9fa388c",
+    "summaryZh": "比较两个 Google Sheets 工作表之间的数据。",
+    "summaryZhTw": "比較兩個 Google Sheets 工作表之間的資料。"
+  },
+  {
+    "name": "recipe-backup-sheet-as-csv",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-backup-sheet-as-csv",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Sao lưu bảng tính Google Sheets thành tệp CSV.",
+    "instructionsSha256": "4c3d0c296867355c1e2a4f1f2e622dddef1ac1bb36dd4e30256e739e6410d604",
+    "summaryZh": "将 Google Sheets 电子表格备份到 CSV 文件。",
+    "summaryZhTw": "將 Google Sheets 電子表格備份到 CSV 檔案。"
+  },
+  {
+    "name": "recipe-generate-report-from-sheet",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-generate-report-from-sheet",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Lập báo cáo từ dữ liệu Google Sheets.",
+    "instructionsSha256": "d98b1f67de2f4fb4dd4ac05c8037499f7596dec03b739770fd1f88187c00f310",
+    "summaryZh": "从 Google 表格数据创建报告。",
+    "summaryZhTw": "從 Google 試算表資料建立報表。"
+  },
+  {
+    "name": "recipe-create-doc-from-template",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-create-doc-from-template",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Tạo tài liệu Google Docs từ mẫu có sẵn.",
+    "instructionsSha256": "9970a97df066265447eb71608e02954b66056d36c64c9ce665bda555695b6253",
+    "summaryZh": "从可用模板创建 Google 文档。",
+    "summaryZhTw": "從可用範本建立 Google 文件。"
+  },
+  {
+    "name": "gws-workflow-meeting-prep",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-workflow-meeting-prep",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Chuẩn bị tài liệu và thông tin trước cuộc họp.",
+    "instructionsSha256": "5ed0a8888cec4bdedac730c718cc97b635f9e972d3bfc80d96a999b20645b1e3",
+    "summaryZh": "会议前准备文件和信息。",
+    "summaryZhTw": "會議前準備文件和資訊。"
+  },
+  {
+    "name": "gws-workflow-email-to-task",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-workflow-email-to-task",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Chuyển email thành công việc cần theo dõi.",
+    "instructionsSha256": "7aba5a9f4cca2e087b702ffd03f11522a43fe126e98718fe8166420011b57a8b",
+    "summaryZh": "将电子邮件变成后续任务。",
+    "summaryZhTw": "將電子郵件變成後續任務。"
+  },
+  {
+    "name": "recipe-collect-form-responses",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-collect-form-responses",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Thu thập và xem phản hồi từ Google Forms.",
+    "instructionsSha256": "610b497df731c074db59d5b4c5d405c01739d1bb56497e6b8619c7f9f6e99cc5",
+    "summaryZh": "收集并查看来自 Google 表单的回复。",
+    "summaryZhTw": "收集並查看來自 Google 表單的回應。"
+  },
+  {
+    "name": "webapp-testing",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/webapp-testing",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/webapp-testing/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md",
+      "scripts/with_server.py"
+    ],
+    "excludedFiles": [],
+    "category": "web",
+    "summaryVi": "Kiểm thử ứng dụng web trong trình duyệt.",
+    "instructionsSha256": "74f059b8c09c60e1e81f88f3844cdf82279dd7487c6ba515900190f0fa746d8c",
+    "summaryZh": "在浏览器中测试 Web 应用程序。",
+    "summaryZhTw": "在瀏覽器中測試 Web 應用程式。"
+  },
+  {
+    "name": "google-analytics-data-api-basics",
+    "source": "https://github.com/google/skills/tree/06fff9e3edb7fc3c115a1769406047fcaf0a6289/skills/analytics/google-analytics-data-api-basics",
+    "licenseSource": "https://github.com/google/skills/blob/06fff9e3edb7fc3c115a1769406047fcaf0a6289/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Đọc dữ liệu Google Analytics để đo hiệu quả website.",
+    "instructionsSha256": "1229536dbcb7f9615a73519633dddb4a2eb5dde4b200cebac63b911aaa9e865e",
+    "summaryZh": "阅读 Google Analytics 数据来衡量网站性能。",
+    "summaryZhTw": "閱讀 Google Analytics 數據來衡量網站效能。"
+  },
+  {
+    "name": "web-perf",
+    "source": "https://github.com/cloudflare/skills/tree/5108325ecceabc899c761e07aa617b09c02445ee/skills/web-perf",
+    "licenseSource": "https://github.com/cloudflare/skills/blob/5108325ecceabc899c761e07aa617b09c02445ee/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/skill-feedback.md"
+    ],
+    "category": "web",
+    "summaryVi": "Đo tốc độ tải và tìm nguyên nhân website chậm.",
+    "instructionsSha256": "ae0d9419aff36834233b865243c3eea06ade6fa74b0951680174f11647014f18",
+    "summaryZh": "测量加载速度并查找网站缓慢的原因。",
+    "summaryZhTw": "測量載入速度並尋找網站緩慢的原因。"
+  },
+  {
+    "name": "site-md",
+    "source": "https://github.com/google-labs-code/stitch-skills/tree/4cf4db8e4143b09e40f9bc887429d81f41ab3947/plugins/stitch-utilities/skills/site-md",
+    "licenseSource": "https://github.com/google-labs-code/stitch-skills/blob/4cf4db8e4143b09e40f9bc887429d81f41ab3947/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "web",
+    "summaryVi": "Chuyển yêu cầu thiết kế website thành tài liệu SITE.md cho Stitch.",
+    "instructionsSha256": "301ebb65e4a97613be689faa22bcfcf86e8a7f868f01a5b1c41fb3701512b96b",
+    "summaryZh": "将网站设计请求转换为 Stitch 的 SITE.md 文档。",
+    "summaryZhTw": "將網站設計請求轉換為 Stitch 的 SITE.md 文件。"
+  },
+  {
+    "name": "earnings-analysis",
+    "source": "https://github.com/anthropics/financial-services/tree/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/plugins/vertical-plugins/equity-research/skills/earnings-analysis",
+    "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "finance",
+    "summaryVi": "Phân tích kết quả kinh doanh và báo cáo lợi nhuận doanh nghiệp.",
+    "instructionsSha256": "260ac06451fd524a9a8184a8600af5dc4f14a366926c3b04694fad50ab0b5789",
+    "summaryZh": "分析业务成果并报告公司利润。",
+    "summaryZhTw": "分析業務成果並報告公司利潤。"
+  },
+  {
+    "name": "comps-analysis",
+    "source": "https://github.com/anthropics/financial-services/tree/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/plugins/vertical-plugins/financial-analysis/skills/comps-analysis",
+    "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "finance",
+    "summaryVi": "So sánh định giá với các doanh nghiệp cùng ngành.",
+    "instructionsSha256": "a6dad79f70eac93dffde0a3b09f7ee009f2e37035668d0818022fbc499b42698",
+    "summaryZh": "与同行业的企业进行估值比较。",
+    "summaryZhTw": "與同行業的企業進行估值比較。"
+  },
+  {
+    "name": "dcf-model",
+    "source": "https://github.com/anthropics/financial-services/tree/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/plugins/vertical-plugins/financial-analysis/skills/dcf-model",
+    "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md",
+      "scripts/validate_dcf.py"
+    ],
+    "excludedFiles": [],
+    "category": "finance",
+    "summaryVi": "Lập mô hình định giá dòng tiền chiết khấu DCF.",
+    "instructionsSha256": "75f5c1cfdca7287556d1024596d953511fb80ad55b96d07929e504a392623979",
+    "summaryZh": "DCF贴现现金流估值模型。",
+    "summaryZhTw": "DCF折現現金流量估價模型。"
+  },
+  {
+    "name": "thesis-tracker",
+    "source": "https://github.com/anthropics/financial-services/tree/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/plugins/vertical-plugins/equity-research/skills/thesis-tracker",
+    "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "finance",
+    "summaryVi": "Theo dõi luận điểm đầu tư và bằng chứng mới.",
+    "instructionsSha256": "abcae44f39d983016642d0b3354b81a303c1659f8db18ed2e3f9c8b458edd45e",
+    "summaryZh": "监控投资理论和新证据。",
+    "summaryZhTw": "監控投資理論和新證據。"
+  },
+  {
+    "name": "hyperframes",
+    "source": "https://github.com/heygen-com/hyperframes/tree/77ea9d80cfc8b347ccca966487a8ff902ce28320/skills/hyperframes",
+    "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "assets/frame-presets/biennale-yellow/FRAME.md",
+      "assets/frame-presets/biennale-yellow/caption-skin.html",
+      "assets/frame-presets/biennale-yellow/frame-showcase.html",
+      "assets/frame-presets/blockframe/FRAME.md",
+      "assets/frame-presets/blockframe/caption-skin.html",
+      "assets/frame-presets/blockframe/frame-showcase.html",
+      "assets/frame-presets/blue-professional/FRAME.md",
+      "assets/frame-presets/blue-professional/caption-skin.html",
+      "assets/frame-presets/blue-professional/frame-showcase.html",
+      "assets/frame-presets/bold-poster/FRAME.md",
+      "assets/frame-presets/bold-poster/caption-skin.html",
+      "assets/frame-presets/bold-poster/frame-showcase.html",
+      "assets/frame-presets/broadside/FRAME.md",
+      "assets/frame-presets/broadside/caption-skin.html",
+      "assets/frame-presets/broadside/frame-showcase.html",
+      "assets/frame-presets/capsule/FRAME.md",
+      "assets/frame-presets/capsule/caption-skin.html",
+      "assets/frame-presets/capsule/frame-showcase.html",
+      "assets/frame-presets/cartesian/FRAME.md",
+      "assets/frame-presets/cartesian/caption-skin.html",
+      "assets/frame-presets/cartesian/frame-showcase.html",
+      "assets/frame-presets/cobalt-grid/FRAME.md",
+      "assets/frame-presets/cobalt-grid/caption-skin.html",
+      "assets/frame-presets/cobalt-grid/frame-showcase.html",
+      "assets/frame-presets/code-editorial/FRAME.md",
+      "assets/frame-presets/code-editorial/caption-skin.html",
+      "assets/frame-presets/code-editorial/fonts/EBGaramond-400.woff2",
+      "assets/frame-presets/code-editorial/fonts/EBGaramond-700.woff2",
+      "assets/frame-presets/code-editorial/fonts/Inter-400.woff2",
+      "assets/frame-presets/code-editorial/fonts/Inter-700.woff2",
+      "assets/frame-presets/code-editorial/fonts/JetBrainsMono-400.woff2",
+      "assets/frame-presets/code-editorial/fonts/JetBrainsMono-700.woff2",
+      "assets/frame-presets/code-editorial/fonts/OFL-eb-garamond.txt",
+      "assets/frame-presets/code-editorial/fonts/OFL-inter.txt",
+      "assets/frame-presets/code-editorial/fonts/OFL-jetbrains-mono.txt",
+      "assets/frame-presets/code-editorial/frame-showcase.html",
+      "assets/frame-presets/coral/FRAME.md",
+      "assets/frame-presets/coral/caption-skin.html",
+      "assets/frame-presets/coral/frame-showcase.html",
+      "assets/frame-presets/creative-mode/FRAME.md",
+      "assets/frame-presets/creative-mode/caption-skin.html",
+      "assets/frame-presets/creative-mode/frame-showcase.html",
+      "assets/frame-presets/daisy-days/FRAME.md",
+      "assets/frame-presets/daisy-days/caption-skin.html",
+      "assets/frame-presets/daisy-days/frame-showcase.html",
+      "assets/frame-presets/editorial-forest/FRAME.md",
+      "assets/frame-presets/editorial-forest/caption-skin.html",
+      "assets/frame-presets/editorial-forest/frame-showcase.html",
+      "references/captions.md",
+      "references/film.md",
+      "references/format.md",
+      "references/look.md",
+      "references/motion.md",
+      "references/overlays.md",
+      "references/path-tracing.md",
+      "references/plugin-installation.md",
+      "references/review.md",
+      "references/runtimes.md",
+      "references/skill-lifecycle.md",
+      "references/sound.md",
+      "references/spec.md",
+      "references/story.md",
+      "references/storyboard-format.md",
+      "references/storyboard.md",
+      "references/types/3d.md",
+      "references/types/character.md",
+      "references/types/data.md",
+      "references/types/explainer.md",
+      "references/types/launch.md",
+      "references/types/music.md",
+      "references/types/vertical.md",
+      "scripts/bake-basemap.mjs",
+      "scripts/lib/main-module.mjs",
+      "scripts/lib/main-module.test.mjs",
+      "scripts/lib/windows-exe-search.mjs",
+      "scripts/lib/windows-exe-search.test.mjs",
+      "scripts/locate.mjs",
+      "scripts/locate.test.mjs",
+      "scripts/plugin-cli.mjs",
+      "scripts/plugin-cli.test.mjs"
+    ],
+    "category": "media",
+    "summaryVi": "Dựng video từ HTML với HyperFrames.",
+    "instructionsSha256": "afe67b17e26fb9d3132da33ff9143f79025da60dd9da123aad7feeb81684fbf2",
+    "summaryZh": "使用 HyperFrames 从 HTML 构建视频。",
+    "summaryZhTw": "使用 HyperFrames 從 HTML 建立影片。"
+  },
+  {
+    "name": "hyperframes-cli",
+    "source": "https://github.com/heygen-com/hyperframes/tree/77ea9d80cfc8b347ccca966487a8ff902ce28320/skills/hyperframes-cli",
+    "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/beats.md",
+      "references/cloud.md",
+      "references/cloudrun.md",
+      "references/compare-and-batch.md",
+      "references/conventions.md",
+      "references/doctor-browser.md",
+      "references/feedback.md",
+      "references/init-and-scaffold.md",
+      "references/lambda.md",
+      "references/lint-validate-inspect.md",
+      "references/preview-render.md",
+      "references/upgrade-info-misc.md"
+    ],
+    "category": "media",
+    "summaryVi": "Sử dụng công cụ dòng lệnh HyperFrames để dựng và xuất video.",
+    "instructionsSha256": "93b586ee1f828a0b02326e730ac0bc3916ed6e0b909077d8300ee0080b21be27",
+    "summaryZh": "使用 HyperFrames 命令行工具编辑和导出视频。",
+    "summaryZhTw": "使用 HyperFrames 命令列工具編輯和匯出影片。"
+  },
+  {
+    "name": "gemini-api",
+    "source": "https://github.com/google/skills/tree/06fff9e3edb7fc3c115a1769406047fcaf0a6289/skills/cloud/gemini-api",
+    "licenseSource": "https://github.com/google/skills/blob/06fff9e3edb7fc3c115a1769406047fcaf0a6289/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/advanced_features.md",
+      "references/attribution.md",
+      "references/bounding_box.md",
+      "references/embeddings.md",
+      "references/live_api.md",
+      "references/media_generation.md",
+      "references/model_tuning.md",
+      "references/safety.md",
+      "references/structured_and_tools.md",
+      "references/text_and_multimodal.md"
+    ],
+    "category": "media",
+    "summaryVi": "Tạo video bằng Gemini hoặc Veo qua kết nối đã cấu hình.",
+    "instructionsSha256": "0df7c28dcf9f8d17105ab1955bd07d14bd8c58e9364fc40b045cddfd1149a7f0",
+    "summaryZh": "通过配置的连接使用 Gemini 或 Veo 创建视频。",
+    "summaryZhTw": "透過配置的連接使用 Gemini 或 Veo 創建視訊。"
+  },
+  {
+    "name": "campaign-plan",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/skills/campaign-plan",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Lập kế hoạch chiến dịch marketing.",
+    "instructionsSha256": "e6ac01bdd18b9e6472b478cad37972ea1d62c992f4c839c62966da826629b403",
+    "summaryZh": "计划营销活动。",
+    "summaryZhTw": "計劃行銷活動。"
+  },
+  {
+    "name": "competitive-brief",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/skills/competitive-brief",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Soạn báo cáo so sánh đối thủ cạnh tranh.",
+    "instructionsSha256": "f8e61c7706d11f99a168e19329e137a7471cbac3a83170ec7558b2f26995325d",
+    "summaryZh": "准备比较竞争对手的报告。",
+    "summaryZhTw": "準備比較競爭對手的報告。"
+  },
+  {
+    "name": "performance-report",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/skills/performance-report",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Tổng hợp kết quả và hiệu suất chiến dịch marketing.",
+    "instructionsSha256": "713971b380a3eab4b94c1307ce7a9b1cba55e2209671c287646b512d5e979ae0",
+    "summaryZh": "营销活动结果和绩效摘要。",
+    "summaryZhTw": "行銷活動結果和績效摘要。"
+  },
+  {
+    "name": "seo-audit",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/skills/seo-audit",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Kiểm tra SEO và đề xuất cải thiện khả năng tìm thấy website.",
+    "instructionsSha256": "0e67d3211fe34de11b972f2a8b4de3a58760ca98e8a92b81dd32f371dcdb028e",
+    "summaryZh": "检查 SEO 并建议提高网站的可查找性。",
+    "summaryZhTw": "檢查 SEO 並建議提高網站的可尋找性。"
+  },
+  {
+    "name": "google-ads-api-mcp-setup",
+    "source": "https://github.com/google/skills/tree/06fff9e3edb7fc3c115a1769406047fcaf0a6289/skills/ads/google-ads-api-mcp-setup",
+    "licenseSource": "https://github.com/google/skills/blob/06fff9e3edb7fc3c115a1769406047fcaf0a6289/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/tools.md"
+    ],
+    "category": "marketing",
+    "summaryVi": "Kiểm tra kết nối MCP của Google Ads.",
+    "instructionsSha256": "91131558e35560aafff656d605c0dee78bfd4ac429e1ca4f94c7211e0e982af3",
+    "summaryZh": "测试您的 Google Ads MCP 连接。",
+    "summaryZhTw": "測試您的 Google Ads MCP 連線。"
+  },
+  {
+    "name": "google-ads-api-account-diagnostics",
+    "source": "https://github.com/google/skills/tree/06fff9e3edb7fc3c115a1769406047fcaf0a6289/skills/ads/google-ads-api-account-diagnostics",
+    "licenseSource": "https://github.com/google/skills/blob/06fff9e3edb7fc3c115a1769406047fcaf0a6289/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Kiểm tra cấu hình và chẩn đoán tài khoản quảng cáo Google Ads.",
+    "instructionsSha256": "356a66fc8e4509d559712a6c2012647c63f6f94f253db67dd7cb27bd250dafa7",
+    "summaryZh": "检查您的 Google Ads 广告帐户配置和诊断。",
+    "summaryZhTw": "檢查您的 Google Ads 廣告帳戶配置和診斷。"
+  },
+  {
+    "name": "apify-ecommerce",
+    "source": "https://github.com/apify/awesome-skills/tree/851fdfd7d4fe2ba36a9f48048ced4299a8e0512b/skills/apify-ecommerce",
+    "licenseSource": "https://github.com/apify/awesome-skills/blob/851fdfd7d4fe2ba36a9f48048ced4299a8e0512b/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "commerce",
+    "summaryVi": "Thu thập dữ liệu sản phẩm thương mại điện tử qua Apify.",
+    "instructionsSha256": "f7aac4c3f6e22301ff97192adad7253cb51c826c17cce07b14fa32638aa3fedf",
+    "summaryZh": "通过Apify收集电子商务产品数据。",
+    "summaryZhTw": "透過Apify收集電子商務產品數據。"
+  },
+  {
+    "name": "shopify",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/shopify",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ],
+    "category": "commerce",
+    "summaryVi": "Làm việc với cửa hàng và dữ liệu Shopify.",
+    "instructionsSha256": "d06ed22e1cb49822edc0a4eb1e0d22d4c819fefb1b671fd1503451191efef859",
+    "summaryZh": "使用 Shopify 商店和数据。",
+    "summaryZhTw": "使用 Shopify 商店和數據。"
+  },
+  {
+    "name": "woocommerce",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/woocommerce",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ],
+    "category": "commerce",
+    "summaryVi": "Làm việc với cửa hàng và dữ liệu WooCommerce.",
+    "instructionsSha256": "ca58f402e54573383839190f2c9fff1147700ad7d595d0ef479bed20635602c6",
+    "summaryZh": "使用 WooCommerce 商店和数据。",
+    "summaryZhTw": "使用 WooCommerce 商店和數據。"
+  },
+  {
+    "name": "byted-seedance-video-generate",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedance-video-generate",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedance-video-generate/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md",
+      "scripts/video_generate.py"
+    ],
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Tạo video bằng mô hình Seedance của ByteDance.",
+    "instructionsSha256": "0ad5a085009ba9da06229c0e19f6383e2092cf17439d0a6b3a7bce9642149189",
+    "summaryZh": "使用字节跳动的 Seedance 模型创建视频。",
+    "summaryZhTw": "使用位元組跳動的 Seedance 模型建立影片。"
+  },
+  {
+    "name": "byted-seedream-image-generate",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedream-image-generate",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedream-image-generate/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md",
+      "scripts/seedream_image_generate.py"
+    ],
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Tạo hình ảnh bằng Seedream của ByteDance.",
+    "instructionsSha256": "6197608c6cca5877c44cafee20f0aca138d3c0ab56acb754809c149a773e35a1",
+    "summaryZh": "使用 ByteDance 的 Seedream 创建图像。",
+    "summaryZhTw": "使用 ByteDance 的 Seedream 建立圖像。"
+  },
+  {
+    "name": "byted-text-to-speech",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-text-to-speech",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-text-to-speech/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/docs-index.md",
+      "references/setup-guide.md",
+      "requirements.txt",
+      "scripts/api_key.py",
+      "scripts/text_to_speech.py"
+    ],
+    "category": "media",
+    "summaryVi": "Chuyển văn bản thành giọng đọc và thuyết minh.",
+    "instructionsSha256": "5a2f18debb6cf3a695330256266b59550870a515bbae0949ab9141c8af239343",
+    "summaryZh": "将文本转换为画外音和旁白。",
+    "summaryZhTw": "將文字轉換為畫外音和旁白。"
+  },
+  {
+    "name": "byted-las-asr-pro",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-las-asr-pro",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-las-asr-pro/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Chuyển giọng nói thành văn bản bằng dịch vụ nhận dạng âm thanh.",
+    "instructionsSha256": "e8b30070e07dbe4ffd2dfb4ccc499d64fd52c64cfb2ae70bdf85e8d28d51a530",
+    "summaryZh": "使用音频识别服务将语音转换为文本。",
+    "summaryZhTw": "使用音訊辨識服務將語音轉換為文字。"
+  },
+  {
+    "name": "byted-kickart-video-subtitler",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-kickart-video-subtitler",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-kickart-video-subtitler/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "scripts/core/__init__.py",
+      "scripts/core/api/iccp/client.py",
+      "scripts/core/api/iccp/service.py",
+      "scripts/core/api/meida/chunks.py",
+      "scripts/core/api/meida/media.py",
+      "scripts/core/auth/__init__.py",
+      "scripts/core/auth/strategy.py",
+      "scripts/core/utils/downloader.py",
+      "scripts/core/utils/extractor.py",
+      "scripts/core/utils/hash.py",
+      "scripts/core/utils/matriel.py",
+      "scripts/core/utils/validator.py",
+      "scripts/plan.py",
+      "scripts/requirements.txt",
+      "scripts/subtitler.py",
+      "scripts/upgrade.py",
+      "scripts/upload.py"
+    ],
+    "category": "media",
+    "summaryVi": "Tạo phụ đề cho video.",
+    "instructionsSha256": "db77b0da9bf837135c6b4a6ae97cf1827304bdd4f1b9186a7086ef3c82ff00ed",
+    "summaryZh": "为视频创建字幕。",
+    "summaryZhTw": "為影片建立字幕。"
+  },
+  {
+    "name": "byted-las-pdf-parse-doubao",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-las-pdf-parse-doubao",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-las-pdf-parse-doubao/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Trích xuất nội dung PDF bằng dịch vụ Doubao.",
+    "instructionsSha256": "9b7b9bfa212311a356999d9e00db4e46c6e218f05af10fe00bf773e867a8c677",
+    "summaryZh": "使用豆宝服务提取PDF内容。",
+    "summaryZhTw": "使用豆寶服務擷取PDF內容。"
+  },
+  {
+    "name": "generated-ui",
+    "source": "https://github.com/QwenLM/qwen-code/tree/d79bb9b712119392a3df0174054120e6ab54cb97/integrations/generated-ui/skills/generated-ui",
+    "licenseSource": "https://github.com/QwenLM/qwen-code/blob/d79bb9b712119392a3df0174054120e6ab54cb97/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "web",
+    "summaryVi": "Tạo bảng so sánh hoặc công cụ tính toán tương tác trong StartupBot.",
+    "instructionsSha256": "ee2543eb7ddbe3fda74a9d60dca4f66e18583024ac82d08793843b1df4446812",
+    "summaryZh": "在 StartupBot 中创建比较表或交互式计算器。",
+    "summaryZhTw": "在 StartupBot 中建立比較表或互動式計算器。"
+  },
+  {
+    "name": "dataviz",
+    "source": "https://github.com/QwenLM/qwen-code/tree/d79bb9b712119392a3df0174054120e6ab54cb97/packages/core/src/skills/bundled/dataviz",
+    "licenseSource": "https://github.com/QwenLM/qwen-code/blob/d79bb9b712119392a3df0174054120e6ab54cb97/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Trực quan hóa dữ liệu bằng biểu đồ.",
+    "instructionsSha256": "e96ab25192a65e3153c0c2652985f3555f93f78881c24fdd66a728ecf50b6f16",
+    "summaryZh": "用图表可视化数据。",
+    "summaryZhTw": "用圖表可視化數據。"
+  },
+  {
+    "name": "translate-docs",
+    "source": "https://github.com/MoonshotAI/kimi-cli/tree/9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82/.agents/skills/translate-docs",
+    "licenseSource": "https://github.com/MoonshotAI/kimi-cli/blob/9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "office",
+    "summaryVi": "Đồng bộ thay đổi giữa tài liệu gốc và bản dịch.",
+    "instructionsSha256": "bd6889974c31414e21efb72d1ccd4673c084ab9e50a54c14d8db7f523a305739",
+    "summaryZh": "同步原始文档和译文之间的更改。",
+    "summaryZhTw": "同步原始文件和譯文之間的變更。"
+  },
+  {
+    "name": "chengfeng-cut",
+    "source": "https://github.com/Agentchengfeng/chengfeng-videocut-skills/tree/a33b43e08c34fa8beeb5e78498e852f4e80975a5/plugins/chengfeng-videocut/skills/chengfeng-cut",
+    "licenseSource": "https://github.com/Agentchengfeng/chengfeng-videocut-skills/blob/a33b43e08c34fa8beeb5e78498e852f4e80975a5/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Rà bản ghi lời thoại tiếng Trung, đánh dấu câu lặp và đoạn đề xuất cắt.",
+    "instructionsSha256": "d80fe11c740558a65e63838cc32f0555554a842cceb752ce9ab51833fa4a06a3",
+    "summaryEn": "Review Chinese dialogue transcripts, mark repeated sentences and proposed cuts.",
+    "summaryZh": "查看中文对话记录，标记重复的句子和建议的删减。",
+    "summaryZhTw": "查看中文對話記錄，標記重複的句子和建議的刪除。"
+  },
+  {
+    "name": "chengfeng-subtitle",
+    "source": "https://github.com/Agentchengfeng/chengfeng-videocut-skills/tree/a33b43e08c34fa8beeb5e78498e852f4e80975a5/plugins/chengfeng-videocut/skills/chengfeng-subtitle",
+    "licenseSource": "https://github.com/Agentchengfeng/chengfeng-videocut-skills/blob/a33b43e08c34fa8beeb5e78498e852f4e80975a5/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "media",
+    "summaryVi": "Tạo và chỉnh phụ đề video.",
+    "instructionsSha256": "db7d500c693cecea120c96946c49a09c63581524a03999711e1cd0c3cf7af788",
+    "summaryEn": "Create and edit video subtitles.",
+    "summaryZh": "创建和编辑视频字幕。",
+    "summaryZhTw": "建立和編輯視訊字幕。"
+  },
+  {
+    "name": "startup-idea",
+    "source": "https://github.com/fabricioctelles/skills/tree/c491efea06e200e847c416effb87e566d6face3b/skills/startup-idea",
+    "licenseSource": "https://github.com/fabricioctelles/skills/blob/c491efea06e200e847c416effb87e566d6face3b/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "evals/evals.json"
+    ],
+    "category": "startup",
+    "summaryVi": "Đánh giá ý tưởng khởi nghiệp và giả định cần kiểm chứng.",
+    "instructionsSha256": "68f83211a9f8cedc27560c529c9d84ee3ac58fe505368106fde9ba5e971de139",
+    "summaryZh": "评估创业点子，找出需要验证的商业假设。",
+    "summaryZhTw": "評估創業點子，找出需要驗證的商業假設。"
+  },
+  {
+    "name": "product-discovery",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/product-discovery",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ],
+    "category": "startup",
+    "summaryVi": "Khám phá nhu cầu khách hàng và cơ hội sản phẩm.",
+    "instructionsSha256": "703c0587b4e674ba5f5c94addde931f4f1d4e20142615be8e3a47e5cfd5a29e9",
+    "summaryZh": "探索客户需求和产品机会。",
+    "summaryZhTw": "探索客戶需求和產品機會。"
+  },
+  {
+    "name": "synthesize-research",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/skills/synthesize-research",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Tổng hợp nghiên cứu và phản hồi từ khách hàng.",
+    "instructionsSha256": "9523a2ebb09e833e91f37c776586329cea12161fe530fb91c7108869c5ee44eb",
+    "summaryZh": "综合研究和客户反馈。",
+    "summaryZhTw": "綜合研究和客戶回饋。"
+  },
+  {
+    "name": "write-spec",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/skills/write-spec",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Viết đặc tả tính năng và yêu cầu sản phẩm.",
+    "instructionsSha256": "44db3a8010897c6ffa89c6aa1468dcd62ab80428c640a77c7c72708131316253",
+    "summaryZh": "编写产品功能规格和要求。",
+    "summaryZhTw": "編寫產品功能規格和要求。"
+  },
+  {
+    "name": "pricing-strategy",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/pricing-strategy",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ],
+    "category": "startup",
+    "summaryVi": "Xây dựng chiến lược định giá sản phẩm.",
+    "instructionsSha256": "6b7d23841c1462740ee69bde9e7a10181699b926aeeb48e3fab4f7e255a13fec",
+    "summaryZh": "制定产品定价策略。",
+    "summaryZhTw": "制定產品定價策略。"
+  },
+  {
+    "name": "business-finance-fundamentals",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/business-finance-fundamentals",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ],
+    "category": "finance",
+    "summaryVi": "Tính và hiểu các chỉ số tài chính khi vận hành công ty.",
+    "instructionsSha256": "30996f7e4462b3c41888de4fcacc9f2dcde9afd9c48a1c258d11e9e8e43d3664",
+    "summaryZh": "计算并了解公司运营时的财务指标。",
+    "summaryZhTw": "計算並了解公司營運時的財務指標。"
+  },
+  {
+    "name": "producthunt",
+    "source": "https://github.com/ReScienceLab/opc-skills/tree/0c44a6a6e654c38cfd3c8aceda86d7d8de40a183/skills/producthunt",
+    "licenseSource": "https://github.com/ReScienceLab/opc-skills/blob/0c44a6a6e654c38cfd3c8aceda86d7d8de40a183/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      ".claude-plugin/plugin.json"
+    ],
+    "category": "startup",
+    "summaryVi": "Nghiên cứu sản phẩm ra mắt, chủ đề và xu hướng trên Product Hunt.",
+    "instructionsSha256": "d1714f2ece2962d1f836cb12e2b57f6f017d7a0b053f86b102b42cab9ae1b638",
+    "summaryZh": "在 Product Hunt 上研究产品发布、主题和趋势。",
+    "summaryZhTw": "在 Product Hunt 上研究產品發布、主題和趨勢。"
+  },
+  {
+    "name": "draft-outreach",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/sales/skills/draft-outreach",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/sales/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "marketing",
+    "summaryVi": "Soạn thư tiếp cận khách hàng tiềm năng.",
+    "instructionsSha256": "2b0b6af914265d2c14806282417961ac2cebbb82a46c207235d771b1b6c5706f",
+    "summaryZh": "撰写信件以联系潜在客户。",
+    "summaryZhTw": "撰寫信件以聯繫潛在客戶。"
+  },
+  {
+    "name": "pipeline-review",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/sales/skills/pipeline-review",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/sales/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Rà soát cơ hội bán hàng và bước tiếp theo.",
+    "instructionsSha256": "e7093985643fd1887cd7de33095f71236f6d526fa9bef38576330f4d5cd87cf3",
+    "summaryZh": "审查销售机会和后续步骤。",
+    "summaryZhTw": "審查銷售機會和後續步驟。"
+  },
+  {
+    "name": "roadmap-update",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/skills/roadmap-update",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Cập nhật lộ trình phát triển sản phẩm.",
+    "instructionsSha256": "00ecde076240ec28f5d6e65c391c2661cde0c439adc088eb8eda49f203afe20e",
+    "summaryZh": "更新产品开发路线图。",
+    "summaryZhTw": "更新產品開發路線圖。"
+  },
+  {
+    "name": "sprint-planning",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/skills/sprint-planning",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "startup",
+    "summaryVi": "Lập kế hoạch sprint và phân chia công việc cho nhóm.",
+    "instructionsSha256": "6f21eff28426503d8262622d72bcacdf11b308431e0d359dea42c1b601882fc6",
+    "summaryZh": "计划冲刺并在团队之间分配工作。",
+    "summaryZhTw": "計劃衝刺並在團隊之間分配工作。"
+  },
+  {
+    "name": "team-leadership",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/team-leadership",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ],
+    "category": "startup",
+    "summaryVi": "Quản lý đội ngũ và phát triển kỹ năng lãnh đạo.",
+    "instructionsSha256": "976c3040f63ab51f024cd9a81f087f1afa40309971aa4e3330c3f6a98075a36b",
+    "summaryZh": "管理团队并培养领导技能。",
+    "summaryZhTw": "管理團隊並培養領導技能。"
+  },
+  {
+    "name": "gws-shared",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-shared",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Dùng cấu hình và quy ước chung của Google Workspace CLI.",
+    "instructionsSha256": "6d908361bebd0041c226ae31e916f8ec303f075a2d368b22ad8894f65217cf28",
+    "summaryZh": "使用常见的 Google Workspace CLI 配置和约定。",
+    "summaryZhTw": "使用常見的 Google Workspace CLI 設定和約定。"
+  },
+  {
+    "name": "gws-docs",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-docs",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Đọc và soạn tài liệu Google Docs.",
+    "instructionsSha256": "8b6e24a2222854c73e2df56874faacf45e46238544744477f8b7b2ebb911f63b",
+    "summaryZh": "阅读并撰写 Google Docs 文档。",
+    "summaryZhTw": "閱讀並撰寫 Google Docs 文件。"
+  },
+  {
+    "name": "gws-drive",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-drive",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Tìm và quản lý tệp trong Google Drive.",
+    "instructionsSha256": "57fdf1f0003b49cca537a927ed23305b5770a629ee78f2bfefed06fc8754874e",
+    "summaryZh": "查找和管理 Google 云端硬盘中的文件。",
+    "summaryZhTw": "尋找並管理 Google 雲端硬碟中的檔案。"
+  },
+  {
+    "name": "gws-forms",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-forms",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [],
+    "category": "workspace",
+    "summaryVi": "Làm việc với biểu mẫu và phản hồi Google Forms.",
+    "instructionsSha256": "51f605076f16fbf2c205566f93804b55e2a0635450054a6136435cae2b1d3c9b",
+    "summaryZh": "使用 Google Forms 表单和回复。",
+    "summaryZhTw": "使用 Google Forms 表單和回覆。"
+  }
+]

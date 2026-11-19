@@ -1,3 +1,4 @@
+import { SkillsSection } from "../../SkillsSection";
 import type { SettingsPageId } from "../settings-index";
 import { AccountPage, PlanPage } from "./AccountPages";
 import { AppPage, AppearancePage, GeneralPage } from "./AppPages";
@@ -10,6 +11,7 @@ const PAGES: Record<SettingsPageId, () => React.ReactNode> = {
   phone: PhonePage,
   ai: AiPage,
   bots: BotsPage,
+  skills: SkillsSection,
   desktops: DesktopsPage,
   vault: VaultPage,
   usage: SpendingPage,

@@ -1,6 +1,8 @@
+import { isSkillName } from "../../shared/skill-md.ts";
 import { z } from "zod";
 
 import type { SkillsLibrarySkillWire } from "../../shared/wire.ts";
+import type { RequestAuth } from "../request-auth.ts";
 import type { AppConfig } from "../config.ts";
 import { setImportedSkillEnabled } from "../imported-skills.ts";
 import { setNativeSkillEnabled } from "../native-skill-choices.ts";
@@ -18,6 +20,7 @@ import { PASS, type RouteHandler } from "./table.ts";
 export interface BotSkillsRouteDeps {
   store: Store;
   cfg: AppConfig;
+  visibleBot(auth: RequestAuth, botId: string): boolean;
   listBotSkills(bot: BotRecord, threadId?: string): SkillListing[];
   readBotSkillFile(bot: BotRecord, name: string): string | null;
   stagedSkillListing(staged: StagedSkillWrite): Omit<StagedSkillWrite, "files" | "baseSha256" | "baseAppliedStageId">;
@@ -25,7 +28,7 @@ export interface BotSkillsRouteDeps {
 
 export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
   const { store, cfg, listBotSkills, readBotSkillFile, stagedSkillListing } = deps;
-  return async ({ req, res, url, path, method, json, readBody }) => {
+  return async ({ req, res, url, path, method, auth, json, readBody }) => {
     let m: RegExpMatchArray | null = null;
     // Imports land DISABLED: a person enables one after reading SKILL.md and its scan warnings.
     m = path.match(/^\/api\/bots\/([\w-]+)\/skill-template$/);
@@ -131,6 +134,7 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
     if (m && method === "GET") {
       if (!skillsLibraryEnabled(cfg)) return json(res, 404, { error: "skills library is not enabled" });
       const index = readSkillLibraryIndex();
+      const visibleBots = store.bots.filter((bot) => deps.visibleBot(auth, bot.id));
       const skills: SkillsLibrarySkillWire[] = listLibrarySkills()
         .map((listing): SkillsLibrarySkillWire => ({
           name: listing.name,
@@ -144,7 +148,7 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
           ...(listing.license ? { license: listing.license } : {}),
           ...(listing.compatibility ? { compatibility: listing.compatibility } : {}),
           warnings: listing.warnings,
-          assignedBots: store.bots
+          assignedBots: visibleBots
             .filter((bot) => bot.assignedSkills?.includes(listing.name) || (index[listing.name]?.everyBot === true && !librarySkillOptOuts(bot.id).has(listing.name)))
             .map((bot) => ({ id: bot.id, name: bot.name })),
         }))
@@ -189,6 +193,28 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
       return json(res, 200, { skill: result });
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/skills-library$/);
+    if (m && method === "PATCH") {
+      if (!skillsLibraryEnabled(cfg)) return json(res, 404, { error: "skills library is not enabled" });
+      const parsed = z.object({ name: z.string().refine(isSkillName), assigned: z.boolean() }).safeParse(await readBody(req));
+      if (!parsed.success) return json(res, 400, { error: "expected a skill name and an assignment" });
+      const bot = store.bot(m[1]);
+      if (!bot) return json(res, 404, { error: "no such bot" });
+      const { name, assigned } = parsed.data;
+      const index = readSkillLibraryIndex();
+      if (!Object.hasOwn(index, name)) return json(res, 422, { error: "not in the library" });
+      const entry = index[name]!;
+      if (assigned) {
+        if (!entry.everyBot && !bot.assignedSkills?.includes(name)) {
+          if ((bot.assignedSkills?.length ?? 0) >= 200) return json(res, 422, { error: "a bot can have at most 200 assigned skills" });
+          store.patchBot(bot.id, { assignedSkills: [...(bot.assignedSkills ?? []), name] });
+        }
+        setLibrarySkillOptOut(bot.id, name, false);
+      } else {
+        const removed = unassignLibrarySkill(bot.id, name, bot.assignedSkills);
+        if ("assignedSkills" in removed) store.patchBot(bot.id, { assignedSkills: removed.assignedSkills });
+      }
+      return json(res, 200, { ok: true });
+    }
     if (m && method === "PUT") {
       if (!skillsLibraryEnabled(cfg)) return json(res, 404, { error: "skills library is not enabled" });
       if (!store.bot(m[1])) return json(res, 404, { error: "no such bot" });
@@ -196,7 +222,7 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
       if (!parsed.success) return json(res, 400, { error: "skills must be a list of skill names" });
       const index = readSkillLibraryIndex();
       const names = [...new Set(parsed.data.skills)];
-      const unknown = names.filter((name) => !index[name]);
+      const unknown = names.filter((name) => !Object.hasOwn(index, name));
       if (unknown.length) return json(res, 422, { error: "not in the library: " + unknown.join(", ") });
       for (const name of names) setLibrarySkillOptOut(m[1]!, name, false);
       store.patchBot(m[1]!, { assignedSkills: names });

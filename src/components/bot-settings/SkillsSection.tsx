@@ -12,6 +12,7 @@ import { inputCls } from "./field";
 import { OrgSkillsCard } from "./OrgSkillsCard";
 import { WriteCommandCard } from "./WriteCommandCard";
 import { Select } from "../Select";
+import { SkillInstructions } from "../SkillInstructions";
 
 export interface ManagedSkill {
   name: string;
@@ -246,21 +247,12 @@ export function SkillReviewDialog({
         <div id="skill-review-title" className="text-[16px] font-semibold text-ink">
           {t("skills.reviewTitle", { name: skill.name })}
         </div>
-        <div className="mt-1 break-all text-[12px] text-ink-secondary">
-          {t("skills.source", { source: skill.source })}
-        </div>
         {skill.warnings.length > 0 && (
           <div className="mt-2 rounded-lg bg-warning/10 px-3 py-2 text-[12px] text-warning">
             {skill.warnings.join(" · ")}
           </div>
         )}
-        <pre
-          tabIndex={0}
-          aria-label={t("skills.fullSkill", { name: skill.name })}
-          className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-inset p-3 font-mono text-[12px] leading-relaxed text-ink"
-        >
-          {text}
-        </pre>
+        <SkillInstructions name={skill.name} text={text} label={t("skills.fullSkill", { name: skill.name })} />
         {error && <div role="alert" className="mt-2 text-[12px] text-danger">{error}</div>}
         <div className="mt-4 flex justify-end gap-2">
           <button
@@ -515,7 +507,6 @@ export function SkillsSection({ bot }: { bot: Bot }) {
                     </button>
                   )}
                 </div>
-                <div className="mt-1 truncate text-[11px] text-ink-secondary" title={skill.source}>{t("skills.source", { source: skill.source })}</div>
                 {skill.warnings.length > 0 && (
                   <div className="mt-1 text-[11px] text-warning">{skill.warnings.join(" · ")}</div>
                 )}
@@ -566,13 +557,7 @@ export function SkillsSection({ bot }: { bot: Bot }) {
                 {t("common.close")}
               </button>
             </div>
-            <pre
-              tabIndex={0}
-              aria-label={t("skills.fullSkill", { name: viewing.name })}
-              className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-inset p-3 font-mono text-[12px] leading-relaxed text-ink"
-            >
-              {viewing.text}
-            </pre>
+            <SkillInstructions name={viewing.name} text={viewing.text} label={t("skills.fullSkill", { name: viewing.name })} />
           </div>
         </div>
       )}

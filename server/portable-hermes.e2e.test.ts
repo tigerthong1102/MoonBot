@@ -1,6 +1,7 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { promisify } from "node:util";
 import { expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 import { resolveCli } from "./procs.ts";
@@ -15,6 +16,7 @@ function installedPython(): string | null {
 }
 
 const python = installedPython();
+const run = promisify(execFile);
 
 it.skipIf(!python)("saves a portable Hermes CLI and probes version and ACP models in an isolated server", async () => {
   const fixture = await launchVerificationServer({});
@@ -26,7 +28,7 @@ it.skipIf(!python)("saves a portable Hermes CLI and probes version and ACP model
     const response = await fetch(url + path, {
       method, headers: { "content-type": "application/json", origin: url },
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30_000),
-    });
+    }).catch((cause: unknown) => { throw new Error(`${method} ${path} failed`, { cause }); });
     const result = await response.json() as any;
     expect(response.ok, JSON.stringify(result)).toBe(true);
     return result;
@@ -56,7 +58,7 @@ for line in sys.stdin:
     if method == "initialize":
         result = {"protocolVersion": 1, "agentCapabilities": {}}
     elif method == "session/new":
-        result = {"sessionId": "fixture-session", "models": {"currentModelId": "fixture/model", "availableModels": [{"modelId": "fixture/model", "name": "Fixture model"}]}}
+        result = {"sessionId": "fixture-session", "models": {"currentModelId": "fixture/acp-model", "availableModels": [{"modelId": "fixture/acp-model", "name": "Fixture ACP model"}]}}
     else:
         result = {"echo": msg.get("params")}
     if "id" in msg:
@@ -65,13 +67,13 @@ for line in sys.stdin:
     const payload = ["payload", 'spaces & pipes | %PATH% "quotes"', "你好"];
     const resolved = resolveCli(relative(process.cwd(), shim), payload);
     const env = { ...process.env, HERMES_HOME: home, OPENAI_API_KEY: "must-be-cleared", TERMINAL_CWD: dataDir };
-    const output = execFileSync(resolved.command, resolved.args, { env, encoding: "utf8" });
-    expect(JSON.parse(output)).toEqual(payload);
+    const output = await run(resolved.command, resolved.args, { env, encoding: "utf8", timeout: 30_000 });
+    expect(JSON.parse(output.stdout)).toEqual(payload);
     const protocol = resolveCli(shim, ["acp"]);
-    const echoed = execFileSync(protocol.command, protocol.args, {
-      env, encoding: "utf8", input: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "echo", params: payload }) + "\n",
-    });
-    expect(JSON.parse(echoed).result.echo).toEqual(payload);
+    const echo = run(protocol.command, protocol.args, { env, encoding: "utf8", timeout: 30_000 });
+    echo.child.stdin!.end(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "echo", params: payload }) + "\n");
+    const echoed = await echo;
+    expect(JSON.parse(echoed.stdout).result.echo).toEqual(payload);
     expect(readFileSync(join(home, "config.yaml"), "utf8")).toContain("fixture/model");
     writeFileSync(join(home, ".env"), "OPENROUTER_API_KEY=preserve-fixture-key\n");
     await api("PATCH", "/api/instances/hermes", { cli: shim });
@@ -79,8 +81,13 @@ for line in sys.stdin:
     const hermes = catalog.instances.find((instance: any) => instance.instanceId === "hermes");
     expect(hermes.cli).toBe(shim);
     expect(hermes.snapshot).toMatchObject({ state: "available", version: "Hermes 1.4.17" });
+    const advertised = expect.objectContaining({ id: "fixture/acp-model", label: "Fixture ACP model" });
+    const hermesModels = { instances: expect.arrayContaining([
+      expect.objectContaining({ instanceId: "hermes", models: expect.objectContaining({ options: expect.arrayContaining([advertised]) }) }),
+    ]) };
+    await expect.poll(() => api("GET", "/api/instances"), { timeout: 30_000, interval: 250 }).toMatchObject(hermesModels);
     const models = await runControlOmb(["models", "--url", url]);
-    expect(JSON.stringify(models)).toContain("fixture/model");
+    expect(models).toMatchObject(hermesModels);
     const launches = readFileSync(join(home, "launches.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
     expect(launches.some((launch) => launch.args[0] === "--version")).toBe(true);
     expect(launches.some((launch) => launch.args[0] === "acp")).toBe(true);
@@ -94,6 +101,9 @@ for line in sys.stdin:
       { command: ["models", "--url", url] },
     ], hermes: hermes.snapshot, models, launches }, null, 2));
     console.log(JSON.stringify({ logPath, evidencePath }));
+  } catch (cause) {
+    const tail = readFileSync(logPath, "utf8").slice(-2000);
+    throw new Error(`Portable Hermes fixture (server exit: ${fixture.child.exitCode ?? fixture.child.signalCode ?? "running"}):\n${tail}`, { cause });
   } finally {
     if (existsSync(join(root, "python_embedded"))) unlinkSync(join(root, "python_embedded"));
     await fixture.close();

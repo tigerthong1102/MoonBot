@@ -6,7 +6,7 @@ import { matchWindowButton } from "./resolve.ts";
 const address = { pid: 100, window_id: 7 };
 const button = { role: "Button", label: "Navigate", depth: 1, element_index: 1, element_token: "s00000001:1", enabled: true };
 const tree = { ...address, app_name: "Fixture", window_title: "Navigation", tree_format: "elements",
-  elements_complete: true, total_element_count: 1, elements: [button] };
+  elements_complete: true, returned_element_count: 1, total_element_count: 1, elements: [button] };
 const lookup = { ...address, tree_format: "elements" };
 const click = { ...address, element_token: button.element_token, delivery_mode: "background" };
 const action = { effect: "unverifiable", route: "accessibility", delivery: { mode: "background" } };
@@ -42,6 +42,7 @@ describe("Windows UIA projected window buttons", () => {
       expect(record(tree, click, { ...action, ...change }).ok).toBe(false);
     }
     expect(record(tree, click, action, { ...lookup, pid: 99 }).ok).toBe(false);
+    expect(record(tree, click, action, { ...lookup, role_filter: "Button" }).ok).toBe(false);
     expect(record(tree, click, action, lookup, "darwin").ok).toBe(false);
   });
 
@@ -49,7 +50,7 @@ describe("Windows UIA projected window buttons", () => {
     for (const other of [{ ...button, depth: 3, element_index: 5, element_token: "s00000001:5" },
       { ...button, label: "Other", element_index: 2 }, { ...button, label: "Other", element_token: "s00000001:2" },
       { ...button, role: "Window", label: "Root", element_index: 0, element_token: "s00000001:0", depth: 0 }]) {
-      const state = { ...tree, total_element_count: 2, elements: [button, other] };
+      const state = { ...tree, returned_element_count: 2, total_element_count: 2, elements: [button, other] };
       expect(record(state).ok).toBe(false);
       expect(matchWindowButton(slim(state).structured!.elements!, button.label).ok).toBe(false);
     }

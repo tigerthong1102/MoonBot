@@ -152,6 +152,8 @@ export function stepLabel(step: RecipeStep): string {
   return step.window?.title ?? appName ?? "the screen";
 }
 
+const WINDOW_STATE_ARGS = new Set(["pid", "window_id", "tree_format", "include_screenshot"]);
+
 interface Snapshot { pid?: number; windowId?: number; appName?: string; windowTitle?: string; elements: WireElement[]; complete: boolean; windowProjection: boolean }
 
 const fillMissing = (known: AppIdentity | undefined, next: AppIdentity): AppIdentity => ({
@@ -194,7 +196,8 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
       learnApp(data.pid, { bundleId: data.bundle_id, name: data.app_name });
       if (data.window_id !== undefined && data.window_title !== undefined) windowsById.set(data.window_id, data.window_title);
       const snapshot: Snapshot = {
-        windowProjection: args.tree_format === "elements" && args.pid === data.pid && args.window_id === data.window_id,
+        windowProjection: args.tree_format === "elements" && args.pid === data.pid && args.window_id === data.window_id
+          && Object.keys(args).every((key) => WINDOW_STATE_ARGS.has(key)),
         pid: data.pid, windowId: data.window_id, appName: data.app_name, windowTitle: data.window_title, elements: data.elements ?? [], complete: data.elements_complete === true,
       };
       const key = data.window_id !== undefined ? `w${data.window_id}` : `p${data.pid}`;
@@ -281,7 +284,7 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
       const path = elementPath(snapshot.elements, element);
       const directButton = !path && snapshot.windowProjection && element.uia_window_child === true && windowButtonClick(tool, kept)
         && result.structured?.background_accessibility_action === true
-        && !!snapshot.windowTitle && pid === snapshot.pid && windowId === snapshot.windowId && args.element_token === element.element_token
+        && !!snapshot.windowTitle && pid === snapshot.pid && windowId === snapshot.windowId
         && typeof args.element_token === "string" && args.element_index === undefined;
       if (!path && !directButton) return refuse("unknown-target");
       const identity: ElementIdentity = { role: element.role, label: element.label, path: path ?? [],

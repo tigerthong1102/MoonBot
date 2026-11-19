@@ -80,6 +80,7 @@ export const treeDegraded = (state: Record<string, unknown>) => state.degraded =
 function markWindowButtons(raw: Rec, elements: WireElement[]): void {
   if (raw.tree_format !== "elements" || !Number.isSafeInteger(raw.pid) || !Number.isSafeInteger(raw.window_id)
     || !hasText(raw.window_title) || !Array.isArray(raw.elements)
+    || raw.total_element_count !== elements.length || raw.returned_element_count !== elements.length
     || !COUNTS.every((key) => raw[key] === undefined || raw[key] === elements.length)) return;
   const rows = raw.elements;
   if (!rows.every((row) => isRec(row) && Number.isSafeInteger(row.depth) && Number(row.depth) >= 1

@@ -13,10 +13,10 @@ import {
 import { canInstallElevated, installPackageElevated } from "./elevated-install.mjs";
 import { releaseSingleInstanceLock } from "./single-instance.mjs";
 import { openBlankTerminal } from "./terminal-launch.mjs";
-import { STARTUPBOT_UPDATES_ENABLED } from "./updater-config.mjs";
+import { configureDesktopUpdater, desktopUpdatePolicy } from "./updater-config.mjs";
 import { UPDATE_TEXT } from "./update-errors.mjs";
 import { createUpdaterCoordinator } from "./updater-coordinator.mjs";
-import { createQuietInstall, installFailed, launchAfter, LOOK_EVERY_MS, updateSeen } from "./update-when-quiet.mjs";
+import { launchAfter, updateSeen } from "./update-when-quiet.mjs";
 
 export { quietSignals } from "./update-when-quiet-main.mjs";
 
@@ -27,7 +27,7 @@ let win = null;
 let state = { status: "idle" };
 let updaterCoordinator = null;
 let pageAllowed = () => false;
-let quiet = null;
+let workSignals = null;
 let launch = null;
 /** Where these updaters install without asking anything: Squirrel.Mac, and the per-user NSIS installer run silently. */
 const QUIET_PLATFORMS = new Set(["darwin", "win32"]);
@@ -64,7 +64,6 @@ export function reopenedOutOfSight() {
 function view() {
   return {
     ...state,
-    ...(quiet && state.status === "downloaded" ? { installsByItself: quiet.promises(state.version) } : {}),
     ...(launch?.updated ? { updated: launch.updated } : {}),
   };
 }
@@ -112,8 +111,7 @@ function relaunchAfterInstall() {
 
 function setState(patch) {
   const { messageCode: _stale, messageKey: _key, messageParams: _params, ...kept } = state;
-  state = { ...(Object.hasOwn(patch, "message") ? kept : state), ...patch };
-  if (quiet && patch.status === "error") installFailed(quietRecord());
+  state = { ...(Object.hasOwn(patch, "message") ? kept : state), ...(patch.status && { restartDeferred: false }), ...patch };
   try {
     const contents = win?.webContents;
     if (contents && pageAllowed({ sender: contents, senderFrame: contents.mainFrame })) contents.send("update:state", view());
@@ -129,13 +127,30 @@ export function sendUpdaterState() {
 export const SERVER_PAGE_ASK_COOLDOWN_MS = 10_000;
 let serverPageAsk = null;
 
+async function installStaged() {
+  if (state.status !== "downloaded" || !updaterCoordinator) return false;
+  if (workSignals) {
+    let canRestart = false;
+    try {
+      canRestart = !(workSignals.busy() || await workSignals.work() || workSignals.busy());
+    } catch {
+    }
+    if (!canRestart) {
+      if (state.status === "downloaded") setState({ restartDeferred: true });
+      return false;
+    }
+  }
+  if (state.status !== "downloaded") return false;
+  updaterCoordinator.install();
+  return true;
+}
+
 async function askForServerPage(confirmRestart, server) {
   if (!updaterCoordinator) return "unavailable";
   if (state.status !== "downloaded") await updaterCoordinator.check(true);
   if (state.status === "downloaded") {
     if (!(await confirmRestart(state.version ?? "", server))) return "later";
-    updaterCoordinator.install();
-    return "installing";
+    return await installStaged() ? "installing" : "later";
   }
   if (state.status === "downloading" || state.status === "preparing" || state.status === "available") return "downloading";
   return state.status === "error" ? "failed" : "current";
@@ -162,7 +177,7 @@ export function registerUpdaterIpc({ pageAllowed: allowed, serverPage = () => nu
   };
   ipcMain.handle("update:get-state", guarded("update:get-state", view));
   ipcMain.handle("update:check", guarded("update:check", () => updaterCoordinator?.check(true)));
-  ipcMain.handle("update:install", guarded("update:install", () => updaterCoordinator?.install()));
+  ipcMain.handle("update:install", guarded("update:install", installStaged));
   ipcMain.handle("update:for-server-page", (event) => {
     const server = serverPage(event);
     if (!server) throw new Error("update:for-server-page is only available to the page this app's window shows");
@@ -181,20 +196,16 @@ export function attachUpdaterWindow(mainWindow) {
   win = mainWindow;
 }
 
-/** `signals` (quietSignals): what tells a quiet moment; without them a downloaded update installs only on Restart or quit. */
-export function startUpdater(signals = null) {
-  if (!STARTUPBOT_UPDATES_ENABLED) {
+export async function startUpdater(signals = null) {
+  const policy = desktopUpdatePolicy(app);
+  if (!policy) {
     updaterCoordinator = null;
     setState({ status: "idle", disabled: true });
     return;
   }
-  if (!app.isPackaged) {
-    updaterCoordinator = null;
-    setState({ status: "error", message: UPDATE_TEXT.unavailable, messageCode: "unavailable" });
-    return;
-  }
   try {
     ({ autoUpdater } = require("./vendor/electron-updater.cjs"));
+    await configureDesktopUpdater(autoUpdater, policy);
   } catch {
     updaterCoordinator = null;
     setState({ status: "error", message: UPDATE_TEXT.unavailable, messageCode: "unavailable" });
@@ -217,14 +228,7 @@ export function startUpdater(signals = null) {
     relaunch: elevated ? relaunchAfterInstall : null,
     nativeStaging: process.platform === "darwin",
   });
-  if (signals && QUIET_PLATFORMS.has(process.platform)) {
-    launched();
-    quiet = createQuietInstall({ updater: updaterCoordinator, signals, record: quietRecord(), version: app.getVersion(),
-      log: (line) => autoUpdater.logger?.info?.(line) });
-    setInterval(() => void quiet?.look(), LOOK_EVERY_MS).unref?.();
-    signals.watch(() => quiet?.look());
-    setState({});
-  }
+  workSignals = signals;
 
   setTimeout(() => void updaterCoordinator?.check(), 15_000).unref?.();
   setInterval(() => void updaterCoordinator?.check(), 60 * 60 * 1000).unref?.();

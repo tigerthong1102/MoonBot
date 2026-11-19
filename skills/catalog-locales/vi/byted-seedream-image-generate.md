@@ -116,7 +116,6 @@ python seedream_image_generate.py --list-versions
 | `--max-images` | - | Hình ảnh tối đa để tạo hàng loạt | `15` |
 | `--output-format` | - | Định dạng đầu ra: `png` hoặc `jpeg` (chỉ 5.0) | `jpeg` |
 | `--response-format` | - | Định dạng phản hồi: `url` hoặc `b64_json` | `url` |
-| `--stream` | - | Bật đầu ra phát trực tuyến | `false` |
 | `--web-search` | - | Bật công cụ tìm kiếm trên web (chỉ 5.0) | `false` |
 | `--optimize-prompt-mode` | - | Chế độ tối ưu hóa lời nhắc: `standard` hoặc `fast` | - |
 | `--timeout` | `-t` | Thời gian chờ tính bằng giây | `1200` |
@@ -188,18 +187,17 @@ asyncio.run(main())
 
 | Tham số | Seedream 4.0 | Seedream 4.5 | Seedream 5.0-lite | Mô tả |
 |-----------|--------------|--------------|-------------------|-------------|
-| mẫu máy | ✅ | ✅ | ✅ | Tên mẫu |
-| lời nhắc | ✅ | ✅ | ✅ | Lời nhắc (bắt buộc) |
-| hình ảnh | ✅ | ✅ | ✅ | (Các) hình ảnh tham khảo |
-| kích thước | ✅ | ✅ | ✅ | Kích thước hình ảnh |
-| tuần tự_hình ảnh_thế hệ | ✅ | ✅ | ✅ | Điều khiển tạo hàng loạt |
-| tuần tự_hình ảnh_thế hệ_options | ✅ | ✅ | ✅ | Cấu hình tạo hàng loạt |
-| reply_format | ✅ | ✅ | ✅ | Định dạng phản hồi (url/b64_json) |
-| hình mờ | ✅ | ✅ | ✅ | Hình mờ (đúng/sai) |
-| phát trực tiếp | ✅ | ✅ | ✅ | Đầu ra phát trực tuyến |
-| tối ưu hóa_prompt_options | ✅ | ✅ | ✅ | Cấu hình tối ưu hóa lời nhắc |
-| **công cụ** | ❌ | ❌ | ******* | Cấu hình công cụ (chỉ 5.0-lite) |
-| **output_format** | ❌ | ❌ | ******** | Định dạng đầu ra (png/jpeg, chỉ 5.0-lite) |
+| model | ✅ | ✅ | ✅ | Tên mẫu |
+| prompt | ✅ | ✅ | ✅ | Lời nhắc (bắt buộc) |
+| image | ✅ | ✅ | ✅ | (Các) hình ảnh tham khảo |
+| size | ✅ | ✅ | ✅ | Kích thước hình ảnh |
+| sequential_image_generation | ✅ | ✅ | ✅ | Điều khiển tạo hàng loạt |
+| sequential_image_generation_options | ✅ | ✅ | ✅ | Cấu hình tạo hàng loạt |
+| response_format | ✅ | ✅ | ✅ | Định dạng phản hồi (url/b64_json) |
+| watermark | ✅ | ✅ | ✅ | Hình mờ (đúng/sai) |
+| optimize_prompt_options | ✅ | ✅ | ✅ | Cấu hình tối ưu hóa lời nhắc |
+| **tools** | ❌ | ❌ | **✅** | Cấu hình công cụ (chỉ 5.0-lite) |
+| **output_format** | ❌ | ❌ | **✅** | Định dạng đầu ra (png/jpeg, chỉ 5.0-lite) |
 
 
 ## Thông tin hoàn trả cuối cùng

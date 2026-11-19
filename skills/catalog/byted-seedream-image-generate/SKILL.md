@@ -126,7 +126,6 @@ python seedream_image_generate.py --list-versions
 | `--max-images` | - | Maximum images for batch generation | `15` |
 | `--output-format` | - | Output format: `png` or `jpeg` (5.0 only) | `jpeg` |
 | `--response-format` | - | Response format: `url` or `b64_json` | `url` |
-| `--stream` | - | Enable streaming output | `false` |
 | `--web-search` | - | Enable web search tool (5.0 only) | `false` |
 | `--optimize-prompt-mode` | - | Prompt optimization mode: `standard` or `fast` | - |
 | `--timeout` | `-t` | Timeout in seconds | `1200` |
@@ -206,7 +205,6 @@ asyncio.run(main())
 | sequential_image_generation_options | ✅ | ✅ | ✅ | Batch generation config |
 | response_format | ✅ | ✅ | ✅ | Response format (url/b64_json) |
 | watermark | ✅ | ✅ | ✅ | Watermark (true/false) |
-| stream | ✅ | ✅ | ✅ | Streaming output |
 | optimize_prompt_options | ✅ | ✅ | ✅ | Prompt optimization config |
 | **tools** | ❌ | ❌ | **✅** | Tool configuration (5.0-lite only) |
 | **output_format** | ❌ | ❌ | **✅** | Output format (png/jpeg, 5.0-lite only) |

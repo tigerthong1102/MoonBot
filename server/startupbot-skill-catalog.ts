@@ -8,12 +8,17 @@ import { installLibrarySkill, readSkillLibraryIndex, retireLibrarySkill, setLibr
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["54810feb5ba0cfbbb5d78687e5874c39bb654986170763b36eb384826ad25a60", "byted-seedream-image-generate"],
   ["254bbe7ac0c66175299609d72e4a7baf073891c8b3ed627c9970b03ce12fa010", "pdf"],
   ["0790c7154973a0da99d5d182bb23ffc66e2f3aa5b1a00d519ee842d6f39e9001", "byted-seedance-video-generate"],
   ["bae1fee03ea09067461c2f436a211a0f8ff7e6178356f81a6f61ccb04a3fd706", "pdf"],
   ["b2d2e4e5a884469a63ae0abef7d0e95d756b70619f94736fd9b62efe34895f98", "dcf-model"],
   ["5a0400264fe9b7e20522ff39ab59535636b98a182448e641798554ef5d988f11", "webapp-testing"],
   ["ad2bd0eecf45c277877237eeb0096898e0e727dddf66dc7d3fd8d2e03b4399cf", "byted-seedream-image-generate"],
+]);
+
+const olderInstructions = new Map([
+  ["byted-seedream-image-generate", "9f525c94dd91cedae6507002f875266645a732134967e63f09d230ba4e3367cb"],
 ]);
 
 const catalogSchema = z.array(z.object({
@@ -63,7 +68,8 @@ export function installStartupBotSkillCatalog({
         throw new Error("catalog name, files or license do not match the package");
       }
       if (previous) {
-        if (previous.sha256 !== createHash("sha256").update(folder.skillMd).digest("hex")) continue;
+        const expected = olderInstructions.get(entry.name) ?? createHash("sha256").update(folder.skillMd).digest("hex");
+        if (previous.sha256 !== expected) continue;
         const archived = retireLibrarySkill(entry.name, previous.sha256, root);
         if ("error" in archived) throw new Error(archived.error);
         if ("stale" in archived) continue;

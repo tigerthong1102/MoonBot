@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# StartupBot modified this file to keep authorization headers and request bodies out of diagnostic output.
+# StartupBot modified this file to keep authorization headers and request bodies out of diagnostic output and reject streaming requests.
 # Copyright (c) 2026 Beijing Volcano Engine Technology Co., Ltd. and/or its affiliates.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,7 +59,6 @@ SUPPORTED_FIELDS = {
         "image",
         "sequential_image_generation",
         "sequential_image_generation_options",
-        "stream",
         "optimize_prompt_options",
     ],
     "4.5": [
@@ -69,7 +68,6 @@ SUPPORTED_FIELDS = {
         "image",
         "sequential_image_generation",
         "sequential_image_generation_options",
-        "stream",
         "optimize_prompt_options",
     ],
     "5.0": [
@@ -81,7 +79,6 @@ SUPPORTED_FIELDS = {
         "sequential_image_generation_options",
         "tools",
         "output_format",
-        "stream",
         "optimize_prompt_options",
     ],
 }
@@ -111,6 +108,8 @@ def _build_request_body(item: dict, model_name: str, version: str) -> dict:
     Build API request body
     Only add parameters supported by the selected version
     """
+    if item.get("stream"):
+        raise ValueError("Streaming output is unsupported; use a non-streaming request.")
     body = {
         "model": model_name,
         "prompt": item.get("prompt", ""),
@@ -350,7 +349,7 @@ def main():
     )
     parser.add_argument(
         "--stream", action="store_true",
-        help="Enable streaming output mode (default false)"
+        help=argparse.SUPPRESS
     )
     parser.add_argument(
         "--optimize-prompt-mode", choices=["standard", "fast"], default=None,
@@ -450,7 +449,6 @@ def main():
     if args.version == "5.0":
         print(f"🖼️  Output format: {args.output_format}")
     print(f"  Watermark: {'Disabled' if args.no_watermark else 'Enabled'}")
-    print(f"  Stream output: {'Enabled' if args.stream else 'Disabled'}")
     if args.version == "5.0" and args.web_search:
         print(f"🔍 Web search: Enabled")
     if args.optimize_prompt_mode:

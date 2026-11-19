@@ -116,7 +116,6 @@ python seedream_image_generate.py --list-versions
 | `--max-images` | - | 批量生成的最大图像数 | `15` |
 | `--output-format` | - | 输出格式：`png` 或 `jpeg`（仅限 5.0） | `jpeg` |
 | `--response-format` | - | 响应格式：`url` 或 `b64_json` | `url` |
-| `--stream` | - | 启用流输出 | `false` |
 | `--web-search` | - | 启用网络搜索工具（仅限 5.0） | `false` |
 | `--optimize-prompt-mode` | - | 提示优化模式：`standard` 或 `fast` | - |
 | `--timeout` | `-t` | 超时（以秒为单位） | `1200` |
@@ -188,18 +187,17 @@ asyncio.run(main())
 
 | 参数 | Seedream 4.0 | Seedream 4.5 | Seedream 5.0-lite | 说明 |
 |-----------|--------------|--------------|-------------------|-------------|
-| 型号 | ✅ | ✅ | ✅ | 型号名称 |
-| 提示 | ✅ | ✅ | ✅ | 提示（必填）|
-| 图片 | ✅ | ✅ | ✅ | 参考图片 |
-| 尺寸 | ✅ | ✅ | ✅ | 图像尺寸 |
-| 顺序图像生成 | ✅ | ✅ | ✅ | 批量生成控制 |
-| 顺序图像生成选项 | ✅ | ✅ | ✅ | 批量生成配置 |
+| model | ✅ | ✅ | ✅ | 型号名称 |
+| prompt | ✅ | ✅ | ✅ | 提示（必填）|
+| image | ✅ | ✅ | ✅ | 参考图片 |
+| size | ✅ | ✅ | ✅ | 图像尺寸 |
+| sequential_image_generation | ✅ | ✅ | ✅ | 批量生成控制 |
+| sequential_image_generation_options | ✅ | ✅ | ✅ | 批量生成配置 |
 | response_format | ✅ | ✅ | ✅ | 响应格式 (url/b64_json) |
-| 水印 | ✅ | ✅ | ✅ | 水印（真/假）|
-| 流 | ✅ | ✅ | ✅ | 流输出 |
-| Optimize_prompt_options | ✅ | ✅ | ✅ | 提示优化配置 |
-| **工具** | ❌ | ❌ | **✅** | 工具配置（仅限 5.0-lite）|
-| **输出格式** | ❌ | ❌ | **✅** | 输出格式（png/jpeg，仅限 5.0-lite）|
+| watermark | ✅ | ✅ | ✅ | 水印（真/假）|
+| optimize_prompt_options | ✅ | ✅ | ✅ | 提示优化配置 |
+| **tools** | ❌ | ❌ | **✅** | 工具配置（仅限 5.0-lite）|
+| **output_format** | ❌ | ❌ | **✅** | 输出格式（png/jpeg，仅限 5.0-lite）|
 
 
 ## 最终退货信息

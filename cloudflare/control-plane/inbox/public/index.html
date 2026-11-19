@@ -85,20 +85,13 @@
           <div class="room-heading" hidden>
             <span id="room-avatar" class="avatar" aria-hidden="true"></span>
             <div><h2 dir="auto" id="title"></h2><small id="room-meta"></small></div>
-            <button class="ui-button" type="button" id="quick-invite" hidden data-i18n="personalInbox.inviteGroup">Invite to group</button>
           </div>
           <div id="actions"></div>
           <div id="conversation" hidden>
             <details id="room-options">
               <summary title="Conversation info" data-i18n-title="personalInbox.roomInfo"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-info"></use></svg><span class="sr" data-i18n="personalInbox.roomInfo">Conversation info</span></summary>
-              <h3 data-i18n="personalInbox.member">Member</h3>
-              <ul id="members"></ul>
-              <input dir="auto" id="invite-link-field" aria-label="Invite link" data-i18n-aria-label="personalInbox.linkLabel" readonly hidden />
-              <div id="manage"></div>
-              <small class="retention"
-                 data-i18n="personalInbox.retention">Messages are kept for 30 days. Your saved skills and tasks remain private until you delete them.</small
-              >
               <form id="invite" hidden>
+                <h3 data-i18n="personalInbox.inviteGroup">Invite to group</h3>
                 <label><span data-i18n="personalInbox.inviteEmail">Email address to invite</span><input dir="auto" name="email" type="email" required /></label>
                 <details><summary data-i18n="personalInbox.mailOptions">Invitation email options</summary><fieldset>
                   <label
@@ -112,6 +105,13 @@
                 </fieldset></details>
                 <button class="ui-button" type="submit" data-i18n="personalInbox.sendInvitation">Send invitation</button>
               </form>
+              <input dir="auto" id="invite-link-field" aria-label="Invite link" data-i18n-aria-label="personalInbox.linkLabel" readonly hidden />
+              <div id="manage"></div>
+              <h3 data-i18n="personalInbox.member">Member</h3>
+              <ul id="members"></ul>
+              <small class="retention"
+                 data-i18n="personalInbox.retention">Messages are kept for 30 days. Your saved skills and tasks remain private until you delete them.</small
+              >
             </details>
             <div id="history">
               <button class="ui-button" id="older" hidden data-i18n="personalInbox.older">Show older messages</button>

@@ -108,7 +108,6 @@ function clearRoom() {
   delete document.body.dataset.thread;
   el("invite-link-field").value = "";
   el("invite-link-field").hidden = true;
-  el("quick-invite").hidden = true;
   el("room-options").open = false;
   activeBatch = null;
   for (const item of attachments) if (item.preview) URL.revokeObjectURL(item.preview);
@@ -359,8 +358,6 @@ async function refreshRoom(poll) {
   const group = r.kind === "group";
   const manager = group && (r.isOwner || r.admin);
   el("invite").hidden = !manager;
-  el("quick-invite").hidden = !(group && (manager || detail.group.link));
-  el("quick-invite").textContent = manager ? t("personalInbox.inviteGroup") : t("personalInbox.shareLink");
   moderators = new Set(detail.members.filter(m => m.admin || m.id === detail.group.owner).map(m => m.email));
   const oldRevision = previousRoom?.revision;
   if (group && oldRevision !== r.revision) readingOlder = false;
@@ -439,11 +436,6 @@ async function select(id) {
   status("");
   await refresh();
 }
-el("quick-invite").onclick = () => {
-  el("room-options").open = true;
-  if (!el("invite").hidden) el("invite").elements.email.focus();
-  else el("manage").querySelector("button")?.click();
-};
 function createLabels() {
   const form = el("create-room"),
     group = form.elements.kind.value === "group";

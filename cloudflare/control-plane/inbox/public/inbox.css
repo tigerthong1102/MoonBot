@@ -129,7 +129,6 @@ header strong { display: none; }
   .message { max-width: 88%; }
   .compose-row { gap: 1px; }
 }
-#quick-invite { margin-inline-start:auto; flex:none; color:var(--color-accent-text); }
 #members details, #manage details { margin-block:.35rem; }
 #manage button, #members button { margin:.2rem; }
 .message-options { font-size:.75rem; color:var(--color-ink-secondary); }

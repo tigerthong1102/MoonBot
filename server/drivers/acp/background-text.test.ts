@@ -60,6 +60,22 @@ describe("ACP memory one-shot (generateMemoryText)", () => {
     expect(usage).toEqual([expect.objectContaining({ input: 12, output: 4 })]);
   });
 
+  it.each([false, true])("selects the requested model before exposing text (refusal: %s)", async refused => {
+    process.env.FAKE_ACP_TEXT_REPLY = "null";
+    process.env.FAKE_ACP_DUMP = join(scratch, "selected-model");
+    if (refused) process.env.FAKE_ACP_MODE = "set-model-invalid-params";
+    const engine = await create(QwenAgentDriver);
+    const answer = engine.generateMemoryText!("private synthetic message", { model: "fixture-selected" });
+    if (refused) {
+      await expect(answer).rejects.toThrow();
+      expect(existsSync(process.env.FAKE_ACP_DUMP + ".prompt.json")).toBe(false);
+    } else {
+      expect(await answer).toBe("null");
+      const calls = JSON.parse(readFileSync(process.env.FAKE_ACP_DUMP + ".config.json", "utf8"));
+      expect(calls).toContainEqual(expect.objectContaining({ method: "session/set_model", params: expect.objectContaining({ modelId: "fixture-selected" }) }));
+    }
+  });
+
   it("runs in the interactive mode even on an instance set to full auto", async () => {
     process.env.FAKE_ACP_TEXT_REPLY = "[]";
     process.env.FAKE_ACP_DUMP = join(scratch, "dump.json");

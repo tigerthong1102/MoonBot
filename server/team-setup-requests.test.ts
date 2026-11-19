@@ -86,12 +86,13 @@ describe("reviewed Chief team setup", () => {
   it("redacts input and drops a delayed result after its source is cleared", async () => {
     const h = harness();
     h.chief.defaultBot = {};
-    const answer = Promise.withResolvers<string>();
+    let finish!: (answer: string) => void;
+    const answer = new Promise<string>(resolve => { finish = resolve; });
     const secret = "sk-test-" + "a".repeat(32);
     h.messages.push({ id: "source", role: "user", text: "每日审核 " + secret });
     const generateText = vi.fn(async (prompt: string) => {
       expect(prompt).not.toContain(secret);
-      return answer.promise;
+      return answer;
     });
     const ask = () => h.service.offerFromChat(h.chief.id, h.chief.threadId, "每日审核 " + secret, "", "source",
       () => ({ via: "engine", generateText }));
@@ -99,7 +100,7 @@ describe("reviewed Chief team setup", () => {
     await ask();
     expect(generateText).toHaveBeenCalledTimes(1);
     h.messages.length = 0;
-    answer.resolve('{"name":"每日审核","icon":"tasks"}');
+    finish('{"name":"每日审核","icon":"tasks"}');
     await pending;
     expect(h.messages).toHaveLength(0);
   });

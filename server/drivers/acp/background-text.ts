@@ -169,7 +169,16 @@ export function runAcpOneShot(input: AcpOneShotInput): Promise<string> {
       sessionId = session.sessionId;
       model = typeof session?.models?.currentModelId === "string" ? session.models.currentModelId
         : typeof init?._meta?.modelState?.currentModelId === "string" ? init._meta.modelState.currentModelId : undefined;
-      await input.configure?.({ request: (method, params) => request(method, params), sessionId: session.sessionId, session });
+      await input.configure?.({ request: async (method, params) => {
+        const response = await request(method, params);
+        if (method === "session/set_model" && params && typeof params === "object" && "modelId" in params && typeof params.modelId === "string") model = params.modelId;
+        return response;
+      }, sessionId: session.sessionId, session });
+      const selected = input.options?.model;
+      if (selected && model !== selected) {
+        await request("session/set_model", { sessionId, modelId: selected });
+        model = selected;
+      }
       const result = await request("session/prompt", { sessionId, prompt: [{ type: "text", text: input.prompt }] });
       const reported = result?.usage ?? result?._meta ?? {};
       const count = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined);

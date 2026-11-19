@@ -86,6 +86,7 @@ export const titledCard = (card: OptionCardData | undefined) =>
 
 export function titledCardAction(card: OptionCardData): string {
   if (card.mcpRequest) return mcpRequestActionLabel(card.mcpRequest.action);
+  if (card.teamSetupRequest?.workBotOffer) return card.options[0] ?? t("sidebar.newChat.createBot");
   if (card.teamSetupRequest) return t(card.teamSetupRequest.deletion ? "approval.action.deleteBot" : "approval.action.applySetup");
   return card.options[0] ?? t("approval.action.confirm");
 }

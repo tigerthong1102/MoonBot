@@ -4019,7 +4019,9 @@
       "room.members.far.place": "312a77edd15104f65401f8127c68968eb1586a75e13c44bc3bc5d28ea4f5125d",
       "room.members.far.off": "5c7291cc0bc0f48f169607324939b4b2bb308c5246d10cda4ad7501ba4883beb",
       "room.members.far.missing": "4bc7f76d36ade5ee27902c91e3d7918641737b2387f846623c3f986a574177fa",
-      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0"
+      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
+      "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
+      "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd"
     },
     "es": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -37215,7 +37217,9 @@
       "reconcile.sheetRows": "91711059071d40c4dd3ecf869c86a942a50a9a1d353cbe79130681f83f6ccce9",
       "reconcile.sheetWidth": "d2f4ac9d239d9db2f946388f8a1480552993777ca77ae358d2d4f5dd088ac1bd",
       "reconcile.fileSize": "6fec496fc71c9d0c421eeec01a82817c23564b9675ab4d7b98d3eb1749434e41",
-      "reconcile.fileType": "694ef553fd6674684845a9c1f1dc6b47228dfaf2d8f15f4cb39920b42d899f98"
+      "reconcile.fileType": "694ef553fd6674684845a9c1f1dc6b47228dfaf2d8f15f4cb39920b42d899f98",
+      "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
+      "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd"
     },
     "zh": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -73048,7 +73052,9 @@
       "sidebar.newBotOn.noAi": "90560bfa52da1eeef7f9a7e212ab43b68e8a9104bf02cff500b08e8440d3e86a",
       "sidebar.newBotOn.onlyThere": "ee143ffe98b9c13337df5499526fa6b85e2df7f1b595a43f94dd907a74ab3789",
       "sidebar.newBotOn.onlyHere": "5fa107188d3ebf59545c5522c3540371a95d16a3625a4f57e84f093849baabc4",
-      "sidebar.newBotOn.needsUpdate": "2fe10ee88189ee8ef942992b455e968fed8af782c1e7353b5a1ac4c54365c1b0"
+      "sidebar.newBotOn.needsUpdate": "2fe10ee88189ee8ef942992b455e968fed8af782c1e7353b5a1ac4c54365c1b0",
+      "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
+      "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",

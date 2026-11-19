@@ -60,6 +60,7 @@ export interface BotMessageRouteDeps {
   registry: Pick<ProviderRegistry, "get">;
   /** On a team: the words for a turn with no AI to answer with, having told who can connect one. */
   noAiRefusal?(threadId: string, sender: ResolvedSender | undefined, instanceId?: string): Error | null;
+  offerWorkBot?(bot: BotRecord, threadId: string, text: string): void;
   routines(): RoutineManager | null;
   handoffs: Pick<Handoffs, "current" | "steered">;
   /** The turn running in a thread now, as its runtime events name it. */
@@ -344,6 +345,10 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
           personPresent, admin: owners.admin(auth), ...(followUp ? { followUp } : {}),
           ...(mentions?.length && !press && !appSent ? { mentions } : {}),
         }, guardedStart);
+        if ("message" in receipt && !retried && !guarded && !press && !appSent && !pointing && !mentions?.length &&
+            personPresent && bot.defaultBot && mayFollowUp(bot, auth)) {
+          deps.offerWorkBot?.(bot, threadId, typed);
+        }
         press?.settle("queueId" in receipt ? receipt.queueId : undefined);
         appContext?.deliver();
         if (relayed && target && onBehalfOf) relayedReaction(threadId, target.id, onBehalfOf, relayed);

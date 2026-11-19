@@ -338,6 +338,8 @@
   "server.lendingLift.outside": "Ein Webhook oder eine Routine, die du nicht geschrieben hast, hat in diesem Gespräch gepostet. „Erlauben“ lässt nur diese eine Nachricht von dir deinen {device} benutzen.",
   "server.lendingLift.more": "Mehr in den Einstellungen dieses Bots, unter Memory.",
   "server.lendingLift.allow": "Erlauben",
+  "server.workBot.question": "Möchtest du den Bot „{name}“ erstellen, um diese Aufgabe zu verfolgen?",
+  "server.workBot.create": "Bot erstellen",
   "server.lendingLift.notNow": "Nicht jetzt",
   "server.lendingLift.askAgain": "Erlaubt. Frag noch einmal, um weiterzumachen.",
   "server.teammates.answerPassed": "Antwort an die wartende Arbeit weitergegeben",

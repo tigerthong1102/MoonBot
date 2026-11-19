@@ -560,6 +560,8 @@
   "server.lendingLift.outside": "A webhook or a routine you didn't write posted in this conversation. Allow lets only this message of yours use your {device}.",
   "server.lendingLift.more": "More in this bot's settings, under Memory.",
   "server.lendingLift.allow": "Allow",
+  "server.workBot.question": "Would you like to create “{name}” to follow this work?",
+  "server.workBot.create": "Create bot",
   "server.lendingLift.notNow": "Not now",
   "server.lendingLift.askAgain": "Allowed. Ask again to go on.",
   "server.teammates.answerPassed": "Answer passed to the waiting work",

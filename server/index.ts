@@ -469,6 +469,7 @@ import { createChatAppRoutes, createChatApps, createChatAppsMcp } from "./routes
 import { buildBotOverview, type BotOverview, connectedAppsFacts } from "./bot-overview.ts";
 import { ProfileRequestService } from "./profile-requests.ts"; import { browserProfileLabel } from "./bot-browser-profile.ts";
 import { ModelRequestService } from "./model-requests.ts";
+import { workBotTopic, workBotName } from "./work-bot-offer.ts";
 import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts";
 import { startsWithoutCloudComputer, teamSetupDecisionText as decisionText, type TeamSetupRequest } from "../shared/team-setup.ts";
 import { profileRevision, profileSnapshot } from "./profile-revision.ts";
@@ -1944,7 +1945,7 @@ function reconcileParkedNode(node: HandoffView): boolean {
     const message = messages.find((item) => item.id === id);
     if (!message) continue;
     const request = message.card?.teamSetupRequest;
-    if (request?.result) {
+    if (request?.result && !request.workBotOffer) {
       if (!coordinator.answerNode(node.id, teamSetupDecisionText(request))) return false;
       if (!request.resumed) store.patchMessage(node.threadId, message.id, { card: { ...message.card!, teamSetupRequest: { ...request, resumed: true } } });
       return true;
@@ -9251,7 +9252,7 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
       summary: card.subtitle, decision: resolved.result.state === "applied" ? "user-approved" : "user-denied", source: "user" });
   }
   const current = store.messagesFor(args.threadId).find((item) => item.id === resolved.messageId);
-  if (current?.card?.teamSetupRequest?.result && !current.card.teamSetupRequest.resumed) {
+  if (!resolved.request.workBotOffer && current?.card?.teamSetupRequest?.result && !current.card.teamSetupRequest.resumed) {
     if (answerCardNode(args.threadId, current.id, teamSetupDecisionText(resolved.request))) {
       store.patchMessage(args.threadId, current.id, { card: { ...current.card, teamSetupRequest: { ...current.card.teamSetupRequest, resumed: true } } });
     }
@@ -12062,6 +12063,22 @@ ROUTES.push(createSharedComputerRoutes({ enabled: (auth) => lendingEnabled() || 
 ROUTES.push(createBotMessageRoutes({
   store, registry, handoffs, liveTurn: (threadId) => liveTurns.running(threadId), phoneSecretSubmissions, directTurnDispatchClaims, groupSpeakers,
   routines: () => routines,
+  offerWorkBot(bot, threadId, text) {
+    if (!chiefLevel(bot) || botMainThread(bot.id) !== threadId || store.bots.length >= MAX_WORKSPACE_BOTS) return;
+    const topic = workBotTopic(text, !store.bots.some(row => !row.defaultBot && !row.hidden));
+    if (!topic) return;
+    const name = workBotName(topic.name, store.bots);
+    try {
+      teamSetupRequests.proposeWorkBot({
+        botId: bot.id, threadId,
+        plan: { reason: name, operations: [{ action: "create", key: "follow_up", fields: {
+          name, title: topic.name, soul: topic.instructions, modelSelection: bot.modelSelection,
+        } }] },
+      }, { icon: topic.icon, topic: topic.name });
+    } catch (error) {
+      if (!(error instanceof TeamSetupError)) console.warn("Work bot suggestion could not be saved", error instanceof Error ? error.name : "unknown error");
+    }
+  },
   fromPhone: phones.fromPhone, notePhoneSend: phones.noteSend,
   desktopManaged: DESKTOP_MANAGED, cloudHome: Boolean(CLOUD_HOME), DirectSendRefused,
   acceptDirectSend, directSendRefusal, startTurn, usageTriggerFor, messageSender, cloudGuestSendRefusal, cloudThreadRefusal, runOwners, runActor, resolveAccessRequest: (threadId, requestId, behavior, message) => lendingLifts?.resolve(threadId, requestId, behavior) ?? accessRequests.resolve(threadId, requestId, behavior, message), relayRefusal: CLOUD_TEAM ? (bot, email) => relayedSendRefusal(bot, email, Boolean(email && teamOwners.people?.list().some((one) => one.email === email && one.role !== "member"))) : undefined,

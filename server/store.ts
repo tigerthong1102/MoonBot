@@ -1349,7 +1349,7 @@ export class Store {
     return bot;
   }
 
-  applyTeamSetup(request: TeamSetupRequest): TeamSetupResult {
+  applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">): TeamSetupResult {
     const chief = this.own(request.botId);
     if (!chief) throw new Error("The requesting Chief no longer exists");
     if (chief.lastTeamSetupReceipt?.requestId === request.requestId) return chief.lastTeamSetupReceipt.result;
@@ -1367,7 +1367,7 @@ export class Store {
         const modelSelection = this.newBotSelection(operation.fields.modelSelection);
         next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
           title: "", description: "", soul: "", notifications: true, color: rotationColor(nextBots.length), unread: false,
-          resumeCursors: {}, createdAt, ...operation.fields, modelSelection,
+          resumeCursors: {}, createdAt, ...operation.fields, ...avatar, modelSelection,
           autoApprove: false,
           ...sharedAsMaker(chief),
           // A Chief's new specialist reports to the Chief's own person.

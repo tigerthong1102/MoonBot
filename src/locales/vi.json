@@ -6265,6 +6265,8 @@
   "server.lendingLift.outside": "Một móc nối Mạng hay một tác vụ định kỳ bạn không ghi được đăng trong cuộc hội thoại này. Cho phép chỉ cho phép thông điệp này của bạn dùng {device} của bạn.",
   "server.lendingLift.more": "Thông tin thêm trong phần cài đặt của bot này, bên dưới mục Memory.",
   "server.lendingLift.allow": "Cho phép",
+  "server.workBot.question": "Bạn có muốn tạo bot “{name}” để theo dõi việc này không?",
+  "server.workBot.create": "Đồng ý, tạo bot",
   "server.lendingLift.notNow": "Để sau",
   "server.lendingLift.askAgain": "Được phép, xin nhắc lại đi.",
   "server.share.withYouTitle": "{name} đã chia sẻ \"{title}\" với bạn",

@@ -503,10 +503,15 @@ describe("unpublishing a page", () => {
     };
     const fromSite = f.publish({ path: "site" });
     await stored;
+    const read = vi.spyOn(bundle, "readPageBundle");
     const fromDraft = f.publish({ path: "draft", pageId: page });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    try {
+      await vi.waitFor(() => expect(read).toHaveBeenCalledOnce(), { timeout: 10_000 });
+      await read.mock.results[0]!.value;
+    } finally {
+      read.mockRestore();
+    }
     const unpublished = f.pages.publisher.unpublish({ pageId: page });
-    await new Promise((resolve) => setTimeout(resolve, 20));
     release();
     expect((await Promise.all([fromSite, fromDraft, unpublished])).map((outcome) => outcome.status)).toEqual([200, 200, 200]);
     expect(f.service.pages.size).toBe(0);

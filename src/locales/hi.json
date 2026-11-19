@@ -3,6 +3,7 @@
   "cloudBuy.signIn.email": "ईमेल",
   "settings.account.connectionFailed": "StartupBot से संपर्क नहीं हो सका। फिर कोशिश करें।",
   "settings.account.emailAccess": "साइन इन करें या खाता बनाएँ",
+  "skills.library.title": "स्किल लाइब्रेरी",
   "voice.gemini.keyPlaceholder": "अपनी Google AI Studio API कुंजी पेस्ट करें",
   "voice.gemini.model": "Gemini वाक् मॉडल",
   "keys.label.geminiTts": "Gemini वाक् API कुंजी",

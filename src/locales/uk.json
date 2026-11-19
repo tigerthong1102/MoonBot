@@ -3,6 +3,7 @@
   "cloudBuy.signIn.email": "Електронна пошта",
   "settings.account.connectionFailed": "Не вдалося підключитися до StartupBot. Спробуйте ще раз.",
   "settings.account.emailAccess": "Увійти або створити обліковий запис",
+  "skills.library.title": "Бібліотека навичок",
   "voice.gemini.keyPlaceholder": "Вставте свій API-ключ Google AI Studio",
   "voice.gemini.model": "Модель синтезу мовлення Gemini",
   "keys.label.geminiTts": "API-ключ синтезу мовлення Gemini",

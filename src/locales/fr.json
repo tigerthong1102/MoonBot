@@ -3,6 +3,7 @@
   "cloudBuy.signIn.email": "E-mail",
   "settings.account.connectionFailed": "Impossible de joindre StartupBot. Réessayez.",
   "settings.account.emailAccess": "Se connecter ou créer un compte",
+  "skills.library.title": "Bibliothèque de compétences",
   "voice.gemini.keyPlaceholder": "Collez votre clé API Google AI Studio",
   "voice.gemini.model": "Modèle de synthèse vocale Gemini",
   "keys.label.geminiTts": "Clé API de synthèse vocale Gemini",

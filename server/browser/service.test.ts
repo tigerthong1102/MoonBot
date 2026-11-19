@@ -380,8 +380,8 @@ describe("a person and the bot sharing one browser", () => {
 
 describe("a call the browser never answers", () => {
   it("counts as lost: the next call checks the browser first and says it recovered, without running", async () => {
-    const { call, text, backend } = setup({ callBudgetMs: 150 });
-    await call("agent_browser_open", { url: "https://example.com/form" });
+    const { service, target, call, text, backend } = setup({ callBudgetMs: 150 }, ["https://example.com/form"]);
+    await service.running(service.profile(target));
     backend.chrome.hang = (method) => method === "Accessibility.getFullAXTree";
     const lost = await call("agent_browser_snapshot");
     expect(lost.isError).toBe(true);

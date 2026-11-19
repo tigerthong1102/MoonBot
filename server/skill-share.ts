@@ -31,7 +31,7 @@ export type ShareLearnedSkillsMode = "off" | "ask" | "auto";
 
 export function shareLearnedSkillsMode(cfg: AppConfig): ShareLearnedSkillsMode {
   if (!skillsLibraryEnabled(cfg)) return "off";
-  return cfg.features?.shareLearnedSkills ?? "ask";
+  return cfg.features?.shareLearnedSkills ?? (cfg.features?.skillsLibrary === true ? "ask" : "off");
 }
 
 export interface ShareBot {

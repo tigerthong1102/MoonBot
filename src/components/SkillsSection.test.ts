@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
+import catalog from "../../skills/catalog/index.json";
 import { setLocale } from "@/lib/i18n";
 import { filterLibrarySkills, LibrarySkillMeta } from "./SkillsSection";
 import type { SkillsLibrarySkillWire } from "../../shared/wire";
@@ -41,17 +42,24 @@ describe("filterLibrarySkills", () => {
     expect(filterLibrarySkills(skills, "friendly", "sheets").map((s) => s.name)).toEqual([]);
   });
 
+  it("finds a pinned catalog entry by Vietnamese words without accents and keeps same-name local imports distinct", () => {
+    const row = catalog.find((entry) => entry.name === "dcf-model")!;
+    const bundled = skill({ name: row.name, source: row.source });
+    const local = skill({ name: row.name });
+    expect(filterLibrarySkills([local, bundled], "dinh gia", "finance")).toEqual([bundled]);
+  });
+
   it("returns everything for an empty query and no tag", () => {
     expect(filterLibrarySkills(skills, "   ", null)).toHaveLength(3);
   });
 });
 
 describe("LibrarySkillMeta", () => {
-  it("shows the source, a version when one exists, the import date, and tags", () => {
+  it("shows version and tags while keeping the source off the card", () => {
     const html = renderToStaticMarkup(createElement(LibrarySkillMeta, {
       skill: skill({ tags: ["orders"], version: "2.1.0" }),
     }));
-    expect(html).toContain("Source: local-import");
+    expect(html).not.toContain("local-import");
     expect(html).toContain("Version 2.1.0");
     expect(html).toContain("orders");
   });

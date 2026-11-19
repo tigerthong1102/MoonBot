@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { phonePairingLink } from '../packages/phone-protocol/src/pairing-link.ts';
 const token = randomBytes(32).toString('base64url');
 const home = mkdtempSync(join(tmpdir(),'site-phone-'));
-const child = spawn(process.execPath,[process.env.SITE_COMPANION], {stdio:['ignore','ignore','pipe'],env:{...process.env,HOME:home,OMB_CONTROL_TOKEN:token,OMB_COMPANION_DIR:home,OMB_COMPANION_NAME:'StartupBot QA',OMB_COMPANION_BONJOUR:'0',OMB_COMPANION_ROUTES:'wifi',OMB_CONTROL_PORT:'19811',OMB_COMPANION_PORT:'19810',OMB_PORT:'19809'}});
+const child = spawn(process.execPath,[process.env.SITE_COMPANION], {stdio:['ignore','ignore','pipe'],env:{...process.env,HOME:home,OMB_CONTROL_TOKEN:token,OMB_COMPANION_DIR:home,OMB_COMPANION_NAME:'StartupBot QA',OMB_COMPANION_BONJOUR:'0',OMB_COMPANION_ROUTES:'wifi',OMB_CONTROL_PORT:'19811',OMB_COMPANION_PORT:'19810',OMB_PORT:'19808',OMB_WEBHOOK_PORT:'19809'}});
 let childError=''; child.stderr.on('data',b=>{childError=(childError+String(b)).slice(-2000)});
 const ctl = async (method,route) => {
  const r=await fetch('http://127.0.0.1:19811'+route,{method,headers:{'x-openmausbot-control-token':token},signal:AbortSignal.timeout(2500)});

@@ -426,13 +426,6 @@ Usage analytics are optional and anonymous: product events and a once-a-day coun
 names, addresses or conversations. Turn them off in Settings → General → Usage analytics;
 [`docs/analytics.md`](docs/analytics.md) lists every event and property.
 
-## Support the project
-
-OpenMausBot is free and open source. If it does real work for you, you can
-[support its development through GitHub Sponsors](https://github.com/sponsors/milind-soni)
-with a one-time contribution or a monthly sponsorship. Your support helps fund ongoing development
-and maintenance; OpenMausBot remains free and open source.
-
 ## Run from a terminal or on a server
 
 With Node 24 or newer, install once and run:

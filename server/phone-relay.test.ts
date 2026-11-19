@@ -160,7 +160,7 @@ describe("phones through StartupBot Relay on a server", () => {
     expect(server.logs).toContain(`phone relay: connected via ${NODE}`);
     const opened = server.sessions.openPairing({ scopes: ["client"] });
     const link = server.phoneRelay.invite(opened.credential, "VPS", null)!;
-    expect(link).toMatch(/^openmausbot:\/\/pair\?address=relay-only\.invalid%3A443&token=omb_pair_/);
+    expect(link).toMatch(/^startupbot:\/\/pair\?address=relay-only\.invalid%3A443&token=omb_pair_/);
     const descriptor = descriptorOf(link);
     expect(descriptor).toEqual({ v: 1, k: expect.any(String), h: b64u(server.hostId), r: [NODE] });
     const k = fromB64u(descriptor.k)!;

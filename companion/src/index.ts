@@ -71,7 +71,7 @@ const num = (value: string | undefined, fallback: number): number => {
 const HARNESS_PORT = num(process.env.OMB_PORT, 8799);
 const WEBHOOK_PORT = num(process.env.OMB_WEBHOOK_PORT, HARNESS_PORT + 1);
 const COMPANION_PORT = num(process.env.OMB_COMPANION_PORT, 8810);
-const CONTROL_PORT = num(process.env.OMB_CONTROL_PORT, 8811);
+const CONTROL_PORT = parentPort && process.env.OMB_CONTROL_PORT === "0" ? 0 : num(process.env.OMB_CONTROL_PORT, 8811);
 const SERVICE_TYPE = "_openmausbot._tcp";
 let hostedUrl = hostedCompanionUrl(process.env.OMB_COMPANION_HOSTED_URL);
 directRoutesFromEnv(process.env);
@@ -348,6 +348,9 @@ async function main(): Promise<void> {
   if (managedOrigin && PRIVATE_ORIGIN) {
     await listenCompanionOrigin(managedOrigin, PRIVATE_ORIGIN);
   }
+
+  const boundControl = control.address();
+  if (parentPort && boundControl && typeof boundControl === "object") parentPort.postMessage({ type: "startupbot:companion-ready", port: boundControl.port });
 
   // Before advertising, so the first record already carries the name; a later rename withdraws the old one.
   await refreshMachineName();

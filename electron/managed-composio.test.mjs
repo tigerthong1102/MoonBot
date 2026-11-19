@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  DEFAULT_MANAGED_COMPOSIO_BROKER_URL,
   ensureManagedComposioCredentials,
   managedComposioAccess,
   managedComposioBrokerUrl,
@@ -23,7 +22,6 @@ describe("managed Composio desktop registration", () => {
   });
 
   it("requires an explicit service URL in shipped and development builds", () => {
-    expect(DEFAULT_MANAGED_COMPOSIO_BROKER_URL).toMatch(/^https:\/\//);
     expect(managedComposioBrokerUrl(undefined, true)).toBe("");
     expect(managedComposioBrokerUrl("  ", true)).toBe("");
     expect(managedComposioBrokerUrl(undefined, false)).toBe("");

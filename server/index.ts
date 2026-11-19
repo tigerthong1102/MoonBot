@@ -12072,7 +12072,7 @@ ROUTES.push(createBotMessageRoutes({
       teamSetupRequests.proposeWorkBot({
         botId: bot.id, threadId,
         plan: { reason: name, operations: [{ action: "create", key: "follow_up", fields: {
-          name, title: topic.name, soul: topic.instructions, modelSelection: bot.modelSelection,
+          name, title: topic.name, description: [...topic.brief].slice(0, 120).join(""), soul: topic.instructions, modelSelection: bot.modelSelection,
         } }] },
       }, { icon: topic.icon, topic: topic.name });
     } catch (error) {

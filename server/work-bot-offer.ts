@@ -42,7 +42,7 @@ const recurring = /\b(hang (ngay|tuan|thang)|moi (ngay|tuan|thang)|dinh ky|daily
 const business = /\b(tuyen dung|ung tuyen|ung vien|nhan vien|don hang|giao hang|van chuyen|san xuat|hop dong|bao gia|tai lieu|nghien cuu|ho so|cong trinh|su kien|bao cao|chi phi|doi tac|nha cung cap|doanh nghiep|recruitment|applicants?|candidates?|orders?|shipments?|contracts?|events?|reports?|expenses?|suppliers?|vendors?)\b/;
 const project = /\b(du an|tien do|cong viec|project|progress|milestones?|deliverables?)\b/;
 
-export function workBotTopic(text: string, firstSpecialist = false): { name: string; icon: WorkBotIcon; instructions: string } | null {
+export function workBotTopic(text: string, firstSpecialist = false): { name: string; icon: WorkBotIcon; brief: string; instructions: string } | null {
   if (text.length > 1600) return null;
   const line = redactSecretsInText(text).trim();
   if (!line || /[\n`]/.test(line) || /https?:\/\//i.test(line)) return null;
@@ -62,5 +62,5 @@ export function workBotTopic(text: string, firstSpecialist = false): { name: str
   const instructions = vietnamese
     ? `Giúp người dùng theo dõi công việc được mô tả dưới đây. Hỏi lại những chi tiết còn thiếu.\n\n${line}`
     : `Help the person follow the work described below. Ask for any missing details.\n\n${line}`;
-  return { name, icon: topic?.icon ?? "tasks", instructions };
+  return { name, icon: topic?.icon ?? "tasks", brief: line, instructions };
 }

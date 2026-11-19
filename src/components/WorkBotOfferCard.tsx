@@ -18,7 +18,10 @@ export function WorkBotOfferCard({ card, threadId }: { card: OptionCardData; thr
 
   return <section data-work-bot-offer className="w-full max-w-[640px] rounded-2xl border border-hairline bg-card p-4">
     <p className="font-semibold text-ink">{created ? t("workBotOffer.created", { name: created.name }) : card.title}</p>
-    {pending && <p className="mt-2 whitespace-pre-line break-words text-sm text-ink-secondary">{card.subtitle}</p>}
+    {pending && <details className="mt-2 text-sm text-ink-secondary">
+      <summary className="cursor-pointer">{t("approval.applied.details")}</summary>
+      <p className="mt-2 whitespace-pre-line break-words">{card.subtitle}</p>
+    </details>}
     {pending && threadId && canAnswer && <div className="mt-3 flex flex-wrap gap-2">
       <button type="button" onClick={() => decide("allow")} className={askPrimary(undefined).className}>{card.options[0]}</button>
       <button type="button" onClick={() => decide("deny")} className={ASK_SECONDARY_BUTTON}>{t("notice.notNow")}</button>

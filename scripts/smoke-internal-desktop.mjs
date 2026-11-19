@@ -55,7 +55,7 @@ const sentinelHash = createHash("sha256").update(readFileSync(sentinel)).digest(
 const plan = path.join(fixture, "chat-plan.json");
 writeFileSync(plan, "{}");
 const reply = "StartupBot packaged agent fixture answered successfully";
-writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", features: { smartSetupChoices: false }, instances: {
+writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", profile: { name: "Fixture Owner" }, features: { smartSetupChoices: false }, instances: {
   claude: { driver: "claudeAgent", displayName: "Internal package fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") },
     environment: { FAKE_CLAUDE_ROOM_PLAN: plan } },
 } }));

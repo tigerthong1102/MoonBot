@@ -71,7 +71,7 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
         .catch(() => null)) as { type?: string } | null;
       if (input?.type !== "sign-in") return errorResponse(400, "invalid_request");
       const limited = await limitedOTPResponse(req, env);
-      if (limited) return limited;
+      if (limited) return json({ ok: true });
     }
     const res = await auth.handler(req);
     if (res.ok) ctx.waitUntil(deleteExpiredVerifications(auth).catch(() => {}));

@@ -162,7 +162,7 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     if (req.method === "GET") {
       const rooms = await db
         .prepare(
-          `SELECT r.id,r.kind,r.title,m.state,r.owner=? AS isOwner,
+          `SELECT r.id,r.kind,r.title,m.state,m.after_seq AS afterSeq,r.owner=? AS isOwner,
         last.seq AS lastSeq,substr(last.body,1,100) AS snippet,last.created AS lastAt,u.email AS inviter FROM inbox_members m JOIN inbox_rooms r ON r.id=m.room
         JOIN "user" u ON u.id=r.owner
         LEFT JOIN inbox_posts last ON last.seq=(SELECT p.seq FROM inbox_posts p
@@ -190,22 +190,24 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     )
       throw new HTTPError(400, "invalid_request");
     const title = input.kind === "group" ? input.title : input.email;
-    const created = await db
-      .prepare(
-        `INSERT INTO inbox_rooms(id,kind,title,owner,created)
-      SELECT ?,?,?,?,? WHERE (SELECT count(*) FROM inbox_rooms WHERE owner=?)<100 ON CONFLICT DO NOTHING`,
-      )
-      .bind(input.id, input.kind, title, user, Date.now(), user)
-      .run();
-    if (
-      !created.meta.changes &&
-      !(await db
-        .prepare("SELECT 1 FROM inbox_rooms WHERE id=? AND owner=? AND kind=? AND title=?")
-        .bind(input.id, user, input.kind, title)
-        .first())
-    )
-      throw new HTTPError(409, "room_limit_or_conflict");
-    if (input.kind === "direct" && input.guest) {
+    const direct = `SELECT r.id FROM inbox_rooms r JOIN inbox_members m ON m.room=r.id
+      JOIN "user" owner ON owner.id=r.owner
+      WHERE r.kind='direct' AND m.person=?1 AND
+      ((r.owner=?1 AND r.title=?2) OR (r.owner!=?1 AND owner.email=?2))
+      ORDER BY (SELECT count(*) FROM inbox_members WHERE room=r.id AND state='active') DESC,r.created,r.id LIMIT 1`;
+    const [created, existing] = await db.batch<{ id: string }>([
+      db.prepare(`INSERT INTO inbox_rooms(id,kind,title,owner,created)
+        SELECT ?3,?4,?2,?1,?5 WHERE (SELECT count(*) FROM inbox_rooms WHERE owner=?1)<100
+        AND (?4!='direct' OR NOT EXISTS (${direct})) ON CONFLICT DO NOTHING`)
+        .bind(user, title, input.id, input.kind, Date.now()),
+      input.kind === "direct"
+        ? db.prepare(direct).bind(user, title)
+        : db.prepare("SELECT id FROM inbox_rooms WHERE id=? AND owner=? AND kind='group' AND title=?")
+            .bind(input.id, user, title),
+    ]);
+    const id = created.meta.changes ? input.id : existing.results[0]?.id;
+    if (!id) throw new HTTPError(409, "room_limit_or_conflict");
+    if (input.kind === "direct" && input.guest && id === input.id) {
       if (await recordGuestInvite(env, user, input.id, input.email, input.guest))
         ctx.waitUntil(
           deliverGuestMail(env, input.id, input.email).catch(() =>
@@ -213,7 +215,7 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
           ),
         );
     }
-    return json({ id: input.id });
+    return json({ id });
   }
   const match = /^\/api\/rooms\/([0-9a-f-]{36})(?:\/(invite|accept|leave|close|remove|block|posts))?$/.exec(
     url.pathname,

@@ -66,7 +66,7 @@ function fileName(req: Request) {
   if (
     !name ||
     name.length > 180 ||
-    /[\\/<>:"|?*\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/u.test(name) ||
+    /[\\/<>:"|?*\p{Cc}\u202a-\u202e\u2066-\u2069]/u.test(name) ||
     /^[. ]|[. ]$/.test(name)
   )
     throw new HTTPError(400, "invalid_filename");
@@ -90,8 +90,8 @@ async function reserveUpload(db: D1Database, room: string, user: string, key: st
           (SELECT coalesce(sum(size),0) FROM inbox_uploads) + ?6 <= ?11
       ON CONFLICT(room,author,nonce) DO NOTHING`)
       .bind(room, user, key, name, digest, size, now, crypto.randomUUID(), since, dailyBytes, retainedBytes),
-    db.prepare(`SELECT id,post FROM inbox_uploads WHERE room=?1 AND author=?2 AND nonce=?3 AND name=?4 AND digest=?5
-      AND EXISTS (${canPost})`).bind(room, user, key, name, digest),
+    db.prepare(`SELECT id,post FROM inbox_uploads WHERE room=?1 AND author=?2 AND nonce=?3 AND name=?4 AND digest=?5 AND size=?6
+      AND EXISTS (${canPost})`).bind(room, user, key, name, digest, size),
   ]);
   const entry = result.results[0];
   if (!entry) throw new HTTPError(409, "upload_unavailable");

@@ -171,6 +171,31 @@ it("protects a direct chat against invite substitution, spam after blocking and 
   expect((await call("me", a.cookie)).status).toBe(401);
 });
 
+it("reopens the same private conversation for simultaneous requests by either participant", async () => {
+  const a = await login("a@example.test"), b = await login("b@example.test");
+  const create = async (sender: typeof a, peer: typeof b) =>
+    (await call("rooms", sender.cookie, { id: uuid(), kind: "direct", email: peer.email })).json<{ id: string }>();
+  const [first, second] = await Promise.all([create(a, b), create(b, a)]);
+  expect(first.id).toBeTruthy();
+  expect(second.id).toBe(first.id);
+  const rooms = async (cookie: string) => (await call("rooms", cookie)).json<{ rooms: { state: string }[] }>();
+  const pending = (await rooms(a.cookie)).rooms[0]!.state === "pending" ? a : b;
+  expect((await rooms(pending.cookie)).rooms).toHaveLength(1);
+  expect((await call("rooms/" + first.id + "/accept", pending.cookie, {})).status).toBe(200);
+  expect(await create(a, b)).toEqual(first);
+  expect(await create(b, a)).toEqual(first);
+});
+
+it("returns the same public acknowledgement for all sign-in code requests", async () => {
+  const send = (email: string) => call("auth/email-otp/send-verification-otp", "", { email, type: "sign-in" },
+    { EMAIL: { send: async () => {} } as unknown as InboxEnv["EMAIL"] });
+  for (const email of [...Array<string>(4).fill("a@example.test"), "unknown@example.test"]) {
+    const result = await send(email);
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({ ok: true });
+  }
+});
+
 it("lets either direct participant block further invitations, and unblock explicitly", async () => {
   const a = await login("creator@example.test"),
     b = await login("peer@example.test");

@@ -242,12 +242,18 @@ async function refreshRoom(poll) {
   }
   const result = await api("rooms" + (params.size ? "?" + params : ""));
   if (version !== revision || !me) return;
+  const previousRoom = rooms.find((room) => room.id === current);
   rooms = result.rooms;
   renderRooms();
   if (viewingSaved || !current) return;
   const r = rooms.find((x) => x.id === current);
   if (!r) {
     clearRoom();
+    return;
+  }
+  if (previousRoom?.state === "active" && previousRoom.afterSeq !== r.afterSeq) {
+    clearRoom();
+    await select(r.id);
     return;
   }
   if (r.state === "active" && result.unchanged) return;

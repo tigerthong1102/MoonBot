@@ -9235,8 +9235,17 @@ const teamSetupRequests = new TeamSetupRequestService({
   },
 });
 
-function offerWorkBot(botId: string, threadId: string, text: string, owner: string) {
-  if (botMainThread(botId) === threadId) teamSetupRequests.offerFromChat(botId, threadId, text, owner);
+function offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string) {
+  if (botMainThread(botId) !== threadId) return;
+  const selection = store.projectBotForTask(botId, threadId)?.modelSelection;
+  const instance = selection && registry.get(selection.instanceId);
+  if (!instance || !selection) return;
+  void teamSetupRequests.offerFromChat(botId, threadId, text, owner, messageId, () => {
+    const current = store.projectBotForTask(botId, threadId)?.modelSelection;
+    return botMainThread(botId) === threadId && current?.instanceId === selection.instanceId && current.model === selection.model &&
+      registry.get(selection.instanceId) === instance && instance.enabled && (!hostedModels || hostedModels.allows(selection)) &&
+      !usageCapGate.refusal(botId, true) ? sideJobs.text("work-bot-offer", botId, { instance, model: selection.model }) : null;
+  });
 }
 
 async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: string; threadId: string; requestId: string; behavior: string }, ownerReview: boolean): Promise<boolean> {

@@ -53,11 +53,15 @@ const sentinel = path.join(legacy, "do-not-modify.txt");
 writeFileSync(sentinel, "upstream fixture data must remain unchanged\n");
 const sentinelHash = createHash("sha256").update(readFileSync(sentinel)).digest("hex");
 const plan = path.join(fixture, "chat-plan.json");
+const workMessage = "Tôi cần theo dõi tin tuc AI hang ngay, cap nhat lien tuc cho toi nhe";
+const workName = "Tin tức AI";
+const textRoutes = path.join(fixture, "work-topic.json");
+writeFileSync(textRoutes, JSON.stringify({ [workMessage]: JSON.stringify({ name: workName, icon: "calendar" }) }));
 writeFileSync(plan, "{}");
 const reply = "StartupBot packaged agent fixture answered successfully";
 writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", profile: { name: "Fixture Owner" }, features: { smartSetupChoices: false }, instances: {
   claude: { driver: "claudeAgent", displayName: "Internal package fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") },
-    environment: { FAKE_CLAUDE_ROOM_PLAN: plan } },
+    environment: { FAKE_CLAUDE_ROOM_PLAN: plan, FAKE_CLAUDE_TEXT_ROUTES: textRoutes } },
 } }));
 
 async function freePort() {
@@ -177,11 +181,9 @@ try {
   const helper = initialBots.find(row => row.defaultBot);
   assert(helper?.threadId, "The first-run main helper must exist");
   assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: "full" }, "PATCH")).status, 200);
-  const workMessage = "Tôi cần theo dõi tiến độ kiểm kho mỗi tuần.";
-  const workName = "Kiểm kho";
   assert(!initialBots.some(row => row.name === workName));
   writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [
-    { key: "first-work", match: [workMessage], reply: "Tôi sẽ giúp theo dõi tiến độ kiểm kho." },
+    { key: "first-work", match: [workMessage], reply: "Tôi sẽ giúp theo dõi tin tức AI." },
   ] } }));
   const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
   await until(() => evaluate(`Boolean(${helperRow})`), "the main helper in the sidebar");
@@ -193,7 +195,7 @@ try {
     return result.body.messages.find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
   };
   const offered = await until(offerCard, "the main helper to propose a dedicated bot");
-  assert.equal(offered.teamSetupRequest.workBotOffer.icon, "box");
+  assert.equal(offered.teamSetupRequest.workBotOffer.icon, "calendar");
   assert.equal(offered.answered, undefined);
   assert(offered.title.includes(workName));
   const consent = `[...document.querySelectorAll('[data-work-bot-offer] button')].find(button => button.getClientRects().length && !button.disabled && button.textContent.trim() === ${JSON.stringify(offered.options[0])})`;

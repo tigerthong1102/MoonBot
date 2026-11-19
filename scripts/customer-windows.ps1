@@ -6,6 +6,9 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
+# PowerShell 7 can pass its module search path to a Windows PowerShell 5.1 child.
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
+
 function Confirm-Signature([string]$File) {
   $signature = Get-AuthenticodeSignature -LiteralPath $File
   if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $Thumbprint) {

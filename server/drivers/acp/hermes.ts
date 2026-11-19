@@ -457,6 +457,7 @@ const support: AcpSupport = {
       { sessionId, modelId: native },
       `model "${native}"`,
     );
+    return native;
   },
   buildPromptText: (turn) => (turn.system ? `${turn.system}\n\n${turn.text}` : turn.text),
 };

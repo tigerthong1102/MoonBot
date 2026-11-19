@@ -245,7 +245,7 @@ export interface AcpSupport extends AcpDriverHooks {
   /** Map a saved selection onto the live session's catalog (a retired model id), once session/new or load answers. */
   normalizeSessionSelection?(turn: SendTurnInput, offeredModels: readonly string[]): SendTurnInput;
   /** Per-session settings between session/new (or load) and the first prompt. Some CLIs ignore argv
-   * and take the model/mode over the wire (droid); a throw fails the turn rather than run another model. */
+   * and take the model/mode over the wire (droid). May return the confirmed native ID for an exact picker alias. */
   configureSession?(ctx: {
     request: (method: string, params: unknown, timeoutMs?: number) => Promise<any>;
     sessionId: string;
@@ -261,7 +261,7 @@ export interface AcpSupport extends AcpDriverHooks {
     configOptions: Array<{ id?: unknown; currentValue?: unknown }>;
     /** Tell the person the session runs another model than the one picked. */
     notice: (message: string) => void;
-  }): Promise<void>;
+  }): Promise<void | string>;
 }
 
 const envOr = (key: string, fallback: number): number => Number(process.env[key] ?? fallback);

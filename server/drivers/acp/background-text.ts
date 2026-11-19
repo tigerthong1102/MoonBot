@@ -27,7 +27,7 @@ export interface AcpOneShotInput {
   authRequired: boolean | "if-requested";
   loginNote: string;
   clientCapabilitiesMeta?: Record<string, unknown>;
-  configure?: (ctx: { request: (method: string, params: unknown, timeoutMs?: number) => Promise<any>; sessionId: string; session: any }) => Promise<void>;
+  configure?: (ctx: { request: (method: string, params: unknown, timeoutMs?: number) => Promise<any>; sessionId: string; session: any }) => Promise<void | string>;
   options?: TextGenerationOptions;
   timeoutMs?: number;
 }
@@ -180,7 +180,7 @@ export function runAcpOneShot(input: AcpOneShotInput): Promise<string> {
       model = typeof session?.models?.currentModelId === "string" ? session.models.currentModelId
         : typeof init?._meta?.modelState?.currentModelId === "string" ? init._meta.modelState.currentModelId : undefined;
       controls?.receive(session, true);
-      await input.configure?.({ request: async (method, params) => {
+      const nativeSelection = await input.configure?.({ request: async (method, params) => {
         const response = await request(method, params);
         controls?.receive(response);
         if (method === "session/set_model" && params && typeof params === "object" && "modelId" in params && typeof params.modelId === "string") model = params.modelId;
@@ -188,6 +188,8 @@ export function runAcpOneShot(input: AcpOneShotInput): Promise<string> {
       }, sessionId: session.sessionId, session });
       if (controls) {
         model = await controls.select(request, session.sessionId, input.timeoutMs ?? BACKGROUND_TEXT_TIMEOUT_MS) ?? model;
+      } else if (nativeSelection) {
+        model = nativeSelection;
       } else if (selected && model !== selected) {
         await request("session/set_model", { sessionId, modelId: selected });
         model = selected;

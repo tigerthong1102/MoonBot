@@ -13,7 +13,9 @@ describe("customer installers", () => {
     expect(customer.dmg.sign).toBe(true);
     expect(customer.mac.identity).not.toBe("-");
     expect(customer.extraMetadata.name).toBe("startupbot");
-    expect(customer.extraMetadata.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(customer.extraMetadata.version).toBeUndefined();
+    const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it("leaves Android Platform Tools to the user on macOS and Windows", () => {

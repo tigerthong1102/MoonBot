@@ -1,4 +1,6 @@
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
 import { randomBytes } from 'node:crypto';
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,17 +29,33 @@ try {
    try { const r=await fetch('http://127.0.0.1:19810/api/health',{signal:AbortSignal.timeout(2000)}); ready=r.ok&&(await r.json()).app==='openmausbot'; } catch {}
  }
  assert(ready,'Packaged workspace identity over the companion route');
- const pending=await ctl('POST','/pairing');
- assert(pending?.token);
- const url=phonePairingLink({address:'127.0.0.1',port:19810,name:'StartupBot QA',token:pending.token});
- assert(url?.startsWith('startupbot://pair?'));
+ async function invite(){
+   const pending=await ctl('POST','/pairing');
+   assert(pending?.token);
+   return phonePairingLink({address:'127.0.0.1',port:19810,name:'StartupBot QA',token:pending.token});
+ }
  if(process.argv[2]==='android'){
+   const url=await invite();
    exec('adb',['reverse','tcp:19810','tcp:19810']);
    exec('adb',['shell','am','start','-W','-a','android.intent.action.VIEW','-d',"'"+url+"'"]);
    exec('python3',['scripts/site-tap-android.py']);
  } else {
-   exec('xcrun',['simctl','openurl',process.argv[2],url]);
-   execFileSync('xcodebuild',['test-without-building','-project','touch/Touch.xcodeproj','-scheme','Touch','-derivedDataPath','touch/build','-destination','id='+process.argv[2],'-parallel-testing-enabled','NO','CODE_SIGN_IDENTITY=-'],{stdio:'inherit'});
+   let opened=false;
+   const coordinator=createServer(async (req,res)=>{
+     if(req.method!=='POST'||req.url!=='/open'||opened){res.writeHead(404).end();return;}
+     opened=true;
+     try {
+       const url=await invite();
+       exec('xcrun',['simctl','openurl',process.argv[2],url]);
+       res.writeHead(200).end();
+     } catch {res.writeHead(500).end();}
+   });
+   coordinator.listen(19812,'127.0.0.1'); await once(coordinator,'listening');
+   try {
+     const xc=spawn('xcodebuild',['test-without-building','-project','touch/Touch.xcodeproj','-scheme','Touch','-derivedDataPath','touch/build','-destination','id='+process.argv[2],'-parallel-testing-enabled','NO','CODE_SIGN_IDENTITY=-'],{stdio:'inherit'});
+     assert.equal((await once(xc,'exit'))[0],0);
+   } finally {coordinator.close();}
+
  }
  let device;
  for(let i=0;i<45&&!device;i++){await wait(600);device=(await ctl('GET','/state')).devices[0]}

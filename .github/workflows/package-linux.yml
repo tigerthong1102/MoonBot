@@ -38,6 +38,7 @@ jobs:
           name: windows-site-smoke
           path: evidence/
   android:
+    if: ${{ !inputs.ios }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:

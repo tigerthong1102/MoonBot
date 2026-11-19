@@ -349,7 +349,7 @@ repository, that called `startFakeOpenAiLive` and `emit` the way the e2e does.
   unlisted. D read "Call with Pepper, 0:42" with no lines. The sidebar row kept
   previewing the bot's last reply, not the record.
 - The fixture's log had a `call started` and a `call ended` line for each of the
-  four calls, `text=(spoken)` for the spoken turns, and neither the spoken words
+  four calls, `input=spoken` for the spoken turns, and neither the spoken words
   nor the key anywhere.
 - Ctrl-C stopped the fixture and removed its data directory; no fixture, preview
   or driver process was left. The log stays at its printed path.

@@ -60,7 +60,7 @@ posixOnly("Live call e2e", () => {
     const { bots } = (await (await fetch(`${base}/api/bots`)).json()) as { bots: Array<{ id: string; busy?: boolean }> };
     return bots.find((bot) => bot.id === botId)?.busy === true;
   };
-  const spokenTurnsLogged = () => serverOutput().split("text=(spoken)").length - 1;
+  const spokenTurnsLogged = () => serverOutput().split("input=spoken").length - 1;
   const startCall = async (botId: string, client: LiveCallState["client"] = "desktop") => {
     const before = live.sessions.length;
     const started = await post("/api/live/session", { botId, sdp: SDP, client });
@@ -194,7 +194,7 @@ posixOnly("Live call e2e", () => {
       expect(messages.filter((message) => message.kind === "call" && message.call?.callId === call.callId)).toHaveLength(1);
       // The pipe can deliver the summary line a moment after the HTTP answer.
       await expect.poll(serverOutput, { timeout: 5_000 }).toMatch(/\[live\] call ended bot=\S+ .*client=desktop .*end=hung-up/);
-      expect(serverOutput()).toContain("text=(spoken)");
+      expect(serverOutput()).toContain("input=spoken");
       expect(serverOutput()).not.toMatch(/six times seven/i);
       expect(serverOutput()).not.toContain(LIVE_KEY);
       expect(JSON.stringify(sse.frames)).not.toContain(LIVE_KEY);
@@ -454,7 +454,7 @@ posixOnly("Live call e2e", () => {
       live.emit(session.id, { type: "session.delegation.created", offset_ms: 8_400, delegation: { id: "del_retry", target: "client" } });
       await expect.poll(async () => (await lines()).find((m) => m.id === original.id)?.card, { timeout: 10_000 }).toMatchObject({ answered: "answer", answeredText: "Blue", answeredBy: { kind: "loopback", via: "call" } });
       expect((await lines()).find((m) => m.role === "user" && m.replyToId === original.id)).toMatchObject({ via: "call", callId: call.callId });
-      expect(serverOutput()).not.toContain("text=Blue");
+      expect(serverOutput()).not.toMatch(/\[omb-turn\][^\n]*Blue/i);
     } finally {
       await post("/api/bots/" + bot.id + "/interrupt", { threadId: bot.threadId });
       await post("/api/live/call/end", { callId: call.callId });
@@ -479,7 +479,7 @@ posixOnly("Live call e2e", () => {
       live.emit(session.id, { type: "session.delegation.created", offset_ms: 5_400, delegation: { id: "del_late", target: "client" } });
       await expect.poll(async () => (await lines()).find((m) => m.id === original.id)?.card, { timeout: 5_000 }).toMatchObject({ answered: "answer", answeredText: "Green", answeredBy: { kind: "loopback", via: "call" } });
       expect((await lines()).find((m) => m.role === "user" && m.replyToId === original.id)).toMatchObject({ via: "call", callId: call.callId });
-      expect(serverOutput()).not.toContain("text=Green");
+      expect(serverOutput()).not.toMatch(/\[omb-turn\][^\n]*Green/i);
     } finally {
       await post(`/api/bots/${bot.id}/interrupt`, { threadId: bot.threadId });
       await post("/api/live/call/end", { callId: call.callId });

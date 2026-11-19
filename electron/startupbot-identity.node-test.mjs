@@ -60,3 +60,11 @@ test("only parsed chat links are queued and delivered", () => {
   assert.equal(queueIncomingChatLink("valid", handlers), true);
   assert.deepEqual(events, ["parsed", "reveal", "deliver"]);
 });
+
+test("personal messaging opens only the operator-configured HTTPS origin", async () => {
+  const { personalInboxOrigin } = await import("./startupbot-identity.mjs");
+  assert.equal(personalInboxOrigin("https://inbox.example.test"), "https://inbox.example.test");
+  for (const value of [undefined, "file:///tmp", "javascript:alert(1)", "https://x@example.test", "https://example.test/path"]) {
+    assert.equal(personalInboxOrigin(value), null);
+  }
+});

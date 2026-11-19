@@ -1,0 +1,153 @@
+:root {
+  color-scheme: light dark;
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+  color: light-dark(#232d32, #e1e9e7);
+  background: light-dark(#fafbf9, #17201e);
+  --border: light-dark(#cbd3ce, #45564f);
+  --accent: light-dark(#145e51, #9adbc9);
+}
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+body {
+  margin: 0;
+}
+header,
+main {
+  max-width: 64rem;
+  margin: auto;
+  padding: 1rem 1.5rem;
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+#account {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+h1,
+h2,
+p {
+  margin: 0.5rem 0 1rem;
+}
+h2 {
+  font-size: 1.2rem;
+}
+#inbox {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(0, 2.4fr);
+  gap: 2rem;
+}
+aside {
+  border-inline-end: 1px solid var(--border);
+  padding-inline-end: 1.5rem;
+}
+label,
+form {
+  display: grid;
+  gap: 0.4rem;
+}
+form,
+details,
+#actions {
+  margin-bottom: 1rem;
+}
+input,
+select,
+textarea,
+button {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  font: inherit;
+  max-width: 100%;
+}
+textarea {
+  resize: vertical;
+}
+button {
+  cursor: pointer;
+  color: var(--accent);
+  background: transparent;
+}
+button:hover,
+button[aria-current="true"] {
+  background: light-dark(#e4f0eb, #273b35);
+}
+button:disabled {
+  opacity: 0.6;
+}
+#rooms {
+  display: grid;
+  gap: 0.4rem;
+  margin: 1rem 0 2rem;
+}
+#rooms button {
+  text-align: start;
+}
+#posts {
+  padding: 0;
+  list-style: none;
+}
+#posts li {
+  border-top: 1px solid var(--border);
+  padding: 0.7rem 0;
+}
+small {
+  color: var(--accent);
+}
+pre {
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0.35rem 0;
+}
+#actions button,
+#members button {
+  margin: 0.3rem;
+}
+#signin,
+dialog {
+  max-width: min(30rem, 90vw);
+}
+dialog {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+}
+dialog::backdrop {
+  background: #0007;
+}
+#status:empty {
+  margin: 0;
+}
+#room,
+#title,
+#rooms button {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  #inbox {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  aside {
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0;
+  }
+  header,
+  main {
+    padding: 1rem;
+  }
+  #rooms {
+    margin-bottom: 1rem;
+  }
+}

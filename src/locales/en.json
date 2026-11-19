@@ -10942,6 +10942,7 @@
   "sidebar.menu.switchPlace": "Switch place",
   "sidebar.menu.signedInTo": "Signed in to {place}",
   "settings.plan.openCloud": "Open {place}",
+  "native.menu.personalInbox": "Personal and group messages",
   "native.menu.settings": "Settings…",
   "settings.search.advancedNote": "Shown from search. This is an Advanced setting.",
   "settings.search.turnOnAdvanced": "Turn on Advanced mode",

@@ -36,3 +36,13 @@ export function queueIncomingChatLink(rawLink, { parse, store, reveal, deliver }
 export async function unavailableStartupBotCloud() {
   throw new Error("StartupBot Cloud is not configured");
 }
+
+export function personalInboxOrigin(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.origin === value ? url.origin : null;
+  } catch {
+    return null;
+  }
+}

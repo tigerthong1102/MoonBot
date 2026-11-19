@@ -1,0 +1,10 @@
+{
+  "name": "startupbot-inbox",
+  "main": "../src/personal-inbox-worker.ts",
+  "compatibility_date": "2026-08-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+  "d1_databases": [{ "binding": "DB", "database_name": "startupbot-inbox", "migrations_dir": "./migrations" }],
+  "send_email": [{ "name": "EMAIL" }],
+  "triggers": { "crons": ["15 3 * * *"] }
+}

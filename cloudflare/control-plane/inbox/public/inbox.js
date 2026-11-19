@@ -1,0 +1,391 @@
+const el = (id) => document.getElementById(id);
+const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text });
+const status = (text) => {
+  el("status").textContent = text;
+};
+let me,
+  rooms = [],
+  current = null,
+  revision = 0,
+  loginEmail = "",
+  pendingPost,
+  pendingCreate;
+let posts = [],
+  viewingSaved = false,
+  readingOlder = false;
+
+function fail(error) {
+  const errors = {
+    rate_limited: "Bạn đã thao tác nhiều lần. Vui lòng thử lại sau.",
+    room_limit_or_conflict:
+      "Đã đạt giới hạn 100 cuộc trò chuyện do bạn tạo hoặc yêu cầu tạo không còn hợp lệ.",
+    unavailable: "Nội dung hoặc thao tác này hiện không khả dụng.",
+    auth_failed: "Mã không hợp lệ hoặc đã hết hạn.",
+    contains_secret: "Nội dung có dấu hiệu chứa khóa truy cập. Hãy bỏ khóa trước khi gửi.",
+    unauthorized: "Vui lòng đăng nhập.",
+    invalid_request: "Kiểm tra lại nội dung đã nhập.",
+  };
+  status(errors[error.message] || "Chưa hoàn tất. Kiểm tra kết nối và thử lại.");
+}
+async function api(path, data) {
+  const res = await fetch(
+    "/api/" + path,
+    data === undefined
+      ? {}
+      : {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+  );
+  const result = await res.json();
+  if (res.status === 401 && result.error === "unauthorized") signedOut();
+  if (!res.ok) throw Error(result.error);
+  return result;
+}
+function run(action) {
+  return (event) => {
+    event?.preventDefault();
+    Promise.resolve().then(action).catch(fail);
+  };
+}
+function button(text, action) {
+  const b = node("button", text);
+  b.type = "button";
+  b.onclick = run(async () => {
+    b.disabled = true;
+    try {
+      await action();
+    } finally {
+      b.disabled = false;
+    }
+  });
+  return b;
+}
+function clearRoom() {
+  revision++;
+  current = null;
+  posts = [];
+  pendingPost = null;
+  readingOlder = false;
+  if (el("preview").open) el("preview").close();
+  el("compose").reset();
+  composeLabels();
+  el("invite").reset();
+  el("actions").replaceChildren();
+  el("title").textContent = "Chọn cuộc trò chuyện";
+  el("conversation").hidden = true;
+  for (const id of ["members", "posts", "preview-body", "audience"]) el(id).replaceChildren();
+}
+function signedOut() {
+  me = null;
+  rooms = [];
+  pendingCreate = null;
+  viewingSaved = false;
+  clearRoom();
+  for (const id of ["rooms", "saved-list", "blocked-list", "account"]) el(id).replaceChildren();
+  for (const id of ["inbox", "logout", "saved"]) el(id).hidden = true;
+  el("blocked").open = false;
+  el("room").hidden = false;
+  el("signin").hidden = false;
+  el("verify").hidden = true;
+  el("verify").reset();
+  el("create-room").reset();
+  createLabels();
+}
+el("send-code").onsubmit = run(async () => {
+  const email = el("send-code").elements.email.value.trim();
+  await api("auth/email-otp/send-verification-otp", { email, type: "sign-in" });
+  loginEmail = email;
+  el("verify").hidden = false;
+  el("verify").elements.otp.focus();
+  status("Kiểm tra email để lấy mã.");
+});
+el("verify").onsubmit = run(async () => {
+  await api("auth/sign-in/email-otp", { email: loginEmail, otp: el("verify").elements.otp.value });
+  await start();
+});
+el("logout").onclick = run(async () => {
+  await api("auth/sign-out", {});
+  signedOut();
+  status("Đã đăng xuất.");
+});
+async function start() {
+  me = await api("me");
+  el("account").textContent = me.email;
+  el("signin").hidden = true;
+  el("inbox").hidden = false;
+  el("logout").hidden = false;
+  status("");
+  await refresh();
+}
+function roomName(r) {
+  return r.kind === "direct" && !r.isOwner ? r.inviter : r.title;
+}
+async function refresh() {
+  const version = ++revision,
+    result = await api("rooms");
+  if (version !== revision || !me) return;
+  rooms = result.rooms;
+  el("rooms").replaceChildren(
+    ...rooms.map((r) => {
+      const b = button((r.state === "pending" ? "Lời mời · " : "") + roomName(r), () => select(r.id));
+      b.setAttribute("aria-current", String(r.id === current && !viewingSaved));
+      return b;
+    }),
+  );
+  if (!rooms.length) el("rooms").append(node("p", "Chưa có cuộc trò chuyện."));
+  if (viewingSaved || !current) return;
+  const r = rooms.find((x) => x.id === current);
+  if (!r) {
+    clearRoom();
+    return;
+  }
+  el("title").textContent = roomName(r);
+  el("actions").replaceChildren();
+  const act = (text, route, message) =>
+    button(text, async () => {
+      await api("rooms/" + r.id + "/" + route, {});
+      status(message);
+      await refresh();
+    });
+  if (r.state === "pending") {
+    el("conversation").hidden = true;
+    el("actions").append(
+      node("p", "Lời mời từ " + r.inviter + " · Bạn chỉ thấy tin mới sau khi tham gia."),
+      act("Tham gia", "accept", "Đã tham gia."),
+      act("Từ chối", "leave", "Đã từ chối."),
+      act("Chặn lời mời từ người này", "block", "Đã chặn người mời."),
+    );
+    return;
+  }
+  let detail;
+  try {
+    detail = await api("rooms/" + r.id);
+  } catch (err) {
+    if (version === revision) clearRoom();
+    throw err;
+  }
+  if (version !== revision) return;
+  el("conversation").hidden = false;
+  el("invite").hidden = !(r.kind === "group" && r.isOwner);
+  el("members").replaceChildren(
+    ...detail.members.map((m) => {
+      const li = node("li", m.email);
+      if (r.isOwner && r.kind === "group" && m.id !== me.id)
+        li.append(
+          button("Xóa khỏi nhóm", async () => {
+            await api("rooms/" + r.id + "/remove", { person: m.id });
+            await refresh();
+          }),
+        );
+      return li;
+    }),
+  );
+  if (r.isOwner && r.kind === "direct" && detail.members.length === 2)
+    el("actions").append(act("Chặn người này", "block", "Đã chặn."));
+  if (r.isOwner)
+    el("actions").append(
+      button("Đóng cuộc trò chuyện", async () => {
+        if (!window.confirm("Đóng cuộc trò chuyện và xóa lịch sử chung cho tất cả thành viên?")) return;
+        await api("rooms/" + r.id + "/close", {});
+        clearRoom();
+        await refresh();
+      }),
+    );
+  else
+    el("actions").append(
+      act("Rời cuộc trò chuyện", "leave", "Đã rời cuộc trò chuyện."),
+      act("Rời và chặn lời mời của chủ phòng", "block", "Đã rời và chặn người mời."),
+    );
+  const waiting = r.kind === "direct" && detail.members.length !== 2;
+  el("compose").hidden = waiting;
+  if (readingOlder)
+    el("actions").append(
+      button("Về tin mới nhất", async () => {
+        readingOlder = false;
+        await refresh();
+      }),
+    );
+  if (!readingOlder) {
+    posts = detail.posts;
+    el("older").hidden = !detail.more;
+    renderPosts();
+  }
+  if (waiting) el("posts").replaceChildren(node("li", "Chỉ gửi tin khi cả hai đã tham gia."));
+}
+async function select(id) {
+  if (current !== id || viewingSaved) clearRoom();
+  current = id;
+  viewingSaved = false;
+  el("room").hidden = false;
+  el("saved").hidden = true;
+  status("");
+  await refresh();
+}
+function createLabels() {
+  const form = el("create-room"),
+    group = form.elements.kind.value === "group";
+  el("target-label").textContent = group ? "Tên nhóm" : "Email người nhận";
+  form.elements.target.type = group ? "text" : "email";
+  form.elements.target.maxLength = group ? 80 : 254;
+}
+el("create-room").elements.kind.onchange = createLabels;
+el("create-room").onsubmit = run(async () => {
+  const form = el("create-room"),
+    kind = form.elements.kind.value,
+    target = form.elements.target.value.trim();
+  const key = JSON.stringify([kind, target]);
+  if (pendingCreate?.key !== key) pendingCreate = { key, id: crypto.randomUUID() };
+  const { id } = await api("rooms", {
+    kind,
+    id: pendingCreate.id,
+    ...(kind === "group" ? { title: target } : { email: target }),
+  });
+  pendingCreate = null;
+  form.reset();
+  createLabels();
+  await select(id);
+});
+el("invite").onsubmit = run(async () => {
+  await api("rooms/" + current + "/invite", { email: el("invite").elements.email.value.trim() });
+  el("invite").reset();
+  status("Đã ghi nhận yêu cầu mời. Người nhận đủ điều kiện sẽ thấy lời mời trong hộp thư.");
+});
+function composeLabels() {
+  const kind = el("compose").elements.kind.value;
+  el("draft-label").textContent = {
+    text: "Tin nhắn",
+    skill: "Nội dung SKILL.md",
+    task: "Yêu cầu và tiêu chí hoàn thành",
+  }[kind];
+  el("submit-post").textContent = kind === "text" ? "Gửi" : "Xem lại trước khi gửi";
+}
+el("compose").elements.kind.onchange = composeLabels;
+async function send(p) {
+  await api("rooms/" + p.room + "/posts", { nonce: p.nonce, kind: p.kind, body: p.body });
+  if (current !== p.room || pendingPost !== p) return;
+  pendingPost = null;
+  el("compose").reset();
+  composeLabels();
+  readingOlder = false;
+  if (el("preview").open) el("preview").close();
+  await refresh();
+}
+el("compose").onsubmit = run(async () => {
+  const form = el("compose"),
+    kind = form.elements.kind.value,
+    body = form.elements.body.value.trim();
+  if (!body) return;
+  if (!pendingPost || pendingPost.room !== current || pendingPost.kind !== kind || pendingPost.body !== body)
+    pendingPost = { room: current, kind, body, nonce: crypto.randomUUID() };
+  if (kind === "text") return send(pendingPost);
+  el("audience").textContent = "Gửi vào " + el("title").textContent + ". Thành viên có thể lưu bản sao.";
+  el("preview-body").textContent = body;
+  el("preview").showModal();
+});
+el("cancel-share").onclick = () => el("preview").close();
+el("confirm-share").onclick = run(() => send(pendingPost));
+function renderPosts() {
+  el("posts").replaceChildren(
+    ...posts.map((p) => {
+      const li = document.createElement("li"),
+        label = { skill: " · Skill", task: " · Công việc", text: "" }[p.kind];
+      li.append(
+        node("small", p.author + label + " · " + new Date(p.created).toLocaleString("vi-VN")),
+        node("pre", p.body),
+      );
+      if (p.kind !== "text")
+        li.append(
+          button(p.kind === "skill" ? "Lưu bản sao skill" : "Nhận việc", async () => {
+            await api("saved", { seq: p.seq, action: "save" });
+            status("Đã lưu vào mục Skill và việc đã nhận của bạn.");
+          }),
+        );
+      return li;
+    }),
+  );
+  if (!posts.length) el("posts").append(node("li", "Chưa có tin nhắn."));
+}
+el("older").onclick = run(async () => {
+  if (!posts.length) return;
+  const id = current,
+    first = posts[0].seq;
+  const page = await api("rooms/" + id + "?before=" + first);
+  if (current !== id || posts[0]?.seq !== first) return;
+  readingOlder = true;
+  posts = [...page.posts, ...posts];
+  renderPosts();
+  el("older").hidden = !page.more;
+  await refresh();
+});
+async function showSaved() {
+  clearRoom();
+  viewingSaved = true;
+  el("room").hidden = true;
+  el("saved").hidden = false;
+  const version = revision,
+    { saved } = await api("saved");
+  if (!viewingSaved || !me || version !== revision) return;
+  el("saved-list").replaceChildren(
+    ...saved.map((p) => {
+      const item = document.createElement("article");
+      item.append(
+        node("small", p.kind === "skill" ? "Skill" : p.done ? "Việc đã hoàn thành" : "Việc đã nhận"),
+        node("pre", p.body),
+      );
+      if (p.kind === "skill")
+        item.append(
+          button("Tải SKILL.md", () => {
+            const link = document.createElement("a");
+            link.download = "SKILL.md";
+            link.href = URL.createObjectURL(new Blob([p.body], { type: "text/plain;charset=utf-8" }));
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+          }),
+        );
+      if (p.kind === "task" && !p.done)
+        item.append(
+          button("Hoàn thành", async () => {
+            await api("saved", { seq: p.seq, action: "done" });
+            await showSaved();
+          }),
+        );
+      item.append(
+        button("Xóa bản sao", async () => {
+          await api("saved", { seq: p.seq, action: "delete" });
+          await showSaved();
+        }),
+      );
+      return item;
+    }),
+  );
+  if (!saved.length) el("saved-list").append(node("p", "Chưa có skill hoặc việc đã nhận."));
+}
+el("open-saved").onclick = run(showSaved);
+async function showBlocked() {
+  const { people } = await api("blocks");
+  el("blocked-list").replaceChildren(
+    ...people.map((p) => {
+      const li = node("li", p.email);
+      li.append(
+        button("Bỏ chặn", async () => {
+          await api("blocks", { person: p.id });
+          await showBlocked();
+        }),
+      );
+      return li;
+    }),
+  );
+  if (!people.length) el("blocked-list").append(node("li", "Chưa chặn ai."));
+}
+el("blocked").ontoggle = run(async () => {
+  if (el("blocked").open && me) await showBlocked();
+});
+
+setInterval(() => {
+  if (me && !viewingSaved && !document.hidden) refresh().catch(fail);
+}, 5000);
+start().catch((e) => {
+  if (e.message !== "unauthorized") fail(e);
+});

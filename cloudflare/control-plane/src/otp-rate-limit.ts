@@ -38,7 +38,7 @@ async function normalizedRecipient(request: Request): Promise<string | null> {
  * Returns Better Auth's generic success response only when the recipient limit
  * is exhausted. Invalid requests keep flowing to Better Auth for validation.
  */
-export async function limitedOTPResponse(request: Request, env: Env): Promise<Response | null> {
+export async function limitedOTPResponse(request: Request, env: Pick<Env, "DB" | "BETTER_AUTH_SECRET">): Promise<Response | null> {
   const url = new URL(request.url);
   if (request.method !== "POST" || url.pathname !== OTP_SEND_PATH) return null;
 

@@ -7,3 +7,4 @@ export declare function queueIncomingChatLink(value: unknown, handlers: {
   reveal(): void;
   deliver(): void;
 }): boolean;
+export declare function personalInboxOrigin(value?: string): string | null;

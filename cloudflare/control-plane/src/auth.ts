@@ -5,13 +5,14 @@ import type { ControlPlaneConfig } from "./config";
 import { sendOTPEmail } from "./email";
 
 export function createAuth(
-  env: Env,
+  env: Pick<Env, "DB" | "EMAIL" | "BETTER_AUTH_SECRET">,
   ctx: ExecutionContext,
-  config: ControlPlaneConfig,
+  config: Pick<ControlPlaneConfig, "authBaseURL" | "allowedOrigins" | "emailFrom">,
   requestId: string,
+  brand: "OpenMausBot" | "StartupBot" = "OpenMausBot",
 ) {
   return betterAuth({
-    appName: "OpenMausBot",
+    appName: brand,
     baseURL: config.authBaseURL,
     basePath: "/api/auth",
     secret: env.BETTER_AUTH_SECRET,
@@ -63,7 +64,7 @@ export function createAuth(
             async send(message) {
               await env.EMAIL.send(message);
             },
-          }, config.emailFrom, input, requestId);
+          }, config.emailFrom, input, requestId, brand);
         },
       }),
       bearer({ requireSignature: true }),

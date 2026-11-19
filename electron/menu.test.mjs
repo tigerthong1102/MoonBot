@@ -57,6 +57,15 @@ describe("buildApplicationMenu", () => {
     expect(build(platform).flatMap((menu) => menu.submenu ?? []).some((entry) => entry.id === "open-at-login")).toBe(false);
   });
 
+  it.each(["darwin", "linux", "win32"])("opens the configured inbox from the desktop on %s", platform => {
+    const open = vi.fn();
+    const item = build(platform, { onPersonalInbox: open })[0].submenu.find(row => row.id === "personal-inbox");
+    expect(item.label).toBe("Personal and group messages");
+    item.click();
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(build(platform).flatMap(menu => menu.submenu ?? []).some(row => row.id === "personal-inbox")).toBe(false);
+  });
+
   it("macOS app menu wires an explicit Settings item to the settings callback", () => {
     const onOpenSettings = vi.fn();
     const template = build("darwin", { onOpenSettings });

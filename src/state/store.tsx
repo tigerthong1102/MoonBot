@@ -1,6 +1,6 @@
 import { cloudAsleep, onCloudPower } from "../lib/cloud-power";
 import { api, ApiError, retryRequest, snapshotArrays } from "./api";
-import { bumpTranscriptGeneration, clearTranscript, loadOlderPage, MESSAGE_PAGE_SIZE, reduceOlderMessages } from "./message-history";
+import { bumpTranscriptGeneration, clearTranscript, loadOlderPage, MESSAGE_PAGE_SIZE, reduceOlderMessages, switchedTranscript } from "./message-history";
 export { MESSAGE_PAGE_SIZE } from "./message-history";
 import { addForkOptimistic, reduceForkPanel, removeForkOptimistic, runForkEffect, type ForkPanelAction, type ForkPanelState } from "./fork-panel";
 import { use, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
@@ -1696,28 +1696,22 @@ export function reducer(state: AppState, action: Action): AppState {
       if (!action.dm) return patchGroupTask(state, action.groupId, action.threadId, { turnTimeoutMinutes: action.minutes ?? undefined });
       return { ...state, groups: state.groups.map((group) => group.id === action.groupId ? { ...group, turnTimeoutMinutes: action.minutes ?? undefined } : group) };
     case "taskSwitched": {
-      const threadId = action.bot.threadId;
-      if (action.clearRevision !== undefined && action.clearRevision !== (state.clearRevisions[threadId] ?? 0)) {
-        const current = state.bots.find((bot) => bot.id === action.bot.id && bot.threadId === threadId);
-        return reducer(state, { type: "taskSwitched", bot: {
-          ...action.bot, messages: current?.messages ?? [], hasMore: current?.hasMore ?? false, activeLeafId: current?.activeLeafId ?? null,
-        } });
-      }
-      let switched = updateBot(bumpTranscriptGeneration(state, action.bot.threadId), action.bot.id, (bot) => ({
+      const snapshot = switchedTranscript(state, action);
+      let switched = updateBot(bumpTranscriptGeneration(state, snapshot.threadId), snapshot.id, (bot) => ({
         ...bot,
-        ...action.bot,
-        computer: action.bot.computer,
-        toolScope: action.bot.toolScope, managedSections: action.bot.managedSections,
-        vpsAlias: action.bot.vpsAlias, liveVoice: action.bot.liveVoice,
-        messages: action.bot.messages ?? [],
-        hasMore: action.bot.hasMore,
+        ...snapshot,
+        computer: snapshot.computer,
+        toolScope: snapshot.toolScope, managedSections: snapshot.managedSections,
+        vpsAlias: snapshot.vpsAlias, liveVoice: snapshot.liveVoice,
+        messages: snapshot.messages ?? [],
+        hasMore: snapshot.hasMore,
         awaitingThreadSnapshot: false,
         switchingTo: undefined,
       }));
-      for (const frame of state.backgroundThreadEvents[action.bot.threadId] ?? []) switched = reducer(switched, frame);
-      const { [action.bot.threadId]: _settled, ...backgroundThreadEvents } = switched.backgroundThreadEvents;
+      for (const frame of state.backgroundThreadEvents[snapshot.threadId] ?? []) switched = reducer(switched, frame);
+      const { [snapshot.threadId]: _settled, ...backgroundThreadEvents } = switched.backgroundThreadEvents;
       switched = { ...switched, backgroundThreadEvents };
-      const opened = switched.bots.find((bot) => bot.id === action.bot.id);
+      const opened = switched.bots.find((bot) => bot.id === snapshot.id);
       if (opened && opened.id === switched.selectedId) {
         switched = { ...switched, unreadDivider: openedUnreadDivider(switched, opened.threadId, threadOpensUnread(opened), visibleMessages(opened), threadReadCursor(opened), opened.hasMore) };
         // The snapshot predates the switch's own announcement and must not put the unread dot back.
@@ -1725,7 +1719,7 @@ export function reducer(state: AppState, action: Action): AppState {
           unread: Boolean(bot.tasks?.some((task) => task.threadId !== bot.threadId && task.unread)),
           tasks: bot.tasks?.map((task) => task.threadId === bot.threadId ? { ...task, unread: false } : task) }));
       }
-      return reconcileModelVariantSessions(reconcileSnapshotQueues(switched, [action.bot]));
+      return reconcileModelVariantSessions(reconcileSnapshotQueues(switched, [snapshot]));
     }
     case "newBot":
       return action.preserveSelection ? state : { ...state, settingsOpen: false, appSettingsOpen: false, pluginsOpen: false, shortcutsOpen: false };

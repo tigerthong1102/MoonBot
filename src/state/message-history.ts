@@ -74,6 +74,12 @@ export function bumpTranscriptGeneration(state: AppState, threadId: string | und
   };
 }
 
+export function switchedTranscript(state: AppState, { bot, clearRevision }: Extract<Action, { type: "taskSwitched" }>) {
+  if (clearRevision === undefined || clearRevision === (state.clearRevisions[bot.threadId] ?? 0)) return bot;
+  const current = state.bots.find((owner) => owner.id === bot.id && owner.threadId === bot.threadId);
+  return { ...bot, messages: current?.messages ?? [], hasMore: current?.hasMore ?? false, activeLeafId: current?.activeLeafId ?? null };
+}
+
 export function clearTranscript(state: AppState, action: Extract<Action, { type: "messagesCleared" }>): AppState {
   const { threadId } = action;
   const { [threadId]: _old, ...backgroundThreadEvents } = state.backgroundThreadEvents;

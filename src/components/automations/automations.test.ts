@@ -99,6 +99,7 @@ describe("+ New", () => {
 });
 
 describe("the automation panel", () => {
+  afterEach(() => { vi.useRealTimers(); });
   it("explains an unread failure older than the recent runs and keeps it visible after marking it seen", () => {
     const runs = Array.from({ length: 6 }, (_, index) => ({ id: `success-${index}`, routineId: webhook.id, botId: botA.id, status: "completed", createdAt: now - index * 1_000, scheduledFor: now - index * 1_000, output: "Nothing new." }));
     const failure = { id: "old-failure", routineId: webhook.id, botId: botA.id, status: "failed", createdAt: now - 60_000, scheduledFor: now - 60_000, error: "Provider disconnected." };
@@ -114,7 +115,13 @@ describe("the automation panel", () => {
     expect(fixture.dispatch).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the sentence, the status, an address to paste with Copy address, the recent runs and the four actions, in plain words", () => {
+  it.each([
+    { hour: 12, label: "Today" },
+    { hour: 0, label: "Yesterday" },
+  ])("shows the automation details and labels the recent run $label at hour $hour", ({ hour, label }) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 19, hour, 0, 30));
+    const now = Date.now();
     fixture.state.routineRuns = [{ id: "run-1", routineId: "hook-1", botId: "bot-a", status: "completed", scheduledFor: now - 60_000, startedAt: now - 60_000, createdAt: now - 60_000, output: "Drafted a follow-up for Ada.", threadId: "exec-1" }];
     const [automation] = automationsFrom({ routines: [], webhooks: [webhook] as never, runs: fixture.state.routineRuns as never });
     const container = mount(createElement(AutomationPanel, { automation: automation!, sentence: "When your sales form sends something, Scout drafts a follow-up for the lead", onClose: vi.fn(), onEdit: vi.fn(), onDeleted: vi.fn() }));
@@ -125,7 +132,7 @@ describe("the automation panel", () => {
     expect(text).not.toContain("Working");
     expect(text).toContain("Paste this address into the other app");
     expect(text).toContain("Recent runs");
-    expect(text).toMatch(/Today [^✓]*✓Drafted a follow-up for Ada\./);
+    expect(text).toMatch(new RegExp(label + "[^✓]*✓Drafted a follow-up for Ada\\."));
     for (const label of ["Copy address", "Run now", "Pause", "Edit", "Delete"]) expect(button(container, label)).toBeTruthy();
     expect(container.querySelector("details summary")!.textContent).toBe("More");
     expect(container.querySelector("details")!.textContent).toContain("Show secret / settings");

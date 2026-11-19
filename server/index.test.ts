@@ -8051,14 +8051,14 @@ describe("harness HTTP API", () => {
 
   it("a new bot greets its person by first name and is announced in its chosen look, or a fresh one, from the first frame", async () => {
     const before = (await api("GET", "/api/config")).body.profile?.name ?? "";
-    expect((await api("PUT", "/api/config", { profile: { name: "Milind Soni" } })).status).toBe(200);
+    expect((await api("PUT", "/api/config", { profile: { name: "Minh Son" } })).status).toBe(200);
     const stream = await openSse(`${BASE}/api/events`);
     let id = "";
     try {
       await stream.until((frame) => frame.kind === "hello");
       const bot = (await api("POST", "/api/bots", { name: "Scout", useDefaults: false, settings: { color: "purple", mascotBody: "star" } })).body.bot;
       id = bot.id;
-      expect(bot.messages[0].text).toBe("Hi Milind, I'm Scout. What would you like me to do?");
+      expect(bot.messages[0].text).toBe("Hi Minh, I'm Scout. What would you like me to do?");
       const announced = await stream.until((frame) => frame.kind === "bot" && frame.bot?.id === id);
       expect(announced.bot).toMatchObject({ color: "purple", mascotBody: "star" });
       const plain = (await api("POST", "/api/bots", { name: "Wren", useDefaults: false })).body.bot;
@@ -8084,7 +8084,7 @@ describe("harness HTTP API", () => {
       ids.push(created.body.bot.id);
       return created.body.bot;
     };
-    expect((await api("PUT", "/api/config", { profile: { name: "Milind Soni" }, features: { smartSetupChoices: true } })).status).toBe(200);
+    expect((await api("PUT", "/api/config", { profile: { name: "Minh Son" }, features: { smartSetupChoices: true } })).status).toBe(200);
     try {
       writeFileSync(setupAnswersFile, `${JSON.stringify(answers)}\n`);
       rmSync(setupAnswersDump, { force: true });
@@ -8098,7 +8098,7 @@ describe("harness HTTP API", () => {
       expect(seen.argv).not.toContain("--effort");
       expect(seen.env.MAX_THINKING_TOKENS).toBeUndefined();
       expect(seen.prompt).toContain("Bot name: Bookkeeper");
-      expect(seen.prompt).not.toContain("Milind");
+      expect(seen.prompt).not.toContain("Minh");
       const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
       const usage = await (await fetch(`${BASE}/api/usage.csv?from=${day(-1)}&to=${day(1)}`)).text();
       expect(usage.split("\n").some((line) => line.includes("Bookkeeper") && line.includes(",setup-suggestions-"))).toBe(true);

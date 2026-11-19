@@ -1,7 +1,7 @@
 import { OrganizationIdentity } from "./OrganizationIdentity";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
 import { createPortal } from "react-dom";
-import { Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, LayoutTemplate, Loader2, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, Plus, Search, SquarePen, TextQuote, Trash2, Users, X } from "lucide-react";
+import { Archive, Bot as BotIcon, Check, ChevronRight, ClipboardCopy, Crown, FolderPlus, LayoutTemplate, Loader2, MessagesSquare, MessageSquarePlus, MoreHorizontal, Pencil, Phone, Pin, Plus, Search, SquarePen, TextQuote, Trash2, Users, X } from "lucide-react";
 import { sidebarState } from "./sidebar-state"; import { sameFields, useStoreDispatch, useStoreSelector } from "@/state/store-select"; import { useStoreRef } from "@/state/store-ref"; import { sameDrawnBots } from "@/lib/drawn-bots";
 import { api, formatTime, visibleMessages, currentTaskBot, botOpensTo, openBot, openThread, type Action, type AppState, type Bot, type BotProject, type Group, type InstanceInfo, type Message } from "@/state/store";
 import { approvalModeFor } from "../../shared/approval-mode";
@@ -1505,6 +1505,14 @@ export const Sidebar = memo(function Sidebar({ open, onClose, collapseToIcons = 
       </p>
 
       <GlassBar edge="bottom">
+      {window.ogb?.openPersonalInbox && (
+        <button type="button" title={t("native.menu.personalInbox")} aria-label={t("native.menu.personalInbox")}
+          onClick={() => void window.ogb?.openPersonalInbox?.().catch(cause => setTeamFeedback({ error: true, text: String(cause.message ?? cause) }))}
+          className={cn("flex min-h-9 items-center gap-2 rounded-xl px-3 text-sm font-medium text-ink hover:bg-raised", density === "icons" ? "mx-auto" : "mx-2")}>
+          <MessagesSquare size={18} />
+          {density !== "icons" && t("native.menu.personalInbox")}
+        </button>
+      )}
       <LiveCallPill
         currentBotId={state.activeView === "chat" ? state.selectedId : null}
         onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)}

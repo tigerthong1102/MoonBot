@@ -1,4 +1,8 @@
 const el = (id) => document.getElementById(id);
+el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") !== "1";
+for (const back of document.querySelectorAll(".list-back")) {
+  back.onclick = () => { delete document.body.dataset.thread; };
+}
 const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text });
 const status = (text) => {
   el("status").textContent = text;
@@ -70,6 +74,9 @@ function button(text, action) {
 function clearRoom() {
   revision++;
   current = null;
+  delete document.body.dataset.thread;
+  el("room-options").open = false;
+  el("attach").open = false;
   posts = [];
   pendingPost = null;
   pendingFile = null;
@@ -101,12 +108,37 @@ function signedOut() {
   createLabels();
 }
 el("send-code").onsubmit = run(async () => {
-  const email = el("send-code").elements.email.value.trim();
-  await api("auth/email-otp/send-verification-otp", { email, type: "sign-in" });
+  const form = el("send-code"),
+    field = form.elements.email,
+    email = field.value.trim(),
+    button = form.querySelector("button");
+  if (button.disabled) return;
+  button.disabled = true;
+  field.readOnly = true;
+  try {
+    await api("auth/email-otp/send-verification-otp", {
+      email,
+      type: "sign-in",
+    });
+  } catch (error) {
+    button.disabled = false;
+    throw error;
+  } finally {
+    field.readOnly = false;
+  }
   loginEmail = email;
   el("verify").hidden = false;
   el("verify").elements.otp.focus();
-  status("Kiểm tra email để lấy mã.");
+  status(
+    "Kiểm tra thư mới nhất của " +
+      email +
+      ", kể cả Thư rác. Mã có hiệu lực 10 phút. Mỗi địa chỉ được yêu cầu tối đa 3 mã trong 15 phút.",
+  );
+  button.textContent = "Có thể gửi lại sau 1 phút";
+  setTimeout(() => {
+    button.textContent = "Gửi mã đăng nhập";
+    button.disabled = false;
+  }, 60_000);
 });
 el("verify").onsubmit = run(async () => {
   await api("auth/sign-in/email-otp", { email: loginEmail, otp: el("verify").elements.otp.value });
@@ -136,7 +168,16 @@ async function refresh() {
   rooms = result.rooms;
   el("rooms").replaceChildren(
     ...rooms.map((r) => {
-      const b = button((r.state === "pending" ? "Lời mời · " : "") + roomName(r), () => select(r.id));
+      const title = (r.state === "pending" ? "Lời mời · " : "") + roomName(r);
+      const b = button(title, () => select(r.id));
+      const avatar = node("span", roomName(r).trim().slice(0, 1).toLocaleUpperCase("vi"));
+      avatar.className = "avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      const text = node("span", title);
+      text.className = "room-name";
+      text.append(node("small", r.kind === "group" ? "Nhóm" : "Trò chuyện riêng"));
+      b.setAttribute("aria-label", title);
+      b.replaceChildren(avatar, text);
       b.setAttribute("aria-current", String(r.id === current && !viewingSaved));
       return b;
     }),
@@ -150,6 +191,7 @@ async function refresh() {
   }
   el("title").textContent = roomName(r);
   el("actions").replaceChildren();
+  el("manage").replaceChildren();
   const act = (text, route, message) =>
     button(text, async () => {
       await api("rooms/" + r.id + "/" + route, {});
@@ -190,9 +232,9 @@ async function refresh() {
     }),
   );
   if (r.isOwner && r.kind === "direct" && detail.members.length === 2)
-    el("actions").append(act("Chặn người này", "block", "Đã chặn."));
+    el("manage").append(act("Chặn người này", "block", "Đã chặn."));
   if (r.isOwner)
-    el("actions").append(
+    el("manage").append(
       button("Đóng cuộc trò chuyện", async () => {
         if (!window.confirm("Đóng cuộc trò chuyện và xóa lịch sử chung cho tất cả thành viên?")) return;
         await api("rooms/" + r.id + "/close", {});
@@ -201,13 +243,14 @@ async function refresh() {
       }),
     );
   else
-    el("actions").append(
+    el("manage").append(
       act("Rời cuộc trò chuyện", "leave", "Đã rời cuộc trò chuyện."),
       act("Rời và chặn lời mời của chủ phòng", "block", "Đã rời và chặn người mời."),
     );
   const waiting = r.kind === "direct" && detail.members.length !== 2;
   el("compose").hidden = waiting;
   el("send-file").hidden = waiting;
+  el("attach").hidden = waiting;
   if (readingOlder)
     el("actions").append(
       button("Về tin mới nhất", async () => {
@@ -216,15 +259,23 @@ async function refresh() {
       }),
     );
   if (!readingOlder) {
+    const previous = posts.at(-1)?.seq;
+    const history = el("history");
+    const latestVisible = history.scrollHeight - history.scrollTop - history.clientHeight < 70;
     posts = detail.posts;
     el("older").hidden = !detail.more;
     renderPosts();
+    if (previous !== posts.at(-1)?.seq && (!previous || latestVisible || posts.at(-1)?.author === me.email)) {
+      history.scrollTop = history.scrollHeight;
+    }
   }
   if (waiting) el("posts").replaceChildren(node("li", "Chỉ gửi tin khi cả hai đã tham gia."));
 }
 async function select(id) {
   if (current !== id || viewingSaved) clearRoom();
   current = id;
+  document.body.dataset.thread = "open";
+  el("new-room").open = false;
   viewingSaved = false;
   el("room").hidden = false;
   el("saved").hidden = true;
@@ -276,6 +327,12 @@ function composeLabels() {
   el("submit-post").textContent = kind === "text" ? "Gửi" : "Xem lại trước khi gửi";
 }
 el("compose").elements.kind.onchange = composeLabels;
+el("draft").onkeydown = (event) => {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing && el("compose").elements.kind.value === "text") {
+    event.preventDefault();
+    el("compose").requestSubmit();
+  }
+};
 async function send(p) {
   await api("rooms/" + p.room + "/posts", { nonce: p.nonce, kind: p.kind, body: p.body });
   if (current !== p.room || pendingPost !== p) return;
@@ -305,6 +362,7 @@ function renderPosts() {
     ...posts.map((p) => {
       const li = document.createElement("li"),
         label = { skill: " · Skill", task: " · Công việc", text: "", file: " · Tệp" }[p.kind];
+      li.classList.toggle("mine", p.author === me.email);
       li.append(
         node("small", p.author + label + " · " + new Date(p.created).toLocaleString("vi-VN")),
         node("pre", p.body),
@@ -364,6 +422,7 @@ el("older").onclick = run(async () => {
 async function showSaved() {
   clearRoom();
   viewingSaved = true;
+  document.body.dataset.thread = "open";
   el("room").hidden = true;
   el("saved").hidden = false;
   const version = revision,

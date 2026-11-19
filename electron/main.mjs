@@ -129,6 +129,7 @@ const { createDesktopWorkspaceManager } = require("./desktop-workspace.cjs");
 const { createTrustedApprovalModeCoordinator } = require("./approval-trusted-mode.cjs");
 const { DESKTOP_MUTATION_HEADER, desktopServerHeaders } = require("./desktop-server-auth.cjs");
 const { MIN_BOUNDS, normalizeUnreadCount, resolveWindowState } = require("./window-state.cjs");
+import { showPersonalInbox } from "./personal-inbox-view.mjs";
 import { configureStartupBotIdentity, internalDeepLink, packagedSmokeHome, configuredInboxOrigin, queueIncomingChatLink, startupBotDataDir, unavailableStartupBotCloud } from "./startupbot-identity.mjs";
 configureStartupBotIdentity(app);
 for (let index = 0; index < process.argv.length; index++) process.argv[index] = internalDeepLink(process.argv[index]);
@@ -1494,9 +1495,19 @@ function activeOrigin() {
   return activeEnvironment(environmentsState)?.origin ?? rendererOrigin();
 }
 
-function refreshApplicationMenu() {
-  const inbox = configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, require("../package.json").startupbotInboxOrigin,
+function personalInboxService() {
+  return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, require("../package.json").startupbotInboxOrigin,
     jsonFile(path.join(app.getPath("userData"), "inbox-service.json")).read);
+}
+
+function openPersonalInbox() {
+  const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow();
+  win.show();
+  return showPersonalInbox(win, personalInboxService());
+}
+
+function refreshApplicationMenu() {
+  const inbox = personalInboxService();
   Menu.setApplicationMenu(
     buildApplicationMenu({
       environments: environmentsState.environments,
@@ -1506,7 +1517,7 @@ function refreshApplicationMenu() {
       onConnect: () => void workspaceMenuAction(openWorkspaceSettings),
       onOrganizationSignIn: () => queueOrganizationEntry("openmausbot://organization"),
       onForget: (id) => void workspaceMenuAction(() => forgetEnvironment(id)),
-      onPersonalInbox: inbox ? () => void workspaceMenuAction(() => shell.openExternal(inbox)) : null,
+      onPersonalInbox: inbox ? () => void workspaceMenuAction(openPersonalInbox) : null,
       onOpenSettings: () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("app:open-settings"); },
       openAtLogin: loginItem.available() ? { checked: loginItem.chosen(), onToggle: on => { loginItem.choose(on); refreshApplicationMenu(); } } : null,
       ...cloudMenuOptions(),
@@ -1970,6 +1981,7 @@ function createWindow({ deferNavigation = false } = {}) {
       contextIsolation: true,
       preload: path.join(__dirname, "preload.cjs"),
       additionalArguments: [...desktopCompanionRendererArguments(rendererOrigin(), desktopRemoteAccess),
+        ...(personalInboxService() ? ["--startupbot-personal-inbox"] : []),
         ...(app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`, ...(linuxSoftwareRendering ? [SOFTWARE_RENDERING_ARG] : [])],
     },
   });
@@ -2302,6 +2314,10 @@ ipcMain.handle("window:state", (event) => {
 });
 
 // Links resolved after Chromium's click gesture ended would be blocked as popups via window.open.
+ipcMain.handle("personal-inbox:open", localOnly("personal-inbox:open", (event) => {
+  requireMainWindowSender(event);
+  return openPersonalInbox();
+}));
 ipcMain.handle("desktop:open-external", localOnly("desktop:open-external", async (_event, rawUrl) => {
   await shell.openExternal(externalLinkUrl(rawUrl));
   return true;

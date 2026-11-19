@@ -3,22 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Hộp thư · StartupBot</title>
+    <title>Tin nhắn · StartupBot</title>
     <link rel="stylesheet" href="/inbox.css" />
     <script type="module" src="/inbox.js"></script>
   </head>
   <body>
     <header>
-      <strong>StartupBot</strong><span id="account"></span><button id="logout" hidden>Đăng xuất</button>
+      <a id="desktop-back" href="/desktop/back" hidden>← Về StartupBot</a><strong>Tin nhắn</strong
+      ><span id="account"></span><button id="logout" hidden>Đăng xuất</button>
     </header>
     <main>
-      <h1>Hộp thư</h1>
+      <h1 class="sr">Tin nhắn</h1>
       <p role="status" id="status"></p>
       <section id="stop-mail" hidden>
         <button id="stop-button"></button>
         <p id="stop-result" role="status"></p>
       </section>
       <section id="signin" hidden>
+        <h2>Đăng nhập để trò chuyện</h2>
         <p>
           Đăng nhập bằng email để nhận lời mời. Thành viên cùng cuộc trò chuyện có thể thấy địa chỉ email của
           bạn.
@@ -49,50 +51,18 @@
           <h2>Cuộc trò chuyện</h2>
           <div id="rooms"></div>
           <button id="open-saved">Skill và việc đã nhận</button>
-          <form id="create-room">
-            <label
-              >Tạo cuộc trò chuyện<select name="kind">
-                <option value="direct">Chat riêng</option>
-                <option value="group">Chat nhóm</option>
-              </select></label
-            >
-            <label
-              ><span id="target-label">Email người nhận</span><input name="target" type="email" required
-            /></label>
-            <fieldset>
-              <legend>Email mời người chưa đăng ký</legend>
+          <details id="new-room">
+            <summary>Cuộc trò chuyện mới</summary>
+            <form id="create-room">
               <label
-                >Ngôn ngữ người nhận<select name="locale">
-                  <option value="vi">Tiếng Việt</option>
-                  <option value="en">English</option>
+                >Tạo cuộc trò chuyện<select name="kind">
+                  <option value="direct">Chat riêng</option>
+                  <option value="group">Chat nhóm</option>
                 </select></label
               >
               <label
-                >Lời nhắn trong email (tùy chọn)<textarea name="note" maxlength="500" rows="2"></textarea>
-              </label>
-              <small>Người nhận mới sẽ nhận một email gồm lời nhắn này và địa chỉ của bạn.</small>
-            </fieldset>
-            <button>Tạo</button>
-          </form>
-          <details id="blocked">
-            <summary>Người đã chặn</summary>
-            <ul id="blocked-list"></ul>
-          </details>
-        </aside>
-        <section id="saved" hidden>
-          <h2>Skill và việc đã nhận</h2>
-          <div id="saved-list"></div>
-        </section>
-        <section id="room">
-          <h2 id="title">Chọn cuộc trò chuyện</h2>
-          <div id="actions"></div>
-          <div id="conversation" hidden>
-            <details>
-              <summary>Thành viên</summary>
-              <ul id="members"></ul>
-            </details>
-            <form id="invite" hidden>
-              <label>Email người muốn mời<input name="email" type="email" required /></label>
+                ><span id="target-label">Email người nhận</span><input name="target" type="email" required
+              /></label>
               <fieldset>
                 <legend>Email mời người chưa đăng ký</legend>
                 <label
@@ -106,18 +76,63 @@
                 </label>
                 <small>Người nhận mới sẽ nhận một email gồm lời nhắn này và địa chỉ của bạn.</small>
               </fieldset>
-              <button>Mời vào nhóm</button>
+              <button>Tạo</button>
             </form>
-            <form id="send-file" hidden>
-              <label>Chia sẻ tệp (tối đa 1 MiB)<input type="file" name="file" required /></label
-              ><button>Gửi tệp</button>
-            </form>
-            <button id="older" hidden>Xem tin cũ hơn</button>
-            <ol id="posts"></ol>
-            <small
-              >Tin nhắn được lưu trong 30 ngày. Bản sao skill và việc đã nhận được giữ riêng đến khi bạn
-              xóa.</small
-            >
+          </details>
+          <details id="blocked">
+            <summary>Người đã chặn</summary>
+            <ul id="blocked-list"></ul>
+          </details>
+        </aside>
+        <section id="saved" hidden>
+          <button class="list-back" type="button">← Cuộc trò chuyện</button>
+          <h2>Skill và việc đã nhận</h2>
+          <div id="saved-list"></div>
+        </section>
+        <section id="room">
+          <button class="list-back" type="button">← Cuộc trò chuyện</button>
+          <h2 id="title">Chọn cuộc trò chuyện</h2>
+          <div id="actions"></div>
+          <div id="conversation" hidden>
+            <details id="room-options">
+              <summary>Thông tin cuộc trò chuyện</summary>
+              <h3>Thành viên</h3>
+              <ul id="members"></ul>
+              <div id="manage"></div>
+              <small class="retention"
+                >Tin nhắn được lưu trong 30 ngày. Bản sao skill và việc đã nhận được giữ riêng đến khi bạn
+                xóa.</small
+              >
+              <form id="invite" hidden>
+                <label>Email người muốn mời<input name="email" type="email" required /></label>
+                <fieldset>
+                  <legend>Email mời người chưa đăng ký</legend>
+                  <label
+                    >Ngôn ngữ người nhận<select name="locale">
+                      <option value="vi">Tiếng Việt</option>
+                      <option value="en">English</option>
+                    </select></label
+                  >
+                  <label
+                    >Lời nhắn trong email (tùy chọn)<textarea name="note" maxlength="500" rows="2"></textarea>
+                  </label>
+                  <small>Người nhận mới sẽ nhận một email gồm lời nhắn này và địa chỉ của bạn.</small>
+                </fieldset>
+                <button>Mời vào nhóm</button>
+              </form>
+            </details>
+            <div id="history">
+              <button id="older" hidden>Xem tin cũ hơn</button>
+              <ol id="posts"></ol>
+            </div>
+
+            <details id="attach">
+              <summary>Đính kèm tệp</summary>
+              <form id="send-file" hidden>
+                <label>Chia sẻ tệp (tối đa 1 MiB)<input type="file" name="file" required /></label
+                ><button>Gửi tệp</button>
+              </form>
+            </details>
             <form id="compose">
               <label
                 >Nội dung gửi<select name="kind">
@@ -126,8 +141,15 @@
                   <option value="task">Bàn giao công việc</option>
                 </select></label
               >
-              <label id="draft-label" for="draft">Tin nhắn</label
-              ><textarea id="draft" name="body" rows="4" maxlength="8000" required></textarea
+              <label class="sr" id="draft-label" for="draft">Tin nhắn</label
+              ><textarea
+                id="draft"
+                name="body"
+                rows="2"
+                placeholder="Nhập tin nhắn…"
+                maxlength="8000"
+                required
+              ></textarea
               ><button id="submit-post">Gửi</button>
             </form>
             <dialog id="preview">

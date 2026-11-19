@@ -159,6 +159,9 @@ function invokeWithPlainError(channel, ...args) {
 
 const bridge = {
   platform: process.platform,
+  ...(isLocalPage && process.argv.includes("--startupbot-personal-inbox") ? {
+    openPersonalInbox: () => ipcRenderer.invoke("personal-inbox:open"),
+  } : {}),
   /** Linux without a GPU (electron/linux-gpu.mjs): the page drops its backdrop blurs. */
   softwareRendering: process.argv.includes("--omb-software-rendering=1"),
   /** This app's version, and whether this page is this app's own (served by this computer, not a server from the Server menu). */

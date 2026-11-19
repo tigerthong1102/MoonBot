@@ -51,6 +51,13 @@ const OAUTH = new Set(["cline", "cline-pass", "openai-codex"]);
 
 const LOGIN_NOTE = "Cline is not configured. Run cline auth in a terminal, then try again.";
 
+function configuredClineModel(model: string | undefined, env: Record<string, string | undefined>) {
+  if (model && model !== "cline-default") {
+    throw new Error("Select Cline default (configured). Change Cline's provider or model with cline auth in a terminal.");
+  }
+  return env.CLINE_MODEL?.trim();
+}
+
 const SUPPORT: AcpSupport = {
   driverKind: "clineAgent",
   displayName: "Cline",
@@ -89,18 +96,15 @@ const SUPPORT: AcpSupport = {
       (saved.auth?.accessToken?.trim() || saved.apiKey?.trim() || saved.auth?.apiKey?.trim()));
   },
   requireAuthenticationBeforeSpawn: true,
-  resolveTurnModel(model, env) {
-    if (model && model !== "cline-default") {
-      throw new Error("Select Cline default (configured). Change Cline's provider or model with cline auth in a terminal.");
-    }
-    return env.CLINE_MODEL?.trim();
-  },
+  backgroundModel: configuredClineModel,
+  resolveTurnModel: configuredClineModel,
   async configureSession({ request, sessionId, env, currentModelId }) {
     // session/new falls back when a saved custom model is missing from Cline's built-in catalog.
     const model = env.CLINE_MODEL?.trim();
     if (model && model !== currentModelId) {
       await request("session/set_model", { sessionId, modelId: model });
     }
+    return model || null;
   },
 };
 

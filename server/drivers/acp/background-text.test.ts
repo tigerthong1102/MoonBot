@@ -12,6 +12,7 @@ import { BACKGROUND_TEXT_TIMEOUT_MS } from "./background-text.ts";
 import { createAcpDriver, type AcpConfig, type AcpSupport } from "./core.ts";
 import { CursorAgentDriver } from "./cursor.ts";
 import { GeminiAgentDriver } from "./gemini.ts";
+import { HermesAgentDriver, HERMES_CONFIG_MODEL_ID } from "./hermes.ts";
 import { GrokAgentDriver } from "./grok.ts";
 import { QwenAgentDriver } from "./qwen.ts";
 
@@ -87,6 +88,15 @@ describe("ACP memory one-shot (generateMemoryText)", () => {
     const calls = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) as {method: string; params: {modelId: string}}[] : [];
     expect(calls.filter(call => call.method === "session/set_model").map(call => call.params.modelId))
       .toEqual(alreadySelected ? [] : ["default[]"]);
+  });
+
+  it("leaves the agent-selected Hermes default in place", async () => {
+    process.env.FAKE_ACP_MODE = "set-model-invalid-params";
+    process.env.FAKE_ACP_TEXT_REPLY = "null";
+    process.env.FAKE_ACP_DUMP = join(scratch, "hermes-default");
+    const engine = await create(HermesAgentDriver);
+    expect(await engine.generateMemoryText!("Synthetic request", { model: HERMES_CONFIG_MODEL_ID })).toBe("null");
+    expect(existsSync(process.env.FAKE_ACP_DUMP + ".config.json")).toBe(false);
   });
 
   it("runs in the interactive mode even on an instance set to full auto", async () => {

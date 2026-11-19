@@ -341,6 +341,7 @@ export const deepseekSupport: AcpSupport = {
   authFailure: "continue",
   isAuthenticated: (env) => hasDeepSeekKey(env),
 
+  backgroundModel: deepseekWireValue,
   resolveTurnModel: (model) => (model ? deepseekWireValue(model) : model),
   fallbackModel: (sessionConfig, catalogDefault) => {
     const { values, current } = offeredWireValues(sessionConfig, "model");

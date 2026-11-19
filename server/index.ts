@@ -9244,7 +9244,7 @@ function offerWorkBot(botId: string, threadId: string, text: string, owner: stri
     const current = store.projectBotForTask(botId, threadId)?.modelSelection;
     return botMainThread(botId) === threadId && current?.instanceId === selection.instanceId && current.model === selection.model &&
       registry.get(selection.instanceId) === instance && instance.enabled && (!hostedModels || hostedModels.allows(selection)) &&
-      !usageCapGate.refusal(botId, true) ? sideJobs.text("work-bot-offer", botId, { instance, model: selection.model }) : null;
+      !usageCapGate.refusal(botId, true) ? sideJobs.text("work-bot-offer", botId, { instance, model: selection.model, threadId }) : null;
   });
 }
 

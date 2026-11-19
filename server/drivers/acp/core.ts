@@ -241,11 +241,13 @@ export interface AcpSupport extends AcpDriverHooks {
   /** Compose the session/prompt text. Default prepends the persona. */
   buildPromptText?(turn: SendTurnInput): string;
   /** Rewrite a picker id (`omlx::model`) into the CLI-native id before spawn and session/select. */
+  /** Read-only lookup when a one-shot starts before the conversation has a live session. */
+  backgroundModel?(picker: string, env: Record<string, string | undefined>): string | undefined;
   resolveTurnModel?(model: string | undefined, env: Record<string, string | undefined>, catalog: ModelCatalog): string | undefined;
   /** Map a saved selection onto the live session's catalog (a retired model id), once session/new or load answers. */
   normalizeSessionSelection?(turn: SendTurnInput, offeredModels: readonly string[]): SendTurnInput;
   /** Per-session settings between session/new (or load) and the first prompt. Some CLIs ignore argv
-   * and take the model/mode over the wire (droid). May return the confirmed native ID for an exact picker alias. */
+   * and take the model/mode over the wire (droid). Returns a confirmed native ID for an exact alias, or null for an explicitly selected agent default. */
   configureSession?(ctx: {
     request: (method: string, params: unknown, timeoutMs?: number) => Promise<any>;
     sessionId: string;
@@ -261,7 +263,7 @@ export interface AcpSupport extends AcpDriverHooks {
     configOptions: Array<{ id?: unknown; currentValue?: unknown }>;
     /** Tell the person the session runs another model than the one picked. */
     notice: (message: string) => void;
-  }): Promise<void | string>;
+  }): Promise<void | string | null>;
 }
 
 const envOr = (key: string, fallback: number): number => Number(process.env[key] ?? fallback);
@@ -1031,9 +1033,12 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
         let launchedThisTurn = false;
         // The folder and the tool selection ride session/new, so threads differing only there can share a process (in the bot box, only one bot's); never two audiences of a Team Cloud, whose engine homes differ.
         const hostKey = support.shareProcess && inheritedScopeFingerprint === null ? JSON.stringify([...processContract, launchModel ?? null, engineHomes.scope(), sharedBoxScope(cwd)]) : null;
+        const picker = turn.model || catalog.models.default;
+        const backgroundRoute = { picker, wire: support.resolveTurnModel ? resolvedModel : picker };
         const launchSession = () => {
           const opened = openSession(threadId, launch, [...(launch.args ?? []), ...spawnArgs], launchEnv, cwd, contractKey, hostKey);
           opened.launchModel = launchModel;
+          opened.backgroundRoute = backgroundRoute;
           launchedThisTurn = true;
           return opened;
         };
@@ -1050,6 +1055,7 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
           if (pooled.idleTimer) clearTimeout(pooled.idleTimer);
           pooled.idleTimer = null;
           session = pooled;
+          session.backgroundRoute = backgroundRoute;
         } else {
           if (pooled) {
             if (pooled.dead) sessions.delete(threadId);
@@ -1549,13 +1555,22 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
         if (startupModelRefresh) await startupModelRefresh;
         const turnConfig: AcpConfig = { ...config, fullAuto: false };
         const env = childEnv(turnConfig);
-        if (support.requireAuthenticationBeforeSpawn && !(await support.isAuthenticated(env, turnConfig, instanceId, instanceEnvNames(input.environment, env)))) {
+        const picker = options.model;
+        const session = options.sourceThreadId && sessions.get(options.sourceThreadId);
+        const route = session && !session.dead && !session.closing ? session.backgroundRoute : undefined;
+        let model = picker;
+        if (picker && options.sourceThreadId && support.resolveTurnModel) {
+          if (route?.picker === picker) model = route.wire;
+          else if (support.backgroundModel) model = support.backgroundModel(picker, env);
+          else if (decodeInjectId(picker)) throw new Error("The selected local model route is not ready");
+        }
+        if (support.requireAuthenticationBeforeSpawn && !skipSubscriptionAuthForLocalInject(picker) && !(await support.isAuthenticated(env, turnConfig, instanceId, instanceEnvNames(input.environment, env)))) {
           throw new Error(support.loginNote);
         }
         const cwd = mkdtempSync(join(await support.oneShotFolder?.() ?? tmpdir(), "omb-acp-memory-"));
         try {
-          const turn = { threadId: `memory-text-${newId()}`, text: prompt, model: options.model, approvalMode: "ask", cwd } as SendTurnInput;
-          support.applyTurnEnv?.(env, { fullAuto: false, cwd, threadId: turn.threadId, mcpServers: [] });
+          const turn = { threadId: `memory-text-${newId()}`, text: prompt, model, approvalMode: "ask", cwd } as SendTurnInput;
+          support.applyTurnEnv?.(env, { model, requestedModel: picker, fullAuto: false, cwd, threadId: turn.threadId, mcpServers: [] });
           const launch: { command: string; args?: string[]; env?: Record<string, string | undefined>; ro?: readonly string[] } = support.resolveCommand ? await support.resolveCommand(env, turnConfig, instanceId) : { command: turnConfig.cli };
           const spawnEnv = launch.env ?? env;
           return await runAcpOneShot({
@@ -1584,7 +1599,7 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
                 notice: () => undefined,
               }),
             } : {}),
-            options,
+            options: { ...options, model },
           });
         } finally {
           // On Windows the engine can hold the folder a moment after exit.

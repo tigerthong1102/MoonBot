@@ -27,7 +27,7 @@ export interface AcpOneShotInput {
   authRequired: boolean | "if-requested";
   loginNote: string;
   clientCapabilitiesMeta?: Record<string, unknown>;
-  configure?: (ctx: { request: (method: string, params: unknown, timeoutMs?: number) => Promise<any>; sessionId: string; session: any }) => Promise<void | string>;
+  configure?: (ctx: { request: (method: string, params: unknown, timeoutMs?: number) => Promise<any>; sessionId: string; session: any }) => Promise<void | string | null>;
   options?: TextGenerationOptions;
   timeoutMs?: number;
 }
@@ -190,7 +190,7 @@ export function runAcpOneShot(input: AcpOneShotInput): Promise<string> {
         model = await controls.select(request, session.sessionId, input.timeoutMs ?? BACKGROUND_TEXT_TIMEOUT_MS) ?? model;
       } else if (nativeSelection) {
         model = nativeSelection;
-      } else if (selected && model !== selected) {
+      } else if (nativeSelection !== null && selected && model !== selected) {
         await request("session/set_model", { sessionId, modelId: selected });
         model = selected;
       }

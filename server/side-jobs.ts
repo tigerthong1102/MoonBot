@@ -75,7 +75,7 @@ export interface SideJobsDeps {
 
 export interface SideJobs {
   /** Null when nobody can write it and the job keeps its fallback. `at.instance`: the conversation's engine, for the summary. */
-  text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string }): SideJobText | null;
+  text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null;
 }
 
 type TextCall = (prompt: string, options?: TextGenerationOptions) => Promise<string>;
@@ -197,7 +197,7 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     }, { signal: options.signal, interactive: SEEN_SOON.has(job), onWait: waiting }) }
     : found;
 
-  function find(job: SideJob, botId: string, at: { instance?: SideJobInstance; model?: string }): SideJobText | null {
+  function find(job: SideJob, botId: string, at: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null {
     const bot = deps.bot(botId);
     const own = at.instance ?? (bot ? deps.instance(bot.modelSelection.instanceId) : null);
     if (!bot || !own || deps.refusal(own)) return null;
@@ -208,7 +208,7 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
         const model = at.model ?? own.models.default;
         if (!own.enabled || (model && deps.modelAllowed && !deps.modelAllowed({ instanceId: own.instanceId, model }))) return null;
         return { via: "engine", generateText: booked(job, bot, own, call, { kind: "bot", botId }, () => ({
-          model, fallback: { ...ownFallback(bot, own), model },
+          model, sourceThreadId: at.threadId, fallback: { ...ownFallback(bot, own), model },
         })) };
       }
       if (job === "compaction") return { via: "engine", generateText: call };

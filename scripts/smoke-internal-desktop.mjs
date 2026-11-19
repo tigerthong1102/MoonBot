@@ -156,10 +156,6 @@ try {
   const helperText = await evaluate("document.body.innerText");
   assert.match(helperText, /StartupBot/);
   assert.doesNotMatch(helperText, /\b(?:OpenMausBot|MausBot)\b/);
-  const remoteOnly = await evaluate("window.ogb.companion.start([])");
-  assert.equal(remoteOnly.enabled, true, remoteOnly.error);
-  assert.deepEqual(remoteOnly.directRoutes, { wifi: false, tailscale: false });
-  await evaluate("window.ogb.companion.stop()");
   const helperScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-helper.png"), Buffer.from(helperScreenshot.data, "base64"));
   const created = await request("/api/bots", { name: "Internal package agent", cwd: home });
@@ -244,6 +240,10 @@ try {
   assert(existsSync(path.join(data, "bots.json")), "The fixture must persist StartupBot's data");
   assert(existsSync(path.join(profile, "last-run-version.json")), "The explicit Electron profile must be used");
   assert.equal(existsSync(path.join(profile, "credentials.bin")), false, "First launch must not provision phone credentials before pairing");
+  const remoteOnly = await evaluate("window.ogb.companion.start([])");
+  assert.equal(remoteOnly.enabled, true, remoteOnly.error);
+  assert.deepEqual(remoteOnly.directRoutes, { wifi: false, tailscale: false });
+  await evaluate("window.ogb.companion.stop()");
   if (mac) {
     const id = execFileSync("/usr/bin/plutil", ["-extract", "CFBundleIdentifier", "raw", path.join(app, "Contents", "Info.plist")], { encoding: "utf8" }).trim();
     assert.equal(id, "ai.startupbot.desktop");
@@ -252,7 +252,7 @@ try {
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
-    clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
+    clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
   await cdp("Browser.close").catch(() => {});
 } catch (error) {

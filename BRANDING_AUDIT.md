@@ -12,7 +12,7 @@ Baseline: f8743c457537becc691bb982801b34be212815aa. This inventory does not esta
 | Agent avatars and mascot rendering | NEEDS RIGHTS / REPLACEMENT AUDIT | CursorAvatar, CarvedAvatar, mascot body assets and old icon source files remain. Do not infer trademark clearance from the core source license. Preserve agent customization and motion when replacing restricted artwork. |
 | Documentation and marketing | INCOMPLETE | README and upstream documentation retain additional product/service references and historical screenshots. Distinguish attribution and references from StartupBot claims; do not invent download, sponsorship or Cloud availability. |
 | Notices and source attribution | RETAIN | LICENSE, NOTICE, LICENSING.md and third-party notices must remain. Their upstream names are attribution, not StartupBot product branding. |
-| Logo provenance | OWNER-SUPPLIED, RIGHTS NOT INDEPENDENTLY VERIFIED | branding/startupbot-original.png is the supplied reference. Confirm ownership and any required third-party permission before commercial distribution. |
+| Logo provenance | OWNER ATTESTATION, 2026-11-19 | The project owner confirmed they created the robot image using ChatGPT and authorize its use in StartupBot installers and derived icons. The source is `branding/startupbot-original.png`, SHA-256 `50cbd625f00cebbd62a565be45897b1ef0f365a2b12472d298e42faf840bc310`. |
 | Enterprise history | RELEASE BLOCKER | The current tree excludes Enterprise; historical access remains a separate distribution issue. No history rewrite was performed. |
 
 Branding is not 100% complete. A green code CI or ready-for-review PR does not remove these release gates. No public release, production website deployment or signing/notarization was performed.

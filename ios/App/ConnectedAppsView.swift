@@ -173,7 +173,7 @@ struct ConnectedAppsView: View {
     private func authorize(_ card: ConnectorCard, alias: String?) async {
         guard let url = await session.authorizeConnector(card.slug, alias: alias) else { return }
         guard await UIApplication.shared.open(url) else {
-            session.actionError = "The authorization page could not be opened. Try again after checking your browser restrictions."
+            session.actionError = AppLanguage.message("The authorization page could not be opened. Try again after checking your browser restrictions.")
             return
         }
     }

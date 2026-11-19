@@ -447,7 +447,7 @@ struct ConnectionSecurityView: View {
                 .autocorrectionDisabled()
             Button("Save") {
                 if !session.updateAddress(addressText) {
-                    session.actionError = "That address doesn't look right. Copy it from Phone settings and try again."
+                    session.actionError = AppLanguage.message("That address doesn't look right. Copy it from Phone settings and try again.")
                 }
             }
             Button("Cancel", role: .cancel) {}

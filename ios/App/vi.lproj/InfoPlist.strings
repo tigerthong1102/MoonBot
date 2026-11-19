@@ -1,0 +1,4 @@
+"NSLocalNetworkUsageDescription" = "StartupBot tìm máy tính của bạn trong mạng này để kết nối với các bot.";
+"NSCameraUsageDescription" = "StartupBot chỉ dùng camera để quét mã QR ghép nối hiển thị trên máy tính của bạn.";
+"NSMicrophoneUsageDescription" = "StartupBot dùng micrô khi bạn đọc tin nhắn cho bot.";
+"NSSpeechRecognitionUsageDescription" = "StartupBot chuyển lời nói thành văn bản để bạn gửi cho bot. Việc nhận dạng diễn ra trên điện thoại khi thiết bị hỗ trợ.";

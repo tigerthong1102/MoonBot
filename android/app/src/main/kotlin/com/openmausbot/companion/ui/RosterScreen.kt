@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -219,11 +220,11 @@ fun RosterScreen(navigator: CompanionNavigator) {
                     if (query.isEmpty()) !RosterLayout.listsAnyBot(summaries) else rows.isEmpty()
                 if (nothingToList && hits.isEmpty()) {
                     EmptyState(
-                        title = if (query.isEmpty()) "No bots yet" else "Nothing matches",
+                        title = if (query.isEmpty()) stringResource(R.string.ui_no_bots_yet) else stringResource(R.string.ui_nothing_matches),
                         description = if (query.isEmpty()) {
-                            "Bots you create on your computer show up here."
+                            stringResource(R.string.ui_bots_you_create_on_your_computer_show_up_here)
                         } else {
-                            "No thread matches “$query”."
+                            stringResource(R.string.ui_no_thread_matches, query)
                         },
                     )
                 }
@@ -235,7 +236,7 @@ fun RosterScreen(navigator: CompanionNavigator) {
                     if (RosterLayout.showsGroups(query)) {
                         if (attention.isNotEmpty()) {
                             item(key = "attention-label") {
-                                SectionLabel("Needs attention", Modifier.padding(top = 2.dp, bottom = 4.dp))
+                                SectionLabel(stringResource(R.string.ui_needs_attention), Modifier.padding(top = 2.dp, bottom = 4.dp))
                             }
                             items(attention, key = { "attention-${it.id}" }) { entry ->
                                 AttentionRow(entry = entry, onOpen = {
@@ -255,7 +256,7 @@ fun RosterScreen(navigator: CompanionNavigator) {
                         val pinned = state.pinnedBots.mapNotNull { summariesById[it.id] }
                         if (pinned.isNotEmpty()) {
                             item(key = "pinned-label") {
-                                SectionLabel("Pinned", Modifier.padding(top = 2.dp, bottom = 4.dp))
+                                SectionLabel(stringResource(R.string.ui_pinned), Modifier.padding(top = 2.dp, bottom = 4.dp))
                             }
                             itemsIndexed(pinned, key = { _, summary -> "pinned-${summary.id}" }) { index, summary ->
                                 entry(summary, index == pinned.lastIndex)
@@ -263,7 +264,7 @@ fun RosterScreen(navigator: CompanionNavigator) {
                         }
                         item(key = "channels") {
                             GroupsStrip(
-                                title = "Groups",
+                                title = stringResource(R.string.ui_groups),
                                 rooms = state.unsectionedChannels,
                                 members = tiles,
                                 onOpen = { navigator.open(Chat.RoomChat(it)) },
@@ -276,7 +277,7 @@ fun RosterScreen(navigator: CompanionNavigator) {
                         if (state.botChats.isNotEmpty()) {
                             item(key = "bot-chats") {
                                 GroupsStrip(
-                                    title = "Bot threads",
+                                    title = stringResource(R.string.ui_bot_threads),
                                     rooms = state.botChats,
                                     members = tiles,
                                     onOpen = { navigator.open(Chat.RoomChat(it)) },
@@ -287,7 +288,7 @@ fun RosterScreen(navigator: CompanionNavigator) {
                         val unsectioned = state.unsectionedBots.mapNotNull { summariesById[it.id] }
                         if (unsectioned.isNotEmpty()) {
                             item(key = "bots-label") {
-                                SectionLabel("Bots", Modifier.padding(top = 18.dp, bottom = 4.dp))
+                                SectionLabel(stringResource(R.string.ui_bots), Modifier.padding(top = 18.dp, bottom = 4.dp))
                             }
                             itemsIndexed(unsectioned, key = { _, summary -> "bot-${summary.id}" }) { index, summary ->
                                 entry(summary, index == unsectioned.lastIndex)
@@ -312,7 +313,7 @@ fun RosterScreen(navigator: CompanionNavigator) {
                             if (section.channels.isNotEmpty()) {
                                 item(key = "section-${section.id}-channels") {
                                     GroupsStrip(
-                                        title = "Groups",
+                                        title = stringResource(R.string.ui_groups),
                                         rooms = section.channels,
                                         members = tiles,
                                         onOpen = { navigator.open(Chat.RoomChat(it)) },
@@ -337,7 +338,7 @@ fun RosterScreen(navigator: CompanionNavigator) {
                                     .padding(top = 10.dp, bottom = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                SectionLabel("Messages")
+                                SectionLabel(stringResource(R.string.ui_messages))
                                 Spacer(Modifier.weight(1f))
                                 if (searching) {
                                     CircularProgressIndicator(
@@ -363,7 +364,7 @@ fun RosterScreen(navigator: CompanionNavigator) {
                             )
                         }
                         item(key = "chats-label") {
-                            SectionLabel("Threads", Modifier.padding(top = 14.dp, bottom = 4.dp))
+                            SectionLabel(stringResource(R.string.ui_threads), Modifier.padding(top = 14.dp, bottom = 4.dp))
                         }
                     }
 
@@ -470,7 +471,7 @@ private fun RosterHeader(name: String?, status: Session.Status, onSettings: () -
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TouchTarget(onClick = onSettings, size = 44.dp, contentDescription = "Settings") {
+        TouchTarget(onClick = onSettings, size = 44.dp, contentDescription = stringResource(R.string.ui_settings)) {
             Box(
                 modifier = Modifier
                     .size(44.dp)
@@ -486,7 +487,7 @@ private fun RosterHeader(name: String?, status: Session.Status, onSettings: () -
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text("Threads", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.ui_threads), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             Text(
                 text = RosterLayout.headerSubtitle(name, status),
                 fontSize = 13.sp,
@@ -498,7 +499,7 @@ private fun RosterHeader(name: String?, status: Session.Status, onSettings: () -
 
         ChromeButton(
             icon = Icons.Filled.Settings,
-            contentDescription = "Settings",
+            contentDescription = stringResource(R.string.ui_settings),
             onClick = onSettings,
         )
     }
@@ -595,7 +596,7 @@ private fun GroupTile(room: Room, members: List<Bot>, onClick: () -> Unit) {
 @Composable
 private fun NewGroupTile(onClick: () -> Unit) {
     val outline = secondaryTint.copy(alpha = 0.6f)
-    GroupTileFrame(label = "New group", labelColor = secondaryTint, onClick = onClick) {
+    GroupTileFrame(label = stringResource(R.string.ui_new_group), labelColor = secondaryTint, onClick = onClick) {
         Spacer(
             modifier = Modifier
                 .size(64.dp)
@@ -785,7 +786,7 @@ private fun ChatRow(
                                 modifier = Modifier.size(12.dp),
                             )
                             Text(
-                                text = "Waiting on you",
+                                text = stringResource(R.string.ui_waiting_on_you),
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White,
@@ -844,7 +845,7 @@ private fun RosterBottomBar(
                 )
                 Box(modifier = Modifier.weight(1f)) {
                     if (bar.query.isEmpty()) {
-                        Text("Search threads", fontSize = 17.sp, color = secondaryTint)
+                        Text(stringResource(R.string.ui_search_threads), fontSize = 17.sp, color = secondaryTint)
                     }
                     BasicTextField(
                         value = bar.query,
@@ -865,7 +866,7 @@ private fun RosterBottomBar(
                     TouchTarget(onClick = { onBar(bar.clearQuery()) }, size = 24.dp) {
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = "Clear search",
+                            contentDescription = stringResource(R.string.ui_clear_search),
                             tint = secondaryTint,
                             modifier = Modifier.size(20.dp),
                         )
@@ -882,7 +883,7 @@ private fun RosterBottomBar(
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("Cancel", fontSize = 17.sp)
+                Text(stringResource(R.string.ui_cancel), fontSize = 17.sp)
             }
         } else {
             UpdatesBar(
@@ -892,20 +893,20 @@ private fun RosterBottomBar(
             )
             ChromeButton(
                 icon = Icons.Filled.Search,
-                contentDescription = "Search",
+                contentDescription = stringResource(R.string.ui_search),
                 onClick = onOpenSearch,
                 size = MIN_TOUCH_TARGET,
             )
             ChromeButton(
                 icon = Icons.Filled.Add,
-                contentDescription = "Organize bots into a section",
+                contentDescription = stringResource(R.string.ui_organize_bots_into_a_section),
                 onClick = onCreateSection,
                 enabled = canCreateSection,
                 size = MIN_TOUCH_TARGET,
             )
             ChromeButton(
                 icon = Icons.Filled.Create,
-                contentDescription = "New bot",
+                contentDescription = stringResource(R.string.ui_new_bot),
                 onClick = onCreateBot,
                 enabled = canCreateBot,
                 size = MIN_TOUCH_TARGET,

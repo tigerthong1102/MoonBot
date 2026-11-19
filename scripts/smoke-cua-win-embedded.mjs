@@ -16,7 +16,12 @@ if (process.platform !== "win32") {
   process.exit(1);
 }
 
-const stage = join(import.meta.dirname, "..", "dist-native", "cua-win32-x64");
+const interactive = process.argv.includes("--qualify-interactive");
+if (interactive && process.env.OMB_CUA_ISOLATED_DESKTOP !== "1") {
+  throw new Error("Run interactive qualification only in a dedicated Windows desktop fixture with OMB_CUA_ISOLATED_DESKTOP=1");
+}
+
+const stage = join(import.meta.dirname, "..", "dist-native", `cua-win32-${process.arch}`);
 const binary = join(stage, "cua-driver.exe");
 const background = join(stage, "cua-driver-background.exe");
 const bundle = join(stage, "cua-sdk", "cua-sdk.mjs");
@@ -29,7 +34,7 @@ for (const [label, file] of [["cua-driver.exe", binary], ["background daemon", b
   }
 }
 
-if (!createBackgroundExecutable(readFileSync(binary)).equals(readFileSync(background))) {
+if (!createBackgroundExecutable(readFileSync(binary), process.arch).equals(readFileSync(background))) {
   throw new Error("background daemon does not match the CLI's executable sections and derived PE headers");
 }
 
@@ -76,9 +81,9 @@ if (typeof sdk.EmbeddedCuaDriverHost !== "function") {
   process.exit(1);
 }
 
-// No screen capture or input: initialize the retained CLI's MCP connection to
-// the GUI-subsystem daemon and enumerate its tool definitions, then stop both.
-async function checkProxy(socketPath) {
+// The default smoke only initializes the MCP connection and enumerates tools.
+async function checkProxy(conn) {
+  const { socketPath } = conn;
   const child = spawn(binary, ["mcp", "--embedded", "--socket", socketPath], {
     windowsHide: true, stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env, CUA_DRIVER_EMBEDDED: "1", CUA_DRIVER_HOST_BUNDLE_ID: "com.openmausbot.app" },
@@ -108,6 +113,7 @@ async function checkProxy(socketPath) {
     });
     send({ id, method, params });
   });
+  let callId = 2;
   try {
     const initialized = await request(1, "initialize", {
       protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "openmausbot-smoke", version: "1" },
@@ -117,6 +123,12 @@ async function checkProxy(socketPath) {
     const list = await request(2, "tools/list", {});
     if (!Array.isArray(list?.tools) || !list.tools.length) throw new Error("MCP proxy returned no tools");
     console.log(`CLI proxy connected to background daemon: ${list.tools.length} tools`);
+    if (interactive) {
+      const { checkWindowsContract, qualifyNavigation } = await import("./cua-win-qualification.mjs");
+      checkWindowsContract(conn, list.tools);
+      const invoke = (name, args) => request(++callId, "tools/call", { name, arguments: args });
+      console.log(JSON.stringify(await qualifyNavigation(invoke)));
+    }
   } finally {
     lines.close();
     child.stdin.end();
@@ -137,7 +149,7 @@ try {
   });
   if (!Number.isInteger(conn.pid) || conn.pid <= 0) throw new Error("missing daemon PID");
   await checkNoConsole(conn.pid);
-  await checkProxy(conn.socketPath);
+  await checkProxy(conn);
   await host.stop();
   host.uniffiDestroy?.();
   if (!Number.isInteger(conn.pid) || conn.pid <= 0) throw new Error("missing daemon PID");

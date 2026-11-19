@@ -1,5 +1,7 @@
 # StartupBot native modifications
 
+The Vietnamese interface includes localized onboarding, pairing, chat and accessibility labels. The app uses Android language resources for notifications and Compose screens.
+
 Product labels, install identity, owned artwork and internal build configuration
 are changed for StartupBot. Original LICENSE and NOTICE remain unmodified.
 Protocol health identity, Bonjour service and HPKE domain separation are retained.

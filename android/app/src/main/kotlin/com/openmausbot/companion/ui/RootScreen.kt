@@ -26,8 +26,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.Connection
 import com.openmausbot.companion.core.NotificationAuthorizationState
 import com.openmausbot.companion.core.NotificationOnboardingPolicy
@@ -289,7 +291,7 @@ private fun ActionErrorDialog(session: Session) {
     val text = message ?: return
     AlertDialog(
         onDismissRequest = { session.actionError = null },
-        title = { Text("Something went wrong") },
+        title = { Text(stringResource(R.string.ui_something_went_wrong)) },
         text = { Text(text) },
         confirmButton = {
             TextButton(onClick = { session.actionError = null }) { Text("OK") }
@@ -305,12 +307,12 @@ private fun ActionErrorDialog(session: Session) {
 @Composable
 private fun UnpairedScreen(onPairAgain: () -> Unit, onChooseAnother: (() -> Unit)? = null) {
     EmptyState(
-        title = "This phone was unpaired",
-        description = "It was removed from the computer's Phone settings, or the pairing was reset.",
+        title = stringResource(R.string.ui_this_phone_was_unpaired),
+        description = stringResource(R.string.ui_it_was_removed_from_the_computer_s_phone_settings_or_the_pairing),
     ) {
-        Button(onClick = onPairAgain) { Text("Pair again") }
+        Button(onClick = onPairAgain) { Text(stringResource(R.string.ui_pair_again)) }
         onChooseAnother?.let { choose ->
-            TextButton(onClick = choose) { Text("Use another computer") }
+            TextButton(onClick = choose) { Text(stringResource(R.string.ui_use_another_computer)) }
         }
     }
 }

@@ -24,6 +24,7 @@ public enum CompanionNotificationAuthorizationState: Equatable, Sendable {
 
 
 public enum CompanionOnboardingPreferences {
+    public static let welcomeSeenKey = "companion.onboarding.welcomeSeen"
     public static let pendingNotificationOnboardingKey =
         "companion.onboarding.notificationPending"
 }

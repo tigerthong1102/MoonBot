@@ -27,16 +27,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 
 
 @Composable
@@ -47,7 +49,8 @@ fun CommandSkillHud(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val visible = remember(commands, draft) { SlashCommands.matching(commands, draft) }
+    val resources = LocalResources.current
+    val visible = SlashCommands.matching(commands, draft, resources::getString)
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -63,13 +66,13 @@ fun CommandSkillHud(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "SLASH COMMANDS",
+                text = stringResource(R.string.ui_slash_commands),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = secondaryTint,
                 modifier = Modifier.weight(1f),
             )
-            TouchTarget(onClick = onClose, contentDescription = "Close slash commands") {
+            TouchTarget(onClick = onClose, contentDescription = stringResource(R.string.ui_close_slash_commands)) {
                 Icon(
                     imageVector = Icons.Filled.Close,
                     contentDescription = null,
@@ -122,7 +125,7 @@ private fun CommandCard(command: SlashCommand, onSelect: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = command.description,
+                text = stringResource(command.description),
                 fontSize = 11.sp,
                 color = secondaryTint,
                 maxLines = 2,

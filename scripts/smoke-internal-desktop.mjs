@@ -146,9 +146,10 @@ try {
   await until(() => evaluate("Boolean(document.querySelector('[data-welcome=meet]'))"), "the first-run welcome");
   assert.doesNotMatch(await evaluate("document.body.innerText"), /\b(?:OpenMausBot|MausBot)\b/);
   await until(() => evaluate(`(() => { const next = document.querySelector('[data-welcome=meet] [data-primary]:not([data-sign-in]):not([disabled])'); if (!next) return false; next.click(); return true; })()`), "the connected fixture's Next action");
-  await until(() => evaluate("Boolean(document.querySelector('[data-chief-create]:not([disabled])'))"), "the StartupBot helper introduction");
-  await new Promise(resolve => setTimeout(resolve, 400));
-  await evaluate("document.querySelector('[data-chief-create]').click()");
+  await until(() => evaluate(`(() => {
+    const button = document.querySelector('[data-chief-create]:not([disabled])');
+    return button?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })) === true;
+  })()`), "the StartupBot helper introduction to accept Create");
   await until(() => evaluate("!document.querySelector('[data-welcome], [data-chief-intro]') && Boolean(document.querySelector('[data-startupbot-avatar]'))"), "the StartupBot chat and branded helper avatar");
   const helperText = await evaluate("document.body.innerText");
   assert.match(helperText, /StartupBot/);

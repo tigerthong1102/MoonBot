@@ -2,13 +2,13 @@
 package com.openmausbot.companion.ui
 
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -24,12 +24,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.QuickReply
 import com.openmausbot.companion.storage.ChatPreferences
 
@@ -45,7 +47,7 @@ fun QuickRepliesEditor(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Quick replies") },
+        title = { Text(stringResource(R.string.ui_quick_replies)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -53,9 +55,9 @@ fun QuickRepliesEditor(
             ) {
                 Text(
                     if (replies.isEmpty()) {
-                        "The chip row is hidden while this list is empty."
+                        stringResource(R.string.ui_the_chip_row_is_hidden_while_this_list_is_empty)
                     } else {
-                        "Edit, reorder, or remove the prompts shown above an empty composer."
+                        stringResource(R.string.ui_edit_reorder_or_remove_the_prompts_shown_above_an_empty_composer)
                     },
                     fontSize = 13.sp,
                     color = secondaryTint,
@@ -73,20 +75,20 @@ fun QuickRepliesEditor(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            TextButton(onClick = { editing = reply }) { Text("Edit") }
+                            TextButton(onClick = { editing = reply }) { Text(stringResource(R.string.ui_edit)) }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             TextButton(
                                 enabled = index > 0,
                                 onClick = { preferences.setQuickReplies(replies.move(index, index - 1)) },
-                            ) { Text("Move up") }
+                            ) { Text(stringResource(R.string.ui_move_up)) }
                             TextButton(
                                 enabled = index < replies.lastIndex,
                                 onClick = { preferences.setQuickReplies(replies.move(index, index + 1)) },
-                            ) { Text("Move down") }
+                            ) { Text(stringResource(R.string.ui_move_down)) }
                             TextButton(
                                 onClick = { preferences.setQuickReplies(replies.filterNot { it.id == reply.id }) },
-                            ) { Text("Remove") }
+                            ) { Text(stringResource(R.string.ui_remove_165)) }
                         }
                         HorizontalDivider()
                     }
@@ -95,14 +97,14 @@ fun QuickRepliesEditor(
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { adding = true }) { Text("Add") }
+                TextButton(onClick = { adding = true }) { Text(stringResource(R.string.ui_add)) }
                 TextButton(
                     onClick = { confirmReset = true },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
-                ) { Text("Reset") }
-                TextButton(onClick = onDismiss) { Text("Done") }
+                ) { Text(stringResource(R.string.ui_reset)) }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.ui_done)) }
             }
         },
         dismissButton = {},
@@ -131,8 +133,8 @@ fun QuickRepliesEditor(
     if (confirmReset) {
         AlertDialog(
             onDismissRequest = { confirmReset = false },
-            title = { Text("Reset quick replies?") },
-            text = { Text("This restores the four chips the app came with and discards your own.") },
+            title = { Text(stringResource(R.string.ui_reset_quick_replies)) },
+            text = { Text(stringResource(R.string.ui_this_restores_the_four_chips_the_app_came_with_and_discards_your)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -142,9 +144,9 @@ fun QuickRepliesEditor(
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
-                ) { Text("Reset") }
+                ) { Text(stringResource(R.string.ui_reset)) }
             },
-            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text(stringResource(R.string.ui_cancel)) } },
         )
     }
 }
@@ -164,25 +166,25 @@ private fun QuickReplyForm(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial.title.isBlank()) "New quick reply" else "Edit quick reply") },
+        title = { Text(if (initial.title.isBlank()) stringResource(R.string.ui_new_quick_reply) else stringResource(R.string.ui_edit_quick_reply)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Label") },
+                    label = { Text(stringResource(R.string.ui_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = { prompt = it },
-                    label = { Text("Prompt") },
+                    label = { Text(stringResource(R.string.ui_prompt)) },
                     minLines = 2,
                     maxLines = 5,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text("Icon", fontSize = 13.sp, color = secondaryTint)
+                Text(stringResource(R.string.ui_icon), fontSize = 13.sp, color = secondaryTint)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -207,9 +209,9 @@ private fun QuickReplyForm(
             TextButton(
                 enabled = cleanTitle.isNotEmpty() && cleanPrompt.isNotEmpty(),
                 onClick = { onSave(initial.copy(title = cleanTitle, prompt = cleanPrompt, icon = icon)) },
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.ui_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.ui_cancel)) } },
     )
 }
 

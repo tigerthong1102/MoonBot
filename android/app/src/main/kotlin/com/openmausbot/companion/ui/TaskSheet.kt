@@ -35,24 +35,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.Bot
 import com.openmausbot.companion.core.BotTask
-import com.openmausbot.companion.core.Chat
-import com.openmausbot.companion.core.Session
-import kotlinx.coroutines.launch
-import com.openmausbot.companion.core.ChatTarget
-import com.openmausbot.companion.core.target
-import com.openmausbot.companion.core.forTask
 import com.openmausbot.companion.core.BotThreadGroup
-import com.openmausbot.companion.core.isSnoozed
-import com.openmausbot.companion.core.threadGroups
+import com.openmausbot.companion.core.Chat
+import com.openmausbot.companion.core.ChatTarget
+import com.openmausbot.companion.core.Session
+import com.openmausbot.companion.core.forTask
 import com.openmausbot.companion.core.isArchived
+import com.openmausbot.companion.core.isSnoozed
+import com.openmausbot.companion.core.target
+import com.openmausbot.companion.core.threadGroups
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -153,14 +155,14 @@ fun TaskSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "${current.name}'s threads",
+                        text = stringResource(R.string.ui_s_threads, current.name),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f),
                     )
                     Icon(
                         imageVector = Icons.Filled.Add,
-                        contentDescription = "New thread",
+                        contentDescription = stringResource(R.string.ui_new_thread),
                         tint = if (TaskRules.canCreate(current)) {
                             MaterialTheme.colorScheme.onSurface
                         } else {
@@ -255,7 +257,7 @@ fun TaskSheet(
                     if (archived.isNotEmpty()) {
                         item(key = "archived") {
                             Text(
-                                "Archived",
+                                stringResource(R.string.ui_archived),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = secondaryTint,
@@ -301,7 +303,7 @@ fun TaskSheet(
                         .padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(onClick = onDismiss, enabled = !saving) { Text("Done") }
+                    TextButton(onClick = onDismiss, enabled = !saving) { Text(stringResource(R.string.ui_done)) }
                 }
             }
         }
@@ -310,7 +312,7 @@ fun TaskSheet(
     renaming?.let { task ->
         TaskTitleDialog(
             heading = "Rename thread",
-            label = "Title",
+            label = stringResource(R.string.ui_title),
             title = title,
             onTitleChange = { title = it },
             confirmText = "Save",
@@ -332,8 +334,8 @@ fun TaskSheet(
     pendingDelete?.let { task ->
         AlertDialog(
             onDismissRequest = { if (!saving) pendingDelete = null },
-            title = { Text("Delete ${TaskRules.title(task)}?") },
-            text = { Text(error ?: "This conversation will be deleted. Generated files are kept.") },
+            title = { Text(stringResource(R.string.ui_delete, TaskRules.title(task))) },
+            text = { Text(error ?: stringResource(R.string.ui_this_conversation_will_be_deleted_generated_files_are_kept)) },
             confirmButton = {
                 TextButton(enabled = !saving && TaskRules.canDelete(task, current), onClick = {
                     if (!TaskRules.canDelete(task, current)) return@TextButton
@@ -350,9 +352,9 @@ fun TaskSheet(
                             }
                         }
                     }
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.ui_delete_9), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(enabled = !saving, onClick = { pendingDelete = null; error = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(enabled = !saving, onClick = { pendingDelete = null; error = null }) { Text(stringResource(R.string.ui_cancel)) } },
         )
     }
 
@@ -361,14 +363,14 @@ fun TaskSheet(
         val working = TaskRules.isWorking(task)
         AlertDialog(
             onDismissRequest = { if (!saving) pendingSnooze = null },
-            title = { Text("Snooze ${TaskRules.title(task)}") },
+            title = { Text(stringResource(R.string.ui_snooze, TaskRules.title(task))) },
             text = {
                 Column {
                     error?.let {
                         Text(it, color = MaterialTheme.colorScheme.error)
                     }
                     if (working) {
-                        Text("Stop this thread before snoozing it.", color = secondaryTint)
+                        Text(stringResource(R.string.ui_stop_this_thread_before_snoozing_it), color = secondaryTint)
                     } else {
                         SnoozeRules.presets.forEach { preset ->
                             TextButton(
@@ -413,7 +415,7 @@ fun TaskSheet(
             confirmButton = {},
             dismissButton = {
                 TextButton(enabled = !saving, onClick = { pendingSnooze = null; error = null }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.ui_cancel))
                 }
             },
         )
@@ -480,7 +482,7 @@ private fun TaskRow(
 
         Icon(
             imageVector = Icons.Filled.Edit,
-            contentDescription = "Rename ${TaskRules.title(task)}",
+            contentDescription = stringResource(R.string.ui_rename, TaskRules.title(task)),
             tint = secondaryTint,
             modifier = Modifier
                 .size(48.dp)
@@ -491,7 +493,7 @@ private fun TaskRow(
         if (onSnooze != null) {
             Icon(
                 imageVector = Icons.Filled.Notifications,
-                contentDescription = "Snooze ${TaskRules.title(task)}",
+                contentDescription = stringResource(R.string.ui_snooze, TaskRules.title(task)),
                 tint = if (enabled && !TaskRules.isWorking(task)) secondaryTint
                 else secondaryTint.copy(alpha = 0.4f),
                 modifier = Modifier
@@ -503,7 +505,7 @@ private fun TaskRow(
 
         Icon(
             imageVector = Icons.Filled.Delete,
-            contentDescription = "Delete ${TaskRules.title(task)}",
+            contentDescription = stringResource(R.string.ui_delete_14, TaskRules.title(task)),
             tint = if (canDelete) MaterialTheme.colorScheme.error else secondaryTint.copy(alpha = 0.4f),
             modifier = Modifier
                 .size(48.dp)
@@ -582,6 +584,6 @@ private fun TaskTitleDialog(
         confirmButton = {
             TextButton(onClick = onConfirm, enabled = confirmEnabled) { Text(confirmText) }
         },
-        dismissButton = { TextButton(onClick = onCancel) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.ui_cancel)) } },
     )
 }

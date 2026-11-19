@@ -8,6 +8,7 @@ import type { Readable, Writable } from "node:stream";
 
 import { credentialStoreFlags } from "../browser/egress/gate.ts";
 import { removeTempDir } from "./cleanup.ts";
+import { hostTimeout } from "./host-timeout.ts";
 
 /** OMB_TEST_CHROME, CHROME_BIN, then where Google Chrome or Chromium installs on this platform. */
 export function findChrome(env: NodeJS.ProcessEnv = process.env): string | null {
@@ -104,7 +105,7 @@ export async function launchPipeChrome(binary: string, args: string[]): Promise<
       return {
         navigate: (url) => send("Page.navigate", { url }, sessionId),
         evaluate,
-        async loaded(url, timeoutMs = 20_000) {
+        async loaded(url, timeoutMs = hostTimeout(20_000)) {
           const deadline = Date.now() + timeoutMs;
           while (Date.now() < deadline) {
             const ready = await evaluate<boolean>(`location.href === ${JSON.stringify(url)} && document.readyState === "complete"`).catch(() => false);

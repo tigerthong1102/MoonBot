@@ -1,0 +1,50 @@
+name: StartupBot Vietnamese
+on:
+  pull_request:
+    paths:
+      - 'src/locales/**'
+      - 'ios/**'
+      - 'android/**'
+      - 'scripts/vietnamese-locales.test.mjs'
+      - '.github/workflows/startupbot-vietnamese.yml'
+permissions:
+  contents: read
+jobs:
+  catalogs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run scripts/vietnamese-locales.test.mjs
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Build the preview and test Vietnamese onboarding
+        run: |
+          export JAVA_HOME="$JAVA_HOME_17_X64"
+          ./gradlew :app:assemblePreview :app:testDebugUnitTest --tests '*OnboardingRoutingTest'
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Generate the app and test it on an iPhone simulator
+        working-directory: ios
+        run: |
+          command -v xcodegen || brew install xcodegen
+          xcodegen generate
+          read -r device runtime <<< "$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["deviceTypeIdentifier"]+" "+k for k,ds in sorted(json.load(sys.stdin)["devices"].items(),reverse=True) if ".iOS-" in k for d in ds if d["name"].startswith("iPhone")))')"
+          simulator=$(xcrun simctl create StartupBot-Vietnamese "$device" "$runtime")
+          xcrun simctl boot "$simulator"
+          xcodebuild test -project StartupBot.xcodeproj -scheme StartupBot \
+            -destination "platform=iOS Simulator,id=$simulator" -parallel-testing-enabled NO \
+            -only-testing:StartupBotUITests/VietnameseOnboardingTests -only-testing:StartupBotAppTests/VietnameseMessageTests CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=

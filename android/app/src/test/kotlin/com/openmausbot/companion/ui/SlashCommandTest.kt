@@ -12,7 +12,18 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [34], qualifiers = "en")
 class SlashCommandsTest {
+    private val resources get() = org.robolectric.RuntimeEnvironment.getApplication().resources
+
+    @Test
+    @org.robolectric.annotation.Config(qualifiers = "vi")
+    fun `search uses the visible Vietnamese command descriptions`() {
+        assertEquals(listOf("/computer"), SlashCommands.matching(SlashCommands.ALL, "/màn hình", resources::getString).map { it.title })
+        assertEquals("Hãy thử lại lượt vừa rồi", resources.getString((effect("/retry") as SlashEffect.Send).prompt))
+    }
+
     @Test
     fun `the five commands, in the order the HUD lists them`() {
         assertEquals(
@@ -32,10 +43,10 @@ class SlashCommandsTest {
     }
 
     @Test
-    fun `the three prompts are the words the Swift sends, exactly`() {
-        assertEquals(SlashEffect.Send("Show git diff and list modified files"), effect("/diff"))
-        assertEquals(SlashEffect.Send("Please retry the last turn"), effect("/retry"))
-        assertEquals(SlashEffect.Send("Pause and explain your current plan"), effect("/steer"))
+    fun `the three prompts are sent in the selected language`() {
+        assertEquals("Show git diff and list modified files", resources.getString((effect("/diff") as SlashEffect.Send).prompt))
+        assertEquals("Please retry the last turn", resources.getString((effect("/retry") as SlashEffect.Send).prompt))
+        assertEquals("Pause and explain your current plan", resources.getString((effect("/steer") as SlashEffect.Send).prompt))
     }
 
     @Test
@@ -84,20 +95,20 @@ class SlashCommandsTest {
 
     @Test
     fun `a lone slash filters nothing`() {
-        assertEquals(SlashCommands.ALL, SlashCommands.matching(SlashCommands.ALL, "/"))
-        assertEquals(SlashCommands.ALL, SlashCommands.matching(SlashCommands.ALL, ""))
-        assertEquals(SlashCommands.ALL, SlashCommands.matching(SlashCommands.ALL, "hello"))
+        assertEquals(SlashCommands.ALL, SlashCommands.matching(SlashCommands.ALL, "/", resources::getString))
+        assertEquals(SlashCommands.ALL, SlashCommands.matching(SlashCommands.ALL, "", resources::getString))
+        assertEquals(SlashCommands.ALL, SlashCommands.matching(SlashCommands.ALL, "hello", resources::getString))
     }
 
     @Test
     fun `what follows the slash filters on the title`() {
         assertEquals(
             listOf("/computer"),
-            SlashCommands.matching(SlashCommands.ALL, "/comp").map { it.title },
+            SlashCommands.matching(SlashCommands.ALL, "/comp", resources::getString).map { it.title },
         )
         assertEquals(
             listOf("/retry"),
-            SlashCommands.matching(SlashCommands.ALL, "/RET").map { it.title },
+            SlashCommands.matching(SlashCommands.ALL, "/RET", resources::getString).map { it.title },
         )
     }
 
@@ -105,17 +116,17 @@ class SlashCommandsTest {
     fun `and on the description, so a command is findable by what it does`() {
         assertEquals(
             listOf("/diff"),
-            SlashCommands.matching(SlashCommands.ALL, "/git").map { it.title },
+            SlashCommands.matching(SlashCommands.ALL, "/git", resources::getString).map { it.title },
         )
         assertEquals(
             listOf("/computer"),
-            SlashCommands.matching(SlashCommands.ALL, "/desktop").map { it.title },
+            SlashCommands.matching(SlashCommands.ALL, "/desktop", resources::getString).map { it.title },
         )
     }
 
     @Test
     fun `a query nothing answers to shows nothing`() {
-        assertTrue(SlashCommands.matching(SlashCommands.ALL, "/zzz").isEmpty())
+        assertTrue(SlashCommands.matching(SlashCommands.ALL, "/zzz", resources::getString).isEmpty())
     }
 
     @Test

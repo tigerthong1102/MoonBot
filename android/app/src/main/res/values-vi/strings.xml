@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StartupBot</string>
+    <string name="notification_channel_blocking">Phê duyệt và câu hỏi</string>
+    <string name="notification_channel_blocking_desc">Những yêu cầu cần trả lời kịp thời</string>
+    <string name="notification_channel_done">Tin nhắn từ bot</string>
+    <string name="notification_channel_done_desc">Thông báo có âm thanh khi bot trả lời hoặc hoàn tất một lượt</string>
+    <string name="notification_channel_routine">Lỗi tác vụ định kỳ</string>
+    <string name="notification_channel_routine_desc">Khi một tác vụ theo lịch gặp lỗi</string>
+    <string name="notification_channel_always_on">Kết nối nền</string>
+    <string name="notification_channel_always_on_desc">Hiển thị khi StartupBot duy trì kết nối dưới nền</string>
+    <string name="always_on_notification_title">StartupBot đang duy trì kết nối</string>
+    <string name="always_on_notification_text">Bạn vẫn sẽ nhận được thông báo khi đóng ứng dụng</string>
+</resources>

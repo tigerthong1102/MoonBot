@@ -184,14 +184,14 @@ win:
       to: cloudflared/cloudflared.exe
     - from: dist-native/browser/win32-x64
       to: browser-engine
-    - from: dist-native/duckdb/win32-x64/node_modules
+    - from: dist-native/duckdb/win32-${arch}/node_modules
       to: duckdb/node_modules
     # CUA driver and SDK for Windows — must live outside ASAR for native modules
-    - from: dist-native/cua-win32-x64/cua-driver.exe
+    - from: dist-native/cua-win32-${arch}/cua-driver.exe
       to: cua-driver.exe
-    - from: dist-native/cua-win32-x64/cua-driver-background.exe
+    - from: dist-native/cua-win32-${arch}/cua-driver-background.exe
       to: cua-driver-background.exe
-    - from: dist-native/cua-win32-x64/cua-sdk
+    - from: dist-native/cua-win32-${arch}/cua-sdk
       to: cua-sdk
   # No signing config yet (would go under win.signtoolOptions or
   # win.azureSignOptions — eb 26 nests it, there is no top-level

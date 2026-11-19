@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
-import { browserBundlePaths, browserBundleSpec } from "../server/browser-bundle-release.ts";
+import { bundledBrowserTarget, browserBundlePaths, browserBundleSpec } from "../server/browser-bundle-release.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({ options: { "browser-bundle": { type: "string" } } });
@@ -19,7 +19,7 @@ if (browserBundle !== undefined) {
   assert(isAbsolute(browserBundle), "--browser-bundle must be an absolute staged browser target directory");
   const manifest = JSON.parse(readFileSync(join(browserBundle, "manifest.json"), "utf8"));
   browserSpec = browserBundleSpec(manifest.target);
-  assert.equal(manifest.target, `${process.platform}-${process.arch}`, "--browser-bundle must match this Node host's platform and architecture");
+  assert.equal(manifest.target, bundledBrowserTarget(process.platform, process.arch), "--browser-bundle must match this Node host's platform and architecture");
   assert.equal(manifest.schemaVersion, browserSpec.schemaVersion, "Unsupported browser bundle manifest");
   const paths = browserBundlePaths(browserBundle, manifest.target);
   for (const component of ["engine", "chrome"]) {

@@ -139,24 +139,24 @@ final class Discovery: ObservableObject {
                     if let endpoint = connection.currentPath?.remoteEndpoint {
                         finish(.success(endpoint))
                     } else {
-                        finish(.failure(APIError.transport("Couldn't work out that computer's address.")))
+                        finish(.failure(APIError.transport(AppLanguage.message("Couldn't work out that computer's address."))))
                     }
                 case let .failed(error):
                     finish(.failure(APIError.transport(error.localizedDescription)))
                 case .cancelled:
-                    finish(.failure(APIError.transport("Connection cancelled.")))
+                    finish(.failure(APIError.transport(AppLanguage.message("Connection cancelled."))))
                 default:
                     break
                 }
             }
             connection.start(queue: .main)
             DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
-                finish(.failure(APIError.transport("That computer didn't answer.")))
+                finish(.failure(APIError.transport(AppLanguage.message("That computer didn't answer."))))
             }
         }
 
         guard case let .hostPort(host, port) = resolved else {
-            throw APIError.transport("Couldn't work out that computer's address.")
+            throw APIError.transport(AppLanguage.message("Couldn't work out that computer's address."))
         }
         return Connection(name: service.name, host: Self.plainHost(host), port: Int(port.rawValue))
     }

@@ -115,7 +115,7 @@ struct BotThreadTree: View {
             if let created = await session.createTask(for: bot, title: nil) {
                 open(.bot(created))
             } else if session.actionError == nil {
-                session.actionError = "Couldn't create a thread. Check the connection and try again."
+                session.actionError = AppLanguage.message("Couldn't create a thread. Check the connection and try again.")
             }
         }
     }

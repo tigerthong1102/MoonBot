@@ -207,7 +207,7 @@ final class Session: ObservableObject {
             restorePending = true
             status = .offline(
                 (error as? KeychainError)?.isLocked == true
-                    ? "Unlock this device to reach your computer."
+                    ? AppLanguage.message("Unlock this device to reach your computer.")
                     : error.localizedDescription
             )
             return
@@ -342,7 +342,7 @@ final class Session: ObservableObject {
 
     func receivePairingURL(_ url: URL) {
         guard let invite = PairingInvite.parse(url) else {
-            actionError = "That pairing invitation is not valid. Start pairing again on your computer."
+            actionError = AppLanguage.message("That pairing invitation is not valid. Start pairing again on your computer.")
             return
         }
         pairingInvite = CompanionPairingInvitePolicy.nextInvite(
@@ -381,12 +381,12 @@ final class Session: ObservableObject {
             stored = try Keychain.token(for: id)
         } catch {
             actionError = (error as? KeychainError)?.isLocked == true
-                ? "Unlock this device, then try switching computers again."
+                ? AppLanguage.message("Unlock this device, then try switching computers again.")
                 : error.localizedDescription
             return
         }
         guard let stored else {
-            actionError = "This saved connection is no longer available on this device. Remove it and pair again."
+            actionError = AppLanguage.message("This saved connection is no longer available on this device. Remove it and pair again.")
             return
         }
 
@@ -643,7 +643,7 @@ final class Session: ObservableObject {
                     state.advance(to: frame.seq)
                 }
                 log.notice("stream ended without an error")
-                status = .offline("Lost the connection.")
+                status = .offline(AppLanguage.message("Lost the connection."))
             } catch let error as APIError where error.isUnauthorized {
                 log.error("stream refused: unauthorized")
                 status = .unauthorized
@@ -686,7 +686,7 @@ final class Session: ObservableObject {
             }
             return
         }
-        throw APIError.status(code: 409, message: "Conversations changed while loading. Please try opening this notification again.")
+        throw APIError.status(code: 409, message: AppLanguage.message("Conversations changed while loading. Please try opening this notification again."))
     }
 
     // Unauthorized credentials must not trigger an address failover.
@@ -814,7 +814,7 @@ final class Session: ObservableObject {
         to chat: Chat
     ) async -> Bool {
         guard let client else {
-            actionError = "This computer is offline."
+            actionError = AppLanguage.message("This computer is offline.")
             return false
         }
         let generation = runtimeGeneration
@@ -823,7 +823,7 @@ final class Session: ObservableObject {
             try AttachmentPolicy.validate(attachments)
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty || !attachments.isEmpty else {
-                actionError = "Write a message or attach a file first."
+                actionError = AppLanguage.message("Write a message or attach a file first.")
                 return false
             }
 
@@ -833,7 +833,7 @@ final class Session: ObservableObject {
                     capable = try await client.imageCapableInstanceIDs()
                 } catch APIError.status(code: 404, message: _) {
                     try requireCurrent(client, generation: generation)
-                    actionError = "Update StartupBot on this computer before sending images."
+                    actionError = AppLanguage.message("Update StartupBot on this computer before sending images.")
                     return false
                 }
                 try requireCurrent(client, generation: generation)
@@ -944,7 +944,7 @@ final class Session: ObservableObject {
         case let .bot(bot):
             return "\(bot.name)'s current model doesn't support images. Choose another model or remove the image."
         case .room:
-            return "Every bot that may answer in this channel must use a model that supports images."
+            return AppLanguage.message("Every bot that may answer in this channel must use a model that supports images.")
         }
     }
 
@@ -955,7 +955,7 @@ final class Session: ObservableObject {
         cacheResult: Bool = false
     ) async throws -> DownloadedFile {
         guard let client else {
-            throw APIError.transport("This computer is offline.")
+            throw APIError.transport(AppLanguage.message("This computer is offline."))
         }
         let cacheKey = "\(threadId)\u{1F}\(messageId)\u{1F}\(path)"
         if cacheResult,
@@ -1105,7 +1105,7 @@ final class Session: ObservableObject {
         await perform { client in
             if rememberingPermission || card.shouldRememberPermission(for: choice) {
                 guard card.isPermission, behavior == "allow", let key = card.allowKey, case let .bot(bot) = chat else {
-                    throw APIError.status(code: 409, message: "This request cannot create a standing permission.")
+                    throw APIError.status(code: 409, message: AppLanguage.message("This request cannot create a standing permission."))
                 }
                 try await client.alwaysAllow(botId: bot.id, key: key, threadId: chat.threadId)
                 try self.requireCurrent(client, generation: generation)
@@ -1130,7 +1130,7 @@ final class Session: ObservableObject {
         secret: SecretRequestCardData
     ) throws -> PreparedPhoneCredential {
         guard let client, let connection else {
-            throw APIError.transport("This computer is offline.")
+            throw APIError.transport(AppLanguage.message("This computer is offline."))
         }
         guard let publicKey = connection.secretPublicKey,
               let deviceId = connection.companionDeviceId,
@@ -1243,7 +1243,7 @@ final class Session: ObservableObject {
     func provideCredential(_ prepared: PreparedPhoneCredential) async throws {
         let requestGeneration = runtimeGeneration
         guard let client, let connection else {
-            throw APIError.transport("This computer is offline.")
+            throw APIError.transport(AppLanguage.message("This computer is offline."))
         }
         guard connection.id == prepared.connectionID,
               connection.companionDeviceId == prepared.envelope.deviceId,
@@ -1277,7 +1277,7 @@ final class Session: ObservableObject {
     ) async {
         await perform {
             if let originConnectionID, $0.connection.id != originConnectionID {
-                throw APIError.status(code: 409, message: "Select the computer that sent this request before answering it.")
+                throw APIError.status(code: 409, message: AppLanguage.message("Select the computer that sent this request before answering it."))
             }
             // Permission cards answer allow/deny; a question answers with
             // the chosen text. The harness tells them apart by `behavior`.
@@ -1377,7 +1377,7 @@ final class Session: ObservableObject {
 
     func cloudDesktop(for bot: Bot) async throws -> URL {
         let requestGeneration = runtimeGeneration
-        guard let client else { throw APIError.transport("This computer is offline.") }
+        guard let client else { throw APIError.transport(AppLanguage.message("This computer is offline.")) }
         do {
             return try currentResult(try await client.cloudDesktop(botId: bot.id), using: client, generation: requestGeneration).url
         } catch {
@@ -1761,11 +1761,11 @@ final class Session: ObservableObject {
 
     func openNotification(_ target: NotificationTarget) async {
         guard let origin = target.connectionID else {
-            actionError = String(localized: "This notification has no saved computer. Open the conversation from your computer list.")
+            actionError = AppLanguage.message("This notification has no saved computer. Open the conversation from your computer list.")
             return
         }
         guard origin == connection?.id else {
-            actionError = String(localized: "This notification is from another computer. Select that computer and open it again.")
+            actionError = AppLanguage.message("This notification is from another computer. Select that computer and open it again.")
             return
         }
         let requestGeneration = runtimeGeneration
@@ -1777,7 +1777,7 @@ final class Session: ObservableObject {
                 pendingNotification = target
                 connect()
             } else {
-                actionError = "Pair this device with your computer to open that task."
+                actionError = AppLanguage.message("Pair this device with your computer to open that task.")
             }
             return
         }
@@ -1794,16 +1794,16 @@ final class Session: ObservableObject {
             }) {
                 if room.threadId != target.threadId {
                     room = try currentResult(try await client.switchTask(groupId: room.id, threadId: target.threadId), using: client, generation: requestGeneration)
-                    guard room.threadId == target.threadId else { throw APIError.status(code: 409, message: "That task could not be opened. Try again.") }
+                    guard room.threadId == target.threadId else { throw APIError.status(code: 409, message: AppLanguage.message("That task could not be opened. Try again.")) }
                     state.apply(.room(room))
                 }
                 notificationChat = .room(room)
                 return
             }
-            guard var selected = bot else { throw APIError.status(code: 404, message: "That agent no longer exists.") }
+            guard var selected = bot else { throw APIError.status(code: 404, message: AppLanguage.message("That agent no longer exists.")) }
             if target.requiresTaskSwitch(activeThreadId: selected.threadId) {
                 selected = try currentResult(try await client.switchTask(botId: selected.id, threadId: target.threadId), using: client, generation: requestGeneration)
-                guard selected.threadId == target.threadId else { throw APIError.status(code: 409, message: "That task could not be opened. Try again.") }
+                guard selected.threadId == target.threadId else { throw APIError.status(code: 409, message: AppLanguage.message("That task could not be opened. Try again.")) }
                 state.apply(.bot(selected))
             }
             notificationChat = .bot(selected)
@@ -1816,7 +1816,7 @@ final class Session: ObservableObject {
     func openThread(_ ref: ThreadRef, shownBotId: String?) async -> String? {
         guard !Task.isCancelled else { return nil }
         guard let client else {
-            actionError = "Pair this device with your computer to open that thread."
+            actionError = AppLanguage.message("Pair this device with your computer to open that thread.")
             return nil
         }
         let generation = streamGeneration
@@ -1832,7 +1832,7 @@ final class Session: ObservableObject {
                 guard requestIsCurrent() else { return nil }
                 bot = state.bot(ref.botId)
             }
-            guard var selected = bot else { throw APIError.status(code: 404, message: "That agent no longer exists.") }
+            guard var selected = bot else { throw APIError.status(code: 404, message: AppLanguage.message("That agent no longer exists.")) }
             if selected.threadId != ref.threadId {
                 do {
                     selected = try await client.switchTask(botId: selected.id, threadId: ref.threadId)
@@ -1840,7 +1840,7 @@ final class Session: ObservableObject {
                     state.apply(.bot(selected))
                 } catch APIError.status(code: 404, message: _) {
                     guard requestIsCurrent() else { return nil }
-                    actionError = "That thread is no longer on your computer."
+                    actionError = AppLanguage.message("That thread is no longer on your computer.")
                     return nil
                 }
             }

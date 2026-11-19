@@ -17,6 +17,8 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [34], qualifiers = "en")
 class NsdDiscoveryTest {
     @Test
     fun startDiscoveryFailedReleasesLockClosesFlowAndIsIdempotent() = runTest {
@@ -27,6 +29,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { lock },
                 startBrowse = { listener -> captured = listener },
@@ -62,6 +65,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { lock },
                 startBrowse = { listener -> listeners += listener },
@@ -76,7 +80,7 @@ class NsdDiscoveryTest {
 
         listeners.last().onStartDiscoveryFailed(NsdDiscovery.SERVICE_TYPE, NsdManager.FAILURE_MAX_LIMIT)
         runCurrent()
-        assertEquals(DiscoveryRetry.RETRYING, assertIs<DiscoveryState.Active>(states.last()).failure)
+        assertEquals("Local discovery was interrupted. Retrying…", assertIs<DiscoveryState.Active>(states.last()).failure)
         assertFalse(collectJob.isCompleted)
 
         advanceTimeBy(349)
@@ -127,6 +131,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { lock },
                 startBrowse = { listener -> listeners += listener },
@@ -163,6 +168,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { lock },
                 startBrowse = { listener -> listeners += listener },
@@ -191,6 +197,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { lock },
                 startBrowse = { listener -> listeners += listener },
@@ -215,6 +222,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { lock },
                 startBrowse = { throw SecurityException("denied") },
@@ -242,6 +250,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { lock },
                 startBrowse = { listener -> captured = listener },
@@ -276,6 +285,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { lock },
                 startBrowse = { listener -> captured = listener },
@@ -304,6 +314,7 @@ class NsdDiscoveryTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { FakeMulticastLock(held = true) },
                 startBrowse = { listener -> captured = listener },
@@ -335,6 +346,7 @@ class NsdDiscoveryTest {
         var browseStarts = 0
 
         val flow = browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
             serviceType = NsdDiscovery.SERVICE_TYPE,
             acquireMulticastLock = acquireMulticastLock,
             startBrowse = { listener ->

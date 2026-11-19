@@ -286,7 +286,7 @@ StartupBot installers have not passed the release gates yet. No public StartupBo
 | Linux | Not released; package and restricted-host sandbox verification pending. |
 | iOS / Android | Not released; native builds and device validation pending. |
 
-See [release readiness](RELEASE_READINESS.md) for build evidence and blockers. Only link downloadable StartupBot artifacts after they exist and are approved.
+See the [StartupBot support guide](docs/startupbot/support.md) for installation and incident reports, and [release readiness](RELEASE_READINESS.md) for build evidence and blockers. Only link downloadable StartupBot artifacts after they exist and are approved.
 
 See the [Ubuntu Desktop guide](docs/linux-desktop.md) for installation, capabilities, and troubleshooting.
 Any desktop build can also open the bots of another Windows, macOS, or Ubuntu computer over Tailscale; see [open one computer's bots from another computer](docs/desktop-companion.md).

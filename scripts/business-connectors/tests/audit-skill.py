@@ -1,5 +1,6 @@
 """Exercise the packaged PowerShell entry point with disposable local sources."""
 import hashlib
+from html import unescape
 import json
 import os
 from pathlib import Path
@@ -103,7 +104,7 @@ class AuditSkill(unittest.TestCase):
         self.assertEqual(diffs["X"]["status"], "only_right")
         self.assertIsNone(diffs["X"]["leftAmount"])
         html = self.run_job("compare",html=True,compareFields=["label"])
-        self.assertIn("Chỉ có ở B", html)
+        self.assertIn("Chỉ có ở B", unescape(html))
         self.assertIn("-0.0100", html)
         swapped = self.run_job("compare",left=self.right,right=self.left)
         self.assertIn("only_left",[v["status"] for v in swapped["exceptions"]])

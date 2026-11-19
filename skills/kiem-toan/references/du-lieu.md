@@ -16,7 +16,7 @@ Bộ đọc dùng Windows Authentication và shared memory cục bộ đến nam
 
 ## Excel, XML và báo cáo
 
-Dùng `scripts/audit.ps1` trên Windows PowerShell 5.1 hoặc pwsh. Lệnh chỉ in mã trạng thái; dữ liệu chi tiết đi vào file chỉ định. Đọc báo cáo bằng phép chọn trường cục bộ trước khi trả chat. Không in toàn bộ file.
+Dùng `scripts/audit.ps1` trên Windows PowerShell 5.1 hoặc pwsh. Trên macOS dùng pwsh trong PATH; nếu đã cài bộ chạy riêng cho skill, dùng `~/.local/share/startupbot/audit-runtime/pwsh-7.7.0/pwsh`. Lệnh chỉ in mã trạng thái; dữ liệu chi tiết đi vào file chỉ định. Đọc báo cáo bằng phép chọn trường cục bộ trước khi trả chat. Không in toàn bộ file.
 
 ~~~powershell
 powershell.exe -NoProfile -NonInteractive -File "<skill-root>/scripts/audit.ps1" -JobFile "<job.json>" -OutFile "<bao-cao-moi.json>"

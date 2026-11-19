@@ -1,4 +1,6 @@
-import { inboxFile } from "./inbox-files";
+import { InboxSignals, notifyRoom } from "./inbox-signals";
+export { InboxSignals };
+import { inboxFile, inboxFilePart, maxFileBytes, maxBatchParts, partBytes } from "./inbox-files";
 import { allowPilotLogin, claimGuestInvites, suppressGuestMail } from "./inbox-guest";
 import { z } from "zod";
 import { createAuth, deleteExpiredVerifications } from "./auth";
@@ -7,6 +9,7 @@ import { limitedOTPResponse } from "./otp-rate-limit";
 import { inboxRetention, inboxRoutes } from "./personal-inbox";
 
 export type InboxEnv = Pick<Env, "DB" | "EMAIL" | "BETTER_AUTH_SECRET"> & {
+  SIGNALS?: DurableObjectNamespace<InboxSignals>;
   BETTER_AUTH_URL: string;
   EMAIL_FROM: string;
   INBOX_PILOT_EMAILS?: string;
@@ -33,7 +36,8 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   if (request.method !== "GET" && request.method !== "POST") return errorResponse(405, "method_not_allowed");
   if (request.method === "POST" && request.headers.get("origin") !== url.origin)
     return errorResponse(403, "forbidden");
-  const file = /^\/api\/rooms\/([a-f0-9-]{36})\/files\/([0-9a-f-]{1,36})$/.exec(url.pathname);
+  const file = /^\/api\/rooms\/([a-f0-9-]{36})\/files\/([0-9a-f-]{1,36})(?:\/(gzip|start|complete|[0-9]{1,2}))?$/.exec(url.pathname);
+  if (file?.[3] && request.method !== "POST") return errorResponse(405, "method_not_allowed");
   const req = file ? request : await withBoundedRequestBody(request);
   if (req.method === "POST" && url.pathname === "/api/stop-invitations")
     return suppressGuestMail(req, env.DB);
@@ -81,12 +85,32 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     headers: new Headers({ cookie: req.headers.get("cookie") ?? "" }),
   });
   if (!session?.user.emailVerified) return errorResponse(401, "unauthorized");
-  if (file) return inboxFile(req, env.DB, session.user.id, file[1], file[2], inboxRetention);
+  if (url.pathname === "/api/events") {
+    if (req.method !== "GET" || req.headers.get("origin") !== url.origin || req.headers.get("upgrade") !== "websocket")
+      return errorResponse(403, "forbidden");
+    if (!env.SIGNALS) return errorResponse(503, "unavailable");
+    return env.SIGNALS.getByName(session.user.id).fetch("https://internal/events", { headers: {
+      upgrade: "websocket", "x-session": session.session.id, "x-expires": String(session.session.expiresAt.getTime()),
+    } });
+  }
+  if (file) {
+    const action = file[3];
+    const result = action && action !== "gzip"
+      ? await inboxFilePart(req, env.DB, session.user.id, file[1], file[2], action)
+      : await inboxFile(req, env.DB, session.user.id, file[1], file[2], inboxRetention, Boolean(action));
+    if (env.SIGNALS && req.method === "POST" && result.ok && (!action || action === "gzip" || action === "complete"))
+      ctx.waitUntil(notifyRoom(env, file[1]).catch(() => console.error("inbox file notification failed")));
+    return result;
+  }
   if (req.method === "GET" && url.pathname === "/api/me") {
     await claimGuestInvites(env.DB, session.user.id, session.user.email.toLowerCase());
-    return json({ id: session.user.id, email: session.user.email });
+    return json({ id: session.user.id, email: session.user.email, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts });
   }
-  return inboxRoutes(req, env, session.user.id, ctx);
+  const result = await inboxRoutes(req, env, session.user.id, ctx);
+  const posted = /^\/api\/rooms\/([a-f0-9-]{36})\/posts$/.exec(url.pathname);
+  if (env.SIGNALS && result.ok && req.method === "POST" && posted)
+    ctx.waitUntil(notifyRoom(env, posted[1]).catch(() => console.error("inbox message notification failed")));
+  return result;
 }
 
 export default {
@@ -100,18 +124,24 @@ export default {
           ? errorResponse(error.status, error.code)
           : errorResponse(500, "internal_error");
     }
+    if (response.webSocket) return response;
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-store");
     headers.set("referrer-policy", "no-referrer");
     headers.set("x-content-type-options", "nosniff");
     headers.set(
       "content-security-policy",
-      "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+      new URL(request.url).pathname === "/file-compressor.js"
+        ? "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'"
+        : "default-src 'none'; style-src 'self'; img-src 'self' blob:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     );
+    if (new URL(request.url).pathname.startsWith("/brotli-3.0.1/") && response.ok)
+      headers.set("cache-control", "public, max-age=31536000, immutable");
     return new Response(response.body, { status: response.status, headers });
   },
   async scheduled(_event, env) {
     await env.DB.batch([
+      env.DB.prepare("DELETE FROM inbox_uploads WHERE ready=0 AND created<?").bind(Date.now() - 3600_000),
       env.DB.prepare("DELETE FROM inbox_posts WHERE created<?").bind(Date.now() - inboxRetention),
       env.DB.prepare("DELETE FROM inbox_guest_invites WHERE created<?").bind(Date.now() - 7 * 86400_000),
     ]);

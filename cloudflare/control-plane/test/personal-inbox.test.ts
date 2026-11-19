@@ -1,3 +1,4 @@
+import { brotliCompressSync, gzipSync } from "node:zlib";
 import { env } from "cloudflare:workers";
 import {
   type D1Migration,
@@ -101,22 +102,34 @@ it("delivers private group invitations, enforces join history and revocation, an
   const text = { kind: "text", nonce: uuid(), body: "private before joining" };
   await call(room + "/posts", a.cookie, text);
   expect((await call(room + "/posts", b.cookie, text)).status).toBe(404);
+  const memberRooms = async () => (await call("rooms", b.cookie)).json();
+  expect(await memberRooms()).toMatchObject({ rooms: [{ id, snippet: null }] });
+  const openRoom = "rooms?open=" + id;
+  expect(await (await call(openRoom, b.cookie)).json()).toMatchObject({ detail: null });
   await call(room + "/accept", b.cookie, {});
+  expect(await memberRooms()).toMatchObject({ rooms: [{ id, snippet: null }] });
+  expect(await (await call(openRoom, b.cookie)).json()).toMatchObject({ detail: { posts: [] } });
   await call(room + "/accept", c.cookie, {});
   const payload = { kind: "task", nonce: uuid(), body: "Đối chiếu tháng 10" };
   const codes = await Promise.all(
     [1, 2].map(async () => (await call(room + "/posts", a.cookie, payload)).status),
   );
   expect(codes).toEqual([200, 200]);
+  expect(await memberRooms()).toMatchObject({ rooms: [{ id, snippet: payload.body }] });
   const view = await (
     await call(room, b.cookie)
   ).json<{ members: unknown[]; posts: { seq: number; body: string }[] }>();
   expect(view.members).toHaveLength(3);
   expect(view.posts.map((p) => p.body)).toEqual([payload.body]);
   const seq = view.posts[0]!.seq;
+  expect(await (await call(openRoom + "&latest=0", b.cookie)).json()).toMatchObject({ detail: view });
+  const idle = await (await call(openRoom + "&latest=" + seq, b.cookie)).json();
+  expect(idle).toMatchObject({ unchanged: true });
+  expect(idle).not.toHaveProperty("detail");
   expect((await call("saved", b.cookie, { action: "save", seq: seq - 1 })).status).toBe(404);
   expect((await call("saved", b.cookie, { action: "save", seq })).status).toBe(200);
   await call(room + "/remove", a.cookie, { person: b.id });
+  expect(await (await call(openRoom + "&latest=" + seq, b.cookie)).json()).toMatchObject({ rooms: [], detail: null });
   expect((await call(room, b.cookie)).status).toBe(404);
   expect((await call(room + "/posts", b.cookie, payload)).status).toBe(404);
   expect((await call(room + "/close", c.cookie, {})).status).toBe(404);
@@ -243,10 +256,10 @@ it("stores one attachment on retry, enforces size and withdraws download access 
   await call("rooms", a.cookie, { kind: "group", id, title: "Files" });
   await call(room + "/invite", a.cookie, { email: b.email });
   const path = room + "/files/" + uuid();
-  async function upload(cookie: string, bytes: Uint8Array<ArrayBuffer>) {
+  async function upload(cookie: string, bytes: Uint8Array<ArrayBuffer>, uploadPath = path) {
     const ctx = createExecutionContext();
     const res = await worker.fetch(
-      new Request(origin + "/api/" + path, {
+      new Request(origin + "/api/" + uploadPath, {
         method: "POST",
         headers: { origin, cookie, "x-inbox-name": encodeURIComponent("Đối chiếu.xlsx") },
         body: bytes,
@@ -257,12 +270,13 @@ it("stores one attachment on retry, enforces size and withdraws download access 
     await waitOnExecutionContext(ctx);
     return res;
   }
-  const bytes = new Uint8Array(1048576);
+  const bytes = new Uint8Array(20_000_000);
+  for (let i = 0; i < bytes.length; i += 499979) bytes[i] = (i % 251) + 1;
   bytes[0] = 0xff;
   bytes[bytes.length - 1] = 0xfa;
   expect((await upload(b.cookie, bytes)).status).toBe(404);
   await call(room + "/accept", b.cookie, {});
-  expect((await upload(a.cookie, new Uint8Array(bytes.length + 1))).status).toBe(413);
+  expect((await upload(a.cookie, new Uint8Array(20_000_001))).status).toBe(413);
   expect((await upload(a.cookie, bytes)).status).toBe(201);
   expect((await upload(a.cookie, bytes)).status).toBe(200);
   const view = await (await call(room, b.cookie)).json<{ posts: { seq: number; kind: string }[] }>();
@@ -273,8 +287,101 @@ it("stores one attachment on retry, enforces size and withdraws download access 
   expect(got.headers.get("content-disposition")).toContain("attachment;");
   const content = new Uint8Array(await got.arrayBuffer());
   expect([content.byteLength, content[0], content.at(-1)]).toEqual([bytes.length, 255, 250]);
+  expect((await call(download + "?preview=1", b.cookie)).status).toBe(415);
+  const compressedPath = room + "/files/" + uuid();
+  const asBytes = (data: Uint8Array) => new Uint8Array(data);
+  const packed = asBytes(gzipSync(bytes));
+  expect((await upload(a.cookie, packed, compressedPath + "/gzip")).status).toBe(201);
+  expect((await upload(a.cookie, bytes, compressedPath)).status).toBe(200);
+  const packedPost = await env.INBOX_DB.prepare("SELECT max(post) AS seq FROM inbox_uploads").first<number>("seq");
+  const packedDownload = room + "/files/" + packedPost;
+  const packedRead = new Uint8Array(await (await call(packedDownload, b.cookie)).arrayBuffer());
+  expect(new Uint8Array(await crypto.subtle.digest("SHA-256", packedRead)))
+    .toEqual(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  expect((await upload(a.cookie, asBytes(gzipSync(new Uint8Array(20_000_001))), compressedPath + "/gzip")).status).toBe(413);
+  expect((await upload(a.cookie, new Uint8Array([1,2,3]), compressedPath + "/gzip")).status).toBe(400);
+  const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+  expect((await upload(a.cookie, png, room + "/files/" + uuid())).status).toBe(201);
+  const latest = await (await call(room, b.cookie)).json<{ posts: { seq: number; fileSize: number }[] }>();
+  const post = latest.posts.at(-1)!;
+  expect(post.fileSize).toBe(png.byteLength);
+  const preview = room + "/files/" + post.seq + "?preview=1";
+  const image = await call(preview, b.cookie);
+  expect(image.headers.get("content-type")).toBe("image/png");
+  expect(new Uint8Array(await image.arrayBuffer())).toEqual(png);
+  expect(new Uint8Array(await crypto.subtle.digest("SHA-256", content))).toEqual(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  await env.INBOX_DB.prepare(
+    "INSERT INTO inbox_files(room,author,nonce,name,digest,bytes,created) VALUES (?,?,?,?,?,?,?)",
+  ).bind(id, a.id, uuid(), "legacy.txt", "fixture", new Uint8Array([68,49]).buffer, Date.now()).run();
+  const legacy = await env.INBOX_DB.prepare("SELECT post FROM inbox_files WHERE room=?").bind(id).first<number>("post");
+  const oldFile = await call(room + "/files/" + legacy, b.cookie);
+  expect(new Uint8Array(await oldFile.arrayBuffer())).toEqual(new Uint8Array([68,49]));
+  for (let i = 0; i < 2; i++)
+    await env.INBOX_DB.prepare(
+      "INSERT INTO inbox_uploads(id,room,author,nonce,name,digest,size,created) VALUES(?,?,?,?,?,?,?,?)",
+    ).bind(uuid(), id, a.id, uuid(), "pending", "fixture", 20_000_000, Date.now()).run();
+  expect((await upload(a.cookie, png, room + "/files/" + uuid())).status).toBe(409);
+  expect((await upload(a.cookie, bytes)).status).toBe(200);
+  await env.INBOX_DB.prepare("INSERT INTO inbox_upload_allowance(person,reset_at) VALUES(?,?)").bind(a.id, Date.now()).run();
+  expect((await upload(a.cookie, png, room + "/files/" + uuid())).status).toBe(201);
   await call(room + "/remove", a.cookie, { person: b.id });
+  expect((await call(preview, b.cookie)).status).toBe(404);
   expect((await call(download, b.cookie)).status).toBe(404);
   await call(room + "/close", a.cookie, {});
-  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_files").first("n")).toBe(0);
+  for (const table of ["inbox_files", "inbox_uploads", "inbox_upload_parts"])
+    expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM " + table).first("n")).toBe(0);
+});
+
+it("resumes verified parallel file parts and publishes once after checking membership", async () => {
+  const a = await login("owner@example.test"), b = await login("member@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  const path = room + "/files/" + uuid();
+  await call("rooms", a.cookie, { kind: "group", id, title: "Parallel files" });
+  await call(room + "/invite", a.cookie, { email: b.email });
+  await call(room + "/accept", b.cookie, {});
+  const parts = [new Uint8Array(750000).fill(65), new Uint8Array([1,2,3])];
+  const hashes = await Promise.all(parts.map(async (part) =>
+    Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", part)), (n) => n.toString(16).padStart(2, "0")).join("")));
+  const manifest = { size: 750003, hashes };
+  const post = async (route: string, cookie: string, data: BodyInit, type: string, encoding = "identity", count = 1) => {
+    const ctx = createExecutionContext();
+    const res = await worker.fetch(new Request(origin + "/api/" + route, {
+      method: "POST", headers: { origin, cookie, "content-type": type, "x-inbox-name": "document.pdf", "x-inbox-encoding": encoding, "x-inbox-parts": String(count) },
+      body: data,
+    }), testEnv, ctx);
+    await waitOnExecutionContext(ctx);
+    return res;
+  };
+  const begin = (route = path) => post(route + "/start", b.cookie, JSON.stringify(manifest), "application/json");
+  expect((await begin()).status).toBe(200);
+  expect((await post(path + "/1", b.cookie, new Uint8Array([9,9,9]), "application/octet-stream")).status).toBe(400);
+  expect((await post(path + "/1", a.cookie, parts[1], "application/octet-stream")).status).toBe(404);
+  expect((await post(path + "/1", b.cookie, parts[1], "application/octet-stream")).status).toBe(200);
+  expect(await (await begin()).json()).toEqual({ published: false, received: [1] });
+  expect((await call(path + "/complete", b.cookie, {})).status).toBe(409);
+  expect((await post(path + "/0", b.cookie, new Uint8Array(gzipSync(parts[0])), "application/octet-stream", "gzip")).status).toBe(200);
+  await Promise.all([0,1].map(async () => expect((await call(path + "/complete", b.cookie, {})).status).toBe(200)));
+  const { posts } = await (await call(room, a.cookie)).json<{posts:{seq:number}[]}>();
+  expect(posts).toHaveLength(1);
+  const copy = new Uint8Array(await (await call(room + "/files/" + posts[0].seq, a.cookie)).arrayBuffer());
+  expect(copy.byteLength).toBe(750003);
+  expect(copy.slice(749999)).toEqual(new Uint8Array([65,1,2,3]));
+  const second = room + "/files/" + uuid();
+  await begin(second);
+  expect((await post(second + "/start", b.cookie, JSON.stringify({ size: 50_000_001, hashes: Array(67).fill(hashes[0]) }), "application/json")).status).toBe(400);
+  const joined = new Uint8Array(750003);
+  joined.set(parts[0]); joined.set(parts[1], 750000);
+  joined[750002] = 4;
+  expect((await post(second + "/0", b.cookie, new Uint8Array(gzipSync(joined)), "application/octet-stream", "gzip", 2)).status).toBe(400);
+  expect(await (await begin(second)).json()).toMatchObject({ received: [] });
+  joined[750002] = 3;
+  expect((await post(second + "/0", b.cookie, new Uint8Array(gzipSync(joined)), "application/octet-stream", "gzip", 2)).status).toBe(200);
+  expect(await (await begin(second)).json()).toMatchObject({ received: [0,1] });
+  const brPath = room + "/files/" + uuid();
+  await begin(brPath);
+  expect((await post(brPath + "/0", b.cookie, new Uint8Array(brotliCompressSync(joined)), "application/octet-stream", "br", 2)).status).toBe(200);
+  expect((await post(brPath + "/complete", b.cookie, "{}", "application/json")).status).toBe(200);
+  await call(room + "/remove", a.cookie, { person: b.id });
+  expect((await post(second + "/0", b.cookie, parts[0], "application/octet-stream")).status).toBe(404);
+  expect((await call(second + "/complete", b.cookie, {})).status).toBe(404);
 });

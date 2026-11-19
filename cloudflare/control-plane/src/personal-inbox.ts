@@ -68,6 +68,33 @@ function changed(result: D1Result) {
   return json({ ok: true });
 }
 
+async function roomDetail(db: D1Database, user: string, room: string, before: number, now: number) {
+  const [access, members, posts] = await db.batch<Row>([
+    db.prepare(memberAccess).bind(room, user),
+    db
+      .prepare(
+        `SELECT u.id,u.email FROM inbox_members m JOIN "user" u ON u.id=m.person
+      WHERE m.room=? AND m.state='active' AND EXISTS (${memberAccess}) ORDER BY u.email`,
+      )
+      .bind(room, room, user),
+    db
+      .prepare(
+        `SELECT p.seq,CASE WHEN f.post IS NULL AND upload.post IS NULL THEN p.kind ELSE 'file' END AS kind,coalesce(upload.size,length(f.bytes)) AS fileSize,p.body,p.created,u.email AS author FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
+      LEFT JOIN inbox_uploads upload ON upload.post=p.seq
+      JOIN inbox_members m ON m.room=p.room AND m.person=? AND m.state='active'
+      JOIN "user" u ON u.id=p.author WHERE p.room=? AND p.seq>m.after_seq AND p.seq<? AND p.created>=?
+      ORDER BY p.seq DESC LIMIT ?`,
+      )
+      .bind(user, room, before, now - inboxRetention, pageSize + 1),
+  ]);
+  if (!access.results.length) return null;
+  return {
+    members: members.results,
+    posts: posts.results.slice(0, pageSize).reverse(),
+    more: posts.results.length > pageSize,
+  };
+}
+
 export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx: ExecutionContext) {
   const db = env.DB;
   const url = new URL(req.url);
@@ -136,12 +163,23 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
       const rooms = await db
         .prepare(
           `SELECT r.id,r.kind,r.title,m.state,r.owner=? AS isOwner,
-        u.email AS inviter FROM inbox_members m JOIN inbox_rooms r ON r.id=m.room
-        JOIN "user" u ON u.id=r.owner WHERE m.person=? ORDER BY r.created DESC,r.id`,
+        last.seq AS lastSeq,substr(last.body,1,100) AS snippet,last.created AS lastAt,u.email AS inviter FROM inbox_members m JOIN inbox_rooms r ON r.id=m.room
+        JOIN "user" u ON u.id=r.owner
+        LEFT JOIN inbox_posts last ON last.seq=(SELECT p.seq FROM inbox_posts p
+          WHERE m.state='active' AND p.room=r.id AND p.seq>m.after_seq AND p.created>=?
+          ORDER BY p.seq DESC LIMIT 1)
+        WHERE m.person=? ORDER BY coalesce(last.created,r.created) DESC,r.id`,
         )
-        .bind(user, user)
+        .bind(user, Date.now() - inboxRetention, user)
         .all<Row>();
-      return json({ rooms: rooms.results });
+      const open = url.searchParams.get("open");
+      if (!open) return json({ rooms: rooms.results });
+      const selected = rooms.results.find((r) => r.id === open && r.state === "active");
+      if (!selected) return json({ rooms: rooms.results, detail: null });
+      if (url.searchParams.get("latest") === String(selected.lastSeq ?? 0))
+        return json({ rooms: rooms.results, unchanged: true });
+      const detail = await roomDetail(db, user, open, Number.MAX_SAFE_INTEGER, Date.now());
+      return json({ rooms: rooms.results, detail });
     }
     if (req.method !== "POST") throw new HTTPError(405, "method_not_allowed");
     const input = await body(req, create);
@@ -191,29 +229,9 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
       .max(Number.MAX_SAFE_INTEGER)
       .safeParse(url.searchParams.get("before") ?? Number.MAX_SAFE_INTEGER);
     if (!before.success) throw new HTTPError(400, "invalid_request");
-    const [access, members, posts] = await db.batch<Row>([
-      db.prepare(memberAccess).bind(room, user),
-      db
-        .prepare(
-          `SELECT u.id,u.email FROM inbox_members m JOIN "user" u ON u.id=m.person
-        WHERE m.room=? AND m.state='active' AND EXISTS (${memberAccess}) ORDER BY u.email`,
-        )
-        .bind(room, room, user),
-      db
-        .prepare(
-          `SELECT p.seq,CASE WHEN f.post IS NULL THEN p.kind ELSE 'file' END AS kind,p.body,p.created,u.email AS author FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
-        JOIN inbox_members m ON m.room=p.room AND m.person=? AND m.state='active'
-        JOIN "user" u ON u.id=p.author WHERE p.room=? AND p.seq>m.after_seq AND p.seq<? AND p.created>=?
-        ORDER BY p.seq DESC LIMIT ?`,
-        )
-        .bind(user, room, before.data, now - inboxRetention, pageSize + 1),
-    ]);
-    if (!access.results.length) throw new HTTPError(404, "unavailable");
-    return json({
-      members: members.results,
-      posts: posts.results.slice(0, pageSize).reverse(),
-      more: posts.results.length > pageSize,
-    });
+    const detail = await roomDetail(db, user, room, before.data, now);
+    if (!detail) throw new HTTPError(404, "unavailable");
+    return json(detail);
   }
   if (req.method !== "POST") throw new HTTPError(405, "method_not_allowed");
   if (action === "invite") {

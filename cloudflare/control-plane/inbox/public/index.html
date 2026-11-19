@@ -4,10 +4,23 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Tin nhắn · StartupBot</title>
-    <link rel="stylesheet" href="/inbox.css" />
-    <script type="module" src="/inbox.js"></script>
+    <link rel="stylesheet" href="/inbox.css?v=4" />
+    <script type="module" src="/inbox.js?v=10"></script>
   </head>
   <body>
+    <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+      <symbol id="i-clip" viewBox="0 0 24 24"><path d="m8 13 6.5-6.5a3 3 0 0 1 4.2 4.2l-8.2 8.2a5 5 0 0 1-7.1-7.1L13 2.5m-7 12 8.7-8.7"/></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24"><path d="m3 3 18 9-18 9 3-9-3-9Zm3 9h15"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6zM14 2v6h5M9 13h7M9 17h5"/></symbol>
+      <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></symbol>
+      <symbol id="i-group" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2m0-15a3 3 0 0 1 0 6m3 3a5 5 0 0 1 3 5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></symbol>
+      <symbol id="i-new" viewBox="0 0 24 24"><path d="M13 5H5v14h14v-8M11 13l1-4 7-7 3 3-7 7z"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m7 7 10 10m0-10L7 17"/></symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 11a8 8 0 0 1-8 8H8l-5 3 1-6a8 8 0 0 1-1-5 9 9 0 0 1 18 0Z"/><path d="M7 10h10M7 14h6"/></symbol>
+      <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v1"/></symbol>
+    </defs></svg>
     <header>
       <a id="desktop-back" href="/desktop/back" hidden>← Về StartupBot</a><strong>Tin nhắn</strong
       ><span id="account"></span><button id="logout" hidden>Đăng xuất</button>
@@ -49,10 +62,8 @@
       <div id="inbox" hidden>
         <aside>
           <h2>Cuộc trò chuyện</h2>
-          <div id="rooms"></div>
-          <button id="open-saved">Skill và việc đã nhận</button>
           <details id="new-room">
-            <summary>Cuộc trò chuyện mới</summary>
+            <summary title="Cuộc trò chuyện mới"><svg class="icon" aria-hidden="true"><use href="#i-new"></use></svg><span class="sr">Cuộc trò chuyện mới</span></summary>
             <form id="create-room">
               <label
                 >Tạo cuộc trò chuyện<select name="kind">
@@ -79,6 +90,9 @@
               <button>Tạo</button>
             </form>
           </details>
+          <label class="search"><svg class="icon" aria-hidden="true"><use href="#i-search"></use></svg><input type="search" id="filter" placeholder="Tìm cuộc trò chuyện" aria-label="Tìm cuộc trò chuyện" /></label>
+          <nav id="rooms" aria-label="Cuộc trò chuyện"></nav>
+          <button id="open-saved">Skill và việc đã nhận</button>
           <details id="blocked">
             <summary>Người đã chặn</summary>
             <ul id="blocked-list"></ul>
@@ -91,11 +105,15 @@
         </section>
         <section id="room">
           <button class="list-back" type="button">← Cuộc trò chuyện</button>
-          <h2 id="title">Chọn cuộc trò chuyện</h2>
+          <div id="empty-room"><svg class="icon" aria-hidden="true"><use href="#i-chat"></use></svg><h2>Chọn cuộc trò chuyện</h2></div>
+          <div class="room-heading" hidden>
+            <span id="room-avatar" class="avatar" aria-hidden="true"></span>
+            <div><h2 id="title"></h2><small id="room-meta"></small></div>
+          </div>
           <div id="actions"></div>
           <div id="conversation" hidden>
             <details id="room-options">
-              <summary>Thông tin cuộc trò chuyện</summary>
+              <summary title="Thông tin cuộc trò chuyện"><svg class="icon" aria-hidden="true"><use href="#i-info"></use></svg><span class="sr">Thông tin cuộc trò chuyện</span></summary>
               <h3>Thành viên</h3>
               <ul id="members"></ul>
               <div id="manage"></div>
@@ -126,31 +144,23 @@
               <ol id="posts"></ol>
             </div>
 
-            <details id="attach">
-              <summary>Đính kèm tệp</summary>
-              <form id="send-file" hidden>
-                <label>Chia sẻ tệp (tối đa 1 MiB)<input type="file" name="file" required /></label
-                ><button>Gửi tệp</button>
-              </form>
-            </details>
             <form id="compose">
-              <label
-                >Nội dung gửi<select name="kind">
-                  <option value="text">Tin nhắn</option>
-                  <option value="skill">Skill dạng văn bản</option>
-                  <option value="task">Bàn giao công việc</option>
-                </select></label
-              >
-              <label class="sr" id="draft-label" for="draft">Tin nhắn</label
-              ><textarea
-                id="draft"
-                name="body"
-                rows="2"
-                placeholder="Nhập tin nhắn…"
-                maxlength="8000"
-                required
-              ></textarea
-              ><button id="submit-post">Gửi</button>
+              <small id="sending" role="status" hidden></small>
+              <div id="attachments" aria-label="Tệp chờ gửi" hidden></div>
+              <div class="compose-row">
+                <button id="attach" type="button" class="round" aria-label="Đính kèm tệp" title="Đính kèm tệp"><svg class="icon" aria-hidden="true"><use href="#i-clip"></use></svg></button>
+                <input id="files" type="file" multiple hidden />
+                <label class="kind round" title="Chia sẻ skill hoặc công việc"><svg class="icon" aria-hidden="true"><use href="#i-more"></use></svg>
+                  <select name="kind" aria-label="Nội dung gửi">
+                    <option value="text">Tin nhắn</option>
+                    <option value="skill">Skill dạng văn bản</option>
+                    <option value="task">Bàn giao công việc</option>
+                  </select>
+                </label>
+                <label class="sr" id="draft-label" for="draft">Tin nhắn</label>
+                <textarea id="draft" name="body" rows="1" placeholder="Nhập tin nhắn…" maxlength="8000"></textarea>
+                <button id="submit-post" class="round" aria-label="Gửi" title="Gửi"><svg class="icon" aria-hidden="true"><use href="#i-send"></use></svg></button>
+              </div>
             </form>
             <dialog id="preview">
               <h2>Xem lại nội dung chia sẻ</h2>

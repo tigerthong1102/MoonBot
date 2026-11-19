@@ -96,7 +96,6 @@ const SUPPORT: AcpSupport = {
       (saved.auth?.accessToken?.trim() || saved.apiKey?.trim() || saved.auth?.apiKey?.trim()));
   },
   requireAuthenticationBeforeSpawn: true,
-  backgroundModel: configuredClineModel,
   resolveTurnModel: configuredClineModel,
   async configureSession({ request, sessionId, env, currentModelId }) {
     // session/new falls back when a saved custom model is missing from Cline's built-in catalog.

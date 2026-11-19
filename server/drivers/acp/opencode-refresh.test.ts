@@ -257,6 +257,18 @@ describe("OpenCode model typed by hand", () => {
     expect(String(JSON.parse(readFileSync(dump, "utf8")).env.OPENCODE_CONFIG_CONTENT ?? "")).not.toContain("chutes");
   });
 
+  it.each([false, true])("declares a typed model in the isolated classifier process (foreground ready: %s)", async (ready) => {
+    const { env, scratch } = home("opencode/big-pickle", "opencode/big-pickle");
+    const dump = join(scratch, "launch.json");
+    const { instance, run } = await start("opencode-typed-background", { ...env, FAKE_ACP_DUMP: dump, FAKE_ACP_TEXT_REPLY: "null" }, async () => listed);
+    if (ready) expect((await run("t-typed", typed)).done).toMatchObject({ ok: true });
+    expect(await instance.generateMemoryText!("Synthetic follow-up", { sourceThreadId: "t-typed", model: typed })).toBe("null");
+    expect(readFileSync(env.FAKE_ACP_MODELS_FILE!, "utf8")).toBe("opencode/big-pickle");
+    expect(JSON.parse(readFileSync(dump + ".config.json", "utf8"))).toContainEqual({
+      method: "session/set_config_option", params: { sessionId: expect.any(String), configId: "model", value: "venice/deepseek-v4-1-flash-uncensored" },
+    });
+  });
+
   it("runs on OpenCode instead of being swapped for the default", async () => {
     const { env } = home("opencode/big-pickle", "opencode/big-pickle");
     const { run } = await start("opencode-typed", env, async () => listed);

@@ -242,7 +242,7 @@ export interface AcpSupport extends AcpDriverHooks {
   buildPromptText?(turn: SendTurnInput): string;
   /** Rewrite a picker id (`omlx::model`) into the CLI-native id before spawn and session/select. */
   /** Read-only lookup when a one-shot starts before the conversation has a live session. */
-  backgroundModel?(picker: string, env: Record<string, string | undefined>): string | undefined;
+  readInjectedModel?(picker: string, env: Record<string, string | undefined>): string | undefined;
   resolveTurnModel?(model: string | undefined, env: Record<string, string | undefined>, catalog: ModelCatalog): string | undefined;
   /** Map a saved selection onto the live session's catalog (a retired model id), once session/new or load answers. */
   normalizeSessionSelection?(turn: SendTurnInput, offeredModels: readonly string[]): SendTurnInput;
@@ -1560,9 +1560,10 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
         const route = session && !session.dead && !session.closing ? session.backgroundRoute : undefined;
         let model = picker;
         if (picker && options.sourceThreadId && support.resolveTurnModel) {
-          if (route?.picker === picker) model = route.wire;
-          else if (support.backgroundModel) model = support.backgroundModel(picker, env);
-          else if (decodeInjectId(picker)) throw new Error("The selected local model route is not ready");
+          if (!decodeInjectId(picker)) model = support.resolveTurnModel(picker, env, catalog.models);
+          else if (route?.picker === picker) model = route.wire;
+          else if (support.readInjectedModel) model = support.readInjectedModel(picker, env);
+          else throw new Error("The selected local model route is not ready");
         }
         if (support.requireAuthenticationBeforeSpawn && !skipSubscriptionAuthForLocalInject(picker) && !(await support.isAuthenticated(env, turnConfig, instanceId, instanceEnvNames(input.environment, env)))) {
           throw new Error(support.loginNote);

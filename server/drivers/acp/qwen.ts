@@ -217,7 +217,7 @@ const support: AcpSupport = {
   models: EMPTY,
   resolveModels,
   resolveTurnModel: resolveQwenTurnModel,
-  backgroundModel: configuredQwenModel,
+  readInjectedModel: configuredQwenModel,
   defaultCli: "qwen",
   nativeSource: "qwen.acp",
   loginNote: "Qwen Code CLI is not installed",

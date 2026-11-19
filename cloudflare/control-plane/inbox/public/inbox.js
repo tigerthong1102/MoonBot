@@ -114,6 +114,7 @@ function clearRoom() {
   composeLabels();
   el("invite").reset();
   el("actions").replaceChildren();
+  delete el("actions").dataset.view;
   el("empty-room").hidden = false;
   document.querySelector(".room-heading").hidden = true;
   el("conversation").hidden = true;
@@ -313,7 +314,7 @@ async function refreshRoom(poll) {
   el("title").textContent = roomName(r);
   el("title").title = roomName(r);
   el("room-meta").textContent = r.state === "pending" ? t("personalInbox.invitation") : r.kind === "group" ? t("personalInbox.group") : t("personalInbox.direct");
-  el("actions").replaceChildren();
+  const actions = el("actions");
   const act = (text, route, message) =>
     button(text, async () => {
       await api("rooms/" + r.id + "/" + route, {});
@@ -322,7 +323,10 @@ async function refreshRoom(poll) {
     });
   if (r.state === "pending") {
     el("conversation").hidden = true;
-    el("actions").append(
+    const invitation = JSON.stringify([r.id, r.inviter, language]);
+    if (actions.dataset.view === invitation) return;
+    actions.dataset.view = invitation;
+    actions.replaceChildren(
       node("p", t("personalInbox.inviteFrom", { email: r.inviter })),
       act(t("personalInbox.join"), "accept", t("personalInbox.joined")),
       act(t("personalInbox.decline"), "leave", t("personalInbox.declined")),
@@ -388,13 +392,17 @@ async function refreshRoom(poll) {
   el("post-limited").hidden = !limited;
   if (limited) el("post-limited").textContent = r.muted ? t("personalInbox.readOnly") : t("personalInbox.adminPostOnly");
   if (r.kind === "group") el("room-meta").textContent = t("personalInbox.memberCount", { count: detail.members.length });
-  if (readingOlder)
-    el("actions").append(
+  const activeActions = readingOlder ? "history-" + language : "active";
+  if (actions.dataset.view !== activeActions) {
+    actions.dataset.view = activeActions;
+    actions.replaceChildren();
+    if (readingOlder) actions.append(
       button(t("personalInbox.latest"), async () => {
         readingOlder = false;
         await refresh();
       }),
     );
+  }
   if (!readingOlder) {
     const previous = posts.at(-1)?.seq;
     const history = el("history");
@@ -403,12 +411,13 @@ async function refreshRoom(poll) {
       posts[0]?.seq !== detail.posts[0]?.seq || posts.length !== detail.posts.length;
     posts = detail.posts;
     el("older").hidden = !detail.more;
-    if (changed || !posts.length) renderPosts();
+    if (changed || !posts.length || el("posts").lang !== language) renderPosts();
     if (changed && posts.length) lastActivity = Date.now();
     if (previous !== posts.at(-1)?.seq && (!previous || latestVisible || posts.at(-1)?.author === me.email)) {
       history.scrollTop = history.scrollHeight;
     }
   }
+  if (readingOlder && el("posts").lang !== language) renderPosts();
   if (waiting) el("posts").replaceChildren(node("li", t("personalInbox.waitingDirect")));
 }
 async function select(id) {
@@ -614,6 +623,14 @@ function attachmentCard(post) {
   return link;
 }
 function renderPosts() {
+  const list = el("posts");
+  const active = document.activeElement;
+  const focused = list.contains(active) ? active.closest("[data-seq]") : null;
+  const controls = "button, a, summary";
+  const focusIndex = focused ? [...focused.querySelectorAll(controls)].indexOf(active) : -1;
+  const expanded = new Set([...list.querySelectorAll("details[open]")].map(option => option.closest("[data-seq]")?.dataset.seq));
+  const relabeling = list.lang !== language;
+  list.lang = language;
   const items = [];
   let lastDay, previous;
   for (const p of posts) {
@@ -627,6 +644,7 @@ function renderPosts() {
       lastDay = day;
     }
     const li = node("li", "");
+    li.dataset.seq = String(p.seq);
     li.className = p.author === me.email ? "message mine" : "message";
     const bubble = node("div", "");
     bubble.className = "bubble";
@@ -655,7 +673,8 @@ function renderPosts() {
     if (room?.kind === "group" && (p.author === me.email || room.isOwner || (room.admin && !moderators.has(p.author)))) {
       const options=node("details","");
       options.className="message-options";
-      const toggle=node("summary","⋯"); toggle.setAttribute("aria-label",t("personalInbox.messageOptions")); toggle.title=t("personalInbox.messageOptions"); options.append(toggle);
+      options.open = expanded.has(String(p.seq));
+      const toggle=node("summary",""); toggle.append(icon("more")); toggle.setAttribute("aria-label",t("personalInbox.messageOptions")); toggle.title=t("personalInbox.messageOptions"); options.append(toggle);
       options.append(button(t("personalInbox.deletePost"),async () => {
         await api("rooms/"+room.id+"/moderate",{action:"deletePost",seq:p.seq}); readingOlder=false; await refresh();
       })); li.append(options);
@@ -665,7 +684,12 @@ function renderPosts() {
     previous = p;
     items.push(li);
   }
-  el("posts").replaceChildren(...items);
+  list.replaceChildren(...items);
+  if (focusIndex >= 0) {
+    const row = list.querySelector('[data-seq="' + CSS.escape(focused.dataset.seq) + '"]');
+    const target = row?.querySelectorAll(controls)[focusIndex];
+    if (target?.tagName === active.tagName && (relabeling || target.textContent === active.textContent)) target.focus({preventScroll:true});
+  }
   if (!items.length) el("posts").append(node("li", t("personalInbox.noMessages")));
 }
 function updateComposer() {

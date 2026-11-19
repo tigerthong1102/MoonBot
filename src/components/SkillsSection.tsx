@@ -11,12 +11,22 @@ import { Card, Switch } from "./SettingsPrimitives";
 import type { SkillsLibrarySkillWire } from "../../shared/wire";
 import { Layer } from "./Layer";
 import { Select } from "./Select";
+import { SkillInstructions } from "./SkillInstructions";
 
 const catalogBySource = new Map(catalog.map((entry) => [entry.source, entry]));
 
 function catalogEntry(skill: SkillsLibrarySkillWire) {
   const entry = catalogBySource.get(skill.source);
   return entry?.name === skill.name ? entry : undefined;
+}
+
+function skillDescription(skill: SkillsLibrarySkillWire): string {
+  const entry = catalogEntry(skill);
+  const locale = activeLocale();
+  if (locale === "vi") return entry?.summaryVi ?? skill.description;
+  if (locale === "zh") return entry?.summaryZh ?? skill.description;
+  if (locale === "zh-tw") return entry?.summaryZhTw ?? skill.description;
+  return entry?.summaryEn ?? skill.description;
 }
 
 function skillTags(skill: SkillsLibrarySkillWire): string[] {
@@ -42,7 +52,7 @@ export function filterLibrarySkills(
     const tags = skillTags(skill);
     if (tag && !tags.includes(tag)) return false;
     if (!terms.length) return true;
-    const text = searchText([skill.name, skill.description, skill.source, skill.license, catalogEntry(skill)?.summaryVi, ...tags, ...tags.map(tagLabel)].join(" "));
+    const text = searchText([skill.name, skill.description, skill.source, skill.license, catalogEntry(skill)?.summaryVi, skillDescription(skill), ...tags, ...tags.map(tagLabel)].join(" "));
     return terms.every((term) => text.includes(term));
   });
 }
@@ -319,7 +329,7 @@ export function SkillsSection({ chat }: { chat?: SkillChatTarget } = {}) {
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => void view(skill)} className="min-w-0 flex-1 text-left" aria-label={t("skills.library.view", { skill: skill.name })} aria-describedby={`library-description-${skill.name}`}>
                       <div className="truncate font-mono text-[13px] text-ink">{skill.name}</div>
-                      <div id={`library-description-${skill.name}`} className="mt-0.5 break-words text-[12px] text-ink-secondary">{(activeLocale().startsWith("vi") && catalogEntry(skill)?.summaryVi) || skill.description}</div>
+                      <div id={`library-description-${skill.name}`} className="mt-0.5 break-words text-[12px] text-ink-secondary">{skillDescription(skill)}</div>
                     </button>
                     {chat ? (
                       <button type="button" disabled={Boolean(working) || !offersSkillCommand(skill.name)}
@@ -474,13 +484,7 @@ function SkillSourceDialog({ viewing, error, working, onClose, onEnable, enableL
             </div>
             <LibrarySkillMeta skill={viewing.skill} />
             {viewing.skill.warnings.length > 0 && <div className="mt-2 text-[12px] text-warning">{viewing.skill.warnings.join(" · ")}</div>}
-            <pre
-              tabIndex={0}
-              aria-label={`${t("skills.library.view", { skill: viewing.skill.name })}`}
-              className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-inset p-3 font-mono text-[12px] leading-relaxed text-ink"
-            >
-              {viewing.text}
-            </pre>
+            <SkillInstructions name={viewing.skill.name} text={viewing.text} label={t("skills.library.view", { skill: viewing.skill.name })} />
             {error && <div role="alert" className="mt-2 text-[12px] text-danger">{error}</div>}
             {viewing.review && <button type="button" disabled={working} onClick={onEnable} className="mt-4 self-end rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-accent-ink disabled:opacity-40">{enableLabel}</button>}
           </div>

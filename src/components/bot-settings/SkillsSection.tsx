@@ -12,6 +12,7 @@ import { inputCls } from "./field";
 import { OrgSkillsCard } from "./OrgSkillsCard";
 import { WriteCommandCard } from "./WriteCommandCard";
 import { Select } from "../Select";
+import { SkillInstructions } from "../SkillInstructions";
 
 export interface ManagedSkill {
   name: string;
@@ -251,13 +252,7 @@ export function SkillReviewDialog({
             {skill.warnings.join(" · ")}
           </div>
         )}
-        <pre
-          tabIndex={0}
-          aria-label={t("skills.fullSkill", { name: skill.name })}
-          className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-inset p-3 font-mono text-[12px] leading-relaxed text-ink"
-        >
-          {text}
-        </pre>
+        <SkillInstructions name={skill.name} text={text} label={t("skills.fullSkill", { name: skill.name })} />
         {error && <div role="alert" className="mt-2 text-[12px] text-danger">{error}</div>}
         <div className="mt-4 flex justify-end gap-2">
           <button
@@ -562,13 +557,7 @@ export function SkillsSection({ bot }: { bot: Bot }) {
                 {t("common.close")}
               </button>
             </div>
-            <pre
-              tabIndex={0}
-              aria-label={t("skills.fullSkill", { name: viewing.name })}
-              className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-inset p-3 font-mono text-[12px] leading-relaxed text-ink"
-            >
-              {viewing.text}
-            </pre>
+            <SkillInstructions name={viewing.name} text={viewing.text} label={t("skills.fullSkill", { name: viewing.name })} />
           </div>
         </div>
       )}

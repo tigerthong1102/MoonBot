@@ -6480,6 +6480,8 @@
   "skills.library.enableAndUse": "Enable and use in chat",
   "skills.library.count": "Showing {shown} of {total} skills",
   "skills.library.unavailable": "This skill is unavailable in this chat.",
+  "skills.library.showOriginal": "View original",
+  "skills.library.showTranslation": "View translation",
   "skills.library.title": "Skills library",
   "skills.library.subtitle": "Find a skill, review its instructions, then enable it and assign it to a bot. Use / followed by the skill name in that bot’s chat.",
   "skills.library.searchPlaceholder": "Search by name or description",

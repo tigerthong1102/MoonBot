@@ -4179,6 +4179,8 @@
   "skills.library.enableAndUse": "Bật và dùng trong chat",
   "skills.library.count": "Hiển thị {shown}/{total} skill",
   "skills.library.unavailable": "Bot chưa thể dùng skill này trong cuộc trò chuyện.",
+  "skills.library.showOriginal": "Xem bản gốc",
+  "skills.library.showTranslation": "Xem bản dịch",
   "skills.library.title": "Thư viện skill",
   "skills.library.subtitle": "Tìm skill, xem hướng dẫn, rồi bật và gán cho bot. Trong chat với bot đó, gõ / kèm tên skill để dùng.",
   "skills.library.searchPlaceholder": "Tìm theo tên hoặc mô tả skill",

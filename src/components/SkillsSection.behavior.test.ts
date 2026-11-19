@@ -59,7 +59,7 @@ describe("Skills library review and assignment controls", () => {
     expect(fetch).toHaveBeenCalledWith("/api/skills-library/order-audit");
     const viewer = render().find((node) => typeof node.type === "function" && node.type.name === "SkillSourceDialog")!;
     const dialog = nodes((viewer.type as (props: Props) => ReactNode)(viewer.props));
-    expect(dialog.find((node) => node.type === "pre")!.props.children).toBe(source);
+    expect(dialog.find((node) => typeof node.type === "function" && node.type.name === "SkillInstructions")!.props.text).toBe(source);
     expect(fixture.modal).toHaveBeenCalledOnce();
     expect(button(dialog, "Enable reviewed skill")).toBeDefined();
     button(dialog, "Enable reviewed skill").props.onClick!();

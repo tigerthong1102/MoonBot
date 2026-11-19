@@ -12,6 +12,12 @@ on:
       - 'scripts/smoke-desktop-update*'
       - '.github/workflows/desktop-update-smoke.yml'
   workflow_dispatch:
+    inputs:
+      macos_runner:
+        type: choice
+        description: macOS runner for the native update
+        default: macos-26-intel
+        options: [macos-26-intel, macos-26]
 permissions:
   contents: read
 jobs:
@@ -19,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: ["${{ inputs.macos_runner || 'macos-26-intel' }}", windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:

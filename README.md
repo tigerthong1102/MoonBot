@@ -283,7 +283,7 @@ StartupBot installers have not passed the release gates yet. No public StartupBo
 |---|---|
 | macOS Apple Silicon | Internal arm64 DMG verified on an M1 Pro. Public release and independent clean-machine validation pending. |
 | macOS Intel | Build and device verification pending. |
-| Windows | Not released; installer and clean-machine verification pending. |
+| Windows x64 | Internal NSIS installer. Public release and independent clean-machine validation pending. |
 | Linux | Not released; package and restricted-host sandbox verification pending. |
 | iOS / Android | Not released; native builds and device validation pending. |
 
@@ -404,8 +404,8 @@ dedicated receiver through a hosted relay or a tool such as Tailscale Funnel.
 ## Status
 
 Early but real — the loop works end to end: message → agent → streamed reply → tools → approvals →
-computer use. macOS, Windows, and Ubuntu 24.04 x64 have released builds; Ubuntu remains a beta with the
-capability limits above. Rough edges to expect: hosted/mobile connectivity is still being built, and webhook
+computer use. OpenMausBot publishes upstream builds for macOS, Windows, and Ubuntu 24.04 x64.
+StartupBot package availability is listed under [Quick start](#quick-start). Rough edges to expect: hosted/mobile connectivity is still being built, and webhook
 triggers currently use the local receiver rather than an always-on hosted relay.
 Hosted voice needs an ElevenLabs, Fish Audio, or xAI key; built-in Mac and local Chatterbox voices need no cloud key. Take-turns calls and the composer mic listen on-device on macOS and through Fish Audio speech-to-text on Windows and Linux (the same Fish Audio key as voices). See [`docs/voice-mode.md`](docs/voice-mode.md) for the design and the known gaps.
 
@@ -483,11 +483,11 @@ scratch is [docs/deploy-vps.md](docs/deploy-vps.md).
 
 ## License
 
-[Apache License 2.0](LICENSE) © 2026 Milind Soni and OpenMausBot contributors,
-except `enterprise/`, which is source-available under its
-[own license](enterprise/LICENSE); delete that folder and what remains is the
-open-source edition. Details, including how contributions are signed off, are
-in [LICENSING.md](LICENSING.md).
+The fork retains the [Apache License 2.0](LICENSE) and [upstream notices](NOTICE)
+for the OpenMausBot OSS code, © 2026 Milind Soni and OpenMausBot contributors.
+The current source tree excludes the upstream Enterprise directory. See
+[licensing](LICENSING.md) and the [distribution audit](docs/audits/commercial-readiness.md)
+for bundled components and StartupBot assets.
 
 Packaged Cua Driver components retain their upstream MIT, SIL OFL 1.1, MPL-2.0, and other dependency terms;
 the corresponding notices, license texts, source locations, and SBOM are in

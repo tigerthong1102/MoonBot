@@ -2,14 +2,9 @@
 
 ## Reporting a vulnerability
 
-Please **do not open a public issue** for security problems.
+For an internal StartupBot build, report a security concern privately to the person who supplied the installer. Include the StartupBot version, operating system, affected feature, and a reproduction using synthetic inputs. Keep API keys, workspace backups, customer files and raw logs out of reports. See the [StartupBot support guide](docs/startupbot/support.md).
 
-- **Email** **soni.mil2001@gmail.com** with the details.
-- **Or, if it is enabled on this repository,** use GitHub's private vulnerability reporting:
-  <https://github.com/milind-soni/OpenMausBot/security/advisories/new>. The report stays visible
-  only to you and the maintainers until a fix is published.
-
-You'll get a response as soon as possible, normally within a few days.
+The upstream OpenMausBot project maintains its own [security policy](https://github.com/milind-soni/OpenMausBot/security/policy). Its maintainers handle reports about their project.
 
 ## Scope notes for researchers
 

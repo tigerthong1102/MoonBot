@@ -221,6 +221,7 @@ export async function inboxFile(
       },
     });
     if (compressedDownload) {
+      // Workers compress the decoded stream on HTTP transmission with encodeBody set to automatic.
       headers.set("content-encoding", "gzip");
       headers.set("vary", "Accept-Encoding");
     }

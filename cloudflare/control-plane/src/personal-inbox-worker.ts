@@ -163,7 +163,7 @@ export default {
     );
     if (new URL(request.url).pathname.startsWith("/brotli-3.0.1/") && response.ok)
       headers.set("cache-control", "public, max-age=31536000, immutable");
-    return new Response(response.body, { status: response.status, headers });
+    return new Response(response.body, { status: response.status, headers, encodeBody: "automatic" });
   },
   async scheduled(_event, env) {
     await env.DB.batch([

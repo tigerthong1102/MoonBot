@@ -243,9 +243,11 @@ function avatarContent(room) {
   return room.kind === "group" ? icon("group") : roomName(room).trim().slice(0, 1).toLocaleUpperCase(language);
 }
 function renderRooms() {
+  const list = el("rooms");
+  const focusedRoom = list.contains(document.activeElement) ? document.activeElement.closest("button")?.dataset.room : null;
   const query = el("filter").value.trim().toLocaleLowerCase(language);
   const visible = rooms.filter((room) => roomName(room).toLocaleLowerCase(language).includes(query));
-  el("rooms").replaceChildren(...visible.map((r) => {
+  list.replaceChildren(...visible.map((r) => {
     const name = roomName(r);
     const title = r.state === "pending" ? t("personalInbox.invitationLabel", { name }) : name;
     const row = button(title, () => select(r.id));
@@ -257,13 +259,15 @@ function renderRooms() {
     text.className = "room-name";
     text.append(node("strong", name), node("small", r.state === "pending" ? t("personalInbox.invitation") :
       r.snippet || (r.kind === "group" ? t("personalInbox.group") : t("personalInbox.direct"))));
+    row.dataset.room = r.id;
     row.setAttribute("aria-label", title);
     row.title = title;
     row.setAttribute("aria-current", String(r.id === current && !viewingSaved));
     row.replaceChildren(avatar, text);
     return row;
   }));
-  if (!visible.length) el("rooms").append(node("p", query ? t("personalInbox.noMatches") : t("personalInbox.noRooms")));
+  if (focusedRoom) (list.querySelector('button[data-room="' + CSS.escape(focusedRoom) + '"]') ?? el("filter")).focus({preventScroll:true});
+  if (!visible.length) list.append(node("p", query ? t("personalInbox.noMatches") : t("personalInbox.noRooms")));
 }
 el("filter").oninput = renderRooms;
 async function refresh(poll = false) {

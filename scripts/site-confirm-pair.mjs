@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import { phonePairingLink } from '../packages/phone-protocol/src/pairing-link.ts';
 const token = randomBytes(32).toString('base64url');
 const home = mkdtempSync(join(tmpdir(),'site-phone-'));
-const child = spawn(process.execPath,['companion/src/index.ts'], {stdio:'ignore',env:{...process.env,HOME:home,OMB_CONTROL_TOKEN:token,OMB_COMPANION_DIR:home,OMB_COMPANION_NAME:'StartupBot QA',OMB_COMPANION_BONJOUR:'0',OMB_COMPANION_ROUTES:'wifi',OMB_CONTROL_PORT:'19811',OMB_COMPANION_PORT:'19810',OMB_PORT:'19809'}});
+const child = spawn(process.execPath,[process.env.SITE_COMPANION], {stdio:['ignore','ignore','pipe'],env:{...process.env,HOME:home,OMB_CONTROL_TOKEN:token,OMB_COMPANION_DIR:home,OMB_COMPANION_NAME:'StartupBot QA',OMB_COMPANION_BONJOUR:'0',OMB_COMPANION_ROUTES:'wifi',OMB_CONTROL_PORT:'19811',OMB_COMPANION_PORT:'19810',OMB_PORT:'19809'}});
+let childError=''; child.stderr.on('data',b=>{childError=(childError+String(b)).slice(-2000)});
 const ctl = async (method,route) => {
  const r=await fetch('http://127.0.0.1:19811'+route,{method,headers:{'x-openmausbot-control-token':token},signal:AbortSignal.timeout(2500)});
  assert(r.ok);return r.json()
@@ -16,7 +17,7 @@ const ctl = async (method,route) => {
 const exec = (cmd,args) => execFileSync(cmd,args,{stdio:['ignore','pipe','pipe']}).toString();
 try {
  let pending;
- for(let i=0;i<60&&!pending;i++){await wait(300);try{pending=await ctl('POST','/pairing')}catch{if(child.exitCode!==null)throw Error('Fixture stopped')}}
+ for(let i=0;i<60&&!pending;i++){await wait(300);try{pending=await ctl('POST','/pairing')}catch{if(child.exitCode!==null)throw Error('Fixture stopped: '+childError.replace(/omb_(?:pair_)?[A-Za-z0-9_-]+/g,'[redacted]'))}}
  assert(pending?.token);
  const url=phonePairingLink({address:'127.0.0.1',port:19810,name:'StartupBot QA',token:pending.token});
  assert(url?.startsWith('startupbot://pair?'));

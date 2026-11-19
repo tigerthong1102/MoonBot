@@ -48,6 +48,13 @@ jobs:
       - run: |
           curl -fsS "$SITE/StartupBot-1.0.0-universal-INTERNAL-debug.apk" -o site.apk
           echo 'f9b8044d96d20fdfdb57bacd5c98ab35e4127845aafb5ad2ca336b4390944388  site.apk' | sha256sum -c -
+          curl -fsS "$SITE/StartupBot-1.0.0-Setup.exe" -o desktop.exe
+          echo '1e1124d31e10f24d420d06f8eb19442e9d17bb35a05e018639d4c6d85d742cdc  desktop.exe' | sha256sum -c -
+          7z x -y -odesktop desktop.exe '*.7z' -r >/dev/null
+          archive=$(find desktop -name '*.7z' | head -1)
+          7z x -y -odesktop "$archive" 'resources/companion/*' -r >/dev/null
+          export SITE_COMPANION="$PWD/desktop/resources/companion/index.js"
+          test -f "$SITE_COMPANION"
           sudo chmod a+rw /dev/kvm
           bash scripts/site-android-vi.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -83,7 +90,11 @@ jobs:
           command -v xcodegen || brew install xcodegen
           (cd touch && xcodegen generate)
           xcodebuild build-for-testing -project touch/Touch.xcodeproj -scheme Touch -derivedDataPath touch/build -destination "id=$device" CODE_SIGN_IDENTITY=-
-          node scripts/site-confirm-pair.mjs "$device"
+          curl -fsS "$SITE/StartupBot-1.0.0-arm64.dmg" -o desktop.dmg
+          echo 'a8cf533586baeb8c2b730c3b81adcd9db8d558efc3e6d3697127e7b0433cc6e0  desktop.dmg' | shasum -a 256 -c -
+          mkdir mounted
+          hdiutil attach -readonly -nobrowse -mountpoint "$PWD/mounted" desktop.dmg
+          SITE_COMPANION="$PWD/mounted/StartupBot.app/Contents/Resources/companion/index.js" node scripts/site-confirm-pair.mjs "$device"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:

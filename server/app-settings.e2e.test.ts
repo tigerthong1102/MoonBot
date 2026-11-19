@@ -98,6 +98,13 @@ afterAll(async () => {
   await fixture?.close();
 });
 
+it("finds native settings from Vietnamese chat with and without accents", async () => {
+  const cases = [["Đổi ngôn ngữ", "general.language"], ["doi ten bot", "bots.name"], ["ghim bot", "bots.pinned"], ["nhóm ở thanh bên", "bots.groups"]];
+  await start("VI-FIND", cases.map(([query]) => step({ action: "find", query })));
+  const hits = results(await finished("VI-FIND"));
+  expect(hits.map((hit: { text: string }) => JSON.parse(hit.text)[0].id)).toEqual(cases.map(([, id]) => id));
+});
+
 it("a Full-access owner turn finds a safe setting, applies it with an applied card, and Undo restores the earlier value", async () => {
   const earlier = (await api("GET", "/api/config")).rooms?.turnTimeoutMinutes;
   await start("SAFE-1", [

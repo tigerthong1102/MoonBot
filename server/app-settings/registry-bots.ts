@@ -87,12 +87,12 @@ export function botEntries(deps: Pick<RegistryDeps, "bots" | "engines" | "patchB
       patch: (_one, { mode }) => ({ approvalMode: mode, applyToAllThreads: true }),
     }),
     perBot({
-      id: "bots.name", label: "Bot name", help: "A bot's name, as the sidebar and chats show it.", where: "bot-settings", synonyms: ["rename", "name", "call", "bot name"],
+      id: "bots.name", label: "Bot name", help: "A bot's name, as the sidebar and chats show it.", where: "bot-settings", synonyms: ["đổi tên bot", "tên bot", "rename", "name", "call", "bot name"],
       value: forBot({ name: z.string().trim().min(1).max(BOT_PROFILE_LIMITS.name) }), allowed: '{"botId","name"}', read: everyBot((one) => one.name),
       effect: (one, { name }) => ({ change: `Rename ${one.name} to "${name}"` }), was: (one, { botId }) => ({ botId, name: one.name }), patch: (_one, { name }) => ({ name }),
     }),
     perBot({
-      id: "bots.color", label: "Bot colour", help: "A bot's colour in the sidebar and its chat.", where: "bot-settings", synonyms: ["color", "colour", "tint", "bot color"],
+      id: "bots.color", label: "Bot colour", help: "A bot's colour in the sidebar and its chat.", where: "bot-settings", synonyms: ["đổi màu bot", "màu bot", "color", "colour", "tint", "bot color"],
       value: forBot({ color: z.enum(MAUS_COLOR_NAMES) }), allowed: `{"botId","color"} with color one of ${MAUS_COLOR_NAMES.join(", ")}`, read: everyBot((one) => one.color),
       effect: (one, { color }) => ({ change: `Make ${one.name} ${color}` }), was: (one, { botId }) => ({ botId, color: one.color }), patch: (_one, { color }) => ({ color }),
     }),

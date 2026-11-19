@@ -175,6 +175,7 @@ async function replayNavigation(call, fixture, store, recording) {
   let liveToken;
   const outcome = await runSteps(recipe, { threadId: "qualification", turnId: "replay", provider: "fixture", providerInstanceId: BOT }, {
     signal: AbortSignal.timeout(10_000), publish() {},
+    verifyWindowsEffect: async () => (await fixture.verify()).value === "After navigation",
     approval: { async ask(tool) {
       assert.equal(tool, "mcp__computer__click");
       approved++;

@@ -7,6 +7,7 @@ import type { ProviderInstance, RuntimeEvent, SendTurnInput, TurnStartResult } f
 import type { Message } from "../store.ts";
 import { textEditJournal } from "../testing/saved-steps-fixtures.ts";
 import type { RecordedCall } from "./journal.ts";
+import { slimResponse } from "./driver-wire.ts";
 import { requestKey } from "./key.ts";
 import type { ReplayRequest } from "./dispatch.ts";
 import type { Recipe, RecipeStep } from "./rules.ts";
@@ -30,9 +31,9 @@ afterEach(() => {
 });
 
 describe("savedStepsEnabled", () => {
-  it("is on unless turned off", () => {
-    expect(savedStepsEnabled({})).toBe(true);
-    expect(savedStepsEnabled({ features: {} })).toBe(true);
+  it("requires opt-in on Windows and defaults on for macOS", () => {
+    expect(savedStepsEnabled({}, "darwin")).toBe(true);
+    expect(savedStepsEnabled({ features: {} }, "win32")).toBe(false);
     expect(savedStepsEnabled({ features: { savedSteps: true } })).toBe(true);
     expect(savedStepsEnabled({ features: { savedSteps: false } })).toBe(false);
   });
@@ -166,6 +167,34 @@ describe("SavedSteps.requestSettled", () => {
     expect(start).toHaveBeenCalledTimes(1);
   };
 
+  it.each(["confirmed", "unverifiable"])("persists a Windows chat recipe only for a confirmed click (%s)", async (effect) => {
+    steps = facade({ platform: "win32" });
+    const text = "Navigate the demo";
+    const message = { ...LINE, text };
+    const computer = { command: process.execPath, args: [FAKE], env: {}, scope: "local-computer" as const, platform: "win32" as const };
+    await sentThrough({ text, integrations: { localComputer: computer } }, { turnText: text, message });
+    const address = { pid: 100, window_id: 7 };
+    const read = { ...address, tree_format: "elements" };
+    const button = { role: "Button", label: "Navigate", depth: 1, element_index: 1, element_token: "s00000001:1", enabled: true };
+    const state = { ...read, app_name: "Fixture", window_title: "Demo", elements_complete: true,
+      returned_element_count: 1, total_element_count: 1, elements: [button] };
+    const result = (structuredContent: object) => slimResponse({ result: { structuredContent } }, "win32");
+    record([
+      { generation: "g1", tool: "get_window_state", arguments: read, result: result(state) },
+      { generation: "g1", tool: "click", arguments: { ...address, element_token: button.element_token, delivery_mode: "background" },
+        result: result({ effect, route: "accessibility", delivery: { mode: "background" } }) },
+    ]);
+    steps.requestSettled(settled({ request: message }));
+    const reopened = facade({ platform: "win32" }).recipes.find("b1", requestKey(text));
+    if (effect === "confirmed") {
+      expect(reopened?.steps[0]?.element).toMatchObject({ label: "Navigate", uiaWindowChild: true });
+      expect(patches).toMatchObject([["t1", "reply-1", { savedSteps: { learned: true } }]]);
+    } else {
+      expect(reopened).toBeUndefined();
+      expect(patches).toEqual([]);
+    }
+  });
+
   it("saves a settled host run and marks the reply", async () => {
     await sentThrough();
     record(textEditJournal().calls);
@@ -251,12 +280,12 @@ describe("SavedSteps.requestSettled", () => {
     expect(facade({ platform: "linux" }).journals(person)).toBe(false);
   });
 
-  it("says saved steps can run only on a Mac, setting or not, so clients hide the switch elsewhere", () => {
+  it("shows the switch on Windows and macOS even when saving is off", () => {
     expect(facade({ platform: "darwin" }).here()).toBe(true);
     enabled = false;
     expect(facade({ platform: "darwin" }).here()).toBe(true);
     expect(facade({ platform: "linux" }).here()).toBe(false);
-    expect(facade({ platform: "win32" }).here()).toBe(false);
+    expect(facade({ platform: "win32" }).here()).toBe(true);
   });
 
   it("never records a turn a peer handed on, though it carries the person's origin", () => {
@@ -266,7 +295,7 @@ describe("SavedSteps.requestSettled", () => {
     expect(steps.journals({ ...handed, personLine: true })).toBe(true);
   });
 
-  it.each(["linux", "win32"] as const)("neither saves nor replays on %s", async (platform) => {
+  it.each(["linux", "win32"] as const)("neither saves nor replays a macOS TextEdit recipe on %s", async (platform) => {
     steps = facade({ platform });
     record(textEditJournal().calls);
     steps.requestSettled(settled());

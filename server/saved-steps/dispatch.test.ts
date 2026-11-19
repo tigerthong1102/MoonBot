@@ -122,6 +122,7 @@ beforeEach(() => {
   withholdHandoff = vi.fn(() => handOn);
   contextChanged = vi.fn();
   deps = {
+    platform: "darwin",
     recipes,
     enabled: () => true,
     publish: (event) => {
@@ -200,6 +201,32 @@ describe("SavedStepsDispatch.sendTurn", () => {
     taint.mockReturnValueOnce(false);
     await dispatch.sendTurn(engine, REQ, INPUT, start);
     expect(dispatch.takeUnmarked("t1")).toBe(false);
+  });
+
+  it("admits only background UIA button recipes for Windows learning and replay", async () => {
+    const windows = new SavedStepsDispatch({ ...deps, platform: "win32" });
+    recipes.find.mockReturnValue(RECIPE);
+    await windows.sendTurn(engine, REQ, { ...INPUT, integrations: { localComputer: { ...COMPUTER, platform: "win32" } } }, start);
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(openCaller).not.toHaveBeenCalled();
+    const button: RecipeStep = { tool: "click", app: { name: "Fixture" }, window: { title: "Demo" },
+      element: { role: "Button", label: "Navigate", path: [], uiaWindowChild: true }, args: { delivery_mode: "background" } };
+    expect(windows.wouldReplay("t1", RECIPE)).toBe(false);
+    expect(windows.wouldReplay("t1", { ...RECIPE, steps: [button] })).toBe(true);
+    expect(windows.wouldReplay("t1", { ...RECIPE, steps: [button, RECIPE.steps[1]!] })).toBe(false);
+    expect(windows.wouldReplay("t1", { ...RECIPE, steps: [{ ...button, args: { delivery_mode: "foreground" } }] })).toBe(false);
+  });
+
+  it("ends a failed Windows repeat without handing the same action to the engine", async () => {
+    const windows = new SavedStepsDispatch({ ...deps, platform: "win32" });
+    recipes.find.mockReturnValue({ ...RECIPE, steps: [{ tool: "click", args: { delivery_mode: "background" },
+      app: { name: "Fixture" }, window: { title: "Demo" }, element: { role: "Button", label: "Navigate", path: [], uiaWindowChild: true } }] });
+    openCaller.mockRejectedValueOnce(new Error("Demo is unavailable"));
+    await windows.sendTurn(engine, REQ, { ...INPUT, integrations: { localComputer: { ...COMPUTER, platform: "win32" } } }, start);
+    await settled();
+    expect(start).not.toHaveBeenCalled();
+    expect(acted).toEqual([]);
+    expect(turnCompleted()).toMatchObject([{ ok: false }]);
   });
 
   it("runs the AI when the request cannot be kept from saving", async () => {

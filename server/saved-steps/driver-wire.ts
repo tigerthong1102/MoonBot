@@ -25,6 +25,7 @@ export interface SlimStructured {
   /** The driver read the whole tree and every element survived slimming. */
   elements_complete?: true;
   background_accessibility_action?: true;
+  background_effect_confirmed?: true;
   refusal?: { code?: string; message?: string };
 }
 export interface SlimResult { isError: boolean; rpcError?: true; structured?: SlimStructured }
@@ -111,7 +112,10 @@ function slimStructured(raw: Rec, platform: NodeJS.Platform): SlimStructured {
     out.elements_complete = true;
     if (platform === "win32" && !raw.refusal) markWindowButtons(raw, elements);
   }
-  if (platform === "win32" && backgroundAccessibilityAction(raw)) out.background_accessibility_action = true;
+  if (platform === "win32" && backgroundAccessibilityAction(raw)) {
+    out.background_accessibility_action = true;
+    if (raw.effect === "confirmed") out.background_effect_confirmed = true;
+  }
   if (apps) out.apps = apps;
   if (windows) out.windows = windows;
   if (isRec(raw.refusal)) {

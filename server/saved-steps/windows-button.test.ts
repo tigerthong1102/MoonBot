@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { slimResponse } from "./driver-wire.ts";
 import { buildRecipe } from "./rules.ts";
-import { matchWindowButton } from "./resolve.ts";
+import { matchWindowButton, type ComputerCaller } from "./resolve.ts";
+import { runSteps } from "./replay.ts";
 
 const address = { pid: 100, window_id: 7 };
 const button = { role: "Button", label: "Navigate", depth: 1, element_index: 1, element_token: "s00000001:1", enabled: true };
@@ -44,6 +45,30 @@ describe("Windows UIA projected window buttons", () => {
     expect(record(tree, click, action, { ...lookup, pid: 99 }).ok).toBe(false);
     expect(record(tree, click, action, { ...lookup, role_filter: "Button" }).ok).toBe(false);
     expect(record(tree, click, action, lookup, "darwin").ok).toBe(false);
+  });
+
+  it("keeps unverified delivery distinct from a confirmed effect in the journal", () => {
+    expect(slim(action).structured?.background_effect_confirmed).toBeUndefined();
+    expect(slim({ ...action, effect: "confirmed" }).structured?.background_effect_confirmed).toBe(true);
+    expect(slim({ ...action, effect: "confirmed", route: "global_input" }).structured?.background_effect_confirmed).toBeUndefined();
+  });
+
+  it.runIf(process.platform === "win32")("reports an unverified click once and does not claim replay succeeded", async () => {
+    const built = record();
+    if (!built.ok) throw Error(built.reason);
+    let clicks = 0;
+    const caller: ComputerCaller = { async call(tool) {
+      if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid: address.pid, name: tree.app_name }] } };
+      if (tool === "list_windows") return { ok: true, structured: { windows: [{ ...address, title: tree.window_title }] } };
+      if (tool === "get_window_state") return { ok: true, structured: tree };
+      if (tool !== "click") throw Error(tool);
+      clicks++;
+      return { ok: true, structured: action };
+    } };
+    const outcome = await runSteps(built.recipe, { threadId: "thread", turnId: "turn", provider: "fixture", providerInstanceId: "fixture" },
+      { caller, approval: { ask: async () => true }, publish() {}, signal: new AbortController().signal });
+    expect(outcome).toMatchObject({ kind: "failed", done: 0, error: expect.stringContaining("effect could not be verified") });
+    expect(clicks).toBe(1);
   });
 
   it("refuses twins at any depth, duplicate addresses and a newly disabled button", () => {

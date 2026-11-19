@@ -1,7 +1,7 @@
 // The config pins one deliberately unknown driver, so the suite is deterministic with or without agent CLIs installed.
 import { EMAIL_TOOLS } from "./email/tools.ts";
 import { spawn, type ChildProcess } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomUUID, webcrypto } from "node:crypto";
 import { once } from "node:events";
 import { createServer, request, type Server } from "node:http";
 import { connect, type Socket } from "node:net";
@@ -70,17 +70,13 @@ async function mintTestCapability(
   return ((await response.json()) as { token: string }).token;
 }
 
+const phoneTestKeys = await webcrypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+const phoneTestPublicKey = Buffer.from(await webcrypto.subtle.exportKey("raw", phoneTestKeys.publicKey));
 const PHONE_SECRET_TEST_IDENTITY = {
   type: "openmausbot:phone-secret-key",
   version: 1,
-  keyId: "taWSR_nZ7ojlH_0Z3tar6Q",
-  privateKey: {
-    kty: "EC",
-    crv: "P-256",
-    x: "g8FDXb91acXUNkuxNk7dWDQ0aN2zn6On2HeOGOvZOjs",
-    y: "bJelczS0LM82rfXV68PmSJhz2ePosj3fL974XckCpDU",
-    d: "5B-SwYLGXc04u4v7YLpzFrwj2JjysBFaJevOPl3h3Zg",
-  },
+  keyId: createHash("sha256").update(phoneTestPublicKey).digest().subarray(0, 16).toString("base64url"),
+  privateKey: await webcrypto.subtle.exportKey("jwk", phoneTestKeys.privateKey),
 } as const;
 const phoneSecretTestSuite = new CipherSuite({
   kem: new DhkemP256HkdfSha256(),
@@ -92,11 +88,7 @@ async function sealPhoneSecretForTest(
   context: Omit<PhoneSecretContext, "encapsulatedKey" | "ciphertext">,
   value: string,
 ): Promise<PhoneSecretContext> {
-  const publicKey = await phoneSecretTestSuite.kem.deserializePublicKey(Buffer.concat([
-    Buffer.from([4]),
-    Buffer.from(PHONE_SECRET_TEST_IDENTITY.privateKey.x, "base64url"),
-    Buffer.from(PHONE_SECRET_TEST_IDENTITY.privateKey.y, "base64url"),
-  ]));
+  const publicKey = await phoneSecretTestSuite.kem.deserializePublicKey(phoneTestPublicKey);
   const sender = await phoneSecretTestSuite.createSenderContext({
     recipientPublicKey: publicKey,
     info: new TextEncoder().encode(PHONE_SECRET_INFO),
@@ -7302,7 +7294,7 @@ describe("harness HTTP API", () => {
         messageId: directRequest.messageId,
         target: "openaiImageApiKey",
         requestKey: directCard.secret.requestKey,
-      }, "sk-test-replacement");
+      }, `sk-${"dummy".repeat(6)}`);
       const replacement = await provide(direct.id, directRequest.messageId, replacementEnvelope);
       expect(replacement.status).toBe(409);
       expect(await replacement.json()).toMatchObject({ error: expect.stringMatching(/already completed/i) });
@@ -9972,7 +9964,7 @@ describe("harness HTTP API", () => {
   it("keeps skill authoring on by default and persists an explicit opt-out", async () => {
     const before = await api("GET", "/api/config");
     expect(before.status).toBe(200);
-    expect(before.body.features).toEqual({ browser: false, skillAuthoring: true, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: false, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: true, savedStepsHere: process.platform === "darwin", usbPhoneTakeover: false });
+    expect(before.body.features).toEqual({ browser: false, skillAuthoring: true, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: false, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: process.platform !== "win32", savedStepsHere: ["darwin", "win32"].includes(process.platform), usbPhoneTakeover: false });
     const untouched = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
     expect(untouched.features?.skillAuthoring).toBeUndefined();
     expect(untouched.features?.skillReview).toBeUndefined();
@@ -9982,7 +9974,7 @@ describe("harness HTTP API", () => {
       features: { skillAuthoring: false },
     });
     expect(saved.status).toBe(200);
-    expect(saved.body.features).toEqual({ browser: false, skillAuthoring: false, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: false, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: true, savedStepsHere: process.platform === "darwin", usbPhoneTakeover: false });
+    expect(saved.body.features).toEqual({ browser: false, skillAuthoring: false, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: false, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: process.platform !== "win32", savedStepsHere: ["darwin", "win32"].includes(process.platform), usbPhoneTakeover: false });
 
     const disk = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
     // Earlier browser coverage may have persisted its own toggle: opting out must preserve sibling settings.
@@ -9990,7 +9982,7 @@ describe("harness HTTP API", () => {
 
     const tools = await api("PATCH", "/api/config", { features: { showToolCalls: true } });
     expect(tools.status).toBe(200);
-    expect(tools.body.features).toEqual({ browser: false, skillAuthoring: false, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: true, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: true, savedStepsHere: process.platform === "darwin", usbPhoneTakeover: false });
+    expect(tools.body.features).toEqual({ browser: false, skillAuthoring: false, skillReview: false, skillReviewSteps: 10, skillsLibrary: false, shareLearnedSkills: "off", showToolCalls: true, sharedComputers: false, claudeUserMcp: false, claudeUserSkills: false, autoRecall: true, roomMemoryCapture: false, parallelRoomJobs: false, llmThreadTitles: true, savedSteps: process.platform !== "win32", savedStepsHere: ["darwin", "win32"].includes(process.platform), usbPhoneTakeover: false });
 
     const bot = (await api("POST", "/api/bots", {})).body.bot;
     try {
@@ -13181,7 +13173,10 @@ describe("harness HTTP API", () => {
       expect(keyless.body.imageGen).toMatchObject({ provider: "custom", configured: true, customKeyConfigured: false,
         customUrl: "http://127.0.0.1:4321/v1", customModel: "local/image" });
 
-      const invalid = await api("PUT", "/api/config", { imageGen: { customUrl: "https://user:private@router.example/v1" } });
+      const credentialUrl = new URL("https://router.example/v1");
+      credentialUrl.username = "test";
+      credentialUrl.password = "private";
+      const invalid = await api("PUT", "/api/config", { imageGen: { customUrl: credentialUrl.href } });
       expect(invalid.status).toBe(400);
       expect(JSON.stringify(invalid.body)).not.toContain("private");
       expect((await api("GET", "/api/config")).body.imageGen).toMatchObject({ configured: true, customUrl: "http://127.0.0.1:4321/v1" });
@@ -14086,7 +14081,7 @@ describe("bot memory API", () => {
     const exact = "  Be brief.\n\nKeep this whitespace.  \n";
     const current = "Current instructions.";
     try {
-      for (const soul of [exact, "Use sk-ant-api03-SECRETSECRETSECRETSECRET privately.", current]) {
+      for (const soul of [exact, `Use sk-${"SECRET".repeat(6)} privately.`, current]) {
         expect((await api("PATCH", `/api/bots/${bot.id}`, { soul })).status).toBe(200);
       }
       const history = (await api("GET", `/api/bots/${bot.id}/history`)).body;

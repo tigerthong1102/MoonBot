@@ -35,7 +35,7 @@ function approvalSummary(step: RecipeStep, label: string): string {
 export async function runSteps(
   recipe: Recipe,
   turn: ReplayTurn,
-  deps: { caller: ComputerCaller; approval: StepApproval; publish(event: RuntimeEvent): void; signal: AbortSignal; patience?: Patience },
+  deps: { caller: ComputerCaller; approval: StepApproval; publish(event: RuntimeEvent): void; signal: AbortSignal; patience?: Patience; verifyWindowsEffect?: (step: RecipeStep) => Promise<boolean> },
 ): Promise<ReplayOutcome> {
   const { caller, approval, publish, signal, patience } = deps;
   const total = recipe.steps.length;
@@ -67,9 +67,14 @@ export async function runSteps(
     const itemId = newId();
     publish({ ...base(itemId), type: "item.started", itemType: "tool", title: tool, input: summary });
     const delivery = await caller.call(step.tool, target.args, signal);
-    const result = delivery.ok && step.element?.uiaWindowChild && !backgroundAccessibilityAction(delivery.structured)
-      ? { ok: false as const, error: "the computer did not confirm background accessibility delivery" }
-      : delivery;
+    let result: CallOutcome = delivery;
+    if (delivery.ok && step.element?.uiaWindowChild) {
+      if (!backgroundAccessibilityAction(delivery.structured)) {
+        result = { ok: false, error: "the computer did not confirm background accessibility delivery" };
+      } else if (delivery.structured.effect !== "confirmed" && !(await deps.verifyWindowsEffect?.(step))) {
+        result = { ok: false, error: "The click was delivered, but its effect could not be verified. Check the application before repeating the request." };
+      }
+    }
     publish({ ...base(itemId), type: "item.completed", itemType: "tool", ok: result.ok, output: result.ok ? "done" : result.error });
     if (!result.ok) return failed(result);
   }

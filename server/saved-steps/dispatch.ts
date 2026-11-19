@@ -7,7 +7,7 @@ import type { LocalComputerSpec } from "./computer-client.ts";
 import { requestKey } from "./key.ts";
 import { declinedReply, fallbackNote, replayedReply, runSteps, type ReplayOutcome, type ReplayTurn } from "./replay.ts";
 import type { ComputerCaller } from "./resolve.ts";
-import { personTextRequest, recipeFitsRequest, stepLabel, type Recipe } from "./rules.ts";
+import { personTextRequest, recipeFitsRequest, stepLabel, windowButtonClick, type Recipe } from "./rules.ts";
 import type { RecipeStore } from "./store.ts";
 
 export interface EngineSlots { get(threadId: string): ProviderInstance | undefined; set(threadId: string, engine: ProviderInstance): void }
@@ -21,6 +21,7 @@ export interface ReplayRequest {
 }
 export interface DispatchDeps {
   recipes: Pick<RecipeStore, "find" | "forget">;
+  platform: NodeJS.Platform;
   enabled(): boolean;
   publish(event: RuntimeEvent): void;
   engines: EngineSlots;
@@ -141,7 +142,7 @@ export class SavedStepsDispatch {
   /** Whether the thread's latest turn met every condition for replaying this recipe, so "next time no AI" would hold. */
   wouldReplay(threadId: string, recipe: Recipe): boolean {
     const turn = this.replayable.get(threadId);
-    return turn !== undefined && toolsAllowed(recipe, turn.toolScope);
+    return turn !== undefined && this.permitsRecipe(recipe, turn.toolScope);
   }
 
   /** True for the events of a replay still answering without the AI, its turn.completed included. */
@@ -156,8 +157,17 @@ export class SavedStepsDispatch {
     return answer?.turnId === turnId ? answer.recipeId : undefined;
   }
 
+  private permitsRecipe(recipe: Recipe, toolScope: unknown): boolean {
+    const windows = this.deps.platform === "win32";
+    const supported = recipe.steps.every((step) => windows
+      ? step.element?.uiaWindowChild === true && windowButtonClick(step.tool, step.args)
+      : !step.element?.uiaWindowChild);
+    return supported && toolsAllowed(recipe, toolScope);
+  }
+
   private replayHolds(request: ReplayRequest, input: SendTurnInput): boolean {
     return this.deps.enabled() && input.approvalMode === "full" && input.integrations?.localComputer?.scope === "local-computer"
+      && (this.deps.platform !== "win32" || input.integrations.localComputer.platform === "win32")
       && request.placePicked && personTextRequest(request.message) && request.turnText === request.message.text;
   }
 
@@ -165,7 +175,7 @@ export class SavedStepsDispatch {
     if (!this.replayHolds(request, input)) return undefined;
     const text = request.turnText;
     const recipe = this.deps.recipes.find(request.botId, requestKey(text));
-    return recipe && recipeFitsRequest(recipe, text) && toolsAllowed(recipe, input.toolScope) ? recipe : undefined;
+    return recipe && recipeFitsRequest(recipe, text) && this.permitsRecipe(recipe, input.toolScope) ? recipe : undefined;
   }
 
   private standIn(run: Run, approval: Approval, asked: ReadonlySet<string>): ProviderInstance {
@@ -195,7 +205,10 @@ export class SavedStepsDispatch {
     this.emit(run, { type: "turn.started" });
     const outcome = await this.runSteps(run, computer, approval);
     approval.close();
-    if (outcome.kind === "failed") return this.fallBack(run, outcome, input, start);
+    if (outcome.kind === "failed") {
+      if (this.deps.platform === "win32") return this.end(run, { kind: "error", message: outcome.error });
+      return this.fallBack(run, outcome, input, start);
+    }
     if (outcome.kind === "error") this.forget(run);
     this.end(run, outcome);
   }

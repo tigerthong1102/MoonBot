@@ -50,7 +50,7 @@ export interface SavedSteps {
   dispatch: SavedStepsDispatch;
   gateChecked(capability: JournalCapability): void;
   journals(owner: RequestOwner | undefined): boolean;
-  /** Saved steps can run on this server (macOS only in v1), whatever the setting says; clients show the switch only then. */
+  /** Whether the host supports saved steps regardless of the current setting; clients show the switch only then. */
   here(): boolean;
   routes: RouteHandler;
   journalRoutes(internal: { capability: JournalCapability; readBody(): Promise<unknown> }): RouteHandler;
@@ -59,8 +59,8 @@ export interface SavedSteps {
   observe(event: RuntimeEvent): void;
 }
 
-export function savedStepsEnabled(cfg: Pick<AppConfig, "features">): boolean {
-  return cfg.features?.savedSteps !== false;
+export function savedStepsEnabled(cfg: Pick<AppConfig, "features">, platform: NodeJS.Platform = process.platform): boolean {
+  return cfg.features?.savedSteps ?? (platform !== "win32");
 }
 
 const keepsFromSaving = (event: RuntimeEvent): boolean =>
@@ -68,8 +68,8 @@ const keepsFromSaving = (event: RuntimeEvent): boolean =>
 
 export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
   const platform = deps.platform ?? process.platform;
-  // Linux and Windows ship the cua-driver 0.41.3 Rust build; neither has been shown to answer list_windows and elements_complete as replay needs.
-  const enabled = () => platform === "darwin" && deps.enabled();
+  const supported = platform === "darwin" || platform === "win32";
+  const enabled = () => supported && deps.enabled();
   const journal = new ComputerJournal();
   const now = deps.now ?? Date.now;
   const recipes = new RecipeStore({ folder: deps.folder ?? botFolder, now: deps.now });
@@ -81,6 +81,7 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
   };
   const dispatch = new SavedStepsDispatch({
     recipes,
+    platform,
     enabled,
     publish: deps.publish,
     engines: deps.engines,
@@ -100,6 +101,7 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
       return;
     }
     if (!enabled() || automated || !taken?.calls.length || !personTextRequest(request) || after.some((line) => line.role === "user") || !otherToolsHarmless(after)) return;
+    if (platform === "win32" && taken.calls.some((call) => call.tool === "click" && call.result.structured?.background_effect_confirmed !== true)) return;
     const built = buildRecipe({ request: request.text ?? "", journal: taken, id: randomUUID(), now: now() });
     if (!built.ok || !dispatch.wouldReplay(threadId, built.recipe)) return;
     recipes.save(botId, built.recipe);
@@ -117,7 +119,7 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
       else if (capability.kind === "computer") journal.taint({ threadId: capability.threadId, generation: capability.generation });
     },
     journals: (owner) => owner?.personLine === true && personRequest(owner) && enabled(),
-    here: () => platform === "darwin",
+    here: () => supported,
     journalRoutes: (internal) => createComputerJournalRoutes({ ...internal, enabled, record: (scope, entry) => journal.record(scope, entry) }),
     requestSettled(settled) {
       const taken = journal.take(settled.threadId, settled.generations);

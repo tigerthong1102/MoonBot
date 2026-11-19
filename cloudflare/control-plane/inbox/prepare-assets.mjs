@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { Paperclip, Send, FileText, Download, Users, Search, SquarePen, Ellipsis, X, MessageCircle, Info } from "lucide-react";
 import { createServer } from "vite";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -53,6 +54,13 @@ await writeFile(new URL("./public/inbox-messages.js", import.meta.url), [
   ["messages", messages], ["languageNames", languageNames], ["selectMarkup", selectMarkup],
 ].map(([name, value]) => "export const " + name + " = " + JSON.stringify(value) + ";").join("\n") + "\n");
 
+
+const icons = { clip: Paperclip, send: Send, file: FileText, down: Download, group: Users, search: Search, new: SquarePen, more: Ellipsis, close: X, chat: MessageCircle, info: Info };
+const symbols = Object.entries(icons).map(([name, Icon]) => {
+  const svg = renderToStaticMarkup(createElement(Icon));
+  return svg.replace(/^<svg[^>]*>/, '<symbol id="i-' + name + '" viewBox="0 0 24 24">').replace(/<\/svg>$/, "</symbol>");
+});
+await writeFile(new URL("./public/inbox-icons.svg", import.meta.url), '<svg xmlns="http://www.w3.org/2000/svg">' + symbols.join("") + "</svg>\n");
 
 const styles = await readFile(new URL("../../../src/styles.css", import.meta.url), "utf8");
 const tokens = ["--code-color-scheme", "--font-sans", ...["app", "panel", "card", "raised", "ink", "ink-secondary", "hairline", "accent-text", "focus", "bubble-user", "bubble-user-ink"].map((name) => "--color-" + name)];

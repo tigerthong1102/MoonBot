@@ -233,7 +233,7 @@ function roomName(r) {
 function icon(name) {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   const use = document.createElementNS(svg.namespaceURI, "use");
-  use.setAttribute("href", "#i-" + name);
+  use.setAttribute("href", "/inbox-icons.svg#i-" + name);
   svg.setAttribute("class", "icon");
   svg.setAttribute("aria-hidden", "true");
   svg.append(use);
@@ -1030,13 +1030,26 @@ for (const field of document.querySelectorAll('#mail-lang, select[name="locale"]
 }
 chooseLanguage(language);
 el("mail-lang").closest("label").hidden = !el("desktop-back").hidden;
-el("mail-lang").onchange = () => {
-  pickedLanguage = true;
+let savingLanguage = Promise.resolve();
+function changeInboxLanguage(tag) {
+  chooseLanguage(tag);
+  const selected = language;
   const url = new URL(location.href);
-  url.searchParams.set("lang", el("mail-lang").value);
+  url.searchParams.set("lang", selected);
   history.replaceState(null, "", url);
-  chooseLanguage(el("mail-lang").value);
-  if (joinToken) void showGroupInvitation();
+  renderAttachments();
+  if (joinToken) void showGroupInvitation().catch(fail);
+  if (!me) return;
+  const account = me.id;
+  savingLanguage = savingLanguage.then(async () => {
+    if (me?.id !== account) return;
+    await api("language", {locale:selected});
+    if (me?.id === account && language === selected) await (viewingSaved ? showSaved() : refresh());
+  }).catch(fail);
+}
+el("mail-lang").onchange = () => {
+  pickedLanguage = !me;
+  changeInboxLanguage(el("mail-lang").value);
 };
 const stopParams = new URLSearchParams(location.hash.slice(1));
 if (stopParams.has("stop")) {
@@ -1056,14 +1069,7 @@ if (stopParams.has("stop")) {
   });
 
 window.addEventListener("inbox-language", event => {
-  if (typeof event.detail !== "string") return;
-  chooseLanguage(event.detail);
-  const url = new URL(location.href);
-  url.searchParams.set("lang", language);
-  history.replaceState(null, "", url);
-  renderAttachments();
-  if (joinToken) void showGroupInvitation().catch(fail);
-  if (me) void api("language", {locale:language}).then(() => viewingSaved ? showSaved() : refresh()).catch(fail);
+  if (typeof event.detail === "string") changeInboxLanguage(event.detail);
 });
 window.addEventListener("inbox-bots-changed", () => void refresh().catch(fail));
 window.addEventListener("inbox-bots-empty", () => status(t("personalInbox.botNone"),true));

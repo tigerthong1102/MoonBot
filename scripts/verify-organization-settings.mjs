@@ -225,7 +225,11 @@ if (process.versions.electron && process.argv.includes(flag)) {
       saveEnvironments: next => writeFileSync(environmentsFile, serializeEnvironments(next)),
       disconnectAndRemember: () => { throw new Error("Legacy hosted entry must not clear companion credentials"); },
       clearRestartIntent: () => { restartIntent = false; },
-      openLocalSettings: () => win.loadURL(`${url}?app=1&desktop-settings=organization`),
+      openLocalSettings: async () => {
+        if (!win.webContents.isLoadingMainFrame() && new URL(win.webContents.getURL()).origin === localOrigin)
+          win.webContents.send("app:open-settings", "organization");
+        else await win.loadURL(`${url}?app=1&desktop-settings=organization`);
+      },
       relaunch: () => { throw new Error("Legacy hosted entry needs no restart"); },
     });
     await win.loadURL(activeEnvironment(readEnvironments()).origin);
@@ -284,7 +288,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
   const ui = await createServer({ configFile: false, root, resolve: { alias: { "@": join(root, "src") } },
     define: { __APP_VERSION__: JSON.stringify("fixture") },
     optimizeDeps: { entries: ["src/App.tsx", "src/components/OrganizationSettings.tsx", "src/components/BotProfileAvatarCard.tsx"], include: ["qrcode.react", "yaml"] },
-    server: { fs: { allow: [root, realpathSync(join(root, "node_modules"))] }, host: "127.0.0.1", port: 0, proxy: { "/api": { target: fixture.info.url } } },
+    server: { fs: { allow: [root, realpathSync(join(root, "node_modules"))] }, host: "127.0.0.1", port: 0, proxy: { "/api": { target: fixture.info.url, ws: true } } },
     plugins: [react(), tailwindcss(), {
       name: "organization-fixture",
       resolveId(id) { if (id === "virtual:organization-fixture") return `\0${id}`; },

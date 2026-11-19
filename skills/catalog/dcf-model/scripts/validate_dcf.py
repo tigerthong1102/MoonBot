@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# StartupBot modified this file to look up the WACC worksheet using the openpyxl workbook API.
 """
 DCF Model Validation Script
 Validates Excel DCF models for formula errors and common DCF mistakes
@@ -160,7 +161,8 @@ class DCFModelValidator:
     def _check_wacc_range(self):
         """Check if WACC is in reasonable range"""
         try:
-            wacc_sheet = self.workbook_values.get('WACC') or self.workbook_values['DCF']
+            sheet_name = "WACC" if "WACC" in self.workbook_values.sheetnames else "DCF"
+            wacc_sheet = self.workbook_values[sheet_name]
             wacc = None
 
             for row in wacc_sheet.iter_rows(max_row=100, max_col=20):

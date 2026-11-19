@@ -6,8 +6,10 @@ import { isSkillName } from "../shared/skill-md.ts";
 import { prepareSkillFolder, type SkillFolderFile } from "./skill-folder.ts";
 import { installLibrarySkill, readSkillLibraryIndex, retireLibrarySkill, setLibrarySkillEveryBot, skillsLibraryRoot } from "./skill-library.ts";
 
-// Only these exact bundled folders contain the superseded Seedream logger or server launcher.
+// Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["pdf", "bae1fee03ea09067461c2f436a211a0f8ff7e6178356f81a6f61ccb04a3fd706"],
+  ["dcf-model", "b2d2e4e5a884469a63ae0abef7d0e95d756b70619f94736fd9b62efe34895f98"],
   ["webapp-testing", "5a0400264fe9b7e20522ff39ab59535636b98a182448e641798554ef5d988f11"],
   ["byted-seedream-image-generate", "ad2bd0eecf45c277877237eeb0096898e0e727dddf66dc7d3fd8d2e03b4399cf"],
 ]);

@@ -72,7 +72,8 @@
     "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pdf/LICENSE.txt",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/extract_form_field_info.py"
     ],
     "excludedFiles": [],
     "category": "office",
@@ -477,7 +478,8 @@
     "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/validate_dcf.py"
     ],
     "excludedFiles": [],
     "category": "finance",

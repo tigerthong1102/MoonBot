@@ -18,6 +18,12 @@ would. Nothing touches live app data.
 
 ## What it checks
 
+- **Clear messages in this conversation.** The owner asks in Vietnamese. The tool
+  shows a confirmation card. A running turn, a client-only device, another
+  thread, an inherited card in a fork, a cancelled card and a second click
+  cannot clear the transcript. After confirmation the fixture restarts, reads
+  the sibling conversation, downloads the original attachment, reads the
+  workspace file and continues chatting in the original thread.
 - **Safe.** A Full-access owner turn finds "turn timeout", sets
   `rooms.turnTimeoutMinutes` to 45 and gets an applied card with Undo.
   `config.json` and `GET /api/config` show 45. `POST /api/threads/:id/undo`

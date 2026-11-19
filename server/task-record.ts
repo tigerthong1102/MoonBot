@@ -32,3 +32,10 @@ export function buildTask(bot: BotRecord, title?: string, projectId?: string, op
     busy: false,
   };
 }
+
+export function mirrorActiveTask(bot: BotRecord, task: TaskRecord) {
+  bot.threadId = task.threadId;
+  bot.resumeCursors = structuredClone(task.resumeCursors);
+  bot.rewound = task.rewound;
+  bot.pinnedMessageId = task.pinnedMessageId;
+}

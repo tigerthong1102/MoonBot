@@ -29,7 +29,7 @@ export interface TaskRouteDeps {
   store: Pick<Store,
     | "bot" | "bots" | "taskByThread" | "project" | "projectBotForTask" | "patchTask" | "patchProject" | "tasks"
     | "switchTaskModel" | "switchTask" | "retitleTask" | "reorderProjects" | "refreshTaskPermissions" | "messagesTail"
-    | "messagesFor" | "deleteTasks" | "deleteProject" | "createTask" | "forkTask" | "createProject">;
+    | "messagesFor" | "activePath" | "patchMessage" | "clearTaskMessages" | "deleteTasks" | "deleteProject" | "createTask" | "forkTask" | "createProject">;
   /** On a Cloud home only the owner changes how a bot asks for approval. */
   cloudHome: boolean;
   /** The desktop app owns this server, so a loopback caller is its owner. */
@@ -51,6 +51,7 @@ export interface TaskRouteDeps {
   cloudThreadRefusal(auth: RequestAuth, threadId: string): string | null;
   sharedWorkspaceFullAccessEnabled(): boolean;
   supportsApprovalMode(selection: ModelSelection, mode: ApprovalMode): boolean;
+  hasPendingWork(botId: string, threadId: string): boolean;
   threadBusy(botId: string, threadId: string): boolean;
   broadcast(payload: Record<string, unknown>): void;
   notificationListed: NotificationListed;
@@ -117,6 +118,33 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler & { deleteTa
   };
   return Object.assign(async ({ req, res, url, path, method, auth, json, readBody }: Parameters<RouteHandler>[0]) => {
     let m: RegExpMatchArray | null = null;
+
+    m = path.match(/^\/api\/bots\/([\w-]+)\/tasks\/([\w-]+)\/clear-messages$/);
+    if (m && method === "POST") {
+      const [, botId, threadId] = m;
+      if (!ownerOrAdmin(auth)) return json(res, 403, { error: "Only the owner can answer this request." });
+      const body = await readBody(req);
+      if (typeof body?.messageId !== "string" || !["confirm", "cancel"].includes(body.decision)) {
+        return json(res, 400, { error: "Choose confirm or cancel for a conversation card." });
+      }
+      const refusal = deleteRefusal(auth, botId, threadId);
+      if (refusal) return json(res, refusal.status, { error: refusal.error });
+      const row = store.activePath(threadId).findLast((message) => message.role === "user" || message.settingsCard?.id === "clear-messages");
+      const card = row?.settingsCard;
+      if (!row || row.id !== body.messageId || card?.id !== "clear-messages" || card.threadId !== threadId || card.cancelled) {
+        return json(res, 409, { code: "clear_expired", error: "This confirmation has expired. Ask again in this conversation." });
+      }
+      if (body.decision === "cancel") {
+        store.patchMessage(threadId, row.id, { settingsCard: { ...card, cancelled: true } });
+        return json(res, 200, { cleared: false });
+      }
+      if (deps.hasPendingWork(botId, threadId)) return json(res, 409, { code: "clear_queued", error: "Wait for queued work to finish first." });
+      if (!store.clearTaskMessages(botId, threadId)) return json(res, 404, { error: "no such conversation" });
+      clearTurnDigestState(threadId);
+      handoffs.forget(threadId);
+      broadcast({ kind: "messages.cleared", threadId });
+      return json(res, 200, { cleared: true });
+    }
 
     // Folders never own settings, transcripts or working directories; the "project" wire names stay.
     m = path.match(/^\/api\/bots\/([\w-]+)\/projects\/order$/);

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DATA_DIR } from "./config.ts";
 import { closeMessageDb,
-  deleteThread,
+  appDocRefs, clearThreadMessages, threadsReferencing, deleteThread,
   deleteThreads,
   indexMemoryFile,
   indexedMemoryFiles,
@@ -64,6 +64,26 @@ describe("message-db", () => {
     const thread = readThread("t1", legacy("t1"));
     expect(thread.messages.map((m) => m.text)).toEqual(["hello, edited", "world"]);
     expect(thread.activeLeafId).toBe("m2");
+  });
+
+  it("clears search and every branch while retaining page files until the thread itself is deleted", () => {
+    insertMessage("target", msg("secret", "fixtureoldwords"));
+    insertMessage("target", msg("side", "alternatebranch /api/attachments/fixture-A.png", { parentId: null }));
+    insertMessage("target", msg("page", "", { kind: "app", app: { v: 1, source: "html", bytes: 10, border: true, network: { connect: [], resources: [] }, title: "Report", rev: 1, doc: "new-doc", history: ["old-doc"] } }));
+    setActiveLeaf("target", "secret");
+    writeFileSync(legacy("target"), JSON.stringify([msg("legacy", "stale-on-disk")]));
+    expect(() => clearThreadMessages("target", () => { throw Error("fixture registry failure"); })).toThrow("fixture registry failure");
+    expect(readThread("target", legacy("target")).messages).toHaveLength(3);
+    clearThreadMessages("target", () => {});
+    closeMessageDb();
+    expect(readThreadTail("target", legacy("target"), 1).messages).toEqual([]);
+    expect(readThread("target", legacy("target")).messages).toEqual([]);
+    expect(searchMessages("fixtureoldwords", 10, "target")).toEqual([]);
+    expect(threadsReferencing("fixture-A.png")).toEqual(["target"]);
+    expect(appDocRefs().sort()).toEqual(["new-doc", "old-doc"]);
+    deleteThread("target");
+    expect(appDocRefs()).toEqual([]);
+    expect(threadsReferencing("fixture-A.png")).toEqual([]);
   });
 
   it("lists the live pages, newest first, up to the limit", () => {

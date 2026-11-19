@@ -3,7 +3,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
 import { launchVerificationServer, verificationServerArgs, verificationServerEnvironment, type VerificationServer } from "../scripts/control-omb.ts";
@@ -56,6 +56,19 @@ const finished = async (key: string) => {
   return turn;
 };
 
+async function bootSavedFixture() {
+  const env = verificationServerEnvironment({}, dataDir, Number(new URL(url).port));
+  const log = openSync(fixture.info.logPath, "a", 0o600);
+  child = spawn(process.execPath, verificationServerArgs(env), { cwd: join(import.meta.dirname, ".."), env, stdio: ["ignore", log, log] });
+  closeSync(log);
+  for (const deadline = Date.now() + 20_000; ;) {
+    if (child.exitCode !== null) throw new Error(`restarted server exited; see ${fixture.info.logPath}`);
+    try { if ((await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1000) })).ok) break; } catch {}
+    if (Date.now() > deadline) throw new Error(`restarted server did not start; see ${fixture.info.logPath}`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 beforeAll(async () => {
   fixture = await launchVerificationServer({}, undefined, undefined, undefined, undefined, { scripted: true });
   ({ url, dataDir } = fixture.info);
@@ -72,16 +85,7 @@ beforeAll(async () => {
   setter.approvalMode = "full"; setter.autoApprove = false;
   for (const task of setter.tasks) { task.approvalMode = "full"; task.autoApprove = false; }
   writeRegistry(dataDir, { bots: saved });
-  const env = verificationServerEnvironment({}, dataDir, Number(new URL(url).port));
-  const log = openSync(fixture.info.logPath, "a", 0o600);
-  child = spawn(process.execPath, verificationServerArgs(env), { cwd: join(import.meta.dirname, ".."), env, stdio: ["ignore", log, log] });
-  closeSync(log);
-  for (const deadline = Date.now() + 20_000; ;) {
-    if (child.exitCode !== null) throw new Error(`restarted server exited; see ${fixture.info.logPath}`);
-    try { if ((await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1000) })).ok) break; } catch {}
-    if (Date.now() > deadline) throw new Error(`restarted server did not start; see ${fixture.info.logPath}`);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
+  await bootSavedFixture();
   expect((await api("GET", "/api/bots")).bots.find((one: any) => one.id === bot.id).approvalMode).toBe("full");
 
   // The owner's paired phone: an admin session, which saves a provider key as Settings does.
@@ -369,3 +373,74 @@ it("a webhook's run may read a setting but not change it", async () => {
   expect(refused).toMatchObject({ isError: true, text: expect.stringMatching(/^Settings change only in the owner's own conversation\./) });
   expect(config().rooms?.turnTimeoutMinutes).toBe(value);
 }, 60_000);
+
+it("an in-chat confirmation clears only its direct transcript and starts a fresh conversation in the same workspace after restart", async () => {
+  const workspace = join(dataDir, "workspaces", bot.id);
+  mkdirSync(workspace, { recursive: true });
+  const file = join(workspace, "báo cáo mẫu.txt");
+  writeFileSync(file, "fixture-only");
+  const sibling = (await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Fixture sibling", select: false }, 201)).task.threadId;
+  plans[bot.id]!.script.push({ key: "SIBLING-KEEP", match: ["SIBLING-KEEP"], reply: "Sibling fixture reply." });
+  writeFileSync(planPath, JSON.stringify(plans));
+  await api("POST", `/api/bots/${bot.id}/messages`, { threadId: sibling, text: "SIBLING-KEEP" }, 202);
+  await finished("SIBLING-KEEP");
+  const savedSibling = await messages(sibling);
+  expect(savedSibling.some((row) => row.text === "SIBLING-KEEP")).toBe(true);
+  const image = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const upload = await fetch(url + "/api/attachments", { method: "POST", headers: { "content-type": "image/png" }, body: image });
+  expect(upload.status).toBe(201);
+  const imagePath = (await upload.json() as { path: string }).path;
+  plans[bot.id]!.script.push({ key: "FILE-FIXTURE", match: ["FILE-FIXTURE"], reply: "Fixture attachment received." });
+  writeFileSync(planPath, JSON.stringify(plans));
+  await api("POST", `/api/bots/${bot.id}/messages`, { threadId: bot.threadId, text: `FILE-FIXTURE\n<attached-image path="${imagePath}" name="fixture.png" />` }, 202);
+  await finished("FILE-FIXTURE");
+  const clear = (thread: string, messageId: string, decision: string, status: number) =>
+    api("POST", `/api/bots/${bot.id}/tasks/${thread}/clear-messages`, { messageId, decision }, status);
+  const request = async (key: string, delayMs = 0) => {
+    const text = `Xóa tin nhắn của đúng hội thoại này. ${key}`;
+    plans[bot.id]!.script.push({ key, match: [key], steps: [step({ action: "show_card", card: "clear-messages" })], delayMs, reply: "Hãy xác nhận trong chat." });
+    writeFileSync(planPath, JSON.stringify(plans));
+    await api("POST", `/api/bots/${bot.id}/messages`, { threadId: bot.threadId, text }, 202);
+    await expect.poll(async () => {
+      const rows = await messages(bot.threadId);
+      const index = rows.findIndex((row) => row.text === text);
+      return index >= 0 && rows.slice(index + 1).some((row) => row.settingsCard?.id === "clear-messages");
+    }, { timeout: 20_000 }).toBe(true);
+    return (await messages(bot.threadId)).filter((row) => row.settingsCard?.id === "clear-messages").at(-1).id as string;
+  };
+  const first = await request("CLEAR-CANCEL", 2500);
+  await clear(bot.threadId, first, "confirm", 409);
+  await finished("CLEAR-CANCEL");
+  await clear(bot.threadId, first, "cancel", 200);
+  await clear(bot.threadId, first, "confirm", 409);
+  const second = await request("CLEAR-STALE");
+  await finished("CLEAR-STALE");
+  const third = await request("CLEAR-ACCEPT");
+  expect(results(await finished("CLEAR-ACCEPT"))[0]).toMatchObject({ isError: false });
+  const pairing = await api("POST", "/api/auth/pairing", { label: "Fixture client", scopes: ["client"] });
+  const clientToken = (await api("POST", "/api/auth/pair", { code: pairing.code })).token;
+  await api("POST", `/api/bots/${bot.id}/tasks/${bot.threadId}/clear-messages`, { messageId: third, decision: "confirm" }, 403, clientToken);
+  const fork = (await api("POST", `/api/bots/${bot.id}/tasks/${bot.threadId}/forks`, { messageId: third }, 201)).task.threadId;
+  expect((await messages(fork)).some((row) => row.id === third)).toBe(true);
+  await clear(fork, third, "confirm", 409);
+  await clear(sibling, third, "confirm", 409);
+  await clear(bot.threadId, second, "confirm", 409);
+  expect((await messages(bot.threadId)).some((row) => row.id === first)).toBe(true);
+  expect(await clear(bot.threadId, third, "confirm", 200)).toMatchObject({ cleared: true });
+  await clear(bot.threadId, third, "confirm", 409);
+  expect(await messages(bot.threadId)).toEqual([]);
+  await waitForExit(child, { signal: "SIGTERM" });
+  await bootSavedFixture();
+  expect(await messages(bot.threadId)).toEqual([]);
+  expect(await messages(sibling)).toEqual(savedSibling);
+  expect((await botNow()).tasks.find((task: any) => task.threadId === bot.threadId)).toMatchObject({ approvalMode: "full" });
+  expect(readFileSync(file, "utf8")).toBe("fixture-only");
+  await api("DELETE", `/api/bots/${bot.id}/tasks/${fork}`);
+  const kept = await fetch(url + "/api/attachments/" + basename(imagePath));
+  expect(kept.status).toBe(200);
+  expect(Buffer.from(await kept.arrayBuffer())).toEqual(image);
+  await start("AFTER-CLEAR", []);
+  const turn = await finished("AFTER-CLEAR");
+  expect(turn.prompt).not.toContain("CLEAR-ACCEPT");
+  expect((await messages(bot.threadId)).some((row) => row.text === "Done: AFTER-CLEAR")).toBe(true);
+}, 120_000);

@@ -32,6 +32,14 @@ export const SETTINGS_CARDS: Record<SettingsCardId, SettingsCard> = {
     action: true,
     path: "Settings → AI → Providers",
   },
+  "clear-messages": {
+    label: "Clear conversation history",
+    where: "this conversation",
+    when: "when asked to delete the messages or clear the history of this conversation",
+    text: "Clear every message in this conversation? The bot and its files will be kept.",
+    guide: "Ask the person to confirm in this conversation, then finish your turn. Nothing has been cleared yet.",
+    action: true,
+  },
 };
 
 /** Fixed words only, never the address. `on`: true when the setting is known to be on; null when the server cannot

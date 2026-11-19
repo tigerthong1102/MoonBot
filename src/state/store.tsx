@@ -1,6 +1,6 @@
 import { cloudAsleep, onCloudPower } from "../lib/cloud-power";
 import { api, ApiError, retryRequest, snapshotArrays } from "./api";
-import { loadOlderPage, MESSAGE_PAGE_SIZE, reduceOlderMessages } from "./message-history";
+import { bumpTranscriptGeneration, clearTranscript, loadOlderPage, MESSAGE_PAGE_SIZE, reduceOlderMessages } from "./message-history";
 export { MESSAGE_PAGE_SIZE } from "./message-history";
 import { addForkOptimistic, reduceForkPanel, removeForkOptimistic, runForkEffect, type ForkPanelAction, type ForkPanelState } from "./fork-panel";
 import { use, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
@@ -564,7 +564,7 @@ export interface AppState {
   } | null;
   pendingQueued: Record<string, Array<{ queueId: string; text: string; reason?: SteerQueueReason; sender?: ResolvedSender }>>;
   consumedQueueIds: Record<string, true>;
-  backgroundThreadEvents: Record<string, Array<Extract<Action, { type: "messageAdded" | "messagePatched" | "threadActive" | "optimisticMessageRemoved" }>>>;
+  backgroundThreadEvents: Record<string, Array<Extract<Action, { type: "messagesCleared" | "messageAdded" | "messagePatched" | "threadActive" | "optimisticMessageRemoved" }>>>;
   loadingOlder: Record<string, true>;
   /** Bumped when a transcript is replaced or its branch moves, never on append; stale scrollback pages are dropped. */
   transcriptGeneration: Record<string, number>;
@@ -672,6 +672,7 @@ export type Action =
   | { type: "steerGroupQueued"; groupId: string; queueId: string; threadId?: string; onError?: () => void; onSettled?: () => void }
   | { type: "editMessage"; botId: string; messageId: string; text: string; threadId?: string; sendId?: string }
   | { type: "switchBranch"; botId: string; messageId: string; threadId?: string }
+  | { type: "messagesCleared"; threadId: string }
   | { type: "threadActive"; threadId: string; activeLeafId: string }
   | { type: "loadOlderMessages"; threadId: string }
   | { type: "olderMessages"; threadId: string; generation: number; messages: Message[]; hasMore: boolean }
@@ -769,17 +770,6 @@ export function pinBotThreadAction(action: Action, bots: Bot[]): Action {
   const botId = action.botId;
   const threadId = bots.find((bot) => bot.id === botId)?.threadId;
   return { ...action, threadId } as Action;
-}
-
-function bumpTranscriptGeneration(state: AppState, threadId: string | undefined | null): AppState {
-  if (!threadId) return state;
-  return {
-    ...state,
-    transcriptGeneration: {
-      ...state.transcriptGeneration,
-      [threadId]: (state.transcriptGeneration[threadId] ?? 0) + 1,
-    },
-  };
 }
 
 function updateBot(state: AppState, botId: string, fn: (b: Bot) => Bot): AppState {
@@ -1550,6 +1540,7 @@ export function reducer(state: AppState, action: Action): AppState {
       else if (connectorScopes !== undefined) botPatch.connectorScopes = connectorScopes;
       return updateBot(next, action.botId, (b) => ({ ...b, ...botPatch }));
     }
+    case "messagesCleared": return clearTranscript(state, action);
     case "threadActive": {
       const bot = state.bots.find((b) => b.threadId === action.threadId);
       if (!bot) return state;
@@ -3083,6 +3074,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
           break;
         }
+        case "messages.cleared":
+          bumpPeripheralVersion("notifications");
+          rawDispatch({ type: "messagesCleared", threadId: frame.threadId });
+          break;
         case "message.patch":
           rawDispatch({ type: "messagePatched", threadId: frame.threadId, message: frame.message as Message });
           rawDispatch({ type: "forkPanelMessage", threadId: frame.threadId, message: frame.message as Message, patch: true });

@@ -62,3 +62,28 @@ export async function loadFullThread(threadId: string): Promise<{ messages: Mess
   }
   return { messages, activeLeafId };
 }
+
+export function bumpTranscriptGeneration(state: AppState, threadId: string | undefined | null): AppState {
+  if (!threadId) return state;
+  return {
+    ...state,
+    transcriptGeneration: {
+      ...state.transcriptGeneration,
+      [threadId]: (state.transcriptGeneration[threadId] ?? 0) + 1,
+    },
+  };
+}
+
+export function clearTranscript(state: AppState, action: Extract<Action, { type: "messagesCleared" }>): AppState {
+  const { threadId } = action;
+  const { [threadId]: _old, ...backgroundThreadEvents } = state.backgroundThreadEvents;
+  const owner = state.bots.find((bot) => bot.tasks?.some((task) => task.threadId === threadId));
+  if (owner && (owner.switchingTo === threadId || owner.awaitingThreadSnapshot)) backgroundThreadEvents[threadId] = [action];
+  return {
+    ...bumpTranscriptGeneration(state, threadId), backgroundThreadEvents,
+    forkPanel: state.forkPanel?.threadId === threadId ? null : state.forkPanel,
+    unreadDivider: state.unreadDivider?.threadId === threadId ? null : state.unreadDivider,
+    notifications: state.notifications.filter((entry) => entry.threadId !== threadId),
+    bots: state.bots.map((bot) => bot.threadId === threadId ? { ...bot, messages: [], activeLeafId: null, hasMore: false } : bot),
+  };
+}

@@ -4,10 +4,9 @@
 // by its name (an outbound tool, a tool selection, an engine's own rules) never runs through it.
 import { isOutboundTool } from "../../shared/outbound.ts";
 import { READ_ONLY_ANNOTATIONS } from "../agent-tool-policy.ts";
-import { foldSearchText } from "../search-text.ts";
 import { bm25Ranker } from "../mcp-directory.ts";
 import { AGENTS_TOOL_ALIASES } from "../../shared/agents-tool-names.ts";
-import { vietnameseToolHints } from "./agents-vietnamese-search.ts";
+import { vietnameseToolQuery } from "./agents-vietnamese-search.ts";
 import type { Json } from "./agents-client.ts";
 
 /** The proxy's switch: "1" lists through the bridge, anything else lists the whole catalog. */
@@ -189,13 +188,10 @@ export function createToolBridge(tools: readonly BridgeTool[]): ToolBridge {
     if (!query || query.length > QUERY_CHARS) return { text: FIND_USAGE, isError: true };
     const named = Object.hasOwn(AGENTS_TOOL_ALIASES, query) ? AGENTS_TOOL_ALIASES[query]!.tools[0]! : query;
     if (listedNames.has(named)) return { text: `${named} is in your tool list: call it directly.` };
-    const hints = vietnameseToolHints(query);
+    const { hints, remaining } = vietnameseToolQuery(named);
     const direct = hints.filter(hint => listedNames.has(hint));
     const suggested = hints.flatMap(hint => hidden.filter(tool => tool.name === hint));
     const directHelp = direct.map(name => `${name} is in your tool list: call it directly.`).join(" ");
-    const remaining = hints.length
-      ? foldSearchText(query).split(/\s+(?:va sau do|sau do|and then|and|then|va|roi)\s+/u).filter(part => !vietnameseToolHints(part).length).join(" ").trim()
-      : named;
     const lexical = remaining ? await bm25Ranker(remaining, hidden, FIND_MATCHES_MAX) : [];
     const ranked = [...suggested, ...lexical.filter(tool => !suggested.some(match => match.name === tool.name))];
     if (directHelp && !ranked.length) return { text: directHelp };

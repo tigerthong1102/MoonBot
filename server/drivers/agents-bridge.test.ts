@@ -274,8 +274,8 @@ describe("find_tool", () => {
     expect(mixed.matches[0]?.name).toBe("trigger");
   });
 
-  it.each(["and", "và", "va", "và sau đó", "va sau do", "rồi"])("retains mixed search clauses joined by %s", async joiner => {
-    const bilingual = await found(bridgeFor(), `Đổi tên hội thoại ${joiner} list_models`);
+  it.each([" and ", " và ", " va ", " và sau đó ", " va sau do ", " rồi ", "; ", ",", ". ", "\n"])("retains mixed search clauses joined by %s", async joiner => {
+    const bilingual = await found(bridgeFor(), `Đổi tên hội thoại${joiner}list_models`);
     expect(names(bilingual.matches)).toEqual(expect.arrayContaining(["rename_thread", "list_models"]));
   });
 

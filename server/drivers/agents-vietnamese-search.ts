@@ -24,7 +24,16 @@ function words(text: string): string {
 const vocabulary = phrases.flatMap(([name, synonyms]) => synonyms.map(phrase => ({ name, phrase: words(phrase) })))
   .sort((a, b) => b.phrase.length - a.phrase.length);
 
-export function vietnameseToolHints(query: string): string[] {
+function vietnameseToolHints(query: string): string[] {
   const text = ` ${words(query)} `;
   return [...new Set(vocabulary.filter(entry => text.includes(` ${entry.phrase} `)).map(entry => entry.name))];
+}
+
+/** Preserve lexical search for other actions in a bilingual request. */
+export function vietnameseToolQuery(query: string): { hints: string[]; remaining: string } {
+  const hints = vietnameseToolHints(query);
+  if (!hints.length) return { hints, remaining: query };
+  const clauses = foldSearchText(query).split(/[.,;:!?，。；：！？、\n]+|\s+(?:va sau do|sau do|and then|and|then|va|roi)\s+/u);
+  const remaining = clauses.filter(clause => !vietnameseToolHints(clause).length).join(" ").trim();
+  return { hints, remaining };
 }

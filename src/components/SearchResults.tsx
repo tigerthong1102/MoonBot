@@ -36,7 +36,7 @@ export function SearchResults({ query, onLanded }: { query: string; onLanded: ()
       alive = false;
       clearTimeout(t);
     };
-  }, [q]);
+  }, [q, state.clearRevisions]);
 
   if (q.length < MIN_QUERY) return null;
 

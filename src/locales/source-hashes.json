@@ -26101,6 +26101,13 @@
       "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
     },
     "pt-br": {
+      "chat.clearMessages.question": "81d6c4e9d967df9cc372836338ffcab352f9d8bc7c14d4991bd925ec6adef712",
+      "chat.clearMessages.done": "2ea43b082b2a350a2dcd76c9104527edf081762042558a4293efa6625012ee43",
+      "chat.clearMessages.confirm": "708b60941566140877b9d07a5bee1b1e0295d4c73816d90458171c872f10ee2a",
+      "chat.clearMessages.queued": "4708e5b0188ab7d56dd2ab99854242b34a89f3f39bc37550f0859ba058b07ba6",
+      "chat.clearMessages.wait": "df22f0bbd88be108ed537204e3109d2d4733368ae95d2864144b8312d09cf3d1",
+      "chat.clearMessages.cancelled": "a423a8d5ee041d085e09d6ce43f5a4ef9d1619a1ad938e64aaca1a151ac87815",
+      "chat.clearMessages.expired": "54d8c502187bf060adcddfb9edfe1e0f1084b8d21435b538b4ce15a5bca6bcd4",
       "voice.gemini.keyPlaceholder": "8c87ba2043a4a89d63c90cae8a6dafd5cbd193652e923b97988e381a74773e10",
       "voice.gemini.model": "da23d132c90fadd03238ffb38f5868d70d02895b07a7b75508cfdd4454d37fe2",
       "keys.label.geminiTts": "fa50097b6e379a37f644a1ee7ff626d6f5604753afd04d4a6dc0cc3dc0f45e55",
@@ -61903,6 +61910,13 @@
       "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0"
     },
     "vi": {
+      "chat.clearMessages.question": "81d6c4e9d967df9cc372836338ffcab352f9d8bc7c14d4991bd925ec6adef712",
+      "chat.clearMessages.done": "2ea43b082b2a350a2dcd76c9104527edf081762042558a4293efa6625012ee43",
+      "chat.clearMessages.confirm": "708b60941566140877b9d07a5bee1b1e0295d4c73816d90458171c872f10ee2a",
+      "chat.clearMessages.queued": "4708e5b0188ab7d56dd2ab99854242b34a89f3f39bc37550f0859ba058b07ba6",
+      "chat.clearMessages.wait": "df22f0bbd88be108ed537204e3109d2d4733368ae95d2864144b8312d09cf3d1",
+      "chat.clearMessages.cancelled": "a423a8d5ee041d085e09d6ce43f5a4ef9d1619a1ad938e64aaca1a151ac87815",
+      "chat.clearMessages.expired": "54d8c502187bf060adcddfb9edfe1e0f1084b8d21435b538b4ce15a5bca6bcd4",
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
       "hostedMcp.connect": "90af8c699b876e65cb575aecfa9b4001ab9476dccd259b0b40d0512bf18747d7",
       "hostedMcp.disconnect": "d2ac39b755863cc4d98303430df47f8b030d817595d2f72cbd586d06a86d54ab",

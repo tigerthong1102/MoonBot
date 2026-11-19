@@ -1,7 +1,7 @@
-import { chmodSync, existsSync, readFileSync, mkdirSync, rmSync, statSync, unlinkSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path"; import { isDeepStrictEqual } from "node:util";
 
-import { OwnedFile, writeFileAtomic } from "./atomic.ts"; import { saveLater, saveSoon, supersedeLaterSave } from "./save-batch.ts"; import { discardNativeLog } from "./drivers/native.ts";
+import { OwnedFile, writeFileAtomic } from "./atomic.ts"; import { saveLater, saveSoon, supersedeLaterSave } from "./save-batch.ts"; import { discardTranscriptFiles, messagesFile, resetTranscriptState } from "./transcript-cleanup.ts";
 import { commitRegistryChange, deferrablePatch, keptRevocation, saveRegistryFor, touchesPermissions } from "./registry-save.ts";
 import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts"; import { grantScopedApps } from "../shared/connector-scopes.ts"; import { dropRetiredApps } from "./retired-apps.ts";
 import { reorderInPlace } from "../shared/bot-order.ts"; import { trimOutboundPolicy } from "../shared/outbound.ts";
@@ -10,7 +10,7 @@ import { ensureSections, readSections, changeEmptySection } from "./section-cont
 import type { TeamComputers } from "./team-computers.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
-import { DATA_DIR, EVENTS_DIR, NATIVE_DIR, loadBrowserProfileIdAliases } from "./config.ts";
+import { DATA_DIR, loadBrowserProfileIdAliases } from "./config.ts";
 import * as mdb from "./message-db.ts";
 import { forgetBotMemoryJournal, journalFile } from "./memory-journal.ts";
 import { runCommand, type Command } from "./commands.ts";
@@ -41,7 +41,7 @@ import { initialGreetingMessage } from "./initial-greeting.ts"; import { createD
 import { appsFromCreator } from "./inherited-apps.ts"; import { newBotOwner, sharedAsMaker, sharedUnlessRestricted, type NewBotSharingRule } from "./new-bot-sharing.ts";
 import { ThreadCache, type ThreadState } from "./thread-cache.ts";
 import { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts";
-import { buildTask, threadTitleFrom, UNTITLED_THREAD } from "./task-record.ts";
+import { buildTask, mirrorActiveTask, threadTitleFrom, UNTITLED_THREAD } from "./task-record.ts";
 import { createBotFork, createGroupFork } from "./store-forks.ts";
 import { activeGroupTask, groupTaskByThread, groupTasks, migrateGroupTaskRead, mirrorActiveGroupTask, refreshGroupUnread, setGroupTaskRead, syncGroupReadPatch } from "./group-task-state.ts";
 export { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts";
@@ -191,7 +191,6 @@ function tightenRegistryFile(file: string): void {
   } catch {
   }
 }
-const messagesFile = (threadId: string) => join(DATA_DIR, `messages-${threadId}.json`);
 
 export const sectionKey = (section?: string | null): string => section?.trim() || "";
 
@@ -548,7 +547,7 @@ export class Store {
         task.activity = "idle";
         task.turnStartedAt = undefined;
       }
-      this.mirrorActiveTask(b, active);
+      mirrorActiveTask(b, active);
       b.unread = b.tasks.some(taskCountsAsBotUnread);
     }
     if (botsMigrated) this.saveBots();
@@ -885,19 +884,14 @@ export class Store {
   }
 
   private deleteThreadRecord(threadId: string, dbAlreadyDeleted = false) {
-    this.threads.delete(threadId); discardNativeLog(threadId);
     if (!dbAlreadyDeleted) mdb.deleteThread(threadId);
-    for (const file of [
-      messagesFile(threadId),
-      `${messagesFile(threadId)}.imported`,
-      join(EVENTS_DIR, `${threadId}.ndjson`),
-      join(NATIVE_DIR, `${threadId}.ndjson`),
-    ]) {
-      try {
-        unlinkSync(file);
-      } catch {}
-    }
+    this.discardTranscript(threadId);
     this.emit({ type: "thread.deleted", threadId });
+  }
+
+  private discardTranscript(threadId: string) {
+    this.threads.delete(threadId);
+    discardTranscriptFiles(threadId);
   }
 
   deleteGroup(id: string): boolean {
@@ -2051,7 +2045,7 @@ export class Store {
       if (typeof patch.title === "string") task.title = patch.title.trim().slice(0, 80) || UNTITLED_THREAD;
       if (Object.prototype.hasOwnProperty.call(patch, "pinned") && task.pinned !== true) delete task.pinned;
       if (task.routineRunId) task.unread = false;
-      if (bot.threadId === threadId) this.mirrorActiveTask(bot, task);
+      if (bot.threadId === threadId) mirrorActiveTask(bot, task);
       bot.unread = bot.tasks!.some(taskCountsAsBotUnread);
     }, revocation && (() => Object.assign(task, revocation)), touchesPermissions(patch) ? false : deferrablePatch(patch, options.turnEnd) && !(task.snoozedUntil === 0 && patch.unread === true) ? "later" : true);
     this.emit({ type: "bot", botId, threadId });
@@ -2115,7 +2109,7 @@ export class Store {
     this.saveBots(this.bots.map((candidate) => candidate === bot ? { ...bot, tasks: nextTasks } : candidate));
     bot.tasks.forEach((task, index) => { if (patches[index]) Object.assign(task, patches[index]); });
     const active = bot.tasks.find((task) => task.threadId === bot.threadId);
-    if (active) this.mirrorActiveTask(bot, active);
+    if (active) mirrorActiveTask(bot, active);
     this.emit({ type: "bot", botId });
     return moved;
   }
@@ -2154,13 +2148,6 @@ export class Store {
     return this.patchTask(botId, threadId, { approvalMode: mode, autoApprove, alwaysAllow });
   }
 
-  private mirrorActiveTask(bot: BotRecord, task: TaskRecord) {
-    bot.threadId = task.threadId;
-    bot.resumeCursors = structuredClone(task.resumeCursors);
-    bot.rewound = task.rewound;
-    bot.pinnedMessageId = task.pinnedMessageId;
-  }
-
   createTask(botId: string, title?: string, activate = true, projectId?: string, openedBy?: TaskOpenedBy, approvalMode?: "ask" | "full",
     modelSelection?: ModelSelection, cwd?: string, beforeShown?: (task: TaskRecord) => void): TaskRecord | null {
     const bot = this.own(botId);
@@ -2169,7 +2156,7 @@ export class Store {
     const task = buildTask(bot, title, projectId, openedBy, approvalMode, modelSelection, cwd);
     this.commitBotChange(bot, "the new thread", () => {
       bot.tasks = [task, ...(bot.tasks ?? [])];
-      if (activate) this.mirrorActiveTask(bot, task);
+      if (activate) mirrorActiveTask(bot, task);
     });
     beforeShown?.(task); this.emit({ type: "bot", botId });
     return task;
@@ -2222,7 +2209,7 @@ export class Store {
     const bot = this.own(botId);
     const task = bot?.tasks?.find((t) => t.threadId === threadId);
     if (!bot || !task) return null;
-    this.commitBotChange(bot, "the thread switch", () => this.mirrorActiveTask(bot, task));
+    this.commitBotChange(bot, "the thread switch", () => mirrorActiveTask(bot, task));
     this.emit({ type: "bot", botId });
     return bot;
   }
@@ -2249,6 +2236,20 @@ export class Store {
     return this.renameTask(botId, threadId, threadTitleFrom(title));
   }
 
+  clearTaskMessages(botId: string, threadId: string) {
+    const bot = this.own(botId);
+    const task = this.taskByThread(botId, threadId);
+    if (!bot || !task) return false;
+    mdb.clearThreadMessages(threadId, () => this.commitBotChange(bot, "clearing this conversation", () => {
+      resetTranscriptState(task);
+      if (bot.threadId === threadId) mirrorActiveTask(bot, task);
+      bot.unread = bot.tasks!.some(taskCountsAsBotUnread);
+    }));
+    this.discardTranscript(threadId);
+    this.emit({ type: "bot", botId });
+    return true;
+  }
+
   deleteTask(botId: string, threadId: string): BotRecord | null {
     const result = this.deleteTasks(botId, [threadId]);
     return result?.deleted.length ? result.bot : null;
@@ -2268,7 +2269,7 @@ export class Store {
       const kept = bot.tasks!.filter((t) => !doomed.has(t.threadId));
       const visible = nextOpenThread(kept) ?? buildTask(bot);
       bot.tasks = kept.includes(visible) ? kept : [visible, ...kept];
-      if (doomed.has(bot.threadId) || this.taskByThread(botId, bot.threadId)?.routineRunId) this.mirrorActiveTask(bot, visible);
+      if (doomed.has(bot.threadId) || this.taskByThread(botId, bot.threadId)?.routineRunId) mirrorActiveTask(bot, visible);
       bot.unread = bot.tasks.some(taskCountsAsBotUnread);
       this.refreshBotActivity(bot);
     }));

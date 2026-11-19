@@ -7,17 +7,21 @@ import { pageIsThisComputer } from "@/lib/companion-bridge";
 import { t } from "@/lib/i18n";
 import type { Message } from "@/state/store";
 import type { SettingsCardId } from "../../shared/app-settings";
+import { ClearMessagesCard } from "./ClearMessagesCard";
 import { SettingsLook } from "./SettingsPrimitives";
 
 const OtherComputersSetting = lazy(() => import("./TailnetComputers").then((module) => ({ default: module.OtherComputersSetting })));
 const AiSignIn = lazy(() => import("./EnginesSettings").then((module) => ({ default: module.AiSignInSettings })));
 
-const CARDS: Record<SettingsCardId, { here: () => boolean; control: () => ReactNode }> = {
+const CARDS: Record<Exclude<SettingsCardId, "clear-messages">, { here: () => boolean; control: () => ReactNode }> = {
   "other-computers": { here: pageIsThisComputer, control: () => <OtherComputersSetting /> },
   "ai-sign-in": { here: () => true, control: () => <AiSignIn /> },
 };
 
-export function SettingsCard({ message }: { message: Message }) {
+export function SettingsCard({ message, botId, threadId }: { message: Message; botId: string; threadId?: string }) {
+  if (message.settingsCard?.id === "clear-messages") {
+    return <ClearMessagesCard botId={botId} threadId={threadId} card={message.settingsCard} messageId={message.id} />;
+  }
   const card = message.settingsCard && Object.hasOwn(CARDS, message.settingsCard.id) ? CARDS[message.settingsCard.id] : null;
   if (!card) return <p dir="auto" className="max-w-[600px] text-[15px] leading-relaxed text-ink">{message.text}</p>;
   if (!card.here()) return <p data-settings-card={message.settingsCard!.id} data-settings-card-elsewhere="" className="max-w-[600px] text-[15px] leading-relaxed text-ink">{t("chat.settingsCard.elsewhere")}</p>;

@@ -47,6 +47,7 @@ sealed interface Frame {
     data class Hello(val cursor: String, val resumed: Boolean) : Frame
     data class Message(val threadId: String, val message: com.openmausbot.companion.core.Message) : Frame
     data class MessagePatch(val threadId: String, val message: com.openmausbot.companion.core.Message) : Frame
+    data class MessagesCleared(val threadId: String) : Frame
     data class Thread(val threadId: String, val activeLeafId: String?) : Frame
     data class Bot(val bot: com.openmausbot.companion.core.Bot) : Frame
     data class BotDeleted(val botId: String) : Frame
@@ -66,6 +67,7 @@ val Frame.threadId: String?
     get() = when (this) {
         is Frame.Message -> threadId
         is Frame.MessagePatch -> threadId
+        is Frame.MessagesCleared -> threadId
         is Frame.Thread -> threadId
         is Frame.Notify -> notification.threadId
         is Frame.Runtime -> event.threadId
@@ -100,6 +102,7 @@ object FrameSerializer : KSerializer<Frame> {
                     objectValue.required("message"),
                 ),
             )
+            "messages.cleared" -> Frame.MessagesCleared(objectValue.requiredString("threadId"))
             "thread" -> Frame.Thread(
                 threadId = objectValue.requiredString("threadId"),
                 activeLeafId = objectValue["activeLeafId"]?.jsonPrimitive?.contentOrNull,
@@ -212,6 +215,10 @@ private fun Frame.toJsonObject(output: JsonEncoder): JsonObject = buildJsonObjec
             put("kind", "message.patch")
             put("threadId", threadId)
             put("message", output.json.encodeToJsonElement(com.openmausbot.companion.core.Message.serializer(), message))
+        }
+        is Frame.MessagesCleared -> {
+            put("kind", "messages.cleared")
+            put("threadId", threadId)
         }
         is Frame.Thread -> {
             put("kind", "thread")

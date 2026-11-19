@@ -7,13 +7,13 @@ import { redactDeep } from "./output.ts";
 
 type Frame = Record<string, any>;
 
-export const DEFAULT_EVENT_KINDS = ["message", "message.patch", "thread", "bot", "group"];
+export const DEFAULT_EVENT_KINDS = ["message", "message.patch", "messages.cleared", "thread", "bot", "group"];
 const FINAL = new Set(["needs-input", "completed", "failed", "stalled", "idle"]);
 
 export function frameThreads(frame: Frame): string[] {
   const own = (record: Frame | undefined) => [record?.threadId, ...(Array.isArray(record?.tasks) ? record.tasks.map((task: Frame) => task.threadId) : [])];
   switch (frame.kind) {
-    case "message": case "message.patch": case "thread": case "screen": return [frame.threadId];
+    case "message": case "message.patch": case "messages.cleared": case "thread": case "screen": return [frame.threadId];
     case "runtime": return [frame.event?.threadId];
     case "bot": return own(frame.bot);
     case "group": return own(frame.group);

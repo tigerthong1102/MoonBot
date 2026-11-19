@@ -12,8 +12,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 
 import { baseBotId, isLayerId } from "../audience.ts";
 
-/** A file in attachments/, by its URL or by its path (as JSON escapes it) a sent document's tag carries. */
-const ATTACHMENT = /attachments(?:\/|\\)+([A-Za-z0-9][\w.-]{0,200})/g;
+import { ATTACHMENT_IN_TRANSCRIPT } from "../transcript-rows.ts";
+
 const ID = /^[\w-]{1,128}$/;
 const SESSION_ID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const WHOLE_SESSION_ID = new RegExp(`^${SESSION_ID.source}$`, "i");
@@ -48,6 +48,7 @@ export interface DeleteLeftoversDeps {
   };
   /** Conversations whose messages still name this text (message-db.ts threadsReferencing). */
   threadsReferencing(fragment: string): readonly string[];
+  retainedUploads?(threadId: string): readonly string[];
   /** Stored names something other than a transcript uses (pictures, routines' files, files on their way into a turn);
    * null while that cannot be read, and then no upload is removed. */
   keptAttachments(): ReadonlySet<string> | null;
@@ -223,8 +224,8 @@ export function createDeleteLeftovers(deps: DeleteLeftoversDeps) {
 
   function note(threadId: string): void {
     if (!ID.test(threadId)) return;
-    const found: Noted = { attachments: new Set(), sessions: new Set() };
-    for (const match of JSON.stringify(deps.store.messagesFor(threadId)).matchAll(ATTACHMENT)) found.attachments.add(match[1]!);
+    const found: Noted = { attachments: new Set(deps.retainedUploads?.(threadId)), sessions: new Set() };
+    for (const match of JSON.stringify(deps.store.messagesFor(threadId)).matchAll(ATTACHMENT_IN_TRANSCRIPT)) found.attachments.add(match[1]!);
     for (const bot of deps.store.bots) {
       if (bot.threadId === threadId) for (const cursor of cursorsOf(bot.resumeCursors)) found.sessions.add(cursor);
       for (const task of bot.tasks ?? []) if (task.threadId === threadId) for (const cursor of cursorsOf(task.resumeCursors)) found.sessions.add(cursor);

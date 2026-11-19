@@ -62,3 +62,35 @@ export async function loadFullThread(threadId: string): Promise<{ messages: Mess
   }
   return { messages, activeLeafId };
 }
+
+export function bumpTranscriptGeneration(state: AppState, threadId: string | undefined | null): AppState {
+  if (!threadId) return state;
+  return {
+    ...state,
+    transcriptGeneration: {
+      ...state.transcriptGeneration,
+      [threadId]: (state.transcriptGeneration[threadId] ?? 0) + 1,
+    },
+  };
+}
+
+export function switchedTranscript(state: AppState, { bot, clearRevision }: Extract<Action, { type: "taskSwitched" }>) {
+  if (clearRevision === undefined || clearRevision === (state.clearRevisions[bot.threadId] ?? 0)) return bot;
+  const current = state.bots.find((owner) => owner.id === bot.id && owner.threadId === bot.threadId);
+  return { ...bot, messages: current?.messages ?? [], hasMore: current?.hasMore ?? false, activeLeafId: current?.activeLeafId ?? null };
+}
+
+export function clearTranscript(state: AppState, action: Extract<Action, { type: "messagesCleared" }>): AppState {
+  const { threadId } = action;
+  const { [threadId]: _old, ...backgroundThreadEvents } = state.backgroundThreadEvents;
+  const owner = state.bots.find((bot) => bot.tasks?.some((task) => task.threadId === threadId));
+  if (owner && (owner.switchingTo === threadId || owner.awaitingThreadSnapshot)) backgroundThreadEvents[threadId] = [action];
+  return {
+    ...bumpTranscriptGeneration(state, threadId), backgroundThreadEvents,
+    clearRevisions: { ...state.clearRevisions, [threadId]: (state.clearRevisions[threadId] ?? 0) + 1 },
+    forkPanel: state.forkPanel?.threadId === threadId ? null : state.forkPanel,
+    unreadDivider: state.unreadDivider?.threadId === threadId ? null : state.unreadDivider,
+    notifications: state.notifications.filter((entry) => entry.threadId !== threadId),
+    bots: state.bots.map((bot) => bot.threadId === threadId ? { ...bot, messages: [], activeLeafId: null, hasMore: false } : bot),
+  };
+}

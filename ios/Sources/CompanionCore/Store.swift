@@ -27,6 +27,7 @@ public struct CompanionState: Sendable {
     public var rooms: [Room] = []
     public var messages: [String: [Message]] = [:]
     public var hasMore: [String: Bool] = [:]
+    public private(set) var clearRevisions: [String: Int] = [:]
     public var activeLeafIds: [String: String] = [:]
     public var cursor: String?
     public var notifications: [NotificationFrame] = []
@@ -253,6 +254,19 @@ public struct CompanionState: Sendable {
                 messages[threadId] = thread
             } else {
                 append(message, to: threadId)
+            }
+
+        case let .messagesCleared(threadId):
+            clearRevisions[threadId, default: 0] += 1
+            messages[threadId] = []
+            activeLeafIds[threadId] = nil
+            hasMore[threadId] = false
+            notifications.removeAll { $0.threadId == threadId }
+            clearStream(threadId)
+            if let index = bots.firstIndex(where: { $0.threadId == threadId }) {
+                bots[index].messages = []
+                bots[index].activeLeafId = nil
+                bots[index].hasMore = false
             }
 
         case let .thread(threadId, activeLeafId):

@@ -29,6 +29,7 @@ public enum Frame: Sendable {
     /// whether it could replay the gap; false means hydrate.
     case hello(cursor: String, resumed: Bool)
     case message(threadId: String, message: Message)
+    case messagesCleared(threadId: String)
     case messagePatch(threadId: String, message: Message)
     /// A branch switch: which leaf of the conversation is now visible.
     case thread(threadId: String, activeLeafId: String?)
@@ -75,6 +76,8 @@ extension Frame: Decodable {
                 threadId: try container.decode(String.self, forKey: .threadId),
                 message: try container.decode(Message.self, forKey: .message)
             )
+        case "messages.cleared":
+            self = .messagesCleared(threadId: try container.decode(String.self, forKey: .threadId))
         case "thread":
             self = .thread(
                 threadId: try container.decode(String.self, forKey: .threadId),
@@ -121,7 +124,7 @@ extension Frame {
         switch self {
         case let .message(threadId, _):
             return threadId
-        case let .messagePatch(threadId, _):
+        case let .messagesCleared(threadId), let .messagePatch(threadId, _):
             return threadId
         case let .thread(threadId, _):
             return threadId

@@ -1,6 +1,6 @@
 import { cloudAsleep, onCloudPower } from "../lib/cloud-power";
 import { api, ApiError, retryRequest, snapshotArrays } from "./api";
-import { loadOlderPage, MESSAGE_PAGE_SIZE, reduceOlderMessages } from "./message-history";
+import { bumpTranscriptGeneration, clearTranscript, loadOlderPage, MESSAGE_PAGE_SIZE, reduceOlderMessages, switchedTranscript } from "./message-history";
 export { MESSAGE_PAGE_SIZE } from "./message-history";
 import { addForkOptimistic, reduceForkPanel, removeForkOptimistic, runForkEffect, type ForkPanelAction, type ForkPanelState } from "./fork-panel";
 import { use, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
@@ -564,10 +564,11 @@ export interface AppState {
   } | null;
   pendingQueued: Record<string, Array<{ queueId: string; text: string; reason?: SteerQueueReason; sender?: ResolvedSender }>>;
   consumedQueueIds: Record<string, true>;
-  backgroundThreadEvents: Record<string, Array<Extract<Action, { type: "messageAdded" | "messagePatched" | "threadActive" | "optimisticMessageRemoved" }>>>;
+  backgroundThreadEvents: Record<string, Array<Extract<Action, { type: "messagesCleared" | "messageAdded" | "messagePatched" | "threadActive" | "optimisticMessageRemoved" }>>>;
   loadingOlder: Record<string, true>;
   /** Bumped when a transcript is replaced or its branch moves, never on append; stale scrollback pages are dropped. */
   transcriptGeneration: Record<string, number>;
+  clearRevisions: Record<string, number>;
 }
 
 export type BotAnnouncement = Omit<Bot, "messages"> & { messages?: Message[] };
@@ -672,6 +673,7 @@ export type Action =
   | { type: "steerGroupQueued"; groupId: string; queueId: string; threadId?: string; onError?: () => void; onSettled?: () => void }
   | { type: "editMessage"; botId: string; messageId: string; text: string; threadId?: string; sendId?: string }
   | { type: "switchBranch"; botId: string; messageId: string; threadId?: string }
+  | { type: "messagesCleared"; threadId: string }
   | { type: "threadActive"; threadId: string; activeLeafId: string }
   | { type: "loadOlderMessages"; threadId: string }
   | { type: "olderMessages"; threadId: string; generation: number; messages: Message[]; hasMore: boolean }
@@ -693,7 +695,7 @@ export type Action =
   | { type: "newTask"; botId: string; projectId?: string; cwd?: string; onCreated?: () => void; onError?: (message: string) => void }
   | { type: "switchTask"; botId: string; threadId: string; whole?: true }
   | { type: "switchTaskFailed"; botId: string; threadId: string }
-  | { type: "taskSwitched"; bot: Bot }
+  | { type: "taskSwitched"; bot: Bot; clearRevision?: number }
   | { type: "renameTask"; botId: string; threadId: string; title: string }
   | { type: "regenerateTaskTitle"; botId: string; threadId: string; onSettled?: (ok: boolean) => void }
   | { type: "deleteTask"; botId: string; threadId: string }
@@ -769,17 +771,6 @@ export function pinBotThreadAction(action: Action, bots: Bot[]): Action {
   const botId = action.botId;
   const threadId = bots.find((bot) => bot.id === botId)?.threadId;
   return { ...action, threadId } as Action;
-}
-
-function bumpTranscriptGeneration(state: AppState, threadId: string | undefined | null): AppState {
-  if (!threadId) return state;
-  return {
-    ...state,
-    transcriptGeneration: {
-      ...state.transcriptGeneration,
-      [threadId]: (state.transcriptGeneration[threadId] ?? 0) + 1,
-    },
-  };
 }
 
 function updateBot(state: AppState, botId: string, fn: (b: Bot) => Bot): AppState {
@@ -895,7 +886,9 @@ export function reducer(state: AppState, action: Action): AppState {
         hydrated: true as const,
         backgroundThreadEvents: {},
         loadingOlder: {},
-        transcriptGeneration: {},
+        transcriptGeneration: Object.fromEntries(
+          Object.entries(state.transcriptGeneration).map(([threadId, generation]) => [threadId, generation + 1]),
+        ),
         modelVariantSessions: {},
       };
       const held = [...hydrated.bots, ...hydrated.groups].find((owner) => owner.threadId === state.unreadDivider?.threadId);
@@ -1550,6 +1543,7 @@ export function reducer(state: AppState, action: Action): AppState {
       else if (connectorScopes !== undefined) botPatch.connectorScopes = connectorScopes;
       return updateBot(next, action.botId, (b) => ({ ...b, ...botPatch }));
     }
+    case "messagesCleared": return clearTranscript(state, action);
     case "threadActive": {
       const bot = state.bots.find((b) => b.threadId === action.threadId);
       if (!bot) return state;
@@ -1702,21 +1696,22 @@ export function reducer(state: AppState, action: Action): AppState {
       if (!action.dm) return patchGroupTask(state, action.groupId, action.threadId, { turnTimeoutMinutes: action.minutes ?? undefined });
       return { ...state, groups: state.groups.map((group) => group.id === action.groupId ? { ...group, turnTimeoutMinutes: action.minutes ?? undefined } : group) };
     case "taskSwitched": {
-      let switched = updateBot(bumpTranscriptGeneration(state, action.bot.threadId), action.bot.id, (bot) => ({
+      const snapshot = switchedTranscript(state, action);
+      let switched = updateBot(bumpTranscriptGeneration(state, snapshot.threadId), snapshot.id, (bot) => ({
         ...bot,
-        ...action.bot,
-        computer: action.bot.computer,
-        toolScope: action.bot.toolScope, managedSections: action.bot.managedSections,
-        vpsAlias: action.bot.vpsAlias, liveVoice: action.bot.liveVoice,
-        messages: action.bot.messages ?? [],
-        hasMore: action.bot.hasMore,
+        ...snapshot,
+        computer: snapshot.computer,
+        toolScope: snapshot.toolScope, managedSections: snapshot.managedSections,
+        vpsAlias: snapshot.vpsAlias, liveVoice: snapshot.liveVoice,
+        messages: snapshot.messages ?? [],
+        hasMore: snapshot.hasMore,
         awaitingThreadSnapshot: false,
         switchingTo: undefined,
       }));
-      for (const frame of state.backgroundThreadEvents[action.bot.threadId] ?? []) switched = reducer(switched, frame);
-      const { [action.bot.threadId]: _settled, ...backgroundThreadEvents } = switched.backgroundThreadEvents;
+      for (const frame of state.backgroundThreadEvents[snapshot.threadId] ?? []) switched = reducer(switched, frame);
+      const { [snapshot.threadId]: _settled, ...backgroundThreadEvents } = switched.backgroundThreadEvents;
       switched = { ...switched, backgroundThreadEvents };
-      const opened = switched.bots.find((bot) => bot.id === action.bot.id);
+      const opened = switched.bots.find((bot) => bot.id === snapshot.id);
       if (opened && opened.id === switched.selectedId) {
         switched = { ...switched, unreadDivider: openedUnreadDivider(switched, opened.threadId, threadOpensUnread(opened), visibleMessages(opened), threadReadCursor(opened), opened.hasMore) };
         // The snapshot predates the switch's own announcement and must not put the unread dot back.
@@ -1724,7 +1719,7 @@ export function reducer(state: AppState, action: Action): AppState {
           unread: Boolean(bot.tasks?.some((task) => task.threadId !== bot.threadId && task.unread)),
           tasks: bot.tasks?.map((task) => task.threadId === bot.threadId ? { ...task, unread: false } : task) }));
       }
-      return reconcileModelVariantSessions(reconcileSnapshotQueues(switched, [action.bot]));
+      return reconcileModelVariantSessions(reconcileSnapshotQueues(switched, [snapshot]));
     }
     case "newBot":
       return action.preserveSelection ? state : { ...state, settingsOpen: false, appSettingsOpen: false, pluginsOpen: false, shortcutsOpen: false };
@@ -1804,6 +1799,7 @@ export const initialState: AppState = {
   backgroundThreadEvents: {},
   loadingOlder: {},
   transcriptGeneration: {},
+  clearRevisions: {},
   bots: [],
   groups: [],
   sections: [],
@@ -2749,6 +2745,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const revision = (navigation.get(action.botId) ?? 0) + 1;
           navigation.set(action.botId, revision);
           const selectedAtStart = selectionRevision.current;
+          const clearRevision = action.type === "switchTask" ? stateRef.current.clearRevisions[action.threadId] ?? 0 : undefined;
           const ready = action.type === "newTask"
             ? botPatchQueue.flush(action.botId)
             : Promise.resolve();
@@ -2761,7 +2758,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               if (!r?.bot) { if (action.type === "switchTask") rawDispatch({ type: "switchTaskFailed", botId: action.botId, threadId: action.threadId }); return; }
               const selectsAfterCreation = action.type === "newTask" && action.cwd !== undefined;
               if (selectsAfterCreation && selectionRevision.current !== selectedAtStart) return;
-              dispatch({ type: "taskSwitched", bot: r.bot });
+              dispatch({ type: "taskSwitched", bot: r.bot, clearRevision });
               if (selectsAfterCreation) rawDispatch({ type: "select", id: action.botId });
             })
             .catch((error) => {
@@ -3083,6 +3080,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
           break;
         }
+        case "messages.cleared":
+          bumpPeripheralVersion("notifications");
+          rawDispatch({ type: "messagesCleared", threadId: frame.threadId });
+          break;
         case "message.patch":
           rawDispatch({ type: "messagePatched", threadId: frame.threadId, message: frame.message as Message });
           rawDispatch({ type: "forkPanelMessage", threadId: frame.threadId, message: frame.message as Message, patch: true });

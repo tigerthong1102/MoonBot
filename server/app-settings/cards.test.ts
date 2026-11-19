@@ -18,7 +18,7 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
 });
 
-function fixture(options: { owner?: boolean; guest?: boolean; group?: boolean; here?: boolean; on?: true | null; cards?: false } = {}) {
+function fixture(options: { owner?: boolean; automated?: boolean; guest?: boolean; group?: boolean; here?: boolean; on?: true | null; cards?: false } = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), "settings-cards-"));
   dirs.push(dataDir);
   const messages: Array<Message & { threadId: string }> = [];
@@ -35,6 +35,7 @@ function fixture(options: { owner?: boolean; guest?: boolean; group?: boolean; h
   const host = createAppSettings({
     store: store as never, dataDir, entries: [],
     turnOwner: () => (options.owner === false ? null : "owner"),
+    automated: () => options.automated === true,
     guestDriven: () => options.guest === true,
     requestCredential: async () => ({ status: 500, body: {} }),
     connectorThread: () => (options.group ? { group: { id: "g", name: "Room" } as never } : null),
@@ -51,9 +52,20 @@ describe("app_settings show_card", () => {
     for (const card of ["phone-pairing", "keep-awake", "vault", "", undefined, 7, { id: "other-computers" }, "__proto__", "constructor"]) {
       const answer = await show(card);
       expect(answer.status, String(card)).toBe(404);
-      expect(String(answer.body.error)).toContain("Cards: other-computers, ai-sign-in.");
+      expect(String(answer.body.error)).toContain("Cards: other-computers, ai-sign-in, clear-messages.");
     }
     expect(messages).toEqual([]);
+  });
+
+  it("only offers to clear the direct owner thread that started this turn", async () => {
+    for (const options of [{ group: true }, { owner: false }, { guest: true }, { automated: true }]) {
+      const denied = fixture(options);
+      expect((await denied.show("clear-messages")).status).toBe(403);
+      expect(denied.messages).toEqual([]);
+    }
+    const own = fixture();
+    expect((await own.show("clear-messages")).status).toBe(200);
+    expect(own.messages[0]?.settingsCard).toEqual({ id: "clear-messages", threadId: "t-kiwi" });
   });
 
   it("posts a row that names the setting only, and tells the bot one fixed status", async () => {
@@ -135,7 +147,7 @@ describe("app_settings show_card", () => {
     expect(properties.card.enum).toEqual([...SETTINGS_CARD_IDS]);
     expect(Object.keys(SETTINGS_CARDS)).toEqual([...SETTINGS_CARD_IDS]);
     expect(properties.card.description).toBe("show_card: other-computers when the person asks how to connect or open this computer from another computer; "
-      + "ai-sign-in when the person wants to sign in to an AI account (Claude, ChatGPT or Codex, Antigravity), or one is signed out.");
+      + "ai-sign-in when the person wants to sign in to an AI account (Claude, ChatGPT or Codex, Antigravity), or one is signed out; clear-messages when asked to delete the messages or clear the history of this conversation.");
     expect(properties.action.enum).toContain("show_card");
     expect(APP_SETTINGS_TOOL_DEFINITION.description).toContain("you cannot change it or see what it shows");
   });

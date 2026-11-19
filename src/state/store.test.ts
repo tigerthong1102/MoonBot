@@ -2114,6 +2114,26 @@ describe("scrollback pages", () => {
     expect(next.loadingOlder).toEqual({});
   });
 
+  it("a confirmed clear discards an older page and wins over a switch response already in flight", () => {
+    const threadId = bot.threadId;
+    const switching = { ...state, bots: [{ ...bot, switchingTo: threadId, tasks: [{ threadId, title: "Fixture", createdAt: 1 }] }] };
+    const cleared = reducer(switching, { type: "messagesCleared", threadId });
+    const landed = reducer(cleared, { type: "olderMessages", threadId, generation: 0, messages: [message("old", 1)], hasMore: true });
+    expect(landed.bots[0].messages).toEqual([]);
+    const switched = reducer(landed, { type: "taskSwitched", bot });
+    expect(switched.bots[0]).toMatchObject({ threadId, messages: [], hasMore: false });
+  });
+
+  it("ignores stale search navigation rows after clearing and keeps the fresh reply", () => {
+    const threadId = bot.threadId;
+    const cleared = reducer(state, { type: "messagesCleared", threadId });
+    const replied = reducer(cleared, { type: "messageAdded", threadId, message: message("fresh", 10) });
+    const hydrated = reducer(replied, { type: "hydrate", bots: replied.bots, groups: [], computerControl: {} });
+    const paged = reducer(hydrated, { type: "olderMessages", threadId, generation: 0, messages: [message("old", 1)], hasMore: true });
+    const landed = reducer(paged, { type: "taskSwitched", bot, clearRevision: 0 });
+    expect(landed.bots[0].messages.map((row) => row.id)).toEqual(["fresh"]);
+  });
+
   it("drops a page that was in flight across a rewind, and stops the spinner", () => {
     const withLeaf = { ...bot, activeLeafId: "m4" } as never as Bot;
     const loading = reducer({ ...initialState, bots: [withLeaf] }, { type: "loadOlderMessages", threadId: "thread-1" });

@@ -22,7 +22,7 @@ const pages: Record<string, { messages: Message[]; hasMore: boolean }> = {
 
 let actions: Action[];
 const dispatch = (action: Action) => { actions.push(action); };
-const state = { bots: [bot], groups: [group], transcriptGeneration: { t: 3, rt: 5 } } as unknown as AppState;
+const state = { bots: [bot], groups: [group], clearRevisions: {}, transcriptGeneration: { t: 3, rt: 5 } } as unknown as AppState;
 
 beforeEach(() => {
   actions = [];

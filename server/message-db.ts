@@ -1,3 +1,4 @@
+import { clearTranscriptRows, deleteTranscriptRows, referencingThreads, TRANSCRIPT_RETENTION_SCHEMA } from "./transcript-rows.ts";
 import { randomUUID } from "node:crypto";
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
@@ -76,6 +77,7 @@ function open(): DatabaseSync {
       thread_id TEXT PRIMARY KEY,
       active_leaf_id TEXT
     );
+    ${TRANSCRIPT_RETENTION_SCHEMA}
     CREATE TABLE IF NOT EXISTS chat_followups (
       id TEXT PRIMARY KEY,
       kind TEXT NOT NULL,
@@ -403,6 +405,7 @@ export function readThreadTail(threadId: string, legacyFile: string, limit: numb
 function importLegacy(threadId: string, legacyFile: string): ThreadRows {
   let messages: Message[] = [];
   let activeLeafId: string | null = null;
+  if (prepared("SELECT 1 FROM cleared_transcripts WHERE thread_id = ?").get(threadId)) return { messages, activeLeafId };
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(legacyFile, "utf8"));
@@ -643,21 +646,13 @@ function newestAts(threadIds: readonly string[], where: string, at = "at", index
   return out;
 }
 
-export function deleteThread(threadId: string): void {
-  deleteThreads([threadId]);
-}
+export const deleteThread = (threadId: string): void => deleteThreads([threadId]);
 
 /** One transaction: every listed thread goes, or none does; `beforeCommit` throwing keeps them all. */
 export function deleteThreads(threadIds: readonly string[], beforeCommit?: () => void): void {
   if (threadIds.length === 0 && !beforeCommit) return;
   writeFollowups((connection) => {
-    const statements = [
-      connection.prepare("DELETE FROM chat_followups WHERE thread_id = ?"),
-      connection.prepare("DELETE FROM messages WHERE thread_id = ?"),
-      connection.prepare("DELETE FROM thread_state WHERE thread_id = ?"),
-      connection.prepare("DELETE FROM notification_log WHERE thread_id = ?"),
-    ];
-    for (const id of threadIds) for (const statement of statements) statement.run(id);
+    deleteTranscriptRows(connection, threadIds);
     beforeCommit?.();
   });
 }
@@ -671,8 +666,16 @@ export function optionCardsForTools(tools: readonly string[]): Array<{ threadId:
   return rows.map((row) => ({ threadId: row.thread_id, messageId: row.id }));
 }
 
+export function clearThreadMessages(threadId: string, beforeCommit: () => void): void {
+  writeFollowups((connection) => {
+    clearTranscriptRows(connection, threadId);
+    setActiveLeaf(threadId, null);
+    beforeCommit();
+  });
+}
+
 export function appDocRefs(): string[] {
-  const rows = db().prepare("SELECT json_extract(json, '$.app.doc') AS doc FROM messages WHERE kind = 'app' UNION SELECT h.value FROM messages m, json_each(m.json, '$.app.history') h WHERE m.kind = 'app'").all() as Array<{ doc: unknown }>;
+  const rows = db().prepare("SELECT json_extract(json, '$.app.doc') AS doc FROM messages WHERE kind = 'app' UNION SELECT doc FROM retained_chat_docs UNION SELECT h.value FROM messages m, json_each(m.json, '$.app.history') h WHERE m.kind = 'app'").all() as Array<{ doc: unknown }>;
   return rows.flatMap((row) => (typeof row.doc === "string" && row.doc ? [row.doc] : []));
 }
 
@@ -682,9 +685,11 @@ export function liveAppRows(limit = 100): Array<{ threadId: string; messageId: s
 }
 
 export function threadsReferencing(fragment: string): string[] {
-  if (!fragment) return [];
-  const rows = db().prepare("SELECT DISTINCT thread_id FROM messages WHERE instr(json, ?) > 0").all(fragment) as Array<{ thread_id: string }>;
-  return rows.map((row) => row.thread_id);
+  return referencingThreads(db(), fragment);
+}
+
+export function retainedUploads(threadId: string): string[] {
+  return db().prepare("SELECT name FROM retained_uploads WHERE thread_id = ?").all(threadId).map((row) => String(row.name));
 }
 
 export function searchMessages(query: string, limit = 40, threadId?: string): SearchHit[] {

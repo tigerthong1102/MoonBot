@@ -21,6 +21,26 @@ class StoreTest {
     private fun hydrated(): CompanionState = CompanionState().hydrate(fleet())
 
     @Test
+    fun clearedFrameResetsOnlyItsThreadAndAcceptsNewMessages() {
+        val initial = hydrated()
+        val thread = initial.bots.first().threadId
+        val old = message("synthetic-old")
+        val state = initial.merge(ThreadPage(listOf(old), hasMore = true, activeLeafId = old.id), thread)
+            .apply(Frame.Message("sibling", old))
+            .apply(CompanionJson.decodeFromString<Frame>("""{"kind":"messages.cleared","threadId":"$thread"}"""))
+        assertEquals(1L, state.clearRevisions[thread])
+        assertNull(state.clearRevisions["sibling"])
+        assertTrue(state.visibleTranscript(thread).isEmpty())
+        assertEquals(false, state.hasMore[thread])
+        assertNull(state.activeLeafIds[thread])
+        assertNull(state.bots.first().activeLeafId)
+        assertEquals(0, state.bots.first().messages?.size)
+        assertEquals(old.id, state.transcript("sibling").single().id)
+        val resumed = state.apply(Frame.Message(thread, message("fresh")))
+        assertEquals(listOf("fresh"), resumed.visibleTranscript(thread).map { it.id })
+    }
+
+    @Test
     fun hydrateIndexesEveryThread() {
         val state = hydrated()
         assertTrue(state.bots.isNotEmpty())

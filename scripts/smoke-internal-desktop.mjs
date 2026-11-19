@@ -52,10 +52,12 @@ mkdirSync(legacy);
 const sentinel = path.join(legacy, "do-not-modify.txt");
 writeFileSync(sentinel, "upstream fixture data must remain unchanged\n");
 const sentinelHash = createHash("sha256").update(readFileSync(sentinel)).digest("hex");
+const plan = path.join(fixture, "chat-plan.json");
+writeFileSync(plan, "{}");
 const reply = "StartupBot packaged agent fixture answered successfully";
 writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", features: { smartSetupChoices: false }, instances: {
   claude: { driver: "claudeAgent", displayName: "Internal package fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") },
-    environment: { FAKE_CLAUDE_REPLIES: JSON.stringify([reply]), FAKE_CLAUDE_MODE: "happy" } },
+    environment: { FAKE_CLAUDE_ROOM_PLAN: plan } },
 } }));
 
 async function freePort() {
@@ -160,13 +162,54 @@ try {
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
   assert(bot?.id, "Bot creation did not return its identity");
-  const sent = await request(`/api/bots/${encodeURIComponent(bot.id)}/messages`, { text: "Please answer this internal package fixture." });
+  const first = "Please answer this internal package fixture.";
+  const clear = "Xóa tin nhắn của đúng hội thoại này";
+  const followup = "Continue the fixture conversation.";
+  writeFileSync(plan, JSON.stringify({ [bot.id]: { script: [
+    { key: "first", match: [first], reply },
+    { key: "clear", match: [clear], steps: [{ tool: "app_settings", arguments: { action: "show_card", card: "clear-messages" } }], reply: "Confirm in chat." },
+    { key: "followup", match: [followup], reply: "Fresh fixture reply." },
+  ] } }));
+  const sent = await request(`/api/bots/${encodeURIComponent(bot.id)}/messages`, { text: first });
   assert.equal(sent.status, 202, JSON.stringify(sent.body));
   await until(async () => {
     const transcript = await request(`/api/bots/${encodeURIComponent(bot.id)}`);
     assert.equal(transcript.status, 200);
     return JSON.stringify(transcript.body).includes(reply);
   }, "the packaged agent's completed response", 60_000);
+  const transcript = async () => {
+    const result = await request(`/api/threads/${encodeURIComponent(bot.threadId)}/messages`);
+    assert.equal(result.status, 200);
+    return result.body.messages;
+  };
+  const workspaceFile = path.join(home, "fixture-report.txt");
+  writeFileSync(workspaceFile, "synthetic report");
+  const selectBot = `document.querySelector('[data-sidebar-bot-row="${bot.id}"]')`;
+  await until(() => evaluate(`Boolean(${selectBot})`), "the fixture bot in the sidebar");
+  await evaluate(`${selectBot}.click()`);
+  const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
+  const send = async text => {
+    await until(() => evaluate(`Boolean(${composer})`), "an enabled chat composer");
+    await evaluate(`(${composer}).focus()`);
+    await cdp("Input.insertText", { text });
+    assert.equal(await evaluate("document.activeElement.value"), text);
+    const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
+    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
+  };
+  await send(clear);
+  const confirm = `[...document.querySelectorAll('[data-settings-card="clear-messages"] button')].find(button => button.textContent.trim() === "Delete messages")`;
+  await until(() => evaluate(`Boolean(${confirm} && !(${confirm}).disabled)`), "an enabled clear-messages confirmation");
+  assert((await transcript()).some(row => row.text === first));
+  const cardScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
+  writeFileSync(path.join(evidence, "clear-messages-confirm.png"), Buffer.from(cardScreenshot.data, "base64"));
+  await evaluate(`(${confirm}).click()`);
+  await until(async () => (await transcript()).length === 0, "the cleared transcript");
+  await until(() => evaluate(`!document.querySelector('[data-settings-card="clear-messages"]')`), "the renderer to remove the card");
+  assert.equal(readFileSync(workspaceFile, "utf8"), "synthetic report");
+  await send(followup);
+  await until(async () => (await transcript()).some(row => row.text === "Fresh fixture reply."), "a fresh reply in the same thread");
+  assert(!(await transcript()).some(row => row.text === first));
   const unauthenticated = await fetch(new URL("/api/auth/stream-ticket", target.url), { method: "POST", signal: AbortSignal.timeout(5_000) });
   assert([401, 403].includes(unauthenticated.status), "An external process must not inherit the renderer's mutation capability");
   assert.equal(createHash("sha256").update(readFileSync(sentinel)).digest("hex"), sentinelHash);
@@ -180,7 +223,7 @@ try {
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    dataIsolation: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
+    clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
   await cdp("Browser.close").catch(() => {});
 } catch (error) {

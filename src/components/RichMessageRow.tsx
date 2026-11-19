@@ -24,7 +24,7 @@ export function RichMessageRow({ botId, botName, threadId, message, room }: { bo
   return (
     <MessageBoundary fallbackText={message.text ?? ""}>
       {message.settingsCard
-        ? <SettingsCard message={message} />
+        ? <SettingsCard message={message} botId={botId} threadId={room ? undefined : threadId} />
         : message.setupSuggestion
         ? <HelperKeySuggestion threadId={threadId} message={message} />
         : message.kind === "burst" && message.burst

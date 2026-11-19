@@ -944,8 +944,7 @@ export interface SkillsLibrarySkillWire {
   assignedBots: Array<{ id: string; name: string }>;
 }
 
-/** PUT body for a bot's assignment list: the full list, applied
- * idempotently. */
+/** A PUT replaces the bot's entire skill assignment list idempotently. */
 export interface BotAssignedSkillsWire {
   skills: string[];
 }
@@ -960,6 +959,7 @@ export type ServerFrame =
   | { kind: "bot.queued"; queues: BotQueuedMessages }
   | { kind: "message"; threadId: string; message: WireMessage }
   | { kind: "message.patch"; threadId: string; message: WireMessage }
+  | { kind: "messages.cleared"; threadId: string }
   | { kind: "thread"; threadId: string; activeLeafId: string }
   | { kind: "bot"; bot: WireBot; /** Only on a stream opened with `?frames=thread`: `bot.tasks` holds just the changed threads; keep the rest. */ tasksPartial?: true }
   | { kind: "group"; group: WireGroup }

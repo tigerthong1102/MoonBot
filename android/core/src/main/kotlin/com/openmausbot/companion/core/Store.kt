@@ -31,6 +31,7 @@ data class CompanionState(
     val notifications: List<NotificationFrame> = emptyList(),
     val streaming: Map<String, String> = emptyMap(),
     val reasoning: Map<String, String> = emptyMap(),
+    val clearRevisions: Map<String, Long> = emptyMap(),
     val activeLeafIds: Map<String, String?> = emptyMap(),
     val screens: Map<String, ScreenFrame> = emptyMap(),
     val pendingQueued: Map<String, List<QueuedSend>> = emptyMap(),
@@ -259,6 +260,16 @@ data class CompanionState(
             copy(messages = messages + (frame.threadId to patched))
                 .let { next -> if (index >= 0) next else next.noteThreadActivity(frame.threadId, frame.message.at) }
         }
+
+        is Frame.MessagesCleared -> copy(
+            clearRevisions = clearRevisions + (frame.threadId to (clearRevisions.getOrDefault(frame.threadId, 0L) + 1)),
+            messages = messages + (frame.threadId to emptyList()),
+            hasMore = hasMore + (frame.threadId to false),
+            activeLeafIds = activeLeafIds - frame.threadId,
+            bots = bots.map { if (it.threadId == frame.threadId) it.copy(messages = emptyList(), activeLeafId = null, hasMore = false) else it },
+            notifications = notifications.filterNot { it.threadId == frame.threadId },
+            pendingEdits = pendingEdits - frame.threadId,
+        ).clearStream(frame.threadId)
 
         is Frame.Thread -> copy(
             activeLeafIds = activeLeafIds + (frame.threadId to frame.activeLeafId),

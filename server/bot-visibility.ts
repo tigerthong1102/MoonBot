@@ -549,6 +549,7 @@ export function frameForMember(payload: Record<string, unknown>, ctx: FrameConte
     }
     case "message":
     case "message.patch":
+    case "messages.cleared":
     case "thread":
       return visible.thread(str(payload.threadId)) ? payload : undefined;
     case "bot": {

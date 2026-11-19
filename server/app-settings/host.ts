@@ -187,11 +187,14 @@ export function createAppSettings(deps: AppSettingsDeps) {
     const bot = store.bot(turn.botId);
     if (!bot) return refuse(404, "This bot no longer exists.");
     if (deps.guestDriven(turn.threadId) || deps.turnOwner(turn) === null) return refuse(403, "A settings card shows only in the owner's own conversation, when they asked. This turn was not started by the owner here, so nothing was shown.");
+    if (body.card === "clear-messages" && (deps.automated?.(turn) || deps.connectorThread(bot.id, turn.threadId)?.group)) {
+      return refuse(403, "Clear history is available only when the person asks in their direct conversation with the bot.");
+    }
     if (!deps.cards?.here(body.card)) return reply(200, { text: cardElsewhere(card) });
     if (deps.connectorThread(bot.id, turn.threadId)?.group) return reply(200, { text: cardNotInRoom(card) });
     const budget = spendWrite(turn);
     if (budget) return refuse(429, budget);
-    store.appendMessage(turn.threadId, { role: "bot", kind: "text", text: card.text, settingsCard: { id: body.card } });
+    store.appendMessage(turn.threadId, { role: "bot", kind: "text", text: card.text, settingsCard: body.card === "clear-messages" ? { id: body.card, threadId: turn.threadId } : { id: body.card } });
     return reply(200, { text: cardShownStatus(card, deps.cards.on(body.card)) });
   }
 

@@ -4101,7 +4101,7 @@
   "skills.write.problem.instructions": "Botun izlemesi gereken talimatları ekleyin.",
   "settings.section.skills": "Beceriler",
   "skills.library.title": "Beceri kütüphanesi",
-  "skills.library.subtitle": "Her botun atanabileceği, yerel olarak taranan ve içe aktarılan beceriler — ağdan hiçbir şey getirilmez.",
+  "skills.library.subtitle": "Bir beceri bulun, talimatlarını inceleyin, etkinleştirin ve bir bota atayın. Kullanmak için o botun sohbetinde / işaretinden sonra becerinin adını yazın.",
   "skills.library.searchPlaceholder": "Ada, açıklamaya veya kaynağa göre ara",
   "skills.library.allTags": "Tümü",
   "skills.library.empty": "Kütüphane boş. Başlamak için aşağıdan bir beceri içe aktarın.",

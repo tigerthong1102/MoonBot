@@ -5918,7 +5918,7 @@
   "skills.write.problem.instructions": "请添加机器人需要遵循的指示。",
   "settings.section.skills": "技能",
   "skills.library.title": "技能库",
-  "skills.library.subtitle": "所有机器人都可从中分配的技能，在本地浏览和导入。不会从网络获取任何内容。",
+  "skills.library.subtitle": "查找技能并查看说明，然后启用技能并将其分配给机器人。在与该机器人的聊天中输入 / 加技能名称即可使用。",
   "skills.library.searchPlaceholder": "按名称、说明或来源搜索",
   "skills.library.allTags": "全部",
   "skills.library.empty": "技能库为空。在下方导入一个技能以开始使用。",

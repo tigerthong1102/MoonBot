@@ -6136,7 +6136,7 @@
   "skills.write.problem.instructions": "Adicione as instruções que o bot deve seguir.",
   "settings.section.skills": "Habilidades",
   "skills.library.title": "Biblioteca de habilidades",
-  "skills.library.subtitle": "Habilidades que podem ser atribuídas a qualquer bot, consultadas e importadas localmente. Nada é baixado da rede.",
+  "skills.library.subtitle": "Encontre uma habilidade, confira as instruções, ative-a e atribua-a a um bot. Para usá-la, digite / seguido do nome da habilidade na conversa com esse bot.",
   "skills.library.searchPlaceholder": "Buscar por nome, descrição ou origem",
   "skills.library.allTags": "Todas",
   "skills.library.empty": "A biblioteca está vazia. Importe uma habilidade abaixo para começar.",

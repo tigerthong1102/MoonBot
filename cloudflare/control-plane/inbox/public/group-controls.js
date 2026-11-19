@@ -1,4 +1,6 @@
 import { t } from "./inbox-i18n.js";
+import { copyText } from "./inbox-copy-text.js";
+
 export function groupControls({ room, detail, me, node, button, api, refresh, status }) {
   const owner = !!room.isOwner,
     manager = owner || !!room.admin;
@@ -59,10 +61,9 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
           : detail.group.link;
         const address = new URL("/", location.origin);
         address.hash = "join=" + token;
-        try {
-          await navigator.clipboard.writeText(address.href);
+        if (await copyText(address.href) === "copied") {
           status(t("personalInbox.copied"));
-        } catch {
+        } else {
           const field = document.getElementById("invite-link-field");
           field.value = address.href;
           field.hidden = false;

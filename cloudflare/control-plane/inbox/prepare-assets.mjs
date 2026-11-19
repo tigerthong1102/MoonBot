@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Paperclip, Send, FileText, Download, Users, Search, SquarePen, Ellipsis, X, MessageCircle, Info } from "lucide-react";
 import { createServer } from "vite";
+import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +38,11 @@ const mailContents = JSON.stringify(mail, null, 2) + "\n";
 if (await readFile(mailPath, "utf8").catch(() => "") !== mailContents) await writeFile(mailPath, mailContents);
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
+await build({
+  entryPoints: [join(root, "src/lib/clipboard-write.ts")],
+  outfile: fileURLToPath(new URL("./public/inbox-copy-text.js", import.meta.url)),
+  format: "esm", platform: "browser", bundle: true,
+});
 const vite = await createServer({
   root, configFile: false, appType: "custom", logLevel: "error",
   resolve: { alias: { "@": join(root,"src") } },

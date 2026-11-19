@@ -77,7 +77,7 @@ const alternatePort = parentPort ? num(process.env.OMB_COMPANION_ALTERNATE_PORT,
 const CONTROL_PORT = parentPort && process.env.OMB_CONTROL_PORT === "0" ? 0 : num(process.env.OMB_CONTROL_PORT, 8811);
 const SERVICE_TYPE = "_openmausbot._tcp";
 let hostedUrl = hostedCompanionUrl(process.env.OMB_COMPANION_HOSTED_URL);
-directRoutesFromEnv(process.env);
+directRoutesFromEnv(process.env, !parentPort);
 const PRIVATE_ORIGIN = companionOriginSocket(process.env.OMB_COMPANION_INTERNAL_ORIGIN);
 const SECRET_PUBLIC_KEY = normalizedPhoneSecretPublicKey(
   process.env.OMB_PHONE_SECRET_PUBLIC_KEY ?? "",

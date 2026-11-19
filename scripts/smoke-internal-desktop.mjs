@@ -82,7 +82,7 @@ const debug = await freePort();
 const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERPROFILE: home,
   APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"),
   XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
-  OMB_DATA_DIR: data, OMB_SMOKE_HOME: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(webhook),
+  OMB_COMPANION_DIR: path.join(fixture, "phones"), OMB_COMPANION_BONJOUR: "0", OMB_DATA_DIR: data, OMB_SMOKE_HOME: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(webhook),
   OMB_SMOKE_TEST: "1", OMB_SMOKE_KEEP_OPEN: "1", OMB_SMOKE_CUA: "0",
   ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot, WINDIR: process.env.SystemRoot } : {}),
   ...(process.env.TEMP ? { TEMP: process.env.TEMP, TMP: process.env.TEMP } : {}),
@@ -156,6 +156,10 @@ try {
   const helperText = await evaluate("document.body.innerText");
   assert.match(helperText, /StartupBot/);
   assert.doesNotMatch(helperText, /\b(?:OpenMausBot|MausBot)\b/);
+  const remoteOnly = await evaluate("window.ogb.companion.start([])");
+  assert.equal(remoteOnly.enabled, true, remoteOnly.error);
+  assert.deepEqual(remoteOnly.directRoutes, { wifi: false, tailscale: false });
+  await evaluate("window.ogb.companion.stop()");
   const helperScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-helper.png"), Buffer.from(helperScreenshot.data, "base64"));
   const created = await request("/api/bots", { name: "Internal package agent", cwd: home });

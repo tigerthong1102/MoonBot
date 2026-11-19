@@ -55,3 +55,9 @@ export function configuredInboxOrigin(launchOrigin, packagedOrigin, readProfile)
     return null;
   }
 }
+
+export function startupPorts(env, defaults) {
+  const port = Number(env.OMB_PORT);
+  if (env.OMB_SMOKE_TEST === "1" && env.OMB_SMOKE_HOME && Number.isInteger(port) && port >= 1024 && port <= 65535) return [port];
+  return defaults;
+}

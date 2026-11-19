@@ -1,4 +1,8 @@
-import { session, WebContentsView } from "electron";
+import path from "node:path";
+import { createRequire } from "node:module";
+import { configuredInboxOrigin } from "./startupbot-identity.mjs";
+import { jsonFile } from "./desktop-prefs.mjs";
+import { app, session, WebContentsView } from "electron";
 
 const panels = new WeakMap();
 const partition = "persist:startupbot-personal-inbox";
@@ -90,4 +94,33 @@ export async function showPersonalInbox(window, origin, accountOnly = false) {
     close();
     throw error;
   }
+}
+
+export function createPersonalInbox(window) {
+  const metadata = createRequire(import.meta.url)("../package.json");
+  function origin() {
+    return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
+      jsonFile(path.join(app.getPath("userData"), "inbox-service.json")).read);
+  }
+  function open(accountOnly = false) {
+    const win = window();
+    win.show();
+    return showPersonalInbox(win, origin(), accountOnly);
+  }
+  function install(ipcMain, localOnly, requireMainWindowSender) {
+    function handle(channel, action) {
+      ipcMain.handle(channel, localOnly(channel, event => {
+        requireMainWindowSender(event);
+        return action(event);
+      }));
+    }
+    handle("personal-inbox:open", () => open());
+    handle("personal-account:open", () => open(true));
+    handle("personal-account:state", () => personalAccountEmail(origin()));
+    handle("personal-account:sign-out", async event => {
+      await signOutPersonalAccount(origin());
+      if (!event.sender.isDestroyed()) event.sender.send("personal-account:changed");
+    });
+  }
+  return { open, origin, install };
 }

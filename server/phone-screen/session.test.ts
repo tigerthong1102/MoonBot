@@ -144,6 +144,16 @@ describe("openPhoneSession", () => {
     expect(phone.controlBytes()).toBe("0201");
   });
 
+  it("delivers the final control writes before terminating the adb process", async () => {
+    const phone = fakePhone("delayed-control");
+    session = await openPhoneSession(phone.deps, SERIAL);
+    session.send(Buffer.from("010203", "hex"));
+    session.send(Buffer.from("040506", "hex"));
+    await session.close();
+    expect(phone.controlBytes()).toBe("010203040506");
+    expect(isRunning(phone.serverPid())).toBe(false);
+  });
+
   it("closes the control connection on close(), which stops a scrcpy that stopping adb leaves running", async () => {
     const phone = fakePhone("outlives-adb");
     session = await openPhoneSession(phone.deps, SERIAL);

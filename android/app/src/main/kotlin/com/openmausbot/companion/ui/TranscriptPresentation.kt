@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.Chat
 import com.openmausbot.companion.core.DisplayedMessageAttachment
 import com.openmausbot.companion.core.DownloadedFile
@@ -79,7 +81,7 @@ fun AssistantTurnChip(
             ) {
                 Icon(Icons.Filled.Check, contentDescription = null, tint = secondaryTint, modifier = Modifier.size(14.dp))
                 Text(turn.label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text(if (expanded) "Hide" else "Show", fontSize = 12.sp, color = secondaryTint)
+                Text(if (expanded) stringResource(R.string.ui_hide) else stringResource(R.string.ui_show), fontSize = 12.sp, color = secondaryTint)
             }
         }
         if (expanded) turn.items.forEach { message ->
@@ -104,7 +106,7 @@ fun AssistantTurnChip(
 fun WebhookMessageBody(content: WebhookMessageContent) {
     var expanded by remember(content) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Webhook task", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BubbleColor.mineText)
+        Text(stringResource(R.string.ui_webhook_task), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BubbleColor.mineText)
         SelectionContainer {
             Text(content.task, fontSize = 17.sp, color = BubbleColor.mineText)
         }
@@ -115,7 +117,7 @@ fun WebhookMessageBody(content: WebhookMessageContent) {
                     .semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Event payload", fontSize = 13.sp, color = BubbleColor.mineText, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.ui_event_payload), fontSize = 13.sp, color = BubbleColor.mineText, modifier = Modifier.weight(1f))
                 Icon(
                     if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                     contentDescription = null, tint = BubbleColor.mineText,

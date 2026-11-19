@@ -19,50 +19,37 @@ class PhoneSectionCopyTest {
 
     @Test
     fun `pairing sends the person to Settings then Phone`() {
-        val source = sourceFile("ui/PairingScreen.kt").readText()
-
-        assertTrue(
-            source.contains("1.  Open StartupBot → Settings → Phone"),
-            "the setup steps must name the Phone section",
+        val screen = sourceFile("ui/PairingScreen.kt").readText()
+        val resources = listOf(
+            "ui_1_open_startupbot_settings_phone" to "Settings → Phone",
+            "pairing_no_address" to "Phone settings",
+            "pairing_tailscale_help" to "Phone settings",
+            "pairing_manual_help" to "Phone settings",
         )
-        assertTrue(
-            source.contains("Enter the address shown in Phone settings instead."),
-            "the discovery fallback must name Phone settings",
-        )
-        assertTrue(
-            source.contains("same account — Phone settings will then show a name ending in "),
-            "the Tailscale hint must name Phone settings",
-        )
-        assertTrue(
-            source.contains("Whatever Phone settings on your computer shows — "),
-            "the manual-address footnote must name Phone settings",
-        )
+        for ((id, english) in resources) {
+            assertTrue(screen.contains("R.string.$id"))
+            assertTrue(message("values", id).contains(english))
+            assertTrue(message("values-vi", id).contains("Điện thoại"))
+        }
     }
 
     @Test
     fun `every discovery failure points at Phone settings`() {
         val source = sourceFile("discovery/NsdDiscovery.kt").readText()
-
-
-
-
-        assertEquals(
-            4,
-            countOf(source, "Enter the address shown in Phone settings below."),
-            "every discovery failure must send the person to Phone settings",
-        )
+        val hints = mapOf("pairing_discovery_unavailable" to 3, "pairing_discovery_interrupted" to 1)
+        for ((id, uses) in hints) {
+            assertEquals(uses, countOf(source, "R.string.$id"))
+            assertTrue(message("values", id).contains("Enter the address shown in Phone settings below."))
+            assertTrue(message("values-vi", id).contains("Điện thoại"))
+        }
     }
 
     @Test
     fun `a revoked phone is told which desktop section removed it`() {
-        val source = sourceFile("ui/RootScreen.kt").readText()
-
-        assertTrue(
-            source.contains(
-                "It was removed from the computer's Phone settings, or the pairing was reset.",
-            ),
-            "the unpaired screen must name Phone settings",
-        )
+        val id = "ui_it_was_removed_from_the_computer_s_phone_settings_or_the_pairing"
+        assertTrue(sourceFile("ui/RootScreen.kt").readText().contains("R.string.$id"))
+        assertTrue(message("values", id).contains("Phone settings"))
+        assertTrue(message("values-vi", id).contains("Điện thoại"))
     }
 
     @Test
@@ -83,6 +70,14 @@ class PhoneSectionCopyTest {
                 )
             }
         }
+    }
+
+    private fun message(folder: String, id: String): String {
+        val document = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            .parse(locate("src/main/res/$folder/interface.xml"))
+        val nodes = document.getElementsByTagName("string")
+        return (0 until nodes.length).map { nodes.item(it) as org.w3c.dom.Element }
+            .single { it.getAttribute("name") == id }.textContent
     }
 
     private fun countOf(source: String, needle: String): Int =

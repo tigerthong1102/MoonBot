@@ -39,12 +39,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.Chat
 import kotlinx.coroutines.launch
 
@@ -151,7 +153,7 @@ internal fun UpdatesSheet(onOpen: (Chat) -> Unit, onDismiss: () -> Unit) {
                         .padding(start = 20.dp, end = 20.dp, top = 2.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Updates", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.ui_updates), fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.weight(1f))
                     Text(UpdatesSummary.count(updates), fontSize = 13.sp, color = secondaryTint)
                 }
@@ -236,7 +238,7 @@ private fun UpdateRow(update: ChatUpdate, face: MausState, onOpen: () -> Unit) {
             if (update.kind == UpdateKind.NEEDS_YOU && card != null && card.isPending) {
                 if (card.skillRequest != null) {
                     Text(
-                        "Open the chat to review SKILL.md",
+                        stringResource(R.string.ui_open_the_chat_to_review_skill_md),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = secondaryTint,

@@ -1,6 +1,8 @@
 // Modified for StartupBot; original copyright and license retained.
 package com.openmausbot.companion.ui
 
+import com.openmausbot.companion.R
+
 import com.openmausbot.companion.core.AttachedMessageContent
 import com.openmausbot.companion.core.Bot
 import com.openmausbot.companion.core.Chat
@@ -121,8 +123,9 @@ enum class ChatActionId { PHOTOS, FILES, NEW_TASK, TASKS, WATCH_COMPUTER, SETTIN
 
 data class ChatAction(
     val id: ChatActionId,
-    val title: String,
-    val subtitle: String,
+    @androidx.annotation.StringRes val title: Int,
+    @androidx.annotation.StringRes val subtitle: Int,
+    val subject: String? = null,
     val destructive: Boolean = false,
     val enabled: Boolean = true,
 )
@@ -133,66 +136,69 @@ object ChatActions {
         val out = mutableListOf<ChatAction>()
         out += ChatAction(
             id = ChatActionId.PHOTOS,
-            title = "Photo Library",
-            subtitle = "Add a photo to this message",
+            title = R.string.chat_photo_library,
+            subtitle = R.string.chat_add_a_photo_to_this_message,
             enabled = canAddAttachment,
         )
         out += ChatAction(
             id = ChatActionId.FILES,
-            title = "Choose File",
-            subtitle = "Add a document from Files",
+            title = R.string.chat_choose_file,
+            subtitle = R.string.chat_add_a_document_from_files,
             enabled = canAddAttachment,
         )
         if (bot != null) {
             out += ChatAction(
                 id = ChatActionId.NEW_TASK,
-                title = "New thread",
-                subtitle = "Start a fresh thread with ${bot.name}",
+                title = R.string.ui_new_thread,
+                subtitle = R.string.chat_start_a_fresh_thread_with_1_s,
+                subject = bot.name,
                 enabled = TaskRules.canCreate(bot),
             )
             out += ChatAction(
                 id = ChatActionId.TASKS,
-                title = "Threads",
-                subtitle = "Switch, rename or remove one",
+                title = R.string.ui_threads,
+                subtitle = R.string.chat_switch_rename_or_remove_one,
             )
             out += ChatAction(
                 id = ChatActionId.SETTINGS,
-                title = "Bot settings",
-                subtitle = "Model, profile, voice and notifications",
+                title = R.string.ui_bot_settings,
+                subtitle = R.string.chat_model_profile_voice_and_notifications,
             )
             out += ChatAction(
                 id = ChatActionId.WATCH_COMPUTER,
-                title = "Watch computer",
-                subtitle = "Live view of what ${bot.name} is doing",
+                title = R.string.chat_watch_computer,
+                subtitle = R.string.chat_live_view_of_what_1_s_is_doing,
+                subject = bot.name,
             )
         } else if (chat.supportsTasks) {
             out += ChatAction(
                 id = ChatActionId.NEW_TASK,
-                title = "New thread",
-                subtitle = "Start a fresh conversation in ${chat.name}",
+                title = R.string.ui_new_thread,
+                subtitle = R.string.chat_start_a_fresh_conversation_in_1_s,
+                subject = chat.name,
                 enabled = !chat.busy && !hasPendingApproval,
             )
             out += ChatAction(
                 id = ChatActionId.TASKS,
-                title = "Threads",
-                subtitle = "Switch, rename or remove one",
+                title = R.string.ui_threads,
+                subtitle = R.string.chat_switch_rename_or_remove_one,
             )
         }
         out += ChatAction(
             id = ChatActionId.SHARE_MARKDOWN,
-            title = "Share transcript",
-            subtitle = "This thread as Markdown",
+            title = R.string.chat_share_transcript,
+            subtitle = R.string.chat_this_thread_as_markdown,
         )
         out += ChatAction(
             id = ChatActionId.SHARE_JSON,
-            title = "Share as JSON",
-            subtitle = "Structured transcript data",
+            title = R.string.chat_share_as_json,
+            subtitle = R.string.chat_structured_transcript_data,
         )
         if (chat.busy && bot != null) {
             out += ChatAction(
                 id = ChatActionId.INTERRUPT,
-                title = "Interrupt",
-                subtitle = "Stop the current turn",
+                title = R.string.chat_interrupt,
+                subtitle = R.string.chat_stop_the_current_turn,
                 destructive = true,
             )
         }
@@ -334,13 +340,13 @@ sealed interface SlashEffect {
 
     data object OpenTasks : SlashEffect
 
-    data class Send(val prompt: String) : SlashEffect
+    data class Send(@param:androidx.annotation.StringRes val prompt: Int) : SlashEffect
 }
 
 data class SlashCommand(
     val id: SlashCommandId,
     val title: String,
-    val description: String,
+    @param:androidx.annotation.StringRes val description: Int,
     val effect: SlashEffect,
 )
 
@@ -349,32 +355,32 @@ object SlashCommands {
         SlashCommand(
             id = SlashCommandId.COMPUTER,
             title = "/computer",
-            description = "Open live screen & desktop controls",
+            description = R.string.ui_command_computer,
             effect = SlashEffect.OpenComputer,
         ),
         SlashCommand(
             id = SlashCommandId.TASKS,
             title = "/threads",
-            description = "View and manage threads",
+            description = R.string.ui_command_threads,
             effect = SlashEffect.OpenTasks,
         ),
         SlashCommand(
             id = SlashCommandId.DIFF,
             title = "/diff",
-            description = "Inspect latest git changes and patches",
-            effect = SlashEffect.Send("Show git diff and list modified files"),
+            description = R.string.ui_command_diff,
+            effect = SlashEffect.Send(R.string.ui_diff_prompt),
         ),
         SlashCommand(
             id = SlashCommandId.RETRY,
             title = "/retry",
-            description = "Retry the last turn with fresh context",
-            effect = SlashEffect.Send("Please retry the last turn"),
+            description = R.string.ui_command_retry,
+            effect = SlashEffect.Send(R.string.ui_retry_prompt),
         ),
         SlashCommand(
             id = SlashCommandId.STEER,
             title = "/steer",
-            description = "Steer and redirect active execution",
-            effect = SlashEffect.Send("Pause and explain your current plan"),
+            description = R.string.ui_command_steer,
+            effect = SlashEffect.Send(R.string.ui_steer_prompt),
         ),
     )
 
@@ -391,11 +397,11 @@ object SlashCommands {
 
     fun openOnEntry(restoredDraft: String): Boolean = opensOnDraft(restoredDraft)
 
-    fun matching(commands: List<SlashCommand>, draft: String): List<SlashCommand> {
+    fun matching(commands: List<SlashCommand>, draft: String, describe: (Int) -> String): List<SlashCommand> {
         if (!draft.startsWith("/") || draft.length <= 1) return commands
         val query = draft.drop(1).lowercase()
         return commands.filter {
-            it.title.lowercase().contains(query) || it.description.lowercase().contains(query)
+            it.title.lowercase().contains(query) || describe(it.description).lowercase().contains(query)
         }
     }
 

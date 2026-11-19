@@ -38,10 +38,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import kotlinx.coroutines.launch
 
 @Composable
@@ -81,7 +83,7 @@ fun ComputerScreen(botId: String, onBack: () -> Unit) {
         if (image != null) {
             Image(
                 bitmap = image,
-                contentDescription = "${bot.name}'s computer",
+                contentDescription = stringResource(R.string.ui_s_computer, bot.name),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -103,7 +105,7 @@ fun ComputerScreen(botId: String, onBack: () -> Unit) {
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
+                contentDescription = stringResource(R.string.ui_back),
                 tint = Color.White,
                 modifier = Modifier
                     .size(32.dp)
@@ -194,10 +196,10 @@ fun ComputerScreen(botId: String, onBack: () -> Unit) {
                             }
                         }
                     },
-                ) { Text("Open desktop") }
+                ) { Text(stringResource(R.string.ui_open_desktop)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirming = false }) { Text("Cancel") }
+                TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.ui_cancel)) }
             },
         )
     }

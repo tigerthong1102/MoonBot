@@ -39,6 +39,7 @@ class NsdResolveTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { null },
                 startBrowse = { listener -> captured = listener },
@@ -86,6 +87,7 @@ class NsdResolveTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { null },
                 startBrowse = { listener -> captured = listener },
@@ -122,6 +124,7 @@ class NsdResolveTest {
 
         val collectJob = launch {
             browseDiscoveryFlow(
+                getString = org.robolectric.RuntimeEnvironment.getApplication()::getString,
                 serviceType = NsdDiscovery.SERVICE_TYPE,
                 acquireMulticastLock = { null },
                 startBrowse = { listener -> captured = listener },

@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -22,11 +23,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.BotTask
 import com.openmausbot.companion.core.bylineLabel
 import com.openmausbot.companion.core.displayTitle
-import com.openmausbot.companion.core.isClosed
 import com.openmausbot.companion.core.isArchived
+import com.openmausbot.companion.core.isClosed
 import com.openmausbot.companion.core.isSnoozed
 import com.openmausbot.companion.core.isWaitingOnTeammate
 import com.openmausbot.companion.core.isWorking
@@ -94,7 +96,7 @@ internal fun BotThreadRow(
                     }
                     if (task.unread == true) {
                         Text(
-                            "Unread",
+                            stringResource(R.string.ui_unread),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.primary,

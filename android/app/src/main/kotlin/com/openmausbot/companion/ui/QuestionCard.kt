@@ -6,11 +6,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -34,9 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.AskQuestion
 import com.openmausbot.companion.core.AskQuestionAnswer
 import com.openmausbot.companion.core.Chat
@@ -49,7 +51,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
     val questions = card.questions
     if (questions.isEmpty()) return
     if (card.questionRequest?.version != 1) {
-        Text("This question format is not supported. Open it on your computer.")
+        Text(stringResource(R.string.ui_this_question_format_is_not_supported_open_it_on_your_computer))
         return
     }
 
@@ -135,18 +137,18 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "${chat.name} has a question",
+                stringResource(R.string.ui_has_a_question, chat.name),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
             if (questions.size > 1 && !settled) {
-                Text("$answeredCount of ${questions.size}", fontSize = 12.sp, color = secondaryTint)
+                Text(stringResource(R.string.ui_of, answeredCount, questions.size), fontSize = 12.sp, color = secondaryTint)
             }
         }
 
         if (QuestionCardRules.agentComposed(message)) {
-            Text("Agent-composed question", fontSize = 12.sp, color = secondaryTint)
+            Text(stringResource(R.string.ui_agent_composed_question), fontSize = 12.sp, color = secondaryTint)
         }
 
         if (questions.size > 1) {
@@ -208,7 +210,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
                 )
                 SelectionContainer {
                     Text(
-                        answer?.let(AskQuestionAnswer::withoutPreamble) ?: "Answered",
+                        answer?.let(AskQuestionAnswer::withoutPreamble) ?: stringResource(R.string.ui_answered),
                         fontSize = 14.sp,
                         color = secondaryTint,
                     )
@@ -218,7 +220,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
         }
 
         if (current.allowsMultiple) {
-            Text("Choose all that apply", fontSize = 12.sp, color = secondaryTint)
+            Text(stringResource(R.string.ui_choose_all_that_apply), fontSize = 12.sp, color = secondaryTint)
         }
 
         Column(
@@ -242,7 +244,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
             if (current.allowsCustom) {
             if (current.options.isNotEmpty()) HorizontalDivider()
             ChoiceRow(
-                label = "Other",
+                label = stringResource(R.string.ui_other),
                 detail = null,
                 checked = other[index] == true,
                 multi = current.allowsMultiple,
@@ -258,7 +260,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
                     onValueChange = { custom[index] = it },
                     isError = (custom[index]?.length ?: 0) > 2_000,
                     supportingText = { Text("${custom[index]?.length ?: 0}/2000") },
-                    placeholder = { Text("Type your own answer") },
+                    placeholder = { Text(stringResource(R.string.ui_type_your_own_answer)) },
                     singleLine = false,
                     maxLines = 4,
                     enabled = !answering,
@@ -275,7 +277,7 @@ internal fun QuestionCardView(chat: Chat, message: Message, haptics: Haptics) {
             enabled = complete && !answering,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (questions.size > 1) "Submit answers" else "Submit answer")
+            Text(if (questions.size > 1) stringResource(R.string.ui_submit_answers) else stringResource(R.string.ui_submit_answer))
         }
     }
 }

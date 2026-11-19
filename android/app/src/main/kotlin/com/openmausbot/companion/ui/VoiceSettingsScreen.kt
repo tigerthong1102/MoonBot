@@ -30,11 +30,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.ConfigStatus
 import com.openmausbot.companion.core.VoiceProvider
 import kotlinx.coroutines.launch
@@ -103,9 +105,9 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.ui_back))
             }
-            Text("Voice", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.ui_voice), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         }
         Column(
             modifier = Modifier
@@ -119,7 +121,7 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                 Text(VoiceSettingsRules.HEADER.uppercase(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = secondaryTint)
                 HorizontalDivider()
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Status", fontSize = 15.sp, color = secondaryTint, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.ui_status), fontSize = 15.sp, color = secondaryTint, modifier = Modifier.weight(1f))
                     val text = VoiceSettingsRules.statusText(status)
                     if (text == null) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -133,7 +135,7 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                 }
                 if (VoiceSettingsRules.usesSystemVoices(status)) {
                     Text(VoiceSettingsRules.SYSTEM_NOTE, fontSize = 13.sp, color = secondaryTint)
-                    ActionRow(text = "Use ElevenLabs", enabled = !saving) {
+                    ActionRow(text = stringResource(R.string.ui_use_elevenlabs), enabled = !saving) {
                         run({ session.updateVoiceProvider("elevenlabs") }, success = null)
                     }
                 }
@@ -147,7 +149,7 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                     OutlinedTextField(
                         value = key,
                         onValueChange = { key = it },
-                        label = { Text("ElevenLabs API key") },
+                        label = { Text(stringResource(R.string.ui_elevenlabs_api_key)) },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
@@ -173,7 +175,7 @@ fun VoiceSettingsScreen(onBack: () -> Unit) {
                         if (saving) CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                     }
                     if (VoiceSettingsRules.canRemove(status, saving = false)) {
-                        ActionRow(text = "Remove key", enabled = !saving, destructive = true) {
+                        ActionRow(text = stringResource(R.string.ui_remove_key), enabled = !saving, destructive = true) {
                             run({ session.updateVoiceKey("") }, success = VoiceSettingsRules.REMOVED)
                         }
                     }

@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +60,7 @@ fun SettingsScreen(
     onOpenVoice: (() -> Unit)? = null,
     onConnect: (() -> Unit)? = null,
 ) {
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val environment = LocalCompanion.current
     val session = environment.session
     val connection by session.connection.collectAsState()
@@ -90,7 +92,7 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             HeaderBackButton(onBack)
-            Text("Settings", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.ui_settings), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         }
         HorizontalDivider()
 
@@ -100,11 +102,11 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            SettingsSection("Computer") {
+            SettingsSection(stringResource(R.string.ui_computer)) {
                 val bound = connection
                 if (bound != null) {
                     val address = SettingsPolicy.addressText(bound)
-                    SettingsRow("Name", bound.name)
+                    SettingsRow(stringResource(R.string.ui_name), bound.name)
                     AddressRow(
                         address = address,
                         expanded = showingFullAddress,
@@ -121,17 +123,17 @@ fun SettingsScreen(
                             }
                         },
                     )
-                    SettingsButton("Edit address") {
+                    SettingsButton(stringResource(R.string.ui_edit_address)) {
                         addressText = address
                         addressError = null
                         editingAddress = true
                     }
                 } else if (onConnect != null) {
-                    SettingsButton("Connect a computer", onClick = onConnect)
+                    SettingsButton(stringResource(R.string.ui_connect_a_computer), onClick = onConnect)
                 }
-                SettingsRow("Connection", SettingsPolicy.statusText(status))
+                SettingsRow(stringResource(R.string.ui_connection), SettingsPolicy.statusText(resources, status))
                 if (bound != null) {
-                    SettingsButton("Connect another computer") {
+                    SettingsButton(stringResource(R.string.ui_connect_another_computer)) {
                         haptics.play(TactileAction.CONNECT_ANOTHER_COMPUTER)
                         session.beginPairing()
                     }
@@ -140,25 +142,25 @@ fun SettingsScreen(
 
             val otherComputers = connections.filter { it.id != connection?.id }
             if (otherComputers.isNotEmpty()) {
-                SettingsSection("Other computers") {
+                SettingsSection(stringResource(R.string.ui_other_computers)) {
                     otherComputers.forEach { computer ->
-                        SettingsButton("Use ${computer.name}") {
+                        SettingsButton(stringResource(R.string.ui_use, computer.name)) {
                             haptics.play(TactileAction.SWITCH_COMPUTER)
                             session.switchComputer(computer.id)
                         }
-                        SettingsButton("Remove ${computer.name}", destructive = true) {
+                        SettingsButton(stringResource(R.string.ui_remove, computer.name), destructive = true) {
                             pendingComputerRemoval = computer
                         }
                     }
-                    Footnote("Each computer is paired separately. Only the selected computer is active at a time.")
+                    Footnote(stringResource(R.string.ui_each_computer_is_paired_separately_only_the_selected_computer_is))
                 }
             }
 
             if (connection != null) {
-                SettingsSection("Troubleshooting") {
+                SettingsSection(stringResource(R.string.ui_troubleshooting)) {
                     Footnote(troubleshootingText(status))
                     SettingsButton(
-                        text = "Try reconnecting",
+                        text = stringResource(R.string.ui_try_reconnecting),
                         enabled = !reconnecting,
                         trailing = {
                             if (reconnecting) {
@@ -178,24 +180,24 @@ fun SettingsScreen(
                 }
             }
 
-            SettingsSection("Notifications") {
+            SettingsSection(stringResource(R.string.ui_notifications)) {
                 SettingsRow(
-                    "Status",
-                    NotificationPermissionController.statusText(notifications),
+                    stringResource(R.string.ui_status),
+                    NotificationPermissionController.statusText(resources, notifications),
                 )
                 SettingsButton(
-                    text = NotificationPermissionController.buttonText(notifications),
+                    text = NotificationPermissionController.buttonText(resources, notifications),
                     enabled = NotificationPermissionController.buttonEnabled(notifications),
                     onClick = environment.notifications::act,
                 )
-                Footnote(SettingsPolicy.NOTIFICATIONS_FOOTER)
+                Footnote(stringResource(R.string.ui_settingspolicy_notifications_footer))
             }
 
-            SettingsSection("Background connection") {
+            SettingsSection(stringResource(R.string.ui_background_connection)) {
                 val alwaysOnEnabled by environment.alwaysOnEnabled.collectAsState()
-                SettingsRow("Status", if (alwaysOnEnabled) "Always on" else "Only while open")
+                SettingsRow(stringResource(R.string.ui_status), if (alwaysOnEnabled) "Always on" else "Only while open")
                 SettingsButton(
-                    text = if (alwaysOnEnabled) "Turn off" else "Turn on",
+                    text = if (alwaysOnEnabled) stringResource(R.string.ui_turn_off) else stringResource(R.string.ui_turn_on),
                     onClick = environment.onToggleAlwaysOn,
                 )
                 Footnote(
@@ -210,51 +212,51 @@ fun SettingsScreen(
                 )
             }
 
-            SettingsSection("Chat") {
-                SettingsRow("Activity", activityDetail.label)
-                SettingsButton("Change activity detail") { choosingActivity = true }
-                SettingsButton("Quick replies") { editingQuickReplies = true }
+            SettingsSection(stringResource(R.string.ui_chat)) {
+                SettingsRow(stringResource(R.string.ui_activity), activityDetail.label)
+                SettingsButton(stringResource(R.string.ui_change_activity_detail)) { choosingActivity = true }
+                SettingsButton(stringResource(R.string.ui_quick_replies)) { editingQuickReplies = true }
                 Footnote(activityDetail.caption)
             }
 
             if (onOpenRoutines != null || onOpenConnectedApps != null || onOpenVoice != null) {
-                SettingsSection("Workspace") {
+                SettingsSection(stringResource(R.string.ui_workspace)) {
                     onOpenRoutines?.let { openRoutines ->
                         SettingsButton(
-                            text = "Threads & Routines",
+                            text = stringResource(R.string.ui_threads_routines),
                             icon = R.drawable.ic_schedule,
                             onClick = openRoutines,
                         )
                     }
                     onOpenConnectedApps?.let { openConnectedApps ->
                         SettingsButton(
-                            text = "Connected Apps",
+                            text = stringResource(R.string.ui_connected_apps),
                             onClick = openConnectedApps,
                         )
                     }
                     onOpenVoice?.let { openVoice ->
                         SettingsButton(
-                            text = "Voice",
+                            text = stringResource(R.string.ui_voice),
                             icon = R.drawable.ic_phone,
                             onClick = openVoice,
                         )
                     }
-                    Footnote(SettingsPolicy.WORKSPACE_FOOTER)
+                    Footnote(stringResource(R.string.ui_settingspolicy_workspace_footer))
                 }
             }
 
             if (connection != null) {
                 SettingsSection(null) {
                     SettingsButton(
-                        text = if (connections.size > 1) "Remove this computer" else "Unpair this phone",
+                        text = if (connections.size > 1) stringResource(R.string.ui_remove_this_computer) else stringResource(R.string.ui_unpair_this_phone),
                         destructive = true,
                     ) { confirmingUnpair = true }
-                    Footnote(SettingsPolicy.UNPAIR_FOOTER)
+                    Footnote(stringResource(R.string.ui_settingspolicy_unpair_footer))
                 }
             }
 
-            SettingsSection("Not here") {
-                Footnote(SettingsPolicy.NOT_HERE)
+            SettingsSection(stringResource(R.string.ui_not_here)) {
+                Footnote(stringResource(R.string.ui_settingspolicy_not_here))
             }
         }
     }
@@ -262,10 +264,10 @@ fun SettingsScreen(
     if (editingAddress) {
         AlertDialog(
             onDismissRequest = { editingAddress = false },
-            title = { Text("Edit address") },
+            title = { Text(stringResource(R.string.ui_edit_address)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(SettingsPolicy.EDIT_ADDRESS_MESSAGE, fontSize = 14.sp)
+                    Text(stringResource(R.string.ui_settingspolicy_edit_address_message), fontSize = 14.sp)
                     OutlinedTextField(
                         value = addressText,
                         onValueChange = {
@@ -292,10 +294,10 @@ fun SettingsScreen(
                             addressError = AddressEdit.INVALID
                         }
                     },
-                ) { Text("Save") }
+                ) { Text(stringResource(R.string.ui_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { editingAddress = false }) { Text("Cancel") }
+                TextButton(onClick = { editingAddress = false }) { Text(stringResource(R.string.ui_cancel)) }
             },
         )
     }
@@ -303,13 +305,13 @@ fun SettingsScreen(
     if (confirmingUnpair) {
         AlertDialog(
             onDismissRequest = { confirmingUnpair = false },
-            title = { Text(if (connections.size > 1) "Remove ${connection?.name}?" else SettingsPolicy.UNPAIR_CONFIRM_TITLE) },
+            title = { Text(if (connections.size > 1) stringResource(R.string.ui_remove_163, connection?.name.orEmpty()) else stringResource(R.string.ui_settingspolicy_unpair_confirm_title)) },
             text = {
                 Text(
                     if (connections.size > 1) {
-                        "This removes the saved connection from this phone only. Another saved computer will stay available."
+                        stringResource(R.string.ui_this_removes_the_saved_connection_from_this_phone_only_another_s)
                     } else {
-                        SettingsPolicy.UNPAIR_CONFIRM_MESSAGE
+                        stringResource(R.string.ui_settingspolicy_unpair_confirm_message)
                     },
                 )
             },
@@ -322,13 +324,13 @@ fun SettingsScreen(
                     },
                 ) {
                     Text(
-                        text = if (connections.size > 1) "Remove" else "Unpair",
+                        text = if (connections.size > 1) stringResource(R.string.ui_remove_165) else stringResource(R.string.ui_unpair),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmingUnpair = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmingUnpair = false }) { Text(stringResource(R.string.ui_cancel)) }
             },
         )
     }
@@ -336,18 +338,18 @@ fun SettingsScreen(
     pendingComputerRemoval?.let { computer ->
         AlertDialog(
             onDismissRequest = { pendingComputerRemoval = null },
-            title = { Text("Remove ${computer.name}?") },
-            text = { Text("This removes the saved connection from this phone only.") },
+            title = { Text(stringResource(R.string.ui_remove_163, computer.name)) },
+            text = { Text(stringResource(R.string.ui_this_removes_the_saved_connection_from_this_phone_only)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         pendingComputerRemoval = null
                         session.forgetConnection(computer.id)
                     },
-                ) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+                ) { Text(stringResource(R.string.ui_remove_165), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingComputerRemoval = null }) { Text("Cancel") }
+                TextButton(onClick = { pendingComputerRemoval = null }) { Text(stringResource(R.string.ui_cancel)) }
             },
         )
     }
@@ -355,7 +357,7 @@ fun SettingsScreen(
     if (choosingActivity) {
         AlertDialog(
             onDismissRequest = { choosingActivity = false },
-            title = { Text("Activity detail") },
+            title = { Text(stringResource(R.string.ui_activity_detail)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     ActivityDetail.entries.forEach { detail ->
@@ -385,7 +387,7 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { choosingActivity = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { choosingActivity = false }) { Text(stringResource(R.string.ui_cancel)) } },
         )
     }
 
@@ -437,7 +439,7 @@ private fun AddressRow(
     onCopy: () -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Address", fontSize = 15.sp, color = secondaryTint)
+        Text(stringResource(R.string.ui_address), fontSize = 15.sp, color = secondaryTint)
         if (expanded) {
             SelectionContainer {
                 Text(
@@ -459,10 +461,10 @@ private fun AddressRow(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             TextButton(onClick = onToggle) {
-                Text(if (expanded) "Hide full address" else "Show full address")
+                Text(if (expanded) stringResource(R.string.ui_hide_full_address) else stringResource(R.string.ui_show_full_address))
             }
             TextButton(onClick = onCopy) {
-                Text(if (copied) "Copied" else "Copy")
+                Text(if (copied) stringResource(R.string.ui_copied) else stringResource(R.string.ui_copy))
             }
         }
     }

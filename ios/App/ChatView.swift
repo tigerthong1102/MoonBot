@@ -713,7 +713,7 @@ struct ChatView: View {
             )
             sendingMessage = false
             guard sent else {
-                let failure = session.actionError ?? "Couldn't send this message. Try again."
+                let failure = session.actionError ?? AppLanguage.message("Couldn't send this message. Try again.")
                 if threadId == chatAtSend.threadId { attachmentError = failure }
                 else { threadDrafts[chatAtSend.threadId]?.error = failure }
                 session.actionError = nil
@@ -903,7 +903,7 @@ struct ChatView: View {
 
     private func openLink(_ url: URL, from message: Message) -> OpenURLAction.Result {
         guard let target = LocalMessageLink.resolve(url) else {
-            fileOpenError = "This link can't be opened securely."
+            fileOpenError = AppLanguage.message("This link can't be opened securely.")
             return .handled
         }
         switch target {
@@ -946,7 +946,7 @@ struct ChatView: View {
             fileDownloadRequestID = nil
             fileDownloadTask = nil
             guard downloaded != nil else {
-                fileOpenError = session.actionError ?? "Couldn't open that file. Try again."
+                fileOpenError = session.actionError ?? AppLanguage.message("Couldn't open that file. Try again.")
                 session.actionError = nil
                 return
             }

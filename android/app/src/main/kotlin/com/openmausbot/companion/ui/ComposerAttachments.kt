@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -245,7 +246,7 @@ internal fun PendingAttachmentChip(
         TouchTarget(
             onClick = onRemove,
             enabled = enabled,
-            contentDescription = "Remove ${attachment.name}",
+            contentDescription = stringResource(R.string.ui_remove_attachment, attachment.name),
         ) {
             Box(
                 modifier = Modifier

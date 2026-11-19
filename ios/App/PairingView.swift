@@ -237,7 +237,7 @@ struct PairingView: View {
                     return
                 }
                 guard let connection = Self.parse(manualAddress) else {
-                    failure = "That address doesn't look right. Copy it from Phone settings and try again."
+                    failure = AppLanguage.message("That address doesn't look right. Copy it from Phone settings and try again.")
                     return
                 }
                 choiceGeneration += 1
@@ -477,7 +477,7 @@ struct PairingView: View {
             ?? false
     }
 
-    private func connectionBadge(for connection: Connection) -> (title: String, systemImage: String) {
+    private func connectionBadge(for connection: Connection) -> (title: LocalizedStringKey, systemImage: String) {
         let kind = connection.activeEndpoint?.kind ?? connection.automaticEndpoints.first?.kind
         if kind == .hosted {
             return ("HTTPS connection", "lock.shield.fill")

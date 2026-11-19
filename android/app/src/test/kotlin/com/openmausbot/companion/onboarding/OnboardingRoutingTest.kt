@@ -50,6 +50,16 @@ class OnboardingRoutingTest {
     }
 
     @Test
+    @Config(qualifiers = "vi-rVN")
+    fun `Vietnamese welcome and unpaired home follow the device locale`() {
+        mount(OnboardingScene())
+        compose.onNodeWithText("Chào mừng bạn đến với StartupBot").assertIsDisplayed()
+        compose.onNodeWithText("Kết nối với máy tính của tôi").assertIsDisplayed()
+        compose.onNodeWithText("Để sau").performClick()
+        compose.onNodeWithText("Kết nối máy tính").assertIsDisplayed()
+    }
+
+    @Test
     fun `a first launch says what the app is before it asks the system for anything`() {
         val scene = OnboardingScene()
         mount(scene)

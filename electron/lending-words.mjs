@@ -222,7 +222,7 @@ export const WORDS = Object.freeze({
     "lending.action.screenTools": "Đã kiểm tra quyền điều khiển ứng dụng và màn hình",
     "lending.action.screen": "Đã sử dụng ứng dụng và màn hình",
     "lending.action.website": "Đã mở một trang web",
-    "lending.action.chrome": "Used your Chrome",
+    "lending.action.chrome": "Dùng Chrome của bạn",
     "lending.action.invalid": "Yêu cầu không đúng định dạng",
     "lending.action.other": "Yêu cầu khác",
   }),

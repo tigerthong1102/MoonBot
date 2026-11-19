@@ -1,40 +1,49 @@
-const strings = {
-  vi: {
-    navDownload: 'Tải ứng dụng', navDocs: 'Hướng dẫn', navSupport: 'Hỗ trợ', navReleases: 'Phiên bản', navPrivacy: 'Quyền riêng tư', navTerms: 'Điều khoản',
-    home: `<section class="hero"><div><span class="eyebrow">AI đồng hành · Local-first</span><h1>Làm việc lớn,<br>từng bước nhỏ.</h1><p class="lead">StartupBot hướng đến một không gian để bạn giao việc cho các AI agent, theo dõi tiến độ và quyết định khi cần.</p><a class="button" href="/download">Xem tình trạng phát hành ↗</a></div><div class="demo" aria-label="Ví dụ minh họa"><div class="demo-label">Một cuộc trò chuyện · Minh họa</div><div class="bubble user">Tóm tắt các ghi chú của tôi thành những việc cần làm.</div><div class="bubble">Tôi sẽ đọc tài liệu bạn chọn, sắp xếp các bước và hỏi trước khi thực hiện hành động cần quyền.</div><div class="demo-label">Bạn luôn kiểm soát</div></div></section><section class="section"><span class="eyebrow">Bắt đầu từ điều quan trọng</span><h2>Một nơi cho công việc<br>và những ý tưởng của bạn.</h2><div class="grid"><article class="card"><span class="tag">01 / Agent</span><h3>Giao việc rõ ràng</h3><p>Trò chuyện với agent, chia công việc thành các bước và theo dõi kết quả.</p></article><article class="card"><span class="tag">02 / Quyền kiểm soát</span><h3>Quyết định trước hành động</h3><p>Xem và phê duyệt các hành động cần quyền theo cấu hình của bạn.</p></article><article class="card"><span class="tag">03 / Kết nối</span><h3>Làm việc theo cách của bạn</h3><p>Chọn nhà cung cấp AI và kết nối thiết bị khi các tính năng đã sẵn sàng.</p></article></div></section><p class="notice">StartupBot đang được phát triển. Các bản cài đặt và ứng dụng di động chưa được phát hành. Ví dụ trên là minh họa, không phải ảnh chụp sản phẩm.</p>`,
-    downloadTitle:'Tải StartupBot', downloadLead:'Chọn nền tảng để xem tình trạng phát hành. Chúng tôi chỉ cung cấp liên kết khi bản cài đặt chính thức đã được kiểm thử và phê duyệt.', pending:'Chưa phát hành', suggested:'Gợi ý cho thiết bị này', windows:'Bộ cài Windows (.exe)', mac:'Bản dành cho Apple Silicon và Intel (.dmg)', ios:'TestFlight và App Store', android:'APK và Google Play', linux:'Linux', linuxDesc:'Tình trạng bản cài Linux sẽ được cập nhật sau.', downloadNote:'Điện thoại kết nối tới máy chủ hoặc máy tính đang chạy. Máy host cần bật, thức và kết nối mạng; ứng dụng điện thoại không tự tạo cloud agent.',
-    docsTitle:'Hướng dẫn', docsBody:'Tài liệu hướng dẫn StartupBot đang được chuẩn bị. Khi phát hành, trang này sẽ hướng dẫn cài đặt, cấu hình nhà cung cấp AI, kết nối thiết bị và thu hồi quyền truy cập.', supportTitle:'Hỗ trợ', supportBody:'StartupBot đang trong giai đoạn phát triển. Bạn có thể theo dõi mã nguồn và báo lỗi tại repository hiện tại.', source:'Xem repository', releasesTitle:'Phiên bản', releasesBody:'Chưa có bản phát hành StartupBot chính thức. Thông tin phiên bản, checksum và ghi chú thay đổi sẽ được công bố sau khi kiểm thử và phê duyệt.', privacyTitle:'Quyền riêng tư', privacyBody:'Chính sách quyền riêng tư đang được chuẩn bị và cần được chủ sở hữu phê duyệt trước khi phát hành. Không gửi thông tin nhạy cảm qua trang thử nghiệm này.', termsTitle:'Điều khoản sử dụng', termsBody:'Điều khoản sử dụng đang được chuẩn bị và cần được chủ sở hữu phê duyệt trước khi phát hành.', back:'Về trang chủ'
-  },
-  en: {
-    navDownload:'Download', navDocs:'Docs', navSupport:'Support', navReleases:'Releases', navPrivacy:'Privacy', navTerms:'Terms',
-    home:`<section class="hero"><div><span class="eyebrow">AI alongside you · Local-first</span><h1>Make room<br>for bigger ideas.</h1><p class="lead">StartupBot is being built as a place to delegate work to AI agents, follow their progress, and decide when it matters.</p><a class="button" href="/download">See release status ↗</a></div><div class="demo" aria-label="Illustrative example"><div class="demo-label">A conversation · Illustration</div><div class="bubble user">Turn my notes into a clear list of next steps.</div><div class="bubble">I'll review the documents you choose, organize the steps, and ask before actions that need approval.</div><div class="demo-label">You stay in control</div></div></section><section class="section"><span class="eyebrow">Start with what matters</span><h2>One place for work<br>and your next idea.</h2><div class="grid"><article class="card"><span class="tag">01 / Agents</span><h3>Give work a direction</h3><p>Talk to agents, break work into steps, and follow the results.</p></article><article class="card"><span class="tag">02 / Control</span><h3>Decide before action</h3><p>Review and approve actions that require permission under your settings.</p></article><article class="card"><span class="tag">03 / Connection</span><h3>Work your way</h3><p>Choose AI providers and connect devices as features become available.</p></article></div></section><p class="notice">StartupBot is in development. Installers and mobile apps have not been released. The conversation above is an illustration, not a product screenshot.</p>`,
-    downloadTitle:'Download StartupBot', downloadLead:'Choose a platform to see its status. Official links will appear only after builds are tested and approved.', pending:'Not released', suggested:'Suggested for this device', windows:'Windows installer (.exe)', mac:'Apple Silicon and Intel (.dmg)', ios:'TestFlight and App Store', android:'APK and Google Play', linux:'Linux', linuxDesc:'Linux availability will be announced later.', downloadNote:'A phone connects to a running server or computer. The host must stay awake and online; a phone app does not create an always-on cloud agent.',
-    docsTitle:'Documentation', docsBody:'StartupBot guides are in preparation. They will cover installation, AI provider setup, device connection, and access revocation when available.', supportTitle:'Support', supportBody:'StartupBot is in development. Follow the source and report issues in the current repository.', source:'View repository', releasesTitle:'Releases', releasesBody:'There is no official StartupBot release yet. Version details, checksums, and release notes will be published after testing and approval.', privacyTitle:'Privacy', privacyBody:'The privacy policy is being prepared and requires owner approval before release. Do not submit sensitive information through this preview.', termsTitle:'Terms', termsBody:'The terms of use are being prepared and require owner approval before release.', back:'Back to home'
-  }
+const suggestedPlatform = () => {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
+  if (/Android/i.test(ua)) return 'android';
+  if (/Windows/i.test(ua)) return 'win';
+  if (/Mac OS|Macintosh/i.test(ua)) return 'mac';
 };
-const paths = new Set(['/', '/download', '/docs', '/support', '/releases', '/privacy', '/terms']);
-let lang = localStorage.getItem('startupbot-language') === 'en' ? 'en' : 'vi';
-function render() {
-  const t = strings[lang];
-  document.documentElement.lang = lang;
-  document.querySelector('#language').textContent = lang === 'vi' ? 'EN' : 'VI';
-  document.querySelectorAll('[data-key]').forEach(el => { el.textContent = t[el.dataset.key]; });
-  const path = location.pathname.replace(/\/$/, '') || '/';
-  const content = document.querySelector('#content');
-  if (path === '/') { content.innerHTML = t.home; document.title = 'StartupBot'; return; }
-  if (!paths.has(path)) { content.innerHTML = `<section class="page"><h1>404</h1><a class="button" href="/">${t.back}</a></section>`; return; }
-  const key = path.slice(1);
-  const title = t[`${key}Title`];
-  let body;
-  if (key === 'download') {
-    const agent = navigator.userAgent;
-    const suggested = /iPhone|iPad|iPod/i.test(agent) ? 'iPhone / iPad' : /Android/i.test(agent) ? 'Android' : /Windows/i.test(agent) ? 'Windows' : /Macintosh|Mac OS/i.test(agent) ? 'macOS' : /Linux/i.test(agent) ? 'Linux' : '';
-    body = `<p>${t.downloadLead}</p>${suggested ? `<p class="notice">${t.suggested}: ${suggested} · ${t.pending}</p>` : ''}<div class="platforms">${[['Windows',t.windows],['macOS',t.mac],['iPhone / iPad',t.ios],['Android',t.android],['Linux',t.linuxDesc]].map(([name,detail]) => `<article class="card"><span class="tag">${t.pending}</span><h3>${name}</h3><p>${detail}</p></article>`).join('')}</div><p class="notice">${t.downloadNote}</p>`;
-  } else {
-    body = `<p>${t[`${key}Body`]}</p>${key === 'support' ? `<a class="button" href="https://github.com/tigerthong1102/MoonBot/issues">${t.source} ↗</a>` : ''}`;
+const recommended = document.querySelector('[data-platform="' + suggestedPlatform() + '"] .suggested');
+if (recommended) recommended.hidden = false;
+
+for (const link of document.querySelectorAll('a[data-expires]')) {
+  if (Date.parse(link.dataset.expires) <= Date.now()) {
+    const label = document.createElement('span');
+    label.className = 'note';
+    label.textContent = link.closest('section').dataset.expired;
+    link.replaceWith(label);
   }
-  document.title = `${title} · StartupBot`;
-  content.innerHTML = `<section class="page"><span class="eyebrow">StartupBot</span><h1>${title}</h1>${body}</section>`;
 }
-document.querySelector('#language').addEventListener('click', () => { lang = lang === 'vi' ? 'en' : 'vi'; localStorage.setItem('startupbot-language', lang); render(); });
-render();
+
+const caseNav = document.querySelector('.case-nav');
+if (caseNav) {
+  const tabs = Array.from(caseNav.querySelectorAll('a'));
+  const panels = tabs.map(tab => document.getElementById(tab.hash.slice(1)));
+  const select = index => {
+    tabs.forEach((tab, i) => {
+      tab.setAttribute('aria-selected', String(index === i));
+      tab.tabIndex = index === i ? 0 : -1;
+      panels[i].hidden = index !== i;
+    });
+  };
+  caseNav.setAttribute('role', 'tablist');
+  tabs.forEach((tab, i) => {
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', panels[i].id);
+    panels[i].setAttribute('role', 'tabpanel');
+    panels[i].setAttribute('aria-labelledby', tab.id);
+    panels[i].tabIndex = 0;
+    tab.addEventListener('click', event => { event.preventDefault(); select(i); });
+    tab.addEventListener('keydown', event => {
+      const targets = { ArrowRight: (i + 1) % tabs.length, ArrowLeft: (i + tabs.length - 1) % tabs.length, Home: 0, End: tabs.length - 1 };
+      if (!(event.key in targets)) return;
+      event.preventDefault();
+      const next = targets[event.key];
+      select(next);
+      tabs[next].focus();
+    });
+  });
+  select(Math.max(0, tabs.findIndex(tab => tab.hash === location.hash)));
+}

@@ -324,7 +324,7 @@ class TactileActionTest {
 class CompanionHapticsTest {
     @Test
     fun `a command that sends is felt once, as a send`() {
-        assertNull(CompanionHaptics.forCommand(SlashEffect.Send("Show git diff")))
+        assertNull(CompanionHaptics.forCommand(SlashEffect.Send(com.openmausbot.companion.R.string.ui_diff_prompt)))
     }
 
     @Test

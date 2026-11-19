@@ -8,6 +8,12 @@
             "state": "translated",
             "value": "%lld salvos"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld đã được lưu"
+          }
         }
       }
     },
@@ -21,6 +27,12 @@
             "state": "translated",
             "value": "5–1.440"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5–1,440"
+          }
         }
       }
     },
@@ -30,6 +42,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uma seção pode ter um Chefe. Volte e escolha um Chefe, ou use uma seção sem nenhum."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Một khu vực có thể có một thủ lĩnh. Hãy quay lại và chọn một thủ lĩnh, hoặc sử dụng một khu vực không có thủ lĩnh."
+          }
+        }
+      }
+    },
+    "A server's code is 12 letters and digits, never 0, O, 1 or I.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mã của máy chủ là 12 chữ cái và chữ số, không bao giờ 0, O, 1 hoặc I."
           }
         }
       }
@@ -41,6 +69,12 @@
             "state": "translated",
             "value": "Uma tarefa é uma conversa e um resultado, com contexto e pasta de trabalho próprios."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Một tác vụ là một cuộc trò chuyện và kết quả, với ngữ cảnh và thư mục làm việc riêng của nó."
+          }
         }
       }
     },
@@ -50,6 +84,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apelido da conta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên gợi nhớ cho tài khoản"
           }
         }
       }
@@ -61,6 +101,12 @@
             "state": "translated",
             "value": "Este provedor não fornece os detalhes da conta. Atualize depois que a autorização terminar."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhà cung cấp chưa cung cấp thông tin tài khoản. Hãy làm mới sau khi hoàn tất cấp quyền."
+          }
         }
       }
     },
@@ -70,6 +116,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não foi possível verificar as contas de novo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể kiểm tra lại tài khoản"
           }
         }
       }
@@ -81,6 +133,12 @@
             "state": "translated",
             "value": "Atividade"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoạt động"
+          }
         }
       }
     },
@@ -90,6 +148,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adicionar resposta rápida"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm câu trả lời nhanh"
           }
         }
       }
@@ -101,6 +165,12 @@
             "state": "translated",
             "value": "Adicionar um documento do app Arquivos"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm tài liệu từ tập tin"
+          }
         }
       }
     },
@@ -110,6 +180,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adicionar uma foto a esta mensagem"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm ảnh vào tin nhắn này"
           }
         }
       }
@@ -121,6 +197,12 @@
             "state": "translated",
             "value": "Adicionar outra conta"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm tài khoản khác"
+          }
         }
       }
     },
@@ -130,6 +212,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adicione a chave compartilhada do ElevenLabs no perfil deste agente no computador. A chave nunca é devolvida ao iOS."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm khoá ElevenLabs đã chia sẻ vào hồ sơ của trợ lý này trên máy tính. Khóa này không bao giờ được trả về iOS."
           }
         }
       }
@@ -141,6 +229,12 @@
             "state": "translated",
             "value": "Adicionar à seção"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm vào phần"
+          }
         }
       }
     },
@@ -150,6 +244,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Adiciona a uma seção existente"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm vào phần đã có"
           }
         }
       }
@@ -161,6 +261,12 @@
             "state": "translated",
             "value": "Avançado · limite de execução de %@"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nâng cao · giới hạn mỗi lần chạy: %@"
+          }
         }
       }
     },
@@ -170,6 +276,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Avançado · sem limite de execução"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nâng cao · không giới hạn thời gian chạy"
           }
         }
       }
@@ -181,6 +293,12 @@
             "state": "translated",
             "value": "Agente"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trợ lý AI"
+          }
         }
       }
     },
@@ -190,6 +308,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notificações do agente"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thông báo từ trợ lý"
           }
         }
       }
@@ -201,6 +325,12 @@
             "state": "translated",
             "value": "Tarefas do agente"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhiệm vụ của tác nhân"
+          }
         }
       }
     },
@@ -210,6 +340,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Os alertas chegam enquanto o StartupBot está aberto ou esteve em segundo plano há pouco. A entrega com o app fechado ainda não está disponível."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cảnh báo đến trong khi StartupBot mở hoặc gần đây ở nền Phân phối ứng dụng đóng chưa có sẵn."
           }
         }
       }
@@ -221,6 +357,12 @@
             "state": "translated",
             "value": "Tudo tranquilo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có thông báo mới"
+          }
         }
       }
     },
@@ -230,6 +372,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Permita o acesso à câmera para escanear o QR code de pareamento mostrado pelo StartupBot."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cho phép dùng camera để quét mã QR ghép nối do StartupBot hiển thị."
           }
         }
       }
@@ -241,6 +389,12 @@
             "state": "translated",
             "value": "Sempre"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luôn luôn"
+          }
         }
       }
     },
@@ -250,6 +404,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sempre permitir esta ferramenta"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luôn luôn cho phép công cụ này"
           }
         }
       }
@@ -261,6 +421,12 @@
             "state": "translated",
             "value": "Aplicar modelo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Áp dụng mô hình"
+          }
         }
       }
     },
@@ -270,6 +436,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aprovações esperando por você"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu đang chờ bạn phê duyệt"
           }
         }
       }
@@ -281,6 +453,12 @@
             "state": "translated",
             "value": "Direção de arte"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phong cách hình ảnh"
+          }
         }
       }
     },
@@ -290,6 +468,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pede permissão para enviar notificações"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu quyền gửi thông báo"
           }
         }
       }
@@ -301,6 +485,12 @@
             "state": "translated",
             "value": "Avatar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ảnh đại diện"
+          }
         }
       }
     },
@@ -310,6 +500,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voltar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quay lại"
           }
         }
       }
@@ -321,6 +517,12 @@
             "state": "translated",
             "value": "Voltar aos bots"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trở lại bot"
+          }
         }
       }
     },
@@ -330,6 +532,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conversas com bots"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trò chuyện bot"
           }
         }
       }
@@ -341,6 +549,12 @@
             "state": "translated",
             "value": "Animação de entrada do bot"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoạt hình giới thiệu bot"
+          }
         }
       }
     },
@@ -350,6 +564,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ajustes do bot"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài đặt bot"
+          }
+        }
+      }
+    },
+    "Bot threads": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các luồng trò chuyện của bot"
           }
         }
       }
@@ -361,6 +591,12 @@
             "state": "translated",
             "value": "Bots"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các bot"
+          }
         }
       }
     },
@@ -370,6 +606,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Os bots que você cria no seu computador aparecem aqui."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các bot bạn tạo trên máy tính sẽ xuất hiện tại đây."
           }
         }
       }
@@ -381,6 +623,12 @@
             "state": "translated",
             "value": "As vozes nativas do Mac estão indisponíveis"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giọng nói Mac có sẵn không sẵn sàng"
+          }
         }
       }
     },
@@ -390,6 +638,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "As vozes nativas do Mac não precisam de chave, e este computador não tem nenhuma disponível. Troque o motor de voz para ElevenLabs no perfil deste agente no computador para continuar usando voz."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giọng nói Mac có sẵn không cần phím nào, và máy tính này không có phím nào sẵn sàng. Chuyển công cụ giọng nói sang ElevenLabs trong hồ sơ tác vụ này trên máy tính để tiếp tục sử dụng giọng nói."
           }
         }
       }
@@ -401,6 +655,12 @@
             "state": "translated",
             "value": "É preciso acesso à câmera"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cần quyền dùng camera"
+          }
         }
       }
     },
@@ -410,6 +670,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pode acessar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Có thể chạm tới"
           }
         }
       }
@@ -421,6 +687,12 @@
             "state": "translated",
             "value": "Cancelar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hủy"
+          }
         }
       }
     },
@@ -430,6 +702,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Muda o idioma dentro do StartupBot. Os botões desenhados pelo próprio iOS seguem o idioma do telefone, que você pode definir para este app nos Ajustes do iOS."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thay đổi ngôn ngữ bên trong StartupBot. Các nút được vẽ bởi chính iOS theo ngôn ngữ của điện thoại, mà bạn có thể thiết lập cho ứng dụng này trong Cài đặt iOS."
           }
         }
       }
@@ -441,6 +719,12 @@
             "state": "translated",
             "value": "Muda o modelo, o perfil, as notificações e a voz deste bot"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thay đổi mô hình, hồ sơ, thông báo và giọng nói của bot này"
+          }
         }
       }
     },
@@ -450,6 +734,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nome do canal (opcional)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên kênh (tuỳ chọn)"
           }
         }
       }
@@ -461,6 +751,12 @@
             "state": "translated",
             "value": "Tarefas do canal"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các tác vụ kênh"
+          }
         }
       }
     },
@@ -470,6 +766,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Canais"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kênh"
           }
         }
       }
@@ -481,6 +783,12 @@
             "state": "translated",
             "value": "Conversa"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trò chuyện"
+          }
         }
       }
     },
@@ -490,6 +798,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conversas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trò chuyện"
           }
         }
       }
@@ -501,6 +815,12 @@
             "state": "translated",
             "value": "Verificando a disponibilidade da Cloud VM…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang kiểm tra khả năng sử dụng máy ảo đám mây…"
+          }
         }
       }
     },
@@ -510,6 +830,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chips"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chip"
           }
         }
       }
@@ -521,6 +847,12 @@
             "state": "translated",
             "value": "Escolher arquivo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn tập tin"
+          }
         }
       }
     },
@@ -530,6 +862,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escolha uma imagem PNG, JPEG, GIF ou WebP."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy chọn ảnh PNG, JPEG, GIF hoặc WebP."
+          }
+        }
+      }
+    },
+    "Choose a conversation or start a new thread": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn một cuộc trò chuyện hoặc bắt đầu một chủ đề mới"
           }
         }
       }
@@ -541,6 +889,22 @@
             "state": "translated",
             "value": "Escolher outro computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn máy tính khác"
+          }
+        }
+      }
+    },
+    "Choose a supported schedule before saving this routine.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy chọn lịch được hỗ trợ trước khi lưu tác vụ định kỳ."
+          }
         }
       }
     },
@@ -550,6 +914,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escolher um agente"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn trợ lý"
           }
         }
       }
@@ -561,6 +931,12 @@
             "state": "translated",
             "value": "Escolha uma voz para o agente"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn giọng nói đại diện"
+          }
         }
       }
     },
@@ -570,6 +946,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escolha um provedor disponível para mudar o modelo deste bot."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn nhà cung cấp có sẵn để thay đổi mô hình của bot này."
+          }
+        }
+      }
+    },
+    "Choose an interval from 5 to 1,440 minutes.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy chọn khoảng thời gian từ 5 đến 1.440 phút."
           }
         }
       }
@@ -581,6 +973,12 @@
             "state": "translated",
             "value": "Escolher bots"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn bot"
+          }
         }
       }
     },
@@ -590,6 +988,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escolha até 100 bots para uma seção."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn tối đa 100 bot cho một phần."
           }
         }
       }
@@ -601,6 +1005,12 @@
             "state": "translated",
             "value": "Círculo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tròn"
+          }
         }
       }
     },
@@ -610,6 +1020,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Limpar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa"
           }
         }
       }
@@ -621,6 +1037,12 @@
             "state": "translated",
             "value": "Fechar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đóng"
+          }
         }
       }
     },
@@ -631,12 +1053,24 @@
             "state": "translated",
             "value": "Fechar comandos de barra"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đóng danh sách lệnh /"
+          }
         }
       }
     },
     "Cloud VM": {
       "localizations": {
         "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud VM"
+          }
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "Cloud VM"
@@ -651,6 +1085,12 @@
             "state": "translated",
             "value": "O status da Cloud VM está indisponível"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa lấy được trạng thái máy ảo đám mây"
+          }
         }
       }
     },
@@ -660,6 +1100,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Concluída"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã hoàn thành"
           }
         }
       }
@@ -671,6 +1117,12 @@
             "state": "translated",
             "value": "As execuções concluídas, aguardando, com falha e iniciadas manualmente aparecem aqui."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem tại đây các lượt chạy đã hoàn tất, đang chờ, gặp lỗi hoặc do bạn khởi chạy."
+          }
         }
       }
     },
@@ -680,6 +1132,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Computador"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính"
           }
         }
       }
@@ -691,6 +1149,12 @@
             "state": "translated",
             "value": "Endereço do computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Địa chỉ máy tính"
+          }
         }
       }
     },
@@ -700,6 +1164,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Só no computador"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉ trên máy tính"
           }
         }
       }
@@ -711,6 +1181,12 @@
             "state": "translated",
             "value": "Computadores"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tínhName"
+          }
         }
       }
     },
@@ -720,6 +1196,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Os computadores prontos para parear vão aparecer aqui."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính đã sẵn sàng để ghép đôi sẽ hiển thị tại đây."
           }
         }
       }
@@ -731,6 +1213,12 @@
             "state": "translated",
             "value": "Configure o Composio no seu computador primeiro. As credenciais do provedor nunca são devolvidas a este dispositivo."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trước tiên hãy cấu hình Composio trên máy tính của bạn. Thông tin xác thực nhà cung cấp sẽ không bao giờ được trả về thiết bị này."
+          }
         }
       }
     },
@@ -740,6 +1228,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conectar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối"
           }
         }
       }
@@ -751,6 +1245,12 @@
             "state": "translated",
             "value": "Conectar um computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối máy tính"
+          }
         }
       }
     },
@@ -760,6 +1260,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conectar outro computador"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối máy tính khác"
           }
         }
       }
@@ -771,6 +1277,12 @@
             "state": "translated",
             "value": "Conectar computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối máy tính"
+          }
         }
       }
     },
@@ -780,6 +1292,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conectar meu computador"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối với máy tính của tôi"
           }
         }
       }
@@ -791,6 +1309,12 @@
             "state": "translated",
             "value": "Conecte-se ao seu computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối tới máy tính của bạn"
+          }
         }
       }
     },
@@ -800,6 +1324,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conecte quando quiser"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối khi bạn sẵn sàng"
           }
         }
       }
@@ -811,6 +1341,12 @@
             "state": "translated",
             "value": "Conectado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã kết nối"
+          }
         }
       }
     },
@@ -820,6 +1356,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apps conectados"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ứng dụng đã kết nối"
           }
         }
       }
@@ -831,6 +1373,12 @@
             "state": "translated",
             "value": "Os apps conectados precisam de configuração"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các ứng dụng đã kết nối cần thiết lập"
+          }
         }
       }
     },
@@ -840,6 +1388,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conectado a %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã kết nối tới %@"
           }
         }
       }
@@ -851,6 +1405,12 @@
             "state": "translated",
             "value": "Conectado ao seu computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã kết nối đến máy tính của bạn"
+          }
         }
       }
     },
@@ -860,6 +1420,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conectando…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang kết nối…"
           }
         }
       }
@@ -871,6 +1437,22 @@
             "state": "translated",
             "value": "Conexão e segurança"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "& Bảo mật kết nối"
+          }
+        }
+      }
+    },
+    "Connection cancelled.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã hủy kết nối."
+          }
         }
       }
     },
@@ -880,6 +1462,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Detalhes da conexão"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chi tiết kết nối"
           }
         }
       }
@@ -891,6 +1479,12 @@
             "state": "translated",
             "value": "Conexão desconhecida"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa xác định được trạng thái kết nối"
+          }
         }
       }
     },
@@ -900,6 +1494,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Continuar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiếp tục"
           }
         }
       }
@@ -953,6 +1553,22 @@
               }
             }
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiếp tục với bot %lld"
+          }
+        }
+      }
+    },
+    "Conversations changed while loading. Please try opening this notification again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danh sách cuộc trò chuyện đã thay đổi trong lúc tải. Hãy mở lại thông báo này."
+          }
         }
       }
     },
@@ -962,6 +1578,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copiado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã sao chép"
           }
         }
       }
@@ -973,6 +1595,12 @@
             "state": "translated",
             "value": "Copiar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sao chép"
+          }
         }
       }
     },
@@ -982,6 +1610,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copiar tudo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sao chép tất cả"
           }
         }
       }
@@ -993,6 +1627,12 @@
             "state": "translated",
             "value": "Copiar CSV"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sao chép CSV"
+          }
         }
       }
     },
@@ -1002,6 +1642,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copiar diff"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sao chép phần thay đổi"
+          }
+        }
+      }
+    },
+    "Couldn't create a thread. Check the connection and try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể tạo luồng trò chuyện. Hãy kiểm tra kết nối rồi thử lại."
           }
         }
       }
@@ -1013,6 +1669,12 @@
             "state": "translated",
             "value": "Não foi possível carregar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể nạp"
+          }
         }
       }
     },
@@ -1022,6 +1684,32 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não foi possível abrir o link"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể mở liên kết"
+          }
+        }
+      }
+    },
+    "Couldn't open that file. Try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể mở tệp này. Hãy thử lại."
+          }
+        }
+      }
+    },
+    "Couldn't send this message. Try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể gửi tin nhắn. Hãy thử lại."
           }
         }
       }
@@ -1033,6 +1721,12 @@
             "state": "translated",
             "value": "Não foi possível iniciar o microfone."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể khởi chạy micro."
+          }
         }
       }
     },
@@ -1042,6 +1736,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não foi possível transcrever isso."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không sao chép được."
+          }
+        }
+      }
+    },
+    "Couldn't work out that computer's address.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không xác định được địa chỉ của máy tính đó."
           }
         }
       }
@@ -1053,6 +1763,12 @@
             "state": "translated",
             "value": "Não foi possível criar a seção"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể tạo phần"
+          }
         }
       }
     },
@@ -1062,6 +1778,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Criar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo"
           }
         }
       }
@@ -1073,6 +1795,12 @@
             "state": "translated",
             "value": "Crie um bot primeiro e depois volte para agrupá-lo em uma seção."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo một bot trước, sau đó quay lại nhóm nó vào một phần."
+          }
         }
       }
     },
@@ -1082,6 +1810,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Criar seção"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo phần"
           }
         }
       }
@@ -1093,6 +1827,12 @@
             "state": "translated",
             "value": "Cria uma nova seção"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo phần mới"
+          }
         }
       }
     },
@@ -1102,6 +1842,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Criar ou rotacionar um webhook altera um gatilho acessível pela internet e um segredo de assinatura, então o gerenciamento de webhooks continua no computador pareado. Os recibos de execução de webhook continuam aparecendo acima."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo hoặc thay khóa webhook sẽ thay đổi cơ chế kích hoạt qua Internet và khóa ký. Hãy quản lý webhook trên máy tính đã ghép nối. Bạn vẫn xem được kết quả các lượt chạy ở trên."
           }
         }
       }
@@ -1113,6 +1859,12 @@
             "state": "translated",
             "value": "Criando…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tạo…"
+          }
         }
       }
     },
@@ -1122,6 +1874,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Voz atual do agente"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giọng nói tác vụ hiện tại"
           }
         }
       }
@@ -1133,6 +1891,12 @@
             "state": "translated",
             "value": "Computador atual"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính hiện thời"
+          }
         }
       }
     },
@@ -1142,6 +1906,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Provedor atual (indisponível)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhà cung cấp hiện tại (không có sẵn)"
           }
         }
       }
@@ -1153,6 +1923,12 @@
             "state": "translated",
             "value": "Intervalo personalizado em minutos"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khoảng tự chọn theo phút"
+          }
         }
       }
     },
@@ -1162,6 +1938,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Intervalo personalizado…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khoảng riêng..."
           }
         }
       }
@@ -1173,6 +1955,12 @@
             "state": "translated",
             "value": "Padrão"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mặc định"
+          }
         }
       }
     },
@@ -1182,6 +1970,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Excluir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa"
           }
         }
       }
@@ -1193,6 +1987,42 @@
             "state": "translated",
             "value": "Excluir rotina"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xoá tác vụ định kỳ"
+          }
+        }
+      }
+    },
+    "Delete this queued message": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa tin nhắn này trong hàng đợi"
+          }
+        }
+      }
+    },
+    "Delete thread": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xoá mạch"
+          }
+        }
+      }
+    },
+    "Delete thread?": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xóa luồng?"
+          }
         }
       }
     },
@@ -1202,6 +2032,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Agente excluído"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tác vụ đã bị xoá"
           }
         }
       }
@@ -1213,6 +2049,12 @@
             "state": "translated",
             "value": "O ditado não está disponível para este idioma."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản dịch không có sẵn cho ngôn ngữ này."
+          }
         }
       }
     },
@@ -1222,6 +2064,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "O ditado precisa de acesso ao Microfone. Ative em Ajustes → StartupBot."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Để nhập bằng giọng nói, hãy cấp quyền dùng micrô trong Cài đặt → StartupBot."
           }
         }
       }
@@ -1233,6 +2081,12 @@
             "state": "translated",
             "value": "O ditado precisa de acesso ao Reconhecimento de Fala. Ative em Ajustes → StartupBot."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Để nhập bằng giọng nói, hãy bật quyền Nhận dạng giọng nói trong Cài đặt → StartupBot."
+          }
         }
       }
     },
@@ -1242,6 +2096,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dispensar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đóng"
           }
         }
       }
@@ -1253,6 +2113,12 @@
             "state": "translated",
             "value": "Faz"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Làm"
+          }
         }
       }
     },
@@ -1262,6 +2128,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Concluído"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xong"
           }
         }
       }
@@ -1273,6 +2145,12 @@
             "state": "translated",
             "value": "Toque duas vezes para adicionar este bot"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhấn đúp để thêm bot này"
+          }
         }
       }
     },
@@ -1282,6 +2160,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toque duas vezes para remover este bot"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhấn đúp để gỡ bỏ bot này"
           }
         }
       }
@@ -1293,6 +2177,12 @@
             "state": "translated",
             "value": "Cada computador é pareado separadamente. Só o computador selecionado fica ativo por vez."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi máy tính được ghép nối riêng. Tại mỗi thời điểm, chỉ máy tính được chọn mới hoạt động."
+          }
         }
       }
     },
@@ -1302,6 +2192,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cada ocorrência cria uma tarefa nova. Se a execução anterior ainda estiver ativa, a próxima ocorrência é pulada em vez de entrar na fila."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi lần xuất hiện tạo ra một tác vụ mới. Nếu lần chạy trước vẫn còn hoạt động, lần xuất hiện tiếp theo sẽ bị bỏ qua thay vì xếp hàng."
           }
         }
       }
@@ -1313,6 +2209,32 @@
             "state": "translated",
             "value": "Cada ocorrência cria uma tarefa nova. Nenhuma sintaxe de cron é usada."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi lần xuất hiện tạo ra một tác vụ mới. Không sử dụng cú pháp cron."
+          }
+        }
+      }
+    },
+    "Each occurrence starts with fresh context. Results collect in one thread, and full run logs remain available. If the previous run is still active, the next occurrence is skipped instead of queued.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi lần xuất hiện bắt đầu với ngữ cảnh mới. Kết quả được thu thập trong một luồng, và các bản ghi chạy đầy đủ vẫn còn sẵn sàng. Nếu chạy trước vẫn hoạt động, lần xuất hiện tiếp theo bị bỏ qua thay vì xếp hàng."
+          }
+        }
+      }
+    },
+    "Each occurrence starts with fresh context. Results collect in one thread, and full run logs remain available. No cron syntax is used.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi lần xuất hiện bắt đầu với ngữ cảnh mới. Kết quả được thu thập trong một luồng, và nhật ký chạy đầy đủ vẫn sẵn sàng. Không sử dụng cú pháp cron."
+          }
         }
       }
     },
@@ -1322,6 +2244,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Editar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sửa"
           }
         }
       }
@@ -1333,6 +2261,12 @@
             "state": "translated",
             "value": "Editar endereço"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sửa địa chỉ"
+          }
         }
       }
     },
@@ -1342,6 +2276,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Editar e tentar de novo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sửa và thử lại"
           }
         }
       }
@@ -1353,6 +2293,12 @@
             "state": "translated",
             "value": "Editar rotina"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉnh sửa tác vụ định kỳ"
+          }
         }
       }
     },
@@ -1362,6 +2308,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "O ElevenLabs não está configurado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ElevenLabs chưa được cấu hình"
           }
         }
       }
@@ -1373,6 +2325,12 @@
             "state": "translated",
             "value": "Ativar notificações"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bật thông báo"
+          }
         }
       }
     },
@@ -1383,6 +2341,12 @@
             "state": "translated",
             "value": "Criptografado e salvo no seu computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã mã hóa và lưu vào máy tính của anh"
+          }
         }
       }
     },
@@ -1392,6 +2356,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Criptografado e enviado ao seu computador."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã được mã hoá và gửi vào máy tính của anh."
           }
         }
       }
@@ -1406,6 +2376,12 @@
             "state": "translated",
             "value": "Digitar um valor diferente"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập một giá trị khác"
+          }
         }
       }
     },
@@ -1415,6 +2391,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Digite um número inteiro de 5 a 1.440 minutos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập số nguyên từ 5 đến 1440 phút."
           }
         }
       }
@@ -1426,6 +2408,12 @@
             "state": "translated",
             "value": "Digitar endereço e código"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập địa chỉ và mã"
+          }
         }
       }
     },
@@ -1435,6 +2423,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Digite com segurança neste telefone."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập mật khẩu an toàn vào điện thoại này."
           }
         }
       }
@@ -1446,6 +2440,12 @@
             "state": "translated",
             "value": "Digitar com segurança neste telefone"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập an toàn vào điện thoại này"
+          }
         }
       }
     },
@@ -1455,6 +2455,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Digite o código de 6 dígitos mostrado no seu computador"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập mã 6 chữ số hiển thị trên máy tính của bạn"
           }
         }
       }
@@ -1466,6 +2472,22 @@
             "state": "translated",
             "value": "Digite o código mostrado neste computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập mã hiển thị trên máy tính này"
+          }
+        }
+      }
+    },
+    "Enter the code shown on your computer": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhập mã hiển thị trên máy tính của bạn"
+          }
         }
       }
     },
@@ -1475,6 +2497,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "A cada X minutos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi X phút"
+          }
+        }
+      }
+    },
+    "Every bot that may answer in this channel must use a model that supports images.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mọi bot có thể trả lời trong kênh này phải dùng mô hình hỗ trợ hình ảnh."
           }
         }
       }
@@ -1486,6 +2524,12 @@
             "state": "translated",
             "value": "Cada passo que um bot dá."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi bước đi của robot."
+          }
         }
       }
     },
@@ -1495,6 +2539,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Explicar os passos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giải thích các bước"
           }
         }
       }
@@ -1506,6 +2556,12 @@
             "state": "translated",
             "value": "Trabalhos concluídos e novidades importantes"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Công việc đã hoàn thành và cập nhật quan trọng"
+          }
         }
       }
     },
@@ -1515,6 +2571,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Na primeira vez de cada bot"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lần đầu trên mỗi bot"
           }
         }
       }
@@ -1526,6 +2588,12 @@
             "state": "translated",
             "value": "Seguir o sistema"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theo cài đặt hệ thống"
+          }
         }
       }
     },
@@ -1535,6 +2603,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Por exemplo, Pesquisa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ví dụ, Nghiên cứu"
           }
         }
       }
@@ -1546,6 +2620,12 @@
             "state": "translated",
             "value": "Completa"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đầy đủ"
+          }
         }
       }
     },
@@ -1555,6 +2635,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gerar um avatar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo ảnh đại diện"
           }
         }
       }
@@ -1566,6 +2652,12 @@
             "state": "translated",
             "value": "Gerar no computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo trên máy tính"
+          }
         }
       }
     },
@@ -1575,6 +2667,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "A geração usa o provedor de imagens compartilhado configurado no seu computador. Nenhuma chave de provedor é enviada nem guardada neste dispositivo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thế hệ dùng nhà cung cấp ảnh chia sẻ được cấu hình trên máy tính này. Không có khóa nhà cung cấp nào được gởi hay lưu trên thiết bị này."
           }
         }
       }
@@ -1586,6 +2684,32 @@
             "state": "translated",
             "value": "Receba alertas enquanto o StartupBot está aberto ou esteve em segundo plano há pouco. Os alertas param depois que o iOS suspende ou fecha o app por completo."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn sẽ nhận được thông báo khi StartupBot đang mở hoặc mới chuyển sang chạy nền. Thông báo sẽ ngừng khi iOS tạm ngưng hoàn toàn hoặc đóng ứng dụng."
+          }
+        }
+      }
+    },
+    "Group name (optional)": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên nhóm (tùy chọn)"
+          }
+        }
+      }
+    },
+    "Groups": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhóm"
+          }
         }
       }
     },
@@ -1595,6 +2719,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conexão HTTPS"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối HTTPS"
           }
         }
       }
@@ -1606,6 +2736,12 @@
             "state": "translated",
             "value": "Oculta"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bị ẩn"
+          }
         }
       }
     },
@@ -1615,6 +2751,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ocultar diff"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn phần thay đổi"
           }
         }
       }
@@ -1626,6 +2768,12 @@
             "state": "translated",
             "value": "Ocultar endereço completo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ẩn địa chỉ đầy đủ"
+          }
         }
       }
     },
@@ -1635,6 +2783,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Oculta os passos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Che các bước"
           }
         }
       }
@@ -1646,6 +2800,12 @@
             "state": "translated",
             "value": "Com que frequência esta rotina roda"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tác vụ định kỳ này diễn ra thường xuyên như thế nào"
+          }
         }
       }
     },
@@ -1655,6 +2815,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "ENTRADA"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ĐẦU VÀO"
           }
         }
       }
@@ -1666,6 +2832,12 @@
             "state": "translated",
             "value": "Ícone"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biểu tượng"
+          }
         }
       }
     },
@@ -1675,6 +2847,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Identidade"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhận diện"
           }
         }
       }
@@ -1686,6 +2864,12 @@
             "state": "translated",
             "value": "Ocioso"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rảnh"
+          }
         }
       }
     },
@@ -1695,6 +2879,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inspecionar as últimas mudanças e patches do git"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kiểm tra các thay đổi và bản vá lỗi git mới nhất"
           }
         }
       }
@@ -1706,6 +2896,12 @@
             "state": "translated",
             "value": "Sessão VNC interativa. O acesso precisa estar ativado para este dispositivo nos ajustes de Telefone do Mac."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phiên VNC tương tác. Việc truy cập phải được bật cho thiết bị này trong thiết lập Điện thoại của Mac."
+          }
         }
       }
     },
@@ -1715,6 +2911,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Interromper"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gián đoạn"
           }
         }
       }
@@ -1726,6 +2928,12 @@
             "state": "translated",
             "value": "Ela vai aparecer neste dispositivo e no seu computador."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nó sẽ xuất hiện trên cả thiết bị và máy tính."
+          }
         }
       }
     },
@@ -1735,6 +2943,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rótulo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhãn"
           }
         }
       }
@@ -1746,6 +2960,12 @@
             "state": "translated",
             "value": "Idioma"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngôn ngữ"
+          }
         }
       }
     },
@@ -1755,6 +2975,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carregar mensagens anteriores"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải tin nhắn trước đó"
           }
         }
       }
@@ -1766,6 +2992,12 @@
             "state": "translated",
             "value": "Carregando modelos"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang nạp các mô hình"
+          }
         }
       }
     },
@@ -1775,6 +3007,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carrega a pré-visualização da imagem"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải ô xem thử ảnh"
           }
         }
       }
@@ -1786,6 +3024,12 @@
             "state": "translated",
             "value": "O acesso à Rede Local está desativado. Ative nos Ajustes, ou digite um endereço Tailscale abaixo."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quyền truy cập Mạng cục bộ bị tắt. Bật nó trong Thiết lập, hoặc nhập địa chỉ Tailscale bên dưới."
+          }
         }
       }
     },
@@ -1795,6 +3039,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "A descoberta local não está disponível agora. Digite o endereço mostrado nos ajustes de Telefone."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện thời không có khả năng tìm kiếm cục bộ. Hãy nhập địa chỉ hiển thị trong thiết lập Điện thoại."
           }
         }
       }
@@ -1806,6 +3056,12 @@
             "state": "translated",
             "value": "A descoberta local foi interrompida. Tentando de novo…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Việc khám phá địa phương bị gián đoạn. Đang thử lại..."
+          }
         }
       }
     },
@@ -1815,6 +3071,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Procurando computadores"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tìm máy tính"
+          }
+        }
+      }
+    },
+    "Lost the connection.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã mất kết nối."
           }
         }
       }
@@ -1826,6 +3098,12 @@
             "state": "translated",
             "value": "Confirme que este é o computador esperado antes de conectar."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn cần chắc chắn rằng đây là máy tính mong muốn trước khi kết nối."
+          }
         }
       }
     },
@@ -1835,6 +3113,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mascote"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biểu tượng"
           }
         }
       }
@@ -1846,6 +3130,12 @@
             "state": "translated",
             "value": "Mensagem"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tin nhắn"
+          }
         }
       }
     },
@@ -1855,6 +3145,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mensagens"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tin nhắn"
           }
         }
       }
@@ -1866,6 +3162,12 @@
             "state": "translated",
             "value": "Modelo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mô hình"
+          }
         }
       }
     },
@@ -1875,6 +3177,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Modelo, perfil, voz e notificações"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mô hình, hồ sơ, giọng nói và thông báo"
           }
         }
       }
@@ -1886,6 +3194,12 @@
             "state": "translated",
             "value": "Mais"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thêm nữa"
+          }
         }
       }
     },
@@ -1895,6 +3209,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nome"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên"
           }
         }
       }
@@ -1906,6 +3226,12 @@
             "state": "translated",
             "value": "Nomear a seção"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phần tên"
+          }
         }
       }
     },
@@ -1915,6 +3241,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Computadores por perto"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính gần đó"
           }
         }
       }
@@ -1926,6 +3258,12 @@
             "state": "translated",
             "value": "Precisa parear"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cần ghép đôi"
+          }
         }
       }
     },
@@ -1935,6 +3273,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Precisa de você"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cần bạn"
           }
         }
       }
@@ -1946,6 +3290,12 @@
             "state": "translated",
             "value": "Nunca"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không bao giờ"
+          }
         }
       }
     },
@@ -1955,6 +3305,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nova resposta rápida"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trả lời nhanh mới"
           }
         }
       }
@@ -1966,6 +3322,12 @@
             "state": "translated",
             "value": "Novo bot"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo bot"
+          }
         }
       }
     },
@@ -1975,6 +3337,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Novo canal"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kênh mới"
+          }
+        }
+      }
+    },
+    "New group": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạo nhóm"
           }
         }
       }
@@ -1986,6 +3364,12 @@
             "state": "translated",
             "value": "Nova rotina"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tác vụ định kỳ mới"
+          }
         }
       }
     },
@@ -1995,6 +3379,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nova seção"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phần mới"
           }
         }
       }
@@ -2006,6 +3396,22 @@
             "state": "translated",
             "value": "Nova tarefa"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tác vụ mới"
+          }
+        }
+      }
+    },
+    "New thread": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luồng mới"
+          }
         }
       }
     },
@@ -2015,6 +3421,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Agendamento mais novo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lịch mới hơn"
           }
         }
       }
@@ -2026,6 +3438,12 @@
             "state": "translated",
             "value": "Sem atividade, apenas mensagens."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có hoạt động, chỉ có tin nhắn."
+          }
         }
       }
     },
@@ -2035,6 +3453,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nenhum bot ainda"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có bot"
           }
         }
       }
@@ -2046,6 +3470,12 @@
             "state": "translated",
             "value": "Nenhuma mudança registrada ainda."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa ghi lại thay đổi nào."
+          }
         }
       }
     },
@@ -2055,6 +3485,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nenhum computador conectado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa kết nối máy tính"
           }
         }
       }
@@ -2066,6 +3502,12 @@
             "state": "translated",
             "value": "Sem sintaxe de cron. Cada execução usa o modelo, as ferramentas, as permissões, o computador e os apps conectados que o agente já tem. Os horários seguem o fuso local do computador pareado."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn không cần viết biểu thức cron. Mỗi lượt chạy dùng mô hình, công cụ, quyền, máy tính và các ứng dụng đã kết nối của bot. Lịch dùng múi giờ của máy tính đã ghép nối."
+          }
         }
       }
     },
@@ -2075,6 +3517,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sem limite"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có giới hạn"
           }
         }
       }
@@ -2086,6 +3534,12 @@
             "state": "translated",
             "value": "Nenhum provedor de modelos disponível"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có nhà cung cấp mô hình sẵn sàng"
+          }
         }
       }
     },
@@ -2095,6 +3549,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nenhuma rotina"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có tác vụ định kỳ"
+          }
+        }
+      }
+    },
+    "No threads in this folder": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thư mục này chưa có luồng trò chuyện"
           }
         }
       }
@@ -2106,6 +3576,12 @@
             "state": "translated",
             "value": "Nenhuma voz padrão do espaço de trabalho está selecionada. Escolha acima uma voz específica do agente; a síntese continua usando as vozes nativas do Mac no seu computador."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa chọn giọng nói mặc định vùng làm việc. Hãy chọn giọng nói đặc trưng cho người dùng ở trên; sự tổng hợp vẫn còn dùng giọng nói Mac có sẵn trên máy tính của bạn."
+          }
         }
       }
     },
@@ -2115,6 +3591,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nenhuma voz padrão do espaço de trabalho está selecionada. Escolha acima uma voz específica do agente; a síntese continua usando a chave compartilhada do ElevenLabs no seu computador."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa chọn giọng nói mặc định vùng làm việc. Hãy chọn giọng nói đặc trưng cho tác vụ ở trên; sự tổng hợp vẫn dùng phím ElevenLabs đã chia sẻ trên máy tính này."
           }
         }
       }
@@ -2126,6 +3608,12 @@
             "state": "translated",
             "value": "Não conectado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa kết nối"
+          }
         }
       }
     },
@@ -2135,6 +3623,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não ativadas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa bật"
           }
         }
       }
@@ -2146,6 +3640,12 @@
             "state": "translated",
             "value": "Agora não"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Để sau"
+          }
         }
       }
     },
@@ -2155,6 +3655,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não pareado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa ghép đôi"
           }
         }
       }
@@ -2166,6 +3672,12 @@
             "state": "translated",
             "value": "Não informado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa cung cấp"
+          }
         }
       }
     },
@@ -2175,6 +3687,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não informado."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không được cung cấp."
           }
         }
       }
@@ -2186,6 +3704,12 @@
             "state": "translated",
             "value": "Nada corresponde"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không khớp"
+          }
         }
       }
     },
@@ -2195,6 +3719,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nada precisa de você"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không có gì cần bạn"
           }
         }
       }
@@ -2206,6 +3736,12 @@
             "state": "translated",
             "value": "Nada agendado ou aprendido ainda."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa có kế hoạch hay học hỏi gì cả."
+          }
         }
       }
     },
@@ -2215,6 +3751,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nada para mostrar ainda"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vẫn chưa có gì để hiển thị"
           }
         }
       }
@@ -2226,6 +3768,12 @@
             "state": "translated",
             "value": "Notificações"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thông báo"
+          }
         }
       }
     },
@@ -2236,12 +3784,24 @@
             "state": "translated",
             "value": "As notificações estão ativadas"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thông báo đã bật"
+          }
         }
       }
     },
     "OK": {
       "localizations": {
         "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
             "value": "OK"
@@ -2256,6 +3816,12 @@
             "state": "translated",
             "value": "SAÍDA"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ĐẦU-RA"
+          }
         }
       }
     },
@@ -2265,6 +3831,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Desativadas nos Ajustes"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tắt trong thiết lập"
           }
         }
       }
@@ -2276,6 +3848,12 @@
             "state": "translated",
             "value": "Offline"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngoại tuyến"
+          }
         }
       }
     },
@@ -2286,15 +3864,11 @@
             "state": "translated",
             "value": "Ativadas"
           }
-        }
-      }
-    },
-    "On your computer, open StartupBot → Settings → Phone.": {
-      "localizations": {
-        "pt-BR": {
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "No seu computador, abra StartupBot → Ajustes → Telefone."
+            "value": "Bật"
           }
         }
       }
@@ -2306,6 +3880,28 @@
             "state": "translated",
             "value": "No seu computador, abra Ajustes → Telefone → Configurar um telefone."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trên máy tính, mở Cài đặt → Điện thoại → Thiết lập điện thoại."
+          }
+        }
+      }
+    },
+    "On your computer, open StartupBot → Settings → Phone.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No seu computador, abra StartupBot → Ajustes → Telefone."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trên máy tính, mở StartupBot → Cài đặt → Điện thoại."
+          }
         }
       }
     },
@@ -2315,6 +3911,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Uma vez"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Một lần"
           }
         }
       }
@@ -2326,6 +3928,12 @@
             "state": "translated",
             "value": "Só continue em uma rede em que você confia. As conexões locais são autenticadas, mas não são criptografadas pelo StartupBot."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉ tiếp tục trên mạng bạn tin. Kết nối cục bộ được xác thực nhưng không được mã hóa bởi StartupBot."
+          }
         }
       }
     },
@@ -2335,6 +3943,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir Ajustes"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở Cài đặt"
           }
         }
       }
@@ -2362,6 +3976,12 @@
             "state": "translated",
             "value": "Abrir a conversa para revisar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở trò chuyện để xem lại"
+          }
         }
       }
     },
@@ -2371,6 +3991,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abra conversas, aprove ações e envie novos trabalhos deste dispositivo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở các cuộc hội thoại, duyệt các hành động, và gửi công việc mới từ thiết bị này."
           }
         }
       }
@@ -2382,6 +4008,12 @@
             "state": "translated",
             "value": "Abrir área de trabalho"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở màn hình máy tính"
+          }
         }
       }
     },
@@ -2391,6 +4023,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abra links para outros arquivos do computador pela mensagem original da conversa."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở liên kết đến tập tin máy tính khác từ tin nhắn ban đầu."
           }
         }
       }
@@ -2402,6 +4040,12 @@
             "state": "translated",
             "value": "Abrir a área de trabalho na nuvem ao vivo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở môi trường đám mây trực tiếp"
+          }
         }
       }
     },
@@ -2411,6 +4055,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir a área de trabalho na nuvem ao vivo?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở màn hình nền đám mây trực tiếp?"
           }
         }
       }
@@ -2422,6 +4072,12 @@
             "state": "translated",
             "value": "Abrir a tela ao vivo e os controles da área de trabalho"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở điều khiển & màn hình trực tiếp"
+          }
         }
       }
     },
@@ -2431,6 +4087,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir tarefa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở tác vụ"
           }
         }
       }
@@ -2442,18 +4104,21 @@
             "state": "translated",
             "value": "Abrir a conversa para revisar o SKILL.md"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở cuộc trò chuyện để xem lại SKILL.md"
+          }
         }
       }
     },
-    "StartupBot": {
-      "shouldTranslate": false
-    },
-    "StartupBot is trying the saved connection automatically.": {
+    "Open thread": {
       "localizations": {
-        "pt-BR": {
+        "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "O StartupBot está tentando a conexão salva automaticamente."
+            "value": "Mở luồng trò chuyện"
           }
         }
       }
@@ -2465,6 +4130,12 @@
             "state": "translated",
             "value": "Abrindo…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang mở…"
+          }
         }
       }
     },
@@ -2474,6 +4145,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abre uma pré-visualização"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở ô xem thử"
           }
         }
       }
@@ -2485,6 +4162,12 @@
             "state": "translated",
             "value": "Abre os Ajustes do dispositivo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở thiết lập thiết bị"
+          }
         }
       }
     },
@@ -2494,6 +4177,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abre a imagem em tela cheia"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở toàn màn hình ảnh"
+          }
+        }
+      }
+    },
+    "Opens the thread": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mở chuỗi"
           }
         }
       }
@@ -2505,6 +4204,12 @@
             "state": "translated",
             "value": "Opcional. O relógio começa quando o trabalho realmente inicia e não controla com que frequência a rotina começa."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không bắt buộc. Đồng hồ bắt đầu khi công việc thực sự bắt đầu và không kiểm soát tần suất bắt đầu của tác vụ định kỳ."
+          }
         }
       }
     },
@@ -2514,6 +4219,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Outros computadores"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các máy tính khác"
           }
         }
       }
@@ -2525,6 +4236,12 @@
             "state": "translated",
             "value": "Outras formas de conectar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các cách kết nối khác"
+          }
         }
       }
     },
@@ -2534,6 +4251,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "PNG, JPEG, GIF ou WebP, até 10 MB. As imagens ficam no computador pareado e são carregadas com o token de pareamento deste dispositivo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PNG, JPEG, GIF hoặc WebP, tối đa 10 MB."
           }
         }
       }
@@ -2545,6 +4268,12 @@
             "state": "translated",
             "value": "Parear de novo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ghép nối lại"
+          }
         }
       }
     },
@@ -2554,6 +4283,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pareie de novo por QR code, ou conclua no seu computador."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết hợp lại bằng mã QR, hoặc hoàn tất trên máy tính."
           }
         }
       }
@@ -2565,6 +4300,12 @@
             "state": "translated",
             "value": "Pareie de novo para digitar aqui"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nối tiếp để vào đây"
+          }
         }
       }
     },
@@ -2574,6 +4315,32 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pareie este dispositivo com o StartupBot para ver suas conversas e responder aos seus bots."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết hợp thiết bị này với StartupBot để thấy các cuộc trò chuyện của bạn và trả lời bot."
+          }
+        }
+      }
+    },
+    "Pair this device with your computer to open that task.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy ghép nối thiết bị này với máy tính để mở tác vụ."
+          }
+        }
+      }
+    },
+    "Pair this device with your computer to open that thread.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy ghép nối thiết bị này với máy tính để mở luồng trò chuyện."
           }
         }
       }
@@ -2585,6 +4352,12 @@
             "state": "translated",
             "value": "Os recibos de execuções anteriores continuam disponíveis."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn vẫn có thể xem kết quả những lần chạy trước."
+          }
         }
       }
     },
@@ -2594,6 +4367,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pausar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạm dừng"
           }
         }
       }
@@ -2605,6 +4384,12 @@
             "state": "translated",
             "value": "Pausada"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạm dừng"
+          }
         }
       }
     },
@@ -2614,6 +4399,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fototeca"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thư viện ảnh"
           }
         }
       }
@@ -2625,6 +4416,12 @@
             "state": "translated",
             "value": "Escolha uma voz para este agente antes de ativar a fala."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn một giọng cho tác nhân này trước khi cho phép phát âm."
+          }
         }
       }
     },
@@ -2634,6 +4431,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escolha uma voz para o agente ou configure um padrão do espaço de trabalho no seu computador primeiro."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trước tiên, hãy chọn giọng cho trợ lý hoặc đặt giọng mặc định của không gian làm việc trên máy tính."
           }
         }
       }
@@ -2645,6 +4448,12 @@
             "state": "translated",
             "value": "Retome as mesmas conversas do seu computador."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiếp tục cuộc trò chuyện bạn đã bắt đầu trên máy tính."
+          }
         }
       }
     },
@@ -2654,6 +4463,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fixados"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đã ghim"
           }
         }
       }
@@ -2665,6 +4480,12 @@
             "state": "translated",
             "value": "Os bots fixados continuam em Fixados até você desafixá-los."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bot được cấy ghép sẽ ở trong chương trình cấy ghép cho đến khi bạn mở khoá chúng."
+          }
         }
       }
     },
@@ -2674,6 +4495,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aponte a câmera para o QR code no seu computador"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hướng máy ảnh vào mã QR trên máy tính của bạn"
           }
         }
       }
@@ -2688,6 +4515,12 @@
             "state": "translated",
             "value": "Preparando anexos…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang chuẩn bị tập tin đính kèm..."
+          }
         }
       }
     },
@@ -2697,6 +4530,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Prévia"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem thử"
           }
         }
       }
@@ -2708,6 +4547,12 @@
             "state": "translated",
             "value": "Ouvir a voz"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nghe thử giọng"
+          }
         }
       }
     },
@@ -2717,6 +4562,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conta principal"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tài khoản chính"
           }
         }
       }
@@ -2728,6 +4579,12 @@
             "state": "translated",
             "value": "Privado por princípio"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quyền riêng tư do bạn kiểm soát"
+          }
         }
       }
     },
@@ -2737,6 +4594,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Prompt"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chỉ dẫn"
           }
         }
       }
@@ -2748,6 +4611,12 @@
             "state": "translated",
             "value": "Provedor"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhà cung cấp"
+          }
         }
       }
     },
@@ -2757,6 +4626,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "As contas de provedor e as chaves de API ficam no seu computador. Padrão não envia nível de raciocínio e deixa o provedor decidir."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tài khoản Nhà cung cấp và khoá API vẫn còn trên máy tính của bạn. Mặc định không gửi cấp lý luận nào và để cho nhà cung cấp quyết định."
           }
         }
       }
@@ -2768,6 +4643,12 @@
             "state": "translated",
             "value": "Respostas rápidas"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đáp ứng nhanh"
+          }
         }
       }
     },
@@ -2777,6 +4658,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ativadas em silêncio"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bật im lặng"
           }
         }
       }
@@ -2788,6 +4675,12 @@
             "state": "translated",
             "value": "Esforço de raciocínio"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mức suy luận"
+          }
         }
       }
     },
@@ -2797,6 +4690,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mudanças recentes"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Những thay đổi gần đây"
           }
         }
       }
@@ -2808,6 +4707,12 @@
             "state": "translated",
             "value": "Reduzida"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thu nhỏ"
+          }
         }
       }
     },
@@ -2817,6 +4722,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Atualizar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Làm mới"
           }
         }
       }
@@ -2828,6 +4739,12 @@
             "state": "translated",
             "value": "Remover"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gỡ bỏ"
+          }
         }
       }
     },
@@ -2837,6 +4754,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Remover %@?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gỡ bỏ %@?"
           }
         }
       }
@@ -2848,6 +4771,12 @@
             "state": "translated",
             "value": "Remover conexão deste dispositivo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gỡ bỏ kết nối khỏi thiết bị này"
+          }
         }
       }
     },
@@ -2857,6 +4786,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Remover deste dispositivo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gỡ bỏ khỏi thiết bị này"
           }
         }
       }
@@ -2868,6 +4803,12 @@
             "state": "translated",
             "value": "Remover este computador?"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gỡ bỏ máy tính này?"
+          }
         }
       }
     },
@@ -2877,6 +4818,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Remover esta conexão?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gỡ bỏ kết nối này không?"
           }
         }
       }
@@ -2888,6 +4835,12 @@
             "state": "translated",
             "value": "Renomear"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi tên"
+          }
         }
       }
     },
@@ -2897,6 +4850,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Renomear tarefa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi tên tác vụ"
+          }
+        }
+      }
+    },
+    "Rename thread": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi tên sợi"
           }
         }
       }
@@ -2908,6 +4877,12 @@
             "state": "translated",
             "value": "Repetições"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lặp lại"
+          }
         }
       }
     },
@@ -2917,6 +4892,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pedindo acesso à câmera…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang yêu cầu quyền dùng camera…"
           }
         }
       }
@@ -2928,6 +4909,12 @@
             "state": "translated",
             "value": "Restaurar as respostas rápidas?"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đặt lại các câu trả lời nhanh?"
+          }
         }
       }
     },
@@ -2937,6 +4924,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Restaurar padrões"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đặt lại về mặc định"
           }
         }
       }
@@ -2948,6 +4941,12 @@
             "state": "translated",
             "value": "Responda quando um bot precisar de você"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phản hồi khi bot cần bạn"
+          }
         }
       }
     },
@@ -2957,6 +4956,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Retomar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiếp tục"
           }
         }
       }
@@ -2968,6 +4973,12 @@
             "state": "translated",
             "value": "Retomando…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang tiếp tục..."
+          }
         }
       }
     },
@@ -2977,6 +4988,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tentar de novo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử lại"
           }
         }
       }
@@ -2988,6 +5005,12 @@
             "state": "translated",
             "value": "Repetir o último turno com contexto novo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử lại lượt cuối cùng với ngữ cảnh mới"
+          }
         }
       }
     },
@@ -2997,6 +5020,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revise aprovações sem voltar para a sua mesa."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duyệt yêu cầu ngay trên điện thoại."
           }
         }
       }
@@ -3008,6 +5037,12 @@
             "state": "translated",
             "value": "Revisar o SKILL.md completo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem lại SKILL.md hoàn chỉnh"
+          }
         }
       }
     },
@@ -3017,6 +5052,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arredondado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tròn"
           }
         }
       }
@@ -3028,6 +5069,22 @@
             "state": "translated",
             "value": "Rotina = um agendamento que cria uma tarefa nova"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quy tắc = một lịch trình tạo ra một nhiệm vụ mới"
+          }
+        }
+      }
+    },
+    "Routine = scheduled work with one results thread": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi tác vụ định kỳ chạy theo lịch và có một luồng riêng để xem kết quả."
+          }
         }
       }
     },
@@ -3037,6 +5094,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nome da rotina"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên tác vụ định kỳ"
           }
         }
       }
@@ -3048,6 +5111,12 @@
             "state": "translated",
             "value": "Rotinas"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tác vụ định kỳ"
+          }
         }
       }
     },
@@ -3057,6 +5126,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rodar todos os testes automatizados"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy tất cả các kiểm tra tự động"
           }
         }
       }
@@ -3068,6 +5143,12 @@
             "state": "translated",
             "value": "Local de execução"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy vị trí"
+          }
         }
       }
     },
@@ -3077,6 +5158,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Executar agora"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy ngay"
           }
         }
       }
@@ -3088,6 +5175,12 @@
             "state": "translated",
             "value": "Recibos de execução"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết quả các lượt chạy"
+          }
         }
       }
     },
@@ -3097,6 +5190,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rodar testes"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy thử"
           }
         }
       }
@@ -3108,6 +5207,12 @@
             "state": "translated",
             "value": "Roda a cada"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy mỗi"
+          }
         }
       }
     },
@@ -3117,6 +5222,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Roda em"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy trên"
           }
         }
       }
@@ -3128,6 +5239,12 @@
             "state": "translated",
             "value": "Roda o agente e as ferramentas dele dentro da máquina virtual Box. A VM acorda automaticamente a cada execução; mantenha o StartupBot rodando para que o agendador consiga iniciar o trabalho."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy tác vụ và công cụ bên trong máy ảo Box. VM khởi động tự động mỗi lần chạy; giữ StartupBot chạy để bộ lập lịch có thể khởi chạy công việc."
+          }
         }
       }
     },
@@ -3137,6 +5254,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "COMANDOS DE BARRA"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LỆNH BẮT ĐẦU BẰNG /"
           }
         }
       }
@@ -3148,6 +5271,12 @@
             "state": "translated",
             "value": "Salvar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu"
+          }
         }
       }
     },
@@ -3157,6 +5286,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Salvar alterações do perfil"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu thay đổi hồ sơ"
           }
         }
       }
@@ -3168,6 +5303,12 @@
             "state": "translated",
             "value": "Salvo com segurança no seu computador."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Được lưu an toàn trên máy tính của anh."
+          }
         }
       }
     },
@@ -3177,6 +5318,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Salvo com segurança. A tarefa retomou."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Được cứu an toàn, công việc lại tiếp tục."
           }
         }
       }
@@ -3188,6 +5335,12 @@
             "state": "translated",
             "value": "Escanear QR code"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quét mã QR"
+          }
         }
       }
     },
@@ -3197,6 +5350,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escanear QR code"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quét mã QR"
           }
         }
       }
@@ -3208,6 +5367,12 @@
             "state": "translated",
             "value": "Escaneie o QR code no StartupBot. Vamos escolher com segurança a melhor forma de conectar."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quét mã QR trong StartupBot. Chúng ta sẽ an toàn chọn cách tốt nhất để kết nối."
+          }
         }
       }
     },
@@ -3217,6 +5382,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leitor indisponível"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa dùng được trình quét"
           }
         }
       }
@@ -3228,6 +5399,12 @@
             "state": "translated",
             "value": "Agendamento"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lịch trình"
+          }
         }
       }
     },
@@ -3237,6 +5414,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Agende trabalhos do agente, recorrentes ou únicos."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lên lịch làm việc định kỳ hoặc một lần."
           }
         }
       }
@@ -3248,6 +5431,12 @@
             "state": "translated",
             "value": "Buscar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tìm kiếm"
+          }
         }
       }
     },
@@ -3257,6 +5446,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Buscar apps"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tìm kiếm ứng dụng"
           }
         }
       }
@@ -3268,6 +5463,22 @@
             "state": "translated",
             "value": "Buscar conversas"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trò chuyện tìm kiếm"
+          }
+        }
+      }
+    },
+    "Search threads": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tìm kiếm luồng"
+          }
         }
       }
     },
@@ -3277,6 +5488,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conexão segura necessária"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cần thiết kết nối bảo mật"
           }
         }
       }
@@ -3288,6 +5505,12 @@
             "state": "translated",
             "value": "Selecionar texto"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn văn bản"
+          }
         }
       }
     },
@@ -3297,6 +5520,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Selecionar todos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chọn tất cả"
+          }
+        }
+      }
+    },
+    "Select the computer that sent this request before answering it.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trước khi trả lời, hãy chọn máy tính đã gửi yêu cầu này."
           }
         }
       }
@@ -3308,6 +5547,12 @@
             "state": "translated",
             "value": "Dias selecionados"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngày đã chọn"
+          }
         }
       }
     },
@@ -3317,6 +5562,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enviar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi"
           }
         }
       }
@@ -3328,6 +5579,12 @@
             "state": "translated",
             "value": "Enviando…"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang gửi…"
+          }
         }
       }
     },
@@ -3337,6 +5594,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Definir o intervalo como"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đặt khoảng thành"
           }
         }
       }
@@ -3348,6 +5611,12 @@
             "state": "translated",
             "value": "Ajustes"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cài đặt"
+          }
         }
       }
     },
@@ -3357,6 +5626,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Forma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hình"
           }
         }
       }
@@ -3368,6 +5643,12 @@
             "state": "translated",
             "value": "Compartilhar como JSON"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chia sẻ dưới dạng JSON"
+          }
         }
       }
     },
@@ -3377,6 +5658,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Compartilhar a transcrição"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chia sẻ bản ghi"
           }
         }
       }
@@ -3388,6 +5675,12 @@
             "state": "translated",
             "value": "Mostrar diff"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện khác biệt"
+          }
         }
       }
     },
@@ -3397,6 +5690,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrar as primeiras 80 linhas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiển thị 80 dòng đầu tiên"
           }
         }
       }
@@ -3408,6 +5707,12 @@
             "state": "translated",
             "value": "Mostrar endereço completo"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiện địa chỉ đầy đủ"
+          }
         }
       }
     },
@@ -3417,6 +5722,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrando o que estava conectado da última vez. O seu computador não conseguiu abrir o cofre de credenciais agora, então não foi possível verificá-las de novo. Nada foi desconectado — reiniciar o StartupBot no seu computador costuma resolver."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang hiển thị kết nối từ lần trước. Máy tính chưa mở được kho thông tin xác thực để kiểm tra lại. Các kết nối vẫn được giữ nguyên. Hãy thử khởi động lại StartupBot trên máy tính."
           }
         }
       }
@@ -3428,6 +5739,12 @@
             "state": "translated",
             "value": "Mostra os passos"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiển thị các bước"
+          }
         }
       }
     },
@@ -3437,6 +5754,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Comandos de barra"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lệnh bắt đầu bằng /"
           }
         }
       }
@@ -3448,6 +5771,12 @@
             "state": "translated",
             "value": "Algo deu errado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Có gì đó không ổn"
+          }
         }
       }
     },
@@ -3457,6 +5786,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Origem: %@"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nguồn: %@"
           }
         }
       }
@@ -3468,6 +5803,12 @@
             "state": "translated",
             "value": "Origem: desconhecida"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nguồn: không rõ"
+          }
         }
       }
     },
@@ -3477,6 +5818,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Falar as respostas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đọc to câu trả lời"
           }
         }
       }
@@ -3488,6 +5835,12 @@
             "state": "translated",
             "value": "Quadrado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuông"
+          }
         }
       }
     },
@@ -3497,6 +5850,31 @@
           "stringUnit": {
             "state": "translated",
             "value": "Iniciar o ditado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bắt đầu nhập bằng giọng nói"
+          }
+        }
+      }
+    },
+    "StartupBot": {
+      "shouldTranslate": false
+    },
+    "StartupBot is trying the saved connection automatically.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O StartupBot está tentando a conexão salva automaticamente."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "StartupBot đang thử tự động kết nối đã lưu."
           }
         }
       }
@@ -3508,6 +5886,22 @@
             "state": "translated",
             "value": "Fique por dentro"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhận thông báo"
+          }
+        }
+      }
+    },
+    "Steer": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuyển hướng"
+          }
         }
       }
     },
@@ -3517,6 +5911,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Guiar e redirecionar a execução ativa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điều khiển và chuyển hướng tiến trình thực hiện đang chạy"
+          }
+        }
+      }
+    },
+    "Steering…": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang chuyển hướng…"
           }
         }
       }
@@ -3528,6 +5938,12 @@
             "state": "translated",
             "value": "Os passos se juntam em uma linha. As falhas sempre aparecem."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Các bước gấp lại thành một hàng. Thất bại luôn hiển thị."
+          }
         }
       }
     },
@@ -3537,6 +5953,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Parar o ditado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dừng nhập bằng giọng nói"
           }
         }
       }
@@ -3548,6 +5970,12 @@
             "state": "translated",
             "value": "Parar se ainda estiver rodando depois de"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dừng nếu vẫn còn chạy sau"
+          }
         }
       }
     },
@@ -3557,6 +5985,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Parar o turno atual"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dừng vòng quay hiện thời"
           }
         }
       }
@@ -3568,6 +6002,22 @@
             "state": "translated",
             "value": "Pare este bot antes de mudar o modelo dele."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dừng robot này trước khi thay đổi mô hình của nó."
+          }
+        }
+      }
+    },
+    "Stops the current turn so this message runs now": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dừng vòng quay hiện tại để thông điệp này chạy ngay bây giờ"
+          }
         }
       }
     },
@@ -3577,6 +6027,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dados estruturados da transcrição"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dữ liệu sao chép có cấu trúc"
           }
         }
       }
@@ -3588,6 +6044,12 @@
             "state": "translated",
             "value": "Junte uma seção deslizando"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuốt một phần cùng lúc"
+          }
         }
       }
     },
@@ -3597,6 +6059,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Junte outra seção deslizando, ou toque em Concluído."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuốt thêm một phần nữa hoặc nhấn Done (Xong)."
           }
         }
       }
@@ -3608,6 +6076,12 @@
             "state": "translated",
             "value": "Mude para Acesso seguro pelo telefone (HTTPS) ou Tailscale e tente de novo. Você ainda pode concluir esta solicitação no seu computador."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuyển sang truy cập điện thoại bảo mật (HTTPS) hoặc Tailscale, rồi thử lại. Bạn vẫn còn có thể hoàn tất yêu cầu này trên máy tính."
+          }
         }
       }
     },
@@ -3617,6 +6091,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trocar, renomear ou remover uma"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuyển đổi, đổi tên hay gỡ bỏ một"
           }
         }
       }
@@ -3628,6 +6108,12 @@
             "state": "translated",
             "value": "Muda o StartupBot para este computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chuyển StartupBot sang máy tính này"
+          }
         }
       }
     },
@@ -3638,15 +6124,11 @@
             "state": "translated",
             "value": "Conexão Tailscale"
           }
-        }
-      }
-    },
-    "Welcome to StartupBot": {
-      "localizations": {
-        "pt-BR": {
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Boas-vindas ao StartupBot"
+            "value": "Kết nối Tailscale"
           }
         }
       }
@@ -3658,6 +6140,12 @@
             "state": "translated",
             "value": "Toque em um chip para editá-lo. Arraste para reordenar, deslize para excluir."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhấn vào một con chip để chỉnh sửa nó. Kéo để sắp xếp lại, vuốt để xoá."
+          }
         }
       }
     },
@@ -3667,6 +6155,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toque nos bots um a um, ou segure e deslize pela grade."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạm vào bot, hoặc giữ và vuốt qua lưới."
           }
         }
       }
@@ -3678,6 +6172,12 @@
             "state": "translated",
             "value": "Toque para pré-visualizar"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhấn vào xem thử"
+          }
         }
       }
     },
@@ -3687,6 +6187,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toque para trocar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhấn để chuyển đổi"
           }
         }
       }
@@ -3698,6 +6204,12 @@
             "state": "translated",
             "value": "Tarefa = uma conversa e um resultado"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tác vụ = một cuộc hội thoại và kết quả"
+          }
         }
       }
     },
@@ -3707,6 +6219,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tarefas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tác vụ"
           }
         }
       }
@@ -3718,6 +6236,12 @@
             "state": "translated",
             "value": "Tarefas e rotinas"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "& Hoạt động"
+          }
         }
       }
     },
@@ -3727,6 +6251,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ativadas temporariamente"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tạm thời bật"
           }
         }
       }
@@ -3738,6 +6268,32 @@
             "state": "translated",
             "value": "Esse endereço não parece certo. Copie-o dos ajustes de Telefone e tente de novo."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Địa chỉ có vẻ chưa đúng. Hãy sao chép địa chỉ từ mục Điện thoại trong phần Cài đặt rồi thử lại."
+          }
+        }
+      }
+    },
+    "That agent no longer exists.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trợ lý đó không còn tồn tại."
+          }
+        }
+      }
+    },
+    "That computer didn't answer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính đó chưa phản hồi."
+          }
         }
       }
     },
@@ -3747,6 +6303,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Essa imagem é maior que 10 MB."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ảnh này vượt quá 10 MB."
           }
         }
       }
@@ -3758,6 +6320,12 @@
             "state": "translated",
             "value": "Esse não é um QR code de pareamento do StartupBot."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đó không phải là một cặp StartupBot mã QR."
+          }
         }
       }
     },
@@ -3767,6 +6335,42 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não foi possível abrir esse link."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đường dẫn đó không thể mở được."
+          }
+        }
+      }
+    },
+    "That pairing invitation is not valid. Start pairing again on your computer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lời mời ghép nối không hợp lệ. Hãy bắt đầu ghép nối lại trên máy tính."
+          }
+        }
+      }
+    },
+    "That task could not be opened. Try again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể mở tác vụ đó. Hãy thử lại."
+          }
+        }
+      }
+    },
+    "That thread is no longer on your computer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luồng trò chuyện đó không còn trên máy tính của bạn."
           }
         }
       }
@@ -3778,6 +6382,12 @@
             "state": "translated",
             "value": "Não foi possível abrir a página de autorização. Tente de novo depois de verificar as restrições do seu navegador."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không mở được trang cấp quyền. Hãy kiểm tra các hạn chế của trình duyệt rồi thử lại."
+          }
         }
       }
     },
@@ -3787,6 +6397,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "A linha de chips fica oculta enquanto esta lista está vazia."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khi danh sách trống, các nút gợi ý sẽ được ẩn."
           }
         }
       }
@@ -3798,6 +6414,12 @@
             "state": "translated",
             "value": "A conexão foi removida no seu computador. Pareie de novo para continuar usando suas conversas aqui."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối đã bị gỡ bỏ trên máy tính của bạn. Hãy kết nối lại để tiếp tục sử dụng các cuộc trò chuyện ở đây."
+          }
         }
       }
     },
@@ -3807,6 +6429,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "O diff copiado sempre inclui todas as linhas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sự khác biệt đã sao chép luôn luôn bao gồm mọi dòng"
           }
         }
       }
@@ -3818,6 +6446,12 @@
             "state": "translated",
             "value": "Não foi possível pré-visualizar o arquivo baixado."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể xem trước tập tin đã tải về."
+          }
         }
       }
     },
@@ -3827,6 +6461,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Não foi possível reproduzir o áudio gerado."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể phát âm thanh vừa tạo."
+          }
+        }
+      }
+    },
+    "The section could not be saved. Your bot selection is still here.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không thể lưu mục này. Các bot bạn đã chọn vẫn được giữ lại."
           }
         }
       }
@@ -3838,6 +6488,12 @@
             "state": "translated",
             "value": "A escolha de voz pertence a este agente. Padrão do espaço de trabalho usa a voz compartilhada selecionada no seu computador."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lựa chọn giọng nói thuộc về tác vụ này. Đường dẫn mặc định trong vùng làm việc dùng giọng nói đã chọn chung trên máy tính."
+          }
         }
       }
     },
@@ -3847,6 +6503,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pensando…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang suy nghĩ…"
           }
         }
       }
@@ -3858,6 +6520,12 @@
             "state": "translated",
             "value": "O computador deste bot só é capturado enquanto ele está trabalhando."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính của con robot này chỉ bị bắt khi nó đang làm việc."
+          }
         }
       }
     },
@@ -3867,6 +6535,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esta conversa em Markdown"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuộc trò chuyện này dưới dạng Markdown"
           }
         }
       }
@@ -3878,6 +6552,12 @@
             "state": "translated",
             "value": "Este computador"
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính này"
+          }
         }
       }
     },
@@ -3887,6 +6567,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este computador está conectado e respondendo normalmente."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính này đã được kết nối và hoạt động bình thường."
+          }
+        }
+      }
+    },
+    "This computer is offline.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính này đang ngoại tuyến."
           }
         }
       }
@@ -3898,6 +6594,12 @@
             "state": "translated",
             "value": "Isto cria uma nova versão e continua a partir dela."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thao tác này sẽ tạo một phiên bản mới và tiếp tục từ đó."
+          }
         }
       }
     },
@@ -3907,6 +6609,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este dispositivo não está pareado com um computador."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị này không được ghép nối với máy tính."
           }
         }
       }
@@ -3918,6 +6626,12 @@
             "state": "translated",
             "value": "Este dispositivo foi removido do computador. Pareie novamente para reconectar."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị này đã bị gỡ bỏ khỏi máy tính, hãy ghép nối lại để kết nối lại."
+          }
         }
       }
     },
@@ -3927,6 +6641,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este dispositivo foi despareado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị này chưa ghép cặp"
           }
         }
       }
@@ -3938,6 +6658,12 @@
             "state": "translated",
             "value": "Este dispositivo foi despareado no computador."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị này chưa được ghép đôi trên máy tính."
+          }
         }
       }
     },
@@ -3947,6 +6673,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esta escolha de Cloud VM é mantida, mas não pode rodar enquanto o computador pareado não tiver uma chave de API do Box configurada e um agente Box disponível."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lựa chọn Cloud VM hiện có này được bảo tồn, nhưng nó không thể chạy cho đến khi máy tính được ghép nối có phím Box API được cấu hình và tác nhân Box có sẵn."
           }
         }
       }
@@ -3958,6 +6690,12 @@
             "state": "translated",
             "value": "Isto dá a este dispositivo controle total do computador na nuvem, incluindo tudo que estiver conectado dentro dele."
           }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điều này cho phép thiết bị này kiểm soát hoàn toàn máy tính đám mây, bao gồm mọi thứ được đăng nhập bên trong nó."
+          }
         }
       }
     },
@@ -3968,625 +6706,21 @@
             "state": "translated",
             "value": "Não foi possível pré-visualizar esta imagem."
           }
-        }
-      }
-    },
-    "This pairing predates secure phone entry. Scan a fresh QR from StartupBot, or finish this request on your computer.": {
-      "localizations": {
-        "pt-BR": {
+        },
+        "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este pareamento é anterior à digitação segura pelo telefone. Escaneie um novo QR do StartupBot ou conclua esta solicitação no seu computador."
+            "value": "Không thể xem thử ảnh này."
           }
         }
       }
     },
-    "This proposal was created by an older build and cannot be safely applied. Deny it and ask the bot to create it again.": {
+    "This link can't be opened securely.": {
       "localizations": {
-        "pt-BR": {
+        "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta proposta foi criada por uma versão mais antiga e não pode ser aplicada com segurança. Negue e peça ao bot para criá-la de novo."
-          }
-        }
-      }
-    },
-    "This removes the connection from this device only. It does not revoke this device on your Mac. To remove Mac-side access, open StartupBot → Settings → Phone and remove it there.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Isto remove a conexão apenas deste dispositivo. Não revoga este dispositivo no seu Mac. Para remover o acesso do lado do Mac, abra StartupBot → Ajustes → Telefone e remova por lá."
-          }
-        }
-      }
-    },
-    "This removes the saved connection from this device only.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Isto remove a conexão salva apenas deste dispositivo."
-          }
-        }
-      }
-    },
-    "This restores the four chips the app came with and discards your own.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Isto restaura os quatro chips originais do app e descarta os seus."
-          }
-        }
-      }
-    },
-    "This routine uses a schedule added by a newer StartupBot. Choose One time, Selected days, or Every X minutes before saving.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta rotina usa um agendamento adicionado por um StartupBot mais novo. Escolha Uma vez, Dias selecionados ou A cada X minutos antes de salvar."
-          }
-        }
-      }
-    },
-    "This task is waiting for your answer.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta tarefa está esperando sua resposta."
-          }
-        }
-      }
-    },
-    "Thought Process": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Processo de pensamento"
-          }
-        }
-      }
-    },
-    "Title": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cargo"
-          }
-        }
-      }
-    },
-    "Title (optional)": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Título (opcional)"
-          }
-        }
-      }
-    },
-    "To generate images, configure the shared image provider in StartupBot on your computer. Provider keys cannot be added from this device.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Para gerar imagens, configure o provedor de imagens compartilhado no StartupBot no seu computador. Não é possível adicionar chaves de provedor por este dispositivo."
-          }
-        }
-      }
-    },
-    "To review": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Para revisar"
-          }
-        }
-      }
-    },
-    "Touch a bot, then glide. Pause briefly on each bot until it clicks.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toque em um bot e deslize. Pause um instante em cada bot até ele encaixar."
-          }
-        }
-      }
-    },
-    "Touch and hold the text to select part of it.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toque e segure o texto para selecionar parte dele."
-          }
-        }
-      }
-    },
-    "Touch and hold to select part of this message": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Toque e segure para selecionar parte desta mensagem"
-          }
-        }
-      }
-    },
-    "Troubleshooting": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Solução de problemas"
-          }
-        }
-      }
-    },
-    "Trusted local connection": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conexão local confiável"
-          }
-        }
-      }
-    },
-    "Try again.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tente de novo."
-          }
-        }
-      }
-    },
-    "Try reconnecting": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tentar reconectar"
-          }
-        }
-      }
-    },
-    "Try resuming the task": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tentar retomar a tarefa"
-          }
-        }
-      }
-    },
-    "Unknown": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desconhecido"
-          }
-        }
-      }
-    },
-    "Untitled task": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tarefa sem título"
-          }
-        }
-      }
-    },
-    "Updates": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Novidades"
-          }
-        }
-      }
-    },
-    "Upload image": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Enviar imagem"
-          }
-        }
-      }
-    },
-    "Use": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usar"
-          }
-        }
-      }
-    },
-    "Use Apple Passwords, 1Password, Bitwarden, or paste. The value is encrypted for your computer and never added to chat.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use o Apple Senhas, 1Password, Bitwarden ou cole. O valor é criptografado para o seu computador e nunca é adicionado à conversa."
-          }
-        }
-      }
-    },
-    "Use another computer": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usar outro computador"
-          }
-        }
-      }
-    },
-    "Use mascot": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usar mascote"
-          }
-        }
-      }
-    },
-    "Use secure phone access or Tailscale, or finish on your computer.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use o acesso seguro pelo telefone ou o Tailscale, ou conclua no seu computador."
-          }
-        }
-      }
-    },
-    "Use the Camera app to scan the QR code, or enter the address and code manually.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use o app Câmera para escanear o QR code, ou digite o endereço e o código manualmente."
-          }
-        }
-      }
-    },
-    "Use the address shown in Phone settings on your computer.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use o endereço mostrado nos ajustes de Telefone no seu computador."
-          }
-        }
-      }
-    },
-    "Use the address shown in Phone settings on your computer. Your pairing is kept.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use o endereço mostrado nos ajustes de Telefone no seu computador. O pareamento é mantido."
-          }
-        }
-      }
-    },
-    "Uses this agent's selected model and computer setting on the paired computer.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usa o modelo e a configuração de computador selecionados para este agente no computador pareado."
-          }
-        }
-      }
-    },
-    "View Diff": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ver diff"
-          }
-        }
-      }
-    },
-    "View and manage bot task threads": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ver e gerenciar as threads de tarefas do bot"
-          }
-        }
-      }
-    },
-    "Voice": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Voz"
-          }
-        }
-      }
-    },
-    "Waiting for a frame…": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aguardando um quadro…"
-          }
-        }
-      }
-    },
-    "Waiting on you": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esperando por você"
-          }
-        }
-      }
-    },
-    "Watch computer": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ver o computador"
-          }
-        }
-      }
-    },
-    "Webhooks": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Webhooks"
-          }
-        }
-      }
-    },
-    "What gets sent to the bot when you tap the chip.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O que é enviado ao bot quando você toca no chip."
-          }
-        }
-      }
-    },
-    "What should the agent do?": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O que o agente deve fazer?"
-          }
-        }
-      }
-    },
-    "What should this section be called?": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Como esta seção deve se chamar?"
-          }
-        }
-      }
-    },
-    "What this agent does": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O que este agente faz"
-          }
-        }
-      }
-    },
-    "What this bot does": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O que este bot faz"
-          }
-        }
-      }
-    },
-    "What's next?": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "E agora?"
-          }
-        }
-      }
-    },
-    "When a bot stops for an answer, is mid-task, or finishes something, it shows up here.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quando um bot para para pedir uma resposta, está no meio de uma tarefa ou termina algo, ele aparece aqui."
-          }
-        }
-      }
-    },
-    "Where does it run?": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Onde ela roda?"
-          }
-        }
-      }
-    },
-    "Where to get this key": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Onde obter esta chave"
-          }
-        }
-      }
-    },
-    "Who": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quem"
-          }
-        }
-      }
-    },
-    "Won't": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não vai"
-          }
-        }
-      }
-    },
-    "Work": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trabalho"
-          }
-        }
-      }
-    },
-    "Work, Personal, Client…": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trabalho, Pessoal, Cliente…"
-          }
-        }
-      }
-    },
-    "Working": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trabalhando"
-          }
-        }
-      }
-    },
-    "Workspace": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Espaço de trabalho"
-          }
-        }
-      }
-    },
-    "Workspace default": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Padrão do espaço de trabalho"
-          }
-        }
-      }
-    },
-    "Yesterday": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ontem"
-          }
-        }
-      }
-    },
-    "You choose which trusted computer this device connects to.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Você escolhe a qual computador confiável este dispositivo se conecta."
-          }
-        }
-      }
-    },
-    "Your chats, in your pocket": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suas conversas, no seu bolso"
-          }
-        }
-      }
-    },
-    "Your computer could not open its credential store, so it cannot say which accounts are connected. Nothing has been disconnected — restarting StartupBot on your computer usually clears this.": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O seu computador não conseguiu abrir o cofre de credenciais, então não sabe dizer quais contas estão conectadas. Nada foi desconectado — reiniciar o StartupBot no seu computador costuma resolver."
-          }
-        }
-      }
-    },
-    "a custom interval": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "um intervalo personalizado"
-          }
-        }
-      }
-    },
-    "minutes": {
-      "localizations": {
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "minutos"
+            "value": "Không thể mở liên kết này qua kết nối an toàn."
           }
         }
       }
@@ -4602,7 +6736,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thông báo này không có máy tính nguồn. Mở cuộc trò chuyện từ danh sách máy tính."
+            "value": "Thông báo này không gắn với máy tính nào đã lưu. Hãy mở cuộc trò chuyện từ danh sách máy tính của bạn."
           }
         }
       }
@@ -4618,7 +6752,1248 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thông báo này đến từ máy tính khác. Chọn máy tính đó rồi mở lại thông báo."
+            "value": "Thông báo này đến từ một máy tính khác. Hãy chọn đúng máy tính rồi mở lại thông báo."
+          }
+        }
+      }
+    },
+    "This pairing predates secure phone entry. Scan a fresh QR from StartupBot, or finish this request on your computer.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este pareamento é anterior à digitação segura pelo telefone. Escaneie um novo QR do StartupBot ou conclua esta solicitação no seu computador."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cặp này có trước mục nhập điện thoại bảo mật. Quét một QR mới từ StartupBot, hoặc hoàn tất yêu cầu này trên máy tính của bạn."
+          }
+        }
+      }
+    },
+    "This proposal was created by an older build and cannot be safely applied. Deny it and ask the bot to create it again.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta proposta foi criada por uma versão mais antiga e não pode ser aplicada com segurança. Negue e peça ao bot para criá-la de novo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lời đề nghị này được tạo bởi một bản build cũ hơn và không thể áp dụng một cách an toàn. Từ chối nó và yêu cầu bot tạo lại nó."
+          }
+        }
+      }
+    },
+    "This removes the connection from this device only. It does not revoke this device on your Mac. To remove Mac-side access, open StartupBot → Settings → Phone and remove it there.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isto remove a conexão apenas deste dispositivo. Não revoga este dispositivo no seu Mac. Para remover o acesso do lado do Mac, abra StartupBot → Ajustes → Telefone e remova por lá."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thao tác này chỉ gỡ kết nối trên thiết bị hiện tại. Để thu hồi quyền truy cập trên máy Mac, mở StartupBot → Cài đặt → Điện thoại trên máy Mac rồi gỡ thiết bị."
+          }
+        }
+      }
+    },
+    "This removes the saved connection from this device only.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isto remove a conexão salva apenas deste dispositivo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối đã lưu sẽ bị xoá khỏi thiết bị này."
+          }
+        }
+      }
+    },
+    "This request cannot create a standing permission.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu này không thể cấp quyền lâu dài."
+          }
+        }
+      }
+    },
+    "This request has changed. Open the chat to review it.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yêu cầu đã thay đổi. Hãy mở cuộc trò chuyện để xem lại."
+          }
+        }
+      }
+    },
+    "This restores the four chips the app came with and discards your own.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Isto restaura os quatro chips originais do app e descarta os seus."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bốn gợi ý mặc định sẽ được khôi phục và thay thế các gợi ý do bạn tạo."
+          }
+        }
+      }
+    },
+    "This routine uses a schedule added by a newer StartupBot. Choose One time, Selected days, or Every X minutes before saving.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta rotina usa um agendamento adicionado por um StartupBot mais novo. Escolha Uma vez, Dias selecionados ou A cada X minutos antes de salvar."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thủ tục này sử dụng lịch được thêm bởi StartupBot mới hơn. Hãy chọn Một lần, Ngày đã chọn hoặc Mỗi X phút trước khi lưu."
+          }
+        }
+      }
+    },
+    "This saved connection is no longer available on this device. Remove it and pair again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối đã lưu không còn sử dụng được trên thiết bị này. Hãy gỡ kết nối rồi ghép nối lại."
+          }
+        }
+      }
+    },
+    "This task is waiting for your answer.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta tarefa está esperando sua resposta."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nhiệm vụ này đang chờ câu trả lời của bạn."
+          }
+        }
+      }
+    },
+    "This thread is waiting for your answer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luồng này đang chờ bạn trả lời."
+          }
+        }
+      }
+    },
+    "Thought Process": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Processo de pensamento"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quá trình tư duy"
+          }
+        }
+      }
+    },
+    "Thread = one conversation and result": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mỗi luồng gồm một cuộc trò chuyện và kết quả của cuộc trò chuyện đó."
+          }
+        }
+      }
+    },
+    "Thread title": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tên tuyến trình"
+          }
+        }
+      }
+    },
+    "Threads": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luồng trò chuyện"
+          }
+        }
+      }
+    },
+    "Threads & Routines": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luồng và tác vụ định kỳ"
+          }
+        }
+      }
+    },
+    "Title": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargo"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiêu đề"
+          }
+        }
+      }
+    },
+    "Title (optional)": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Título (opcional)"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiêu đề (tuỳ chọn)"
+          }
+        }
+      }
+    },
+    "Tiếng Việt": {
+      "shouldTranslate": false
+    },
+    "To generate images, configure the shared image provider in StartupBot on your computer. Provider keys cannot be added from this device.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para gerar imagens, configure o provedor de imagens compartilhado no StartupBot no seu computador. Não é possível adicionar chaves de provedor por este dispositivo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Để tạo ảnh, cấu hình nhà cung cấp ảnh đã chia sẻ trong StartupBot trên máy tính này. Không thể thêm khoá nhà cung cấp từ thiết bị này."
+          }
+        }
+      }
+    },
+    "To review": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para revisar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Để xem lại"
+          }
+        }
+      }
+    },
+    "Touch a bot, then glide. Pause briefly on each bot until it clicks.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toque em um bot e deslize. Pause um instante em cada bot até ele encaixar."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạm vào một bot, sau đó lướt. Tạm dừng nhanh trên mỗi bot cho đến khi nó nhấp chuột."
+          }
+        }
+      }
+    },
+    "Touch and hold the text to select part of it.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toque e segure o texto para selecionar parte dele."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạm và giữ văn bản để chọn một phần."
+          }
+        }
+      }
+    },
+    "Touch and hold to select part of this message": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toque e segure para selecionar parte desta mensagem"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạm và giữ để chọn một phần của tin nhắn này"
+          }
+        }
+      }
+    },
+    "Troubleshooting": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solução de problemas"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khắc phục sự cố"
+          }
+        }
+      }
+    },
+    "Trusted local connection": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conexão local confiável"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối cục bộ đáng tin cậy"
+          }
+        }
+      }
+    },
+    "Try again.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tente de novo."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử lại đi."
+          }
+        }
+      }
+    },
+    "Try reconnecting": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tentar reconectar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử kết nối lại"
+          }
+        }
+      }
+    },
+    "Try resuming the task": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tentar retomar a tarefa"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thử tiếp tục lại tác vụ"
+          }
+        }
+      }
+    },
+    "Unknown": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desconhecido"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không rõ"
+          }
+        }
+      }
+    },
+    "Unlock this device to reach your computer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy mở khóa thiết bị này để kết nối với máy tính của bạn."
+          }
+        }
+      }
+    },
+    "Unlock this device, then try switching computers again.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy mở khóa thiết bị này rồi thử chuyển máy tính lần nữa."
+          }
+        }
+      }
+    },
+    "Unread": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chưa đọc"
+          }
+        }
+      }
+    },
+    "Untitled task": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarefa sem título"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tác vụ không tên"
+          }
+        }
+      }
+    },
+    "Update StartupBot on this computer before sending images.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy cập nhật StartupBot trên máy tính này trước khi gửi ảnh."
+          }
+        }
+      }
+    },
+    "Updates": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novidades"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản cập nhật"
+          }
+        }
+      }
+    },
+    "Updating threads…": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang cập nhật các luồng…"
+          }
+        }
+      }
+    },
+    "Upload image": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar imagem"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tải ảnh lên"
+          }
+        }
+      }
+    },
+    "Use": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng"
+          }
+        }
+      }
+    },
+    "Use Apple Passwords, 1Password, Bitwarden, or paste. The value is encrypted for your computer and never added to chat.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use o Apple Senhas, 1Password, Bitwarden ou cole. O valor é criptografado para o seu computador e nunca é adicionado à conversa."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng Mật khẩu Apple, 1Mật khẩu, Bitwarden, hoặc dán. Giá trị này được mật mã cho máy tính của bạn và không bao giờ được thêm vào cuộc trò chuyện."
+          }
+        }
+      }
+    },
+    "Use another computer": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar outro computador"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng máy tính khác"
+          }
+        }
+      }
+    },
+    "Use mascot": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar mascote"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dùng linh vật"
+          }
+        }
+      }
+    },
+    "Use secure phone access or Tailscale, or finish on your computer.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use o acesso seguro pelo telefone ou o Tailscale, ou conclua no seu computador."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sử dụng quyền truy cập điện thoại an toàn hoặc Tailscale, hoặc hoàn tất trên máy tính của bạn."
+          }
+        }
+      }
+    },
+    "Use the Camera app to scan the QR code, or enter the address and code manually.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use o app Câmera para escanear o QR code, ou digite o endereço e o código manualmente."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sử dụng ứng dụng Camera để quét mã QR, hoặc nhập địa chỉ và mã bằng tay."
+          }
+        }
+      }
+    },
+    "Use the address shown in Phone settings on your computer.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use o endereço mostrado nos ajustes de Telefone no seu computador."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sử dụng địa chỉ hiển thị trong phần Phone settings (Cài đặt Điện thoại) trên máy tính."
+          }
+        }
+      }
+    },
+    "Use the address shown in Phone settings on your computer. Your pairing is kept.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use o endereço mostrado nos ajustes de Telefone no seu computador. O pareamento é mantido."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sử dụng địa chỉ hiển thị trong Thiết lập Điện thoại trên máy tính. Việc ghép đôi được giữ nguyên."
+          }
+        }
+      }
+    },
+    "Uses this agent's selected model and computer setting on the paired computer.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa o modelo e a configuração de computador selecionados para este agente no computador pareado."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sử dụng mô hình đã chọn của tác nhân này và thiết lập máy tính trên máy tính được ghép nối."
+          }
+        }
+      }
+    },
+    "View Diff": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ver diff"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem phần thay đổi"
+          }
+        }
+      }
+    },
+    "View and manage bot task threads": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ver e gerenciar as threads de tarefas do bot"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem và quản lý các luồng tác vụ bot"
+          }
+        }
+      }
+    },
+    "Voice": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Giọng nói"
+          }
+        }
+      }
+    },
+    "Waiting for a frame…": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aguardando um quadro…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang đợi một khung..."
+          }
+        }
+      }
+    },
+    "Waiting on you": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando por você"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang chờ bạn phản hồi"
+          }
+        }
+      }
+    },
+    "Watch computer": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ver o computador"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem máy tính"
+          }
+        }
+      }
+    },
+    "Webhooks": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Webhooks"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Webhook"
+          }
+        }
+      }
+    },
+    "Welcome to StartupBot": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Boas-vindas ao StartupBot"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chào mừng bạn đến với StartupBot"
+          }
+        }
+      }
+    },
+    "What gets sent to the bot when you tap the chip.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que é enviado ao bot quando você toca no chip."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Những gì được gửi đến robot khi bạn chạm vào con chip."
+          }
+        }
+      }
+    },
+    "What should the agent do?": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que o agente deve fazer?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn muốn trợ lý làm gì?"
+          }
+        }
+      }
+    },
+    "What should this section be called?": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Como esta seção deve se chamar?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phần này nên được gọi là gì?"
+          }
+        }
+      }
+    },
+    "What this agent does": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que este agente faz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vai trò của trợ lý này"
+          }
+        }
+      }
+    },
+    "What this bot does": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que este bot faz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vai trò của bot này"
+          }
+        }
+      }
+    },
+    "What's next?": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E agora?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiếp theo là gì?"
+          }
+        }
+      }
+    },
+    "When a bot stops for an answer, is mid-task, or finishes something, it shows up here.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quando um bot para para pedir uma resposta, está no meio de uma tarefa ou termina algo, ele aparece aqui."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Khi một robot dừng lại để trả lời, đang làm giữa nhiệm vụ, hoặc hoàn thành một cái gì đó, nó sẽ xuất hiện ở đây."
+          }
+        }
+      }
+    },
+    "Where does it run?": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onde ela roda?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chạy ở đâu?"
+          }
+        }
+      }
+    },
+    "Where to get this key": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onde obter esta chave"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lấy chìa khoá này ở đâu?"
+          }
+        }
+      }
+    },
+    "Who": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quem"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Người thực hiện"
+          }
+        }
+      }
+    },
+    "Won't": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não vai"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sẽ không"
+          }
+        }
+      }
+    },
+    "Work": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trabalho"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Công việc"
+          }
+        }
+      }
+    },
+    "Work, Personal, Client…": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trabalho, Pessoal, Cliente…"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Công việc, cá nhân, khách hàng..."
+          }
+        }
+      }
+    },
+    "Working": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trabalhando"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đang xử lý"
+          }
+        }
+      }
+    },
+    "Workspace": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espaço de trabalho"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không gian làm việc"
+          }
+        }
+      }
+    },
+    "Workspace default": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Padrão do espaço de trabalho"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mặc định vùng làm việc"
+          }
+        }
+      }
+    },
+    "Write a message or attach a file first.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trước tiên, hãy nhập tin nhắn hoặc đính kèm tệp."
+          }
+        }
+      }
+    },
+    "Yesterday": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ontem"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hôm qua"
+          }
+        }
+      }
+    },
+    "You can switch or create a group thread when the current reply finishes.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn có thể chuyển đổi hoặc tạo một nhóm khi trả lời hiện thời kết thúc."
+          }
+        }
+      }
+    },
+    "You choose which trusted computer this device connects to.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Você escolhe a qual computador confiável este dispositivo se conecta."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chọn máy tính đáng tin cậy để ghép nối với thiết bị này."
+          }
+        }
+      }
+    },
+    "Your chats, in your pocket": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suas conversas, no seu bolso"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mang cuộc trò chuyện theo bạn"
+          }
+        }
+      }
+    },
+    "Your computer could not open its credential store, so it cannot say which accounts are connected. Nothing has been disconnected — restarting StartupBot on your computer usually clears this.": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O seu computador não conseguiu abrir o cofre de credenciais, então não sabe dizer quais contas estão conectadas. Nada foi desconectado — reiniciar o StartupBot no seu computador costuma resolver."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máy tính chưa mở được kho thông tin xác thực nên chưa xác định được tài khoản nào đang kết nối. Các kết nối vẫn được giữ nguyên. Khởi động lại StartupBot trên máy tính thường sẽ khắc phục được lỗi này."
+          }
+        }
+      }
+    },
+    "a custom interval": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "um intervalo personalizado"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "một khoảng tùy chỉnh"
+          }
+        }
+      }
+    },
+    "minutes": {
+      "localizations": {
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "minutos"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "phút"
+          }
+        }
+      }
+    },
+    "sent mid-turn": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "đã gửi giữa lượt"
+          }
+        }
+      }
+    },
+    "Show git diff and list modified files": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiển thị thay đổi bằng git diff và liệt kê các tệp đã sửa"
+          }
+        }
+      }
+    },
+    "Please retry the last turn": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy thử lại lượt vừa rồi"
+          }
+        }
+      }
+    },
+    "Pause and explain your current plan": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hãy tạm dừng và giải thích kế hoạch hiện tại"
+          }
+        }
+      }
+    },
+    "Keep this answer under 2,000 characters.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vui lòng trả lời dưới 2.000 ký tự."
+          }
+        }
+      }
+    },
+    "Other answer": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Câu trả lời khác"
+          }
+        }
+      }
+    },
+    "This question format is not supported. Open it on your computer.": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Điện thoại chưa hỗ trợ dạng câu hỏi này. Hãy mở câu hỏi trên máy tính."
+          }
+        }
+      }
+    },
+    "View and manage threads": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xem và quản lý cuộc trò chuyện"
           }
         }
       }

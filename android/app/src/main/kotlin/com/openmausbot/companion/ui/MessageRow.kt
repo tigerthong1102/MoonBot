@@ -9,31 +9,31 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -63,8 +63,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -72,34 +72,36 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.openmausbot.companion.core.Chat
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.AttachedMessageContent
-import com.openmausbot.companion.core.generatedImages
-import com.openmausbot.companion.core.voiceNotes
+import com.openmausbot.companion.core.Chat
 import com.openmausbot.companion.core.DisplayedMessageAttachment
 import com.openmausbot.companion.core.DownloadedFile
 import com.openmausbot.companion.core.Message
 import com.openmausbot.companion.core.OptionCard
 import com.openmausbot.companion.core.ThreadRef
 import com.openmausbot.companion.core.ToolActivity
-import com.openmausbot.companion.core.forTask
 import com.openmausbot.companion.core.TranscriptCard
 import com.openmausbot.companion.core.TranscriptCards
+import com.openmausbot.companion.core.forTask
+import com.openmausbot.companion.core.generatedImages
+import com.openmausbot.companion.core.voiceNotes
 import com.openmausbot.companion.core.webhookContent
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -159,7 +161,7 @@ fun MessageRow(
 
             message.comm?.let {
                 Text(
-                    text = "Messaged ${it.withName}",
+                    text = stringResource(R.string.ui_messaged, it.withName),
                     fontSize = 12.sp,
                     color = secondaryTint,
                 )
@@ -199,7 +201,7 @@ fun MessageRow(
                     val busy = bot.busy == true
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Previous version",
+                        contentDescription = stringResource(R.string.ui_previous_version),
                         tint = if (versionIndex == 0 || busy) {
                             secondaryTint.copy(alpha = 0.4f)
                         } else {
@@ -214,14 +216,14 @@ fun MessageRow(
                             },
                     )
                     Text(
-                        text = "${versionIndex + 1} of ${versions.size}",
+                        text = stringResource(R.string.ui_of, versionIndex + 1, versions.size),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = secondaryTint,
                     )
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Next version",
+                        contentDescription = stringResource(R.string.ui_next_version),
                         tint = if (versionIndex + 1 >= versions.size || busy) {
                             secondaryTint.copy(alpha = 0.4f)
                         } else {
@@ -258,7 +260,7 @@ fun MessageRow(
             MessageActions.copyableText(message)?.let { text ->
                 HorizontalDivider()
                 DropdownMenuItem(
-                    text = { Text("Copy") },
+                    text = { Text(stringResource(R.string.ui_copy)) },
                     onClick = {
                         menuOpen = false
                         scope.launch {
@@ -269,7 +271,7 @@ fun MessageRow(
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Select text") },
+                    text = { Text(stringResource(R.string.ui_select_text)) },
                     onClick = {
                         menuOpen = false
                         selectingText = text
@@ -280,7 +282,7 @@ fun MessageRow(
             if (editableText != null && bot != null && !isPendingEdit) {
                 HorizontalDivider()
                 DropdownMenuItem(
-                    text = { Text("Edit and retry") },
+                    text = { Text(stringResource(R.string.ui_edit_and_retry)) },
                     enabled = bot.busy != true && editPending == null,
                     onClick = {
                         menuOpen = false
@@ -295,14 +297,14 @@ fun MessageRow(
     if (editing && bot != null) {
         AlertDialog(
             onDismissRequest = { editing = false },
-            title = { Text("Edit and retry") },
+            title = { Text(stringResource(R.string.ui_edit_and_retry)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This creates a new version and continues from there.", fontSize = 14.sp)
+                    Text(stringResource(R.string.ui_this_creates_a_new_version_and_continues_from_there), fontSize = 14.sp)
                     OutlinedTextField(
                         value = editText,
                         onValueChange = { editText = it },
-                        label = { Text("Message") },
+                        label = { Text(stringResource(R.string.ui_message)) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -316,10 +318,10 @@ fun MessageRow(
                         if (text.isEmpty()) return@TextButton
                         scope.launch { session.edit(message, bot, text) }
                     },
-                ) { Text("Send") }
+                ) { Text(stringResource(R.string.ui_send)) }
             },
             dismissButton = {
-                TextButton(onClick = { editing = false }) { Text("Cancel") }
+                TextButton(onClick = { editing = false }) { Text(stringResource(R.string.ui_cancel)) }
             },
         )
     }
@@ -336,7 +338,7 @@ private fun SelectableTextDialog(text: String, onDismiss: () -> Unit) {
     var copied by remember(text) { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select text") },
+        title = { Text(stringResource(R.string.ui_select_text)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SelectionContainer {
@@ -350,7 +352,7 @@ private fun SelectableTextDialog(text: String, onDismiss: () -> Unit) {
                     )
                 }
                 Text(
-                    "Touch and hold the text to select part of it.",
+                    stringResource(R.string.ui_touch_and_hold_the_text_to_select_part_of_it),
                     fontSize = 12.sp,
                     color = secondaryTint,
                 )
@@ -366,9 +368,9 @@ private fun SelectableTextDialog(text: String, onDismiss: () -> Unit) {
                         copied = true
                     }
                 },
-            ) { Text(if (copied) "Copied" else "Copy all") }
+            ) { Text(if (copied) stringResource(R.string.ui_copied) else stringResource(R.string.ui_copy_all)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Done") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.ui_done)) } },
     )
 }
 
@@ -515,6 +517,7 @@ private fun SharedAttachmentView(
         SharedImageAttachment(threadId, message, attachment, onOpen)
         return
     }
+    val previewLabel = stringResource(R.string.ui_file_preview, attachment.name)
     Row(
         modifier = Modifier
             .widthIn(max = 360.dp)
@@ -524,11 +527,11 @@ private fun SharedAttachmentView(
                 onOpen?.invoke(attachment, message, null)
             }
             .padding(horizontal = 12.dp, vertical = 10.dp)
-            .semantics { contentDescription = "File attachment: ${attachment.name}. Tap to preview." },
+            .semantics { contentDescription = previewLabel },
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("FILE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BubbleColor.mineText.copy(alpha = 0.68f))
+        Text(stringResource(R.string.ui_file_badge), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BubbleColor.mineText.copy(alpha = 0.68f))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 attachment.name,
@@ -538,7 +541,7 @@ private fun SharedAttachmentView(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text("Tap to preview", fontSize = 12.sp, color = BubbleColor.mineText.copy(alpha = 0.68f))
+            Text(stringResource(R.string.ui_tap_to_preview), fontSize = 12.sp, color = BubbleColor.mineText.copy(alpha = 0.68f))
         }
     }
 }
@@ -582,6 +585,7 @@ private fun SharedImageAttachment(
             ?: AttachmentThumbnailState.Failed
     }
 
+    val previewLabel = stringResource(R.string.ui_image_preview, attachment.name)
     val ready = state as? AttachmentThumbnailState.Ready
     Column(
         modifier = Modifier
@@ -591,7 +595,7 @@ private fun SharedImageAttachment(
             .clickable(enabled = ready != null && onOpen != null, role = Role.Button) {
                 ready?.let { onOpen?.invoke(attachment, message, it.file) }
             }
-            .semantics { contentDescription = "Image attachment: ${attachment.name}. Tap to preview." },
+            .semantics { contentDescription = previewLabel },
     ) {
         Box(
             modifier = Modifier
@@ -603,7 +607,7 @@ private fun SharedImageAttachment(
                 AttachmentThumbnailState.Loading ->
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 AttachmentThumbnailState.Failed -> AttachmentLoadFailure(
-                    label = "Image unavailable",
+                    label = stringResource(R.string.ui_image_unavailable),
                     foreground = foreground,
                     onRetry = { attempt += 1 },
                 )
@@ -637,7 +641,7 @@ private fun AttachmentLoadFailure(label: String, foreground: Color = BubbleColor
             modifier = Modifier.size(20.dp),
         )
         Text(label, fontSize = 13.sp, color = foreground.copy(alpha = 0.80f))
-        TextButton(onClick = onRetry) { Text("Retry") }
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.ui_retry)) }
     }
 }
 
@@ -729,6 +733,7 @@ private fun VoiceNoteAttachmentView(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val playbackLabel = stringResource(if (playing) R.string.ui_pause_voice else R.string.ui_play_voice)
         Box(
             modifier = Modifier
                 .size(28.dp)
@@ -746,7 +751,7 @@ private fun VoiceNoteAttachmentView(
                     }
                 }
                 .semantics {
-                    contentDescription = if (playing) "Pause voice note" else "Play voice note"
+                    contentDescription = playbackLabel
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -766,6 +771,7 @@ private fun VoiceNoteAttachmentView(
                 )
             }
         }
+        val seekLabel = stringResource(R.string.ui_seek_voice)
         Slider(
             value = if (durationSeconds > 0f) (positionMs / 1000f).coerceIn(0f, durationSeconds) else 0f,
             valueRange = if (durationSeconds > 0f) 0f..durationSeconds else 0f..1f,
@@ -778,7 +784,7 @@ private fun VoiceNoteAttachmentView(
             enabled = active != null && durationMs != null,
             modifier = Modifier
                 .weight(1f)
-                .semantics { contentDescription = "Seek voice note" },
+                .semantics { contentDescription = seekLabel },
         )
         Text(
             voiceNoteClock(positionMs) + " / " + (durationMs?.let(::voiceNoteClock) ?: "--:--"),
@@ -913,7 +919,8 @@ fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = n
     val haptics = rememberHaptics()
     var expanded by remember(items.first().id) { mutableStateOf(false) }
     val running = items.any { it.tool?.ok == null }
-    val summary = if (running) "Running ${items.size} steps" else "Ran ${items.size} steps"
+    val summary = stringResource(if (running) R.string.ui_running_steps else R.string.ui_ran_steps, items.size)
+    val expansion = stringResource(if (expanded) R.string.ui_expanded else R.string.ui_collapsed)
     Column(
         modifier = Modifier.padding(start = 4.dp),
         verticalArrangement = Arrangement.spacedBy(5.dp),
@@ -926,7 +933,7 @@ fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = n
                     haptics.play(TactileAction.TOGGLE_ACTIVITY_RUN)
                 }
                 .semantics {
-                    contentDescription = "$summary, ${if (expanded) "expanded" else "collapsed"}"
+                    contentDescription = "$summary, $expansion"
                 },
             contentAlignment = Alignment.CenterStart,
         ) {
@@ -948,7 +955,7 @@ fun ActivityRunChip(items: List<Message>, openThread: ((ThreadRef) -> Unit)? = n
                     )
                 }
                 Text(summary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text(if (expanded) "Hide" else "Show", fontSize = 12.sp, color = secondaryTint)
+                Text(stringResource(if (expanded) R.string.ui_hide else R.string.ui_show), fontSize = 12.sp, color = secondaryTint)
             }
         }
         if (expanded) {
@@ -1122,7 +1129,7 @@ private fun CardView(chat: Chat, message: Message, haptics: Haptics) {
                     },
                     enabled = !answering,
                 ) {
-                    Text("Always allow this tool", fontSize = 14.sp)
+                    Text(stringResource(R.string.ui_always_allow_tool), fontSize = 14.sp)
                 }
             }
         } else {
@@ -1197,12 +1204,12 @@ private fun ScreenShot(threadId: String, message: Message) {
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(20.dp),
                     )
-                    Text("Screenshot unavailable", fontSize = 13.sp, color = secondaryTint)
-                    TextButton(onClick = { attempt += 1 }) { Text("Retry") }
+                    Text(stringResource(R.string.ui_screenshot_unavailable), fontSize = 13.sp, color = secondaryTint)
+                    TextButton(onClick = { attempt += 1 }) { Text(stringResource(R.string.ui_retry)) }
                 }
                 is ScreenShotState.Ready -> Image(
                     bitmap = current.image,
-                    contentDescription = "A frame of this bot's computer",
+                    contentDescription = stringResource(R.string.ui_frame_description),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize(),
                 )

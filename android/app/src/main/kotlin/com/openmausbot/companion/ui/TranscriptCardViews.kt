@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -124,7 +125,7 @@ fun DiffCard(card: TranscriptCard.Diff, modifier: Modifier = Modifier) {
         if (card.text.isNotEmpty()) {
             Disclosure(
                 expanded = showingDiff,
-                label = if (showingDiff) "Hide Diff" else "View Diff",
+                label = if (showingDiff) stringResource(R.string.ui_hide_diff) else stringResource(R.string.ui_view_diff),
                 onToggle = {
                     haptics.play(HapticCue.SELECT)
                     showingDiff = !showingDiff
@@ -174,7 +175,7 @@ fun DiffCard(card: TranscriptCard.Diff, modifier: Modifier = Modifier) {
         HorizontalDivider(color = secondaryTint.copy(alpha = 0.2f))
 
         TextButton(onClick = { copy(card.text) }) {
-            Text("Copy Diff", fontSize = 13.sp)
+            Text(stringResource(R.string.ui_copy_diff), fontSize = 13.sp)
         }
     }
 }
@@ -226,14 +227,14 @@ fun DataTableCard(card: TranscriptCard.Table, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "DATA TABLE",
+                text = stringResource(R.string.ui_data_table),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = if (card.rows.size == 1) "1 row" else "${card.rows.size} rows",
+                text = if (card.rows.size == 1) stringResource(R.string.ui_1_row) else stringResource(R.string.ui_rows, card.rows.size),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 color = secondaryTint,
@@ -256,7 +257,7 @@ fun DataTableCard(card: TranscriptCard.Table, modifier: Modifier = Modifier) {
         HorizontalDivider(color = secondaryTint.copy(alpha = 0.2f))
 
         TextButton(onClick = { copy(card.csv()) }) {
-            Text("Copy CSV", fontSize = 13.sp)
+            Text(stringResource(R.string.ui_copy_csv), fontSize = 13.sp)
         }
     }
 }
@@ -401,13 +402,13 @@ fun ThoughtChamber(
                 modifier = Modifier.size(16.dp),
             )
             Text(
-                text = if (streaming) "Thinking…" else "Thought Process",
+                text = if (streaming) stringResource(R.string.ui_thinking) else stringResource(R.string.ui_thought_process),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = if (steps.size == 1) "1 step" else "${steps.size} steps",
+                text = if (steps.size == 1) stringResource(R.string.ui_1_step) else stringResource(R.string.ui_steps, steps.size),
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace,
                 color = secondaryTint,

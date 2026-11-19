@@ -33,12 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.openmausbot.companion.R
 import com.openmausbot.companion.core.Bot
 import com.openmausbot.companion.core.CompanionState
 import com.openmausbot.companion.core.Room
@@ -65,10 +67,10 @@ internal fun NewGroupSheet(onCreated: (Room) -> Unit, onDismiss: () -> Unit) {
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.CenterStart),
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.ui_cancel))
                 }
                 Text(
-                    text = "New group",
+                    text = stringResource(R.string.ui_new_group),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.align(Alignment.Center),
@@ -89,14 +91,14 @@ internal fun NewGroupSheet(onCreated: (Room) -> Unit, onDismiss: () -> Unit) {
                     enabled = NewGroupRules.canCreate(members, creating),
                     modifier = Modifier.align(Alignment.CenterEnd),
                 ) {
-                    Text("Create")
+                    Text(stringResource(R.string.ui_create))
                 }
             }
 
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Group name (optional)") },
+                label = { Text(stringResource(R.string.ui_group_name_optional)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
                     autoCorrectEnabled = false,
@@ -106,7 +108,7 @@ internal fun NewGroupSheet(onCreated: (Room) -> Unit, onDismiss: () -> Unit) {
             )
 
             Text(
-                text = "Bots",
+                text = stringResource(R.string.ui_bots),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = secondaryTint,

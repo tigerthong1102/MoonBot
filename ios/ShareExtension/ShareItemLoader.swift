@@ -41,19 +41,19 @@ enum ShareItemLoadingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .appGroupUnavailable:
-            return "StartupBot couldn't open its secure sharing folder. Open the app once, then try again."
+            return String(localized: "StartupBot couldn't open its secure sharing folder. Open the app once, then try again.")
         case .nothingSupported:
-            return "There isn't any text, link, image, or supported document to send."
+            return String(localized: "There isn't any text, link, image, or supported document to send.")
         case .tooManyItems:
-            return "Send up to \(AttachmentPolicy.maximumItems) items at a time."
+            return String(localized: "Send up to \(AttachmentPolicy.maximumItems) items at a time.")
         case .tooMuchText:
-            return "That text is too large to share. Send a shorter selection."
+            return String(localized: "That text is too large to share. Send a shorter selection.")
         case let .tooLarge(name, limit):
-            return "\(name) is larger than \(limit) MB."
+            return String(localized: "\(name) is larger than \(limit) MB.")
         case let .unsupportedDocument(name):
-            return "\(name) isn't a supported document. Try PDF, text, Word, Excel, or PowerPoint."
+            return String(localized: "\(name) isn't a supported document. Try PDF, text, Word, Excel, or PowerPoint.")
         case let .unreadable(name):
-            return "StartupBot couldn't read \(name). Try exporting it to Files first."
+            return String(localized: "StartupBot couldn't read \(name). Try exporting it to Files first.")
         }
     }
 }

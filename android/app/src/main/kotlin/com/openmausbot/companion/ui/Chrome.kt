@@ -22,11 +22,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.openmausbot.companion.R
 
 // Android RenderEffect requires API 31 or later.
 
@@ -110,7 +112,7 @@ private fun ChromeButton(
 
 @Composable
 internal fun HeaderBackButton(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    TouchTarget(onClick = onBack, modifier = modifier, contentDescription = "Back") {
+    TouchTarget(onClick = onBack, modifier = modifier, contentDescription = stringResource(R.string.ui_back)) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = null,

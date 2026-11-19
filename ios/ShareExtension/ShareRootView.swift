@@ -69,7 +69,7 @@ struct ShareRootView: View {
         .background(Color(uiColor: .secondarySystemGroupedBackground))
     }
 
-    private var headerSubtitle: String {
+    private var headerSubtitle: LocalizedStringKey {
         switch model.phase {
         case .idle, .loading: return "Preparing your share…"
         case .ready: return "Choose where this should go"
@@ -99,13 +99,13 @@ struct ShareRootView: View {
                 FlowLayout(spacing: 8) {
                     if model.preview.linkCount > 0 {
                         previewChip(
-                            model.preview.linkCount == 1 ? "Link" : "\(model.preview.linkCount) links",
+                            model.preview.linkCount == 1 ? String(localized: "Link") : String(localized: "\(model.preview.linkCount) links"),
                             icon: "link"
                         )
                     }
                     if model.preview.textCount > 0 {
                         previewChip(
-                            model.preview.textCount == 1 ? "Text" : "\(model.preview.textCount) text items",
+                            model.preview.textCount == 1 ? String(localized: "Text") : String(localized: "\(model.preview.textCount) text items"),
                             icon: "text.alignleft"
                         )
                     }
@@ -115,8 +115,8 @@ struct ShareRootView: View {
                 }
                 if model.preview.ignoredCount > 0 {
                     Text(model.preview.ignoredCount == 1
-                         ? "1 unsupported item was left out."
-                         : "\(model.preview.ignoredCount) unsupported items were left out.")
+                         ? String(localized: "1 unsupported item was left out.")
+                         : String(localized: "\(model.preview.ignoredCount) unsupported items were left out."))
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
@@ -151,7 +151,7 @@ struct ShareRootView: View {
                         .foregroundStyle(.tint)
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(model.selectedComputer?.name ?? "Choose a computer")
+                        Text(model.selectedComputer?.name ?? String(localized: "Choose a computer"))
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.primary)
                         if let routeLabel = model.selectedComputer?.routeLabel {
@@ -204,7 +204,7 @@ struct ShareRootView: View {
                         .frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 7) {
-                            Text(model.selectedDestination?.name ?? "Choose a bot or channel")
+                            Text(model.selectedDestination?.name ?? String(localized: "Choose a bot or channel"))
                                 .font(.body.weight(.semibold))
                                 .foregroundStyle(.primary)
                             if model.isRememberedSelection {

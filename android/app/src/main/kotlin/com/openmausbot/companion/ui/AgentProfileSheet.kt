@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -69,13 +70,13 @@ import com.openmausbot.companion.avatar.AvatarImageRules
 import com.openmausbot.companion.avatar.PreparedAvatar
 import com.openmausbot.companion.core.AvatarCrop
 import com.openmausbot.companion.core.Bot
-import com.openmausbot.companion.core.forTask
 import com.openmausbot.companion.core.BotProfilePatch
 import com.openmausbot.companion.core.ConfigStatus
 import com.openmausbot.companion.core.Instance
 import com.openmausbot.companion.core.ModelSelection
 import com.openmausbot.companion.core.Voice
 import com.openmausbot.companion.core.VoiceProvider
+import com.openmausbot.companion.core.forTask
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -192,10 +193,10 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                         onClick = onDismiss,
                         modifier = Modifier.align(Alignment.CenterStart),
                     ) {
-                        Text("Done")
+                        Text(stringResource(R.string.ui_done))
                     }
                     Text(
-                        text = "Bot settings",
+                        text = stringResource(R.string.ui_bot_settings),
                         fontSize = 17.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.align(Alignment.Center),
@@ -204,13 +205,13 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
 
                 FormSection(header = null) {
                     ActionRow(
-                        text = "What this bot does",
+                        text = stringResource(R.string.ui_what_this_bot_does),
                         icon = Icons.Filled.Info,
                         onClick = { onOpenOverview(bot.id) },
                     )
                 }
 
-                FormSection(header = "Model", footer = ModelRules.FOOTER) {
+                FormSection(header = stringResource(R.string.ui_model), footer = ModelRules.FOOTER) {
                     val instanceChoices = ModelRules.instanceChoices(instances, savedModel)
                     if (!modelsLoaded) {
                         Row(
@@ -246,7 +247,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                             }
                         }
                         ChoicePicker(
-                            label = "Provider",
+                            label = stringResource(R.string.ui_provider),
                             choices = providerRows,
                             selected = selectedInstanceId,
                             onSelect = { id ->
@@ -255,7 +256,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                             },
                         )
                         ChoicePicker(
-                            label = "Model",
+                            label = stringResource(R.string.ui_model),
                             choices = ModelRules.modelChoices(selectedInstance, selectedModelId).map {
                                 VoiceChoice(id = it.id, label = it.label, detail = null, enabled = true)
                             },
@@ -266,7 +267,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                         val effortLevels = ModelRules.effortLevels(selectedInstance)
                         if (effortLevels.isNotEmpty()) {
                             ChoicePicker(
-                                label = "Reasoning effort",
+                                label = stringResource(R.string.ui_reasoning_effort),
                                 choices = buildList {
                                     add(VoiceChoice(id = "", label = ModelRules.DEFAULT_EFFORT_LABEL, detail = null, enabled = true))
                                     effortLevels.forEach {
@@ -281,7 +282,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                             IconNote(text = note, icon = Icons.Filled.Info)
                         }
                         ActionRow(
-                            text = "Apply model",
+                            text = stringResource(R.string.ui_apply_model),
                             icon = Icons.Filled.Check,
                             enabled = !busy && currentTask != null && ModelRules.canApply(
                                 loaded = modelsLoaded,
@@ -309,7 +310,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                     }
                 }
 
-                FormSection(header = "Avatar", footer = ProfileRules.AVATAR_FOOTER) {
+                FormSection(header = stringResource(R.string.ui_avatar), footer = ProfileRules.AVATAR_FOOTER) {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         contentAlignment = Alignment.Center,
@@ -318,7 +319,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                             bot = current,
                             size = 112.dp,
                             state = MausState.HAPPY,
-                            contentDescription = "${current.name} avatar",
+                            contentDescription = stringResource(R.string.ui_avatar_96, current.name),
                         )
                     }
 
@@ -340,7 +341,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                     }
 
                     ActionRow(
-                        text = "Upload image",
+                        text = stringResource(R.string.ui_upload_image),
                         icon = Icons.Filled.AddCircle,
                         enabled = !busy,
                         onClick = { pickImage.launch(AvatarImagePicker.request()) },
@@ -348,7 +349,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
 
                     if (current.avatarUrl != null) {
                         ActionRow(
-                            text = "Use mascot",
+                            text = stringResource(R.string.ui_use_mascot),
                             icon = Icons.Filled.Delete,
                             enabled = !busy,
                             destructive = true,
@@ -378,19 +379,19 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                 }
 
                 FormSection(
-                    header = "Generate an avatar",
+                    header = stringResource(R.string.ui_generate_an_avatar),
                     footer = ProfileRules.generateFooter(config),
                 ) {
                     OutlinedTextField(
                         value = prompt,
                         onValueChange = { prompt = it },
-                        label = { Text("Art direction") },
+                        label = { Text(stringResource(R.string.ui_art_direction)) },
                         minLines = 2,
                         maxLines = 5,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     ActionRow(
-                        text = "Generate on computer",
+                        text = stringResource(R.string.ui_generate_on_computer),
                         painter = R.drawable.ic_sparkles,
                         enabled = ProfileRules.canGenerate(busy, config, prompt),
                         onClick = {
@@ -421,11 +422,11 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                     )
                 }
 
-                FormSection(header = "Identity") {
+                FormSection(header = stringResource(R.string.ui_identity)) {
                     OutlinedTextField(
                         value = form.name,
                         onValueChange = { form = form.copy(name = it) },
-                        label = { Text("Name") },
+                        label = { Text(stringResource(R.string.ui_name)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
                             capitalization = KeyboardCapitalization.Words,
@@ -435,20 +436,20 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                     OutlinedTextField(
                         value = form.title,
                         onValueChange = { form = form.copy(title = it) },
-                        label = { Text("Title") },
+                        label = { Text(stringResource(R.string.ui_title)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
                         value = form.description,
                         onValueChange = { form = form.copy(description = it) },
-                        label = { Text("What this agent does") },
+                        label = { Text(stringResource(R.string.ui_what_this_agent_does)) },
                         minLines = 3,
                         maxLines = 8,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     SwitchRow(
-                        label = "Agent notifications",
+                        label = stringResource(R.string.ui_agent_notifications),
                         checked = form.notifications,
                         onCheckedChange = { form = form.copy(notifications = it) },
                     )
@@ -482,19 +483,19 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
                     },
                 ) {
                     ChoicePicker(
-                        label = "Voice",
+                        label = stringResource(R.string.ui_voice),
                         choices = ProfileRules.voiceChoices(config, voices, form.voice),
                         selected = form.voice,
                         onSelect = { form = form.copy(voice = it) },
                     )
                     SwitchRow(
-                        label = "Speak replies",
+                        label = stringResource(R.string.ui_speak_replies),
                         checked = form.speakReplies,
                         enabled = ProfileRules.selectedVoiceCanSpeak(config, form.voice),
                         onCheckedChange = { form = form.copy(speakReplies = it) },
                     )
                     ActionRow(
-                        text = "Preview voice",
+                        text = stringResource(R.string.ui_preview_voice),
                         painter = R.drawable.ic_volume_up,
                         enabled = ProfileRules.canPreview(busy, config, form.voice),
                         onClick = {
@@ -524,7 +525,7 @@ internal fun AgentProfileSheet(bot: Bot, onDismiss: () -> Unit, onOpenOverview: 
 
                 FormSection(header = null) {
                     ActionRow(
-                        text = "Save profile changes",
+                        text = stringResource(R.string.ui_save_profile_changes),
                         enabled = ProfileRules.canSave(form, busy),
                         onClick = {
                             scope.launch {
@@ -614,9 +615,9 @@ internal fun VoiceSection(
     canSpeak: @Composable () -> Unit,
 ) {
     val copy = ProfileRules.voiceCopy(config)
-    FormSection(header = "Voice", footer = copy.footer) {
+    FormSection(header = stringResource(R.string.ui_voice), footer = copy.footer) {
         ChoicePicker(
-            label = "Voice engine",
+            label = stringResource(R.string.ui_voice_engine),
             choices = ProfileRules.providerChoices(),
             selected = (config?.voiceProvider ?: VoiceProvider.ELEVENLABS).wire,
             onSelect = { next -> onSwitchEngine(VoiceProvider.fromWire(next)) },

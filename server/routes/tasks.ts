@@ -51,6 +51,7 @@ export interface TaskRouteDeps {
   cloudThreadRefusal(auth: RequestAuth, threadId: string): string | null;
   sharedWorkspaceFullAccessEnabled(): boolean;
   supportsApprovalMode(selection: ModelSelection, mode: ApprovalMode): boolean;
+  flushEventLog(): Promise<void>;
   hasPendingWork(botId: string, threadId: string): boolean;
   threadBusy(botId: string, threadId: string): boolean;
   broadcast(payload: Record<string, unknown>): void;
@@ -127,11 +128,17 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler & { deleteTa
       if (typeof body?.messageId !== "string" || !["confirm", "cancel"].includes(body.decision)) {
         return json(res, 400, { error: "Choose confirm or cancel for a conversation card." });
       }
+      if (body.decision === "confirm") {
+        const beforeDrain = deleteRefusal(auth, botId, threadId);
+        if (beforeDrain) return json(res, beforeDrain.status, { error: beforeDrain.error });
+        await deps.flushEventLog();
+      }
       const refusal = deleteRefusal(auth, botId, threadId);
       if (refusal) return json(res, refusal.status, { error: refusal.error });
-      const row = store.activePath(threadId).findLast((message) => message.role === "user" || message.settingsCard?.id === "clear-messages");
+      const row = store.messagesFor(threadId).findLast((message) => message.role === "user" || message.settingsCard?.id === "clear-messages");
       const card = row?.settingsCard;
-      if (!row || row.id !== body.messageId || card?.id !== "clear-messages" || card.threadId !== threadId || card.cancelled) {
+      if (!row || row.id !== body.messageId || card?.id !== "clear-messages" || card.threadId !== threadId || card.cancelled ||
+          !store.activePath(threadId).some((message) => message.id === row.id)) {
         return json(res, 409, { code: "clear_expired", error: "This confirmation has expired. Ask again in this conversation." });
       }
       if (body.decision === "cancel") {
@@ -139,9 +146,12 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler & { deleteTa
         return json(res, 200, { cleared: false });
       }
       if (deps.hasPendingWork(botId, threadId)) return json(res, 409, { code: "clear_queued", error: "Wait for queued work to finish first." });
+      const stages = stagedSkillCleanupsForThread(threadId);
       if (!store.clearTaskMessages(botId, threadId)) return json(res, 404, { error: "no such conversation" });
       clearTurnDigestState(threadId);
       handoffs.forget(threadId);
+      skillReview.dropThread(threadId);
+      rejectDeletedThreadSkillStages(stages);
       broadcast({ kind: "messages.cleared", threadId });
       return json(res, 200, { cleared: true });
     }

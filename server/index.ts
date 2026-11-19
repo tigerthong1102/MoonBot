@@ -12251,6 +12251,7 @@ const taskRoutes = createTaskRoutes({
   sharedWorkspaceFullAccessEnabled,
   supportsApprovalMode,
   threadBusy, broadcast, notificationListed,
+  flushEventLog: () => bus.flush(),
   hasPendingWork: (botId, threadId) => hasQueuedSteeredMessages(botId, threadId) || directRootQueued(threadId) ||
     coordinator.awaitingTeammateThreads().has(threadId) || settlingTurns.has(threadId),
   publicBot,

@@ -415,6 +415,14 @@ it("an in-chat confirmation clears only its direct transcript and starts a fresh
   await clear(bot.threadId, first, "confirm", 409);
   const second = await request("CLEAR-STALE");
   await finished("CLEAR-STALE");
+  const original = (await messages(bot.threadId)).find(row => row.role === "user" && row.text?.includes("CLEAR-STALE"));
+  plans[bot.id]!.script.push({ key: "BRANCH-KEEP", match: ["BRANCH-KEEP"], reply: "New work on another branch." });
+  writeFileSync(planPath, JSON.stringify(plans));
+  await api("POST", `/api/bots/${bot.id}/messages/${original.id}/edit`, { threadId: bot.threadId, text: "BRANCH-KEEP" }, 202);
+  await finished("BRANCH-KEEP");
+  await api("POST", `/api/bots/${bot.id}/active-branch`, { threadId: bot.threadId, messageId: original.id });
+  await clear(bot.threadId, second, "confirm", 409);
+  expect((await messages(bot.threadId)).some(row => row.text === "BRANCH-KEEP")).toBe(true);
   const third = await request("CLEAR-ACCEPT");
   expect(results(await finished("CLEAR-ACCEPT"))[0]).toMatchObject({ isError: false });
   const pairing = await api("POST", "/api/auth/pairing", { label: "Fixture client", scopes: ["client"] });

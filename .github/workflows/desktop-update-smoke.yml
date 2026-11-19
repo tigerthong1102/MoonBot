@@ -37,12 +37,13 @@ jobs:
         run: bash scripts/smoke-desktop-update-identity.sh
       - name: Create a disposable Windows test publisher
         if: runner.os == 'Windows'
+        timeout-minutes: 3
         shell: pwsh
         run: |
           if ($env:RUNNER_ENVIRONMENT -ne 'github-hosted') { throw 'Only ephemeral GitHub-hosted runners are supported.' }
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=StartupBot Update Fixture' -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(1)
           $public = Join-Path $env:RUNNER_TEMP 'fixture.cer'
           Export-Certificate -Cert $cert -FilePath $public | Out-Null
-          Import-Certificate -FilePath $public -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
+          Import-Certificate -FilePath $public -CertStoreLocation Cert:\LocalMachine\Root -Confirm:$false | Out-Null
           "STARTUPBOT_SMOKE_CERT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
       - run: node scripts/smoke-desktop-update.mjs

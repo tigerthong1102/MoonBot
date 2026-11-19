@@ -52,6 +52,7 @@ async function signFile(file) {
   }
   const command = [
     "$ErrorActionPreference = 'Stop'",
+    "Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1')",
     "$cert = Get-Item -LiteralPath ('Cert:\\CurrentUser\\My\\' + $env:STARTUPBOT_SMOKE_CERT)",
     "$signed = Set-AuthenticodeSignature -FilePath $env:STARTUPBOT_SMOKE_SIGN_FILE -Certificate $cert -HashAlgorithm SHA256",
     "if ($signed.Status -ne 'Valid') { throw $signed.StatusMessage }",

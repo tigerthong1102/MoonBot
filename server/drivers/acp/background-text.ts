@@ -1,6 +1,7 @@
 // One tool-free ACP exchange for memory upkeep: a fresh process and session, no MCP servers, an empty
 // folder. It fails closed: any agent request, or any tool call it reports, ends the call.
 import type { TextGenerationOptions, TextGenerationUsage } from "../../contracts.ts";
+import { SessionModelControls, type AcpModelSelection } from "./session-model-controls.ts";
 import type { BoxSpawnOptions, killCliTree, spawnCli } from "../../procs.ts";
 
 export const BACKGROUND_TEXT_TIMEOUT_MS = 120_000;
@@ -21,11 +22,12 @@ export interface AcpOneShotInput {
   prompt: string;
   /** The model usage is booked to when the session names none. */
   defaultModel: string;
+  selection?: AcpModelSelection;
   pickAuthMethod: (methods: Array<{ id?: string }>) => string | null;
   authRequired: boolean | "if-requested";
   loginNote: string;
   clientCapabilitiesMeta?: Record<string, unknown>;
-  configure?: (ctx: { request: (method: string, params: unknown, timeoutMs?: number) => Promise<any>; sessionId: string; session: any }) => Promise<void>;
+  configure?: (ctx: { request: (method: string, params: unknown, timeoutMs?: number) => Promise<any>; sessionId: string; session: any }) => Promise<void | string | null>;
   options?: TextGenerationOptions;
   timeoutMs?: number;
 }
@@ -44,6 +46,13 @@ export function runAcpOneShot(input: AcpOneShotInput): Promise<string> {
     let output = "";
     let sessionId: string | null = null;
     let model: string | undefined;
+    let modelState: unknown;
+    const selected = input.options?.model;
+    const controls = selected && input.selection ? new SessionModelControls({
+      selection: input.selection, variants: false, displayName: name,
+      model: () => selected, reportedModel: () => selected, state: () => modelState,
+      store: state => { modelState = state; }, report: () => {},
+    }) : undefined;
     let usage: TextGenerationUsage | undefined;
     let nextId = 1;
     const pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>();
@@ -78,10 +87,10 @@ export function runAcpOneShot(input: AcpOneShotInput): Promise<string> {
         child.stdin.write(`${JSON.stringify(message)}\n`);
       } catch {}
     };
-    const request = (method: string, params: unknown): Promise<any> => new Promise((ok, fail) => {
+    const request = (method: string, params: unknown, _timeoutMs?: number, receive?: (response: any) => void): Promise<any> => new Promise((ok, fail) => {
       if (settled) return fail(new Error(`${name} background call closed`));
       const id = nextId++;
-      pending.set(id, { resolve: ok, reject: fail });
+      pending.set(id, { resolve: response => { receive?.(response); ok(response); }, reject: fail });
       send({ jsonrpc: "2.0", id, method, params });
     });
 
@@ -105,6 +114,7 @@ export function runAcpOneShot(input: AcpOneShotInput): Promise<string> {
       if (sessionId !== null && msg.params?.sessionId !== undefined && msg.params.sessionId !== sessionId) return;
       const update = msg.params?.update;
       const kind = update?.sessionUpdate;
+      if (kind === "config_option_update" && sessionId && sessionId === msg.params?.sessionId) controls?.receive(update);
       if (kind === "tool_call" || kind === "tool_call_update") {
         finish(new Error(`${name} background call tried to use a tool`));
         return;
@@ -169,7 +179,21 @@ export function runAcpOneShot(input: AcpOneShotInput): Promise<string> {
       sessionId = session.sessionId;
       model = typeof session?.models?.currentModelId === "string" ? session.models.currentModelId
         : typeof init?._meta?.modelState?.currentModelId === "string" ? init._meta.modelState.currentModelId : undefined;
-      await input.configure?.({ request: (method, params) => request(method, params), sessionId: session.sessionId, session });
+      controls?.receive(session, true);
+      const nativeSelection = await input.configure?.({ request: async (method, params) => {
+        const response = await request(method, params);
+        controls?.receive(response);
+        if (method === "session/set_model" && params && typeof params === "object" && "modelId" in params && typeof params.modelId === "string") model = params.modelId;
+        return response;
+      }, sessionId: session.sessionId, session });
+      if (controls) {
+        model = await controls.select(request, session.sessionId, input.timeoutMs ?? BACKGROUND_TEXT_TIMEOUT_MS) ?? model;
+      } else if (nativeSelection) {
+        model = nativeSelection;
+      } else if (nativeSelection !== null && selected && model !== selected) {
+        await request("session/set_model", { sessionId, modelId: selected });
+        model = selected;
+      }
       const result = await request("session/prompt", { sessionId, prompt: [{ type: "text", text: input.prompt }] });
       const reported = result?.usage ?? result?._meta ?? {};
       const count = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined);

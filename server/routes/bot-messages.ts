@@ -61,7 +61,7 @@ export interface BotMessageRouteDeps {
   registry: Pick<ProviderRegistry, "get">;
   /** On a team: the words for a turn with no AI to answer with, having told who can connect one. */
   noAiRefusal?(threadId: string, sender: ResolvedSender | undefined, instanceId?: string): Error | null;
-  offerWorkBot?(botId: string, threadId: string, text: string, owner: string): void;
+  offerWorkBot?(botId: string, threadId: string, text: string, owner: string, messageId: string): void;
   routines(): RoutineManager | null;
   handoffs: Pick<Handoffs, "current" | "steered">;
   /** The turn running in a thread now, as its runtime events name it. */
@@ -348,7 +348,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
           personPresent, workBotOfferOwner, admin: owners.admin(auth), ...(followUp ? { followUp } : {}),
           ...(mentions?.length && !press && !appSent ? { mentions } : {}),
         }, guardedStart);
-        if ("message" in receipt && workBotOfferOwner !== undefined) deps.offerWorkBot?.(bot.id, threadId, typed, workBotOfferOwner);
+        if ("message" in receipt && workBotOfferOwner !== undefined) deps.offerWorkBot?.(bot.id, threadId, typed, workBotOfferOwner, receipt.message.id);
         press?.settle("queueId" in receipt ? receipt.queueId : undefined);
         appContext?.deliver();
         if (relayed && target && onBehalfOf) relayedReaction(threadId, target.id, onBehalfOf, relayed);
@@ -443,7 +443,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         for (const message of messages) handoffs.steered(bot.threadId, steerTarget, instance?.instanceId, message.id);
         const queueIds = held.items.map((item) => item.messageId);
         settleHeldSteeredQueue(held);
-        for (const item of held.items) if (typeof item.workBotOfferOwner === "string") deps.offerWorkBot?.(bot.id, bot.threadId, item.text, item.workBotOfferOwner);
+        for (const [index, item] of held.items.entries()) if (typeof item.workBotOfferOwner === "string") deps.offerWorkBot?.(bot.id, bot.threadId, item.text, item.workBotOfferOwner, messages[index]!.id);
         return json(res, 200, { ok: true, steered: true, threadId: bot.threadId, messages, queueIds });
       }
       if (steered === "indeterminate") {

@@ -42,6 +42,8 @@ export interface AcpTurn {
 }
 
 export interface AcpSession {
+  /** Picker and wire IDs resolved by the foreground turn on this conversation. */
+  backgroundRoute?: { picker: string; wire?: string };
   child: ReturnType<typeof spawnCli>;
   host: AcpHost;
   acp: AcpLink;

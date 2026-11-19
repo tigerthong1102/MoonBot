@@ -60,7 +60,9 @@ where they belong instead of adding new places.
   what will be kept. The person can cancel before deletion. Retaining a copy
   for Undo would defeat the request to erase the transcript.
   The main helper may offer a dedicated bot for work the person has just
-  described. This is an invitation to start a separate conversation. Keep
+  described, in any language. The decision uses the meaning of the message.
+  A pending offer for one responsibility leaves other subjects eligible.
+  This is an invitation to start a separate conversation. Keep
   it in the transcript, leave the composer available, and create the bot
   only when the person accepts, including on Full access.
 - **Bots set themselves up.** A new bot asks its questions in chat

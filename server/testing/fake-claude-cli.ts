@@ -501,7 +501,8 @@ if (["text", "json"].includes(argAfter("--output-format") ?? "")) {
   }
   // Background one-shots never overwrite the shared turn dump; FAKE_CLAUDE_TEXT_DUMP records them.
   const upkeepCall = /You are the (?:CAPTURE|TIDY|ORGANIZE) step of a memory system|You are the SKILL REVIEW step/.test(prompt);
-  const oneShotDump = process.env.FAKE_CLAUDE_TEXT_DUMP ?? (upkeepCall ? undefined : process.env.FAKE_CLAUDE_DUMP);
+  const workOffer = prompt.startsWith("Decide whether the person's message describes work worth following");
+  const oneShotDump = process.env.FAKE_CLAUDE_TEXT_DUMP ?? (upkeepCall || workOffer ? undefined : process.env.FAKE_CLAUDE_DUMP);
   if (oneShotDump) {
     writeDumpAtomic(
       oneShotDump,

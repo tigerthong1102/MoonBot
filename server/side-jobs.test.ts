@@ -209,6 +209,14 @@ describe("the setup card's answers", () => {
 });
 
 describe("who writes a small job", () => {
+  it("uses only the conversation engine for work suggestions and pins its model", async () => {
+    const { jobs, codex, claude } = setup({ helper: { instanceId: "claude" } });
+    await jobs.text("work-bot-offer", "codex", { model: "chosen-model" })?.generateText("Synthetic classification");
+    expect(codex.calls[0]?.options).toMatchObject({ model: "chosen-model", fallback: { model: "chosen-model" } });
+    expect(jobs.text("work-bot-offer", "pi")).toBeNull();
+    expect(claude.calls).toHaveLength(0);
+  });
+
   it("is the bot's own engine whenever it can: the helper is never called", async () => {
     const { jobs, state, claude, openrouter } = setup({ helper: { instanceId: "openrouter" } });
     for (const job of ["compaction", "memory", "skill-review", "setup-suggestions"] as const) {

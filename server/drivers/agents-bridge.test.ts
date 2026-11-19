@@ -252,6 +252,34 @@ describe("what a bridged turn is listed", () => {
 
 describe("find_tool", () => {
   it.each([
+    ["Tạo một bot chuyên soạn báo cáo", "create_bot"],
+    ["doi ten hoi thoai nay thanh Du an A", "rename_thread"],
+    ["Tạm dừng lịch đối soát", "trigger"],
+    ["Xóa lịch sử hội thoại này", "app_settings"],
+    ["Xóa lịch chạy cuối tuần", "delete_trigger"],
+  ])("finds the native tool for %s without executing it", async (query, expected) => {
+    expect((await found(bridgeFor(FULL_CHIEF), query)).matches[0]?.name).toBe(expected);
+  });
+
+  it("finds notification actions on the built-in helper", async () => {
+    const helper = createToolBridge(availableTools(catalogProfileFromEnv({ OMB_MAUSBOT: "1" })) as BridgeTool[]);
+    expect((await found(helper, "Đánh dấu thông báo đã đọc")).matches[0]?.name).toBe("mark_notifications_read");
+  });
+
+  it("keeps direct tools direct and omits tools the caller cannot use in Vietnamese", async () => {
+    expect((await bridgeFor().find({ query: "Liệt kê bot" })).text).toContain("list_bots is in your tool list");
+    expect((await found(bridgeFor(), "Tạo một bot")).matches).toEqual([]);
+    const mixed = await found(bridgeFor(), "Liệt kê bot rồi tạo lịch");
+    expect(mixed.next).toContain("list_bots is in your tool list");
+    expect(mixed.matches[0]?.name).toBe("trigger");
+  });
+
+  it.each([" and ", " và ", " va ", " và sau đó ", " va sau do ", " rồi ", "; ", ",", ". ", "\n"])("retains mixed search clauses joined by %s", async joiner => {
+    const bilingual = await found(bridgeFor(), `Đổi tên hội thoại${joiner}list_models`);
+    expect(names(bilingual.matches)).toEqual(expect.arrayContaining(["rename_thread", "list_models"]));
+  });
+
+  it.each([
     ["schedule a recurring task every morning", "trigger"],
     ["pause or resume one of my routines", "trigger"],
     ["what routines do I have", "trigger_info"],

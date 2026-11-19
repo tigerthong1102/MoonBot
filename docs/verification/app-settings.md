@@ -72,3 +72,23 @@ browser-profile and library-skill settings, turning a way in on but not off,
 and the owner-only list are covered by the unit tests in
 `server/app-settings/host.test.ts`. The fixture's engine reports no tool
 activity lines, so the secret check reads the thread as the fixture writes it.
+
+## Vietnamese commands in chat
+
+Try these in the built-in StartupBot conversation using a disposable workspace
+and a model that supports tools. The available actions depend on the bot's role
+and tool selection.
+
+| Request | Observable result |
+| --- | --- |
+| “Tạo một bot tên Trợ lý dữ liệu thử để kiểm tra tệp dữ liệu thử.” | A Chief of Staff creates one specialist in its section. Check the roster. |
+| “Đổi tên hội thoại này thành Đối soát thử.” | The current ordinary conversation has the new title. Its ID and messages are preserved. |
+| “Cho tôi xem thông báo chưa đọc.” | The built-in helper reads notifications available to it. |
+| “Xóa tin nhắn của hội thoại này.” | The confirmation card appears in the requesting conversation. The user decides whether to clear it. |
+
+The internal desktop smoke types the create, rename and clear requests through
+the packaged composer. The synthetic provider follows a script. For creation it
+passes the Vietnamese request to tool discovery and uses the returned tool
+name. The smoke reads back the new bot and the title of the original thread.
+It tests product execution and discovery independently of a live model's
+ability to interpret the request.

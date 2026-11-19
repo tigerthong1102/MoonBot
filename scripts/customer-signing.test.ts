@@ -16,6 +16,14 @@ describe("customer installers", () => {
     expect(customer.extraMetadata.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
+  it("leaves Android Platform Tools to the user on macOS and Windows", () => {
+    const base = parse(readFileSync("electron-builder.yml", "utf8"));
+    for (const platform of [base, base.mac, base.win]) {
+      expect(platform.extraResources).not.toContainEqual(expect.objectContaining({ to: "android-platform-tools" }));
+    }
+    expect(base.linux.extraResources).toContainEqual(expect.objectContaining({ to: "android-platform-tools" }));
+  });
+
   it.skipIf(process.platform !== "darwin")("rejects an intact unsigned DMG", () => {
     const fixture = mkdtempSync(join(tmpdir(), "startupbot-signing-"));
     try {

@@ -102,8 +102,6 @@ extraResources:
     to: companion
   - from: skills
     to: skills
-  - from: dist-native/android-platform-tools
-    to: android-platform-tools
 
 mac:
   # Two single-arch artifacts rather than one universal binary: the app is
@@ -231,6 +229,8 @@ linux:
   # The reviewed x64 CLI runtime is staged before packaging and remains
   # outside ASAR so executable modes and adjacent sidecars are preserved.
   extraResources:
+    - from: dist-native/android-platform-tools
+      to: android-platform-tools
     - from: dist-native/cua-linux-x64
       to: cua-linux-x64
     - from: dist-native/cloudflared/linux-x64/cloudflared

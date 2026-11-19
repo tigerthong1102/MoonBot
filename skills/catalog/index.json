@@ -1,0 +1,929 @@
+[
+  {
+    "name": "xlsx",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/xlsx",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/xlsx/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "scripts/office/helpers/__init__.py",
+      "scripts/office/helpers/pptx_chart.py",
+      "scripts/office/helpers/pptx_slide.py",
+      "scripts/office/helpers/pptx_theme.py",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "scripts/office/schemas/mce/mc.xsd",
+      "scripts/office/schemas/microsoft/wml-2010.xsd",
+      "scripts/office/schemas/microsoft/wml-2012.xsd",
+      "scripts/office/schemas/microsoft/wml-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "scripts/office/soffice.py",
+      "scripts/office/validate.py",
+      "scripts/office/validators/__init__.py",
+      "scripts/office/validators/base.py",
+      "scripts/office/validators/docx.py",
+      "scripts/office/validators/pptx.py",
+      "scripts/office/validators/redlining.py"
+    ]
+  },
+  {
+    "name": "pdf",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pdf",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pdf/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "docx",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/docx",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/docx/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "scripts/__init__.py",
+      "scripts/accept_changes.py",
+      "scripts/comment.py",
+      "scripts/merge_runs.py",
+      "scripts/office/helpers/__init__.py",
+      "scripts/office/helpers/pptx_chart.py",
+      "scripts/office/helpers/pptx_slide.py",
+      "scripts/office/helpers/pptx_theme.py",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "scripts/office/schemas/mce/mc.xsd",
+      "scripts/office/schemas/microsoft/wml-2010.xsd",
+      "scripts/office/schemas/microsoft/wml-2012.xsd",
+      "scripts/office/schemas/microsoft/wml-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "scripts/office/soffice.py",
+      "scripts/office/validate.py",
+      "scripts/office/validators/__init__.py",
+      "scripts/office/validators/base.py",
+      "scripts/office/validators/docx.py",
+      "scripts/office/validators/pptx.py",
+      "scripts/office/validators/redlining.py",
+      "scripts/templates/comments.xml",
+      "scripts/templates/commentsExtended.xml",
+      "scripts/templates/commentsExtensible.xml",
+      "scripts/templates/commentsIds.xml",
+      "scripts/templates/people.xml"
+    ]
+  },
+  {
+    "name": "pptx",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pptx",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pptx/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "scripts/__init__.py",
+      "scripts/add_slide.py",
+      "scripts/apply_theme.js",
+      "scripts/clean.py",
+      "scripts/office/helpers/__init__.py",
+      "scripts/office/helpers/pptx_chart.py",
+      "scripts/office/helpers/pptx_slide.py",
+      "scripts/office/helpers/pptx_theme.py",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+      "scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+      "scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+      "scripts/office/schemas/mce/mc.xsd",
+      "scripts/office/schemas/microsoft/wml-2010.xsd",
+      "scripts/office/schemas/microsoft/wml-2012.xsd",
+      "scripts/office/schemas/microsoft/wml-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+      "scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+      "scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+      "scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+      "scripts/office/soffice.py",
+      "scripts/office/validate.py",
+      "scripts/office/validators/__init__.py",
+      "scripts/office/validators/base.py",
+      "scripts/office/validators/docx.py",
+      "scripts/office/validators/pptx.py",
+      "scripts/office/validators/redlining.py",
+      "scripts/slide_text.py",
+      "scripts/thumbnail.py"
+    ]
+  },
+  {
+    "name": "internal-comms",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/internal-comms",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/internal-comms/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "frontend-design",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/frontend-design",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/frontend-design/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "gws-sheets",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-sheets",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "recipe-compare-sheet-tabs",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-compare-sheet-tabs",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "recipe-backup-sheet-as-csv",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-backup-sheet-as-csv",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "recipe-generate-report-from-sheet",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-generate-report-from-sheet",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "recipe-create-doc-from-template",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-create-doc-from-template",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "gws-workflow-meeting-prep",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-workflow-meeting-prep",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "gws-workflow-email-to-task",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-workflow-email-to-task",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "recipe-collect-form-responses",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/recipe-collect-form-responses",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "webapp-testing",
+    "source": "https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/webapp-testing",
+    "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/webapp-testing/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "google-analytics-data-api-basics",
+    "source": "https://github.com/google/skills/tree/06fff9e3edb7fc3c115a1769406047fcaf0a6289/skills/analytics/google-analytics-data-api-basics",
+    "licenseSource": "https://github.com/google/skills/blob/06fff9e3edb7fc3c115a1769406047fcaf0a6289/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "web-perf",
+    "source": "https://github.com/cloudflare/skills/tree/5108325ecceabc899c761e07aa617b09c02445ee/skills/web-perf",
+    "licenseSource": "https://github.com/cloudflare/skills/blob/5108325ecceabc899c761e07aa617b09c02445ee/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/skill-feedback.md"
+    ]
+  },
+  {
+    "name": "site-md",
+    "source": "https://github.com/google-labs-code/stitch-skills/tree/4cf4db8e4143b09e40f9bc887429d81f41ab3947/plugins/stitch-utilities/skills/site-md",
+    "licenseSource": "https://github.com/google-labs-code/stitch-skills/blob/4cf4db8e4143b09e40f9bc887429d81f41ab3947/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "earnings-analysis",
+    "source": "https://github.com/anthropics/financial-services/tree/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/plugins/vertical-plugins/equity-research/skills/earnings-analysis",
+    "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "comps-analysis",
+    "source": "https://github.com/anthropics/financial-services/tree/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/plugins/vertical-plugins/financial-analysis/skills/comps-analysis",
+    "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "dcf-model",
+    "source": "https://github.com/anthropics/financial-services/tree/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/plugins/vertical-plugins/financial-analysis/skills/dcf-model",
+    "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "thesis-tracker",
+    "source": "https://github.com/anthropics/financial-services/tree/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/plugins/vertical-plugins/equity-research/skills/thesis-tracker",
+    "licenseSource": "https://github.com/anthropics/financial-services/blob/3e32c2287dcb637c184c01cc0ad82d6af7e9bb0f/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "hyperframes",
+    "source": "https://github.com/heygen-com/hyperframes/tree/77ea9d80cfc8b347ccca966487a8ff902ce28320/skills/hyperframes",
+    "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "assets/frame-presets/biennale-yellow/FRAME.md",
+      "assets/frame-presets/biennale-yellow/caption-skin.html",
+      "assets/frame-presets/biennale-yellow/frame-showcase.html",
+      "assets/frame-presets/blockframe/FRAME.md",
+      "assets/frame-presets/blockframe/caption-skin.html",
+      "assets/frame-presets/blockframe/frame-showcase.html",
+      "assets/frame-presets/blue-professional/FRAME.md",
+      "assets/frame-presets/blue-professional/caption-skin.html",
+      "assets/frame-presets/blue-professional/frame-showcase.html",
+      "assets/frame-presets/bold-poster/FRAME.md",
+      "assets/frame-presets/bold-poster/caption-skin.html",
+      "assets/frame-presets/bold-poster/frame-showcase.html",
+      "assets/frame-presets/broadside/FRAME.md",
+      "assets/frame-presets/broadside/caption-skin.html",
+      "assets/frame-presets/broadside/frame-showcase.html",
+      "assets/frame-presets/capsule/FRAME.md",
+      "assets/frame-presets/capsule/caption-skin.html",
+      "assets/frame-presets/capsule/frame-showcase.html",
+      "assets/frame-presets/cartesian/FRAME.md",
+      "assets/frame-presets/cartesian/caption-skin.html",
+      "assets/frame-presets/cartesian/frame-showcase.html",
+      "assets/frame-presets/cobalt-grid/FRAME.md",
+      "assets/frame-presets/cobalt-grid/caption-skin.html",
+      "assets/frame-presets/cobalt-grid/frame-showcase.html",
+      "assets/frame-presets/code-editorial/FRAME.md",
+      "assets/frame-presets/code-editorial/caption-skin.html",
+      "assets/frame-presets/code-editorial/fonts/EBGaramond-400.woff2",
+      "assets/frame-presets/code-editorial/fonts/EBGaramond-700.woff2",
+      "assets/frame-presets/code-editorial/fonts/Inter-400.woff2",
+      "assets/frame-presets/code-editorial/fonts/Inter-700.woff2",
+      "assets/frame-presets/code-editorial/fonts/JetBrainsMono-400.woff2",
+      "assets/frame-presets/code-editorial/fonts/JetBrainsMono-700.woff2",
+      "assets/frame-presets/code-editorial/fonts/OFL-eb-garamond.txt",
+      "assets/frame-presets/code-editorial/fonts/OFL-inter.txt",
+      "assets/frame-presets/code-editorial/fonts/OFL-jetbrains-mono.txt",
+      "assets/frame-presets/code-editorial/frame-showcase.html",
+      "assets/frame-presets/coral/FRAME.md",
+      "assets/frame-presets/coral/caption-skin.html",
+      "assets/frame-presets/coral/frame-showcase.html",
+      "assets/frame-presets/creative-mode/FRAME.md",
+      "assets/frame-presets/creative-mode/caption-skin.html",
+      "assets/frame-presets/creative-mode/frame-showcase.html",
+      "assets/frame-presets/daisy-days/FRAME.md",
+      "assets/frame-presets/daisy-days/caption-skin.html",
+      "assets/frame-presets/daisy-days/frame-showcase.html",
+      "assets/frame-presets/editorial-forest/FRAME.md",
+      "assets/frame-presets/editorial-forest/caption-skin.html",
+      "assets/frame-presets/editorial-forest/frame-showcase.html",
+      "references/captions.md",
+      "references/film.md",
+      "references/format.md",
+      "references/look.md",
+      "references/motion.md",
+      "references/overlays.md",
+      "references/path-tracing.md",
+      "references/plugin-installation.md",
+      "references/review.md",
+      "references/runtimes.md",
+      "references/skill-lifecycle.md",
+      "references/sound.md",
+      "references/spec.md",
+      "references/story.md",
+      "references/storyboard-format.md",
+      "references/storyboard.md",
+      "references/types/3d.md",
+      "references/types/character.md",
+      "references/types/data.md",
+      "references/types/explainer.md",
+      "references/types/launch.md",
+      "references/types/music.md",
+      "references/types/vertical.md",
+      "scripts/bake-basemap.mjs",
+      "scripts/lib/main-module.mjs",
+      "scripts/lib/main-module.test.mjs",
+      "scripts/lib/windows-exe-search.mjs",
+      "scripts/lib/windows-exe-search.test.mjs",
+      "scripts/locate.mjs",
+      "scripts/locate.test.mjs",
+      "scripts/plugin-cli.mjs",
+      "scripts/plugin-cli.test.mjs"
+    ]
+  },
+  {
+    "name": "hyperframes-cli",
+    "source": "https://github.com/heygen-com/hyperframes/tree/77ea9d80cfc8b347ccca966487a8ff902ce28320/skills/hyperframes-cli",
+    "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/beats.md",
+      "references/cloud.md",
+      "references/cloudrun.md",
+      "references/compare-and-batch.md",
+      "references/conventions.md",
+      "references/doctor-browser.md",
+      "references/feedback.md",
+      "references/init-and-scaffold.md",
+      "references/lambda.md",
+      "references/lint-validate-inspect.md",
+      "references/preview-render.md",
+      "references/upgrade-info-misc.md"
+    ]
+  },
+  {
+    "name": "gemini-api",
+    "source": "https://github.com/google/skills/tree/06fff9e3edb7fc3c115a1769406047fcaf0a6289/skills/cloud/gemini-api",
+    "licenseSource": "https://github.com/google/skills/blob/06fff9e3edb7fc3c115a1769406047fcaf0a6289/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/advanced_features.md",
+      "references/attribution.md",
+      "references/bounding_box.md",
+      "references/embeddings.md",
+      "references/live_api.md",
+      "references/media_generation.md",
+      "references/model_tuning.md",
+      "references/safety.md",
+      "references/structured_and_tools.md",
+      "references/text_and_multimodal.md"
+    ]
+  },
+  {
+    "name": "campaign-plan",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/skills/campaign-plan",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "competitive-brief",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/skills/competitive-brief",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "performance-report",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/skills/performance-report",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "seo-audit",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/skills/seo-audit",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/marketing/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "google-ads-api-mcp-setup",
+    "source": "https://github.com/google/skills/tree/06fff9e3edb7fc3c115a1769406047fcaf0a6289/skills/ads/google-ads-api-mcp-setup",
+    "licenseSource": "https://github.com/google/skills/blob/06fff9e3edb7fc3c115a1769406047fcaf0a6289/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/tools.md"
+    ]
+  },
+  {
+    "name": "google-ads-api-account-diagnostics",
+    "source": "https://github.com/google/skills/tree/06fff9e3edb7fc3c115a1769406047fcaf0a6289/skills/ads/google-ads-api-account-diagnostics",
+    "licenseSource": "https://github.com/google/skills/blob/06fff9e3edb7fc3c115a1769406047fcaf0a6289/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "apify-ecommerce",
+    "source": "https://github.com/apify/awesome-skills/tree/851fdfd7d4fe2ba36a9f48048ced4299a8e0512b/skills/apify-ecommerce",
+    "licenseSource": "https://github.com/apify/awesome-skills/blob/851fdfd7d4fe2ba36a9f48048ced4299a8e0512b/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "shopify",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/shopify",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ]
+  },
+  {
+    "name": "woocommerce",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/woocommerce",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ]
+  },
+  {
+    "name": "byted-seedance-video-generate",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedance-video-generate",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedance-video-generate/LICENSE.txt",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "byted-seedream-image-generate",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedream-image-generate",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-seedream-image-generate/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "byted-text-to-speech",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-text-to-speech",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-text-to-speech/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "references/docs-index.md",
+      "references/setup-guide.md",
+      "requirements.txt",
+      "scripts/api_key.py",
+      "scripts/text_to_speech.py"
+    ]
+  },
+  {
+    "name": "byted-las-asr-pro",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-las-asr-pro",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-las-asr-pro/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "byted-kickart-video-subtitler",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-kickart-video-subtitler",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-kickart-video-subtitler/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "scripts/core/__init__.py",
+      "scripts/core/api/iccp/client.py",
+      "scripts/core/api/iccp/service.py",
+      "scripts/core/api/meida/chunks.py",
+      "scripts/core/api/meida/media.py",
+      "scripts/core/auth/__init__.py",
+      "scripts/core/auth/strategy.py",
+      "scripts/core/utils/downloader.py",
+      "scripts/core/utils/extractor.py",
+      "scripts/core/utils/hash.py",
+      "scripts/core/utils/matriel.py",
+      "scripts/core/utils/validator.py",
+      "scripts/plan.py",
+      "scripts/requirements.txt",
+      "scripts/subtitler.py",
+      "scripts/upgrade.py",
+      "scripts/upload.py"
+    ]
+  },
+  {
+    "name": "byted-las-pdf-parse-doubao",
+    "source": "https://github.com/bytedance/agentkit-samples/tree/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-las-pdf-parse-doubao",
+    "licenseSource": "https://github.com/bytedance/agentkit-samples/blob/909a2b4d4365e0d897d98afc86aeef3c20c2f06c/skills/byted-las-pdf-parse-doubao/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "generated-ui",
+    "source": "https://github.com/QwenLM/qwen-code/tree/d79bb9b712119392a3df0174054120e6ab54cb97/integrations/generated-ui/skills/generated-ui",
+    "licenseSource": "https://github.com/QwenLM/qwen-code/blob/d79bb9b712119392a3df0174054120e6ab54cb97/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "dataviz",
+    "source": "https://github.com/QwenLM/qwen-code/tree/d79bb9b712119392a3df0174054120e6ab54cb97/packages/core/src/skills/bundled/dataviz",
+    "licenseSource": "https://github.com/QwenLM/qwen-code/blob/d79bb9b712119392a3df0174054120e6ab54cb97/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "translate-docs",
+    "source": "https://github.com/MoonshotAI/kimi-cli/tree/9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82/.agents/skills/translate-docs",
+    "licenseSource": "https://github.com/MoonshotAI/kimi-cli/blob/9ab1286b8fe4e6bcd116949a27ce5e0ac3389c82/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "chengfeng-cut",
+    "source": "https://github.com/Agentchengfeng/chengfeng-videocut-skills/tree/a33b43e08c34fa8beeb5e78498e852f4e80975a5/plugins/chengfeng-videocut/skills/chengfeng-cut",
+    "licenseSource": "https://github.com/Agentchengfeng/chengfeng-videocut-skills/blob/a33b43e08c34fa8beeb5e78498e852f4e80975a5/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "chengfeng-subtitle",
+    "source": "https://github.com/Agentchengfeng/chengfeng-videocut-skills/tree/a33b43e08c34fa8beeb5e78498e852f4e80975a5/plugins/chengfeng-videocut/skills/chengfeng-subtitle",
+    "licenseSource": "https://github.com/Agentchengfeng/chengfeng-videocut-skills/blob/a33b43e08c34fa8beeb5e78498e852f4e80975a5/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "startup-idea",
+    "source": "https://github.com/fabricioctelles/skills/tree/c491efea06e200e847c416effb87e566d6face3b/skills/startup-idea",
+    "licenseSource": "https://github.com/fabricioctelles/skills/blob/c491efea06e200e847c416effb87e566d6face3b/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "evals/evals.json"
+    ]
+  },
+  {
+    "name": "product-discovery",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/product-discovery",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ]
+  },
+  {
+    "name": "synthesize-research",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/skills/synthesize-research",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "write-spec",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/skills/write-spec",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "pricing-strategy",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/pricing-strategy",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ]
+  },
+  {
+    "name": "business-finance-fundamentals",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/business-finance-fundamentals",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ]
+  },
+  {
+    "name": "producthunt",
+    "source": "https://github.com/ReScienceLab/opc-skills/tree/0c44a6a6e654c38cfd3c8aceda86d7d8de40a183/skills/producthunt",
+    "licenseSource": "https://github.com/ReScienceLab/opc-skills/blob/0c44a6a6e654c38cfd3c8aceda86d7d8de40a183/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      ".claude-plugin/plugin.json"
+    ]
+  },
+  {
+    "name": "draft-outreach",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/sales/skills/draft-outreach",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/sales/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "pipeline-review",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/sales/skills/pipeline-review",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/sales/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "roadmap-update",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/skills/roadmap-update",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "sprint-planning",
+    "source": "https://github.com/anthropics/knowledge-work-plugins/tree/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/skills/sprint-planning",
+    "licenseSource": "https://github.com/anthropics/knowledge-work-plugins/blob/b4c9a4e1de4b42868b74a6fe30ac766f64e43a3e/product-management/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "team-leadership",
+    "source": "https://github.com/TerminalSkills/skills/tree/42289059901710441bfa8081c08c3a9f36b93f9c/skills/team-leadership",
+    "licenseSource": "https://github.com/TerminalSkills/skills/blob/42289059901710441bfa8081c08c3a9f36b93f9c/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": [
+      "_scores.json"
+    ]
+  },
+  {
+    "name": "gws-shared",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-shared",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "gws-docs",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-docs",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "gws-drive",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-drive",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  },
+  {
+    "name": "gws-forms",
+    "source": "https://github.com/googleworkspace/cli/tree/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/skills/gws-forms",
+    "licenseSource": "https://github.com/googleworkspace/cli/blob/cd3697e07eb520056dcf142d0c7439bbb9ba32e9/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md"
+    ],
+    "excludedFiles": []
+  }
+]

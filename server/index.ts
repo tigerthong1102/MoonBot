@@ -498,6 +498,7 @@ import {
   skillsLibraryEnabled, readSkillLibraryIndex,
 } from "./skill-library.ts";
 import { runSkillsLibraryBootSweep } from "./skills-library-migration.ts";
+import { installStartupBotSkillCatalog } from "./startupbot-skill-catalog.ts";
 import { installedPlaybookInstructions } from "./installed-playbooks.ts";
 import { picture as sharedPicture, type TeamExportSkip } from "./package-export.ts";
 import type { PackageImportDeps } from "./package-import.ts";
@@ -2879,6 +2880,13 @@ if (skillsLibraryEnabled(cfg)) {
     }
   } catch (error) {
     console.error(`[skills-library] boot sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  try {
+    const { installed, failed } = installStartupBotSkillCatalog();
+    if (installed) console.log(`[skills-library] added ${installed} catalog skills for review`);
+    for (const failure of failed) console.warn(`[skills-library] catalog: ${failure}`);
+  } catch (error) {
+    console.error(`[skills-library] catalog could not be read: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 // Reconcile stale bot references before Electron can ACK the journal, so id reuse never attaches a bot to someone else's new account.

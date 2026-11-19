@@ -85,7 +85,7 @@ import {
   doubleEnterSteersQueue,
   roomSteersQueued,
 } from "./ComposerQueuedMessages";
-import { skillAuthoringEnabled } from "@/lib/feature-flags";
+import { skillAuthoringEnabled, skillsLibraryEnabled } from "@/lib/feature-flags";
 import { mentionChoicesForQuery, mentionQueryAt } from "@/lib/mentions"; import { mentionPicksFor, restoreMentionPicks } from "@/lib/mention-picks";
 import { serializeThreadRefs, threadTokenFromPaste, threadTokenSpacing } from "@/lib/thread-refs";
 import {
@@ -94,10 +94,13 @@ import {
   builtInCommandText,
   replaceComposerSlashTrigger,
   skillSlashCommands,
-  slashCommandMatches,
+  composerBuiltIns, rankSlashCommands,
   type ComposerSlashCommand,
 } from "@/lib/composer-commands";
 import { useSlashSkills } from "@/lib/use-slash-skills";
+import { recordSlashSkillUse, slashSkillUsage } from "@/lib/slash-skill-usage";
+import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
+import { useSlashLibraryActivation } from "./use-slash-library-activation";
 import { randomUuid } from "@/lib/random-uuid";
 
 const supportsAgents = (instances: InstanceInfo[], candidate?: Bot) =>
@@ -297,36 +300,17 @@ export function Composer({
 
   const slash = composerSlashTrigger(text, caret);
   const locale = activeLocale();
-  const slashSkills = useSlashSkills(group ? undefined : bot?.id, threadId, Boolean(slash) && slash?.start !== dismissedSlashAt);
+  const ownerOrAdmin = useOwnerOrAdmin();
+  const allowLibrary = skillsLibraryEnabled(state.config) && !window.ogb?.remoteClient?.active && (!state.config?.team || ownerOrAdmin === true);
+  const slashOpen = Boolean(slash && slash.start !== dismissedSlashAt);
+  const slashSkills = useSlashSkills(group ? undefined : bot?.id, threadId, slashOpen, allowLibrary, locale);
+  const activation = useSlashLibraryActivation(group ? undefined : bot?.id, threadId, (message) => dispatch({ type: "error", message }));
   const canLearn = skillAuthoringEnabled(state.config) &&
     (group ? (members ?? []).some((member) => supportsAgents(state.instances, member)) : supportsAgents(state.instances, bot));
-  const commandCandidates = useMemo(() => {
-    if (!slash || slash.start === dismissedSlashAt) return [];
-    const available: ComposerSlashCommand[] = [];
-    const builtIns = slash.start === 0; // Built-in commands only work at the start of a message; skills can be named anywhere.
-    if (builtIns && !group?.dm) available.push({
-      kind: "command",
-      id: "goal",
-      label: "/goal",
-      description: t(group ? "composer.command.goalDesc" : "composer.command.goalBotDesc"),
-    });
-    if (builtIns && canLearn) {
-      available.push({
-        kind: "command",
-        id: "learn",
-        label: "/learn",
-        description: t("composer.command.learnDesc"),
-      });
-    }
-    if (builtIns && !group && supportsAgents(state.instances, bot)) available.push({
-      kind: "command",
-      id: "setup",
-      label: "/setup",
-      description: t("composer.command.setupDesc"),
-    }, { kind: "command", id: "burst", label: "/burst", description: t("composer.command.burstDesc") });
-    available.push(...skillSlashCommands(slashSkills));
-    return available.filter((command) => slashCommandMatches(command, slash.query));
-  }, [slash, dismissedSlashAt, group, bot, canLearn, state.instances, locale, slashSkills]);
+  const commandCandidates = slash && slashOpen ? rankSlashCommands([
+    ...(slash.start === 0 ? composerBuiltIns(!group, Boolean(group?.dm), canLearn, !group && supportsAgents(state.instances, bot)) : []),
+    ...skillSlashCommands(slashSkills),
+  ], slash.query, slashSkillUsage()) : [];
   const commandPickerOpen = commandCandidates.length > 0;
 
   const mention = mentionQueryAt(text, caret); const teammates = useTeammates(); const viewer = useViewerEmail();
@@ -393,14 +377,19 @@ export function Composer({
     const replacement = command.kind === "skill" ? `${command.label}${spaceAfter}`
       : builtInCommandText(command.id);
     const next = replaceComposerSlashTrigger(text, slash, replacement);
-    editText(next.text);
-    setCaret(next.caret);
-    setDismissedSlashAt(slash.start);
-    setChannelMode(command.kind === "command" && command.id === "goal" ? "goal" : "chat");
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.setSelectionRange(next.caret, next.caret);
-    });
+    const revision = draftRevision(draftId);
+    const insert = () => {
+      if (draftRevision(draftId) !== revision) return;
+      editText(next.text);
+      setCaret(next.caret);
+      setDismissedSlashAt(slash.start);
+      setChannelMode(command.kind === "command" && command.id === "goal" ? "goal" : "chat");
+      requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.setSelectionRange(next.caret, next.caret); });
+    };
+    if (command.kind === "skill" && command.activate) {
+      setDismissedSlashAt(slash.start);
+      void activation.pick(command, insert);
+    } else insert();
   };
   const teachTask = () => {
     const learn = "/learn ";
@@ -547,11 +536,11 @@ export function Composer({
     if (group) {
       dispatch({ type: "sendGroup", groupId: group.id, mode: failedMode, ...retry });
     } else if (bot) {
-      dispatch({ type: "send", botId: bot.id, mode: failedMode, followUp: failed.followUp, ...retry });
+      dispatch({ type: "send", botId: bot.id, mode: failedMode, followUp: failed.followUp, ...retry, onAccepted: () => recordSlashSkillUse(failed.text, failed.sendId) });
     }
   };
   const send = (followUp: FollowUp | undefined = followUpFor(false)) => {
-    if (locked || attachmentPending) return;
+    if (locked || attachmentPending || activation.pending) return;
     if (
       attachments.some((attachment) => attachment.kind === "image") &&
       !imageTargetsSupport(effectiveText, effectiveChannelMode)
@@ -596,6 +585,7 @@ export function Composer({
       dispatch({
         type: "send", botId: bot.id, text: body, sendId: sentDraft.sendId, replyToId: replyTo?.id, threadId, dataContext, mode: effectiveChannelMode, mentions: sentDraft.mentions,
         ...(points ? { pointed: points.pointed } : {}), ...(page ? { openPage: page } : {}), ...(followUp ? { followUp } : {}),
+        onAccepted: () => recordSlashSkillUse(effectiveText, sentDraft.sendId),
         onError: () => { points?.restore(); restoreDraft(sentDraft); },
       });
       directMessageSent(state.instances, bot.modelSelection?.instanceId, busy && followUp !== "steer");
@@ -729,6 +719,7 @@ export function Composer({
         ))}
         <SlashCommandMenu listRef={commandListRef} motion={commandMotion} commands={commandCandidates} highlight={highlight}
           onPick={pickCommand} onHighlight={setHighlight} />
+        {activation.dialog}
         <MentionMenu listRef={mentionListRef} motion={mentionMotion} choices={candidates} highlight={highlight}
           everyoneCount={mentionEveryoneCount} onPick={pickMention} onHighlight={setHighlight} />
         {approval && (

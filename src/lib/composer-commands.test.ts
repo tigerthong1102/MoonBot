@@ -1,13 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { activeLocale, loadLocale, setLocale, t } from "./i18n";
 import {
   composerSlashTrigger,
   goalTextFromComposer,
   replaceComposerSlashTrigger,
-  skillSlashCommands,
+  skillSlashCommands, rankSlashCommands,
   slashCommandMatches,
   type ComposerSlashCommandId, builtInCommandText } from "./composer-commands";
-import { enabledSlashSkills } from "./use-slash-skills";
+import { composerSkills } from "./use-slash-skills";
+import { recordSlashSkillUse, slashSkillUsage } from "./slash-skill-usage";
 
 describe("composer slash commands", () => {
   it("opens command search for the unfinished slash token at the caret", () => {
@@ -103,17 +104,60 @@ describe("composer slash commands", () => {
     ).toEqual({ text: "/standup ", caret: 9 });
   });
 
+  it("ranks repeated accepted skill commands above other options, while exact names win a search", () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value) });
+    try {
+      recordSlashSkillUse("/pdf và /pdf", "one");
+      recordSlashSkillUse("/pdf", "one");
+      recordSlashSkillUse("Dùng /hyperframes và `/pdf`", "two");
+      recordSlashSkillUse("/hyperframes", "three");
+      expect(slashSkillUsage()).toEqual(new Map([["hyperframes", 2], ["pdf", 1]]));
+      const rows = skillSlashCommands([
+        { name: "pdf", description: "Đọc tài liệu PDF." },
+        { name: "hyperframes", description: "Tạo video." },
+        { name: "hyperframes-cli", description: "Dùng CLI." },
+      ]);
+      expect(rankSlashCommands(rows, "", slashSkillUsage()).map((row) => row.id)).toEqual(["hyperframes", "pdf", "hyperframes-cli"]);
+      expect(rankSlashCommands(rows, "hyperframes-cli", slashSkillUsage()).map((row) => row.id)).toEqual(["hyperframes-cli"]);
+      expect(rankSlashCommands(rows, "tai", slashSkillUsage()).map((row) => row.id)).toEqual(["pdf"]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("offers assignable and disabled library skills to managers without shadowing an existing skill", () => {
+    const body = {
+      skills: [
+        { name: "standup", enabled: true },
+        { name: "archive", enabled: false, origin: "private" },
+        { name: "pdf", enabled: false, origin: "library" },
+      ],
+      library: [
+        { name: "standup", enabled: true },
+        { name: "archive", enabled: false },
+        { name: "hyperframes", enabled: true },
+      ],
+    };
+    expect(composerSkills(body, false).map((skill) => skill.name)).toEqual(["standup"]);
+    expect(composerSkills(body, true)).toEqual([
+      { name: "standup", description: "" },
+      { name: "hyperframes", description: "", activate: { enabled: true, warnings: [] } },
+      { name: "pdf", description: "", activate: { enabled: false, warnings: [] } },
+    ]);
+  });
+
   it("reads only enabled, named skills from the skills listing", () => {
-    expect(enabledSlashSkills({ skills: [
+    expect(composerSkills({ skills: [
       { name: "standup", description: "Writes the note.", enabled: true },
       { name: "draft", description: "Off for now.", enabled: false },
       { name: 7, description: "broken", enabled: true },
       { name: "bare", enabled: true },
-    ] })).toEqual([
+    ] }, false)).toEqual([
       { name: "standup", description: "Writes the note." },
       { name: "bare", description: "" },
     ]);
-    expect(enabledSlashSkills(null)).toEqual([]);
+    expect(composerSkills(null, false)).toEqual([]);
   });
 });
 

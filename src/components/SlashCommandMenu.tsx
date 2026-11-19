@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n";
 import type { ComposerSlashCommand } from "@/lib/composer-commands";
 import type { MenuMotion } from "./MenuMotion";
 
-/** The composer's / list: room commands like /goal, then the bot's skills. */
+/** The composer's / list: built-in commands and skills. */
 export function SlashCommandMenu({ listRef, motion, commands, highlight, onPick, onHighlight }: {
   listRef: RefObject<HTMLDivElement | null>;
   motion: MenuMotion;
@@ -53,7 +53,7 @@ export function SlashCommandMenu({ listRef, motion, commands, highlight, onPick,
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-[14px] font-medium text-accent">{command.label}</span>
               {command.kind === "skill" && (
-                <span className="shrink-0 rounded-full bg-accent/10 px-1.5 text-[11px] font-medium leading-4 text-accent">{t("composer.command.skillTag")}</span>
+                <span className="shrink-0 rounded-full bg-accent/10 px-1.5 text-[11px] font-medium leading-4 text-accent">{t(command.activate && !command.activate.enabled ? "approval.action.enable" : "composer.command.skillTag")}</span>
               )}
             </span>
             <span className="block truncate text-xs text-ink-secondary">

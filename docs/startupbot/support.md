@@ -6,6 +6,7 @@ Trong đợt sử dụng nội bộ, liên hệ riêng với người đã bàn 
 | --- | --- |
 | macOS chặn bản tải về | Kiểm tra nguồn cung cấp và SHA-256 của DMG. Liên hệ người cấp bộ cài để nhận bản có chữ ký Developer ID và notarization phù hợp. |
 | Mở được app nhưng khóa đã lưu chưa dùng được | Mở khóa Keychain của tài khoản rồi thoát và mở lại StartupBot. Thao tác reset saved keys cần người dùng xác nhận. |
+| Điện thoại mở nhầm ứng dụng hoặc không tìm thấy máy tính | Trên cùng Wi-Fi tin cậy, mở mục ghép nối trong StartupBot trên máy tính và tạo mã QR mới. Nếu nhập thủ công, dùng cả địa chỉ và cổng mà StartupBot hiển thị. |
 | Model chưa trả lời hoặc báo hết quota | Kiểm tra engine đã chọn. Với Ollama, kiểm tra dịch vụ và model trên máy. Với nhà cung cấp trả phí, kiểm tra hạn mức trong tài khoản của bạn. Chỉ gửi mã lỗi và tên model. |
 | Số tiền sai | Dùng Data → Đối chiếu chứng từ với tệp nghiệp vụ và báo cáo đối chứng cùng công ty, kỳ. Giữ báo cáo HTML để người có quyền kiểm tra. |
 | Nghi mất dữ liệu | Giữ nguyên workspace hiện tại và bản sao lưu. Trước khi nhập bản sao, kiểm tra preview và vị trí đích. REPLACE thay thế workspace đích. |

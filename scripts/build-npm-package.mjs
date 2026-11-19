@@ -34,7 +34,7 @@ if (existsSync(enterpriseBundle)) {
     if (existsSync(join(root, "enterprise", file))) copyFileSync(join(root, "enterprise", file), join(out, "enterprise", file));
   }
 }
-cpSync(join(root, "LICENSE"), join(out, "LICENSE"));
+for (const file of ["LICENSE", "NOTICE"]) copyFileSync(join(root, file), join(out, file));
 
 // The bin lives next to the bundle so serverEntry() finds index.js by path.
 writeFileSync(join(out, "cli.js"), `#!/usr/bin/env node\nimport "./dist-server/openmausbot.js";\n`);
@@ -58,10 +58,10 @@ writeFileSync(
         "@duckdb/node-api": app.dependencies["@duckdb/node-api"],
         "@resvg/resvg-js": app.dependencies["@resvg/resvg-js"],
       },
-      files: ["cli.js", "dist-server", "dist", "skills", "enterprise", "LICENSE", "README.md"],
+      files: ["cli.js", "dist-server", "dist", "skills", "enterprise", "LICENSE", "NOTICE", "README.md"],
       engines: { node: ">=24" },
-      repository: { type: "git", url: "https://github.com/milind-soni/OpenMausBot.git" },
-      homepage: "https://github.com/milind-soni/OpenMausBot#readme",
+      repository: { type: "git", url: "https://github.com/tigerthong1102/MoonBot.git" },
+      homepage: "https://github.com/tigerthong1102/MoonBot#readme",
       keywords: ["openmausbot", "agents", "self-hosted", "server"],
     },
     null,
@@ -158,9 +158,9 @@ openmausbot run "Room Lead" "Rehearse the launch of https://example.com" --expor
 openmausbot help run       # every verb: doctor, run, wait, send, export, events, team, engine, connect, mcp
 \`\`\`
 
-[Setup guide](https://github.com/milind-soni/OpenMausBot/blob/main/docs/cli-onboarding.md)
-· [Scripts and CI](https://github.com/milind-soni/OpenMausBot/blob/main/docs/headless-cli.md)
-· [Hosting guide](https://github.com/milind-soni/OpenMausBot/blob/main/docs/self-hosting.md)
+[Setup guide](https://github.com/tigerthong1102/MoonBot/blob/main/docs/cli-onboarding.md)
+· [Scripts and CI](https://github.com/tigerthong1102/MoonBot/blob/main/docs/headless-cli.md)
+· [Hosting guide](https://github.com/tigerthong1102/MoonBot/blob/main/docs/self-hosting.md)
 `,
 );
 console.log(`npm package assembled at ${out} (openmausbot@${app.version})`);

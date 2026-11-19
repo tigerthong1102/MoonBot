@@ -27,7 +27,7 @@ export function deviceWord(platform: LentPlatform | null | undefined): "PC" | "M
   return platform === "win32" ? "PC" : platform === "darwin" ? "Mac" : "computer";
 }
 
-/** Their computer as they know it: "their PC (MILIND-PC)" on Windows, "their Mac (…)" only on a Mac, else "their own computer". */
+/** Their computer as they know it: "their PC (MINH-PC)" on Windows, "their Mac (…)" only on a Mac, else "their own computer". */
 export function theirComputer(lent: ReadonlyArray<{ name: string; platform: LentPlatform | null }>): { theirs: string; device: "PC" | "Mac" | "computer" } {
   const latest = lent[0];
   if (!latest) return { theirs: "their own computer", device: "computer" };

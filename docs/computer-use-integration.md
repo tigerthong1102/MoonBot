@@ -52,7 +52,7 @@ capability and is currently unavailable on Windows.
 
 ## Local desktop use: CUA only — Electron owns the driver lifecycle
 
-**Decision (Milind, 2026-08-12): CUA is the ONLY local desktop-control provider.
+**CUA is the ONLY local desktop-control provider.
 No cliclick, no robotjs/nut.js, no Python computer-server, no fallbacks.**
 All local desktop-control and input actions go through the validated
 `cua-driver` binary. Linux screen preview uses the supported Xorg or

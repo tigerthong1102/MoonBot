@@ -17,20 +17,20 @@ class MessageAttachmentsTest {
             LocalMessageLink.resolve("https://example.com/report.md?q=1"),
         )
         assertEquals(
-            LocalMessageLink.DesktopFile("/Users/milind/Documents/report.md"),
-            LocalMessageLink.resolve("/Users/milind/Documents/report.md"),
+            LocalMessageLink.DesktopFile("/Users/minh/Documents/report.md"),
+            LocalMessageLink.resolve("/Users/minh/Documents/report.md"),
         )
         assertEquals(
-            LocalMessageLink.DesktopFile("/Users/milind/My Report.md"),
-            LocalMessageLink.resolve("file:///Users/milind/My%20Report.md"),
+            LocalMessageLink.DesktopFile("/Users/minh/My Report.md"),
+            LocalMessageLink.resolve("file:///Users/minh/My%20Report.md"),
         )
         assertEquals(
-            LocalMessageLink.DesktopFile("""C:\Users\Milind\report.md"""),
-            LocalMessageLink.resolve("""C:\Users\Milind\report.md"""),
+            LocalMessageLink.DesktopFile("""C:\Users\Minh\report.md"""),
+            LocalMessageLink.resolve("""C:\Users\Minh\report.md"""),
         )
         assertEquals(
-            LocalMessageLink.DesktopFile("C:/Users/Milind/report.md"),
-            LocalMessageLink.resolve("file:///C:/Users/Milind/report.md"),
+            LocalMessageLink.DesktopFile("C:/Users/Minh/report.md"),
+            LocalMessageLink.resolve("file:///C:/Users/Minh/report.md"),
         )
         assertEquals(
             LocalMessageLink.DesktopFile("""\\server\share\report.md"""),

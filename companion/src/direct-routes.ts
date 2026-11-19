@@ -31,10 +31,10 @@ export function setDirectRoutes(next: { wifi?: unknown; tailscale?: unknown; tai
   return current;
 }
 
-/** `OMB_COMPANION_ROUTES` is a comma list of `wifi` and `tailscale` (empty for neither); unset means Same Wi-Fi. */
-export function directRoutesFromEnv(env: NodeJS.ProcessEnv): DirectRoutes {
-  const listed = env.OMB_COMPANION_ROUTES;
-  const names = listed === undefined ? ["wifi"] : listed.split(",").map((part) => part.trim().toLowerCase());
+/** `OMB_COMPANION_ROUTES` is a comma list of `wifi` and `tailscale` (empty for neither); when unset, only a standalone server defaults to Same Wi-Fi. */
+export function directRoutesFromEnv(env: NodeJS.ProcessEnv, standalone = true): DirectRoutes {
+  const listed = env.OMB_COMPANION_ROUTES ?? (standalone ? "wifi" : "");
+  const names = listed.split(",").map((part) => part.trim().toLowerCase());
   return setDirectRoutes({
     wifi: names.includes("wifi"),
     tailscale: names.includes("tailscale"),

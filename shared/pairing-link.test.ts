@@ -28,17 +28,17 @@ describe("phonePairingLink", () => {
       port: 8810,
       code: "004209",
       token,
-      name: "Milind's Mac",
+      name: "Test Mac",
       secretPublicKey,
     });
 
     const url = new URL(link!);
-    expect(url.protocol).toBe("openmausbot:");
+    expect(url.protocol).toBe("startupbot:");
     expect(url.host).toBe("pair");
     expect(url.searchParams.get("address")).toBe("macbook.tail1234.ts.net:8810");
     expect(url.searchParams.get("token")).toBe(token);
     expect(url.searchParams.get("code")).toBe("004209");
-    expect(url.searchParams.get("name")).toBe("Milind's Mac");
+    expect(url.searchParams.get("name")).toBe("Test Mac");
     expect(url.searchParams.get("secretKey")).toBe(secretPublicKey);
   });
 
@@ -155,10 +155,10 @@ describe("phonePairingLink", () => {
 
   it("is the server's link too: an https origin, a credential, a name and no code", () => {
     const link = phonePairingLink({ address: "https://mini.example", token, name: "Ada's server" })!;
-    expect(link).toBe(`openmausbot://pair?address=https%3A%2F%2Fmini.example&token=${token}&name=Ada's%20server`);
+    expect(link).toBe(`startupbot://pair?address=https%3A%2F%2Fmini.example&token=${token}&name=Ada's%20server`);
     expect(rawField(link, "code")).toBeUndefined();
     expect(phonePairingLink({ address: "http://192.168.1.5:8787", token })).toBe(
-      `openmausbot://pair?address=http%3A%2F%2F192.168.1.5%3A8787&token=${token}`,
+      `startupbot://pair?address=http%3A%2F%2F192.168.1.5%3A8787&token=${token}`,
     );
   });
 

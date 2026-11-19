@@ -11,9 +11,10 @@ import {
   createCompanionOriginEndpoint,
 } from "./companion-origin-gateway.mjs";
 
-// Must stay clear of the harness's 8799 and its webhook receiver's 8800.
-const CONTROL_PORT = 8811;
-const COMPANION_PORT = 8810;
+const phonePorts = [8810, 18810];
+
+let controlPort = null;
+let phonePort = phonePorts[0];
 
 let proc = null;
 // New for each sidecar launch and held only by main and the sidecar, so a page served from the control port cannot drive it.
@@ -91,13 +92,23 @@ export function rememberCompanionKeepAwake(keepAwake) {
 }
 
 /** Turns one way in on or off for good, and tells a running sidecar which direct ways in to listen on. */
-export async function rememberCompanionRoute(route, on, extra) {
+export function rememberCompanionRoute(route, on, extra) {
+  return serialize(() => changeCompanionRoute(route, on, extra));
+}
+
+async function changeCompanionRoute(route, on, extra) {
   const next = setRoute(companionSettings(), route, on, extra);
-  writeCompanionSettings(next);
   if (proc && (route === "wifi" || route === "tailscale")) {
-    await control("PUT", "/routes", { ...directRoutesOn(next), tailnetName: next.routes.tailscale.name ?? null }).catch(() => {});
+    try {
+      await control("PUT", "/routes", { ...directRoutesOn(next), tailnetName: next.routes.tailscale.name ?? null });
+    } catch (error) {
+      if (on) throw error;
+      await stop();
+    }
   }
-  return next;
+  const saved = setRoute(companionSettings(), route, on, extra);
+  writeCompanionSettings(saved);
+  return saved;
 }
 
 /** The person saw the update's note about a route kept on. */
@@ -116,7 +127,8 @@ async function control(method, urlPath, body, { timeoutMs = 4_000 } = {}) {
     options.body = JSON.stringify(body);
     options.headers["content-type"] = "application/json";
   }
-  const res = await fetch(`http://127.0.0.1:${CONTROL_PORT}${urlPath}`, options);
+  if (!controlPort) throw new Error("Companion control is not ready");
+  const res = await fetch(`http://127.0.0.1:${controlPort}${urlPath}`, options);
   if (!res.ok && res.status !== 404) throw new Error(`companion control ${res.status}`);
   return res.json();
 }
@@ -193,6 +205,11 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
   }
   log?.(`companion fork ${resolved.entry}`);
 
+  const portFile = path.join(app.getPath("userData"), "phone-port");
+  let preferred;
+  try { preferred = Number(fs.readFileSync(portFile, "utf8")); } catch {}
+  phonePort = phonePorts.includes(preferred) ? preferred : phonePorts[0];
+  controlPort = null;
   let allocatedOrigin;
   try {
     allocatedOrigin = createCompanionOriginEndpoint();
@@ -231,8 +248,9 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
       env: {
         ...childEnvironment,
         OMB_PORT: String(harnessPort),
-        OMB_COMPANION_PORT: String(COMPANION_PORT),
-        OMB_CONTROL_PORT: String(CONTROL_PORT),
+        OMB_COMPANION_PORT: String(phonePort),
+        OMB_COMPANION_ALTERNATE_PORT: String(phonePorts.find(port => port !== phonePort)),
+        OMB_CONTROL_PORT: "0",
       },
       execArgv: resolved.execArgv,
       stdio: ["ignore", "pipe", "pipe"],
@@ -242,6 +260,7 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
     lastError = "the companion process could not be started";
     return companionState();
   }
+  let exited = false;
   child.once("spawn", () => {
     // Never expose this capability in argv, environment, logs or the renderer.
     try {
@@ -254,15 +273,20 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
     }
   });
   child.on("message", (message) => {
+    if (message?.type === "startupbot:companion-direct-listening" && phonePorts.includes(message.port) && !exited) {
+      phonePort = message.port;
+      try { fs.writeFileSync(portFile, String(phonePort)); } catch {}
+    }
+    if (message?.type === "startupbot:companion-ready" && Number.isInteger(message.port) && message.port > 0 && message.port <= 65535 && !exited) controlPort = message.port;
     if (message?.type === "openmausbot:companion-e2e-token-rejected") e2eHooks.tokenRejected();
   });
   child.stdout?.on("data", (d) => log?.(`[companion] ${String(d).trimEnd()}`));
   child.stderr?.on("data", (d) => log?.(`[companion err] ${String(d).trimEnd()}`));
 
-  let exited = false;
   child.once("exit", (code) => {
     exited = true;
     if (proc === child) {
+      controlPort = null;
       proc = null;
       advertisedHostedUrl = null;
       originTarget = null;
@@ -289,7 +313,7 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
           child.kill();
         } catch {
         }
-        lastError = `port ${CONTROL_PORT} is already serving another companion — stop it and try again`;
+        lastError = "The companion control process changed";
         return companionState();
       }
       if (!Number.isSafeInteger(child.pid) || child.pid <= 0) {
@@ -316,6 +340,7 @@ async function start({ resourcesPath, harnessPort, mutationToken, hostedUrl = nu
 /** stopCompanion's body, run inside the transition queue. */
 async function stop() {
   const child = proc;
+  controlPort = null;
   proc = null;
   advertisedHostedUrl = null;
   originTarget = null;
@@ -366,7 +391,7 @@ export async function companionState() {
     const state = {
       enabled: false,
       ...rest,
-      port: COMPANION_PORT,
+      port: phonePort,
       devices: devicesAtRest(),
       connectedDeviceIds: [],
       pairing: null,
@@ -381,7 +406,7 @@ export async function companionState() {
     return {
       enabled: true,
       ...rest,
-      port: COMPANION_PORT,
+      port: phonePort,
       devices: [],
       connectedDeviceIds: [],
       pairing: null,

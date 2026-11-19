@@ -87,6 +87,19 @@ async function login(email: string) {
   return { cookie, ...(await me.json<{ id: string; email: string }>()) };
 }
 
+it("sends full-length multilingual posts while bounding unrelated JSON requests", async () => {
+  const account = await login("owner@example.test");
+  const id = uuid();
+  expect((await call("rooms", account.cookie, { kind: "group", id, title: "文字" })).status).toBe(200);
+  for (const kind of ["text", "skill", "task"]) {
+    const body = "日本語文".repeat(2000);
+    const path = "rooms/" + id + "/posts";
+    expect((await call(path, account.cookie, { kind, nonce: uuid(), body })).status).toBe(200);
+    expect((await call(path, account.cookie, { kind, nonce: uuid(), body: body + "字" })).status).toBe(400);
+  }
+  expect((await call("rooms", account.cookie, { id: uuid(), kind: "group", title: "語".repeat(8000) })).status).toBe(413);
+});
+
 it("delivers private group invitations, enforces join history and revocation, and saves independent copies", async () => {
   const a = await login("owner@example.test"),
     b = await login("member@example.test"),

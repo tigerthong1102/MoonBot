@@ -8,7 +8,7 @@ import { z } from "zod";
 import { createAuth, deleteExpiredVerifications } from "./auth";
 import { errorResponse, HTTPError, json, withBoundedRequestBody } from "./http";
 import { limitedOTPResponse } from "./otp-rate-limit";
-import { inboxRetention, inboxRoutes } from "./personal-inbox";
+import { inboxRetention, inboxRoutes, maxPostBytes } from "./personal-inbox";
 
 export type InboxEnv = Pick<Env, "DB" | "EMAIL" | "BETTER_AUTH_SECRET"> & {
   SIGNALS?: DurableObjectNamespace<InboxSignals>;
@@ -40,7 +40,8 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     return errorResponse(403, "forbidden");
   const file = /^\/api\/rooms\/([a-f0-9-]{36})\/files\/([0-9a-f-]{1,36})(?:\/(gzip|start|complete|[0-9]{1,2}))?$/.exec(url.pathname);
   if (file?.[3] && request.method !== "POST") return errorResponse(405, "method_not_allowed");
-  const req = file ? request : await withBoundedRequestBody(request);
+  const post = /^\/api\/rooms\/[a-f0-9-]{36}\/posts$/.test(url.pathname);
+  const req = file ? request : await withBoundedRequestBody(request, post ? maxPostBytes : undefined);
   if (req.method === "POST" && url.pathname === "/api/join/preview") return previewGroup(req,env.DB);
   if (req.method === "POST" && url.pathname === "/api/stop-invitations")
     return suppressGuestMail(req, env.DB);

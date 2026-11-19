@@ -18,18 +18,20 @@ const create = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("direct"), id: z.uuid(), email, guest: guestOptions.optional() }),
   z.object({ kind: z.literal("group"), id: z.uuid(), title: z.string().trim().min(1).max(80) }),
 ]);
+const maxPostLength = 8000;
+export const maxPostBytes = 6 * maxPostLength + 1024;
 const post = z.object({
   nonce: z.uuid(),
   kind: z.enum(["text", "skill", "task"]),
-  body: z.string().trim().min(1).max(8000),
+  body: z.string().trim().min(1).max(maxPostLength),
 });
 const invite = z.object({ email, guest: guestOptions.optional() });
 const remove = z.object({ person: z.string().min(1).max(128) });
 const pageSize = 50;
 export const inboxRetention = 30 * 86400_000;
 
-async function body<T>(req: Request, schema: z.ZodType<T>) {
-  const parsed = schema.safeParse(await readBoundedJSON(req));
+async function body<T>(req: Request, schema: z.ZodType<T>, maxBytes?: number) {
+  const parsed = schema.safeParse(await readBoundedJSON(req, maxBytes));
   if (!parsed.success) throw new HTTPError(400, "invalid_request");
   return parsed.data;
 }
@@ -334,7 +336,7 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     );
   }
   if (action === "posts") {
-    const input = await body(req, post);
+    const input = await body(req, post, maxPostBytes);
     if (redactSecretsInText(input.body) !== input.body) throw new HTTPError(400, "contains_secret");
     await limit(db, user, "inbox_post", 60, 60000);
     const result = await db

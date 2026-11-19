@@ -93,6 +93,6 @@ for (const [, media, body] of styles.matchAll(/^@media ([^{]+)\{([\s\S]*?)^\}/gm
   if (overrides.length) rules.push("@media " + media + "{" + overrides.join("\n") + "}");
 }
 const components = styles.match(/^@layer components \{[\s\S]*?^\}/m)?.[0];
-if (!components?.includes(".ui-icon-button") || !components.includes(".ui-modal")) throw new Error("Missing shared control recipes");
+if (!components?.includes(".ui-icon-button")) throw new Error("Missing shared control recipes");
 rules.push(components);
 await writeFile(new URL("./public/inbox-skins.css", import.meta.url), rules.join("\n"));

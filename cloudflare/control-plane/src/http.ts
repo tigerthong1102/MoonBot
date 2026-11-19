@@ -72,9 +72,9 @@ export async function readBoundedBody(request: Request, maxBytes = MAX_API_BODY_
   return bytes;
 }
 
-export async function withBoundedRequestBody(request: Request): Promise<Request> {
+export async function withBoundedRequestBody(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<Request> {
   if (BODYLESS_METHODS.has(request.method.toUpperCase())) return request;
-  const bytes = await readBoundedBody(request);
+  const bytes = await readBoundedBody(request, maxBytes);
   if (!request.body) return request;
 
   const headers = new Headers(request.headers);
@@ -97,10 +97,10 @@ function parseJSONBytes(bytes: Uint8Array): JSONValue {
   }
 }
 
-export async function readBoundedJSON(request: Request): Promise<JSONValue> {
+export async function readBoundedJSON(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<JSONValue> {
   requireJSONMediaType(request);
   if (!request.body) throw new HTTPError(400, "invalid_request");
-  return parseJSONBytes(await readBoundedBody(request));
+  return parseJSONBytes(await readBoundedBody(request, maxBytes));
 }
 
 /** For a route whose JSON body is optional: no body, or an empty one, is

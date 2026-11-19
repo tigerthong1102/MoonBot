@@ -38,7 +38,6 @@ let me,
   loginEmail = "",
   pendingPost,
   pendingCreate,
-  markdownShare,
   activeBatch,
   attachments = [];
 let posts = [],
@@ -112,14 +111,12 @@ function clearRoom() {
   el("quick-invite").hidden = true;
   el("room-options").open = false;
   activeBatch = null;
-  markdownShare = null;
   for (const item of attachments) if (item.preview) URL.revokeObjectURL(item.preview);
   attachments = [];
   renderAttachments();
   posts = [];
   pendingPost = null;
   readingOlder = false;
-  if (el("preview").open) el("preview").close();
   el("compose").reset();
   composeLabels();
   el("invite").reset();
@@ -128,7 +125,7 @@ function clearRoom() {
   el("empty-room").hidden = false;
   document.querySelector(".room-heading").hidden = true;
   el("conversation").hidden = true;
-  for (const id of ["members", "posts", "preview-body", "audience"]) el(id).replaceChildren();
+  for (const id of ["members", "posts"]) el(id).replaceChildren();
 }
 function signedOut() {
   disconnectSignals();
@@ -496,7 +493,7 @@ function composeLabels() {
     skill: t("personalInbox.skillBody"),
     task: t("personalInbox.taskBody"),
   }[kind];
-  const action = kind === "text" ? t("personalInbox.send") : t("personalInbox.reviewSend");
+  const action = t("personalInbox.send");
   el("draft").placeholder = kind === "text" ? t("personalInbox.messagePlaceholder") : el("draft-label").textContent;
   el("submit-post").setAttribute("aria-label", action);
   el("submit-post").title = action;
@@ -532,7 +529,6 @@ async function sendDraft() {
     el("compose").reset();
     composeLabels();
     readingOlder = false;
-    if (el("preview").open) el("preview").close();
     await refresh();
   } finally {
     if (activeBatch === batch) {
@@ -549,35 +545,10 @@ el("compose").onsubmit = run(async () => {
   if (!body) pendingPost = null;
   else if (!pendingPost || pendingPost.room !== current || pendingPost.kind !== kind || pendingPost.body !== body)
     pendingPost = { room: current, kind, body, nonce: crypto.randomUUID() };
-  if (kind === "text") return sendDraft();
-  el("audience").textContent = t("personalInbox.shareAudience", { room: el("title").textContent });
-  el("preview-body").textContent = body;
-  el("preview").showModal();
-});
-el("cancel-share").onclick = () => el("preview").close();
-el("preview").onclose = () => { markdownShare = null; };
-el("confirm-share").onclick = run(async () => {
-  const share = markdownShare;
-  if (!share) return sendDraft();
-  if (activeBatch || current !== share.room || !attachments.includes(share.item)) return;
-  activeBatch = share;
-  updateComposer();
-  try {
-    await api("rooms/" + share.room + "/posts", share.post);
-    if (activeBatch !== share) return;
-    removeAttachment(share.item);
-    el("preview").close();
-    readingOlder = false;
-    await refresh();
-  } finally {
-    if (activeBatch === share) {
-      activeBatch = null;
-      renderAttachments();
-    }
-  }
+  await sendDraft();
 });
 const isMarkdown = (name) => /\.(?:md|markdown)$/i.test(name);
-async function previewMarkdown(item) {
+async function shareMarkdown(item) {
   const room = current;
   const limit = el("draft").maxLength;
   if (item.file.size > 4 * limit + 3) throw Error("skill_file_length");
@@ -588,14 +559,23 @@ async function previewMarkdown(item) {
     throw Error("skill_file_text");
   }
   if (!body || body.includes("\0")) throw Error("skill_file_text");
-  const post = { kind: "skill", body, nonce: item.skillNonce ??= crypto.randomUUID() };
-  if (body.length > limit || new TextEncoder().encode(JSON.stringify(post)).length > 16 * 1024)
-    throw Error("skill_file_length");
-  if (room !== current || activeBatch || !attachments.includes(item) || el("preview").open) return;
-  markdownShare = { room, item, post };
-  el("audience").textContent = t("personalInbox.fileAudience", { file: item.file.name, room: el("title").textContent });
-  el("preview-body").textContent = body;
-  el("preview").showModal();
+  if (body.length > limit) throw Error("skill_file_length");
+  if (room !== current || activeBatch || !attachments.includes(item)) return;
+  const batch = { room };
+  activeBatch = batch;
+  renderAttachments();
+  try {
+    await api("rooms/" + room + "/posts", { kind: "skill", body, nonce: item.skillNonce ??= crypto.randomUUID() });
+    if (activeBatch !== batch) return;
+    removeAttachment(item);
+    readingOlder = false;
+    await refresh();
+  } finally {
+    if (activeBatch === batch) {
+      activeBatch = null;
+      renderAttachments();
+    }
+  }
 }
 const canPreview = (name) => /\.(?:png|jpe?g|gif|webp)$/i.test(name);
 function fileSize(bytes) {
@@ -729,7 +709,7 @@ function renderAttachments() {
     remove.disabled = Boolean(activeBatch);
     chip.append(item.preview ? thumbnail(item.preview) : icon("file"), fileDetails(item.file.name, item.file.size), remove);
     if (isMarkdown(item.file.name)) {
-      const share = button(t("personalInbox.shareAsSkill"), () => previewMarkdown(item));
+      const share = button(t("personalInbox.shareAsSkill"), () => shareMarkdown(item));
       share.classList.add("share-markdown");
       share.disabled = Boolean(activeBatch);
       chip.querySelector(".file-details").append(share);

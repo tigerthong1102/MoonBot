@@ -1,120 +1,26 @@
-name: Verify Vietnamese installers downloaded from website
-on:
-  workflow_dispatch:
-    inputs:
-      ios:
-        type: boolean
-        default: false
+name: Verify Vietnamese iOS tests on the current PR on an Intel runner
+on: workflow_dispatch
 permissions:
   contents: read
-env:
-  SITE: https://startupbot-internal-preview.merrytoucan4.chatgpt.site/files
 jobs:
-  windows:
-    if: false
-    runs-on: windows-2025
-    timeout-minutes: 25
-    steps:
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
-      - run: pnpm install --frozen-lockfile
-      - shell: pwsh
-        run: |
-          curl.exe --fail --silent --show-error "$env:SITE/StartupBot-1.0.0-Setup.exe" -o "$env:RUNNER_TEMP/site.exe"
-          if ((Get-FileHash "$env:RUNNER_TEMP/site.exe").Hash -ne '1e1124d31e10f24d420d06f8eb19442e9d17bb35a05e018639d4c6d85d742cdc') {throw 'Checksum mismatch'}
-          $destination = Join-Path $env:RUNNER_TEMP 'StartupBotInstalled'
-          $p = Start-Process "$env:RUNNER_TEMP/site.exe" -ArgumentList '/S', "/D=$destination" -Wait -PassThru
-          if ($p.ExitCode) {throw "Installer exited $($p.ExitCode)"}
-          node scripts/site-desktop-vi.smoke.mjs --app "$destination/StartupBot.exe" --output evidence
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: always()
-        with:
-          name: windows-site-smoke
-          path: evidence/
-  android:
-    if: ${{ !inputs.ios }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - run: |
-          curl -fsS "$SITE/StartupBot-1.0.0-universal-INTERNAL-debug.apk" -o site.apk
-          echo 'f9b8044d96d20fdfdb57bacd5c98ab35e4127845aafb5ad2ca336b4390944388  site.apk' | sha256sum -c -
-          curl -fsS "$SITE/StartupBot-1.0.0-Setup.exe" -o desktop.exe
-          echo '1e1124d31e10f24d420d06f8eb19442e9d17bb35a05e018639d4c6d85d742cdc  desktop.exe' | sha256sum -c -
-          7z x -y -odesktop desktop.exe '*.7z' -r >/dev/null
-          archive=$(find desktop -name '*.7z' | head -1)
-          7z x -y -odesktop "$archive" 'resources/companion/*' 'resources/server/*' 'resources/ui/*' -r >/dev/null
-          export SITE_COMPANION="$PWD/desktop/resources/companion/index.js"
-          test -f "$SITE_COMPANION"
-          sudo chmod a+rw /dev/kvm
-          bash scripts/site-android-vi.sh
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: always()
-        with:
-          name: android-site-smoke
-          path: mobile-artifacts/android/
   ios:
-    if: inputs.ios
     runs-on: macos-26-intel
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 24
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - run: |
-          mkdir evidence
-          curl -fsS "$SITE/StartupBot-1.0.0-build17-x86_64-SIMULATOR.zip" -o site.zip
-          echo 'bcc75693e13e29d0b898d4de9e27c88dde91621ba25910bedf500690f6983c45  site.zip' | shasum -a 256 -c -
-          ditto -x -k site.zip evidence
-          device=$(xcrun simctl list devices available -j | python3 -c 'import json,sys;print(next(d["udid"] for k,ds in sorted(json.load(sys.stdin)["devices"].items(),reverse=True) if ".iOS-" in k for d in ds if d["name"].startswith("iPhone")))')
-          xcrun simctl boot "$device"
-          xcrun simctl bootstatus "$device" -b
-          python3 scripts/install-ios-simulator.py "$device" "$PWD/evidence/StartupBot.app" evidence/install.json
-          xcrun simctl launch "$device" ai.startupbot.ios -AppleLanguages '(vi)' -AppleLocale vi_VN -companion.prefs.language vi
-          for n in {1..6}; do
-            sleep 2
-            xcrun simctl io "$device" screenshot evidence/ios.png
-            if swift scripts/site-ocr.swift evidence/ios.png > evidence/ios.txt; then cat evidence/ios.txt; break; fi
-          done
-          swift scripts/site-ocr.swift evidence/ios.png
-          command -v xcodegen || brew install xcodegen
-          (cd touch && xcodegen generate)
-          xcodebuild build-for-testing -project touch/Touch.xcodeproj -scheme Touch -derivedDataPath touch/build -destination "id=$device" CODE_SIGN_IDENTITY=-
-          curl -fsS "$SITE/StartupBot-1.0.0-arm64.dmg" -o desktop.dmg
-          echo 'a8cf533586baeb8c2b730c3b81adcd9db8d558efc3e6d3697127e7b0433cc6e0  desktop.dmg' | shasum -a 256 -c -
-          mkdir mounted
-          hdiutil attach -readonly -nobrowse -mountpoint "$PWD/mounted" desktop.dmg
-          export SITE_COMPANION="$PWD/mounted/StartupBot.app/Contents/Resources/companion/index.js"
-          if node scripts/site-confirm-pair.mjs "$device"; then
-            echo 'PASS native OS handoff from iOS launcher using original website ZIP'
-          else
-            echo 'Testing scene configuration separately with same executable'
-            xcrun simctl uninstall "$device" ai.startupbot.ios
-            /usr/libexec/PlistBuddy -c 'Add :UIApplicationSceneManifest dict' evidence/StartupBot.app/Info.plist
-            /usr/libexec/PlistBuddy -c 'Add :UIApplicationSceneManifest:UIApplicationSupportsMultipleScenes bool false' evidence/StartupBot.app/Info.plist
-            /usr/libexec/PlistBuddy -c 'Add :UIApplicationSceneManifest:UISceneConfigurations dict' evidence/StartupBot.app/Info.plist
-            codesign --force --sign - --preserve-metadata=entitlements,identifier,flags evidence/StartupBot.app
-            xcrun simctl install "$device" evidence/StartupBot.app
-            xcrun simctl launch "$device" ai.startupbot.ios -AppleLanguages '(vi)' -AppleLocale vi_VN -companion.prefs.language vi
-            node scripts/site-confirm-pair.mjs "$device"
-            echo 'PASS native OS handoff after scene configuration repair only'
-          fi
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        if: always()
         with:
-          name: ios-site-smoke
-          path: |
-            evidence/*.png
-            evidence/*.txt
-            evidence/*.json
+          ref: 3e01f3bb40f50537aa43d3a38444a091b45605a7
+          persist-credentials: false
+      - name: Check the phone protocol
+        run: swift test --package-path ios
+      - name: Generate the app and test it on an iPhone simulator
+        working-directory: ios
+        run: |
+          command -v xcodegen || brew install xcodegen
+          xcodegen generate
+          read -r device runtime <<< "$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["deviceTypeIdentifier"]+" "+k for k,ds in sorted(json.load(sys.stdin)["devices"].items(),reverse=True) if ".iOS-" in k for d in ds if d["name"].startswith("iPhone")))')"
+          simulator=$(xcrun simctl create StartupBot-Vietnamese "$device" "$runtime")
+          xcrun simctl boot "$simulator"
+          xcodebuild test -project StartupBot.xcodeproj -scheme StartupBot \
+            -destination "platform=iOS Simulator,id=$simulator" -parallel-testing-enabled NO \
+            -only-testing:StartupBotUITests/VietnameseOnboardingTests -only-testing:StartupBotAppTests/VietnameseMessageTests CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=

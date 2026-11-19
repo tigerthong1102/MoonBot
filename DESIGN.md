@@ -59,6 +59,10 @@ where they belong instead of adding new places.
   Show one confirmation in that conversation naming what will be erased and
   what will be kept. The person can cancel before deletion. Retaining a copy
   for Undo would defeat the request to erase the transcript.
+  The main helper may offer a dedicated bot for work the person has just
+  described. This is an invitation to start a separate conversation. Keep
+  it in the transcript, leave the composer available, and create the bot
+  only when the person accepts, including on Full access.
 - **Bots set themselves up.** A new bot asks its questions in chat
   (`/setup`). Don't add form fields for things the bot can learn by asking.
 - **Simple mode comes first.** It is the default for new installs. Design the

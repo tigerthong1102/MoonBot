@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts";
+import { closedByStop, resumableCards } from "./host/resumable-cards.ts";
 import { botFolder } from "./bot-folder.ts";
 import { flushProfileHistory, readHistory } from "./profile-versions.ts";
 import { hasTeamAuthority } from "./peer-roster.ts";
@@ -69,6 +70,28 @@ const specialist = (key: string, section: string, modelSelection = { instanceId:
   fields: { name: key, title: "Specialist", soul: "Finish the assigned work.", section, modelSelection } });
 
 describe("reviewed Chief team setup", () => {
+  it.each(["allow", "deny"])("keeps a suggested work bot pending on Full access until %s", async behavior => {
+    const h = harness();
+    h.autoApply.mockReturnValue("full-access");
+    const makeOffer = () => h.service.proposeWorkBot({
+      botId: h.chief.id, threadId: h.chief.threadId,
+      plan: { reason: "Inventory", operations: [specialist("Inventory", "Work")] },
+    }, { icon: "box", topic: "Inventory" });
+    const offer = makeOffer();
+    expect(offer.state).toBe("pending");
+    if (offer.state !== "pending") throw Error("missing consent card");
+    const card = h.messages[0]?.card;
+    expect(card?.options[1]).toBe("Cancel");
+    expect(closedByStop(card)).toBeNull();
+    expect(resumableCards({ activePath: () => [{ id: "offer", at: 1, role: "bot", kind: "options", card }] } as Parameters<typeof resumableCards>[0], h.chief.threadId, 0)).toEqual([]);
+    expect(makeOffer().state).toBe("skipped");
+    expect(h.apply).not.toHaveBeenCalled();
+    expect((await h.resolve(offer.requestId, behavior))?.result.state).toBe(behavior === "allow" ? "applied" : "denied");
+    expect((await h.resolve(offer.requestId))?.duplicate).toBe(true);
+    expect(makeOffer().state).toBe("skipped");
+    expect(h.apply).toHaveBeenCalledTimes(behavior === "allow" ? 1 : 0);
+  });
+
   it("reviews promotion in an authorized team without changing anything on denial", async () => {
     const h = harness(); h.peer.section = "Engineering";
     const before = structuredClone(h.store.bots);

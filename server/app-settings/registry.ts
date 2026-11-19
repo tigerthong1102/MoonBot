@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { foldSearchText } from "../search-text.ts";
 
 import { credentialIsConfigured, CREDENTIAL_TARGETS, PROVIDER_CREDENTIAL_TARGETS, type CredentialConfig, type CredentialTargetId } from "../../shared/credential-request.ts";
 import { WINDOW_PREFS, type WindowPrefId } from "../../shared/app-settings.ts";
@@ -161,17 +162,17 @@ export function createSettingsRegistry(deps: RegistryDeps): SettingEntry[] {
     windowPref("general.notificationSounds", "Notification sounds", "Play a sound when a bot needs you or finishes.", "notifications", ["sound", "sounds", "mute", "alerts", "notifications"], "true or false"),
     writable({
       id: "general.language", label: "Language", help: "The app's language, as a tag such as en, de or pt-br; empty follows the computer.", where: "language",
-      synonyms: ["locale", "translation"], value: z.string().trim().max(16).regex(/^[a-z]{2,3}(-[a-z0-9]{2,8})*$|^$/i, "a language tag such as en or pt-br"), allowed: "a language tag such as en, de, ja, pt-br, zh-tw; empty to follow the computer",
+      synonyms: ["locale", "translation", "ngôn ngữ", "đổi ngôn ngữ"], value: z.string().trim().max(16).regex(/^[a-z]{2,3}(-[a-z0-9]{2,8})*$|^$/i, "a language tag such as en or pt-br"), allowed: "a language tag such as en, de, ja, pt-br, zh-tw; empty to follow the computer",
       current: () => cfg().language ?? "", write: config((language: string) => ({ language })),
     }),
     writable({
       id: "bots.order", label: "Bot order", help: "The order bots are listed in the sidebar and on phones. Send bot ids from list_bots; bots you leave out keep their places.", where: "sidebar",
-      synonyms: ["reorder", "sidebar order", "sort bots", "move bot", "arrange"], value: z.array(z.string().regex(/^[\w-]+$/)).min(1).max(100), allowed: "an array of bot ids in the wanted order",
+      synonyms: ["sắp xếp bot", "thứ tự bot", "reorder", "sidebar order", "sort bots", "move bot", "arrange"], value: z.array(z.string().regex(/^[\w-]+$/)).min(1).max(100), allowed: "an array of bot ids in the wanted order",
       current: () => deps.bots().map((bot) => bot.id), read: () => names(deps.bots().map((bot) => bot.id)), write: (botIds: string[]) => deps.reorderBots(botIds),
     }),
     writable({
       id: "bots.pinned", label: "Pinned bots", help: "Which bots are pinned to the top of the sidebar. Send every bot id that should be pinned, including ones already pinned; the rest are unpinned.", where: "sidebar",
-      synonyms: ["pin", "pinned", "unpin", "favorite", "favourite", "top", "star"], value: z.array(z.string().regex(/^[\w-]+$/)).max(100), allowed: "an array of the bot ids to pin; an empty array unpins every bot",
+      synonyms: ["ghim bot", "bỏ ghim bot", "pin", "pinned", "unpin", "favorite", "favourite", "top", "star"], value: z.array(z.string().regex(/^[\w-]+$/)).max(100), allowed: "an array of the bot ids to pin; an empty array unpins every bot",
       current: pinned, read: () => names(pinned()),
       write: async (botIds: string[]) => {
         const unknown = botIds.find((id) => !deps.bots().some((bot) => bot.id === id));
@@ -186,7 +187,7 @@ export function createSettingsRegistry(deps: RegistryDeps): SettingEntry[] {
     }),
     writable({
       id: "bots.groups", label: "Sidebar groups", help: "Which bots sit in which sidebar group (department). Send an object of group name to bot ids; a bot in no listed group is ungrouped.", where: "sidebar",
-      synonyms: ["group", "groups", "department", "departments", "section", "sections", "team", "folder"],
+      synonyms: ["nhóm bot", "nhóm ở thanh bên", "group", "groups", "department", "departments", "section", "sections", "team", "folder"],
       value: z.record(z.string().trim().min(1).max(60), z.array(z.string().regex(/^[\w-]+$/)).max(100)), allowed: "an object: group name → array of bot ids",
       current: groups,
       read: () => {
@@ -336,12 +337,12 @@ export function createSettingsRegistry(deps: RegistryDeps): SettingEntry[] {
 }
 
 export function findSettings(entries: readonly SettingEntry[], query: string, limit = 8): SettingEntry[] {
-  const words = query.toLowerCase().split(/[^a-z0-9.-]+/).filter((word) => word.length > 1);
+  const words = foldSearchText(query).split(/[^\p{L}\p{N}.-]+/u).filter((word) => word.length > 1);
   if (!words.length) return [];
   const phrase = words.join(" ");
   const scored = entries.map((entry) => {
     const label = entry.label.toLowerCase(), id = entry.id.toLowerCase();
-    const synonyms = entry.synonyms.map((synonym) => synonym.toLowerCase());
+    const synonyms = entry.synonyms.map(foldSearchText);
     const loose = [entry.help, ...synonyms].join(" ").toLowerCase();
     const whole = id === phrase || label === phrase || synonyms.includes(phrase) ? 10 : 0;
     const score = words.reduce((sum, word) => sum + (id === word || label === word ? 6 : label.includes(word) || id.includes(word) ? 3 : loose.includes(word) ? 1 : 0), whole);

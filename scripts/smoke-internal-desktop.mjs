@@ -135,7 +135,7 @@ try {
     writeFileSync(path.join(evidence, "desktop-failure.png"), Buffer.from(screenshot.data, "base64"));
   };
   await until(() => evaluate("Boolean(window.ogb?.getCapabilities && document.readyState === 'complete')"), "the preload bridge");
-  const request = (route, body) => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)},${JSON.stringify(body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })});return {status:r.status,body:await r.json()};})()`);
+  const request = (route, body, method = "POST") => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)},${JSON.stringify(body === undefined ? {} : { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) })});return {status:r.status,body:await r.json()};})()`);
   const health = await request("/api/health");
   assert.equal(health.status, 200);
   const edition = await request("/api/edition");
@@ -163,10 +163,21 @@ try {
   const bot = created.body.bot;
   assert(bot?.id, "Bot creation did not return its identity");
   const first = "Please answer this internal package fixture.";
+  assert.equal((await request("/api/sidebar-sections", { name: "Package fixture", botIds: [bot.id] })).status, 200);
+  assert.equal((await request(`/api/bots/${bot.id}`, { chiefOfStaff: true, approvalMode: "full" }, "PATCH")).status, 200);
+  const specialist = "Trợ lý dữ liệu thử";
+  const create = `Tạo một bot tên “${specialist}” để kiểm tra tệp dữ liệu thử.`;
+  const newTitle = "Đối soát thử";
+  const rename = `Đổi tên hội thoại này thành “${newTitle}”.`;
   const clear = "Xóa tin nhắn của đúng hội thoại này";
   const followup = "Continue the fixture conversation.";
   writeFileSync(plan, JSON.stringify({ [bot.id]: { script: [
     { key: "first", match: [first], reply },
+    { key: "create", match: [create], steps: [
+      { tool: "find_tool", arguments: { query: create }, capture: { selected: '"matches":\\[\\{"name":"([^"]+)"' } },
+      { tool: "use_tool", arguments: { name: "{{selected}}", arguments: { name: specialist, role: "Kiểm tra dữ liệu", instructions: "Kiểm tra tệp dữ liệu thử khi được giao." } } },
+    ], reply: "Đã tạo bot thử." },
+    { key: "rename", match: [rename], steps: [{ tool: "rename_thread", arguments: { title: newTitle } }], reply: "Đã đổi tên hội thoại thử." },
     { key: "clear", match: [clear], steps: [{ tool: "app_settings", arguments: { action: "show_card", card: "clear-messages" } }], reply: "Confirm in chat." },
     { key: "followup", match: [followup], reply: "Fresh fixture reply." },
   ] } }));
@@ -197,6 +208,19 @@ try {
     await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
     await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
   };
+  const readBot = async () => (await request("/api/bots?messages=0")).body.bots.find(row => row.id === bot.id);
+  const finished = async text => (await transcript()).some(row => row.role === "bot" && row.text === text) && !(await readBot()).busy;
+  await send(rename);
+  await until(() => finished("Đã đổi tên hội thoại thử."), "the rename turn to finish");
+  assert.equal((await readBot()).tasks.find(task => task.threadId === bot.threadId)?.title, newTitle);
+  const bridge = async enabled => assert.equal((await request("/api/config", { features: { agentsToolBridge: enabled } }, "PATCH")).status, 200);
+  await bridge(true);
+  await send(create);
+  await until(() => finished("Đã tạo bot thử."), "the discovered create action to finish");
+  const specialists = (await request("/api/bots?messages=0")).body.bots.filter(row => row.name === specialist);
+  assert.equal(specialists.length, 1);
+  assert.notEqual(specialists[0].id, bot.id);
+  await bridge(false);
   await send(clear);
   const confirm = `[...document.querySelectorAll('[data-settings-card="clear-messages"] button')].find(button => button.textContent.trim() === "Delete messages")`;
   await until(() => evaluate(`Boolean(${confirm} && !(${confirm}).disabled)`), "an enabled clear-messages confirmation");
@@ -223,6 +247,7 @@ try {
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
+    appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
   await cdp("Browser.close").catch(() => {});

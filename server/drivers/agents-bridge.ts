@@ -6,6 +6,7 @@ import { isOutboundTool } from "../../shared/outbound.ts";
 import { READ_ONLY_ANNOTATIONS } from "../agent-tool-policy.ts";
 import { bm25Ranker } from "../mcp-directory.ts";
 import { AGENTS_TOOL_ALIASES } from "../../shared/agents-tool-names.ts";
+import { vietnameseToolHints } from "./agents-vietnamese-search.ts";
 import type { Json } from "./agents-client.ts";
 
 /** The proxy's switch: "1" lists through the bridge, anything else lists the whole catalog. */
@@ -187,7 +188,16 @@ export function createToolBridge(tools: readonly BridgeTool[]): ToolBridge {
     if (!query || query.length > QUERY_CHARS) return { text: FIND_USAGE, isError: true };
     const named = Object.hasOwn(AGENTS_TOOL_ALIASES, query) ? AGENTS_TOOL_ALIASES[query]!.tools[0]! : query;
     if (listedNames.has(named)) return { text: `${named} is in your tool list: call it directly.` };
-    const ranked = await bm25Ranker(named, hidden, FIND_MATCHES_MAX);
+    const hints = vietnameseToolHints(query);
+    const direct = hints.filter(hint => listedNames.has(hint));
+    const suggested = hints.flatMap(hint => hidden.filter(tool => tool.name === hint));
+    const directHelp = direct.map(name => `${name} is in your tool list: call it directly.`).join(" ");
+    const remaining = hints.length
+      ? query.split(/(?:^|\s)(?:and|then|và|v[aà] sau đó|rồi|roi)(?:\s|$)/iu).filter(part => !vietnameseToolHints(part).length).join(" ").trim()
+      : named;
+    const lexical = remaining ? await bm25Ranker(remaining, hidden, FIND_MATCHES_MAX) : [];
+    const ranked = [...suggested, ...lexical.filter(tool => !suggested.some(match => match.name === tool.name))];
+    if (directHelp && !ranked.length) return { text: directHelp };
     const matches: Array<Pick<BridgeTool, "name" | "description" | "inputSchema">> = [];
     let chars = 0;
     for (const candidate of ranked.slice(0, FIND_MATCHES_MAX)) {
@@ -201,7 +211,7 @@ export function createToolBridge(tools: readonly BridgeTool[]): ToolBridge {
       chars += size;
     }
     return { text: JSON.stringify(matches.length
-      ? { matches, next: HOW_TO_RUN }
+      ? { matches, next: directHelp ? `${directHelp} ${HOW_TO_RUN}` : HOW_TO_RUN }
       : { matches, next: `Nothing matched. Try other words, or one of these names: ${namesList(hidden.map((tool) => tool.name), BRIDGE_NAMES_MAX_CHARS)} A tool in your tool list is called directly.` }) };
   }
 

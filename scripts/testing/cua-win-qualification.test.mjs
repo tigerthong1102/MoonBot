@@ -51,7 +51,7 @@ test("rejects wrong-window, incomplete, degraded, stale-shaped, and ambiguous sn
     (response, tree) => { tree.elements[1].element_index = 1; },
     (response, tree) => { delete tree.elements[0].label; },
     (response, tree) => { tree.elements[1].label = tree.elements[0].label; },
-    (response, tree) => { response.content.push({ type: "image", data: "x" }); },
+    (response) => { response.content.push({ type: "image", data: "x" }); },
   ];
   for (const modify of badStates) {
     const response = sample();

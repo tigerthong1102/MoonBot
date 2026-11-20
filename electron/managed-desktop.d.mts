@@ -10,7 +10,7 @@ export interface ManagedDesktopState {
   messageCodes?: ManagedMessageCode[];
   /** A sign-in attempt found the Admin's licence expired. */
   notice?: "license-expired";
-  enrollment?: { userCode: string; verificationUri: string; expiresAt: number };
+  enrollment?: { emailOtp?: boolean; userCode: string; verificationUri: string; expiresAt: number };
   organization?: { id: string; name: string };
   email?: string;
   deviceId?: string;
@@ -22,6 +22,7 @@ export interface ManagedDesktopState {
 export interface ManagedDesktopBridge {
   settingsOpened?(): Promise<boolean>;
   state(): Promise<ManagedDesktopState>;
+  emailCode?(input: { email: string; code?: string }): Promise<"ok" | "invalid" | "limited" | "unavailable">;
   begin(input: { portalOrigin: string }): Promise<ManagedDesktopState>;
   /** Reopens the pending sign-in page; takes no address from the renderer. */
   reopen?(): Promise<ManagedDesktopState>;

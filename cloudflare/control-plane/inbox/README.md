@@ -39,3 +39,9 @@ pnpm exec vitest run test/personal-inbox.test.ts
 For a live environment, apply inbox/migrations to the dedicated remote D1 database, deploy that environment's worker and assets, and verify OTP delivery and revocation with separate consenting test accounts. For the desktop, package the HTTPS origin as extraMetadata.startupbotInboxOrigin, set STARTUPBOT_INBOX_ORIGIN in its launch environment, or set origin in inbox-service.json under its Electron user data directory. Restart the updated app. The menu item lives in the StartupBot menu on macOS and the File menu on Windows and Linux. Unconfigured builds keep the inbox entry hidden.
 
 The inbox uses its own OTP identities. It does not contact any upstream account or relay service. Operators must manage database access, backups and their retention separately.
+
+### Internal desktop organization example
+
+Run `node scripts/testing/organization-email-example.mjs` from the repository root. In StartupBot, open Settings → Account → Organization, choose work sign-in and enter the loopback address printed in the terminal. Use `employee@example.test`. The terminal acts as its test mailbox. Enter the eight-digit code in the same settings panel. Disconnect the demo organization in Settings and stop the terminal process when finished.
+
+The example keeps one enrollment in memory and grants no model access. A managed portal that advertises `capabilities.desktopEmailOtp` must verify membership and bind the emailed challenge to the pending device before approving enrollment. Portals that support browser approval continue to use their existing flow.

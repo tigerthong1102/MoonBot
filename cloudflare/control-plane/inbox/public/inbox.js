@@ -8,6 +8,7 @@ el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") 
 for (const back of document.querySelectorAll(".list-back")) {
   back.onclick = () => { delete document.body.dataset.thread; };
 }
+const hostAuth = !el("desktop-back").hidden && new URLSearchParams(location.search).get("hostAuth") === "1";
 const accountOnly = !el("desktop-back").hidden && new URLSearchParams(location.search).get("account") === "1";
 const skin = new URLSearchParams(location.search).get("skin");
 if (skin) document.documentElement.dataset.skin = skin;
@@ -138,6 +139,10 @@ function signedOut() {
   for (const id of ["inbox", "logout", "saved"]) el(id).hidden = true;
   el("blocked").open = false;
   el("room").hidden = false;
+  if (hostAuth) {
+    location.assign("/desktop/sign-in");
+    return;
+  }
   el("signin").hidden = false;
   el("join-prompt").hidden = true;
   el("verify").hidden = true;
@@ -182,6 +187,7 @@ el("verify").onsubmit = run(async () => {
 });
 el("logout").onclick = run(async () => {
   await api("auth/sign-out", {});
+  if (hostAuth) { location.assign("/desktop/back"); return; }
   signedOut();
   status(t("personalInbox.signedOut"));
 });
@@ -831,25 +837,19 @@ async function uploadParts(url, item, headers, partSize, batchParts, compressor)
       await postFile(url + "/" + n, body, { ...headers, "x-inbox-encoding": body === parts[n] ? "identity" : encoding });
     }
   }
-  const started = performance.now();
-  if (groups.length) await sendPart(groups[0]);
-  const firstMs = performance.now() - started;
-  let concurrency = firstMs < 3000 ? 3 : firstMs < 20000 ? 2 : 1;
-  let next = 1;
+  let next = 0;
   let failure;
-  async function sendNext(_, lane) {
-    while (lane < concurrency && !failure && next < groups.length) {
+  async function sendNext() {
+    while (!failure && next < groups.length) {
       const group = groups[next++];
       try {
-        const at = performance.now();
         await sendPart(group);
-        if (performance.now() - at > Math.max(15000, 2.5 * firstMs)) concurrency = 1;
       } catch (error) {
         failure = error;
       }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, groups.length) }, sendNext));
+  await Promise.all(Array.from({ length: Math.min(3, groups.length) }, sendNext));
   if (failure) throw failure;
   await postFile(url + "/complete", null, headers);
 }

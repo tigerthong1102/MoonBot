@@ -64,6 +64,14 @@ ipcRenderer.on("app:open-settings", (_event, section) => {
 // The full bridge goes only to the local server's UI; a remote page gets the safe subset, and main enforces the same rule.
 const localOrigin = process.argv.find((arg) => arg.startsWith("--omb-local-origin="))?.slice("--omb-local-origin=".length) ?? null;
 const isLocalPage = !localOrigin || location.origin === localOrigin;
+const personalAccountEnabled = isLocalPage && process.argv.includes("--startupbot-personal-inbox");
+let pendingAccountPrompt = null;
+let accountPromptListener = null;
+if (personalAccountEnabled) ipcRenderer.on("personal-account:prompt", (_event, inbox) => {
+  if (accountPromptListener) accountPromptListener(inbox === true);
+  else pendingAccountPrompt = pendingAccountPrompt === true || inbox === true;
+});
+
 
 // The window's own rail of places stands at its left edge (electron/chrome-rail.mjs): main says how wide, and every page
 // beside it, whatever server it comes from, moves over by that much, at any zoom (a zoom change resizes the page). The
@@ -159,11 +167,26 @@ function invokeWithPlainError(channel, ...args) {
 
 const bridge = {
   platform: process.platform,
-  ...(isLocalPage && process.argv.includes("--startupbot-personal-inbox") ? {
+  ...(personalAccountEnabled ? {
     personalAccount: {
       open: () => ipcRenderer.invoke("personal-account:open"),
       state: () => ipcRenderer.invoke("personal-account:state"),
       signOut: () => ipcRenderer.invoke("personal-account:sign-out"),
+      updatesConsent: {
+        state: () => ipcRenderer.invoke("personal-account:updates"),
+        choose: ({ status }) => ipcRenderer.invoke("personal-account:set-updates", status === "opted_in"),
+      },
+      sendCode: email => ipcRenderer.invoke("personal-account:send-code", email),
+      verify: (email, code) => ipcRenderer.invoke("personal-account:verify", email, code),
+      onPrompt: callback => {
+        accountPromptListener = callback;
+        if (pendingAccountPrompt !== null) {
+          const inbox = pendingAccountPrompt;
+          pendingAccountPrompt = null;
+          callback(inbox);
+        }
+        return () => { if (accountPromptListener === callback) accountPromptListener = null; };
+      },
       onChange: callback => {
         const changed = () => callback();
         ipcRenderer.on("personal-account:changed", changed);
@@ -684,6 +707,7 @@ const bridge = {
     settingsOpened: () => ipcRenderer.invoke("organization:settings-opened"),
     state: () => ipcRenderer.invoke("organization:state"),
     begin: input => ipcRenderer.invoke("organization:begin", input),
+    emailCode: input => ipcRenderer.invoke("organization:email-code", input),
     reopen: () => ipcRenderer.invoke("organization:reopen"),
     cancelEnrollment: () => ipcRenderer.invoke("organization:cancel"),
     refresh: () => ipcRenderer.invoke("organization:refresh"),

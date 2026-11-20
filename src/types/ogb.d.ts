@@ -121,6 +121,10 @@ const __APP_VERSION__: string;
       /** This app's own version, and whether this page is this app's own: false on a server added in the Server menu,
        * whose page carries that server's version. Absent in desktop builds before it. */
       personalAccount?: {
+        updatesConsent: import("../../electron/updates-consent.mjs").UpdatesConsentBridge;
+        sendCode(email: string): Promise<"ok" | "invalid" | "limited" | "unavailable">;
+        verify(email: string, code: string): Promise<"ok" | "invalid" | "limited" | "unavailable">;
+        onPrompt(callback: (inbox: boolean) => void): () => void;
         open(): Promise<void>;
         state(): Promise<string | null>;
         signOut(): Promise<void>;

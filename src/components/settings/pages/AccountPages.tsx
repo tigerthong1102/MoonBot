@@ -81,7 +81,7 @@ export function AccountPage() {
     )}
     {ctx.organization ? (
       <SettingsGroup label={t("settings.section.organization")} block="organization">
-        <OrganizationSettings simple={!ctx.advanced} />
+        <OrganizationSettings />
       </SettingsGroup>
     ) : elsewhere && ctx.advanced && (
       // The organization sign-in is This computer's: it stays in place on a Cloud's page, inert, with the way there.

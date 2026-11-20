@@ -4,6 +4,7 @@ import { DEFAULT_ADMIN_ORIGIN } from "@/lib/onboarding";
 import { activeLocale, t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { Card, LearnMore, SETTINGS_INPUT, SettingRow, SettingsField, SettingsFoldRow, SettingsRows } from "./SettingsPrimitives";
+import { EmailCodeForm } from "./EmailCodeForm";
 import { CompanyModels } from "./CompanyModels";
 
 const providerNames: Record<string, string> = { anthropic: "Anthropic", openai: "OpenAI", openrouter: "OpenRouter" };
@@ -32,9 +33,7 @@ export function connectionMessage(connection: Pick<ManagedDesktopState, "message
 }
 
 /** Security: only the trusted desktop bridge can enroll this computer or hold its token. */
-/** `simple`: Simple mode shows the section only once the person has an organization sign-in; signed out, it draws an
- * empty card, which hides the whole section (search still finds it, tagged Advanced). */
-export function OrganizationSettings({ simple = false }: { simple?: boolean } = {}) {
+export function OrganizationSettings() {
   const bridge = window.ogb?.remoteClient?.active ? undefined : window.ogb?.organization;
   const [connection, setConnection] = useState<ManagedDesktopState | null>(null);
   const [address, setAddress] = useState("");
@@ -42,6 +41,7 @@ export function OrganizationSettings({ simple = false }: { simple?: boolean } = 
   const [error, setError] = useState("");
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [more, setMore] = useState(false);
+  const [verified, setVerified] = useState(false);
   const [custom, setCustom] = useState(false);
   const pending = useRef(false);
   const generation = useRef(0);
@@ -53,7 +53,7 @@ export function OrganizationSettings({ simple = false }: { simple?: boolean } = 
     status.current = next.status;
     setConnection(next);
     // Outside React's state updater: updaters must stay pure and can run during rendering.
-    if (changed) setError("");
+    if (changed) { setError(""); setVerified(false); }
     if (next.status !== "connected" && next.status !== "reauth-required") setConfirmDisconnect(false);
   };
 
@@ -104,19 +104,18 @@ export function OrganizationSettings({ simple = false }: { simple?: boolean } = 
   const date = typeof expiry === "number" && Number.isFinite(expiry) ? new Date(expiry) : null;
   const dateLabel = date && Number.isFinite(date.getTime())
     ? new Intl.DateTimeFormat(activeLocale(), { dateStyle: "medium", timeStyle: "short" }).format(date) : null;
-  if (connection?.status === "signed-out" && simple) return <div data-settings-rows="" hidden />;
   if (connection?.status === "signed-out") {
     // One row: sign in with a work email; the long notes behind Learn more, the custom address behind a fold.
     return <SettingsRows>
-      <SettingRow title={t("organization.signIn")} subtitle={<>{t("organization.signInShort")}{" "}<LearnMore onClick={() => setMore((open) => !open)} /></>}
+      <SettingRow title={t("organization.signIn")} subtitle={<>{t(DEFAULT_ADMIN_ORIGIN ? "organization.signInShort" : "organization.advancedHelp")}{" "}<LearnMore onClick={() => setMore((open) => !open)} /></>}
         message={<>
           {more && <span data-organization-more="" className="block">{t("organization.additive")} {t("organization.privacy")} {t("cloudAccount.separate")}</span>}
           {connection.message && <span role="status" className="block">{connectionMessage(connection)}</span>}
           {licenseExpired && <span role="alert" className="block text-ink">{t("organization.licenseExpired")}</span>}
           {error && <span role="alert" className="block text-danger">{error}</span>}
         </>}>
-        <button type="button" disabled={busy || !DEFAULT_ADMIN_ORIGIN} className="ui-button" data-organization-sign-in="" onClick={() => { if (DEFAULT_ADMIN_ORIGIN) void perform(() => bridge.begin({ portalOrigin: DEFAULT_ADMIN_ORIGIN })); }}>
-          {!DEFAULT_ADMIN_ORIGIN ? t("organization.notConfigured") : busy ? t("organization.working") : t("organization.useWorkSignIn")}
+        <button type="button" disabled={busy} className="ui-button" data-organization-sign-in="" onClick={() => { if (DEFAULT_ADMIN_ORIGIN) void perform(() => bridge.begin({ portalOrigin: DEFAULT_ADMIN_ORIGIN })); else setCustom(true); }}>
+          {busy ? t("organization.working") : t("organization.useWorkSignIn")}
         </button>
       </SettingRow>
       <SettingsFoldRow id="organization-address" title={t("organization.customTitle")} open={custom} onToggle={() => setCustom((open) => !open)}>
@@ -125,7 +124,7 @@ export function OrganizationSettings({ simple = false }: { simple?: boolean } = 
           if (address.trim()) void perform(() => bridge.begin({ portalOrigin: address.trim() }));
         }}>
           <SettingsField label={t("organization.address")} hint={t("organization.advancedHelp")}>
-            <input type="url" required value={address} disabled={busy} onChange={(event) => setAddress(event.target.value)}
+            <input autoFocus type="url" required value={address} disabled={busy} onChange={(event) => setAddress(event.target.value)}
               placeholder="https://admin.example.com" autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} maxLength={2048}
               className={SETTINGS_INPUT} />
           </SettingsField>
@@ -140,15 +139,20 @@ export function OrganizationSettings({ simple = false }: { simple?: boolean } = 
       {connection?.message && <p role="status" className="mb-3 text-[13px] text-ink-secondary">{connectionMessage(connection)}</p>}
       {licenseExpired && <p role="alert" className="mb-3 text-[13px] text-ink">{t("organization.licenseExpired")}</p>}
       {connection?.status === "connecting" && <div className="flex flex-col items-start gap-3">
-        <p role="status" className="text-[13px] text-ink-secondary">{t("organization.browserConsent")}</p>
-        {connection.enrollment && <details className="w-full text-[12px] text-ink-secondary">
+        {connection.enrollment?.emailOtp && bridge.emailCode
+          ? verified ? <p role="status">{t("organization.working")}</p> : <EmailCodeForm
+            sendCode={email => bridge.emailCode!({ email })}
+            verifyCode={(email, code) => bridge.emailCode!({ email, code })}
+            complete={() => setVerified(true)} />
+          : <p role="status" className="text-[13px] text-ink-secondary">{t("organization.browserConsent")}</p>}
+        {connection.enrollment && !connection.enrollment.emailOtp && <details className="w-full text-[12px] text-ink-secondary">
           <summary className="w-fit cursor-pointer hover:text-ink">{t("organization.securityDetails")}</summary>
           <p className="mt-2">{t("organization.securityDetailsHelp")}</p>
           <div className="mt-3">{t("organization.code")}</div>
           <code dir="ltr" className="mt-1 block w-fit select-all rounded-lg bg-inset px-3 py-2 text-base tracking-widest text-ink">{connection.enrollment.userCode}</code>
         </details>}
         <div className="flex flex-wrap gap-2">
-          {connection.enrollment && bridge.reopen && <button type="button" disabled={busy} className="ui-button" onClick={() => void perform(() => bridge.reopen!())}>{t("organization.reopen")}</button>}
+          {connection.enrollment && !connection.enrollment.emailOtp && bridge.reopen && <button type="button" disabled={busy} className="ui-button" onClick={() => void perform(() => bridge.reopen!())}>{t("organization.reopen")}</button>}
           <button type="button" disabled={busy} className="ui-button" onClick={() => void perform(() => bridge.cancelEnrollment())}>{t("organization.cancel")}</button>
         </div>
       </div>}

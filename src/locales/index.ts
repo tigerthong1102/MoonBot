@@ -1,3 +1,4 @@
+import languageNames from "../../shared/app-language-names.json";
 import en from "./en.json";
 
 export { en };
@@ -59,21 +60,5 @@ export async function loadLocalePack(tag: string): Promise<LocalePack | undefine
   return pack;
 }
 
-export const localeChoices: ReadonlyArray<{ code: string; label: string }> = [
-  { code: "en", label: "English" },
-  { code: "de", label: "Deutsch" },
-  { code: "es", label: "Español" },
-  { code: "fr", label: "Français" },
-  { code: "hi", label: "हिन्दी" },
-  { code: "ja", label: "日本語" },
-  { code: "pt-br", label: "Português (Brasil)" },
-  { code: "zh", label: "简体中文" },
-  { code: "zh-tw", label: "繁體中文（台灣）" },
-  { code: "uk", label: "Українська" },
-  { code: "vi", label: "Tiếng Việt" },
-  { code: "tr", label: "Türkçe" },
-  { code: "pl", label: "Polski" },
-  { code: "ru", label: "Русский" },
-  { code: "it", label: "Italiano" },
-  { code: "ko", label: "한국어" },
-];
+export const localeChoices: ReadonlyArray<{ code: string; label: string }> =
+  Object.entries(languageNames).map(([code, label]) => ({ code, label }));

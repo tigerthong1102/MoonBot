@@ -538,6 +538,8 @@ export interface TextGenerationUsage {
 }
 
 export interface TextGenerationOptions {
+  /** Conversation whose selected provider route a tool-free follow-up must reuse. */
+  sourceThreadId?: string;
   signal?: AbortSignal;
   onUsage?: (usage: TextGenerationUsage) => void;
   /** One of this instance's models instead of the driver's quick-call choice: the helper model setting, and the setup

@@ -105,15 +105,15 @@ describe("optional desktop Organisation settings", () => {
     expect(bridge.begin).not.toHaveBeenCalled();
   });
 
-  it("keeps unconfigured default enrollment disabled even when its handler is invoked", async () => {
+  it("opens the portal address field when no default is configured", async () => {
     fixture.portal = "";
     await ready();
-    const signIn = button("Not configured");
-    expect(signIn.props.disabled).toBe(true);
+    const signIn = button("Use work sign-in");
+    expect(signIn.props.disabled).toBe(false);
     signIn.props.onClick!(); await flush();
     expect(bridge.begin).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
-    expect(render().html).not.toContain("admin.startupbot.ai");
+    expect(render().html).toContain('type="url"');
   });
 
   it("uses the default portal from one sign-in action and keeps custom setup in a fold", async () => {

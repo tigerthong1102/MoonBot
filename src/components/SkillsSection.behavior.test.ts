@@ -22,7 +22,9 @@ vi.mock("@/hooks/use-modal-dialog", () => ({ useModalDialog: fixture.modal }));
 vi.mock("@/state/store", () => ({ useStore: () => ({ state: { bots: [{ id: "bot", name: "Pepper" }], config: { features: { skillsLibrary: true } } } }) }));
 vi.mock("./bot-settings/BotEditorContext", () => ({ useBotEditor: () => ({ request: fixture.request }) }));
 
-import { SkillsSection } from "./SkillsSection";
+import { SkillsSection, type SkillChatTarget } from "./SkillsSection";
+import { api } from "@/state/api";
+vi.mock("@/state/api", () => ({ api: vi.fn() }));
 import { SkillsSection as BotSkillsSection } from "./bot-settings/SkillsSection";
 import type { Bot } from "@/state/store";
 
@@ -33,9 +35,9 @@ function nodes(value: ReactNode): ReactElement<Props>[] {
 const skill = (name = "order-audit"): SkillsLibrarySkillWire => ({ name, description: "Audit orders", source: "local-import", enabled: false, everyBot: false, tags: [], version: null, importedAt: "2026-10-02T00:00:00Z", warnings: [], assignedBots: [] });
 const source = "---\nname: order-audit\ndescription: Audit orders\n---\n\nCheck every line item.";
 const response = (body: unknown, ok = true) => ({ ok, json: async () => body });
-function render(bot = false) {
+function render(bot = false, chat?: SkillChatTarget) {
   fixture.index = 0;
-  return nodes(bot ? BotSkillsSection({ bot: { id: "bot" } as Bot }) : SkillsSection());
+  return nodes(bot ? BotSkillsSection({ bot: { id: "bot" } as Bot }) : SkillsSection({ chat }));
 }
 const named = (tree: ReactElement<Props>[], label: string) => tree.find((node) => node.props["aria-label"] === label)!;
 const button = (tree: ReactElement<Props>[], text: string) => tree.find((node) => node.type === "button" && node.props.children === text)!;
@@ -45,6 +47,7 @@ beforeEach(() => {
   fixture.values = [[skill()], false, "", "", null, null, "", "", false, "", "bot"];
   fixture.modal.mockClear();
   fixture.request.mockReset();
+  vi.mocked(api).mockReset();
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => response(options?.method === "PATCH" ? {} : url.endsWith("order-audit") ? { text: source } : { skills: [skill()] })));
 });
 
@@ -56,12 +59,41 @@ describe("Skills library review and assignment controls", () => {
     expect(fetch).toHaveBeenCalledWith("/api/skills-library/order-audit");
     const viewer = render().find((node) => typeof node.type === "function" && node.type.name === "SkillSourceDialog")!;
     const dialog = nodes((viewer.type as (props: Props) => ReactNode)(viewer.props));
-    expect(dialog.find((node) => node.type === "pre")!.props.children).toBe(source);
+    expect(dialog.find((node) => typeof node.type === "function" && node.type.name === "SkillInstructions")!.props.text).toBe(source);
     expect(fixture.modal).toHaveBeenCalledOnce();
     expect(button(dialog, "Enable reviewed skill")).toBeDefined();
     button(dialog, "Enable reviewed skill").props.onClick!();
     await flush();
     expect(fetch).toHaveBeenCalledWith("/api/skills-library/order-audit", expect.objectContaining({ method: "PATCH", body: '{"enabled":true}' }));
+  });
+
+  it("reviews the first use, assigns to this bot and verifies the library copy before inserting the command", async () => {
+    const chat = { botId: "bot", threadId: "task", use: vi.fn() };
+    button(render(false, chat), "Use in chat").props.onClick!();
+    await flush();
+    expect(api).not.toHaveBeenCalled();
+    const viewer = render(false, chat).find((node) => typeof node.type === "function" && node.type.name === "SkillSourceDialog")!;
+    vi.mocked(api).mockResolvedValueOnce({}).mockResolvedValueOnce({}).mockResolvedValueOnce({
+      skills: [{ name: "order-audit", origin: "library", enabled: true }],
+    });
+    (viewer.props.onEnable as () => void)();
+    await flush();
+    expect(vi.mocked(api).mock.calls).toEqual([
+      ["/api/skills-library/order-audit", { method: "PATCH", body: '{"enabled":true}' }],
+      ["/api/bots/bot/skills-library", { method: "PATCH", body: '{"name":"order-audit","assigned":true}' }],
+      ["/api/bots/bot/skills?threadId=task"],
+    ]);
+    expect(chat.use).toHaveBeenCalledWith("order-audit");
+  });
+
+  it("keeps the draft untouched when a private skill shadows the selected library copy", async () => {
+    const chat = { botId: "bot", threadId: "task", use: vi.fn() };
+    fixture.values[0] = [{ ...skill(), enabled: true }];
+    vi.mocked(api).mockResolvedValueOnce({}).mockResolvedValueOnce({ skills: [{ name: "order-audit", origin: "private", enabled: true }] });
+    button(render(false, chat), "Use in chat").props.onClick!();
+    await flush();
+    expect(chat.use).not.toHaveBeenCalled();
+    expect(fixture.values[2]).toBe("This skill is unavailable in this chat.");
   });
 
   it("does not approve missing or integrity-rejected source", async () => {
@@ -82,31 +114,19 @@ describe("Skills library review and assignment controls", () => {
     }));
   });
 
-  it("blocks a simultaneous second assignment and reads current assignments before the next PUT", async () => {
-    const rows = [skill("alpha"), skill("beta")];
-    fixture.values[0] = rows;
+  it("sends only the changed assignment and serializes clicks while the write is pending", async () => {
+    fixture.values[0] = [{ ...skill("alpha"), enabled: true }, { ...skill("beta"), enabled: true }];
     let unblock!: (value: Response) => void;
-    const delayed = new Promise<Response>((resolve) => { unblock = resolve; });
-    const writes: string[][] = [];
-    vi.mocked(fetch).mockImplementation(async (_url, options) => {
-      if (options?.method === "PUT") {
-        const next = JSON.parse(options.body as string).skills as string[];
-        writes.push(next);
-        for (const row of rows) row.assignedBots = next.includes(row.name) ? [{ id: "bot", name: "Pepper" }] : [];
-      }
-      return response({ skills: rows }) as Response;
-    }).mockImplementationOnce(() => delayed);
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise<Response>((resolve) => { unblock = resolve; }));
     const buttons = render().filter((node) => node.type === "button" && node.props.children === "Assign");
     buttons[0]!.props.onClick!();
     buttons[1]!.props.onClick!();
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith("/api/bots/bot/skills-library", expect.objectContaining({ method: "PATCH", body: '{"name":"alpha","assigned":true}' }));
     expect(render().filter((node) => node.props.children === "Assign").every((node) => node.props.disabled)).toBe(true);
-    unblock(response({ skills: rows }) as Response);
+    unblock(response({ ok: true }) as Response);
     await flush();
-    expect(writes).toEqual([["alpha"]]);
-    render().filter((node) => node.type === "button" && node.props.children === "Assign")[1]!.props.onClick!();
-    await flush();
-    expect(writes).toEqual([["alpha"], ["alpha", "beta"]]);
+    expect(fetch).toHaveBeenLastCalledWith("/api/skills-library");
   });
 
   it("requires the same source review before enabling a per-bot library skill", async () => {

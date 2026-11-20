@@ -553,6 +553,7 @@ const support = (run: typeof execCli): AcpSupport => ({
       notice(`Cursor offers ${modelId} rather than ${turn.model} in this session, so this conversation uses ${modelId}.`);
     }
     if (fastOption) await setCursorFast(request, sessionId, wantsFast);
+    if (match?.exact) return modelId;
   },
 
   buildPromptText: (turn) => (turn.system ? `${turn.system}\n\n${turn.text}` : turn.text),

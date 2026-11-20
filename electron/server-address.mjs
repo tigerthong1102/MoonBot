@@ -125,6 +125,7 @@ function decoded(value) {
 
 /** `{ address, secret }` from an `openmausbot://pair` link; only one naming a server's own http(s) origin. */
 function appLink(url) {
+  if (url.hostname !== "pair" || url.username || url.password || url.port || !["", "/"].includes(url.pathname)) return null;
   const address = url.searchParams.get("address") ?? "";
   if (!/^https?:\/\//i.test(address)) return null;
   return { address, secret: url.searchParams.get("code") ?? url.searchParams.get("token") };
@@ -150,7 +151,7 @@ export function parseServerInput(addressInput, codeInput = "") {
   if (asCode.kind === "wrong" && asCode.problem !== "notACode") return { ok: false, problem: asCode.problem };
   if (/[\s\\]/.test(text)) return { ok: false, problem: "notAnAddress" };
   let secret = null;
-  if (/^openmausbot:/i.test(text)) {
+  if (/^(?:startupbot|openmausbot):/i.test(text)) {
     let link;
     try {
       link = appLink(new URL(text));

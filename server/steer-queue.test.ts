@@ -71,6 +71,22 @@ function fakeStore(bots: BotRecord[]): SteerStore & { messages: Message[] } {
 }
 
 describe("steer-queue module", () => {
+  it("offers only for delivered, owner-authored messages after restoring a queue", () => {
+    const bot = fakeBot("offer-bot", "offer-thread", true);
+    const store = fakeStore([bot]);
+    const called = vi.fn();
+    const cancelled = queueSteeredMessage(bot.id, bot.threadId, "cancelled work", { workBotOfferOwner: "" });
+    queueSteeredMessage(bot.id, bot.threadId, "eligible work", { workBotOfferOwner: "person-a" });
+    queueSteeredMessage(bot.id, bot.threadId, "external work");
+    expect(cancelSteeredMessage(bot.id, cancelled.id, bot.threadId)).toBe(true);
+    restoreSteeredMessages();
+    drainSteeredMessages(store, () => {}, undefined, called);
+    expect(called).not.toHaveBeenCalled();
+    bot.busy = false;
+    drainSteeredMessages(store, () => {}, undefined, called);
+    expect(called.mock.calls).toEqual([[bot.id, bot.threadId, "eligible work", "person-a", expect.any(String)]]);
+  });
+
   it("keeps readable citation prompts byte-for-byte through queue, hold, and drain", () => {
     const bot = fakeBot("bot-citation-queue", "thread-citation-queue", true);
     const store = fakeStore([bot]);

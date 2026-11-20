@@ -265,6 +265,6 @@ describe("Test, and adding a server that needs the person's computer", () => {
 
 it("the words for each case", () => {
   const words = { personal: false, place: "this server" };
-  expect(lentLine("notes", { kind: "offline", computer: "MILIND-PC", device: "PC" }, words)).toBe("notes runs on MILIND-PC, which is offline right now: StartupBot on it is closed, or the PC is asleep or off.");
-  expect(lentLine("notes", { kind: "offline", computer: "MILIND-PC", device: "PC" }, { ...words, personal: true })).toBe("notes runs on your PC (MILIND-PC), which is offline right now: StartupBot on it is closed, or the PC is asleep or off.");
+  expect(lentLine("notes", { kind: "offline", computer: "MINH-PC", device: "PC" }, words)).toBe("notes runs on MINH-PC, which is offline right now: StartupBot on it is closed, or the PC is asleep or off.");
+  expect(lentLine("notes", { kind: "offline", computer: "MINH-PC", device: "PC" }, { ...words, personal: true })).toBe("notes runs on your PC (MINH-PC), which is offline right now: StartupBot on it is closed, or the PC is asleep or off.");
 });

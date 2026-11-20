@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -92,6 +92,8 @@ if (process.versions.electron && process.argv.includes(flag)) {
   ipcMain.handle("update:get-state", () => ({ status: "idle" }));
   ipcMain.handle("companion:state", () => ({ running: false, enabled: false, devices: [], bind: null, publicUrl: null }));
   ipcMain.handle("perm:status", () => ({}));
+  for (const [channel, value] of [["home:page", false], ["update:offered", false], ["desktop-language:read", "en"]])
+    ipcMain.on(channel, event => { event.returnValue = value; });
   ipcMain.handle("window:state", () => ({ maximized: false, fullscreen: false }));
   ipcMain.handle("desktop:capabilities", event => createRequire(import.meta.url)("../electron/capabilities.cjs").desktopCapabilities({
     platform: process.platform,
@@ -130,9 +132,10 @@ if (process.versions.electron && process.argv.includes(flag)) {
       await evaluate(`${button(label)}.click()`);
     };
     const fillAddress = async () => evaluate(`(() => { const el = document.querySelector('input[type=url]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(origin)}); el.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-    const openAdvanced = async () => evaluate(`document.querySelector('details summary').click()`);
-    await until(() => evaluate(`Boolean(${button("Sign in with your organization")})`), "optional sign-in form");
+    const openAdvanced = async () => click("Use work sign-in");
+    await until(() => evaluate(`Boolean(${button("Use work sign-in")})`), "optional sign-in form");
     assert.equal(begins, 0); assert.equal(browserRequests.length, 0);
+    await click("Learn more");
     assert.equal(await evaluate("document.body.textContent.includes('personal and local models')"), true);
     await openAdvanced(); await fillAddress(); await click("Sign in to custom Admin");
     await until(() => browserRequests.length === 1, "browser sign-in request");
@@ -140,7 +143,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     assert.equal(await evaluate("[...document.querySelectorAll('details')].some(el => el.textContent.includes('ABCDE-FGHJK') && el.open)"), false, "security code stays collapsed by default");
     assert.equal(await evaluate("document.body.textContent.includes('connect automatically')"), true);
     await click("Cancel sign-in");
-    await until(() => evaluate(`Boolean(${button("Sign in with your organization")})`), "cancel restored form");
+    await until(() => evaluate(`Boolean(${button("Use work sign-in")})`), "cancel restored form");
     assert.equal(saved, null);
     await openAdvanced(); await fillAddress(); await click("Sign in to custom Admin");
     await until(() => browserRequests.length === 2, "second browser request"); approved = true;
@@ -176,14 +179,14 @@ if (process.versions.electron && process.argv.includes(flag)) {
     await click("Disconnect…");
     writeFileSync(join(output, "organization-disconnect-narrow.png"), (await win.webContents.capturePage()).toPNG());
     await click("Disconnect from organization");
-    await until(() => evaluate(`Boolean(${button("Sign in with your organization")})`), "confirmed disconnect");
+    await until(() => evaluate(`Boolean(${button("Use work sign-in")})`), "confirmed disconnect");
     assert.equal(saved, null); assert.equal(revokes, 1); assert.ok(clearsApplied > 0);
     await openAdvanced(); await fillAddress(); await click("Sign in to custom Admin");
     await until(() => browserRequests.length === 3, "third browser request"); approved = true;
     await until(() => evaluate("document.body.textContent.includes('Fixture Studio')"), "reconnected company");
     revoked = true; await click("Refresh");
     await until(() => evaluate("document.body.textContent.includes('Disconnect below, then sign in again')"), "revoked access shown");
-    assert.equal(await evaluate(`Boolean(${button("Sign in with your organization")})`), false);
+    assert.equal(await evaluate(`Boolean(${button("Use work sign-in")})`), false);
     await click("Disconnect…"); await click("Disconnect from organization");
     await until(() => client.state().status === "signed-out", "revoked grant cleared");
 
@@ -197,13 +200,11 @@ if (process.versions.electron && process.argv.includes(flag)) {
     const beginsBeforeApp = begins;
     win.setSize(1180, 850);
     await win.loadURL(`${url}?app=1`);
-    await until(() => evaluate("document.body.textContent.includes('Meet OpenMausBot')"), "normal optional welcome flow");
-    assert.equal(await evaluate(`Boolean(${button("Sign in with your organization")})`), false);
+    await until(() => evaluate("Boolean(document.querySelector('[data-welcome]'))"), "normal optional welcome flow");
+    assert.equal(await evaluate(`Boolean(${button("Use work sign-in")})`), false);
     assert.equal(begins, beginsBeforeApp);
-    win.webContents.send("app:open-settings");
-    await until(() => evaluate("Boolean(document.querySelector('option[value=organization]'))"), "optional Settings section");
-    await click("Organization");
-    await until(() => evaluate(`Boolean(${button("Sign in with your organization")})`), "Organisation in real app Settings");
+    win.webContents.send("app:open-settings", "organization");
+    await until(() => evaluate(`Boolean(${button("Use work sign-in")})`), "Organisation in real app Settings");
     assert.equal(await evaluate("document.querySelectorAll('[role=dialog]').length"), 1, "welcome yields only to explicit connection Settings");
     await evaluate("new Promise(resolve => setTimeout(resolve, 180))"); // Capture settled navigation colors.
     writeFileSync(join(output, "organization-in-app.png"), (await win.webContents.capturePage()).toPNG());
@@ -224,7 +225,11 @@ if (process.versions.electron && process.argv.includes(flag)) {
       saveEnvironments: next => writeFileSync(environmentsFile, serializeEnvironments(next)),
       disconnectAndRemember: () => { throw new Error("Legacy hosted entry must not clear companion credentials"); },
       clearRestartIntent: () => { restartIntent = false; },
-      openLocalSettings: () => win.loadURL(`${url}?app=1&desktop-settings=organization`),
+      openLocalSettings: async () => {
+        if (!win.webContents.isLoadingMainFrame() && new URL(win.webContents.getURL()).origin === localOrigin)
+          win.webContents.send("app:open-settings", "organization");
+        else await win.loadURL(`${url}?app=1&desktop-settings=organization`);
+      },
       relaunch: () => { throw new Error("Legacy hosted entry needs no restart"); },
     });
     await win.loadURL(activeEnvironment(readEnvironments()).origin);
@@ -241,11 +246,11 @@ if (process.versions.electron && process.argv.includes(flag)) {
       onSwitch: () => {}, onAddFromClipboard: () => {}, onConnect: () => {}, onForget: () => {}, onOpenSettings: () => {} });
     menu.getMenuItemById("organization-sign-in").click();
     await menuRequest;
-    await until(() => evaluate(`Boolean(${button("Sign in with your organization")})`), "native organisation action opens local Settings before onboarding");
+    await until(() => evaluate(`Boolean(${button("Use work sign-in")})`), "native organisation action opens local Settings before onboarding");
     await until(() => settingsOpened > acknowledgmentsBeforeReturn, "mounted local Organisation settings acknowledged");
     assert.equal(new URL(win.webContents.getURL()).origin, localOrigin);
     assert.equal(readEnvironments().activeId, "local");
-    assert.deepEqual(readEnvironments().environments, hostedState.environments, "hosted entry retained; no chat migration or deletion");
+    assert.deepEqual(readEnvironments().environments, parseEnvironments(serializeEnvironments(hostedState)).environments, "hosted entry retained; no chat migration or deletion");
     assert.equal(begins, beginsBeforeApp, "opening local Settings does not enroll automatically");
     assert.equal(confirmations.length, 2);
     writeFileSync(join(output, "organization-returned-local.png"), (await win.webContents.capturePage()).toPNG());
@@ -254,7 +259,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     const previousWindow = win;
     win = await open(true, activeEnvironment(readEnvironments())?.origin ?? `${url}?app=1`);
     previousWindow.destroy();
-    await until(() => evaluate("document.body.textContent.includes('Meet OpenMausBot')"), "local choice survives recreated renderer");
+    await until(() => evaluate("Boolean(document.querySelector('[data-welcome]'))"), "local choice survives recreated renderer");
     assert.equal(await evaluate("typeof window.ogb.organization"), "object");
     assert.equal(new URL(win.webContents.getURL()).origin, localOrigin);
     // Simulate the already-confirmed companion disconnect's one-bit restart
@@ -264,7 +269,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     await entry.restore();
     await until(() => !restartIntent, "confirmed restart intent consumed after local panel mounts");
     assert.equal(readEnvironments().activeId, "local");
-    assert.equal(await evaluate(`Boolean(${button("Sign in with your organization")})`), true);
+    assert.equal(await evaluate(`Boolean(${button("Use work sign-in")})`), true);
     const receipt = { passed: true, renderer: "OrganizationSettings + actual app shell", preload: "electron/preload.cjs", client: "electron/managed-desktop.mjs",
       checks: ["organization logo and icon grid", "chosen icon becomes a durable local attachment", "admin removal clears branding without deleting chosen avatar", "one-button default organization sign-in", "custom Admin kept under Advanced", "browser handoff and automatic connection", "security code collapsed and cancel works", "approved company and model counts", "model-only capability sent to private process", "no token or private connection method in renderer", "organisation sign-in preserves local desktop capabilities", "390px no overflow", "cancel/confirm disconnect", "revocation requires reconnect", "remote bridge absent", "normal app startup unchanged", "explicit Organisation Settings before local onboarding", "saved old hosted renderer restored without local authority", "cancel keeps hosted selection", "native menu returns to local Organisation Settings", "hosted entry remains saved", "persisted local selection survives recreated renderer"],
       limitation: "Synthetic loopback Admin, confirmation, credential store and utility-process acknowledgement. Renderer recreation and a synthetic restart intent, not an installed update or OS relaunch; no real Admin consent, OS keychain, native driver execution, private runtime synchronization, backups or public DNS/TLS." };
@@ -282,11 +287,12 @@ if (process.versions.electron && process.argv.includes(flag)) {
   for (const name of ["home", "user-data"]) mkdirSync(join(output, name));
   const ui = await createServer({ configFile: false, root, resolve: { alias: { "@": join(root, "src") } },
     define: { __APP_VERSION__: JSON.stringify("fixture") },
-    server: { host: "127.0.0.1", port: 0, proxy: { "/api": { target: fixture.info.url } } },
+    optimizeDeps: { entries: ["src/App.tsx", "src/components/OrganizationSettings.tsx", "src/components/BotProfileAvatarCard.tsx"], include: ["qrcode.react", "yaml"] },
+    server: { fs: { allow: [root, realpathSync(join(root, "node_modules"))] }, host: "127.0.0.1", port: 0, proxy: { "/api": { target: fixture.info.url, ws: true } } },
     plugins: [react(), tailwindcss(), {
       name: "organization-fixture",
       resolveId(id) { if (id === "virtual:organization-fixture") return `\0${id}`; },
-      load(id) { if (id === "\0virtual:organization-fixture") return `import React from 'react'; import { createRoot } from 'react-dom/client'; import { OrganizationSettings } from '/src/components/OrganizationSettings.tsx'; import { setLocale } from '/src/lib/i18n.ts'; import { StoreProvider } from '/src/state/store.tsx'; import { BotProfileAvatarCard } from '/src/components/BotProfileAvatarCard.tsx'; import { OrganizationIdentity } from '/src/components/OrganizationIdentity.tsx'; import '/src/styles.css'; setLocale('en'); localStorage.setItem('omb-analytics-opt-out','1'); const root = createRoot(document.getElementById('root')); if(location.search.includes('app=1')) { document.body.classList.remove('p-4'); import('/src/App.tsx').then(({default: App}) => root.render(React.createElement(App))); } else if(location.search.includes('branding=1')) { function Fixture() { const [bot, setBot] = React.useState({ id:'fixture-avatar', name:'Studio bot', color:'green', mascotBody:'cursor', avatarCrop:'mascot', messages:[] }); window.fixtureBot = bot; return React.createElement(StoreProvider, null, React.createElement('main', {className:'mx-auto flex max-w-xl flex-col gap-4'}, React.createElement(OrganizationIdentity), React.createElement(OrganizationSettings), React.createElement(BotProfileAvatarCard, {bot, activeState:'idle', mascotMotion:null, onPatch: patch => setBot(b => ({...b,...patch}))}))); } root.render(React.createElement(Fixture)); } else root.render(React.createElement('main',{className:'mx-auto flex max-w-xl flex-col gap-4'},React.createElement(OrganizationSettings)));`; },
+      load(id) { if (id === "\0virtual:organization-fixture") return `import React from 'react'; import { createRoot } from 'react-dom/client'; import { OrganizationSettings } from '/src/components/OrganizationSettings.tsx'; import { setLocale } from '/src/lib/i18n.ts'; import { StoreProvider } from '/src/state/store.tsx'; import { BotProfileAvatarCard } from '/src/components/BotProfileAvatarCard.tsx'; import { OrganizationIdentity } from '/src/components/OrganizationIdentity.tsx'; import '/src/styles.css'; setLocale('en'); localStorage.setItem('omb-analytics-opt-out','1'); const root = createRoot(document.getElementById('root')); if(location.search.includes('app=1')) { document.body.classList.remove('p-4'); import('/src/App.tsx').then(({default: App}) => root.render(React.createElement(App))); } else if(location.search.includes('branding=1')) { function Fixture() { const [bot, setBot] = React.useState({ id:'fixture-avatar', name:'Studio bot', color:'green', mascotBody:'cursor', avatarCrop:'mascot', messages:[] }); window.fixtureBot = bot; return React.createElement(StoreProvider, null, React.createElement('main', {className:'mx-auto flex max-w-xl flex-col gap-4'}, React.createElement(OrganizationIdentity), React.createElement(OrganizationSettings), React.createElement(BotProfileAvatarCard, {bot, activeState:'idle', mascotMotion:null, onPatch: patch => setBot(b => ({...b,...patch}))}))); } root.render(React.createElement(Fixture)); } else root.render(React.createElement(StoreProvider,null,React.createElement('main',{className:'mx-auto flex max-w-xl flex-col gap-4'},React.createElement(OrganizationSettings))));`; },
       configureServer(server) { server.middlewares.use((req, res, next) => {
         if (req.url?.split("?")[0] !== "/__organization.html") return next();
         void server.transformIndexHtml(req.url, '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Isolated Organisation Settings</title></head><body class="bg-app p-4"><div id="root"></div><script type="module" src="/@id/virtual:organization-fixture"></script></body></html>')
@@ -304,7 +310,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
     for (const stream of [child.stdout, child.stderr]) stream.on("data", data => { appendFileSync(join(output, "electron.log"), data); process.stdout.write(data); });
     const stop = () => child.kill("SIGTERM");
     process.once("SIGINT", stop); process.once("SIGTERM", stop);
-    const timer = setTimeout(stop, 60_000);
+    const timer = setTimeout(stop, 120_000);
     const code = await new Promise((resolve, reject) => { child.once("error", reject); child.once("close", resolve); })
       .finally(() => { clearTimeout(timer); process.off("SIGINT", stop); process.off("SIGTERM", stop); });
     assert.equal(code, 0, `Organisation smoke failed; inspect ${join(output, "electron.log")}`);

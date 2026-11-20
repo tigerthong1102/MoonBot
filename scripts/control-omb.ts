@@ -406,8 +406,8 @@ export async function launchVerificationServer(
         const response = await fetch(`${url}/api/health`, {
           signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         });
-        const body = response.ok ? await response.json() as { app?: string } : null;
-        if (body?.app === "openmausbot") break;
+        const body = response.ok ? await response.json() as { app?: string; pid?: number } : null;
+        if (body?.app === "openmausbot" && body.pid === child.pid) break;
       } catch {
       }
       if (Date.now() >= deadline) throw new Error(`verification server did not become ready; see ${logPath}${logTail()}`);
@@ -440,10 +440,11 @@ export async function launchVerificationServer(
       signal: signal ? AbortSignal.any([signal, renameTimeout]) : renameTimeout,
     });
     if (!rename.ok) throw new Error(`verification starter rename failed (${rename.status}); see ${logPath}`);
+    await rename.arrayBuffer();
   } catch (error) {
     await waitForExit(child, { signal: "SIGTERM" });
     await removeTempDir(dataDir);
-    throw error;
+    throw new Error(`verification server could not initialize the starter; see ${logPath}${logTail()}`, { cause: error });
   }
 
   let closing: Promise<void> | undefined;

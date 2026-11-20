@@ -120,6 +120,17 @@ const __APP_VERSION__: string;
       softwareRendering?: boolean;
       /** This app's own version, and whether this page is this app's own: false on a server added in the Server menu,
        * whose page carries that server's version. Absent in desktop builds before it. */
+      personalAccount?: {
+        updatesConsent: import("../../electron/updates-consent.mjs").UpdatesConsentBridge;
+        sendCode(email: string): Promise<"ok" | "invalid" | "limited" | "unavailable">;
+        verify(email: string, code: string): Promise<"ok" | "invalid" | "limited" | "unavailable">;
+        onPrompt(callback: (inbox: boolean) => void): () => void;
+        open(): Promise<void>;
+        state(): Promise<string | null>;
+        signOut(): Promise<void>;
+        onChange(callback: () => void): () => void;
+      };
+      openPersonalInbox?: () => Promise<void>;
       app?: { version: string; ownPage: boolean };
       organization?: import("../../electron/managed-desktop.mjs").ManagedDesktopBridge;
       cloudAccount?: import("../../electron/cloud-account.mjs").CloudAccountBridge;
@@ -469,7 +480,7 @@ const __APP_VERSION__: string;
         check(): Promise<void>;
         /** apply the download: quit-and-install, or copy the command and open
          * a terminal. On a server's page, only from the person's click. */
-        install(): Promise<void>;
+        install(): Promise<boolean | void>;
         /** The person saw the line that the app updated itself: it is not shown again. */
         seen?(): Promise<void>;
         onState(cb: (s: UpdaterState) => void): () => void;
@@ -538,6 +549,7 @@ export interface UpdaterState {
   terminalOpened?: boolean;
   /** downloaded only: the app installs it by itself the next time the person is away and nothing is running */
   installsByItself?: boolean;
+  restartDeferred?: boolean;
   /** the version the app updated itself to while the person was away, until they have seen it said */
   updated?: string;
 }

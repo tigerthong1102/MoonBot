@@ -1,3 +1,4 @@
+import { seedStartupBotSkillCatalog } from "../startupbot-skill-catalog.ts";
 import { liveSavePatch } from "../live-config.ts";
 import { signInEnvRefusal } from "../sign-in-env.ts";
 import * as boat from "../boat.ts";
@@ -204,6 +205,7 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
           return json(res, 409, { error: "Browser profiles changed in another window. Review the refreshed list and try again." });
         }
       }
+      const enablingSkillLibrary = cfg.features?.skillsLibrary === false && patch.features?.skillsLibrary === true;
       const disablingBuiltInBrowser = patch.features?.browser === false && builtInBrowserEnabled(cfg);
       const switchingBrowserEngine = patch.browserEngine?.engine !== undefined && patch.browserEngine.engine !== browserEngineKind(cfg);
       const removedBrowserProfileIds = patch.browserProfiles === undefined
@@ -602,6 +604,7 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
         }
         throw error;
       }
+      if (enablingSkillLibrary) seedStartupBotSkillCatalog();
       for (const key of resetKeys) if (key) forgetKey(key);
       localVmModeChanged?.();
       postiz?.configSaved(patch);

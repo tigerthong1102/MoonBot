@@ -14,7 +14,7 @@ import { isSkillName, parseSkillMd, SKILL_FILE_MAX_BYTES } from "../shared/skill
 import type { SkillPackageStamp } from "./skills.ts";
 
 export function skillsLibraryEnabled(cfg: AppConfig): boolean {
-  return cfg.features?.skillsLibrary === true;
+  return cfg.features?.skillsLibrary !== false;
 }
 
 export interface SkillManifest {
@@ -355,13 +355,13 @@ export function setLibrarySkillOptOut(botId: string, name: string, optedOut: boo
 /** Library skills this bot has: an explicit assignment, or every bot unless this bot opted out. */
 export function librarySkillsForBot(botId: string, assigned: ReadonlySet<string>, owned: ReadonlySet<string>): LibrarySkillListing[] {
   const optedOut = librarySkillOptOuts(botId);
-  return listLibrarySkills().filter((skill) => !owned.has(skill.name) && (assigned.has(skill.name) || (skill.everyBot && !optedOut.has(skill.name))));
+  return listLibrarySkills(skillsLibraryRoot(), (skill) => !owned.has(skill.name) && (assigned.has(skill.name) || (skill.everyBot === true && !optedOut.has(skill.name))));
 }
 
 /** Library skills this bot can still add: not owned, not assigned, and not already on for every bot. */
 export function librarySkillsToOffer(botId: string, assigned: ReadonlySet<string>, owned: ReadonlySet<string>): LibrarySkillListing[] {
   const optedOut = librarySkillOptOuts(botId);
-  return listLibrarySkills().filter((entry) => !owned.has(entry.name) && !assigned.has(entry.name) && (!entry.everyBot || optedOut.has(entry.name)));
+  return listLibrarySkills(skillsLibraryRoot(), (entry) => !owned.has(entry.name) && !assigned.has(entry.name) && (!entry.everyBot || optedOut.has(entry.name)));
 }
 
 /** Drops one bot's assignment. A skill on for every bot is opted out here so the others keep it. */
@@ -371,7 +371,7 @@ export function unassignLibrarySkill(
   assigned: readonly string[] | undefined,
 ): { unassigned: true; assignedSkills?: string[] } | { absent: true } {
   if (!isSkillName(name)) return { absent: true };
-  const listing = listLibrarySkills().find((skill) => skill.name === name);
+  const listing = readSkillLibraryIndex()[name];
   if (!listing) return { absent: true };
   const explicit = assigned?.includes(name) === true;
   const viaEvery = listing.everyBot && !librarySkillOptOuts(botId).has(name);
@@ -399,13 +399,13 @@ export function setLibrarySkillEveryBot(
   return librarySkillListing(root, entry);
 }
 
-export function listLibrarySkills(root: string = skillsLibraryRoot()): LibrarySkillListing[] {
-  return Object.values(readSkillLibraryIndex(root))
+export function listLibrarySkills(root: string = skillsLibraryRoot(), include: (entry: SkillLibraryEntry) => boolean = () => true): LibrarySkillListing[] {
+  return Object.values(readSkillLibraryIndex(root)).filter(include)
     .map((entry) => librarySkillListing(root, entry))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function installLibrarySkill(input: {
+interface LibrarySkillInstall {
   name: string;
   description?: string;
   instructions: string;
@@ -420,9 +420,11 @@ export function installLibrarySkill(input: {
   files?: ReadonlyArray<{ path: string; content: string | Uint8Array; executable?: boolean }>;
   skippedFiles?: string[];
   github?: GitHubSkillOrigin;
-  root?: string;
-}): LibrarySkillListing | { error: string } {
-  const root = input.root ?? skillsLibraryRoot();
+}
+
+type LibraryInstallResult = { entry: SkillLibraryEntry; installed: boolean } | { error: string };
+
+function stageLibrarySkill(input: LibrarySkillInstall, root: string, index: Record<string, SkillLibraryEntry>): LibraryInstallResult {
   if (!isSkillName(input.name)) return { error: "invalid skill name" };
   if (Buffer.byteLength(input.instructions, "utf8") > SKILL_FILE_MAX_BYTES) {
     return { error: `SKILL.md is larger than ${SKILL_FILE_MAX_BYTES / 1024}KB` };
@@ -431,12 +433,9 @@ export function installLibrarySkill(input: {
   if ("error" in parsed) return parsed;
   if (parsed.name !== input.name) return { error: `the skill is named "${parsed.name}", not "${input.name}"` };
   const sha256 = sha256Hex(input.instructions);
-  const indexRead = readSkillLibraryIndexState(root);
-  if ("error" in indexRead) return indexRead;
-  const index = indexRead.index;
-  const existing = index[input.name];
+  const existing = Object.hasOwn(index, input.name) ? index[input.name] : undefined;
   if (existing) {
-    if (existing.sha256 === sha256) return librarySkillListing(root, existing);
+    if (existing.sha256 === sha256) return { entry: existing, installed: false };
     return { error: `a skill named "${input.name}" is already in the library — choose a different name` };
   }
   const tags = input.tags?.length ? input.tags : parsed.tags;
@@ -466,9 +465,44 @@ export function installLibrarySkill(input: {
     writeFileAtomic(join(librarySkillDirectory(root, input.name), "SKILL.md"), input.instructions, { mode: 0o600 });
   }
   index[input.name] = entry;
-  writeSkillLibraryIndex(root, index);
-  skillLibraryEvents.emit("invalidate", { kind: "install", name: input.name });
-  return librarySkillListing(root, entry);
+  return { entry, installed: true };
+}
+
+export function installLibrarySkill(input: LibrarySkillInstall & { root?: string }): LibrarySkillListing | { error: string } {
+  const root = input.root ?? skillsLibraryRoot();
+  const current = readSkillLibraryIndexState(root);
+  if ("error" in current) return current;
+  const result = stageLibrarySkill(input, root, current.index);
+  if ("error" in result) return result;
+  if (result.installed) {
+    writeSkillLibraryIndex(root, current.index);
+    skillLibraryEvents.emit("invalidate", { kind: "install", name: input.name });
+  }
+  return librarySkillListing(root, result.entry);
+}
+
+export function installBundledLibrarySkills(
+  inputs: readonly (LibrarySkillInstall & { everyBot?: boolean })[],
+  root: string,
+): { installed: number; failed: string[] } {
+  if (!inputs.length) return { installed: 0, failed: [] };
+  const current = readSkillLibraryIndexState(root);
+  if ("error" in current) throw new Error(current.error);
+  const names: string[] = [];
+  const failed: string[] = [];
+  for (const input of inputs) {
+    const result = stageLibrarySkill(input, root, current.index);
+    if ("error" in result) failed.push(`${input.name}: ${result.error}`);
+    else if (result.installed) {
+      if (input.everyBot) result.entry.everyBot = true;
+      names.push(input.name);
+    }
+  }
+  if (names.length) {
+    writeSkillLibraryIndex(root, current.index);
+    for (const name of names) skillLibraryEvents.emit("invalidate", { kind: "install", name });
+  }
+  return { installed: names.length, failed };
 }
 
 /** Written beside the library and renamed into place; bytes a crash left under the name, which no entry names, are set aside. */
@@ -476,7 +510,7 @@ function storeLibraryFolder(
   root: string,
   name: string,
   skillMd: string,
-  files: NonNullable<Parameters<typeof installLibrarySkill>[0]["files"]>,
+  files: NonNullable<LibrarySkillInstall["files"]>,
 ): { filesSha256: string } | { error: string } {
   const directory = librarySkillDirectory(root, name);
   const staged = join(root, "skills", `.install-${name}-${randomUUID()}`);

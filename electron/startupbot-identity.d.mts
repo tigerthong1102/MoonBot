@@ -7,3 +7,5 @@ export declare function queueIncomingChatLink(value: unknown, handlers: {
   reveal(): void;
   deliver(): void;
 }): boolean;
+export declare function personalInboxOrigin(value?: string): string | null;
+export declare function configuredInboxOrigin(launchOrigin: string | undefined, packagedOrigin: string | undefined, readProfile: () => { origin?: string } | null): string | null;

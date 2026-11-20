@@ -82,14 +82,14 @@ test("a new language redraws main's menu, both trays, the window title and the b
   lendingTray.update({ clouds: ["My Cloud"], using: [], paused: false });
   const office = { id: "o", kind: "remote", name: "Office", origin: "https://office.example.test" };
   const context = vm.createContext({
-    desktopTray, lendingTray, nativeT: text.t, relabelDesktop,
+    desktopTray, lendingTray, nativeT: text.t, relabelDesktop, inbox: { applyLanguage: () => calls.push(["inbox", text.intlTag()]) },
     refreshApplicationMenu: () => calls.push(["menu", text.t("native.menu.server")]),
     applyUnreadBadge: () => calls.push(["badge", text.t("native.badge.none")]),
     mainWindow: { isDestroyed: () => false, setTitle: (title) => calls.push(["title", title]) },
     environmentsState: { environments: [office], activeId: "o" }, desktopRemoteAccess: null,
     homeWindow: { cloudOrigin: () => null }, workspaceWindowTitle: environments.workspaceWindowTitle,
   });
-  const start = MAIN.indexOf("function mainWindowTitle() {"), end = MAIN.indexOf("async function workspaceMenuAction(", start);
+  const start = MAIN.indexOf("function mainWindowTitle() {"), end = MAIN.indexOf("const workspaceMenuAction =", start);
   assert.ok(start > 0 && end > start, "main.mjs still has applyNativeLanguage");
   vm.runInContext(`${MAIN.slice(start, end)}; this.applyNativeLanguage = applyNativeLanguage;`, context);
 
@@ -98,7 +98,7 @@ test("a new language redraws main's menu, both trays, the window title and the b
 
   text.set("pt-br");
   context.applyNativeLanguage();
-  assert.deepEqual(calls, [["menu", "Servidor"], ["title", "StartupBot — Hospedado: Office (office.example.test)"], ["badge", "Nenhuma conversa não lida"]]);
+  assert.deepEqual(calls, [["inbox", "pt-BR"], ["menu", "Servidor"], ["title", "StartupBot — Hospedado: Office (office.example.test)"], ["badge", "Nenhuma conversa não lida"]]);
   assert.deepEqual(said(trays[0]), ["Abrir o StartupBot", "Sair do StartupBot"]);
   assert.deepEqual(said(trays[1]), ["My Cloud com acesso a este PC", "Pausar", "Permitir que os Clouds executem comandos neste PC", "Ver atividade"]);
   assert.equal(trays[1].tip, "StartupBot: My Cloud com acesso a este PC");

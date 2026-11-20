@@ -32,17 +32,17 @@ export function errorResponse(status: number, code: string): Response {
   return json({ error: code }, status);
 }
 
-function validateDeclaredBodyLength(request: Request) {
+function validateDeclaredBodyLength(request: Request, maxBytes: number) {
   const contentLength = request.headers.get("content-length");
   if (contentLength !== null) {
     const declared = Number(contentLength);
     if (!Number.isSafeInteger(declared) || declared < 0) throw new HTTPError(400, "invalid_request");
-    if (declared > MAX_API_BODY_BYTES) throw new HTTPError(413, "request_too_large");
+    if (declared > maxBytes) throw new HTTPError(413, "request_too_large");
   }
 }
 
-async function readBoundedBody(request: Request): Promise<Uint8Array<ArrayBuffer>> {
-  validateDeclaredBodyLength(request);
+export async function readBoundedBody(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<Uint8Array<ArrayBuffer>> {
+  validateDeclaredBodyLength(request, maxBytes);
   if (!request.body) return new Uint8Array();
 
   const reader = request.body.getReader();
@@ -53,7 +53,7 @@ async function readBoundedBody(request: Request): Promise<Uint8Array<ArrayBuffer
       const { done, value } = await reader.read();
       if (done) break;
       length += value.byteLength;
-      if (length > MAX_API_BODY_BYTES) {
+      if (length > maxBytes) {
         await reader.cancel();
         throw new HTTPError(413, "request_too_large");
       }
@@ -72,9 +72,9 @@ async function readBoundedBody(request: Request): Promise<Uint8Array<ArrayBuffer
   return bytes;
 }
 
-export async function withBoundedRequestBody(request: Request): Promise<Request> {
+export async function withBoundedRequestBody(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<Request> {
   if (BODYLESS_METHODS.has(request.method.toUpperCase())) return request;
-  const bytes = await readBoundedBody(request);
+  const bytes = await readBoundedBody(request, maxBytes);
   if (!request.body) return request;
 
   const headers = new Headers(request.headers);
@@ -97,10 +97,10 @@ function parseJSONBytes(bytes: Uint8Array): JSONValue {
   }
 }
 
-export async function readBoundedJSON(request: Request): Promise<JSONValue> {
+export async function readBoundedJSON(request: Request, maxBytes = MAX_API_BODY_BYTES): Promise<JSONValue> {
   requireJSONMediaType(request);
   if (!request.body) throw new HTTPError(400, "invalid_request");
-  return parseJSONBytes(await readBoundedBody(request));
+  return parseJSONBytes(await readBoundedBody(request, maxBytes));
 }
 
 /** For a route whose JSON body is optional: no body, or an empty one, is

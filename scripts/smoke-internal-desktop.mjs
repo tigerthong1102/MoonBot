@@ -53,11 +53,15 @@ const sentinel = path.join(legacy, "do-not-modify.txt");
 writeFileSync(sentinel, "upstream fixture data must remain unchanged\n");
 const sentinelHash = createHash("sha256").update(readFileSync(sentinel)).digest("hex");
 const plan = path.join(fixture, "chat-plan.json");
+const workMessage = "Tôi cần theo dõi tin tuc AI hang ngay, cap nhat lien tuc cho toi nhe";
+const workName = "Tin tức AI";
+const textRoutes = path.join(fixture, "work-topic.json");
+writeFileSync(textRoutes, JSON.stringify({ [workMessage]: JSON.stringify({ name: workName, icon: "calendar" }) }));
 writeFileSync(plan, "{}");
 const reply = "StartupBot packaged agent fixture answered successfully";
-writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", features: { smartSetupChoices: false }, instances: {
+writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", profile: { name: "Fixture Owner" }, features: { smartSetupChoices: false }, instances: {
   claude: { driver: "claudeAgent", displayName: "Internal package fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") },
-    environment: { FAKE_CLAUDE_ROOM_PLAN: plan } },
+    environment: { FAKE_CLAUDE_ROOM_PLAN: plan, FAKE_CLAUDE_TEXT_ROUTES: textRoutes } },
 } }));
 
 async function freePort() {
@@ -82,7 +86,7 @@ const debug = await freePort();
 const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERPROFILE: home,
   APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"),
   XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
-  OMB_DATA_DIR: data, OMB_SMOKE_HOME: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(webhook),
+  OMB_COMPANION_DIR: path.join(fixture, "phones"), OMB_COMPANION_BONJOUR: "0", OMB_DATA_DIR: data, OMB_SMOKE_HOME: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(webhook),
   OMB_SMOKE_TEST: "1", OMB_SMOKE_KEEP_OPEN: "1", OMB_SMOKE_CUA: "0",
   ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot, WINDIR: process.env.SystemRoot } : {}),
   ...(process.env.TEMP ? { TEMP: process.env.TEMP, TMP: process.env.TEMP } : {}),
@@ -135,7 +139,7 @@ try {
     writeFileSync(path.join(evidence, "desktop-failure.png"), Buffer.from(screenshot.data, "base64"));
   };
   await until(() => evaluate("Boolean(window.ogb?.getCapabilities && document.readyState === 'complete')"), "the preload bridge");
-  const request = (route, body) => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)},${JSON.stringify(body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })});return {status:r.status,body:await r.json()};})()`);
+  const request = (route, body, method = "POST") => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)},${JSON.stringify(body === undefined ? {} : { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) })});return {status:r.status,body:await r.json()};})()`);
   const health = await request("/api/health");
   assert.equal(health.status, 200);
   const edition = await request("/api/edition");
@@ -158,15 +162,92 @@ try {
   assert.doesNotMatch(helperText, /\b(?:OpenMausBot|MausBot)\b/);
   const helperScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-helper.png"), Buffer.from(helperScreenshot.data, "base64"));
+  const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
+  const send = async text => {
+    await until(() => evaluate(`Boolean(${composer})`), "an enabled chat composer");
+    await evaluate(`(${composer}).focus()`);
+    await cdp("Input.insertText", { text });
+    assert.equal(await evaluate("document.activeElement.value"), text);
+    const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
+    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
+  };
+  const roster = async () => {
+    const result = await request("/api/bots?messages=0");
+    assert.equal(result.status, 200);
+    return result.body.bots;
+  };
+  const initialBots = await roster();
+  const helper = initialBots.find(row => row.defaultBot);
+  assert(helper?.threadId, "The first-run main helper must exist");
+  assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: "full" }, "PATCH")).status, 200);
+  assert(!initialBots.some(row => row.name === workName));
+  writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [
+    { key: "first-work", match: [workMessage], reply: "Tôi sẽ giúp theo dõi tin tức AI." },
+  ] } }));
+  const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
+  await until(() => evaluate(`Boolean(${helperRow})`), "the main helper in the sidebar");
+  await evaluate(`${helperRow}.click()`);
+  await send(workMessage);
+  const offerCard = async () => {
+    const result = await request(`/api/threads/${helper.threadId}/messages`);
+    assert.equal(result.status, 200);
+    return result.body.messages.find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
+  };
+  const offered = await until(offerCard, "the main helper to propose a dedicated bot");
+  assert.equal(offered.teamSetupRequest.workBotOffer.icon, "calendar");
+  assert.equal(offered.answered, undefined);
+  assert(offered.title.includes(workName));
+  const consent = `[...document.querySelectorAll('[data-work-bot-offer] button')].find(button => button.getClientRects().length && !button.disabled && button.textContent.trim() === ${JSON.stringify(offered.options[0])})`;
+  await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(offered.title)}) && Boolean(${consent})`), "the visible work question and its consent button");
+  assert.deepEqual((await roster()).map(row => row.id).sort(), initialBots.map(row => row.id).sort());
+  const offerScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
+  writeFileSync(path.join(evidence, "work-bot-consent.png"), Buffer.from(offerScreenshot.data, "base64"));
+  await until(() => evaluate(`Boolean(${composer})`), "the composer to stay usable while the suggestion is open");
+  const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
+  await send(extra);
+  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text === extra), "a second message to be accepted with the offer pending");
+  assert.equal((await roster()).length, initialBots.length);
+  await evaluate(`(${consent}).click()`);
+  const accepted = await until(async () => {
+    const card = await offerCard();
+    return card?.teamSetupRequest.result?.state === "applied" && card.teamSetupRequest.result;
+  }, "the accepted work-bot creation receipt");
+  const afterConsent = await roster();
+  const newBots = afterConsent.filter(row => !initialBots.some(previous => previous.id === row.id));
+  assert.equal(afterConsent.length, initialBots.length + 1);
+  assert.equal(newBots.length, 1);
+  const workBot = newBots[0];
+  assert.equal(workBot.name, workName);
+  assert.equal(accepted.bots[0].id, workBot.id);
+  assert(readFileSync(path.join(data, "bots", workBot.id, "SOUL.md"), "utf8").includes(workMessage));
+  assert.match(workBot.avatarUrl, /^\/api\/attachments\/[^/]+\.png$/);
+  assert.deepEqual(await evaluate(`(async () => {
+    const img = new Image();
+    img.src = ${JSON.stringify(workBot.avatarUrl)};
+    await img.decode();
+    return [img.naturalWidth, img.naturalHeight];
+  })()`), [128, 128]);
   const created = await request("/api/bots", { name: "Internal package agent", cwd: home });
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
   assert(bot?.id, "Bot creation did not return its identity");
   const first = "Please answer this internal package fixture.";
+  assert.equal((await request("/api/sidebar-sections", { name: "Package fixture", botIds: [bot.id] })).status, 200);
+  assert.equal((await request(`/api/bots/${bot.id}`, { chiefOfStaff: true, approvalMode: "full" }, "PATCH")).status, 200);
+  const specialist = "Trợ lý dữ liệu thử";
+  const create = `Tạo một bot tên “${specialist}” để kiểm tra tệp dữ liệu thử.`;
+  const newTitle = "Đối soát thử";
+  const rename = `Đổi tên hội thoại này thành “${newTitle}”.`;
   const clear = "Xóa tin nhắn của đúng hội thoại này";
   const followup = "Continue the fixture conversation.";
   writeFileSync(plan, JSON.stringify({ [bot.id]: { script: [
     { key: "first", match: [first], reply },
+    { key: "create", match: [create], steps: [
+      { tool: "find_tool", arguments: { query: create }, capture: { selected: '"matches":\\[\\{"name":"([^"]+)"' } },
+      { tool: "use_tool", arguments: { name: "{{selected}}", arguments: { name: specialist, role: "Kiểm tra dữ liệu", instructions: "Kiểm tra tệp dữ liệu thử khi được giao." } } },
+    ], reply: "Đã tạo bot thử." },
+    { key: "rename", match: [rename], steps: [{ tool: "rename_thread", arguments: { title: newTitle } }], reply: "Đã đổi tên hội thoại thử." },
     { key: "clear", match: [clear], steps: [{ tool: "app_settings", arguments: { action: "show_card", card: "clear-messages" } }], reply: "Confirm in chat." },
     { key: "followup", match: [followup], reply: "Fresh fixture reply." },
   ] } }));
@@ -187,16 +268,19 @@ try {
   const selectBot = `document.querySelector('[data-sidebar-bot-row="${bot.id}"]')`;
   await until(() => evaluate(`Boolean(${selectBot})`), "the fixture bot in the sidebar");
   await evaluate(`${selectBot}.click()`);
-  const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
-  const send = async text => {
-    await until(() => evaluate(`Boolean(${composer})`), "an enabled chat composer");
-    await evaluate(`(${composer}).focus()`);
-    await cdp("Input.insertText", { text });
-    assert.equal(await evaluate("document.activeElement.value"), text);
-    const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
-    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
-    await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
-  };
+  const readBot = async () => (await request("/api/bots?messages=0")).body.bots.find(row => row.id === bot.id);
+  const finished = async text => (await transcript()).some(row => row.role === "bot" && row.text === text) && !(await readBot()).busy;
+  await send(rename);
+  await until(() => finished("Đã đổi tên hội thoại thử."), "the rename turn to finish");
+  assert.equal((await readBot()).tasks.find(task => task.threadId === bot.threadId)?.title, newTitle);
+  const bridge = async enabled => assert.equal((await request("/api/config", { features: { agentsToolBridge: enabled } }, "PATCH")).status, 200);
+  await bridge(true);
+  await send(create);
+  await until(() => finished("Đã tạo bot thử."), "the discovered create action to finish");
+  const specialists = (await request("/api/bots?messages=0")).body.bots.filter(row => row.name === specialist);
+  assert.equal(specialists.length, 1);
+  assert.notEqual(specialists[0].id, bot.id);
+  await bridge(false);
   await send(clear);
   const confirm = `[...document.querySelectorAll('[data-settings-card="clear-messages"] button')].find(button => button.textContent.trim() === "Delete messages")`;
   await until(() => evaluate(`Boolean(${confirm} && !(${confirm}).disabled)`), "an enabled clear-messages confirmation");
@@ -216,6 +300,10 @@ try {
   assert(existsSync(path.join(data, "bots.json")), "The fixture must persist StartupBot's data");
   assert(existsSync(path.join(profile, "last-run-version.json")), "The explicit Electron profile must be used");
   assert.equal(existsSync(path.join(profile, "credentials.bin")), false, "First launch must not provision phone credentials before pairing");
+  const remoteOnly = await evaluate("window.ogb.companion.start([])");
+  assert.equal(remoteOnly.enabled, true, remoteOnly.error);
+  assert.deepEqual(remoteOnly.directRoutes, { wifi: false, tailscale: false });
+  await evaluate("window.ogb.companion.stop()");
   if (mac) {
     const id = execFileSync("/usr/bin/plutil", ["-extract", "CFBundleIdentifier", "raw", path.join(app, "Contents", "Info.plist")], { encoding: "utf8" }).trim();
     assert.equal(id, "ai.startupbot.desktop");
@@ -223,7 +311,9 @@ try {
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
+    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, instructionsVerified: true, avatarDecoded: true },
+    appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
+    clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
   await cdp("Browser.close").catch(() => {});
 } catch (error) {

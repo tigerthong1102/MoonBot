@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
+import { cleanEmail } from "./cloud-signin.mjs";
 import { parseOrganizationBranding } from "./organization-branding.mjs";
 import { libraryCapability, libraryRouteLimits, parseLibraryPointer } from "./org-library.mjs";
 
@@ -155,6 +156,21 @@ export function createManagedDesktopStore({ file, encryption }) {
       return operation;
     },
   };
+}
+
+export function registerEnrollmentHandlers(ipc, localOnly, client) {
+  const actions = {
+    state: () => client().state(),
+    begin: (_event, input) => client().begin(input),
+    "email-code": (_event, input) => client().emailCode(input),
+    reopen: () => client().reopen(),
+    cancel: () => client().cancelEnrollment(),
+    refresh: () => client().refresh(),
+  };
+  for (const [route, handler] of Object.entries(actions)) {
+    const channel = "organization:" + route;
+    ipc.handle(channel, localOnly(channel, handler));
+  }
 }
 
 export function createManagedDesktopClient({ store, applyConnection, applyPolicy = async () => {}, migrateIdentity = async () => {}, openBrowser, platform, deviceName, appVersion,
@@ -491,14 +507,30 @@ export function createManagedDesktopClient({ store, applyConnection, applyPolicy
             result.verificationUriComplete !== `${portalOrigin}/enroll?code=${result.userCode}` || !Number.isSafeInteger(result.expiresIn) || result.expiresIn < 1 || result.expiresIn > 600 ||
             !Number.isSafeInteger(result.interval) || result.interval < 5 || result.interval > 60) throw new Error("Invalid company enrollment response.");
         pending = { portalOrigin, deviceCode: result.deviceCode, expiresAt: now() + result.expiresIn * 1000, interval: result.interval * 1000,
-          verificationUri: result.verificationUriComplete };
-        publish({ status: "connecting", enrollment: { userCode: result.userCode, verificationUri: result.verificationUriComplete, expiresAt: pending.expiresAt } });
-        await openBrowser(result.verificationUriComplete);
+          verificationUri: result.verificationUriComplete, emailOtp: info.capabilities.desktopEmailOtp === true };
+        publish({ status: "connecting", enrollment: { userCode: result.userCode, verificationUri: result.verificationUriComplete, expiresAt: pending.expiresAt, ...(pending.emailOtp && { emailOtp: true }) } });
+        if (!pending.emailOtp) await openBrowser(result.verificationUriComplete);
         if (current(stamp)) schedule(poll, pending.interval);
       } catch (error) {
         if (current(stamp)) { pending = null; publish(licenseExpired(error) ? { status: "signed-out", notice: "license-expired" } : { status: "signed-out", ...said("startFailed") }); }
       }
       return snapshot();
+    },
+    async emailCode(input) {
+      const attempt = pending;
+      if (!attempt?.emailOtp || attempt.expiresAt <= now()) return "invalid";
+      const email = cleanEmail(input?.email);
+      const code = input?.code;
+      if (!email || (code !== undefined && (typeof code !== "string" || !/^\d{8}$/.test(code)))) return "invalid";
+      try {
+        await request(attempt.portalOrigin, "/api/desktop/enrollment/email/" + (code === undefined ? "send" : "verify"), {
+          method: "POST", body: { deviceCode: attempt.deviceCode, email, ...(code !== undefined && { code }) },
+        });
+        return attempt === pending || state.status === "connected" ? "ok" : "invalid";
+      } catch (error) {
+        if (error?.status === 429) return "limited";
+        return error?.status >= 400 && error.status < 500 ? "invalid" : "unavailable";
+      }
     },
     /** Takes nothing from the renderer, so it can never open another address. */
     async reopen() {

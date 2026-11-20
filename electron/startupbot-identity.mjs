@@ -36,3 +36,28 @@ export function queueIncomingChatLink(rawLink, { parse, store, reveal, deliver }
 export async function unavailableStartupBotCloud() {
   throw new Error("StartupBot Cloud is not configured");
 }
+
+export function personalInboxOrigin(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.origin === value ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+export function configuredInboxOrigin(launchOrigin, packagedOrigin, readProfile) {
+  if (launchOrigin || packagedOrigin) return personalInboxOrigin(launchOrigin || packagedOrigin);
+  try {
+    return personalInboxOrigin(readProfile()?.origin);
+  } catch {
+    return null;
+  }
+}
+
+export function startupPorts(env, defaults) {
+  const port = Number(env.OMB_PORT);
+  if (env.OMB_SMOKE_TEST === "1" && env.OMB_SMOKE_HOME && Number.isInteger(port) && port >= 1024 && port <= 65535) return [port];
+  return defaults;
+}

@@ -34,11 +34,12 @@ export default defineConfig({
           TUNNEL_LEGACY_PHONE_CUTOFF_PERCENT: "0",
           TUNNEL_MIN_APP_VERSION: "",
           TUNNEL_REASON_MIN_VERSION: "",
+          TEST_INBOX_MIGRATIONS: await readD1Migrations(`${root}inbox/migrations`),
           TEST_MIGRATIONS: await readD1Migrations(`${root}migrations`),
         },
         // An empty database for migration tests that need data written by an
         // older schema before the next migration runs.
-        d1Databases: ["MIGRATION_DB", "PUSH_MIGRATION_DB"],
+        d1Databases: ["MIGRATION_DB", "PUSH_MIGRATION_DB", "INBOX_DB"],
       },
     })),
   ],

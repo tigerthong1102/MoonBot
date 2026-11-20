@@ -96,7 +96,7 @@ import { AvatarActivityDot, RowDot, RowStatusText, rowSurface } from "./SidebarR
 import { SidebarAttentionPanel } from "./SidebarAttentionPanel";
 import { SidebarPinnedThreadsPanel } from "./SidebarPinnedThreadsPanel";
 import { useLiveMedia } from "@/lib/live-call-media";
-import { LiveCallPill, liveBadgeFor } from "./LiveCallPill";
+import { SidebarConversationActions, liveBadgeFor } from "./LiveCallPill";
 import { ShortcutHint } from "./ShortcutHint";
 import { usePopoverDismiss } from "@/hooks/use-popover-dismiss";
 import { useAdvancedMode } from "@/lib/interface-mode";
@@ -1505,7 +1505,7 @@ export const Sidebar = memo(function Sidebar({ open, onClose, collapseToIcons = 
       </p>
 
       <GlassBar edge="bottom">
-      <LiveCallPill
+      <SidebarConversationActions
         currentBotId={state.activeView === "chat" ? state.selectedId : null}
         onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)}
         iconOnly={density === "icons"}

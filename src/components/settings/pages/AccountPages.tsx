@@ -1,3 +1,4 @@
+import { openUserSignIn } from "@/lib/user-sign-in";
 import { ArrowUpRight } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { CLOUD_PLAN_URL } from "@/lib/app-links";
@@ -25,6 +26,7 @@ export function AccountPage() {
   const summary = useAccountSummary();
   const computer = useSwitchToComputer();
   const [signingOut, setSigningOut] = useState(false);
+  const personal = ctx.client ? undefined : window.ogb?.personalAccount;
   const bridge = ctx.client ? undefined : window.ogb?.cloudAccount;
   // A Cloud's page in the desktop window that isn't the app's home: the account lives on This computer until main
   // shares it (S2). The same `home` decides This app's rows, so the two never disagree.
@@ -40,8 +42,18 @@ export function AccountPage() {
           : <SettingsLinkRow title={t("settings.account.nameRow")} badge={<PlaceBadge place={place} size={14} />} value={profileLabel(profile)} onClick={() => go("bots", "about-you")} data={{ "data-account-name-row": "" }} />}
       </SettingsRows>
     </SettingsGroup>
-    {bridge && <CloudAccountSettings part="account" advanced={ctx.advanced} linkRequest={state.appSettingsCloudLink} avatar={<YouAvatar size={32} />}
-      onSignIn={() => dispatch({ type: "openCloudAdd", source: "app_settings", signIn: true })} />}
+    {personal && <SettingsGroup label={t("settings.account.mausbot", { app: productName() })} block="mausbot-account">
+      <SettingsRows><SettingRow title={summary.email ?? t("cloudBuy.signIn.email")} leading={<YouAvatar size={32} />}>
+        {summary.email
+          ? <button className="settings-quiet" onClick={() => setSigningOut(true)}>{t("settings.account.signOutShort")}</button>
+          : <button className="ui-button ui-button-primary" data-personal-account-login="" onClick={() => {
+              void personal.open().catch(() => dispatch({ type: "error", message: t("settings.account.connectionFailed") }));
+            }}>{t("settings.account.emailAccess")}</button>}
+      </SettingRow></SettingsRows>
+      {signingOut && <SignOutConfirm here={place.name} onConfirm={() => personal.signOut()} onClose={() => setSigningOut(false)} />}
+    </SettingsGroup>}
+    {!personal && bridge && <CloudAccountSettings part="account" advanced={ctx.advanced} linkRequest={state.appSettingsCloudLink} avatar={<YouAvatar size={32} />}
+      onSignIn={() => openUserSignIn(dispatch, "app_settings")} />}
     {elsewhere && (
       <SettingsGroup label={t("settings.account.mausbot", { app: productName() })} block="mausbot-account">
         <SettingsRows icons>
@@ -69,7 +81,7 @@ export function AccountPage() {
     )}
     {ctx.organization ? (
       <SettingsGroup label={t("settings.section.organization")} block="organization">
-        <OrganizationSettings simple={!ctx.advanced} />
+        <OrganizationSettings />
       </SettingsGroup>
     ) : elsewhere && ctx.advanced && (
       // The organization sign-in is This computer's: it stays in place on a Cloud's page, inert, with the way there.
@@ -106,7 +118,7 @@ export function PlanPage() {
       // A Cloud's own cost stays off its paid plan's card (§1.3: it must never read as a second bill).
       extra={!ctx.advanced && !ctx.client && !(ctx.team && !ctx.admin) && (place.kind === "computer" || place.kind === "server") ? <SpentRow place={place.name} /> : undefined}
       onAddCloud={() => dispatch({ type: "openCloudAdd", source: "app_settings" })}
-      onSignIn={() => dispatch({ type: "openCloudAdd", source: "app_settings", signIn: true })} />
+      onSignIn={() => openUserSignIn(dispatch, "app_settings")} />
     <PlacesTogetherSwitch />
     {dialog}
   </>;

@@ -2172,13 +2172,13 @@ describe("failed hand-offs spend no more of a request than they must", () => {
     const root = beginChief(w);
     w.runner.script("dev", ...Array.from({ length: 8 }, () => fail("provider_error", CANNOT_START)));
     reworkOnEveryResume(w, root, 7);
-    w.runner.script(root.id, complete("The build server cannot start the builder; tell Milind."));
+    w.runner.script(root.id, complete("The build server cannot start the builder; tell Minh."));
     ok(enqueueFrom(w, root, workFor("dev", "Build")));
     w.rt.end(root.id, { ok: true, text: "" });
     await settleAll(w);
 
     expect(w.runner.runs(root.id)).toHaveLength(8);
-    expect(get(w, root.id)).toMatchObject({ status: "completed", result: "The build server cannot start the builder; tell Milind." });
+    expect(get(w, root.id)).toMatchObject({ status: "completed", result: "The build server cannot start the builder; tell Minh." });
     invariants(w);
   });
 

@@ -36,7 +36,7 @@ export function helperSelection(cfg: HelperConfig, env: Record<string, string | 
 }
 
 /** "representative": a person's assistant answering a teammate's question for them, which must never get tools. */
-export type SideJob = "compaction" | "memory" | "skill-review" | "setup-suggestions" | "representative" | "status-reply";
+export type SideJob = "work-bot-offer" | "compaction" | "memory" | "skill-review" | "setup-suggestions" | "representative" | "status-reply" | "inbox-discussion";
 
 export type SideJobInstance = Pick<ProviderInstance, "instanceId" | "driverKind" | "enabled" | "generateText" | "generateMemoryText" | "models" | "quickModelsUsable"> & {
   adapter: { capabilities: Pick<ProviderAdapter["capabilities"], "agentsMcp"> };
@@ -75,7 +75,7 @@ export interface SideJobsDeps {
 
 export interface SideJobs {
   /** Null when nobody can write it and the job keeps its fallback. `at.instance`: the conversation's engine, for the summary. */
-  text(job: SideJob, botId: string, at?: { instance?: SideJobInstance }): SideJobText | null;
+  text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null;
 }
 
 type TextCall = (prompt: string, options?: TextGenerationOptions) => Promise<string>;
@@ -85,6 +85,10 @@ type TextCall = (prompt: string, options?: TextGenerationOptions) => Promise<str
 const ONE_OFF_ONLY: ReadonlySet<SideJob> = new Set(["compaction", "setup-suggestions", "representative", "status-reply"]);
 
 function ownCall(job: SideJob, instance: SideJobInstance): TextCall | undefined {
+  if (job === "inbox-discussion") {
+    const writer = instance.generateText ?? (instance.driverKind === "codex" ? instance.generateMemoryText : undefined);
+    return writer?.bind(instance);
+  }
   const call = ONE_OFF_ONLY.has(job) ? instance.generateText : instance.generateText ?? instance.generateMemoryText;
   return call?.bind(instance);
 }
@@ -197,13 +201,20 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     }, { signal: options.signal, interactive: SEEN_SOON.has(job), onWait: waiting }) }
     : found;
 
-  function find(job: SideJob, botId: string, at: { instance?: SideJobInstance }): SideJobText | null {
+  function find(job: SideJob, botId: string, at: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null {
     const bot = deps.bot(botId);
     const own = at.instance ?? (bot ? deps.instance(bot.modelSelection.instanceId) : null);
     if (!bot || !own || deps.refusal(own)) return null;
     if (job === "skill-review" && own.adapter.capabilities.agentsMcp !== true) return null;
     const call = ownCall(job, own);
     if (call) {
+      if (job === "work-bot-offer") {
+        const model = at.model ?? own.models.default;
+        if (!own.enabled || (model && deps.modelAllowed && !deps.modelAllowed({ instanceId: own.instanceId, model }))) return null;
+        return { via: "engine", generateText: booked(job, bot, own, call, { kind: "bot", botId }, () => ({
+          model, sourceThreadId: at.threadId, fallback: { ...ownFallback(bot, own), model },
+        })) };
+      }
       if (job === "compaction") return { via: "engine", generateText: call };
       if (job === "setup-suggestions") {
         const quick = quickModel(bot, own);
@@ -212,7 +223,7 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
       }
       return { via: "engine", generateText: booked(job, bot, own, call, { kind: "bot", botId: bot.id }, () => ({ fallback: ownFallback(bot, own) })) };
     }
-    if (!helperModelAllowed(bot)) return null;
+    if (job === "work-bot-offer" || !helperModelAllowed(bot)) return null;
     const helper = usableHelper();
     if (!helper) return null;
     return { via: "helper", generateText: booked(job, bot, helper.instance, helper.call, { kind: "helper", botId: bot.id, job }, () => (helper.model ? { model: helper.model } : {})) };

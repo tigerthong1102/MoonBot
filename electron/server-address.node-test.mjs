@@ -70,7 +70,7 @@ test("the wrong kind of code says what it is, in either field", () => {
 });
 
 test("app links naming a server are read; a phone's link to a computer is named", () => {
-  const parsed = parseServerInput(`openmausbot://pair?address=${encodeURIComponent("https://maus.example.com")}&code=${CODE}`);
+  const parsed = parseServerInput(`startupbot://pair?address=${encodeURIComponent("https://maus.example.com")}&code=${CODE}`);
   assert.deepEqual(parsed, { ok: true, candidates: ["https://maus.example.com"], code: CODE, credential: null });
   const token = `omb_pair_${"b".repeat(43)}`;
   assert.equal(parseServerInput(`openmausbot://pair?address=${encodeURIComponent("http://192.168.1.20:8799")}&token=${token}`).credential, token);

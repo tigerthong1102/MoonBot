@@ -4,6 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 import localOrigin from "./local-origin.cjs";
 import environments from "./environments.cjs";
+import { registerEnrollmentHandlers } from "./managed-desktop.mjs";
 
 // The preload bridge and the main IPC handler run from their real sources without Electron; the client behind them is a stub.
 const ORIGIN = "http://127.0.0.1:48993";
@@ -48,6 +49,7 @@ function main() {
   localOrigin.setLocalOrigin(ORIGIN);
   const context = vm.createContext({
     ipcMain: { handle: (channel, handler) => handlers.set(channel, handler), on: (channel, handler) => handlers.set(channel, handler) },
+    registerEnrollmentHandlers,
     localOnly: localOrigin.localOnly, workspaceSenderAllowed: environments.workspaceSenderAllowed,
     mainWindow: { webContents: contents }, rendererOrigin: () => ORIGIN, environmentsState: { environments: [], activeId: "local" },
     ensureManagedDesktop: () => client, organizationEntry: {},

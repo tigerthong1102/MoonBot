@@ -5,6 +5,7 @@ import { test } from "node:test";
 import vm from "node:vm";
 import localOrigin from "./local-origin.cjs";
 import environments from "./environments.cjs";
+import { registerEnrollmentHandlers } from "./managed-desktop.mjs";
 import { randomUUID } from "node:crypto";
 import { createCompanyBackupSchedule } from "./company-backup-schedule.mjs";
 
@@ -75,6 +76,7 @@ function fixture() {
     desktopRemoteAccess: null, mainWindow: { webContents: contents, isDestroyed: () => false },
     rendererOrigin: () => ORIGIN, environmentsState: { environments: [], activeId: "local" },
     activeEnvironment: environments.activeEnvironment, activeRemote: environments.activeRemote, workspaceSenderAllowed: environments.workspaceSenderAllowed,
+    registerEnrollmentHandlers,
     localOnly: localOrigin.localOnly, ipcMain: { handle: (channel, handler) => handlers.set(channel, handler), on: (channel, handler) => handlers.set(channel, handler) },
     SERVER_PORT: 48799, DESKTOP_MUTATION_HEADER: "x-fixture-desktop-mutation", desktopMutationToken: "synthetic-local-only",
     fetch: async (url, options) => {

@@ -159,10 +159,17 @@ export function createManagedDesktopStore({ file, encryption }) {
 }
 
 export function registerEnrollmentHandlers(ipc, localOnly, client) {
-  const actions = { state: "state", begin: "begin", "email-code": "emailCode", reopen: "reopen", cancel: "cancelEnrollment", refresh: "refresh" };
-  for (const [route, method] of Object.entries(actions)) {
+  const actions = {
+    state: () => client().state(),
+    begin: (_event, input) => client().begin(input),
+    "email-code": (_event, input) => client().emailCode(input),
+    reopen: () => client().reopen(),
+    cancel: () => client().cancelEnrollment(),
+    refresh: () => client().refresh(),
+  };
+  for (const [route, handler] of Object.entries(actions)) {
     const channel = "organization:" + route;
-    ipc.handle(channel, localOnly(channel, (_event, input) => client()[method](input)));
+    ipc.handle(channel, localOnly(channel, handler));
   }
 }
 

@@ -27,6 +27,10 @@ const RECIPE: Recipe = {
   id: "r1", key: requestKey(REQUEST), request: REQUEST, createdAt: 1_000, lastUsedAt: 1_000,
   steps: [{ tool: "click", args: {}, ...TARGET }, { tool: "set_value", args: { value: "hello world" }, ...TARGET }],
 };
+const WIN_REQUEST = 'Navigate using button "Navigate" and verify window title "Destination"';
+const WIN_BUTTON: RecipeStep = { tool: "click", args: { delivery_mode: "background" },
+  app: { name: "Fixture" }, window: { title: "Demo" }, element: { role: "Button", label: "Navigate", path: [], uiaWindowChild: true } };
+const WIN_RECIPE: Recipe = { ...RECIPE, request: WIN_REQUEST, key: requestKey(WIN_REQUEST), steps: [WIN_BUTTON] };
 const LABEL = '"Document" in TextEdit';
 const FAILED = { kind: "failed", done: 1, total: 2, tool: "set_value", label: LABEL, error: "Fixture failure." } as const;
 const COMPUTER = { command: "gated-computer", args: ["--turn"], env: { OMB_CONTROL_TOKEN: "turn-token" }, platform: "darwin" as const, scope: "local-computer" as const };
@@ -65,7 +69,9 @@ let slots: Map<string, ProviderInstance>;
 let engine: ReturnType<typeof engineStub>;
 let start: Mock<(input: SendTurnInput) => Promise<TurnStartResult>>;
 let close: Mock<() => Promise<void>>;
-let recipes: { find: Mock<(botId: string, key: string) => Recipe | undefined>; forget: Mock<(botId: string, recipeId: string) => boolean> };
+let recipes: { find: Mock<(botId: string, key: string) => Recipe | undefined>; forget: Mock<(botId: string, recipeId: string) => boolean>;
+  windowsPending: Mock<DispatchDeps["recipes"]["windowsPending"]>; beginWindowsAttempt: Mock<DispatchDeps["recipes"]["beginWindowsAttempt"]>;
+  finishWindowsAttempt: Mock<DispatchDeps["recipes"]["finishWindowsAttempt"]> };
 let openCaller: Mock<DispatchDeps["openCaller"]>;
 let taint: Mock<(threadId: string) => boolean>;
 let handOn: Mock<(turnId: string) => void>;
@@ -115,13 +121,15 @@ beforeEach(() => {
   slots = new Map([["t1", engine as ProviderInstance]]);
   start = vi.fn(async () => ({ turnId: "e1" }));
   close = vi.fn(async () => {});
-  recipes = { find: vi.fn((botId: string, key: string) => (botId === "b1" && key === RECIPE.key ? RECIPE : undefined)), forget: vi.fn(() => true) };
+  recipes = { find: vi.fn((botId: string, key: string) => (botId === "b1" && key === RECIPE.key ? RECIPE : undefined)), forget: vi.fn(() => true), windowsPending: vi.fn(() => false),
+    beginWindowsAttempt: vi.fn(() => true), finishWindowsAttempt: vi.fn() };
   openCaller = vi.fn(async () => ({ ...computer(), close }));
   taint = vi.fn(() => true);
   handOn = vi.fn();
   withholdHandoff = vi.fn(() => handOn);
   contextChanged = vi.fn();
   deps = {
+    platform: "darwin",
     recipes,
     enabled: () => true,
     publish: (event) => {
@@ -200,6 +208,29 @@ describe("SavedStepsDispatch.sendTurn", () => {
     taint.mockReturnValueOnce(false);
     await dispatch.sendTurn(engine, REQ, INPUT, start);
     expect(dispatch.takeUnmarked("t1")).toBe(false);
+  });
+
+  it("admits only background UIA button recipes for Windows learning and replay", async () => {
+    const windows = new SavedStepsDispatch({ ...deps, platform: "win32" });
+    recipes.find.mockReturnValue(RECIPE);
+    await windows.sendTurn(engine, reworded(WIN_REQUEST), { ...INPUT, text: WIN_REQUEST, integrations: { localComputer: { ...COMPUTER, platform: "win32" } } }, start);
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(openCaller).not.toHaveBeenCalled();
+    expect(windows.wouldReplay("t1", RECIPE)).toBe(false);
+    expect(windows.wouldReplay("t1", WIN_RECIPE)).toBe(true);
+    expect(windows.wouldReplay("t1", { ...WIN_RECIPE, steps: [WIN_BUTTON, WIN_BUTTON] })).toBe(false);
+    expect(windows.wouldReplay("t1", { ...WIN_RECIPE, steps: [{ ...WIN_BUTTON, args: { delivery_mode: "foreground" } }] })).toBe(false);
+  });
+
+  it("ends a failed Windows repeat without handing the same action to the engine", async () => {
+    const windows = new SavedStepsDispatch({ ...deps, platform: "win32" });
+    recipes.find.mockReturnValue(WIN_RECIPE);
+    openCaller.mockRejectedValueOnce(new Error("Demo is unavailable"));
+    await windows.sendTurn(engine, reworded(WIN_REQUEST), { ...INPUT, text: WIN_REQUEST, integrations: { localComputer: { ...COMPUTER, platform: "win32" } } }, start);
+    await settled();
+    expect(start).not.toHaveBeenCalled();
+    expect(acted).toEqual([]);
+    expect(turnCompleted()).toMatchObject([{ ok: false }]);
   });
 
   it("runs the AI when the request cannot be kept from saving", async () => {

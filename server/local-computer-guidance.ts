@@ -44,8 +44,9 @@ function refusesUnboundClient(result: JsonObject): boolean {
 
 /** One MCP stdio frame from the local driver; only an existing-profile refusal and an unbound-client refusal (a
  * browser window on Omarchy) are parsed and changed. */
-export function localComputerResultLine(line: string): string {
-  if (!line.includes(REFUSAL_CODE) && !line.includes(NOT_BOUND)) return line;
+export function localComputerResultLine(line: string, journalledWindows = false): string {
+  const afterClick = journalledWindows && line.includes(" was not foreground after the click");
+  if (!afterClick && !line.includes(REFUSAL_CODE) && !line.includes(NOT_BOUND)) return line;
   let frame: unknown;
   try {
     frame = JSON.parse(line);
@@ -53,6 +54,10 @@ export function localComputerResultLine(line: string): string {
     return line;
   }
   if (!isObject(frame) || !isObject(frame.result) || !Array.isArray(frame.result.content)) return line;
+  if (afterClick) {
+    const unconfirmed = unconfirmedClickResult(frame.result);
+    if (unconfirmed) return JSON.stringify({ ...frame, result: unconfirmed });
+  }
   const guidance = refusesOwnProfile(frame.result)
     ? OWN_PROFILE_UNAVAILABLE
     : refusesUnboundClient(frame.result)
@@ -73,13 +78,23 @@ export function localComputerCallQuery(frame: unknown): Record<string, string> {
 
 /** The calls this computer's driver gets in a form of its own. Only on Windows: there foreground text is typed one
  * character at a time, and a click whose after-check failed is answered as the sent click it was. */
-export function localComputerRelay(platform: string) {
+/** Only this native single-call shape can enter the journal; recipe verification still checks the driver outcome and before/after UIA. */
+function journalledWindowsButton({ name, arguments: args }: ToolCall): boolean {
+  return name === "click" && args.delivery_mode === "background" && Object.keys(args).length === 4
+    && typeof args.pid === "number" && Number.isSafeInteger(args.pid) && args.pid > 0
+    && typeof args.window_id === "number" && Number.isSafeInteger(args.window_id) && args.window_id > 0
+    && typeof args.element_token === "string" && /^s[0-9a-f]{8}:\d+$/u.test(args.element_token);
+}
+
+export function localComputerRelay(platform: string, journalledWindows = false) {
   return (call: ToolCall, child: ChildCalls): Promise<unknown> | null => {
     if (platform !== "win32") return null;
     if (typesInOneBurst(platform, child.driverVersion, call.name, call.arguments)) {
       return typeOneCharacterAtATime(child.call, call.arguments as ToolCall["arguments"] & { text: string });
     }
-    if (!CLICK_TOOLS.has(call.name)) return null;
+    // A relay's custom result intentionally has no native journal provenance. Preserve the original
+    // request id for this strictly shaped background click; the reply queue journals before any rewrite.
+    if (!CLICK_TOOLS.has(call.name) || (journalledWindows && journalledWindowsButton(call))) return null;
     return child.call(call.name, call.arguments).then((result) => unconfirmedClickResult(result) ?? result);
   };
 }

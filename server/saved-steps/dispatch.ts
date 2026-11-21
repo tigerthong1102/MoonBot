@@ -5,10 +5,11 @@ import { retriedTurnEvent, type RetriedTurn } from "../quick-model-fallback.ts";
 import type { Message } from "../store.ts";
 import type { LocalComputerSpec } from "./computer-client.ts";
 import { requestKey } from "./key.ts";
-import { declinedReply, fallbackNote, replayedReply, runSteps, type ReplayOutcome, type ReplayTurn } from "./replay.ts";
+import { declinedReply, fallbackNote, replayedReply, runSteps, WINDOWS_UNCERTAIN, type ReplayOutcome, type ReplayTurn } from "./replay.ts";
 import type { ComputerCaller } from "./resolve.ts";
-import { personTextRequest, recipeFitsRequest, stepLabel, type Recipe } from "./rules.ts";
+import { personTextRequest, recipeFitsRequest, stepLabel, windowButtonClick, type Recipe } from "./rules.ts";
 import type { RecipeStore } from "./store.ts";
+import { expectedWindowsTitle } from "./windows-destination.ts";
 
 export interface EngineSlots { get(threadId: string): ProviderInstance | undefined; set(threadId: string, engine: ProviderInstance): void }
 export interface ReplayRequest {
@@ -20,7 +21,8 @@ export interface ReplayRequest {
   placePicked: boolean;
 }
 export interface DispatchDeps {
-  recipes: Pick<RecipeStore, "find" | "forget">;
+  recipes: Pick<RecipeStore, "find" | "forget" | "windowsPending" | "beginWindowsAttempt" | "finishWindowsAttempt">;
+  platform: NodeJS.Platform;
   enabled(): boolean;
   publish(event: RuntimeEvent): void;
   engines: EngineSlots;
@@ -64,6 +66,7 @@ export class SavedStepsDispatch {
   private readonly runs = new Map<string, Run>();
   private readonly answered = new Map<string, { turnId: string; recipeId: string }>();
   private readonly unmarked = new Set<string>();
+  private readonly activeWindows = new Set<Run>();
   private readonly replayable = new Map<string, { toolScope: unknown }>();
 
   constructor(deps: DispatchDeps) {
@@ -73,6 +76,19 @@ export class SavedStepsDispatch {
   sendTurn(engine: ProviderInstance, request: ReplayRequest | null, input: SendTurnInput, start: Start): Promise<TurnStartResult> {
     this.runs.delete(input.threadId);
     this.replayable.delete(input.threadId);
+    if (request && this.deps.platform === "win32") {
+      const key = requestKey(request.message.text ?? "");
+      if (/^(?:navigate using button |điều hướng bằng nút )/u.test(key) && this.deps.recipes.windowsPending(request.botId, key)) {
+        this.deps.taint(input.threadId);
+        const turn = { turnId: newId(), threadId: input.threadId, engine };
+        setImmediate(() => {
+          this.emit(turn, { type: "turn.started" });
+          this.emit(turn, { type: "runtime.error", message: WINDOWS_UNCERTAIN });
+          this.emit(turn, { type: "turn.completed", ok: false, stopReason: WINDOWS_UNCERTAIN });
+        });
+        return Promise.resolve({ turnId: turn.turnId });
+      }
+    }
     if (request && this.replayHolds(request, input)) {
       this.replayable.set(input.threadId, { toolScope: input.toolScope });
       while (this.replayable.size > REMEMBERED_REPLIES) this.replayable.delete(this.replayable.keys().next().value!);
@@ -141,7 +157,7 @@ export class SavedStepsDispatch {
   /** Whether the thread's latest turn met every condition for replaying this recipe, so "next time no AI" would hold. */
   wouldReplay(threadId: string, recipe: Recipe): boolean {
     const turn = this.replayable.get(threadId);
-    return turn !== undefined && toolsAllowed(recipe, turn.toolScope);
+    return turn !== undefined && this.permitsRecipe(recipe, turn.toolScope);
   }
 
   /** True for the events of a replay still answering without the AI, its turn.completed included. */
@@ -156,8 +172,21 @@ export class SavedStepsDispatch {
     return answer?.turnId === turnId ? answer.recipeId : undefined;
   }
 
+  isReplaying(botId: string, recipeId: string): boolean {
+    return [...this.activeWindows, ...this.runs.values()].some((run) => run.botId === botId && run.recipe.id === recipeId);
+  }
+
+  private permitsRecipe(recipe: Recipe, toolScope: unknown): boolean {
+    const windows = this.deps.platform === "win32";
+    const supported = recipe.steps.every((step) => windows
+      ? step.element?.uiaWindowChild === true && windowButtonClick(step.tool, step.args)
+      : !step.element?.uiaWindowChild);
+    return supported && (!windows || expectedWindowsTitle(recipe) !== undefined) && toolsAllowed(recipe, toolScope);
+  }
+
   private replayHolds(request: ReplayRequest, input: SendTurnInput): boolean {
     return this.deps.enabled() && input.approvalMode === "full" && input.integrations?.localComputer?.scope === "local-computer"
+      && (this.deps.platform !== "win32" || input.integrations.localComputer.platform === "win32")
       && request.placePicked && personTextRequest(request.message) && request.turnText === request.message.text;
   }
 
@@ -165,7 +194,8 @@ export class SavedStepsDispatch {
     if (!this.replayHolds(request, input)) return undefined;
     const text = request.turnText;
     const recipe = this.deps.recipes.find(request.botId, requestKey(text));
-    return recipe && recipeFitsRequest(recipe, text) && toolsAllowed(recipe, input.toolScope) ? recipe : undefined;
+    return recipe && (this.deps.platform !== "win32" || recipe.request === text.trim())
+      && recipeFitsRequest(recipe, text) && this.permitsRecipe(recipe, input.toolScope) ? recipe : undefined;
   }
 
   private standIn(run: Run, approval: Approval, asked: ReadonlySet<string>): ProviderInstance {
@@ -195,8 +225,11 @@ export class SavedStepsDispatch {
     this.emit(run, { type: "turn.started" });
     const outcome = await this.runSteps(run, computer, approval);
     approval.close();
-    if (outcome.kind === "failed") return this.fallBack(run, outcome, input, start);
-    if (outcome.kind === "error") this.forget(run);
+    if (outcome.kind === "failed") {
+      if (this.deps.platform === "win32") return this.end(run, { kind: "error", message: outcome.error });
+      return this.fallBack(run, outcome, input, start);
+    }
+    if (outcome.kind === "error" && this.deps.platform !== "win32") this.forget(run);
     this.end(run, outcome);
   }
 
@@ -211,12 +244,21 @@ export class SavedStepsDispatch {
       const [first] = run.recipe.steps;
       return { kind: "failed", done: 0, total: run.recipe.steps.length, tool: first!.tool, label: stepLabel(first!), error: errorText(error) };
     }
+    const windowsAttempt = this.deps.platform !== "win32" ? undefined : {
+      begin: () => {
+        if (!this.deps.recipes.beginWindowsAttempt(run.botId, run.recipe.key, run.recipe.id)) return false;
+        this.activeWindows.add(run);
+        return true;
+      },
+      verified: () => this.deps.recipes.finishWindowsAttempt(run.botId, run.recipe.key),
+    };
     try {
-      return await runSteps(run.recipe, this.turn(run), { caller, approval, publish: this.deps.publish, signal });
+      return await runSteps(run.recipe, this.turn(run), { caller, approval, publish: this.deps.publish, signal, windowsAttempt });
     } catch (error) {
-      return signal.aborted ? STOPPED : { kind: "error", message: errorText(error) };
+      return signal.aborted ? STOPPED : { kind: "error", message: this.activeWindows.has(run) ? WINDOWS_UNCERTAIN : errorText(error) };
     } finally {
       await caller.close().catch(() => {});
+      this.activeWindows.delete(run);
     }
   }
 
@@ -287,11 +329,11 @@ export class SavedStepsDispatch {
     this.emit(run, { type: "item.completed", itemType: "assistant_text", itemId: newId(), text });
   }
 
-  private turn(run: Run): ReplayTurn {
+  private turn(run: Pick<Run, "threadId" | "turnId" | "engine">): ReplayTurn {
     return { threadId: run.threadId, turnId: run.turnId, provider: run.engine.driverKind, providerInstanceId: run.engine.instanceId };
   }
 
-  private emit(run: Run, event: DistributiveOmit<RuntimeEvent, "eventId" | "createdAt" | "threadId" | "provider">): void {
+  private emit(run: Pick<Run, "threadId" | "turnId" | "engine">, event: DistributiveOmit<RuntimeEvent, "eventId" | "createdAt" | "threadId" | "provider">): void {
     this.deps.publish({ eventId: newId(), createdAt: new Date().toISOString(), ...this.turn(run), ...event } as RuntimeEvent);
   }
 }

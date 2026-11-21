@@ -21,7 +21,8 @@ person sends the same words again (design:
 - A conversation that follows the bot's Auto place does not replay, though this
   computer is mounted at Full access and the bot has steps for those words.
 - With the switch off, the AI runs and nothing is saved, though steps exist.
-- A failed step hands the request to the AI with a note of what already
+- On Windows, a failed saved step ends the turn. If a replayed click may have reached the app but its result cannot be verified, the same request is blocked even after a restart. Check the app first. After reconciling the result, an owner can use **Forget saved steps** on the original learned reply.
+- On macOS, a failed step hands the request to the AI with a note of what already
   happened, deletes the steps, and that request does not save even though the
   AI's own run is clean.
 
@@ -33,8 +34,11 @@ Unit and route checks:
 pnpm exec vitest run server/saved-steps server/routes/saved-steps.test.ts server/routes/computer-journal.test.ts server/local-computer-proxy.test.ts server/local-computer.test.ts server/delta-context.test.ts src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts server/testing/fake-cua-driver.test.ts
 ```
 
-The fixture runs on macOS. A Linux server never mounts this computer from this
-record, and Windows was not tried. The driver is
+The TextEdit fixture below runs on macOS. A Linux server never mounts this computer from this record.
+
+For a Windows chat smoke, turn on Saved Steps in the generic fixture's settings, choose this computer explicitly and use Full access. Use a read-only navigation command in this form: `Navigate using button "Navigate fixture" and verify window title "Fixture destination"`. Vietnamese chats can use `Điều hướng bằng nút "Navigate fixture" và xác minh tiêu đề cửa sổ "Fixture destination"`. The exact button and both window states must be readable by UI Automation. Record the original window, invoke the unique enabled button once using a fresh background token, then read the same window again with `get_window_state` and the `elements` projection. The title must change to the explicitly named destination; click delivery or unrelated UI changes do not count. Reopen the fixture at its starting title, send the identical command, approve the replay, and verify the replay marker and destination. A missing destination, different window or ambiguous target is a failed smoke. Test only on the isolated fixture; MISA is not required. The duplicate-delivery protection is for Saved Steps replay, not a new safeguard for arbitrary AI tool calls.
+
+For the macOS run, the driver is
 `server/testing/fake-cua-driver.ts`: TextEdit's one window in cua-driver
 0.28.2's answer shapes, whose element tokens (`s<snapshot>-e<index>`) go stale
 at the next `get_window_state` and whose document reports what it holds as its

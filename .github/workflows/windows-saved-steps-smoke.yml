@@ -1,0 +1,59 @@
+name: Windows Saved Steps chat smoke
+on:
+  pull_request:
+    paths:
+      - 'server/saved-steps/**'
+      - 'server/testing/fake-claude-cli.ts'
+      - 'scripts/cua-win-qualification.mjs'
+      - 'scripts/smoke-cua-win-embedded.mjs'
+      - 'scripts/testing/cua-win-*'
+      - '.github/workflows/windows-saved-steps-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/saved-steps/**'
+      - 'server/testing/fake-claude-cli.ts'
+      - 'scripts/cua-win-qualification.mjs'
+      - 'scripts/smoke-cua-win-embedded.mjs'
+      - 'scripts/testing/cua-win-*'
+      - '.github/workflows/windows-saved-steps-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  windows-native-chat:
+    name: Native chat learns and replays on a private WinForms desktop
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:cua:win
+      - name: Verify actual chat recording and replay
+        shell: pwsh
+        run: |
+          $root = (Get-Location).Path
+          $stage = Join-Path $root 'dist-native\cua-win32-x64'
+          $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+          $fixture = Join-Path $stage 'cua-win-navigation-fixture.exe'
+          $launcher = Join-Path $stage 'cua-win-private-desktop.exe'
+          & $csc /nologo /target:winexe /r:System.Windows.Forms.dll /r:System.Drawing.dll "/out:$fixture" (Join-Path $root 'scripts\testing\cua-win-navigation-fixture.cs')
+          if ($LASTEXITCODE -ne 0) { throw 'Could not compile WinForms fixture' }
+          & $csc /nologo /target:exe "/out:$launcher" (Join-Path $root 'scripts\testing\cua-win-private-desktop.cs')
+          if ($LASTEXITCODE -ne 0) { throw 'Could not compile private desktop launcher' }
+          $entry = Join-Path $root 'scripts\testing\cua-win-interactive-entry.mjs'
+          $log = Join-Path $env:RUNNER_TEMP ('startupbot-native-chat-' + [guid]::NewGuid().ToString('N') + '.log')
+          $env:OMB_CUA_CHAT_SMOKE = '1'
+          & $launcher (Get-Command node).Source $entry $log
+          $result = $LASTEXITCODE
+          if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log -Encoding UTF8 }
+          if ($result -ne 0) { throw "Native Windows chat smoke failed with exit code $result" }
+          if (!(Test-Path -LiteralPath $log) -or !(Select-String -LiteralPath $log -SimpleMatch '"windowsChatSavedSteps":"PASS"' -Quiet)) {
+            throw 'Native Windows chat smoke did not emit the expected PASS result'
+          }

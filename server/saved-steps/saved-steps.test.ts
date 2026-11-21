@@ -167,31 +167,105 @@ describe("SavedSteps.requestSettled", () => {
     expect(start).toHaveBeenCalledTimes(1);
   };
 
-  it.each(["confirmed", "unverifiable"])("persists a Windows chat recipe only for a confirmed click (%s)", async (effect) => {
-    steps = facade({ platform: "win32" });
-    const text = "Navigate the demo";
-    const message = { ...LINE, text };
-    const computer = { command: process.execPath, args: [FAKE], env: {}, scope: "local-computer" as const, platform: "win32" as const };
-    await sentThrough({ text, integrations: { localComputer: computer } }, { turnText: text, message });
-    const address = { pid: 100, window_id: 7 };
-    const read = { ...address, tree_format: "elements" };
-    const button = { role: "Button", label: "Navigate", depth: 1, element_index: 1, element_token: "s00000001:1", enabled: true };
-    const state = { ...read, app_name: "Fixture", window_title: "Demo", elements_complete: true,
-      returned_element_count: 1, total_element_count: 1, elements: [button] };
+  const winText = 'Navigate using button "Navigate" and verify window title "Destination"';
+  const winMessage = { ...LINE, text: winText };
+  const winComputer = { command: process.execPath, args: [FAKE], env: {}, scope: "local-computer" as const, platform: "win32" as const };
+  const address = { pid: 100, window_id: 7 };
+  const read = { ...address, tree_format: "elements" };
+  const button = { role: "Button", label: "Navigate", depth: 1, element_index: 1, element_token: "s00000001:1", enabled: true };
+  const state = { ...read, app_name: "Fixture", window_title: "Demo", elements_complete: true,
+    returned_element_count: 1, total_element_count: 1, elements: [button] };
+  const windowsAction = { effect: "unverifiable", route: "accessibility", delivery: { mode: "background" } };
+  async function recordWindows(after?: object, requestedText = winText) {
+    await sentThrough({ text: requestedText, integrations: { localComputer: winComputer } }, { turnText: requestedText, message: { ...winMessage, text: requestedText } });
     const result = (structuredContent: object) => slimResponse({ result: { structuredContent } }, "win32");
     record([
       { generation: "g1", tool: "get_window_state", arguments: read, result: result(state) },
       { generation: "g1", tool: "click", arguments: { ...address, element_token: button.element_token, delivery_mode: "background" },
-        result: result({ effect, route: "accessibility", delivery: { mode: "background" } }) },
+        result: result(windowsAction) },
+      ...(after ? [{ generation: "g1", tool: "get_window_state", arguments: read, result: result(after) }] : []),
     ]);
-    steps.requestSettled(settled({ request: message }));
+    steps.requestSettled(settled({ request: { ...winMessage, text: requestedText } }));
+  }
+
+  it.each([
+    ["expected title", { ...state, window_title: "Destination" }, winText, true],
+    ["no after snapshot", undefined, winText, false],
+    ["unrelated change", { ...state, window_title: "Other" }, winText, false],
+    ["already on starting title", state, winText, false],
+    ["different PID", { ...state, pid: 101, window_title: "Destination" }, winText, false],
+    ["degraded snapshot", { ...state, window_title: "Destination", degraded: true }, winText, false],
+    ["no user-named destination", { ...state, window_title: "Destination" }, "Navigate the demo", false],
+  ] as const)("only persists user-named verified Windows navigation: %s", async (_, after, text, learned) => {
+    steps = facade({ platform: "win32" });
+    await recordWindows(after, text);
     const reopened = facade({ platform: "win32" }).recipes.find("b1", requestKey(text));
-    if (effect === "confirmed") {
+    if (learned) {
       expect(reopened?.steps[0]?.element).toMatchObject({ label: "Navigate", uiaWindowChild: true });
       expect(patches).toMatchObject([["t1", "reply-1", { savedSteps: { learned: true } }]]);
     } else {
       expect(reopened).toBeUndefined();
       expect(patches).toEqual([]);
+    }
+  });
+
+  it.each(["verified title", "wrong title", "response lost"] as const)("replays once and blocks any uncertain repeat across reopen: %s", async (result) => {
+    steps = facade({ platform: "win32" });
+    await recordWindows({ ...state, window_title: "Destination" });
+    const events: RuntimeEvent[] = [];
+    const slots = new Map<string, ProviderInstance>();
+    const live = { pid: 102, window_id: 8 };
+    let clicks = 0;
+    let reads = 0;
+    const control = () => facade({
+      platform: "win32",
+      engines: { get: (id) => slots.get(id), set: (id, instance) => { slots.set(id, instance); } },
+      generation: () => "g2",
+      publish(event) {
+        events.push(event);
+        if (event.type === "request.opened") void slots.get(event.threadId)!.adapter.respondToRequest(event.threadId, event.requestId!, { behavior: "allow" });
+      },
+      openCaller: async () => ({
+        close: async () => {},
+        async call(tool, args) {
+          if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid: live.pid, name: "Fixture" }] } };
+          if (tool === "list_windows") return { ok: true, structured: { windows: [{ ...live, title: "Demo" }] } };
+          if (tool === "get_window_state") {
+            const title = clicks === 0 ? "Demo" : result === "verified title" ? "Destination" : "Other";
+            const element_token = `s0000000${++reads}:1`;
+            return { ok: true, structured: { ...state, ...live, window_title: title, elements: [{ ...button, element_token }] } };
+          }
+          expect(tool).toBe("click");
+          expect(steps.recipes.windowsPending("b1", requestKey(winText))).toBe(true);
+          expect(args).toEqual({ ...live, element_token: "s00000002:1", delivery_mode: "background" });
+          clicks++;
+          return result === "response lost" ? { ok: false, error: "MCP reply lost" } : { ok: true, structured: windowsAction };
+        },
+      }),
+    });
+    steps = control();
+    const input: SendTurnInput = { threadId: "t1", botId: "b1", text: winText, approvalMode: "full", integrations: { localComputer: winComputer } };
+    const req: ReplayRequest = { botId: "b1", message: winMessage, turnText: winText, placePicked: true };
+    const model = vi.fn(async (): Promise<TurnStartResult> => ({ turnId: "unexpected-model" }));
+    const replay = await steps.dispatch.sendTurn(engine, req, input, model);
+    const completed = (turnId: string) => events.find((event) => event.type === "turn.completed" && event.turnId === turnId);
+    await vi.waitFor(() => expect(completed(replay.turnId)).toBeDefined());
+    expect(completed(replay.turnId)).toMatchObject({ ok: result === "verified title" });
+    expect(clicks).toBe(1);
+    expect(model).not.toHaveBeenCalled();
+    const recipe = steps.recipes.find("b1", requestKey(winText))!;
+    steps = control(); // New facade and store, other thread, no private in-memory state from the previous turn.
+    if (result === "verified title") {
+      expect(steps.recipes.windowsPending("b1", recipe.key)).toBe(false);
+      expect(reads).toBe(3); // one final read on the happy path, no polling once verified.
+    } else {
+      expect(steps.recipes.windowsPending("b1", recipe.key)).toBe(true);
+      const second = await steps.dispatch.sendTurn(engine, req, { ...input, threadId: "t2", approvalMode: "ask" }, model);
+      await vi.waitFor(() => expect(completed(second.turnId)).toMatchObject({ ok: false }));
+      expect(clicks).toBe(1);
+      expect(model).not.toHaveBeenCalled();
+      expect(steps.recipes.forgetAfterReview("b1", recipe.id)).toBe(true);
+      expect(steps.recipes.windowsPending("b1", recipe.key)).toBe(false);
     }
   });
 

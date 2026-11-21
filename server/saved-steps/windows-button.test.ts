@@ -13,7 +13,7 @@ const click = { ...address, element_token: button.element_token, delivery_mode: 
 const action = { effect: "unverifiable", route: "accessibility", delivery: { mode: "background" } };
 const slim = (data: object, platform: NodeJS.Platform = "win32") => slimResponse({ result: { structuredContent: data } }, platform);
 function record(snapshot: object = tree, args: object = click, delivery: object = action, read: object = lookup, platform: NodeJS.Platform = "win32") {
-  return buildRecipe({ id: "r", now: 1, request: "Navigate the fixture", journal: { complete: true, tainted: false, calls: [
+  return buildRecipe({ id: "r", now: 1, request: 'Navigate using button "Navigate" and verify window title "Destination"', journal: { complete: true, tainted: false, calls: [
     { tool: "get_window_state", arguments: { ...read }, result: slim(snapshot, platform), generation: "g" },
     { tool: "click", arguments: { ...args }, result: slim(delivery, platform), generation: "g" },
   ] } });
@@ -47,27 +47,27 @@ describe("Windows UIA projected window buttons", () => {
     expect(record(tree, click, action, lookup, "darwin").ok).toBe(false);
   });
 
-  it("keeps unverified delivery distinct from a confirmed effect in the journal", () => {
-    expect(slim(action).structured?.background_effect_confirmed).toBeUndefined();
-    expect(slim({ ...action, effect: "confirmed" }).structured?.background_effect_confirmed).toBe(true);
-    expect(slim({ ...action, effect: "confirmed", route: "global_input" }).structured?.background_effect_confirmed).toBeUndefined();
+  it("records accessibility delivery without treating it as a destination", () => {
+    expect(slim(action).structured?.background_accessibility_action).toBe(true);
+    expect(slim(action).structured).not.toHaveProperty("effect");
+    expect(slim({ ...action, effect: "confirmed", route: "global_input" }).structured?.background_accessibility_action).toBeUndefined();
   });
 
-  it.runIf(process.platform === "win32")("reports an unverified click once and does not claim replay succeeded", async () => {
+  it("reports an unverified click once and does not claim replay succeeded", async () => {
     const built = record();
     if (!built.ok) throw Error(built.reason);
     let clicks = 0;
     const caller: ComputerCaller = { async call(tool) {
       if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid: address.pid, name: tree.app_name }] } };
       if (tool === "list_windows") return { ok: true, structured: { windows: [{ ...address, title: tree.window_title }] } };
-      if (tool === "get_window_state") return { ok: true, structured: tree };
+      if (tool === "get_window_state") return { ok: true, structured: clicks === 0 ? tree : { ...tree, window_title: "Other" } };
       if (tool !== "click") throw Error(tool);
       clicks++;
       return { ok: true, structured: action };
     } };
     const outcome = await runSteps(built.recipe, { threadId: "thread", turnId: "turn", provider: "fixture", providerInstanceId: "fixture" },
-      { caller, approval: { ask: async () => true }, publish() {}, signal: new AbortController().signal });
-    expect(outcome).toMatchObject({ kind: "failed", done: 0, error: expect.stringContaining("effect could not be verified") });
+      { caller, approval: { ask: async () => true }, publish() {}, signal: new AbortController().signal, windowsAttempt: { begin: () => true, verified: () => { throw new Error("verified unexpected title"); } } });
+    expect(outcome).toMatchObject({ kind: "failed", done: 0, error: expect.stringContaining("may already have reached") });
     expect(clicks).toBe(1);
   });
 

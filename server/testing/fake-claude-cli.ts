@@ -96,6 +96,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { appendFileSync, closeSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runRoomHandoffAgent } from "./room-handoff-agent.ts";
 import { playStreamScript, streamScript } from "./stream-script.ts";
 
@@ -753,6 +754,17 @@ const mcpToolCall = (serverName: string, name: string, input: Record<string, unk
   return { ok: !reply.error && !reply.result?.isError, content: reply.result?.content ?? reply.error?.message ?? "" };
 };
 
+function runWindowsNavigationFixture(calls: ScriptedToolCall[]): Array<{ ok: true; input: Record<string, unknown>; content: unknown }> {
+  launchFiles ??= readLaunchFiles();
+  const server = (launchFiles.mcpConfig as { mcpServers?: Record<string, unknown> } | null)?.mcpServers?.computer;
+  if (!server) throw Error("Windows navigation fixture has no computer MCP server");
+  const worker = spawnSync(process.execPath, [fileURLToPath(new URL("../../scripts/testing/cua-win-chat-mcp.mjs", import.meta.url))], {
+    input: JSON.stringify({ server, calls }), encoding: "utf8", timeout: 15_000, windowsHide: true,
+  });
+  if (worker.status !== 0) throw Error("Windows navigation fixture MCP failed: " + worker.stderr.trim().slice(-500));
+  return JSON.parse(worker.stdout);
+}
+
 /** COMPOSIO_MANAGE_CONNECTIONS through the launched connected-apps server, if
  * this turn has one: the bridge turns it into a Connect card in the chat. */
 const connectApps = (toolkits: string[]) => {
@@ -1237,12 +1249,16 @@ const playTurn = (prompt: JsonValue, late = false) => {
   }
   if (scriptedToolCalls) {
     const failureContext: string[] = [];
-    for (const call of scriptedToolCalls) {
+    const windowsFixture = process.env.FAKE_CLAUDE_WINDOWS_NAVIGATION_FIXTURE === "1" && scriptedToolCalls.length > 0;
+    const fixtureReplies = windowsFixture ? runWindowsNavigationFixture(scriptedToolCalls) : undefined;
+    for (const [index, call] of scriptedToolCalls.entries()) {
       const id = call.id ?? `tu-${process.pid}-${++toolUseCount}`;
-      out({ type: "assistant", message: { content: [{ type: "tool_use", id, name: call.name, input: call.input }], usage } });
-      const reply = call.server ? mcpToolCall(call.server, call.name, call.input)
-        : call.name === "Bash" && call.output === undefined && process.env.FAKE_CLAUDE_RUN_BASH === "1" ? runBash(String((call.input as { command?: unknown } | undefined)?.command ?? ""))
-        : { ok: call.ok, content: call.output };
+      const fixtureReply = fixtureReplies?.[index];
+      const input = fixtureReply?.input ?? call.input;
+      out({ type: "assistant", message: { content: [{ type: "tool_use", id, name: call.name, input }], usage } });
+      const reply = fixtureReply ?? (call.server ? mcpToolCall(call.server, call.name, input)
+        : call.name === "Bash" && call.output === undefined && process.env.FAKE_CLAUDE_RUN_BASH === "1" ? runBash(String((input as { command?: unknown } | undefined)?.command ?? ""))
+        : { ok: call.ok, content: call.output });
       out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, is_error: !reply.ok, content: reply.content }] } });
       if (!reply.ok) {
         // Claude Code 2.1.296 runs only PostToolUseFailure for a failed call, with the result text as `error`.

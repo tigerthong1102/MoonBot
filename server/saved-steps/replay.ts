@@ -1,7 +1,9 @@
 import { newId, type RuntimeEvent } from "../contracts.ts";
-import { backgroundAccessibilityAction } from "./driver-wire.ts";
+import { setTimeout as delay } from "node:timers/promises";
+import { backgroundAccessibilityAction, slimResponse } from "./driver-wire.ts";
 import { resolveStep, resolveStepSoon, type CallOutcome, type ComputerCaller, type Patience } from "./resolve.ts";
 import { stepLabel, type Recipe, type RecipeStep } from "./rules.ts";
+import { expectedWindowsTitle, windowsSnapshotMatches } from "./windows-destination.ts";
 
 export interface ReplayTurn { threadId: string; turnId: string; provider: string; providerInstanceId: string }
 export interface StepApproval { ask(tool: string, summary: string): Promise<boolean> }
@@ -32,10 +34,28 @@ function approvalSummary(step: RecipeStep, label: string): string {
   return keys === undefined ? stepSummary(step.tool, label) : `${step.tool} ${JSON.stringify(keys)} on ${label}`;
 }
 
+export const WINDOWS_UNCERTAIN = "A saved click may already have reached the app. Check what happened before retrying. Once you have checked, use Forget saved steps on the original learned reply.";
+const WINDOWS_VERIFY_MS = 800;
+const WINDOWS_POLL_MS = 75;
+
+async function reachedWindowsTitle(caller: ComputerCaller, step: RecipeStep, address: Record<string, unknown>, title: string, signal: AbortSignal): Promise<boolean> {
+  const { pid, window_id } = address;
+  const bounded = AbortSignal.any([signal, AbortSignal.timeout(WINDOWS_VERIFY_MS)]);
+  for (;;) {
+    if (bounded.aborted) return false;
+    const response = await caller.call("get_window_state", { pid, window_id, tree_format: "elements", include_screenshot: false }, bounded);
+    if (!response.ok || bounded.aborted || response.structured.tree_format !== "elements") return false;
+    const state = slimResponse({ result: { structuredContent: response.structured } }, "win32").structured;
+    if (windowsSnapshotMatches(state, step, pid, window_id, title)) return true;
+    if (!windowsSnapshotMatches(state, step, pid, window_id, step.window!.title)) return false;
+    await delay(WINDOWS_POLL_MS, undefined, { signal: bounded }).catch(() => {});
+  }
+}
+
 export async function runSteps(
   recipe: Recipe,
   turn: ReplayTurn,
-  deps: { caller: ComputerCaller; approval: StepApproval; publish(event: RuntimeEvent): void; signal: AbortSignal; patience?: Patience; verifyWindowsEffect?: (step: RecipeStep) => Promise<boolean> },
+  deps: { caller: ComputerCaller; approval: StepApproval; publish(event: RuntimeEvent): void; signal: AbortSignal; patience?: Patience; windowsAttempt?: { begin(): boolean; verified(): void } },
 ): Promise<ReplayOutcome> {
   const { caller, approval, publish, signal, patience } = deps;
   const total = recipe.steps.length;
@@ -48,6 +68,9 @@ export async function runSteps(
     const label = stepLabel(step);
     const failed = ({ error, gate }: Extract<CallOutcome, { ok: false }>): ReplayOutcome =>
       (signal.aborted ? STOPPED : { kind: "failed", done, total, tool: step.tool, label, error, ...(gate ? { gate } : {}) });
+    const windows = step.element?.uiaWindowChild === true;
+    const title = windows ? expectedWindowsTitle(recipe) : undefined;
+    if (windows && (!title || !deps.windowsAttempt)) return failed({ ok: false, error: "This Windows recipe does not name a verifiable navigation destination." });
     let target = await resolveStepSoon(step, caller, signal, patience);
     if (!target.ok) return failed(target);
     const tool = engineToolName(step.tool);
@@ -55,7 +78,7 @@ export async function runSteps(
     const allowed = await approval.ask(tool, approvalSummary(step, label));
     if (signal.aborted) return STOPPED;
     if (!allowed) return { kind: "declined", tool: step.tool, label };
-    if (step.element?.uiaWindowChild) {
+    if (windows) {
       const current = await resolveStep(step, caller, signal);
       if (signal.aborted) return STOPPED;
       if (!current.ok) return failed(current);
@@ -64,15 +87,19 @@ export async function runSteps(
       }
       target = current;
     }
+    if (windows && !deps.windowsAttempt!.begin()) return failed({ ok: false, error: WINDOWS_UNCERTAIN });
     const itemId = newId();
     publish({ ...base(itemId), type: "item.started", itemType: "tool", title: tool, input: summary });
     const delivery = await caller.call(step.tool, target.args, signal);
     let result: CallOutcome = delivery;
-    if (delivery.ok && step.element?.uiaWindowChild) {
-      if (!backgroundAccessibilityAction(delivery.structured)) {
-        result = { ok: false, error: "the computer did not confirm background accessibility delivery" };
-      } else if (delivery.structured.effect !== "confirmed" && !(await deps.verifyWindowsEffect?.(step))) {
-        result = { ok: false, error: "The click was delivered, but its effect could not be verified. Check the application before repeating the request." };
+    if (windows) {
+      // The caller has no typed pre-dispatch receipt. Even an error that looks like a gate refusal
+      // might follow delivery, so only the exact observed destination can clear the reservation.
+      if (delivery.ok && backgroundAccessibilityAction(delivery.structured)
+          && await reachedWindowsTitle(caller, step, target.args, title!, signal)) {
+        deps.windowsAttempt!.verified();
+      } else {
+        result = { ok: false, error: WINDOWS_UNCERTAIN };
       }
     }
     publish({ ...base(itemId), type: "item.completed", itemType: "tool", ok: result.ok, output: result.ok ? "done" : result.error });

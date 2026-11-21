@@ -11,6 +11,7 @@ import { SavedStepsDispatch, type DispatchDeps, type EngineSlots } from "./dispa
 import { ComputerJournal, hostScope, type JournalCapability, type RequestJournal } from "./journal.ts";
 import { buildRecipe, otherToolsHarmless, personTextRequest } from "./rules.ts";
 import { RecipeStore } from "./store.ts";
+import { recordedWindowsDestination } from "./windows-destination.ts";
 
 export { COMPUTER_JOURNAL_PATH } from "./journal-tap.ts";
 
@@ -27,6 +28,7 @@ export interface SavedStepsDeps {
   folder?: (botId: string) => string;
   now?: () => number;
   platform?: NodeJS.Platform;
+  openCaller?: DispatchDeps["openCaller"];
 }
 
 export interface SettledRequest {
@@ -86,7 +88,7 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
     publish: deps.publish,
     engines: deps.engines,
     stopped: deps.stopped,
-    openCaller: openComputerCaller,
+    openCaller: deps.openCaller ?? openComputerCaller,
     taint,
     withholdHandoff: deps.withholdHandoff,
     contextChanged: deps.contextChanged,
@@ -101,10 +103,10 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
       return;
     }
     if (!enabled() || automated || !taken?.calls.length || !personTextRequest(request) || after.some((line) => line.role === "user") || !otherToolsHarmless(after)) return;
-    if (platform === "win32" && taken.calls.some((call) => call.tool === "click" && call.result.structured?.background_effect_confirmed !== true)) return;
     const built = buildRecipe({ request: request.text ?? "", journal: taken, id: randomUUID(), now: now() });
     if (!built.ok || !dispatch.wouldReplay(threadId, built.recipe)) return;
-    recipes.save(botId, built.recipe);
+    if (platform === "win32" && !recordedWindowsDestination(built.recipe, taken)) return;
+    if (!recipes.save(botId, built.recipe)) return;
     deps.patchMessage(threadId, reply.id, { savedSteps: { recipeId: built.recipe.id, learned: true } });
   };
 
@@ -112,7 +114,8 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
     journal,
     recipes,
     dispatch,
-    routes: createSavedStepsRoutes({ bot: deps.bot, forget: (botId, id) => recipes.forget(botId, id) }),
+    routes: createSavedStepsRoutes({ bot: deps.bot, forget: (botId, id) => platform === "win32"
+      ? !dispatch.isReplaying(botId, id) && recipes.forgetAfterReview(botId, id) : recipes.forget(botId, id) }),
     gateChecked(capability) {
       const scope = hostScope(capability);
       if (scope) journal.gateChecked(scope);

@@ -98,7 +98,7 @@ export function checkNavigationDelivery(result) {
   assert.ok(["confirmed", "unverifiable"].includes(action.effect), "unexpected navigation delivery effect");
 }
 
-async function withFixture(call, title, exercise) {
+export async function withFixture(call, title, exercise) {
   assert.equal(process.env.OMB_CUA_ISOLATED_DESKTOP, "1", "private desktop confirmation is required");
   const fixturePath = resolve(import.meta.dirname, "../dist-native/cua-win32-x64/cua-win-navigation-fixture.exe");
   const fixture = spawn(fixturePath, [title], { stdio: "ignore" });
@@ -127,7 +127,7 @@ async function withFixture(call, title, exercise) {
     const stale = await call("click", clickArgs(first.token));
     assert.ok(stale?.isError === true || stale?.structuredContent?.effect === "refused", "driver accepted a stale token");
     assert.equal((await snapshot()).value, "Before navigation", "stale token changed the fixture");
-    return await exercise({ target, snapshot, verify, clickArgs });
+    return await exercise({ target, title, snapshot, verify, clickArgs });
   } finally {
     if (fixture.pid && fixture.exitCode === null && fixture.signalCode === null) {
       fixture.kill();
@@ -136,7 +136,7 @@ async function withFixture(call, title, exercise) {
   }
 }
 
-const REQUEST = "Navigate the qualification fixture";
+const fixtureRequest = title => `Navigate using button "Navigate fixture" and verify window title "${title} - Destination"`;
 const BOT = "qualification";
 
 async function recordNavigation(call, fixture, store) {
@@ -154,7 +154,7 @@ async function recordNavigation(call, fixture, store) {
   assert.equal(before.value, "Before navigation");
   checkNavigationDelivery(await recorded("click", fixture.clickArgs(before.token)));
   await fixture.verify(recorded);
-  const built = buildRecipe({ request: REQUEST, journal: journal.take(scope.threadId, new Set([scope.generation])),
+  const built = buildRecipe({ request: fixtureRequest(fixture.title), journal: journal.take(scope.threadId, new Set([scope.generation])),
     id: randomUUID(), now: Date.now() });
   assert.ok(built.ok, "recording rejected: " + built.reason);
   const { recipe } = built;
@@ -175,7 +175,10 @@ async function replayNavigation(call, fixture, store, recording) {
   let liveToken;
   const outcome = await runSteps(recipe, { threadId: "qualification", turnId: "replay", provider: "fixture", providerInstanceId: BOT }, {
     signal: AbortSignal.timeout(10_000), publish() {},
-    verifyWindowsEffect: async () => (await fixture.verify()).value === "After navigation",
+    windowsAttempt: {
+      begin: () => store.beginWindowsAttempt(BOT, recipe.key),
+      verified: () => store.finishWindowsAttempt(BOT, recipe.key),
+    },
     approval: { async ask(tool) {
       assert.equal(tool, "mcp__computer__click");
       approved++;

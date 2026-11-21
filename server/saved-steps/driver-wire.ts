@@ -22,10 +22,10 @@ export interface SlimStructured {
   name?: string;
   app_name?: string;
   window_title?: string;
+  tree_format?: string;
   /** The driver read the whole tree and every element survived slimming. */
   elements_complete?: true;
   background_accessibility_action?: true;
-  background_effect_confirmed?: true;
   refusal?: { code?: string; message?: string };
 }
 export interface SlimResult { isError: boolean; rpcError?: true; structured?: SlimStructured }
@@ -47,7 +47,7 @@ function pick(source: Rec, keys: readonly string[], types: Record<string, "strin
 const ELEMENT_TYPES = { element_index: "number", element_token: "string", role: "string", label: "string", parent_index: "number", depth: "number" } as const;
 const APP_TYPES = { pid: "number", name: "string", bundle_id: "string", running: "boolean" } as const;
 const WINDOW_TYPES = { window_id: "number", pid: "number", title: "string", app_name: "string" } as const;
-const TOP_TYPES = { pid: "number", window_id: "number", bundle_id: "string", name: "string", app_name: "string", window_title: "string" } as const;
+const TOP_TYPES = { pid: "number", window_id: "number", bundle_id: "string", name: "string", app_name: "string", window_title: "string", tree_format: "string" } as const;
 
 function slimList<T>(value: unknown, types: Record<string, "string" | "number" | "boolean">, required: readonly string[], max = Infinity, mark?: (raw: Rec, slim: Rec) => void): T[] | undefined {
   if (!Array.isArray(value)) return undefined;
@@ -112,10 +112,7 @@ function slimStructured(raw: Rec, platform: NodeJS.Platform): SlimStructured {
     out.elements_complete = true;
     if (platform === "win32" && !raw.refusal) markWindowButtons(raw, elements);
   }
-  if (platform === "win32" && backgroundAccessibilityAction(raw)) {
-    out.background_accessibility_action = true;
-    if (raw.effect === "confirmed") out.background_effect_confirmed = true;
-  }
+  if (platform === "win32" && backgroundAccessibilityAction(raw)) out.background_accessibility_action = true;
   if (apps) out.apps = apps;
   if (windows) out.windows = windows;
   if (isRec(raw.refusal)) {

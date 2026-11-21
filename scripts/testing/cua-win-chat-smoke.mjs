@@ -37,7 +37,9 @@ export async function qualifyWindowsChat(invoke, connection) {
       return result.json();
     };
     const run = (...args) => runControlOmb([...args, "--url", url]);
-    await request("/api/config", "PATCH", { features: { savedSteps: true } });
+    const config = await request("/api/config", "PATCH", { features: { savedSteps: true } });
+    assert.equal(config.features?.savedStepsHere, true, "Windows Saved Steps is unavailable");
+    assert.equal(config.features?.savedSteps, true, "Windows Saved Steps did not opt in");
     const { bot } = await run("new-bot", "--name", "Windows Navigation Fixture");
     assert.ok(bot.id && bot.activeTaskId, "fixture bot/task was not created");
     const args = ["--bot", bot.id, "--task", bot.activeTaskId];

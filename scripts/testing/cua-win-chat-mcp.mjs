@@ -13,6 +13,7 @@ async function record() {
     const { server, calls } = JSON.parse(readFileSync(0, "utf8"));
     assert.equal(typeof server.command, "string");
     assert.ok(server.env?.OMB_CONTROL_URL && server.env?.OMB_CONTROL_TOKEN && Array.isArray(server.args));
+    if (server.env.OMB_COMPUTER_JOURNAL !== "1") return { issue: "config:journal-disabled" };
     assert.ok(calls.every(call => call.server === "computer"));
     assert.deepEqual(calls.map(call => call.name), TOOLS);
     const before = calls[2].input, click = calls[3].input, after = calls[4].input;

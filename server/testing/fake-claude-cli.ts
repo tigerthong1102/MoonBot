@@ -757,12 +757,22 @@ const mcpToolCall = (serverName: string, name: string, input: Record<string, unk
 function runWindowsNavigationFixture(calls: ScriptedToolCall[]): Array<{ ok: true; input: Record<string, unknown>; content: unknown }> {
   launchFiles ??= readLaunchFiles();
   const server = (launchFiles.mcpConfig as { mcpServers?: Record<string, unknown> } | null)?.mcpServers?.computer;
-  if (!server) throw Error("Windows navigation fixture has no computer MCP server");
+  const fail = (issue: string): never => {
+    // Keep the bounded, non-sensitive reason at the end of stderr, without a stack that hides it.
+    process.stderr.write("Windows navigation fixture failed: " + issue + "\n");
+    process.exit(1);
+  };
+  if (!server) return fail("config:missing-computer");
   const worker = spawnSync(process.execPath, [fileURLToPath(new URL("../../scripts/testing/cua-win-chat-mcp.mjs", import.meta.url))], {
     input: JSON.stringify({ server, calls }), encoding: "utf8", timeout: 15_000, windowsHide: true,
   });
-  if (worker.status !== 0) throw Error("Windows navigation fixture MCP failed: " + worker.stderr.trim().slice(-500));
-  return JSON.parse(worker.stdout);
+  if (worker.error) return fail((worker.error as NodeJS.ErrnoException).code === "ETIMEDOUT" ? "worker:timeout" : "worker:spawn-error");
+  if (worker.status !== 0) return fail("worker:nonzero-exit");
+  let response;
+  try { response = JSON.parse(worker.stdout); } catch { return fail("worker:invalid-output"); }
+  if (typeof response?.issue === "string" && /^[a-z_]+:[a-z-]+$/.test(response.issue)) return fail(response.issue);
+  if (!Array.isArray(response?.replies) || response.replies.length !== calls.length) return fail("worker:incomplete-output");
+  return response.replies;
 }
 
 /** COMPOSIO_MANAGE_CONNECTIONS through the launched connected-apps server, if

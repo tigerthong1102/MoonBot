@@ -1,4 +1,5 @@
 {
+  "botPanel.library.showAll": "Tout afficher",
   "native.menu.personalInbox": "Messages",
   "cloudBuy.signIn.email": "E-mail",
   "settings.account.connectionFailed": "Impossible de joindre StartupBot. Réessayez.",

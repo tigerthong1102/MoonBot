@@ -1,4 +1,5 @@
 {
+  "sidebar.bot.simple.mainThread": "Conversa principal",
   "native.menu.personalInbox": "Mensagens",
   "settings.account.connectionFailed": "Não foi possível conectar ao StartupBot. Tente novamente.",
   "settings.account.emailAccess": "Entrar ou criar uma conta",
@@ -7989,7 +7990,7 @@
   "botPanel.library.pages": "Páginas",
   "botPanel.library.apps": "Apps",
   "botPanel.library.files": "Arquivos",
-  "botPanel.library.scope": "Desta conversa",
+  "botPanel.library.showAll": "Mostrar tudo",
   "botPanel.thisConversation": "Nesta conversa",
   "botPanel.advanced.title": "Mais no modo avançado",
   "botPanel.advanced.hint": "Enviar em seu nome e o acesso a apps ficam lá.",

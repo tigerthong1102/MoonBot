@@ -1,4 +1,6 @@
 {
+  "sidebar.bot.simple.mainThread": "Thread principale",
+  "botPanel.library.showAll": "Mostra tutto",
   "native.menu.personalInbox": "Messaggi",
   "cloudBuy.signIn.email": "Email",
   "settings.account.connectionFailed": "Impossibile raggiungere StartupBot. Riprova.",

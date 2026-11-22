@@ -1,4 +1,5 @@
 {
+  "botPanel.library.showAll": "Показати всі",
   "native.menu.personalInbox": "Повідомлення",
   "cloudBuy.signIn.email": "Електронна пошта",
   "settings.account.connectionFailed": "Не вдалося підключитися до StartupBot. Спробуйте ще раз.",

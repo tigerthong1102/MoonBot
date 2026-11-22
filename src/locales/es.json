@@ -1,4 +1,5 @@
 {
+  "botPanel.library.showAll": "Mostrar todo",
   "native.menu.personalInbox": "Mensajes",
   "settings.account.connectionFailed": "No se pudo conectar con StartupBot. Vuelve a intentarlo.",
   "settings.account.emailAccess": "Iniciar sesión o crear una cuenta",

@@ -1,4 +1,5 @@
 {
+  "sidebar.bot.simple.mainThread": "Hội thoại chính",
   "reconcile.title": "Đối chiếu chứng từ",
   "reconcile.close": "Đóng",
   "reconcile.intro": "Chọn hai tệp CSV UTF-8 hoặc XLSX một trang tính. Tệp được xử lý ngay trên máy.",
@@ -7473,7 +7474,7 @@
   "botPanel.library.pages": "Trang",
   "botPanel.library.apps": "Ứng dụng",
   "botPanel.library.files": "Tệp",
-  "botPanel.library.scope": "Từ cuộc trò chuyện này",
+  "botPanel.library.showAll": "Xem tất cả",
   "botPanel.thisConversation": "Trong cuộc trò chuyện này",
   "botPanel.advanced.title": "Thêm trong chế độ nâng cao",
   "botPanel.advanced.hint": "Việc gửi thay mặt bạn và quyền truy cập ứng dụng sẽ được thiết lập tại đây.",

@@ -73554,7 +73554,9 @@
       "skillBurger.menu.aria": "f608d3348f5f91d57ab2cce10e8532510658d5773ef01d01cad83396e652c1b3",
       "skillBurger.menu.rename": "6fa62b3dba2f02f2fe92df35669ff8ef242051be54b1d3aaadfd798e07abbce9",
       "skillBurger.card.everyChat": "bf7316f06d071bbaecf615f0765a0656b508d4a33387064a0f36d5475f703450",
-      "skillBurger.page.empty": "791d7d255294881aeddec8d476cdd4cede45560565d353dff2ac906e3c5688dc"
+      "skillBurger.page.empty": "791d7d255294881aeddec8d476cdd4cede45560565d353dff2ac906e3c5688dc",
+      "computer.problem.localWaylandBlockedOther": "350a7ad5cba076518d35be7a83a24eb473f6c8316f5204d05951319266b8e147",
+      "computer.linux.waylandOtherDesktop": "3f2dd5c5c584d38fcd9dd39756a9096087a42af246781c13e41cb89c61c9be45"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",

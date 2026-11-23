@@ -77,6 +77,10 @@ chmod +x release/StartupBot-*-x86_64.AppImage
 
 For a downloaded release AppImage, use `StartupBot-*-x86_64.AppImage` in place of the versioned path above.
 
+Fedora's GNOME runs only on Wayland (it has no Xorg session to choose), so **This computer** stays unavailable there
+for now, as on Ubuntu's GNOME Wayland (see [Enable local control](#enable-local-control)). Chat, screen preview,
+Cloud desktop and Private desktop still work.
+
 ### Arch Linux and EndeavourOS
 
 Arch-based distributions are not an official target. You can try the AppImage there, or build a native
@@ -203,8 +207,9 @@ mouse remains under their control.
 
 On GNOME Wayland, **This computer** remains unavailable and an older persisted opt-in is reset to off with private
 file permissions. Sign out and choose **Ubuntu on Xorg** from the login-screen session menu, or continue using Chat,
-preview-only capture, Cloud, or Local VM. Wayland re-enablement requires its own real-seat evidence and will not be
-controlled by an environment override.
+preview-only capture, Cloud, or Local VM. On desktops that aren't Ubuntu the app names no Ubuntu session: it says to
+choose an Xorg session if the sign-in screen offers one, and otherwise (Fedora, for example) to use a cloud desktop.
+Wayland re-enablement requires its own real-seat evidence and will not be controlled by an environment override.
 
 Upstream release assets are mutable, so the build uses an explicit reviewed digest as its trust anchor (the release's
 own `checksums.txt` and Sigstore bundles were checked when the digest was reviewed, but the build does not depend on them):

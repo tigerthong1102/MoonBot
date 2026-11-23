@@ -36,6 +36,7 @@ import { panelMemoryNotes, withMemoryNote, withoutMemoryNote, type PanelMemoryNo
 import type { SimplePageId } from "./page-registry";
 import { BotSwitch, buttonCls, Card, ColRow, ItemRow, LinkRow, NoteRow, RadioRow, RowIcon, rowCls, RowText, SwitchRow, TextRow, TrashButton } from "./rows";
 import { MemoryUpkeepCards } from "./MemoryUpkeepCards";
+import { ThreadMemoryCard } from "./MemoryText";
 import { useMemoryDoc } from "./use-memory-doc";
 import { useTeamMemoryEntries } from "../conversation-share/conversation-share";
 
@@ -238,6 +239,7 @@ export function MemoryPage({ bot }: PageContext) {
 
   return (
     <>
+      {!memory.mine && <ThreadMemoryCard bot={bot} />}
       <Card>
         {!memoryOn ? (
           <NoteRow>{t("botPanel.library.memoryOff", { name: bot.name })}</NoteRow>

@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "このスレッド",
+  "memoryPage.everywhere": "すべての会話",
+  "memoryPage.empty": "ここにはまだ何も記憶されていません。知っておいてほしいことを書いてください。",
+  "chat.notice.savedToThread": "このスレッドに保存しました",
   "native.menu.personalInbox": "メッセージ",
   "settings.account.connectionFailed": "StartupBot に接続できません。もう一度お試しください。",
   "settings.account.emailAccess": "ログインまたはアカウント作成",

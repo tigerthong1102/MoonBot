@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "Este hilo",
+  "memoryPage.everywhere": "En todas partes",
+  "memoryPage.empty": "Aquí todavía no hay nada guardado. Escribe lo que quieras que sepa.",
+  "chat.notice.savedToThread": "Guardado en este hilo",
   "botPanel.library.showAll": "Mostrar todo",
   "native.menu.personalInbox": "Mensajes",
   "settings.account.connectionFailed": "No se pudo conectar con StartupBot. Vuelve a intentarlo.",

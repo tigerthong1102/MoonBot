@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "Esta conversa",
+  "memoryPage.everywhere": "Em todas",
+  "memoryPage.empty": "Nada lembrado aqui ainda. Escreva o que você quiser que ele saiba.",
+  "chat.notice.savedToThread": "Salvo nesta conversa",
   "sidebar.bot.simple.mainThread": "Conversa principal",
   "native.menu.personalInbox": "Mensagens",
   "settings.account.connectionFailed": "Não foi possível conectar ao StartupBot. Tente novamente.",

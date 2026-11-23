@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "Hội thoại này",
+  "memoryPage.everywhere": "Mọi hội thoại",
+  "memoryPage.empty": "Chưa có ghi chú. Nhập nội dung bạn muốn StartupBot ghi nhớ.",
+  "chat.notice.savedToThread": "Đã lưu vào hội thoại này",
   "sidebar.bot.simple.mainThread": "Hội thoại chính",
   "reconcile.title": "Đối chiếu chứng từ",
   "reconcile.close": "Đóng",

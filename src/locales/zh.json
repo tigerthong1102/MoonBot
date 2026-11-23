@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "此对话",
+  "memoryPage.everywhere": "所有对话",
+  "memoryPage.empty": "这里还没有记住任何内容。写下你希望它知道的任何事。",
+  "chat.notice.savedToThread": "已保存到此对话",
   "native.menu.personalInbox": "消息",
   "settings.account.connectionFailed": "无法连接到 StartupBot。请重试。",
   "settings.account.emailAccess": "登录或创建账号",

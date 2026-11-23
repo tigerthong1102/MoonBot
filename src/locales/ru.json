@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "Эта ветка",
+  "memoryPage.everywhere": "Везде",
+  "memoryPage.empty": "Здесь пока ничего не запомнено. Напишите всё, что он должен знать.",
+  "chat.notice.savedToThread": "Сохранено в этой ветке",
   "botPanel.library.showAll": "Показать все",
   "native.menu.personalInbox": "Сообщения",
   "settings.account.connectionFailed": "Не удалось подключиться к StartupBot. Попробуйте ещё раз.",

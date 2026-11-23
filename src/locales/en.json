@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "This thread",
+  "memoryPage.everywhere": "Everywhere",
+  "memoryPage.empty": "Nothing remembered here yet. Write anything you want it to know.",
+  "chat.notice.savedToThread": "Saved to this thread",
   "sidebar.bot.simple.mainThread": "Main thread",
   "reconcile.title": "Reconcile documents",
   "reconcile.close": "Close",

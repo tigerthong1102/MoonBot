@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "Questo thread",
+  "memoryPage.everywhere": "Ovunque",
+  "memoryPage.empty": "Qui non c'è ancora niente. Scrivi tutto quello che vuoi che sappia.",
+  "chat.notice.savedToThread": "Salvato in questo thread",
   "sidebar.bot.simple.mainThread": "Thread principale",
   "botPanel.library.showAll": "Mostra tutto",
   "native.menu.personalInbox": "Messaggi",

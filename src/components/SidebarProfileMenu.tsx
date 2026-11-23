@@ -12,6 +12,7 @@ import {
   HelpCircle,
   Keyboard,
   Laptop,
+  Hamburger,
   LifeBuoy,
   Loader2,
   LogOut,
@@ -307,7 +308,7 @@ export function phoneDevicesItem(state: PhonePlaceState, place: string, onSelect
   };
 }
 
-export function toolMenuItems({ activeView, automationsNeedYou, onAutomations, onTeamMap, onFiles, onPublishedApps, archived }: {
+export function toolMenuItems({ activeView, automationsNeedYou, onAutomations, onTeamMap, onFiles, onPublishedApps, onSkillBurgers, archived }: {
   activeView: string;
   automationsNeedYou: boolean;
   onAutomations: () => void;
@@ -315,6 +316,7 @@ export function toolMenuItems({ activeView, automationsNeedYou, onAutomations, o
   /** set once My Cloud's files are ready to open */
   onFiles?: () => void;
   onPublishedApps?: () => void;
+  onSkillBurgers?: () => void;
   archived?: ArchivedBots;
 }): SidebarMenuItem[] {
   return [
@@ -322,6 +324,7 @@ export function toolMenuItems({ activeView, automationsNeedYou, onAutomations, o
     { key: "team-map", label: t("sidebar.nav.teamMap"), icon: <UsersRound size={16} />, active: activeView === "team-map", onSelect: onTeamMap },
     ...(onFiles ? [{ key: "files", label: t("sidebar.nav.files"), icon: <FolderOpen size={16} />, active: activeView === "files", onSelect: onFiles }] : []),
     ...(onPublishedApps ? [{ key: "published-apps", label: t("sidebar.nav.publishedApps"), icon: <Rocket size={16} />, active: activeView === "published-apps", onSelect: onPublishedApps }] : []),
+    ...(onSkillBurgers ? [{ key: "skill-burgers", label: t("skillBurger.list.title"), icon: <Hamburger size={16} />, active: activeView === "skill-burgers", onSelect: onSkillBurgers }] : []),
     ...(archived?.count ? [{ key: "archived", label: t("sidebar.archived.title"), icon: <Archive size={16} />, value: String(archived.count), onSelect: archived.open }] : []),
   ];
 }
@@ -592,6 +595,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
         onTeamMap: () => dispatch({ type: "showTeamMap" }),
         onFiles: filesReady ? () => dispatch({ type: "showFiles" }) : undefined,
         onPublishedApps: () => dispatch({ type: "showPublishedApps" }),
+        onSkillBurgers: !state.config?.cloudHome && !state.config?.team ? () => dispatch({ type: "showSkillBurgers" }) : undefined,
         archived: account?.archived,
       }),
     } } : {}),

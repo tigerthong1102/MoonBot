@@ -1,7 +1,8 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { BOT_LIBRARY_MAX, type BotLibrary, type BotLibraryApp, type BotLibraryFileMessage, type BotLibraryPage } from "../shared/bot-library.ts";
 import { windowsPathDestinations } from "../shared/markdown-windows-paths.ts";
-import { LIBRARY_FILE_REPLY_FILTER, prepared } from "./message-db.ts";
+import { prepared } from "./message-db.ts";
+import { LIBRARY_FILE_REPLY_FILTER } from "./message-db-bot-text-indexes.ts";
 import type { PublishedPageRecord } from "./pages/store.ts";
 
 const FILE_REPLIES_READ = 600;

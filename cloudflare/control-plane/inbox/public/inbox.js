@@ -1,6 +1,7 @@
 import { language, languageNames, setLanguage, t } from "./inbox-i18n.js";
 import { groupBots } from "./group-bots.js";
 import { groupControls } from "./group-controls.js";
+import { copyText } from "./inbox-copy-text.js";
 import { installInboxSelects } from "./inbox-select.js";
 import { isVoiceMessage, voiceComposer } from "./inbox-voice.js";
 installInboxSelects();
@@ -51,6 +52,7 @@ let me,
 let posts = [],
   viewingSaved = false,
   readingOlder = false;
+let botChoices = [], botInviteLoad = 0;
 
 const voicePlayers = new Map();
 const voice = voiceComposer({
@@ -143,6 +145,7 @@ function clearRoom() {
   el("invite-link-field").hidden = true;
   el("room-options").open = false;
   el("invite-actions").hidden = true;
+  closeBotInvite();
   activeBatch = null;
   for (const item of attachments) {
     item.player?.pause();
@@ -251,13 +254,19 @@ async function start() {
   connectSignals();
 }
 async function showGroupInvitation() {
+  const token = joinToken;
   try {
-    const info = await api("join/preview",{token:joinToken});
+    const info = await api("join/preview",{token});
+    if (joinToken !== token) return;
     el("join-title").textContent = t("personalInbox.joinTitle", { group: info.title });
     el("join-button").textContent = info.approval ? t("personalInbox.requestJoin") : t("personalInbox.joinGroup");
     el("join-button").hidden = !me;
     el("join-prompt").hidden = false;
-  } catch { el("join-prompt").hidden = true; status(t("personalInbox.expiredLink"),true); }
+  } catch {
+    if (joinToken !== token) return;
+    el("join-prompt").hidden = true;
+    status(t("personalInbox.expiredLink"),true);
+  }
 }
 window.addEventListener("hashchange", run(async () => {
   const params = new URLSearchParams(location.hash.slice(1));
@@ -274,10 +283,18 @@ window.addEventListener("hashchange", run(async () => {
   }
 }));
 el("join-button").onclick = run(async () => {
-  const response = await api("join",{token:joinToken});
-  joinToken = null; history.replaceState(null,"",location.pathname + location.search); el("join-prompt").hidden = true;
-  if (response.state === "requested") status(t("personalInbox.requested"),true);
-  else await select(response.id);
+  const submit = el("join-button"), token = joinToken, account = me?.id;
+  if (!token || !account || submit.disabled) return;
+  submit.disabled = true;
+  try {
+    const response = await api("join",{token});
+    if (joinToken !== token || me?.id !== account) return;
+    joinToken = null; history.replaceState(null,"",location.pathname + location.search); el("join-prompt").hidden = true;
+    if (response.state === "requested") status(t("personalInbox.requested"),true);
+    else await select(response.id);
+  } finally {
+    submit.disabled = false;
+  }
 });
 function roomName(r) {
   return r.kind === "direct" && !r.isOwner ? r.inviter : r.title;
@@ -403,14 +420,16 @@ async function refreshRoom(poll) {
   const group = r.kind === "group";
   const manager = group && (r.isOwner || r.admin);
   const limited = group && (r.muted || (r.announcements && !manager));
-  const canInviteBot = group && !limited && desktopBots;
+  const canInviteBot = group && !limited;
   const peer = !group && detail.members.length === 2 && detail.members.find(member => member.email !== me.email);
   el("invite").hidden = !manager;
   el("invite-person").hidden = !manager;
   el("invite-bot").hidden = !canInviteBot;
-  if (canInviteBot) el("invite-bot").href = "/desktop/invite-bot/" + r.id;
-  else el("invite-bot").removeAttribute("href");
-  el("open-group-bots").hidden = !group || canInviteBot;
+  if (!canInviteBot && !el("invite-bot-panel").hidden) closeBotInvite();
+  el("open-group-bots").hidden = !group || (canInviteBot && desktopBots);
+  const share = el("copy-group-link");
+  share.hidden = !group || (!manager && !detail.group.link);
+  share.onclick = share.hidden ? null : run(() => copyGroupLink(r.id, manager, detail.group.link));
   el("create-group-from-direct").hidden = !peer;
   el("create-group-from-direct").dataset.peer = peer?.email ?? "";
   el("invite-actions").hidden = !group && !peer;
@@ -426,7 +445,7 @@ async function refreshRoom(poll) {
     if (group) {
       const ui = groupControls({room:r,detail,me,node,button,api,refresh,status});
       el("members").replaceChildren(ui.list); el("manage").append(ui.controls);
-      const bots = groupBots({room:r,me,node,button,api,refresh,status,manager,writable:!limited,desktopBots});
+      const bots = groupBots({room:r,me,node,button,api,refresh,status,manager,writable:!limited});
       bots.dataset.bots = ""; el("manage").append(bots); bots.open = !!botPanelOpen;
     } else el("members").replaceChildren(...detail.members.map(m => node("li", m.email)));
     if (r.isOwner && r.kind === "direct" && detail.members.length === 2)
@@ -503,13 +522,100 @@ function createLabels() {
   form.elements.target.inputMode = group ? "text" : "email";
   form.elements.target.maxLength = group ? 80 : 254;
 }
+const inviteEmail = value => value.trim().replace(/^@/, "").toLowerCase();
 function emailList(value) {
-  return [...new Set(value.trim().toLowerCase().split(/[\s,;]+/).filter(Boolean).map(address => address.replace(/^@/, "")))];
+  return [...new Set(value.split(/[\s,;]+/).map(inviteEmail).filter(Boolean))];
 }
 el("invite-person").onclick = () => {
+  closeBotInvite();
   el("room-options").open = true;
   el("invite").elements.email.focus();
 };
+async function copyGroupLink(room, manager, existingToken) {
+  const share = el("copy-group-link"), account = me?.id;
+  if (share.disabled) return;
+  share.disabled = true;
+  try {
+    const token = manager
+      ? (await api("rooms/" + room + "/moderate", { action: "ensureLink" })).token
+      : existingToken;
+    if (current !== room || me?.id !== account || share.hidden) return;
+    const address = new URL("/", location.origin);
+    address.hash = "join=" + token;
+    const copied = await copyText(address.href) === "copied";
+    if (current !== room || me?.id !== account || share.hidden) return;
+    if (copied) status(t("personalInbox.copied"));
+    else {
+      const field = el("invite-link-field");
+      field.value = address.href;
+      field.hidden = false;
+      field.focus();
+      field.select();
+      status(t("personalInbox.copySelected"));
+    }
+  } finally {
+    share.disabled = false;
+  }
+}
+function closeBotInvite() {
+  botInviteLoad++;
+  botChoices = [];
+  el("invite-bot-panel").hidden = true;
+  el("invite-bot-results").replaceChildren();
+  el("invite-bot").setAttribute("aria-expanded", "false");
+  el("invite-bot").dataset.i18n = "personalInbox.inviteBot";
+  el("invite-bot").textContent = t("personalInbox.inviteBot");
+}
+function matchingBots() {
+  const query = el("invite-bot-panel").elements.bot.value.trim().replace(/^@/, "").trim().toLocaleLowerCase();
+  return botChoices.filter(bot => bot.name.toLocaleLowerCase().includes(query));
+}
+async function addBot(bot) {
+  const panel = el("invite-bot-panel"), room = current, account = me?.id;
+  if (panel.hidden || panel.getAttribute("aria-busy") === "true") return;
+  panel.setAttribute("aria-busy", "true");
+  try {
+    await api("rooms/" + room + "/bots", { action: "add", bot: bot.id });
+    if (current !== room || me?.id !== account) return;
+    closeBotInvite();
+    el("invite-bot").focus();
+    await refresh();
+    status(t("personalInbox.groupUpdated"));
+  } finally {
+    panel.removeAttribute("aria-busy");
+  }
+}
+function renderBotChoices() {
+  const result = el("invite-bot-results"), matches = matchingBots();
+  result.replaceChildren(...matches.map(bot => button("@" + bot.name, () => addBot(bot))));
+  if (!matches.length) result.append(node("small", t("chat.find.noResults")));
+}
+el("invite-bot").onclick = run(async () => {
+  const panel = el("invite-bot-panel"), toggle = el("invite-bot");
+  if (!panel.hidden) return closeBotInvite();
+  const room = current, version = ++botInviteLoad;
+  el("room-options").open = false;
+  panel.hidden = false;
+  toggle.setAttribute("aria-expanded", "true");
+  toggle.dataset.i18n = "common.cancel";
+  toggle.textContent = t("common.cancel");
+  panel.elements.bot.value = "@";
+  panel.elements.bot.focus();
+  const native = el("invite-bot-native");
+  native.hidden = !desktopBots;
+  native.href = "/desktop/invite-bot/" + room;
+  el("invite-bot-desktop-hint").hidden = true;
+  const { bots } = await api("rooms/" + room + "/bots?available=1");
+  if (version !== botInviteLoad) return;
+  botChoices = bots;
+  el("invite-bot-desktop-hint").hidden = desktopBots || bots.length > 0;
+  renderBotChoices();
+});
+el("invite-bot-panel").elements.bot.oninput = renderBotChoices;
+el("invite-bot-panel").onsubmit = run(async () => {
+  const matches = matchingBots();
+  if (matches.length === 1) await addBot(matches[0]);
+});
 el("open-group-bots").onclick = () => {
   const bots = el("manage").querySelector("[data-bots]");
   if (!bots) return;
@@ -554,17 +660,24 @@ el("create-room").onsubmit = run(async () => {
 el("cancel-invite").onclick = run(async () => {
   const field = el("invite").elements.email;
   if (!field.reportValidity()) return;
-  await api("rooms/" + current + "/moderate", {action:"cancelInvite",email:field.value.trim()});
+  await api("rooms/" + current + "/moderate", {action:"cancelInvite",email:inviteEmail(field.value)});
   status(t("personalInbox.cancelledInvite"));
 });
 el("invite").onsubmit = run(async () => {
-  const form = el("invite");
-  await api("rooms/" + current + "/invite", {
-    email: form.elements.email.value.trim(),
-    instant: true,
-    guest: { locale: form.elements.locale.value, note: form.elements.note.value.trim() },
-  });
-  el("invite").reset();
+  const form = el("invite"), room = current, account = me?.id, submit = form.querySelector('[type="submit"]');
+  if (submit.disabled) return;
+  submit.disabled = true;
+  try {
+    await api("rooms/" + room + "/invite", {
+      email: inviteEmail(form.elements.email.value),
+      instant: true,
+      guest: { locale: form.elements.locale.value, note: form.elements.note.value.trim() },
+    });
+  } finally {
+    submit.disabled = false;
+  }
+  if (current !== room || me?.id !== account) return;
+  form.reset();
   await refresh();
   status(t("personalInbox.invited"));
 });

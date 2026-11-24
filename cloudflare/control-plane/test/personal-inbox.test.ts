@@ -752,6 +752,44 @@ it("lets members invite only their bots and only managers remove them, even duri
   expect((await cmd(a,"reply",{round:other,bot:first,claim:inFlight.claim,text:"Late reply"})).ok).toBe(false);
 });
 
+it("offers only the caller's registered bots for groups where they can post", async () => {
+  const owner = await login("owner@example.test");
+  const member = await login("member@example.test");
+  const outsider = await login("third@example.test");
+  const source = uuid(), destination = uuid();
+  const ownerBot = uuid(), memberBot = uuid();
+  const room = "rooms/" + destination;
+  const available = async (who: typeof owner) =>
+    (await call(room + "/bots?available=1", who.cookie)).json();
+  const add = (who: typeof owner, bot: string) =>
+    call(room + "/bots", who.cookie, { action: "add", bot });
+
+  for (const id of [source, destination]) {
+    await call("rooms", owner.cookie, { id, kind: "group", title: "Test group" });
+    await call("rooms/" + id + "/invite", owner.cookie, { email: member.email });
+    await call("rooms/" + id + "/accept", member.cookie, {});
+  }
+  for (const [who, bot, name] of [[owner, ownerBot, "Planner"], [member, memberBot, "Reviewer"]] as const) {
+    expect((await call("rooms/" + source + "/bots", who.cookie, {
+      action: "invite", owner: who.id, bot, name,
+    })).status).toBe(200);
+  }
+
+  expect(await available(owner)).toEqual({ bots: [{ id: ownerBot, name: "Planner" }] });
+  expect(await available(member)).toEqual({ bots: [{ id: memberBot, name: "Reviewer" }] });
+  expect(await available(outsider)).toEqual({ bots: [] });
+  expect((await add(member, ownerBot)).status).toBe(409);
+  expect((await call(room + "/moderate", owner.cookie, { action: "mute", person: member.id })).status).toBe(200);
+  expect(await available(member)).toEqual({ bots: [] });
+  expect((await add(member, memberBot)).status).toBe(409);
+
+  expect((await add(owner, ownerBot)).status).toBe(200);
+  expect(await available(owner)).toEqual({ bots: [] });
+  expect(await (await call(room + "/bots", member.cookie)).json()).toMatchObject({
+    bots: [{ id: ownerBot, name: "Planner", owner: owner.email }],
+  });
+});
+
 it("keeps explicit email-update choices with the verified account across devices", async () => {
   const email = "a@example.test";
   const { cookie: first } = await login(email);

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title data-i18n="personalInbox.pageTitle">Messages · StartupBot</title>
     <link rel="stylesheet" href="/inbox-skins.css" />
-    <link rel="stylesheet" href="/inbox.css?v=5" />
-    <script type="module" src="/inbox.js?v=18"></script>
+    <link rel="stylesheet" href="/inbox.css?v=6" />
+    <script type="module" src="/inbox.js?v=19"></script>
   </head>
   <body>
     <header>
@@ -91,15 +91,23 @@
           <div id="conversation" hidden>
             <div id="invite-actions" hidden>
               <button class="ui-button" type="button" id="invite-person" aria-controls="room-options" data-i18n="personalInbox.inviteGroup" hidden>Invite to group</button>
-              <a class="ui-button" id="invite-bot" target="_blank" data-i18n="personalInbox.inviteBot" hidden>Invite my bot</a>
+              <button class="ui-button" type="button" id="invite-bot" aria-controls="invite-bot-panel" aria-expanded="false" data-i18n="personalInbox.inviteBot" hidden>Invite my bot</button>
               <button class="ui-button" type="button" id="open-group-bots" aria-controls="room-options" data-i18n="personalInbox.bots" hidden>Bots in this group</button>
+              <button class="ui-button" type="button" id="copy-group-link" data-i18n="personalInbox.copyLink" hidden>Copy invite link</button>
               <button class="ui-button" type="button" id="create-group-from-direct" aria-controls="create-room" data-i18n="personalInbox.createGroup" hidden>Create group</button>
+              <input dir="ltr" id="invite-link-field" aria-label="Invite link" data-i18n-aria-label="personalInbox.linkLabel" readonly hidden />
             </div>
+            <form id="invite-bot-panel" hidden>
+              <input dir="auto" name="bot" placeholder="@" maxlength="81" autocomplete="off" aria-label="Invite my bot" data-i18n-aria-label="personalInbox.inviteBot" />
+              <div id="invite-bot-results"></div>
+              <a id="invite-bot-native" target="_blank" data-i18n="personalInbox.inviteBot" hidden>Invite my bot</a>
+              <small id="invite-bot-desktop-hint" data-i18n="personalInbox.botNoDevice" hidden>Open Messages in your StartupBot desktop app to invite a bot.</small>
+            </form>
             <details id="room-options">
               <summary title="Conversation info" data-i18n-title="personalInbox.roomInfo"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-info"></use></svg><span class="sr" data-i18n="personalInbox.roomInfo">Conversation info</span></summary>
               <form id="invite" hidden>
                 <h3 data-i18n="personalInbox.inviteGroup">Invite to group</h3>
-                <label><span data-i18n="personalInbox.inviteEmail">Email address to invite</span><input dir="auto" name="email" type="email" required /></label>
+                <label><span data-i18n="personalInbox.inviteEmail">Email address to invite</span><input dir="ltr" name="email" inputmode="email" autocomplete="off" autocapitalize="off" maxlength="255" placeholder="@email@example.com" pattern="\s*@?[^@\s]+@[^@\s]+\.[^@\s]+\s*" required /></label>
                 <details><summary data-i18n="personalInbox.mailOptions">Invitation email options</summary><fieldset>
                   <label
                     ><span data-i18n="personalInbox.recipientLanguage">Recipient’s language</span><inbox-select name="locale"></inbox-select></label
@@ -112,7 +120,6 @@
                 </fieldset></details>
                 <button class="ui-button" type="submit" data-i18n="personalInbox.sendInvitation">Send invitation</button>
               </form>
-              <input dir="auto" id="invite-link-field" aria-label="Invite link" data-i18n-aria-label="personalInbox.linkLabel" readonly hidden />
               <div id="manage"></div>
               <h3 data-i18n="personalInbox.member">Member</h3>
               <ul id="members"></ul>

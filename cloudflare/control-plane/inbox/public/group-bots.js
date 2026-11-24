@@ -2,7 +2,7 @@ import { language, t } from "./inbox-i18n.js";
 
 import { inboxSelect } from "./inbox-select.js";
 
-export function groupBots({ room, me, node, button, api, refresh, status, manager, writable, desktopBots }) {
+export function groupBots({ room, me, node, button, api, refresh, status, manager, writable }) {
   const panel = node("details", "");
   panel.append(node("summary", t("personalInbox.bots")));
   const content = node("div", "");
@@ -38,7 +38,7 @@ export function groupBots({ room, me, node, button, api, refresh, status, manage
         );
       children.push(row);
     }
-    if (writable) children.push(node("small", t(desktopBots ? "personalInbox.botTalkHelp" : "personalInbox.botNoDevice")));
+    if (writable && bots.length >= 2) children.push(node("small", t("personalInbox.botTalkHelp")));
     if (round?.step === -1)
       children.push(node("p", t("personalInbox.botFailed")));
     if (round && round.step !== -1) {

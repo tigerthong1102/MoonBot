@@ -13,6 +13,7 @@ const actions = z.discriminatedUnion("action", [
     bot: uuid,
     name: z.string().trim().min(1).max(80),
   }),
+  z.object({ action: z.literal("add"), bot: uuid }),
   z.object({ action: z.literal("remove"), bot: uuid }),
   z.object({
     action: z.literal("start"),
@@ -34,6 +35,7 @@ const actions = z.discriminatedUnion("action", [
 ]);
 const active =
   "EXISTS(SELECT 1 FROM inbox_members WHERE room=?1 AND person=?2 AND state='active')";
+const canInvite = `EXISTS(${canPost}) AND EXISTS(SELECT 1 FROM inbox_rooms WHERE id=?1 AND kind='group')`;
 const speaking = "CASE q.step WHEN 0 THEN q.first_bot ELSE q.second_bot END";
 const writable = (
   person: string,
@@ -43,6 +45,12 @@ const turn = `q.step IN (0,1) AND q.expires>?4 AND ${speaking}=?3 AND b.id=?3 AN
 function changed(n: number) {
   if (!n) throw new HTTPError(409, "unavailable");
   return json({ ok: true });
+}
+function addOwnedBot(db: D1Database, room: string, user: string, bot: string) {
+  return db.prepare(
+    `INSERT OR IGNORE INTO inbox_room_bots(room,bot,owner) SELECT ?1,id,?2 FROM inbox_bots
+    WHERE id=?3 AND owner=?2 AND ${canInvite} AND (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12`,
+  ).bind(room, user, bot);
 }
 export async function pendingBotTurns(db: D1Database, user: string) {
   const rows = await db
@@ -62,6 +70,14 @@ export async function roomBots(
   user: string,
 ) {
   if (req.method === "GET") {
+    if (new URL(req.url).searchParams.get("available") === "1") {
+      const rows = await db.prepare(
+        `SELECT b.id,b.name FROM inbox_bots b WHERE b.owner=?2 AND ${canInvite}
+        AND NOT EXISTS(SELECT 1 FROM inbox_room_bots rb WHERE rb.room=?1 AND rb.bot=b.id)
+        ORDER BY b.name,b.id`,
+      ).bind(room, user).all<BotRow>();
+      return json({ bots: rows.results });
+    }
     const [members, rounds] = await db.batch<BotRow>([
       db
         .prepare(
@@ -84,9 +100,9 @@ export async function roomBots(
   if (!parsed.success) throw new HTTPError(400, "invalid_request");
   const a = parsed.data,
     now = Date.now();
+  if (a.action === "add") return changed((await addOwnedBot(db, room, user, a.bot).run()).meta.changes);
   if (a.action === "invite") {
     if (a.owner !== user) throw new HTTPError(403, "unavailable");
-    const canInvite = `EXISTS(${canPost}) AND EXISTS(SELECT 1 FROM inbox_rooms WHERE id=?1 AND kind='group')`;
     const [, result] = await db.batch<BotRow>([
       db
         .prepare(
@@ -94,12 +110,7 @@ export async function roomBots(
         AND (SELECT count(*) FROM inbox_bots WHERE owner=?2)<50 ON CONFLICT(id) DO UPDATE SET name=excluded.name WHERE owner=?2`,
         )
         .bind(room, user, a.bot, a.name),
-      db
-        .prepare(
-          `INSERT OR IGNORE INTO inbox_room_bots(room,bot,owner) SELECT ?1,id,?2 FROM inbox_bots
-        WHERE id=?3 AND owner=?2 AND ${canInvite} AND (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12`,
-        )
-        .bind(room, user, a.bot),
+      addOwnedBot(db, room, user, a.bot),
     ]);
     return changed(result.meta.changes);
   }

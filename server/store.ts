@@ -1353,7 +1353,7 @@ export class Store {
     const chief = this.own(request.botId);
     if (!chief) throw new Error("The requesting Chief no longer exists");
     if (chief.lastTeamSetupReceipt?.requestId === request.requestId) return chief.lastTeamSetupReceipt.result;
-    const workBotPermissions = workBotCreationPermissions(request, Boolean(this.projectBotForTask(request.botId, request.threadId)), workBotPermission);
+    const workBotPermissions = workBotCreationPermissions(request, Boolean(this.projectBotForTask(request.botId, request.threadId)), workBotPermission, chief.toolScope);
     const managedSections = [...new Set([...(chief.managedSections ?? []), ...request.newTeams])];
     if (managedSections.length > 100 || managedSections.some((name) => name.trim() !== name || name.length > 60) ||
         request.newTeams.some((name) => !name) || (request.newTeams.length && !chief.chiefOfStaff)) throw new Error("Invalid reviewed Chief team scope");

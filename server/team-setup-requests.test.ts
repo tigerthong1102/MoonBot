@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts";
-import { workBotCreationMode, workBotCreationPermissions } from "./work-bot-permissions.ts";
+import { workBotCreationMode, workBotCreationPermissions, workBotGrantsMatch } from "./work-bot-permissions.ts";
 import { closedByStop, resumableCards } from "./host/resumable-cards.ts";
 import { botFolder } from "./bot-folder.ts";
 import { flushProfileHistory, readHistory } from "./profile-versions.ts";
@@ -876,4 +876,20 @@ it("caps new hosted work bots at Ask without changing desktop selections or cust
   }
   expect(workBotCreationMode("custom", true)).toBe("custom");
   expect(workBotCreationMode("custom", false)).toBe("custom");
+});
+
+it("retains the source tool scope and refuses changed connector grants at handoff", () => {
+  const request = { workBotOffer: {} } as TeamSetupRequest;
+  const scope = { allow: ["native:read"], deny: ["mcp:notes:write"] };
+  const permission = workBotCreationPermissions(request, true, "full", scope);
+  expect(permission.bot.toolScope).toEqual(scope);
+  expect(permission.bot.toolScope).not.toBe(scope);
+  const source = { id: "source", threadId: "source", name: "source" } as BotRecord;
+  const target = { id: "target", threadId: "target", name: "target" } as BotRecord;
+  expect(workBotGrantsMatch(source, target)).toBe(true);
+  for (const patch of [
+    { composio: false }, { connectorTools: {} }, { connectorScopes: { apps: {} } }, { mcpServers: [] },
+    { connectorTools: { gmail: { tools: ["GMAIL_FETCH_EMAILS"] } } },
+    { connectorScopes: { apps: { gmail: "read" } } }, { mcpServers: ["notes"] },
+  ]) expect(workBotGrantsMatch({ ...source, ...patch } as BotRecord, target)).toBe(false);
 });

@@ -1,3 +1,5 @@
+import { workBotGrantsMatch } from "../work-bot-permissions.ts";
+import { parseToolScope, toolScopeWidens } from "../../shared/tool-scope.ts";
 import { levelWithin } from "../../shared/approval-mode.ts";
 import { defaultBotPerson } from "../../shared/default-bot.ts";
 import { sameModelSelection } from "../../shared/thread-model.ts";
@@ -281,7 +283,8 @@ const workBotRouter = new WorkBotRouter({
           const targetPermission = store.projectBotForTask(target.botId, target.threadId);
           const sourceMode = deps.approvalMode(route.sourceBotId!, threadId);
           const targetMode = deps.approvalMode(target.botId, target.threadId);
-          const permissionMatches = sourcePermission && targetPermission && sourceMode !== "custom" && targetMode !== "custom" && levelWithin(targetMode, sourceMode);
+          const appsMatch = from && to && workBotGrantsMatch(from, to);
+          const permissionMatches = appsMatch && sourcePermission && targetPermission && sourceMode !== "custom" && targetMode !== "custom" && levelWithin(targetMode, sourceMode) && parseToolScope(from?.toolScope).ok && parseToolScope(to?.toolScope).ok && !toolScopeWidens(from?.toolScope, to?.toolScope);
           if (currentSource?.workBotRouting?.state !== "dispatching" || currentSource.text !== source.text || store.activeLeaf(threadId) !== sourceLeaf || store.activeLeaf(target.threadId) !== targetLeaf || !from || !to || to.hidden || !store.taskByThread(target.botId, target.threadId) || !sameAudience(from.visibility, to.visibility) || !accessMatches || !permissionMatches || !mayRead(teamHost.audienceOf(threadId), teamHost.audienceOf(target.threadId)) || !sameModelSelection(store.projectBotForTask(route.sourceBotId!, threadId)?.modelSelection, route.modelSelection) || !sameModelSelection(store.projectBotForTask(target.botId, target.threadId)?.modelSelection, route.modelSelection)) throw new Error("The conversation or its access changed during handoff");
         };
         validateHandoff();

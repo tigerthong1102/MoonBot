@@ -8,7 +8,7 @@ import { expect, it } from "vitest";
 import { launchVerificationServer, verificationServerArgs, verificationServerEnvironment } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
 
-it.each([{ phase: "before", action: "stop" }, { phase: "after", action: "stop" }, { phase: "before", action: "pause" }, { phase: "after", action: "pause" }, { phase: "after", action: "downgrade" }])("respects $action during a work-bot decision $phase creation", async ({ phase, action }) => {
+it.each([{ phase: "before", action: "stop" }, { phase: "after", action: "stop" }, { phase: "before", action: "pause" }, { phase: "after", action: "pause" }, { phase: "after", action: "downgrade" }, { phase: "after", action: "scope" }, { phase: "after", action: "connector" }, { phase: "after", action: "connector-scope" }, { phase: "after", action: "connector-tools" }, { phase: "after", action: "mcp" }])("respects $action during a work-bot decision $phase creation", async ({ phase, action }) => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-choice-race-"));
   const routes = join(dir, "routes.json"), marker = join(dir, "marker"), gate = join(dir, "gate");
   const text = "Track the synthetic warehouse each week";
@@ -42,6 +42,11 @@ it.each([{ phase: "before", action: "stop" }, { phase: "after", action: "stop" }
     if (action === "stop") {
       expect((await post(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: "stop", sendId: randomUUID() })).status).toBe(409);
       expect((await post(`/api/bots/${main.id}/interrupt`, { threadId: main.threadId })).status).toBe(409);
+    } else if (["scope", "connector", "connector-scope", "connector-tools", "mcp"].includes(action)) {
+      const patches: Record<string, unknown> = { scope: { toolScope: { deny: ["native:Bash"] } }, connector: { composio: false }, "connector-scope": { connectorScopes: { apps: { gmail: "read" } } }, "connector-tools": { connectorTools: {} }, mcp: { mcpServers: [] } };
+      const patch = patches[action];
+      const response = await fetch(`${base}/api/bots/${main.id}`, { method: "PATCH", headers: { origin: base, "content-type": "application/json" }, body: JSON.stringify(patch) });
+      expect(response.ok).toBe(true);
     } else if (action === "downgrade") {
       const response = await fetch(`${base}/api/bots/${main.id}`, { method: "PATCH", headers: { origin: base, "content-type": "application/json" }, body: JSON.stringify({ approvalMode: "ask", applyToAllThreads: true }) });
       expect(response.ok).toBe(true);
@@ -56,8 +61,8 @@ it.each([{ phase: "before", action: "stop" }, { phase: "after", action: "stop" }
     if (action === "stop") await expect.poll(async () => (await rows(created[0].threadId)).filter(row => row.role === "user" && row.text === text).length, { timeout: 20000 }).toBe(1);
     else {
       expect((await rows(created[0].threadId)).some(row => row.role === "user" && row.text === text)).toBe(false);
-      if (action === "downgrade") {
-        expect(created[0].approvalMode).toBe("full");
+      if (["downgrade", "scope", "connector", "connector-scope", "connector-tools", "mcp"].includes(action)) {
+        if (action === "downgrade") expect(created[0].approvalMode).toBe("full");
         await expect.poll(async () => (await rows(main.threadId)).find(row => row.role === "user" && row.text === text)?.workBotRouting?.state, { timeout: 20000 }).toBe("interrupted");
       }
     }

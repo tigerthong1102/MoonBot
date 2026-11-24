@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import type { Bot } from "@/state/store";
+import { deferred } from "../../../server/testing/deferred.ts";
 
 vi.mock("@/state/store", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/state/store")>();
@@ -25,10 +26,12 @@ const hash = (text: string) => `h${text.length}:${text.split("\n").length}`;
 const threadOf = (url: URL) => /\/memory\/thread\/([\w-]+)$/.exec(url.pathname)?.[1];
 let host: HTMLDivElement;
 let root: Root;
+let nextPut: Promise<void> | undefined;
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   puts.length = 0;
+  nextPut = undefined;
   for (const key of Object.keys(files)) delete files[key];
   scoped.clear();
   denied.clear();
@@ -42,6 +45,9 @@ beforeEach(() => {
       const body = JSON.parse(String(init.body)) as { path?: string; text: string; expectedHash?: string };
       const target = body.path ?? path;
       puts.push({ url: url.pathname, text: body.text, expectedHash: body.expectedHash });
+      const pause = nextPut;
+      nextPut = undefined;
+      if (pause) await pause;
       const current = files[target] ?? "";
       if (body.expectedHash !== hash(current)) return reply(409, { error: "conflict", current, currentHash: hash(current) });
       files[target] = body.text;
@@ -111,6 +117,35 @@ it("keeps the draft and the saved notes separate on a version conflict", async (
   await autosave();
   expect(puts).toHaveLength(1);
   expect(files["memory/threads/acme.md"]).toBe("- Counterparty is Supermouse Ltd\n");
+});
+
+it("serializes autosave and blur when both wait for a pending write", async () => {
+  scoped.add("acme");
+  await show(bot("acme"));
+  const first = deferred();
+  const second = deferred();
+  nextPut = first.promise;
+  await type("thread", "First draft");
+  await autosave();
+  expect(puts.map((put) => put.text)).toEqual(["First draft"]);
+
+  await type("thread", "Latest draft");
+  await autosave();
+  act(() => field("thread")!.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+  expect(puts).toHaveLength(1);
+  nextPut = second.promise;
+  await act(async () => first.resolve());
+  await settle();
+  expect(puts.map((put) => [put.text, put.expectedHash])).toEqual([
+    ["First draft", hash("")],
+    ["Latest draft", hash("First draft")],
+  ]);
+
+  await act(async () => second.resolve());
+  await settle();
+  expect(puts).toHaveLength(2);
+  expect(files["memory/threads/acme.md"]).toBe("Latest draft");
+  expect(host.querySelector('[role="alert"]')).toBeNull();
 });
 
 it("says memory is off and nothing else when it is off", async () => {

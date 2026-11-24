@@ -51,7 +51,7 @@ export function MemoryText({ label, doc, placeholder, save, attr, botName }: {
   const persist = async (): Promise<void> => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    if (running.current) await running.current;
+    while (running.current) await running.current;
     if (conflict.current) return;
     const draft = latest.current;
     if (draft === onDisk.current.text) return;

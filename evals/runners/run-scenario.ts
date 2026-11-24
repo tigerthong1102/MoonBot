@@ -30,10 +30,12 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioResult> {
         const detail = await world.runStep(step, ctx);
         steps.push({ step, ok: true, detail, durationMs: Date.now() - stepStart });
       } catch (failure) {
+        const detail = failureText(failure);
+        error = `${step.kind}: ${detail}`;
         steps.push({
           step,
           ok: false,
-          detail: failureText(failure),
+          detail,
           durationMs: Date.now() - stepStart,
         });
         throw failure;
@@ -41,8 +43,7 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioResult> {
     }
     snapshot = await world.snapshot(ctx);
   } catch (failure) {
-    const failed = steps.at(-1);
-    error = failed?.ok === false ? `${failed.step.kind}: ${failed.detail}` : failureText(failure);
+    error ??= failureText(failure);
   } finally {
     await world.close().catch(() => undefined);
   }

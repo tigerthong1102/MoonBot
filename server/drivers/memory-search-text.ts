@@ -33,9 +33,12 @@ export function threadReadText(r: Json): string {
   const thread = r.thread as Json;
   const messages = Array.isArray(r.messages) ? r.messages.filter((line): line is Json => Boolean(line) && typeof line === "object") : [];
   const notes = typeof r.notes === "string" && r.notes ? `Its notes${r.notesTruncated ? " (cut short)" : ""}:\n${r.notes}` : "It has no notes.";
-  const lines = messages.map((line) => `- [${day(line.at)} · ${line.by === "person" ? "the person" : "you"}${line.messageId ? ` · message ${String(line.messageId)}` : ""}] ${String(line.text)}${line.truncated ? " …(cut; read it whole with session_search thread_id and message_id)" : ""}`);
-  const earlier = typeof r.earlier === "string" && r.earlier ? `\nOlder messages: call again with message_id "${r.earlier}".` : "";
-  return `Conversation "${String(thread.title ?? "Untitled")}" (thread ${String(thread.threadId)}). ${notes}\n\n${lines.length ? `Its latest messages, newest first:\n${lines.join("\n")}` : "No messages."}${earlier}\n\n${RECALLED}`;
+  const lines = messages.map((line) => `- [${day(line.at)} · ${line.by === "person" ? "the person" : "you"}${line.messageId ? ` · message ${String(line.messageId)}` : ""}] ${String(line.text)}${line.truncated ? " …(cut)" : ""}`);
+  const full = messages.some((line) => line.truncated && line.messageId)
+    ? "\nTo read a cut message in full, call session_search with this thread_id and the message_id of that message. Omit scope."
+    : "";
+  const earlier = typeof r.earlier === "string" && r.earlier ? `\nOlder messages: call session_search with scope "threads", this thread_id, and message_id "${r.earlier}".` : "";
+  return `Conversation "${String(thread.title ?? "Untitled")}" (thread ${String(thread.threadId)}). ${notes}\n\n${lines.length ? `Its latest messages, newest first:\n${lines.join("\n")}` : "No messages."}${full}${earlier}\n\n${RECALLED}`;
 }
 
 export function memorySavedText(r: Json): string {

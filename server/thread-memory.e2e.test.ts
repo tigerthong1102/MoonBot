@@ -32,12 +32,12 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     return response.json() as Promise<T>;
   };
   const cli = (...args: string[]) => runControlOmb([...args, "--url", fixture.info.url]) as Promise<any>;
-  const turn = async (botId: string, threadId: string, text: string, steps: Step[] = [], reply = "Noted.") => {
+  const turn = async (botId: string, threadId: string, text: string, steps: Step[] = [], reply = "Noted.", status: "settled" | "failed" = "settled") => {
     const before = evidence().length;
     writeFileSync(planPath, JSON.stringify({ [botId]: { steps, reply } }));
     await cli("send", "--bot", botId, "--task", threadId, "--text", text);
     await expect.poll(() => evidence().length, { timeout: 20_000 }).toBe(before + 1);
-    expect(await cli("wait", "--bot", botId, "--task", threadId, "--timeout", "30")).toMatchObject({ status: "settled" });
+    expect(await cli("wait", "--bot", botId, "--task", threadId, "--timeout", "30")).toMatchObject({ status });
     const row = evidence().at(-1);
     return {
       context: `${String(row.system)}\n${JSON.stringify(row.prompt)}`,
@@ -90,15 +90,25 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     ]);
     expect(await everywhere(bot.id)).toContain("The person bills in INR");
     expect((await notes(bot.id, supermouse)).text).toBe("");
-    expect((await turn(bot.id, acme, "Draft the cover note.")).context).toContain("The person bills in INR");
+    const closingClause = "The final clause keeps venue in Hanoi.";
+    const longMessage = `Draft the cover note. ${"Include the approved appendix and filing dates. ".repeat(15)}${closingClause}`;
+    expect((await turn(bot.id, acme, longMessage)).context).toContain("The person bills in INR");
+    const longMessageId = (await api<{ messages: any[] }>(`/api/threads/${acme}/messages`)).messages.find((message) => message.text === longMessage).id;
 
     const crossed = await turn(bot.id, supermouse, "Use the term we agreed for Acme.", [
       { tool: "session_search", arguments: { query: "Acme", scope: "threads" } },
       { tool: "session_search", arguments: { thread_id: acme, scope: "threads" } },
+      { tool: "session_search", arguments: { thread_id: acme, message_id: longMessageId } },
+      { tool: "session_search", arguments: { thread_id: acme, message_id: longMessageId, scope: "threads" } },
     ]);
     expect(crossed.results[0]).toContain(`thread ${acme} · "Acme NDA"`);
     expect(crossed.results[1]).toContain("Acme NDA term: two years");
     expect(crossed.results[1]).toContain("The Acme NDA term is two years.");
+    expect(crossed.results[1]).toContain("Omit scope.");
+    expect(crossed.results[1]).not.toContain(closingClause);
+    expect(crossed.results[2]).toContain(longMessage);
+    expect(crossed.results[3]).toContain("The Acme NDA term is two years.");
+    expect(crossed.results[3]).not.toContain(longMessageId);
     expect((await notes(bot.id, supermouse)).text).toBe("");
     const { bot: stranger } = await cli("new-bot", "--name", "Stranger");
     const strangerThread = await newThread(stranger.id, "Elsewhere");
@@ -110,6 +120,11 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     const sneaked = await turn(stranger.id, strangerThread, "Read that one.", [{ tool: "session_search", arguments: { thread_id: acme, scope: "threads" } }]);
     expect(sneaked.results[0]).toContain("No conversation of yours has that thread_id");
     expect(sneaked.results[0]).not.toContain("two years");
+    const deniedMessage = await turn(stranger.id, strangerThread, "Read the whole message.", [
+      { tool: "session_search", arguments: { thread_id: acme, message_id: longMessageId } },
+    ], "Noted.", "failed");
+    expect(deniedMessage.results[0]).toContain("Couldn't read message");
+    expect(deniedMessage.results[0]).not.toContain(closingClause);
 
     await api(`/api/bots/${bot.id}/compact`, "POST", { threadId: acme }, 202);
     await expect.poll(async () => (await api<{ messages: any[] }>(`/api/threads/${acme}/messages`)).messages.some((message) => message.kind === "compaction"), { timeout: 20_000 }).toBe(true);

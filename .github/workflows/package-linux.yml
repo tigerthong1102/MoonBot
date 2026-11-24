@@ -567,7 +567,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Baseline CUA preparation failed' }
           pnpm package:prepare
           if ($LASTEXITCODE -ne 0) { throw 'Baseline build failed' }
-          pnpm exec electron-builder --config electron-builder.internal.yml --win dir --x64 --publish never
+          pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never
           if ($LASTEXITCODE -ne 0) { throw 'Baseline package failed' }
       - name: Prepare and package candidate
         working-directory: candidate
@@ -579,7 +579,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Candidate CUA preparation failed' }
           pnpm package:prepare
           if ($LASTEXITCODE -ne 0) { throw 'Candidate build failed' }
-          pnpm exec electron-builder --config electron-builder.internal.yml --win dir --x64 --publish never
+          pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never
           if ($LASTEXITCODE -ne 0) { throw 'Candidate package failed' }
       - name: Create closed baseline fixture and test candidate twice
         working-directory: candidate
@@ -587,10 +587,25 @@ jobs:
         run: |
           $fixture = Join-Path $env:RUNNER_TEMP 'startupbot-old-profile-fixture'
           $logs = Join-Path $env:RUNNER_TEMP 'startupbot-upgrade-evidence'
-          $baseline = Join-Path $env:GITHUB_WORKSPACE 'baseline/release/internal/win-unpacked/StartupBot.exe'
-          $candidate = Join-Path $env:GITHUB_WORKSPACE 'candidate/release/internal/win-unpacked/StartupBot.exe'
+          New-Item -ItemType Directory -Force "$logs" | Out-Null
+          $baselineInstaller = @(Get-ChildItem "$env:GITHUB_WORKSPACE/baseline/release/internal/*-Setup.exe")
+          $candidateInstaller = @(Get-ChildItem "$env:GITHUB_WORKSPACE/candidate/release/internal/*-Setup.exe")
+          if ($baselineInstaller.Count -ne 1 -or $candidateInstaller.Count -ne 1) { throw 'Expected one installer for each revision' }
+          @{ baseline = @{ commit = $env:BASE_SHA; sha256 = (Get-FileHash $baselineInstaller[0].FullName -Algorithm SHA256).Hash }; candidate = @{ commit = $env:CANDIDATE_SHA; sha256 = (Get-FileHash $candidateInstaller[0].FullName -Algorithm SHA256).Hash } } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 "$logs/installer-sha.json"
+          $baselineDestination = Join-Path $env:RUNNER_TEMP 'StartupBot Upgrade Baseline'
+          $candidateDestination = Join-Path $env:RUNNER_TEMP 'StartupBot Upgrade Candidate'
+          $install = Start-Process -FilePath $baselineInstaller[0].FullName -ArgumentList '/S', "/D=$baselineDestination" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Baseline installer failed: $($install.ExitCode)" }
+          node scripts/package-payload.mjs --source "$env:GITHUB_WORKSPACE/baseline/release/internal/win-unpacked" --installed "$baselineDestination" --report "$logs/baseline-payload.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline installed payload differs' }
+          $baseline = Join-Path $baselineDestination 'StartupBot.exe'
           node scripts/smoke-internal-desktop.mjs --app "$baseline" --output "$logs/baseline" --create-upgrade-fixture "$fixture"
           if ($LASTEXITCODE -ne 0) { throw 'Baseline fixture creation failed' }
+          $install = Start-Process -FilePath $candidateInstaller[0].FullName -ArgumentList '/S', "/D=$candidateDestination" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Candidate installer failed: $($install.ExitCode)" }
+          node scripts/package-payload.mjs --source "$env:GITHUB_WORKSPACE/candidate/release/internal/win-unpacked" --installed "$candidateDestination" --report "$logs/candidate-payload.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate installed payload differs' }
+          $candidate = Join-Path $candidateDestination 'StartupBot.exe'
           node scripts/smoke-upgrade-profile.mjs --fixture "$fixture" --app "$candidate" --output "$logs/candidate"
           if ($LASTEXITCODE -ne 0) { throw 'Candidate upgrade verification failed' }
       - name: Upload synthetic evidence

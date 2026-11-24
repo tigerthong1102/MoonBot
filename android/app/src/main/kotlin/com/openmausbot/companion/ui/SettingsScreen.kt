@@ -29,6 +29,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -71,6 +72,13 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
     val haptics = rememberHaptics()
+
+    var showingInbox by rememberSaveable { mutableStateOf(false) }
+    val inboxOrigin = personalInboxOrigin(resources.getString(R.string.startupbot_inbox_origin))
+    if (showingInbox && inboxOrigin != null) {
+        PersonalInboxScreen(inboxOrigin) { showingInbox = false }
+        return
+    }
 
     var editingAddress by remember { mutableStateOf(false) }
     var addressText by remember { mutableStateOf("") }
@@ -213,6 +221,7 @@ fun SettingsScreen(
             }
 
             SettingsSection(stringResource(R.string.ui_chat)) {
+                if (inboxOrigin != null) SettingsButton(stringResource(R.string.ui_messages)) { showingInbox = true }
                 SettingsRow(stringResource(R.string.ui_activity), activityDetail.label)
                 SettingsButton(stringResource(R.string.ui_change_activity_detail)) { choosingActivity = true }
                 SettingsButton(stringResource(R.string.ui_quick_replies)) { editingQuickReplies = true }

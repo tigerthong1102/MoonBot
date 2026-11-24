@@ -1,16 +1,31 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { useStore } from "@/state/store";
 import { t } from "@/lib/i18n";
 import { imeComposing } from "@/lib/send-key";
 import { BotPickerList } from "./BotPickerList";
+import { EmailCodeForm } from "./EmailCodeForm";
+import { Layer } from "./Layer";
+import { FIELD, PRIMARY_WIDE } from "./cloud-buy/parts";
+import { useModalDialog } from "@/hooks/use-modal-dialog";
+import type { LocaleKey } from "@/locales";
 
-/** Sidebar → New channel: name it, optionally file it under a context, pick its bots. */
 export function NewRoomPanel({ onClose }: { onClose: () => void }) {
   const { state, dispatch } = useStore();
+  const bridge = window.ogb?.personalInbox;
+  const account = window.ogb?.personalAccount;
+  const dialog = useRef<HTMLDivElement>(null);
+  const attempt = useRef<{ key: string; id: string } | null>(null);
+  const [addressees, setAddressees] = useState("");
   const [name, setName] = useState("");
   const [section, setSection] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [signIn, setSignIn] = useState(false);
+  const [error, setError] = useState<LocaleKey | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  useModalDialog(dialog, () => { if (!busy) onClose(); });
+  const emails = [...new Set(addressees.trim().toLowerCase().split(/[\s,;]+/).filter(Boolean).map(address => address.replace(/^@/, "")))];
+  const withPeople = Boolean(bridge && emails.length);
   const bots = state.bots.filter((b) => !b.hidden);
   const toggle = (id: string) =>
     setPicked((prev) => {
@@ -19,7 +34,37 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
       else next.add(id);
       return next;
     });
-  const create = () => {
+  const create = async () => {
+    if (busy) return;
+    if (withPeople && bridge) {
+      setError(null);
+      const title = name.trim();
+      if (emails.length > 8 || emails.some(email => email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
+        setError("personalInbox.invalidInput");
+        return;
+      }
+      if (emails.length > 1 && !title) {
+        setError("personalInbox.groupNameRequired");
+        return;
+      }
+      const key = JSON.stringify([title, emails]);
+      if (attempt.current?.key !== key) attempt.current = { key, id: crypto.randomUUID() };
+      setBusy(true);
+      try {
+        const result = await bridge.create({ id: attempt.current.id, title, emails });
+        if (result === "ok") onClose();
+        else if (result === "unauthorized" && account) setSignIn(true);
+        else setError(result === "invalid_request" ? "personalInbox.invalidInput"
+          : result === "rate_limited" ? "personalInbox.rateLimit"
+          : result === "room_limit_or_conflict" ? "personalInbox.roomLimit"
+          : "settings.account.connectionFailed");
+      } catch {
+        setError("settings.account.connectionFailed");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (!picked.size) return;
     dispatch({
       type: "createGroup",
@@ -30,39 +75,51 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
     track("room_created", { members: picked.size, context: Boolean(section.trim()) });
     onClose();
   };
+  const direct = withPeople && emails.length === 1 && !name.trim();
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/40"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    <Layer modal><div
+      className="ui-scrim fixed inset-0 z-40 flex items-center justify-center p-4"
+      onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}
     >
-      <div className="w-[340px] rounded-2xl border border-hairline/50 bg-card p-4 shadow-2xl">
-        <div className="mb-3 text-[15px] font-semibold text-ink">{t("sidebar.newChannel.title")}</div>
+      <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="new-group-title" tabIndex={-1}
+        className="max-h-[90dvh] w-full max-w-[400px] overflow-auto rounded-2xl border border-hairline bg-card p-4 shadow-2xl">
+        <h2 id="new-group-title" className="mb-3 text-[17px] font-semibold text-ink">{t(signIn ? "personalInbox.signInTitle" : "sidebar.newChannel.title")}</h2>
+        {signIn && account ? <EmailCodeForm sendCode={account.sendCode} verifyCode={account.verify} complete={() => {
+          setSignIn(false);
+          void create();
+        }} /> : <form className="flex flex-col gap-3" onSubmit={event => { event.preventDefault(); void create(); }}>
+        {bridge && <label className="grid gap-1.5 text-sm text-ink">
+          {t("personalInbox.groupRecipients")}
+          <input autoFocus dir="ltr" inputMode="email" className={FIELD} value={addressees} maxLength={2050}
+            aria-describedby={withPeople ? "new-group-recipients-hint" : undefined}
+            disabled={busy} placeholder="@email@example.com" onChange={event => { setAddressees(event.target.value); setError(null); }}
+            onKeyDown={event => { if (imeComposing(event.nativeEvent) && event.key === "Enter") event.preventDefault(); }} />
+        </label>}
+        {withPeople && <small id="new-group-recipients-hint" className="text-xs text-ink-secondary">{t("personalInbox.emailRecipientsHint")}</small>}
         <input
-          autoFocus
-          maxLength={100}
+          autoFocus={!bridge}
+          maxLength={withPeople ? 80 : 100}
           value={name}
+          disabled={busy}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
-            if (imeComposing(e.nativeEvent)) { e.stopPropagation(); return; }
-            if (e.key === "Enter") create();
-            if (e.key === "Escape") onClose();
+            if (imeComposing(e.nativeEvent) && e.key === "Enter") e.preventDefault();
           }}
           aria-label={t("sidebar.newChannel.nameLabel")}
-          placeholder={t("sidebar.newChannel.name")}
-          className="mb-3 w-full rounded-lg bg-raised/70 px-3 py-2 text-[14px] text-ink placeholder:text-ink-secondary focus:outline-none"
+          placeholder={t(withPeople ? "personalInbox.groupName" : "sidebar.newChannel.name")}
+          className={FIELD}
         />
+        {!withPeople && <>
         <input
           value={section}
           maxLength={60}
           onChange={(e) => setSection(e.target.value)}
           onKeyDown={(e) => {
-            if (imeComposing(e.nativeEvent)) { e.stopPropagation(); return; }
-            if (e.key === "Enter") create();
-            if (e.key === "Escape") onClose();
+            if (imeComposing(e.nativeEvent) && e.key === "Enter") e.preventDefault();
           }}
           placeholder={t("sidebar.newChannel.context")}
           aria-label={t("sidebar.newChannel.contextAria")}
-          className="mb-3 w-full rounded-lg bg-raised/70 px-3 py-2 text-[14px] text-ink placeholder:text-ink-secondary focus:outline-none"
+          className={FIELD}
         />
         <BotPickerList
           bots={bots}
@@ -70,18 +127,21 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
           onToggle={toggle}
           emptyHint={t("sidebar.newChannel.emptyHint")}
         />
+        </>}
+        {error && <p role="alert" className="text-sm text-danger">{t(error)}</p>}
         <button
-          onClick={create}
-          disabled={!picked.size}
-          className="mt-3 w-full rounded-lg bg-accent py-2 text-[14px] font-medium text-white hover:brightness-110 disabled:opacity-40"
+          type="submit"
+          disabled={busy || (!withPeople && !picked.size)}
+          className={PRIMARY_WIDE}
         >
-          {picked.size === 0
+          {withPeople ? t(direct ? "personalInbox.openChat" : "personalInbox.createGroup") : picked.size === 0
             ? t("sidebar.newChannel.create")
             : picked.size === 1
               ? t("sidebar.newChannel.createOne")
               : t("sidebar.newChannel.createMany", { count: picked.size })}
         </button>
+        </form>}
       </div>
-    </div>
+    </div></Layer>
   );
 }

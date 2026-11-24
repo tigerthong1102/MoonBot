@@ -17,6 +17,13 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            if let origin = PersonalInboxView.origin {
+                NavigationLink {
+                    PersonalInboxView(origin: origin).navigationTitle("Messages").navigationBarTitleDisplayMode(.inline)
+                } label: {
+                    Label("Messages", systemImage: "bubble.left.and.bubble.right")
+                }
+            }
             Section("Computer") {
                 if let connection = session.connection {
                     NavigationLink {

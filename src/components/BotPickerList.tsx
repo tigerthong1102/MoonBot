@@ -21,6 +21,7 @@ export function BotPickerList({
       {bots.length === 0 && <div className="px-2 py-4 text-center text-[13px] text-ink-secondary">{emptyHint}</div>}
       {bots.map((b) => (
         <button
+          type="button"
           key={b.id}
           onClick={() => onToggle(b.id)}
           role="checkbox"

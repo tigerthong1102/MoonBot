@@ -1,4 +1,7 @@
+import { connectMobileVoice } from "./mobile-inbox-voice.js";
+
 const formats = [
+  ["audio/mp4;codecs=mp4a.40.2", "m4a"],
   ["audio/webm;codecs=opus", "webm"],
   ["audio/mp4", "m4a"],
 ];
@@ -6,7 +9,7 @@ const mime = () => typeof MediaRecorder === "function" &&
   formats.find(([type]) => MediaRecorder.isTypeSupported(type));
 
 export function voiceComposer({ recordButton, dictateButton, cancelButton, status, draft, desktop, eligible, maxBytes, stage, changed, error, t }) {
-  const bridge = window.startupbotInboxVoice;
+  let bridge = window.startupbotInboxVoice;
   let active = null;
   const stopTracks = stream => stream?.getTracks().forEach(track => track.stop());
   const supportsRecording = Boolean((!desktop || bridge) && navigator.mediaDevices?.getUserMedia && mime());
@@ -107,7 +110,7 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
       if (release(entry)) error("dictation_failed");
     }
   }
-  bridge?.onDictation(message => {
+  function onDictation(message) {
     const entry = active;
     if (entry?.type !== "dictate" || entry.id !== message.id) return;
     if (typeof message.text === "string") {
@@ -119,7 +122,9 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
     } else if (release(entry) && message.status !== "done") {
       error(message.status === "unavailable" ? "dictation_unavailable" : "dictation_failed");
     }
-  });
+  }
+  if (bridge) bridge.onDictation(onDictation);
+  else bridge = connectMobileVoice(onDictation, connected => { bridge = connected; changed(); });
   recordButton.onclick = () => void record();
   dictateButton.onclick = () => void dictate().catch(() => { discard(); error("dictation_failed"); });
   cancelButton.onclick = discard;
@@ -128,6 +133,7 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
     if (event.key === "Escape" && active) { event.preventDefault(); discard(); }
   });
   window.addEventListener("pagehide", discard);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) discard(); });
   return { update, discard, get active() { return Boolean(active); } };
 }
 export function isVoiceMessage(name) {

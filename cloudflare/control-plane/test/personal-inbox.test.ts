@@ -87,6 +87,58 @@ async function login(email: string) {
   return { cookie, ...(await me.json<{ id: string; email: string }>()) };
 }
 
+it("opens one direct conversation from New Group across both accounts", async () => {
+  const a = await login("a@example.test"), b = await login("b@example.test");
+  const results = await Promise.all([
+    call("rooms", a.cookie, { kind: "direct", id: uuid(), email: b.email, instant: true }),
+    call("rooms", b.cookie, { kind: "direct", id: uuid(), email: a.email, instant: true }),
+  ]);
+  expect(results.map(result => result.status)).toEqual([200, 200]);
+  const [{ id }, second] = await Promise.all(results.map(result => result.json<{ id: string }>()));
+  expect(second.id).toBe(id);
+  const message = { nonce: uuid(), kind: "text", body: "Hello from New Group" };
+  const room = "rooms/" + id;
+  expect((await call(room + "/posts", a.cookie, message)).status).toBe(200);
+  expect(await (await call(room, b.cookie)).json()).toMatchObject({ posts: [{ body: message.body }] });
+  expect((await call(room + "/block", b.cookie, {})).status).toBe(200);
+  await call("rooms", a.cookie, { kind: "direct", id: uuid(), email: b.email, instant: true });
+  expect(await (await call("rooms", b.cookie)).json()).toEqual({ rooms: [] });
+  await call("rooms", b.cookie, { kind: "direct", id: uuid(), email: a.email, instant: true });
+  expect((await (await call("rooms", a.cookie)).json<{ rooms: { id: string }[] }>()).rooms.map(r => r.id)).toEqual([id]);
+});
+
+it("auto-adds verified invitees, sends a guest invitation, and remembers group departures", async () => {
+  const a = await login("a@example.test"), b = await login("b@example.test"), c = await login("c@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  const guest = { locale: "vi", note: "" }, external = "new-group-guest@example.test";
+  const sent: { to: string; text: string }[] = [];
+  const EMAIL = { send: async (message: { to: string; text: string }) => { sent.push(message); } } as unknown as InboxEnv["EMAIL"];
+  const group = { kind: "group", id, title: "Test group", invitees: [b.email, b.email.toUpperCase(), external], guest };
+  expect((await call("rooms", a.cookie, group, { EMAIL })).status).toBe(200);
+  expect((await call("rooms", a.cookie, group, { EMAIL })).status).toBe(200);
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({ to: external });
+  expect(sent[0]!.text).toContain("#room=" + id);
+  expect(await (await call("rooms", b.cookie)).json()).toMatchObject({ rooms: [{ id, state: "active", admin: 0 }] });
+  const old = { nonce: uuid(), kind: "text", body: "Posted before the new member" };
+  expect((await call(room + "/posts", b.cookie, old)).status).toBe(200);
+  expect((await call(room + "/invite", b.cookie, { email: c.email, instant: true })).status).toBe(404);
+  const invite = { email: c.email, instant: true };
+  expect((await call(room + "/invite", a.cookie, invite)).status).toBe(200);
+  expect(await (await call(room, c.cookie)).json()).toMatchObject({ posts: [] });
+  const newer = { nonce: uuid(), kind: "text", body: "Posted after the new member" };
+  expect((await call(room + "/posts", a.cookie, newer)).status).toBe(200);
+  expect(await (await call(room, c.cookie)).json()).toMatchObject({ posts: [{ body: newer.body }] });
+  expect((await call(room + "/leave", c.cookie, {})).status).toBe(200);
+  expect((await call(room + "/invite", a.cookie, invite)).status).toBe(200);
+  expect(await (await call("rooms", c.cookie)).json()).toMatchObject({ rooms: [{ id, state: "pending" }] });
+  expect((await call(room, c.cookie)).status).toBe(404);
+  expect((await call(room + "/block", c.cookie, {})).status).toBe(200);
+  expect((await call(room + "/invite", a.cookie, invite)).status).toBe(200);
+  expect(await (await call("rooms", c.cookie)).json()).toEqual({ rooms: [] });
+  expect((await call(room + "/close", a.cookie, {})).status).toBe(200);
+});
+
 it("sends full-length multilingual posts while bounding unrelated JSON requests", async () => {
   const account = await login("owner@example.test");
   const id = uuid();

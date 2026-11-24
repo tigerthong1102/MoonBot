@@ -20,6 +20,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
 import { InboxDictation } from "@/components/InboxDictation";
 import { PersonalAccountSignIn } from "@/components/PersonalAccountSignIn";
+import { PersonalInboxPane, usePersonalInboxPane } from "@/components/PersonalInboxPane";
 import { GroupView } from "@/components/GroupView";
 import { ForkPanel } from "@/components/ForkPanel";
 import { SIDEBAR_AND_PANEL_FIT, SIDEBAR_INLINE, TWO_SIDE_PANELS_FIT, useMediaQuery } from "@/lib/use-media-query";
@@ -157,6 +158,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const group = state.groups.find((g) => g.id === state.selectedId);
   const chiefStep = useChiefStepOpen();
   const bot = group || chiefStep ? undefined : (state.bots.find((b) => b.id === state.selectedId) ?? state.bots[0]);
+  const personalInboxShown = usePersonalInboxPane(JSON.stringify([state.activeView, state.selectedId, group?.threadId, bot?.threadId]));
   const { open: drawerOpen, show: openDrawer, hide: hideDrawer, noteAction: noteDrawerAction } = useBotListDrawer({ selectedId: state.selectedId, botThread: bot?.threadId, groupThread: group?.threadId,
     view: state.activeView, pluginsOpen: state.pluginsOpen, settingsOpen: state.settingsOpen });
   const closeDrawer = useCallback(() => { hideDrawer(); menuButtonRef.current?.focus(); }, [hideDrawer]);
@@ -373,7 +375,9 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
         open={drawerOpen}
         onClose={closeDrawer}
       />}
-      {state.activeView === "team-map" ? (
+      {personalInboxShown ? (
+        <PersonalInboxPane overlay={drawerOpen || paletteOpen || state.appSettingsOpen || state.pluginsOpen} />
+      ) : state.activeView === "team-map" ? (
         <TeamMapPage />
       ) : state.activeView === "files" ? (
         <FilesView />

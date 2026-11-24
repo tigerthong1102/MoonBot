@@ -434,9 +434,17 @@ it("stores one attachment on retry, enforces size and withdraws download access 
   expect(image.headers.get("content-type")).toBe("image/png");
   expect(new Uint8Array(await image.arrayBuffer())).toEqual(png);
   expect(new Uint8Array(await crypto.subtle.digest("SHA-256", content))).toEqual(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  const legacyNonce = uuid();
+  const legacyBytes = new Uint8Array([68, 49]);
+  const legacyDigest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", legacyBytes)),
+    byte => byte.toString(16).padStart(2, "0")).join("");
   await env.INBOX_DB.prepare(
     "INSERT INTO inbox_files(room,author,nonce,name,digest,bytes,created) VALUES (?,?,?,?,?,?,?)",
-  ).bind(id, a.id, uuid(), "legacy.txt", "fixture", new Uint8Array([68,49]).buffer, Date.now()).run();
+  ).bind(id, a.id, legacyNonce, "Đối chiếu.xlsx", legacyDigest, legacyBytes.buffer, Date.now()).run();
+  const legacyRetry = room + "/files/" + legacyNonce;
+  expect((await upload(a.cookie, legacyBytes, legacyRetry)).status).toBe(200);
+  expect((await upload(a.cookie, new Uint8Array([68, 50]), legacyRetry)).status).toBe(409);
+  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_uploads WHERE nonce=?").bind(legacyNonce).first("n")).toBe(0);
   const legacy = await env.INBOX_DB.prepare("SELECT post FROM inbox_files WHERE room=?").bind(id).first<number>("post");
   const oldFile = await call(room + "/files/" + legacy, b.cookie);
   expect(new Uint8Array(await oldFile.arrayBuffer())).toEqual(new Uint8Array([68,49]));

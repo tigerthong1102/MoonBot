@@ -29,7 +29,7 @@ it.each(catalog)("$name has localized guides pinned to the reviewed original", (
     expect(fencedBlocks(translation)).toEqual(fencedBlocks(original));
     expect(translation.split("\n").filter(Boolean).length).toBeGreaterThan(2);
     if (reviewedUpdates.has(entry.name)) {
-      const tokens = translation.match(/`[^`\n]+`/g) ?? [];
+      const tokens: string[] = translation.match(/`[^`\n]+`/g) ?? [];
       for (const token of original.match(/`[^`\n]+`/g) ?? []) {
         const index = tokens.indexOf(token);
         expect(index, `${locale}: missing ${token}`).toBeGreaterThanOrEqual(0);

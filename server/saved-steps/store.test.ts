@@ -78,6 +78,20 @@ describe("RecipeStore", () => {
     expect(onDisk().recipes).toEqual([]);
   });
 
+  it("does not clear an unresolved Windows operation by forgetting a different recipe for the same key", () => {
+    const key = "open notes";
+    store.save("b1", recipe("original", key));
+    expect(store.beginWindowsAttempt("b1", key, "original")).toBe(true);
+    expect(store.beginWindowsAttempt("b1", key, "concurrent")).toBe(false);
+    // A stale writer changed the recipe file but cannot take ownership of the separate reservation.
+    writeFileSync(file(), JSON.stringify({ version: 1, recipes: [recipe("replacement", key)] }));
+    const reopened = new RecipeStore({ folder: (botId) => join(dir, botId), now: () => clock });
+    expect(reopened.forgetAfterReview("b1", "replacement")).toBe(true);
+    expect(reopened.windowsPending("b1", key)).toBe(true);
+    expect(reopened.forgetAfterReview("b1", "original")).toBe(true);
+    expect(reopened.windowsPending("b1", key)).toBe(false);
+  });
+
   it("reads a corrupt or other-version file as empty and rewrites it on save", () => {
     mkdirSync(join(dir, "b1"));
     writeFileSync(file(), "{nope");

@@ -7,8 +7,17 @@ function canonical(value: unknown): unknown {
   return value;
 }
 
+function freezeTree<T>(value: T): T {
+  if (value && typeof value === "object") {
+    for (const child of Object.values(value)) freezeTree(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 export function prepareWorkBotRoutineOperation(operation: unknown): { operation: ReturnType<typeof storedOperationSchema.parse>; fingerprint: string } | null {
   const parsed = storedOperationSchema.safeParse(operation);
   if (!parsed.success) return null;
-  return { operation: parsed.data, fingerprint: createHash("sha256").update(JSON.stringify(canonical(parsed.data))).digest("hex") };
+  const prepared = freezeTree(parsed.data);
+  return Object.freeze({ operation: prepared, fingerprint: createHash("sha256").update(JSON.stringify(canonical(prepared))).digest("hex") });
 }

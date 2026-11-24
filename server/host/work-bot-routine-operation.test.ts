@@ -17,6 +17,16 @@ it("binds a review to every field of a validated stored operation", () => {
   const normalized = prepareWorkBotRoutineOperation({ ...operation, routine: { ...operation.routine, name: " Inventory ", instructions: " Private fixture " } });
   expect(normalized?.fingerprint).toBe(fingerprint);
   expect(normalized?.operation).toEqual(operation);
+  expect(Object.isFrozen(normalized)).toBe(true);
+  expect(Object.isFrozen(normalized?.operation)).toBe(true);
+  if (normalized?.operation.action !== "create") throw new Error("Expected a create operation");
+  const routine = normalized.operation.routine;
+  expect(Object.isFrozen(routine)).toBe(true);
+  expect(Object.isFrozen(routine.schedule)).toBe(true);
+  if (routine.schedule.type !== "daily") throw new Error("Expected a daily schedule");
+  expect(Object.isFrozen(routine.schedule.weekdays)).toBe(true);
+  expect(Object.isFrozen(operation.routine)).toBe(false);
+  expect(() => { routine.name = "changed"; }).toThrow();
 });
 
 it("binds management actions, targets, revisions and nullable updates", () => {

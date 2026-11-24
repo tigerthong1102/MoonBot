@@ -220,7 +220,7 @@ linux:
       arch: x64
   icon: build/startupbot.png
   category: Utility
-  executableName: openmausbot
+  executableName: startupbot
   synopsis: Your own team of AI bots, in a chat app
   description: A local-first chat app for running a team of AI agents.
   maintainer: StartupBot <276488910+tigerthong1102@users.noreply.github.com>
@@ -248,6 +248,7 @@ linux:
       Keywords: AI;Agents;Chat;Productivity;
 
 deb:
+  packageName: startupbot
   packageCategory: utils
   priority: optional
   # Add the narrow browser policy's parser without replacing Electron's
@@ -259,6 +260,7 @@ deb:
   afterRemove: build/linux-after-remove.sh
 
 pacman:
+  packageName: startupbot
   packageCategory: utils
   fpm: ["--depends", "fuse3", "--depends", "gtk3", "--depends", "nss", "--depends", "alsa-lib", "--depends", "libcups", "--depends", "mesa"]
   afterInstall: build/linux-after-install.sh

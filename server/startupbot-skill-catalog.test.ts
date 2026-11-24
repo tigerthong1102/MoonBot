@@ -38,26 +38,29 @@ it("stages the catalog with notices and preserves existing library choices on re
   }
 });
 
-it("upgrades the original HyperFrames folders and keeps their review choices", () => {
+it("upgrades original catalog folders and keeps their review choices", () => {
   const root = mkdtempSync(join(tmpdir(), "startupbot-hyperframes-upgrade-"));
   try {
     const catalog = join(root, "old-catalog");
     const library = join(root, "library");
     mkdirSync(catalog);
-    const names = ["hyperframes", "hyperframes-cli"];
+    const names = ["hyperframes", "hyperframes-cli", "web-perf"];
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
       .filter((entry: { name: string }) => names.includes(entry.name));
     writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
     for (const name of names) {
       cpSync(join("server/testing/fixtures/startupbot-old-skills", name), join(catalog, name), { recursive: true });
     }
-    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 2, failed: [] });
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 3, failed: [] });
     expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
+    expect(setLibrarySkillReviewState("web-perf", "approved", library)).not.toHaveProperty("error");
 
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 61, failed: [] });
     const index = readSkillLibraryIndex(library);
     expect(index.hyperframes.reviewState).toBe("approved");
     expect(index["hyperframes-cli"].reviewState).toBe("disabled");
+    expect(index["web-perf"].reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/web-perf/SKILL.md"), "utf8")).toContain("Performance Trace");
     expect(index.hyperframes.files).toContain("references/format.md");
     expect(index["hyperframes-cli"].files).toContain("references/preview-render.md");
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });

@@ -7,8 +7,8 @@ function canonical(value: unknown): unknown {
   return value;
 }
 
-export function workBotRoutineOperationFingerprint(operation: unknown): string | null {
+export function prepareWorkBotRoutineOperation(operation: unknown): { operation: ReturnType<typeof storedOperationSchema.parse>; fingerprint: string } | null {
   const parsed = storedOperationSchema.safeParse(operation);
   if (!parsed.success) return null;
-  return createHash("sha256").update(JSON.stringify(canonical(parsed.data))).digest("hex");
+  return { operation: parsed.data, fingerprint: createHash("sha256").update(JSON.stringify(canonical(parsed.data))).digest("hex") };
 }

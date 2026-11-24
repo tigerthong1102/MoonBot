@@ -28,6 +28,7 @@ function parse(line: string): Record<string, unknown> | null {
 export function createJournalTap(options: {
   post: (entry: JournalEntry, signal: AbortSignal) => Promise<unknown>;
   timeoutMs?: number;
+  platform?: NodeJS.Platform;
 }): { request(line: string): void; leaveOut(id: unknown): void; response(line: string): Promise<void> } {
   const timeoutMs = options.timeoutMs ?? 1000;
   const pending = new Map<string | number, { tool: string; arguments: Record<string, unknown> }>();
@@ -55,7 +56,7 @@ export function createJournalTap(options: {
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const posted = Promise.resolve(options.post({ ...call, result: slimResponse(frame) }, controller.signal));
+        const posted = Promise.resolve(options.post({ ...call, result: slimResponse(frame, options.platform) }, controller.signal));
         const expired = new Promise<void>((resolve) => {
           timer = setTimeout(() => { controller.abort(); resolve(); }, timeoutMs);
         });

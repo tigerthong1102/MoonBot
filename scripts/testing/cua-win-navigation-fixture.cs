@@ -28,7 +28,11 @@ static class NavigationFixture {
       var button = new Button {
         Text = "Navigate fixture", AccessibleName = "Navigate fixture", Width = 180, Left = 16, Top = 52
       };
-      button.Click += delegate { state.Text = "After navigation"; };
+      button.Click += delegate {
+        state.Text = state.Text == "Before navigation" ? "After navigation" : "Unexpected second click";
+        form.Text = args[0] + " - Destination";
+        form.AccessibleName = form.Text;
+      };
       form.Controls.Add(state);
       form.Controls.Add(button);
       using (var timer = new Timer { Interval = 25000 }) {

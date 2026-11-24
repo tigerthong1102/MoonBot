@@ -5,9 +5,10 @@ export interface WireElement {
   label?: string;
   parent_index?: number;
   depth: number;
+  selected?: boolean;
   /** The driver reported what the element holds; what it holds never leaves the bridge. */
   value_read?: true;
-  /** Windows UIA projected this enabled button directly under the window it omitted. */
+  /** Windows UIA projected this enabled button inside the window it omitted. */
   uia_window_child?: true;
 }
 export interface WireApp { pid: number; name: string; bundle_id?: string; running?: boolean }
@@ -22,6 +23,7 @@ export interface SlimStructured {
   name?: string;
   app_name?: string;
   window_title?: string;
+  tree_format?: string;
   /** The driver read the whole tree and every element survived slimming. */
   elements_complete?: true;
   background_accessibility_action?: true;
@@ -43,10 +45,10 @@ function pick(source: Rec, keys: readonly string[], types: Record<string, "strin
   return out;
 }
 
-const ELEMENT_TYPES = { element_index: "number", element_token: "string", role: "string", label: "string", parent_index: "number", depth: "number" } as const;
+const ELEMENT_TYPES = { element_index: "number", element_token: "string", role: "string", label: "string", parent_index: "number", depth: "number", selected: "boolean" } as const;
 const APP_TYPES = { pid: "number", name: "string", bundle_id: "string", running: "boolean" } as const;
 const WINDOW_TYPES = { window_id: "number", pid: "number", title: "string", app_name: "string" } as const;
-const TOP_TYPES = { pid: "number", window_id: "number", bundle_id: "string", name: "string", app_name: "string", window_title: "string" } as const;
+const TOP_TYPES = { pid: "number", window_id: "number", bundle_id: "string", name: "string", app_name: "string", window_title: "string", tree_format: "string" } as const;
 
 function slimList<T>(value: unknown, types: Record<string, "string" | "number" | "boolean">, required: readonly string[], max = Infinity, mark?: (raw: Rec, slim: Rec) => void): T[] | undefined {
   if (!Array.isArray(value)) return undefined;
@@ -91,7 +93,9 @@ function markWindowButtons(raw: Rec, elements: WireElement[]): void {
   const tokens = elements.flatMap((row) => row.element_token === undefined ? [] : [row.element_token]);
   if (new Set(tokens).size !== tokens.length) return;
   for (const [index, row] of elements.entries()) {
-    if (row.role === "Button" && row.depth === 1 && row.parent_index === undefined && rows[index].enabled === true
+    const parent = row.parent_index === undefined ? undefined : elements.find((candidate) => candidate.element_index === row.parent_index);
+    const belongsToProjection = row.depth === 1 ? row.parent_index === undefined : parent !== undefined && parent.depth === row.depth - 1;
+    if (row.role === "Button" && belongsToProjection && rows[index].enabled === true
       && /^s[0-9a-f]{8}:\d+$/u.test(row.element_token ?? "")) row.uia_window_child = true;
   }
 }

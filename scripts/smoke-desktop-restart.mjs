@@ -47,6 +47,8 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
   const webhook = await freePortExcept([port]);
   const debug = await freePortExcept([port, webhook]);
   if (stablePort) await waitPortClosed(port, "the saved renderer origin to be available");
+  const promptsBeforeRestart = readFileSync(prompts, "utf8");
+  assert(promptsBeforeRestart.split("\n").filter(Boolean).map(line => JSON.parse(line)).some(prompt => JSON.stringify(prompt).includes(workMessage)), "The original work must have reached the provider");
   const args = [`--user-data-dir=${profile}`, `--remote-debugging-port=${debug}`, "--remote-debugging-address=127.0.0.1", "--no-first-run"];
   lifecycle.started = true;
   lifecycle.stopped = false;
@@ -124,10 +126,9 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
       assert.equal(state.routines.find(routine => routine.id === routineId)?.enabled, false);
       assert(!state.runs.some(run => run.routineId === routineId));
     }
-    const promptCount = () => readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(workMessage)).length;
-    assert.equal(promptCount(), 1);
+    assert.equal(readFileSync(prompts, "utf8"), promptsBeforeRestart, "Restart must not issue another provider call");
     await new Promise(resolve => setTimeout(resolve, 3_000));
-    assert.equal(promptCount(), 1);
+    assert.equal(readFileSync(prompts, "utf8"), promptsBeforeRestart, "Restart must not replay a pending request");
     if (followupText) {
       const before = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
       assert(!before.some(row => row.role === "user" && row.text === followupText));
@@ -145,7 +146,11 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
         const input = messages.find(row => row.role === "user" && row.text === followupText);
         return input?.requestPending === false && messages.filter(row => row.role === "user" && row.text === followupText).length === 1 && messages.some(row => row.role === "bot" && row.text === followupReply && row.turnTerminal && row.turnSucceeded && row.requestMessageId === input.id);
       }, "a new reply in the restored conversation");
-      assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(followupText)).length, 1);
+      const promptsAfterFollowup = readFileSync(prompts, "utf8");
+      assert(promptsAfterFollowup.startsWith(promptsBeforeRestart), "Follow-up must preserve prior provider evidence");
+      const newPrompts = promptsAfterFollowup.slice(promptsBeforeRestart.length).split("\n").filter(Boolean).map(line => JSON.parse(line));
+      assert.equal(newPrompts.length, 1, "Follow-up must start exactly one provider turn");
+      assert(JSON.stringify(newPrompts[0]).includes(followupText), "The new provider turn must contain the follow-up");
     }
     assert.deepEqual(rendererErrors, [], "The restarted renderer reported an uncaught exception or crash");
     if (process.platform === "darwin") { socket.close(); child.kill("SIGTERM"); }

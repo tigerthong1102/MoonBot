@@ -44,18 +44,18 @@ it("upgrades original catalog folders and keeps their review choices", () => {
     const catalog = join(root, "old-catalog");
     const library = join(root, "library");
     mkdirSync(catalog);
-    const names = ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt"];
+    const names = ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce"];
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
       .filter((entry: { name: string }) => names.includes(entry.name));
     writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
     for (const name of names) {
-      if (["xlsx", "docx", "pptx", "producthunt"].includes(name)) {
+      if (["xlsx", "docx", "pptx", "producthunt", "apify-ecommerce"].includes(name)) {
         cpSync(join("skills/catalog", name), join(catalog, name), { recursive: true });
         rmSync(join(catalog, name, "references"), { recursive: true, force: true });
       }
       cpSync(join("server/testing/fixtures/startupbot-old-skills", name), join(catalog, name), { recursive: true });
     }
-    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 7, failed: [] });
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 8, failed: [] });
     expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
     expect(setLibrarySkillReviewState("web-perf", "approved", library)).not.toHaveProperty("error");
     expect(setLibrarySkillReviewState("xlsx", "approved", library)).not.toHaveProperty("error");

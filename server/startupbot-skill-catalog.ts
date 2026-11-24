@@ -8,6 +8,7 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["8b4e269e1d88ef696d7fd5758039967c5f8df58f282612ebc5a9d73adce22df4", "apify-ecommerce"],
   ["dafedc743725177cab814c9c556e31499cdb83e53540886617654ed1dc413c66", "hyperframes"],
   ["b93a65ef1e361e7df9d837b029cbae8841365bed363c4e0a82c8726796c0b069", "producthunt"],
   ["adfa8a000dc22d041f444be9a841c075dec76c0a9edd0091da23159013249757", "docx"],
@@ -27,6 +28,7 @@ const supersededFolders = new Map([
 ]);
 
 const olderInstructions = new Map([
+  ["apify-ecommerce", "f7aac4c3f6e22301ff97192adad7253cb51c826c17cce07b14fa32638aa3fedf"],
   ["producthunt", "d1714f2ece2962d1f836cb12e2b57f6f017d7a0b053f86b102b42cab9ae1b638"],
   ["docx", "a100df67e78f4a30ce32a95abcaf02d4418013924f9d15f72e78fe52ca439020"],
   ["pptx", "7cc3d0066b6036227241edb9ff640ce7aa22781c34530f9550d69651c7a5cea2"],
@@ -100,7 +102,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt"].includes(entry.name)
+        reviewState: ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

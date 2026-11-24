@@ -143,7 +143,9 @@ export class ProviderRegistry {
     this.manifestWatched = true;
     modelManifest().onChange(() => {
       for (const instance of this.instances()) {
-        if (MANIFEST_REBUILT_DRIVERS.has(instance.driverKind)) void this.refreshModels(instance.instanceId).catch(() => {});
+        if (MANIFEST_REBUILT_DRIVERS.has(instance.driverKind)) {
+          void Promise.resolve().then(() => this.get(instance.instanceId)?.refreshModels?.()).catch(() => {});
+        }
       }
     });
     startModelManifestRefresh();

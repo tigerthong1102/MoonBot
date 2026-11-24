@@ -183,8 +183,12 @@ try {
   assert(helper?.threadId, "The first-run main helper must exist");
   assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: "full" }, "PATCH")).status, 200);
   assert(!initialBots.some(row => row.name === workName));
+  const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
+  const extraNext = "Xin xác nhận ghi chú thử thứ hai.";
   writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [
     { key: "first-work", match: [workMessage], reply: "Tôi sẽ giúp theo dõi tin tức AI." },
+    { key: "queued-first", match: [extra], reply: "Đã ghi nhận ghi chú thứ nhất." },
+    { key: "queued-next", match: [extraNext], reply: "Đã ghi nhận ghi chú thứ hai." },
   ] } }));
   const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
   await until(() => evaluate(`Boolean(${helperRow})`), "the main helper in the sidebar");
@@ -207,9 +211,13 @@ try {
   const offerScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "work-bot-consent.png"), Buffer.from(offerScreenshot.data, "base64"));
   await until(() => evaluate(`Boolean(${composer})`), "the composer to stay usable while the suggestion is open");
-  const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
   await send(extra);
   await until(async () => ((await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? []).some(row => row.text === extra), "a second message to be queued with the offer pending");
+  await send(extraNext);
+  await until(async () => {
+    const queued = (await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? [];
+    return queued.some(row => row.text === extra) && queued.some(row => row.text === extraNext);
+  }, "both follow-up messages to remain queued before consent");
   assert.equal((await roster()).length, initialBots.length);
   await evaluate(`(${consent}).click()`);
   const accepted = await until(async () => {
@@ -232,7 +240,20 @@ try {
     const userIndex = rows.findIndex(row => row.role === "user" && row.text === workMessage);
     return userIndex >= 0 && rows.slice(userIndex + 1).some(row => row.role === "bot" && row.kind === "text") && bot && !bot.busy;
   }, "the handed-off work to finish");
-  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text === extra), "the queued message to reach the original conversation");
+  const completedRequest = async (threadId, text) => {
+    const rows = (await request(`/api/threads/${threadId}/messages`)).body.messages;
+    const inputs = rows.filter(row => row.role === "user" && row.text === text);
+    if (inputs.length !== 1 || inputs[0].requestPending !== false) return false;
+    const terminal = rows.find(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === inputs[0].id);
+    return terminal?.turnId ? { requestId: inputs[0].id, turnId: terminal.turnId } : false;
+  };
+  const workCompletion = await until(() => completedRequest(workBot.threadId, workMessage), "the handed-off request to settle by ID");
+  const queuedCompletion = await until(() => completedRequest(helper.threadId, extra), "the queued request to settle by ID");
+  const nextCompletion = await until(() => completedRequest(helper.threadId, extraNext), "the next queued request to settle by ID");
+  assert.notEqual(workCompletion.requestId, queuedCompletion.requestId);
+  assert.notEqual(workCompletion.turnId, queuedCompletion.turnId);
+  assert.notEqual(queuedCompletion.requestId, nextCompletion.requestId);
+  assert.notEqual(queuedCompletion.turnId, nextCompletion.turnId);
   writeFileSync(path.join(evidence, "work-bot-prompt-fixture.json"), JSON.stringify(workPrompts(), null, 2) + "\n");
   assert.equal(workPrompts().length, 1);
   const handedOffScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
@@ -328,7 +349,7 @@ try {
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, instructionsVerified: true, avatarDecoded: true },
+    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, instructionsVerified: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion },
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };

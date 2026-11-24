@@ -398,7 +398,7 @@ function verifyCloudflaredResources(resources, label, { directoryMode = 0o755 } 
 const appImage = exactlyOne(".AppImage");
 const deb = exactlyOne(".deb");
 const unpacked = path.join(releaseDir, "linux-unpacked");
-const executable = path.join(unpacked, "openmausbot");
+const executable = path.join(unpacked, "startupbot");
 const resources = path.join(unpacked, "resources");
 
 requireExecutable(appImage);
@@ -422,7 +422,7 @@ const fields = execFileSync(
   { encoding: "utf8" },
 );
 for (const expected of [
-  "Package: openmausbot",
+  "Package: startupbot",
   "Architecture: amd64",
   "Maintainer: StartupBot",
   "Section: utils",
@@ -458,7 +458,7 @@ try {
   const desktopName = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")).desktopName;
   for (const expected of [
     "Name=StartupBot",
-    "Exec=/opt/StartupBot/openmausbot %U",
+    "Exec=/opt/StartupBot/startupbot %U",
     `StartupWMClass=${desktopName.replace(/\.desktop$/, "")}`,
     "Categories=Utility;",
   ]) {

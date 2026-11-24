@@ -17,6 +17,10 @@ describe("a fixture driven from a real browser", () => {
 });
 
 describe("the fixture's fake engine knobs", () => {
+  it("uses the bundled model manifest even if the parent enables manifest downloads", () => {
+    expect(childEnv({ OMB_DISABLE_MODEL_MANIFEST_FETCH: "0" }).OMB_DISABLE_MODEL_MANIFEST_FETCH).toBe("1");
+  });
+
   it("lets the Claude fake's knobs and the Codex fake's background-call knobs cross, and nothing else", () => {
     const env = childEnv({
       FAKE_CLAUDE_TEXT_ROUTES: "/tmp/routes.json", FAKE_CODEX_TEXT_ROUTES: "/tmp/codex-routes.json", FAKE_CODEX_TEXT_LOG: "/tmp/codex.jsonl",

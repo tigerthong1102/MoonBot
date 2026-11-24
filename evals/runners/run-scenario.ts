@@ -6,6 +6,11 @@ import { BaseWorld, type WorldContext } from "./base-world.ts";
 import { CoordinationWorld } from "./coordination-world.ts";
 import { LocalVmWorld } from "./local-vm-world.ts";
 
+function failureText(failure: unknown): string {
+  if (!(failure instanceof Error)) return String(failure);
+  return failure.cause instanceof Error ? `${failure.message}: ${failure.cause.message}` : failure.message;
+}
+
 /** Runs one scenario against a freshly booted real server and returns the
  * frozen evidence plus every assertion verdict. The world is torn down even
  * when a step fails, so a failing run still reports the steps that passed. */
@@ -25,10 +30,12 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioResult> {
         const detail = await world.runStep(step, ctx);
         steps.push({ step, ok: true, detail, durationMs: Date.now() - stepStart });
       } catch (failure) {
+        const detail = failureText(failure);
+        error = `${step.kind}: ${detail}`;
         steps.push({
           step,
           ok: false,
-          detail: failure instanceof Error ? failure.message : String(failure),
+          detail,
           durationMs: Date.now() - stepStart,
         });
         throw failure;
@@ -36,7 +43,7 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioResult> {
     }
     snapshot = await world.snapshot(ctx);
   } catch (failure) {
-    error = failure instanceof Error ? failure.message : String(failure);
+    error ??= failureText(failure);
   } finally {
     await world.close().catch(() => undefined);
   }

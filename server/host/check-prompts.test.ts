@@ -27,6 +27,16 @@ describe("what a watch run is told", () => {
     expect(prompt).toContain("Since the last check");
     expect(prompt).not.toContain("JSON");
   });
+
+  it("labels Outlook emails under Outlook records, separate from Gmail", () => {
+    const outlook: EmailHeader = { id: "o1", threadId: "c1", at: 0, from: "Bob <bob@outlook.test>", subject: "Contract", preview: "Please sign", app: "outlook" };
+    const onlyOutlook = watchPrompt({ instructions: "Check mail.", items: { mail: [outlook], prep: [], runs: [] }, dismissedFrom: [] });
+    expect(onlyOutlook).toContain("[Records from Outlook.");
+    expect(onlyOutlook).not.toContain("[Records from Gmail.");
+    const both = watchPrompt({ instructions: "Check mail.", items: { mail: [email, outlook], prep: [], runs: [] }, dismissedFrom: [] });
+    expect(both).toContain("[Records from Gmail.");
+    expect(both).toContain("[Records from Outlook.");
+  });
 });
 
 describe("reading a watch run's answer", () => {
@@ -35,6 +45,17 @@ describe("reading a watch run's answer", () => {
   it("keeps picks and preps of the items it was given, and nothing else", () => {
     const result = parseWatchResult('Sure. {"important": [{"id": "m1", "why": "Ada needs Q3 numbers by Friday.", "needsReply": true}, {"id": "forged", "why": "x"}, {"id": "m1", "why": "again"}], "prep": [{"id": "uid-1", "brief": "Ada leads planning."}]}', given);
     expect(result).toEqual({ quiet: false, important: [{ id: "m1", why: "Ada needs Q3 numbers by Friday.", needsReply: true }], prep: [{ id: "uid-1", brief: "Ada leads planning." }] });
+  });
+
+  it("accepts a long Outlook identifier copied from the watch prompt", () => {
+    const id = `AAMk${"AB4m8".repeat(58)}=`;
+    const outlook: EmailHeader = { ...email, id, app: "outlook" };
+    const prompt = watchPrompt({ instructions: "Check mail.", items: { mail: [outlook], prep: [], runs: [] }, dismissedFrom: [] });
+    const copiedId = prompt.match(/^id (\S+) · from/m)?.[1];
+    const result = parseWatchResult(JSON.stringify({ important: [{ id: copiedId, why: "Ada needs a reply", needsReply: true }] }), {
+      mail: new Set([id]), prep: new Set(),
+    });
+    expect(result).toEqual({ quiet: false, important: [{ id, why: "Ada needs a reply", needsReply: true }], prep: [] });
   });
 
   it("reads quiet as quiet, and anything that is not the JSON asked for as unreadable", () => {

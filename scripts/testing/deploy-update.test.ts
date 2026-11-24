@@ -57,8 +57,19 @@ function install(target: Record<string, unknown> = {}, extra: Record<string, unk
   writeFileSync(join(root, "bin", "docker"), `#!/bin/sh\nexec "${process.execPath}" "${FAKE}" "$@"\n`);
   chmodSync(join(root, "bin", "docker"), 0o755);
   const next = { ...NEW, ...target };
-  // A version that never answers is waited for; two seconds of that is enough here.
   const wait = next.behaviour === "silent" ? { OMB_UPDATE_WAIT_S: "2" } : {};
+  if (next.behaviour === "silent") {
+    const date = join(root, "bin", "date");
+    writeFileSync(date, `#!/bin/sh
+if [ "$#" -ne 1 ] || [ "$1" != "+%s" ]; then exec /bin/date "$@"; fi
+counter="$FAKE_DOCKER_DIR/clock"
+ticks=0
+if [ -f "$counter" ]; then read -r ticks < "$counter"; fi
+printf '%s\\n' "$((ticks + 1))" > "$counter"
+printf '%s\\n' "$((1795000000 + ticks / 3))"
+`);
+    chmodSync(date, 0o755);
+  }
   writeFileSync(join(fake, "state.json"), JSON.stringify({
     serial: 1, composeReadsPin: true, defaultImage: `${REPO}:latest`, dataVolume: "deploy_data", images: [OLD, next],
     containers: { omb: { id: "omb-1", image: OLD.id, status: "running", restarts: 0 }, caddy: { id: "caddy-1", status: "running" } },

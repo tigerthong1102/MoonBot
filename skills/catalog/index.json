@@ -513,6 +513,7 @@
     "modified": [
       "SKILL.md",
       "references/film.md",
+      "references/look.md",
       "references/types/launch.md"
     ],
     "excludedFiles": [

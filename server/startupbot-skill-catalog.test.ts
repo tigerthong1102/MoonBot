@@ -83,6 +83,9 @@ it("upgrades original catalog folders and keeps their review choices", () => {
     const filmGuide = readFileSync(join(library, "skills/hyperframes/references/film.md"), "utf8");
     expect(filmGuide).toContain("user-provided image or video");
     expect(filmGuide).not.toMatch(/scripts\/(?:bake-basemap|locate)\.mjs/);
+    const lookGuide = readFileSync(join(library, "skills/hyperframes/references/look.md"), "utf8");
+    expect(lookGuide).toContain("not installed preset files");
+    expect(lookGuide).not.toContain("../assets/frame-presets/");
     expect(index["hyperframes-cli"].files).toContain("references/preview-render.md");
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
   } finally {

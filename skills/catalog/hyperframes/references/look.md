@@ -1,5 +1,7 @@
 # The look
 
+<!-- Modified by StartupBot: describe preset styles without excluded preset assets. -->
+
 Left alone, the same brief comes out with the same look run after run, and banning that look only moves it to the next default. Outside input breaks it, in this order: the project's design spec, a real brand, a reference image or film the person gave you, the subject's own world. Settle it before the first scene, as numbers in the LOOK line (below).
 
 ## The project's design spec
@@ -24,7 +26,7 @@ A reference film or image gives its grammar, never its content: shot lengths, ho
 
 ## Presets
 
-The presets are slide-deck looks: use one when the person names it, or for a deck (`/slideshow`), never as the fallback for a film without a brand. Each folder in `../assets/frame-presets/` holds a `FRAME.md` spec, a `caption-skin.html` and a `frame-showcase.html` contact sheet. To use one, copy its `FRAME.md` to the project root as `frame.md`, then read it as above; its fonts that aren't bundled need `@font-face` files. The two HTML files are reference code: read them for treatments, never mount them.
+The following names describe slide-deck looks, not installed preset files. When someone requests one, use its description as visual inspiration and create the project's design spec and composition from scratch; explain that an exact preset is unavailable. Use a brand or reference instead when supplied. For a typeface that is not bundled, obtain a permitted font file and add `@font-face`, or choose an available alternative and say so.
 
 | Preset              | Look                                                                                           |
 | ------------------- | ---------------------------------------------------------------------------------------------- |

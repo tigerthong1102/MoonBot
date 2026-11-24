@@ -28,7 +28,6 @@ export interface ThreadScopeDeps {
   chosen(botId: string): string | undefined;
   room(threadId: string): boolean;
   routineRun(threadId: string): boolean;
-  /** A Team Cloud keeps each person's notes in their own layer of the bot's memory instead. */
   team: boolean;
 }
 
@@ -177,7 +176,6 @@ export function reachThreads(input: {
   threadId?: string;
   before?: string;
   limit?: number;
-  /** False while the bot's memory is off: its conversations are still read, their notes are not. */
   notes?: boolean;
 }) {
   const notesOf = (threadId: string) => input.notes === false ? { text: "", truncated: false } : loadedThreadNotes(readThreadNotes(input.botId, threadId));

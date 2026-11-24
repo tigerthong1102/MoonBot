@@ -171,6 +171,33 @@ describe("draftWorkflow", () => {
     expect(draft.workflow.args).toEqual({ value: { default: "staging" } });
   });
 
+  it.each(["cwd", "Cwd", "workdir", "working_directory", "directory", "dir"])(
+    "saves the ACP working directory supplied as %s for both shell steps",
+    (key) => {
+      const commands = ["python scripts/report.py", "cp reports/current.csv reports/archive.csv"];
+      const cwd = "/projects/customer-a";
+      const commandKey = key === "Cwd" ? "CommandLine" : "command";
+      const { workflow } = draftWorkflow([
+        ask("Archive the report"),
+        ...commands.map((command) => tool("run_shell_command", { [commandKey]: command, [key]: cwd })),
+      ])!;
+      expect(workflow.steps).toMatchObject(commands.map((run) => ({ kind: "shell", run, cwd })));
+    },
+  );
+
+  it("records conflicting ACP directories as context for an AI step", () => {
+    const command = "python scripts/report.py";
+    const { workflow } = draftWorkflow([
+      ask("Archive the report"),
+      tool("run_shell_command", { command, cwd: "/projects/customer-a", workdir: "/projects/customer-b" }),
+      tool("run_shell_command", { command: "cp report.csv archive.csv" }),
+    ])!;
+    expect(workflow.steps[0]).toMatchObject({
+      kind: "ai",
+      prompt: expect.stringContaining('"/projects/customer-a","workdir":"/projects/customer-b"'),
+    });
+  });
+
   it("keeps a redirected write in order before the commands that use its file", () => {
     const commands = ["printf report > report.txt", "cp report.txt archive.txt", "python make_appendix.py report.txt"];
     const { workflow } = draftWorkflow([

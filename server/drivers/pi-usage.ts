@@ -12,7 +12,6 @@ export interface PiMessageUsage {
   contextTokens: number;
 }
 
-/** One assistant message, not the run total: `input` counts cache reads, and `contextTokens` is that call's whole prompt. */
 export function piMessageUsage(usage: PiUsage | undefined): PiMessageUsage | undefined {
   if (!usage) return undefined;
   const fresh = usageCount(usage.input);

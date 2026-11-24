@@ -1,6 +1,7 @@
 import { realpathSync } from "node:fs";
 import { isAbsolute } from "node:path";
 
+import { ACP_SHELL_DIRECTORY_KEYS } from "../../shared/run-command.ts";
 import { safetyFloorClears } from "../safety-floor-gate.ts";
 
 /** Approval identity preserves every command byte, including whitespace and
@@ -37,13 +38,12 @@ export function permissionLaunchCwd(cwd: string): string | undefined {
 
 // Antigravity's ACP shell input uses CommandLine/Cwd instead of command/cwd.
 const COMMAND_KEYS = ["command", "CommandLine"] as const;
-const DIRECTORY_KEYS = ["cwd", "Cwd", "workdir", "working_directory", "directory", "dir"] as const;
 
 /** ACP's rawInput is provider-specific: only a complete command string and unambiguous absolute directories count. */
 export function acpPermissionCommand(rawInput: unknown, launchCwd: string | undefined): ReturnType<typeof permissionCommand> {
   if (!rawInput || typeof rawInput !== "object" || Array.isArray(rawInput)) return undefined;
   const input = rawInput as Record<string, unknown>;
-  const directories = DIRECTORY_KEYS
+  const directories = ACP_SHELL_DIRECTORY_KEYS
     .filter((key) => input[key] !== undefined)
     .map((key) => input[key]);
   if (directories.some((value) => typeof value !== "string" || !isAbsolute(value) || value.includes("\0"))) return undefined;

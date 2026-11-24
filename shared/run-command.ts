@@ -13,6 +13,8 @@ const URL = /^[a-z][a-z0-9+.-]*:\/\//i;
 const LONG_FLAG_WITH_VALUE = /^--[^=]+$/;
 const DRY_RUN = /(?:^|\s)--dry-run(?:=|\s|$)/;
 
+export const ACP_SHELL_DIRECTORY_KEYS = ["cwd", "Cwd", "workdir", "working_directory", "directory", "dir"] as const;
+
 const unquote = (token: string) => token.replace(/^['"`]+|['"`]+$/g, "");
 const basenameOf = (token: string) => {
   const bare = unquote(token);

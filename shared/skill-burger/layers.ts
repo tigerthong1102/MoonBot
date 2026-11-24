@@ -1,7 +1,7 @@
 import { connectorCallsIn } from "../outbound.ts";
 import { isReadOnlyAction } from "../connector-scopes.ts";
 import { isConnectedAppsServer } from "../own-apps.ts";
-import { parseRunCommand } from "../run-command.ts";
+import { ACP_SHELL_DIRECTORY_KEYS, parseRunCommand } from "../run-command.ts";
 import { nameIsCommand } from "../tool-name.ts";
 import { PLAIN_APP_TOOL } from "./apps.ts";
 
@@ -47,7 +47,6 @@ const FILE_EDIT = new Set(["Edit", "MultiEdit", "NotebookEdit", "edit", "apply_p
 const BROWSER_OPEN = /(?:^|_)(?:navigate|open|open_url|goto|tab_new)$/;
 const BROWSER_LOOK = /(?:^|_)(?:snapshot|screenshot|read|get_text|status|tabs|wait|check|console|network|close|evaluate_read)$/;
 const STATUS_ROW = /^[a-z]+: \S/;
-/** An input the driver clipped, or a value the server masked: the call can't be repeated as recorded. */
 const CLIPPED = /\[(?:additional data|large content|binary content) omitted\]|••••••|«redacted \d+ chars»/;
 const SHELL_OUTPUT_TOKENS = /'[^']*'|"(?:[^"\\]|\\[\s\S])*"|\\[\s\S]|(>\||>>?)/g;
 const NON_FILE_OUTPUT = /^(?:&\s*(?:\d+|-)|\/dev\/null|"\/dev\/null"|'\/dev\/null')(?=$|[\s;&|<>])/;
@@ -66,6 +65,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(v
 const text = (value: unknown): string | undefined => (typeof value === "string" && value.trim() ? value : undefined);
 const baseName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 const sentence = (words: string) => words.toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
+
+function urlHost(url: string): string {
+  try { return new URL(url).host || url; } catch { return url; }
+}
 
 function capturesShellCommand(command: string): boolean {
   if (parseRunCommand(command)) return true;
@@ -133,9 +136,7 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
     }
     const url = text(input?.url);
     if (bare === "open_url" && url) {
-      let host = url;
-      try { host = new URL(url).host || url; } catch { /* keep the text */ }
-      return [{ ...base, id: message.id, kind: "browser", where: desk, tool: `${server}.open_url`, words: host, read: false, replay: clipped ? "ai" : "exact", args: { url } }];
+      return [{ ...base, id: message.id, kind: "browser", where: desk, tool: `${server}.open_url`, words: urlHost(url), read: false, replay: clipped ? "ai" : "exact", args: { url } }];
     }
     return [{ ...base, id: message.id, kind: "computer", where: desk, tool: `${server}.${bare}`, words: sentence(bare), read: false, replay: "ai", ...(input ? { args: input } : {}) }];
   }
@@ -171,9 +172,7 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
     if (BROWSER_LOOK.test(bare)) return [];
     const url = text(input?.url);
     if (BROWSER_OPEN.test(bare) && url) {
-      let host = url;
-      try { host = new URL(url).host || url; } catch { /* keep the text */ }
-      return [{ ...base, id: message.id, kind: "browser", tool: bare, words: host, read: false, replay: clipped ? "ai" : "exact", args: { url } }];
+      return [{ ...base, id: message.id, kind: "browser", tool: bare, words: urlHost(url), read: false, replay: clipped ? "ai" : "exact", args: { url } }];
     }
     return [{ ...base, id: message.id, kind: "ai", tool: bare, words: sentence(bare.replace(/^(?:agent_)?browser_/, "")), read: false, replay: "ai", ...(input ? { args: input } : {}) }];
   }
@@ -188,12 +187,17 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
     const exact = FILE_WRITE.has(bare) && content !== undefined && !clipped;
     return [{ ...base, id: message.id, kind: exact ? "file" : "ai", tool: bare, words: baseName(path), read: false, replay: exact ? "exact" : "ai", args: exact ? { path, content } : changes ?? { path } }];
   }
-  const command = text(tool.summary) ?? text(input?.command) ?? (nameIsCommand(tool.name) ? tool.name : undefined);
-  if (command && (bare === "Bash" || bare === "shell" || bare === "vm_exec" || /^(?:exec_command|run_shell_command|bash|terminal)$/i.test(bare) || nameIsCommand(tool.name) || text(input?.command))) {
-    const full = text(input?.command) ?? command;
+  const rawCommand = text(input?.command) ?? text(input?.CommandLine);
+  const command = text(tool.summary) ?? rawCommand ?? (nameIsCommand(tool.name) ? tool.name : undefined);
+  if (command && (bare === "Bash" || bare === "shell" || bare === "vm_exec" || /^(?:exec_command|run_shell_command|bash|terminal)$/i.test(bare) || nameIsCommand(tool.name) || rawCommand)) {
+    const full = rawCommand ?? command;
     if (!capturesShellCommand(full) && (command === full || !parseRunCommand(command))) return [];
-    const cwd = text(input?.cwd);
-    return [{ ...base, id: message.id, kind: "shell", tool: bare === "vm_exec" ? "vm_exec" : "shell", words: shellLine(full), read: false, replay: clipped ? "ai" : "exact", args: { command: full, ...(cwd ? { cwd } : {}) } }];
+    const fields = Object.fromEntries(ACP_SHELL_DIRECTORY_KEYS.filter((key) => input?.[key] !== undefined).map((key) => [key, input?.[key]]));
+    const directories = new Set(Object.values(fields));
+    const cwd = text(directories.values().next().value);
+    const ambiguous = directories.size > 1 || (directories.size === 1 && (!cwd || cwd.includes("\0")));
+    const args = { command: full, ...(ambiguous ? fields : cwd ? { cwd } : {}) };
+    return [{ ...base, id: message.id, kind: "shell", tool: bare === "vm_exec" ? "vm_exec" : "shell", words: shellLine(full), read: false, replay: clipped || ambiguous ? "ai" : "exact", args }];
   }
   return [];
 }

@@ -896,7 +896,8 @@ export function AttachedFileChip({ file, message, linked = false, compact = fals
   message?: MessageAttachmentContext;
   linked?: boolean;
   compact?: boolean;
-  className?: string; note?: string; // note: a quiet word after the name, such as the conversation it came from
+  className?: string;
+  note?: string;
 }) {
   const save = useLocalFileSave(file.path, file.name, message);
   const preview = useHtmlPreview(file.path, file.name, message);
@@ -923,7 +924,8 @@ export function AttachedFileChip({ file, message, linked = false, compact = fals
           className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-raised/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/60 disabled:cursor-wait disabled:hover:bg-transparent"
         >
           <FileText size={14} className="shrink-0" aria-hidden="true" />
-          <span className="min-w-0 flex-1 truncate text-ink">{file.name}</span>{note && <span className="min-w-0 max-w-[45%] shrink truncate text-[11px] text-ink-tertiary">{note}</span>}
+          <span className="min-w-0 flex-1 truncate text-ink">{file.name}</span>
+          {note && <span className="min-w-0 max-w-[45%] shrink truncate text-[11px] text-ink-tertiary">{note}</span>}
           {preview.opens ? <Eye size={13} className="shrink-0" /> : save.state === "saving" ? (
             <LoaderCircle size={13} className="shrink-0 animate-spin" />
           ) : save.state === "saved" ? (

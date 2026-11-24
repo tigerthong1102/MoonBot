@@ -8,6 +8,8 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["551f55a60606b93e5e54f8ef068a3b663dd2492c62c61e083e25c05ee7cf5d08", "hyperframes"],
+  ["37911cfa907a24a4245749004bb67702596575919690346aac2e9f3e69feeeb0", "hyperframes-cli"],
   ["da737541f5d48d0507fc53b35b09e202732161ccedc5b9567dda8794105ad72f", "xlsx"],
   ["54810feb5ba0cfbbb5d78687e5874c39bb654986170763b36eb384826ad25a60", "byted-seedream-image-generate"],
   ["254bbe7ac0c66175299609d72e4a7baf073891c8b3ed627c9970b03ce12fa010", "pdf"],
@@ -19,6 +21,8 @@ const supersededFolders = new Map([
 ]);
 
 const olderInstructions = new Map([
+  ["hyperframes", "afe67b17e26fb9d3132da33ff9143f79025da60dd9da123aad7feeb81684fbf2"],
+  ["hyperframes-cli", "93b586ee1f828a0b02326e730ac0bc3916ed6e0b909077d8300ee0080b21be27"],
   ["byted-seedream-image-generate", "9f525c94dd91cedae6507002f875266645a732134967e63f09d230ba4e3367cb"],
 ]);
 
@@ -81,7 +85,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: "disabled",
+        reviewState: previous?.reviewState ?? "disabled",
         everyBot: previous?.everyBot,
       });
     } catch (error) {

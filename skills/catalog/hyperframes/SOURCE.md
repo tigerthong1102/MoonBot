@@ -6,7 +6,7 @@ Upstream license https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347
 
 StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. Other included upstream files retain their original contents.
 
-Excluded upstream fonts, presets and helper scripts. Removed upstream beacon and cloud instructions.
+Included upstream references. Excluded upstream fonts, presets and helper scripts. Modified SKILL.md to use configured local tools and omit the usage beacon.
 
 ## Excluded upstream files
 
@@ -58,29 +58,6 @@ Excluded upstream fonts, presets and helper scripts. Removed upstream beacon and
 - assets/frame-presets/editorial-forest/FRAME.md
 - assets/frame-presets/editorial-forest/caption-skin.html
 - assets/frame-presets/editorial-forest/frame-showcase.html
-- references/captions.md
-- references/film.md
-- references/format.md
-- references/look.md
-- references/motion.md
-- references/overlays.md
-- references/path-tracing.md
-- references/plugin-installation.md
-- references/review.md
-- references/runtimes.md
-- references/skill-lifecycle.md
-- references/sound.md
-- references/spec.md
-- references/story.md
-- references/storyboard-format.md
-- references/storyboard.md
-- references/types/3d.md
-- references/types/character.md
-- references/types/data.md
-- references/types/explainer.md
-- references/types/launch.md
-- references/types/music.md
-- references/types/vertical.md
 - scripts/bake-basemap.mjs
 - scripts/lib/main-module.mjs
 - scripts/lib/main-module.test.mjs
@@ -90,3 +67,5 @@ Excluded upstream fonts, presets and helper scripts. Removed upstream beacon and
 - scripts/locate.test.mjs
 - scripts/plugin-cli.mjs
 - scripts/plugin-cli.test.mjs
+- references/plugin-installation.md
+- references/skill-lifecycle.md

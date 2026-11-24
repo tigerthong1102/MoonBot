@@ -62,7 +62,7 @@ export interface SavedSteps {
 }
 
 export function savedStepsEnabled(cfg: Pick<AppConfig, "features">, platform: NodeJS.Platform = process.platform): boolean {
-  return cfg.features?.savedSteps ?? (platform !== "win32");
+  return cfg.features?.savedSteps ?? (platform === "darwin");
 }
 
 const keepsFromSaving = (event: RuntimeEvent): boolean =>
@@ -70,7 +70,7 @@ const keepsFromSaving = (event: RuntimeEvent): boolean =>
 
 export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
   const platform = deps.platform ?? process.platform;
-  const supported = platform === "darwin" || platform === "win32";
+  const supported = platform === "darwin" || platform === "win32" || platform === "linux";
   const enabled = () => supported && deps.enabled();
   const journal = new ComputerJournal();
   const now = deps.now ?? Date.now;
@@ -103,9 +103,9 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
       return;
     }
     if (!enabled() || automated || !taken?.calls.length || !personTextRequest(request) || after.some((line) => line.role === "user") || !otherToolsHarmless(after)) return;
-    const built = buildRecipe({ request: request.text ?? "", journal: taken, id: randomUUID(), now: now() });
+    const built = buildRecipe({ request: request.text ?? "", journal: taken, id: randomUUID(), now: now(), platform });
     if (!built.ok || !dispatch.wouldReplay(threadId, built.recipe)) return;
-    if (platform === "win32" && !recordedWindowsDestination(built.recipe, taken)) return;
+    if ((platform === "win32" || platform === "linux") && !recordedWindowsDestination(built.recipe, taken)) return;
     if (!recipes.save(botId, built.recipe)) return;
     deps.patchMessage(threadId, reply.id, { savedSteps: { recipeId: built.recipe.id, learned: true } });
   };
@@ -114,7 +114,7 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
     journal,
     recipes,
     dispatch,
-    routes: createSavedStepsRoutes({ bot: deps.bot, forget: (botId, id) => platform === "win32"
+    routes: createSavedStepsRoutes({ bot: deps.bot, forget: (botId, id) => platform === "win32" || platform === "linux"
       ? !dispatch.isReplaying(botId, id) && recipes.forgetAfterReview(botId, id) : recipes.forget(botId, id) }),
     gateChecked(capability) {
       const scope = hostScope(capability);
@@ -142,3 +142,4 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
     },
   };
 }
+

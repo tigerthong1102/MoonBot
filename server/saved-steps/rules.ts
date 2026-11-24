@@ -13,7 +13,7 @@ export const OBSERVATION_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 export interface AppIdentity { bundleId?: string; name?: string }
-export interface ElementIdentity { role: string; label: string; path: string[]; uiaWindowChild?: true }
+export interface ElementIdentity { role: string; label: string; path: string[]; uiaWindowChild?: true; linuxWindowChild?: true }
 export interface RecipeStep { tool: ActionTool; args: Record<string, unknown>; app?: AppIdentity; window?: { title: string }; element?: ElementIdentity }
 export function windowButtonClick(tool: string, args: Record<string, unknown>): boolean {
   return tool === "click" && args.delivery_mode === "background" && Object.keys(args).length === 1;
@@ -152,7 +152,7 @@ export function stepLabel(step: RecipeStep): string {
   return step.window?.title ?? appName ?? "the screen";
 }
 
-const WINDOW_STATE_ARGS = new Set(["pid", "window_id", "tree_format", "include_screenshot", "timeout_ms", "max_elements"]);
+const WINDOW_STATE_ARGS = new Set(["pid", "window_id", "tree_format", "include_screenshot", "timeout_ms", "max_elements", "session"]);
 
 interface Snapshot { pid?: number; windowId?: number; appName?: string; windowTitle?: string; elements: WireElement[]; complete: boolean; windowProjection: boolean }
 
@@ -163,7 +163,7 @@ const fillMissing = (known: AppIdentity | undefined, next: AppIdentity): AppIden
 
 const numberArg = (args: Record<string, unknown>, key: string): number | undefined => (typeof args[key] === "number" ? args[key] : undefined);
 
-export function buildRecipe(input: { request: string; journal: RequestJournal; id: string; now: number }): { ok: true; recipe: Recipe } | { ok: false; reason: Refusal } {
+export function buildRecipe(input: { request: string; journal: RequestJournal; id: string; now: number; platform?: NodeJS.Platform }): { ok: true; recipe: Recipe } | { ok: false; reason: Refusal } {
   const { request, journal } = input;
   const refuse = (reason: Refusal) => ({ ok: false as const, reason });
   if (hasMomentWords(request)) return refuse("moment-words");
@@ -172,6 +172,7 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
   if (new Set(journal.calls.map((call) => call.generation)).size > 1) return refuse("several-turns");
 
   const appsByPid = new Map<number, AppIdentity>();
+  const listedApps = new Set<number>();
   const windowsById = new Map<number, string>();
   const latestByWindow = new Map<string, Snapshot>();
   const seenTokens = new Set<string>();
@@ -185,7 +186,11 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
 
   const observe = ({ tool, arguments: args, result }: RecordedCall) => {
     const data: SlimStructured = result.structured ?? {};
-    if (tool === "list_apps") for (const app of data.apps ?? []) if (app.running !== false) learnApp(app.pid, { bundleId: app.bundle_id, name: app.name });
+    if (tool === "list_apps") for (const app of data.apps ?? []) if (app.running !== false) {
+      listedApps.add(app.pid);
+      learnApp(app.pid, { bundleId: app.bundle_id, name: app.name });
+      if (input.platform === "linux") appsByPid.set(app.pid, { name: app.name, ...(app.bundle_id ? { bundleId: app.bundle_id } : {}) });
+    }
     if (tool === "list_windows") {
       for (const window of data.windows ?? []) {
         windowsById.set(window.window_id, window.title);
@@ -194,14 +199,14 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
     }
     if (tool === "get_window_state") {
       learnApp(data.pid, { bundleId: data.bundle_id, name: data.app_name });
-      if (data.pid !== undefined && data.app_name && args.tree_format === "elements") {
+      if (input.platform !== "linux" && data.pid !== undefined && data.app_name && args.tree_format === "elements") {
         const app = appsByPid.get(data.pid);
         if (app) appsByPid.set(data.pid, { ...app, name: data.app_name });
       }
       if (data.window_id !== undefined && data.window_title !== undefined) windowsById.set(data.window_id, data.window_title);
       const snapshot: Snapshot = {
         windowProjection: args.tree_format === "elements" && args.pid === data.pid && args.window_id === data.window_id
-          && Object.keys(args).every((key) => WINDOW_STATE_ARGS.has(key)),
+          && (args.session === undefined || typeof args.session === "string") && Object.keys(args).every((key) => WINDOW_STATE_ARGS.has(key)),
         pid: data.pid, windowId: data.window_id, appName: data.app_name, windowTitle: data.window_title, elements: data.elements ?? [], complete: data.elements_complete === true,
       };
       const key = data.window_id !== undefined ? `w${data.window_id}` : `p${data.pid}`;
@@ -286,14 +291,16 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
       if (!element.label) return refuse("unlabelled-element");
       if (flipsToggle(tool, element.role)) return refuse("toggle-element");
       const path = elementPath(snapshot.elements, element);
-      const directButton = !path && snapshot.windowProjection && element.uia_window_child === true && windowButtonClick(tool, kept)
+      const linuxButton = input.platform === "linux" && element.linux_window_child === true;
+      if (linuxButton && (snapshot.pid === undefined || !listedApps.has(snapshot.pid))) return refuse("unknown-target");
+      const directButton = (linuxButton || !path) && snapshot.windowProjection && (element.uia_window_child === true || linuxButton) && windowButtonClick(tool, kept)
         && result.structured?.background_accessibility_action === true
         && !!snapshot.windowTitle && pid === snapshot.pid && windowId === snapshot.windowId
         && typeof args.element_token === "string" && args.element_index === undefined;
       if (!path && !directButton) return refuse("unknown-target");
-      const identity: ElementIdentity = { role: element.role, label: element.label, path: path ?? [],
-        ...(directButton ? { uiaWindowChild: true } : {}) };
-      const twins = directButton ? matchWindowButton(snapshot.elements, element.label) : matchElement(snapshot.elements, identity);
+      const identity: ElementIdentity = { role: element.role, label: element.label, path: directButton ? [] : path ?? [],
+        ...(directButton ? linuxButton ? { linuxWindowChild: true } : { uiaWindowChild: true } : {}) };
+      const twins = directButton ? matchWindowButton(snapshot.elements, element.label, linuxButton ? "linux" : "win32") : matchElement(snapshot.elements, identity);
       if (!twins.ok || twins.value.element_index !== element.element_index) return refuse("ambiguous-element");
       const app = appFor(snapshot.pid ?? pid) ?? (snapshot.appName ? { name: snapshot.appName } : undefined);
       if (!app) return refuse("unknown-target");
@@ -336,3 +343,4 @@ export function buildRecipe(input: { request: string; journal: RequestJournal; i
 function stripEmpty(app: AppIdentity): AppIdentity {
   return { ...(app.bundleId ? { bundleId: app.bundleId } : {}), ...(app.name ? { name: app.name } : {}) };
 }
+

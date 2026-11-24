@@ -166,7 +166,7 @@ try {
   const helperScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-helper.png"), Buffer.from(helperScreenshot.data, "base64"));
   const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
-  const send = async text => {
+  const send = async (text, doubleEnter = false) => {
     await until(() => evaluate(`Boolean(${composer})`), "an enabled chat composer");
     await evaluate(`(${composer}).focus()`);
     await cdp("Input.insertText", { text });
@@ -174,6 +174,10 @@ try {
     const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
     await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
     await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
+    if (doubleEnter) {
+      await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
+      await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
+    }
   };
   const roster = async () => {
     const result = await request("/api/bots?messages=0");
@@ -235,7 +239,7 @@ try {
   const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
   await until(() => evaluate(`Boolean(${helperRow})`), "the main helper in the sidebar");
   await evaluate(`${helperRow}.click()`);
-  await send(workMessage);
+  await send(workMessage, true);
   const offerCard = async () => {
     const result = await request(`/api/threads/${helper.threadId}/messages`);
     assert.equal(result.status, 200);
@@ -245,6 +249,11 @@ try {
   assert.equal(offered.teamSetupRequest.workBotOffer.icon, "calendar");
   assert.equal(offered.answered, undefined);
   assert(offered.title.includes(workName));
+  const sourceRows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+  const sourceInputs = sourceRows.filter(row => row.role === "user" && row.text === workMessage);
+  assert.equal(sourceInputs.length, 1, "Double Enter must create one source message");
+  assert.equal(sourceRows.filter(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === sourceInputs[0].id).length, 1, "The source must have one offer");
+  assert(!((await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? []).some(row => row.text === workMessage), "Double Enter must not queue duplicate work");
   const consent = `[...document.querySelectorAll('[data-work-bot-offer] button')].find(button => button.getClientRects().length && !button.disabled && button.textContent.trim() === ${JSON.stringify(offered.options[0])})`;
   await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(offered.title)}) && Boolean(${consent})`), "the visible work question and its consent button");
   assert.deepEqual((await roster()).map(row => row.id).sort(), initialBots.map(row => row.id).sort());
@@ -261,7 +270,7 @@ try {
     return queued.some(row => row.text === extra) && queued.some(row => row.text === extraNext);
   }, "both follow-up messages to remain queued before consent");
   assert.equal((await roster()).length, initialBots.length);
-  await evaluate(`(${consent}).click()`);
+  await evaluate(`(() => { const button = ${consent}; button.click(); button.click(); })()`);
   const accepted = await until(async () => {
     const card = await offerCard();
     return card?.teamSetupRequest.result?.state === "applied" && card.teamSetupRequest.result;
@@ -301,6 +310,10 @@ try {
   assert(JSON.stringify(workPrompts()[0]).includes(extra) && JSON.stringify(workPrompts()[0]).includes(extraNext));
   writeFileSync(path.join(evidence, "work-bot-prompt-fixture.json"), JSON.stringify(workPrompts(), null, 2) + "\n");
   assert.equal(workPrompts().length, 1);
+  const finalSourceRows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+  assert.equal(finalSourceRows.filter(row => row.role === "user" && row.text === workMessage).length, 1);
+  assert.equal(finalSourceRows.filter(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === sourceInputs[0].id).length, 1);
+  assert(!((await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? []).some(row => row.text === workMessage));
   const handedOffScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "work-bot-handoff.png"), Buffer.from(handedOffScreenshot.data, "base64"));
   assert(!readFileSync(path.join(data, "bots", workBot.id, "SOUL.md"), "utf8").includes(workMessage));
@@ -418,7 +431,7 @@ try {
   await waitPortClosed(port, "the first server to stop");
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion, declinedCompletion },
+    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion, declinedCompletion },
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     restart, computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };

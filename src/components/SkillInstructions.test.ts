@@ -7,6 +7,7 @@ const skills = new URL("../../skills/", import.meta.url);
 const read = (file: string) => readFileSync(new URL(file, skills), "utf8").replaceAll("\r\n", "\n");
 const names = catalog.map(({ name }) => `${name}.md`).sort();
 const fencedBlocks = (text: string) => text.replace(/^[ \t]+$/gm, "").match(/^([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1\2[ \t]*$/gm) ?? [];
+const reviewedUpdates = new Set(["xlsx", "docx", "pptx", "web-perf", "hyperframes", "hyperframes-cli", "gemini-api", "apify-ecommerce", "byted-text-to-speech", "producthunt"]);
 
 it("includes a complete, matching set of Vietnamese and Chinese translations for the catalog", () => {
   for (const locale of ["vi", "zh", "zh-tw"]) {
@@ -27,5 +28,13 @@ it.each(catalog)("$name has localized guides pinned to the reviewed original", (
     expect(translation).not.toMatch(/\[ZX\d+QZ\]/);
     expect(fencedBlocks(translation)).toEqual(fencedBlocks(original));
     expect(translation.split("\n").filter(Boolean).length).toBeGreaterThan(2);
+    if (reviewedUpdates.has(entry.name)) {
+      const tokens = translation.match(/`[^`\n]+`/g) ?? [];
+      for (const token of original.match(/`[^`\n]+`/g) ?? []) {
+        const index = tokens.indexOf(token);
+        expect(index, `${locale}: missing ${token}`).toBeGreaterThanOrEqual(0);
+        tokens.splice(index, 1);
+      }
+    }
   }
 });

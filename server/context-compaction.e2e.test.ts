@@ -85,8 +85,7 @@ it("compacts durably, keeps corrections and starts a fresh native session withou
   await f.idle();
   const after = await f.messages();
   const record = after.at(-1);
-  expect(after.slice(0, before.length)).toEqual(before.map(message =>
-    message.id === previousRequest.id ? { ...message, requestPending: true } : message));
+  expect(after.slice(0, before.length)).toEqual(before);
   expect(record.kind).toBe("compaction");
   expect(record.compaction.summary).toContain("CORRECTION");
   expect(Buffer.byteLength(record.compaction.summary)).toBeLessThanOrEqual(6_000);
@@ -147,8 +146,7 @@ it("Stop cancels a stalled summary without writing a late record or starting an 
   await f.cli("interrupt", "--bot", f.bot.id, "--task", f.thread);
   await f.idle();
   expect((await f.messages()).filter(m => m.kind === "compaction")).toHaveLength(0);
-  expect((await f.messages()).slice(0, before.length)).toEqual(before.map(message =>
-    message.id === previousRequest.id ? { ...message, requestPending: true } : message));
+  expect((await f.messages()).slice(0, before.length)).toEqual(before);
   expect(f.turns()).toHaveLength(count);
   await f.send("Continue without a summary");
   expect(f.turns()).toHaveLength(count + 1);

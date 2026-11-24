@@ -7,6 +7,61 @@ import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
 
+it("does not hand off a compacted conversation without its summary", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "work-bot-compacted-context-"));
+  const routes = join(dir, "routes.json"), prompts = join(dir, "prompts.jsonl");
+  const work = "Monitor the corrected inventory every week";
+  writeFileSync(routes, JSON.stringify({ "The initial count is 10": "null", "Correction: the count is 42": "null", [work]: JSON.stringify({ name: "Inventory", icon: "box" }) }));
+  const ownerToken = randomBytes(32).toString("base64url");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (input, init = {}) => originalFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": ownerToken } });
+  let fixture: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
+  try {
+    fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_PROMPTS: prompts, OMB_TEST_DESKTOP_OWNER_TOKEN: ownerToken });
+    const base = fixture.info.url;
+    const request = (path: string, body?: unknown) => fetch(base + path, { method: body ? "POST" : "GET", headers: { origin: base, "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const bots = async () => (await (await request("/api/bots?messages=0")).json() as { bots: BotRecord[] }).bots;
+    const before = await bots(), main = before.find(bot => bot.defaultBot)!;
+    const rows = async () => (await (await request(`/api/threads/${main.threadId}/messages`)).json() as { messages: Message[] }).messages;
+    for (const text of ["The initial count is 10", "Correction: the count is 42"]) {
+      expect((await request(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text, sendId: randomUUID() })).ok).toBe(true);
+      await expect.poll(async () => (await rows()).some(row => row.role === "user" && row.text === text && row.requestPending === false), { timeout: 15000 }).toBe(true);
+    }
+    expect((await request(`/api/bots/${main.id}/compact`, { threadId: main.threadId })).ok).toBe(true);
+    await expect.poll(async () => (await rows()).some(row => row.kind === "compaction" && !row.compaction?.fresh), { timeout: 20000 }).toBe(true);
+    await expect.poll(async () => !(await bots()).find(bot => bot.id === main.id)?.busy, { timeout: 15000 }).toBe(true);
+    const summary = (await rows()).findLast(row => row.kind === "compaction" && row.compaction?.by === "person" && !row.compaction.fresh)?.compaction?.summary;
+    expect(summary?.trim()).toBeTruthy();
+    const sendId = randomUUID();
+    expect((await request(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: work, sendId })).ok).toBe(true);
+    await expect.poll(async () => {
+      const messages = await rows(), source = messages.find(row => row.role === "user" && row.sendId === sendId);
+      return Boolean(source && messages.some(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === source.id && row.card.teamSetupRequest.workBotOffer.contextBlock === "data"));
+    }, { timeout: 20000 }).toBe(true);
+    const messages = await rows(), sources = messages.filter(row => row.role === "user" && row.sendId === sendId);
+    expect(sources).toHaveLength(1);
+    const sourceId = sources[0]!.id;
+    const card = messages.find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === sourceId)!.card!;
+    const respond = (behavior: string) => request(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior });
+    expect((await respond("allow")).status).toBe(409);
+    expect((await respond("deny")).ok).toBe(true);
+    await expect.poll(async () => {
+      return (await rows()).some(row => row.requestMessageId === sourceId && row.turnTerminal && row.turnSucceeded);
+    }, { timeout: 20000 }).toBe(true);
+    const delivered = readFileSync(prompts, "utf8").trim().split("\n").filter(line => line.includes(work));
+    expect(delivered).toHaveLength(1);
+    const content = (JSON.parse(delivered[0]!) as { message: { content: string } }).message.content;
+    expect(content).toContain("Earlier conversation summary");
+    expect(content).toContain(JSON.stringify(summary));
+    expect(content).toContain("Correction: the count is 42");
+    expect(await bots()).toHaveLength(before.length);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fixture?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}, 90000);
+
 it("keeps widget-dependent work in the source conversation without a duplicate run", async () => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-widget-context-"));
   const gate = join(dir, "finish"), routes = join(dir, "routes.json"), prompts = join(dir, "prompts.jsonl");
@@ -34,19 +89,26 @@ it("keeps widget-dependent work in the source conversation without a duplicate r
     await expect.poll(async () => !(await bots()).find(bot => bot.id === main.id)?.busy, { timeout: 15000 }).toBe(true);
     expect((await rows()).some(row => row.kind === "widget" && row.text?.includes("Synthetic inventory: 42"))).toBe(true);
     expect((await request(`/api/bots/${main.id}`, { cwd: dir }, undefined, "PATCH")).ok).toBe(true);
-    expect((await request(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: work, sendId: randomUUID() })).ok).toBe(true);
-    await expect.poll(async () => (await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "data"), { timeout: 20000 }).toBe(true);
-    const card = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "data")!.card!;
+    const sendId = randomUUID();
+    expect((await request(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: work, sendId })).ok).toBe(true);
+    await expect.poll(async () => {
+      const messages = await rows(), source = messages.find(row => row.role === "user" && row.sendId === sendId);
+      return Boolean(source && messages.some(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === source.id && row.card.teamSetupRequest.workBotOffer.contextBlock === "data"));
+    }, { timeout: 20000 }).toBe(true);
+    const messages = await rows(), sources = messages.filter(row => row.role === "user" && row.sendId === sendId);
+    expect(sources).toHaveLength(1);
+    const sourceId = sources[0]!.id;
+    const card = messages.find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === sourceId)!.card!;
     const respond = (behavior: string) => request(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior });
     expect((await respond("allow")).status).toBe(409);
     expect((await respond("deny")).ok).toBe(true);
-    await expect.poll(async () => (await rows()).find(row => row.text === work)?.workBotRouting?.state, { timeout: 20000 }).toBe("dispatched");
+    await expect.poll(async () => (await rows()).find(row => row.id === sourceId)?.workBotRouting?.state, { timeout: 20000 }).toBe("dispatched");
     await expect.poll(() => existsSync(prompts) && readFileSync(prompts, "utf8").trim().split("\n").filter(line => line.includes(work)).length, { timeout: 20000 }).toBe(1);
     expect(readFileSync(prompts, "utf8").trim().split("\n").find(line => line.includes(work))).toContain("Synthetic inventory: 42");
     await expect.poll(async () => {
-      const messages = await rows(), source = messages.find(row => row.text === work);
-      return messages.some(row => row.requestMessageId === source?.id && row.turnTerminal && row.turnSucceeded);
+      return (await rows()).some(row => row.requestMessageId === sourceId && row.turnTerminal && row.turnSucceeded);
     }, { timeout: 20000 }).toBe(true);
+    expect(readFileSync(prompts, "utf8").trim().split("\n").filter(line => line.includes(work))).toHaveLength(1);
     expect(await bots()).toHaveLength(before.length);
   } finally {
     globalThis.fetch = originalFetch;

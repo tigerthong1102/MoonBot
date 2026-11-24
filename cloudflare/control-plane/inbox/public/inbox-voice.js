@@ -35,7 +35,6 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
     if (active !== entry) return false;
     active = null;
     clearTimeout(entry.timeout);
-    clearTimeout(entry.finishTimeout);
     stopTracks(entry.stream);
     changed();
     return true;
@@ -94,7 +93,6 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
       const entry = active;
       if (entry.finishing) return;
       entry.finishing = true;
-      entry.finishTimeout = setTimeout(() => { if (active === entry) { discard(); error("dictation_failed"); } }, 15000);
       if (!(await bridge.dictate("finish", entry.id)) && release(entry)) error("dictation_failed");
       return;
     }

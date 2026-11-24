@@ -93,7 +93,7 @@ it("upgrades original catalog folders and keeps their review choices", () => {
   }
 });
 
-it.each(["hyperframes-v2", "hyperframes-v3"])("upgrades the earlier %s skill", (version) => {
+it.each(["hyperframes-v2", "hyperframes-v3", "hyperframes-v4"])("upgrades the earlier %s skill", (version) => {
   const root = mkdtempSync(join(tmpdir(), "startupbot-hyperframes-upgrade-"));
   try {
     const catalog = join(root, "old-catalog");
@@ -110,7 +110,32 @@ it.each(["hyperframes-v2", "hyperframes-v3"])("upgrades the earlier %s skill", (
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 61, failed: [] });
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("compact shot plan");
+    expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("three visually distinct beats");
     expect(readFileSync(join(library, "skills/hyperframes/references/types/launch.md"), "utf8")).toContain("Screenshot: motion preferences");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("preserves a customized HyperFrames reference during catalog upgrade", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-hyperframes-custom-"));
+  try {
+    const catalog = join(root, "old-catalog");
+    const library = join(root, "library");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    cpSync("server/testing/fixtures/startupbot-old-skills/hyperframes-v4", join(catalog, "hyperframes"), { recursive: true });
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
+      .filter((entry: { name: string }) => entry.name === "hyperframes");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
+    const reference = join(library, "skills/hyperframes/references/film.md");
+    const custom = readFileSync(reference, "utf8") + "\nCustom instruction.\n";
+    writeFileSync(reference, custom);
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 60, failed: [] });
+    expect(readFileSync(reference, "utf8")).toBe(custom);
+    expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -12,6 +12,7 @@ const supersededFolders = new Map([
   ["0afa47ef879ebebe3f571aa8ac7f9b1775583ff273dcb52c1168996724ae417d", "gemini-api"],
   ["8b4e269e1d88ef696d7fd5758039967c5f8df58f282612ebc5a9d73adce22df4", "apify-ecommerce"],
   ["dafedc743725177cab814c9c556e31499cdb83e53540886617654ed1dc413c66", "hyperframes"],
+  ["07b62f68d600a9e3561f91133969587be1d2a8493dc11b7902454432dc6d4fca", "hyperframes"],
   ["b93a65ef1e361e7df9d837b029cbae8841365bed363c4e0a82c8726796c0b069", "producthunt"],
   ["adfa8a000dc22d041f444be9a841c075dec76c0a9edd0091da23159013249757", "docx"],
   ["3b0ee778f53c9fbf88d64b026b233321180aeecfd93713ebe3c9623b59c47ab6", "pptx"],

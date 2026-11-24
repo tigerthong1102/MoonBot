@@ -63,7 +63,7 @@ function inviteGroupMember(db: D1Database, room: string, owner: string, address:
     .prepare(
       `INSERT OR IGNORE INTO inbox_members(room,person,state,after_seq)
     SELECT room,person,state,CASE WHEN state='active' THEN coalesce((SELECT MAX(seq) FROM inbox_posts WHERE room=eligible.room),0) ELSE 0 END
-    FROM (SELECT r.id AS room,u.id AS person,CASE WHEN ?4=1
+    FROM (SELECT r.id AS room,u.id AS person,CASE WHEN ?4=1 AND r.membership_history_complete=1
       AND NOT EXISTS(SELECT 1 FROM inbox_group_departures WHERE room=r.id AND person=u.id)
       AND (SELECT count(*) FROM inbox_members WHERE person=u.id AND state='active')<200
       THEN 'active' ELSE 'pending' END AS state
@@ -255,8 +255,8 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
       WHERE r.kind='direct' AND m.person=?1 AND
       ((r.owner=?1 AND r.title=?2) OR (r.owner!=?1 AND owner.email=?2))
       ORDER BY (SELECT count(*) FROM inbox_members WHERE room=r.id AND state='active') DESC,r.created,r.id LIMIT 1`;
-    const insertRoom = db.prepare(`INSERT INTO inbox_rooms(id,kind,title,owner,created)
-        SELECT ?3,?4,?2,?1,?5 WHERE (SELECT count(*) FROM inbox_rooms WHERE owner=?1)<100
+    const insertRoom = db.prepare(`INSERT INTO inbox_rooms(id,kind,title,owner,created,membership_history_complete)
+        SELECT ?3,?4,?2,?1,?5,?4='group' WHERE (SELECT count(*) FROM inbox_rooms WHERE owner=?1)<100
         AND (?4!='direct' OR NOT EXISTS (${direct})) ON CONFLICT DO NOTHING`)
       .bind(user, title, input.id, input.kind, Date.now());
     const findRoom = input.kind === "direct"

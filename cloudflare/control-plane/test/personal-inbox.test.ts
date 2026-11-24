@@ -139,6 +139,18 @@ it("auto-adds verified invitees, sends a guest invitation, and remembers group d
   expect((await call(room + "/close", a.cookie, {})).status).toBe(200);
 });
 
+it("requires consent for instant invites to groups without a complete departure history", async () => {
+  const owner = await login("owner@example.test"), former = await login("member@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  await env.INBOX_DB.prepare("INSERT INTO inbox_rooms(id,kind,title,owner,created) VALUES(?,'group',?,?,?)")
+    .bind(id, "Legacy group", owner.id, Date.now()).run();
+  expect((await call(room + "/invite", owner.cookie, { email: former.email, instant: true })).status).toBe(200);
+  expect(await (await call("rooms", former.cookie)).json()).toMatchObject({ rooms: [{ id, state: "pending" }] });
+  expect((await call(room, former.cookie)).status).toBe(404);
+  expect((await call(room + "/accept", former.cookie, {})).status).toBe(200);
+  expect((await call(room, former.cookie)).status).toBe(200);
+});
+
 it("sends full-length multilingual posts while bounding unrelated JSON requests", async () => {
   const account = await login("owner@example.test");
   const id = uuid();

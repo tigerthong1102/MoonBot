@@ -16,6 +16,7 @@ import { nativeSkillListing, nativeSkills, projectSkillListing, projectSkills, p
 import { redactSecretsInText } from "../redact.ts";
 import { readSectionContext } from "../section-context.ts";
 import { librarySkillOptOuts, readLibrarySkillFile, readSkillLibraryIndex, skillsLibraryEnabled } from "../skill-library.ts";
+import { workflowSkillsPrompt } from "../skill-burger/store.ts";
 import {
   conversationAssignedSkills,
   prepareShareNote,
@@ -302,7 +303,8 @@ export function createSkillsLibraryHost(deps: SkillsLibraryHostDeps) {
       const thread = threadId ?? bot.threadId;
       const project = thread ? projectInUse(bot, thread, cwd, instance, assigned) : [];
       return skillsSystemPrompt(bot.id, assigned, threadId === undefined ? undefined : conversationStartedAt(threadId)) +
-        importedSkillsPrompt(listed, available.length - listed.length) + projectSkillsPrompt(project);
+        importedSkillsPrompt(listed, available.length - listed.length) + projectSkillsPrompt(project) +
+        (skillsLibraryEnabled(cfg) ? "" : workflowSkillsPrompt(bot.id));
     },
 
     /** The imported skills a turn links into its task folder: the same ones its index lists, so an engine that loads

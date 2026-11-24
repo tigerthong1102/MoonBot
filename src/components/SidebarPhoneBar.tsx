@@ -1,4 +1,4 @@
-import { FolderOpen, LayoutGrid, Puzzle, Rocket, Search, UsersRound, X, Zap } from "lucide-react";
+import { FolderOpen, Hamburger, LayoutGrid, Puzzle, Rocket, Search, UsersRound, X, Zap } from "lucide-react";
 
 import { useCloudFilesReady } from "@/lib/cloud-files";
 import { t } from "@/lib/i18n";
@@ -52,6 +52,13 @@ export function SidebarPhoneBar({ query, onQuery }: { query: string; onQuery: (q
       active: state.pluginsOpen,
       onSelect: () => dispatch({ type: "togglePlugins", open: true }),
     },
+    ...(!state.config?.cloudHome && !state.config?.team ? [{
+      key: "skill-burgers",
+      label: t("skillBurger.list.title"),
+      icon: <Hamburger size={18} />,
+      active: state.activeView === "skill-burgers",
+      onSelect: () => dispatch({ type: "showSkillBurgers" }),
+    }] : []),
   ];
   return (
     <div data-sidebar-phone-bar className="px-3 pb-3 pt-1">

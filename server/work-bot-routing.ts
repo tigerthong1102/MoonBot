@@ -15,6 +15,7 @@ export interface WorkBotRoutingDependencies {
   dispatch(threadId: string, messageId: string, target: Target): Promise<void>;
   recoverDispatch?(threadId: string, messageId: string, route: Routing): boolean;
   finishRecovery?(threadId: string, messageId: string, route: Routing): void;
+  blockCleanupFailure?(threadId: string, messageId: string, route: Routing): void;
   report(error: unknown): void;
 }
 
@@ -102,7 +103,7 @@ export class WorkBotRouter {
     const route = this.deps.message(threadId, messageId)?.workBotRouting;
     if (!route || !["dispatching", "dispatched", "interrupted"].includes(route.state)) return;
     if (this.deps.recoverDispatch && !this.deps.recoverDispatch(threadId, messageId, route)) return;
-    if (route.state !== "interrupted" && !this.deps.patch(threadId, messageId, route.state, { ...route, state: "interrupted" })) return;
+    if ((route.state !== "interrupted" || route.recoveryBlocked) && !this.deps.patch(threadId, messageId, route.state, { ...route, state: "interrupted", recoveryBlocked: undefined })) return;
     this.deps.finishRecovery?.(threadId, messageId, route);
   }
 
@@ -128,7 +129,11 @@ export class WorkBotRouter {
       return this.deps.patch(threadId, messageId, "dispatching", { ...claimed, state: "dispatched" }) ? "accepted" : "interrupted";
     } catch (error) {
       this.deps.report(error);
-      this.deps.patch(threadId, messageId, "dispatching", { ...claimed, state: "interrupted" });
+      if ((error as { workBotCleanupFailed?: boolean } | null)?.workBotCleanupFailed) {
+        this.deps.blockCleanupFailure?.(threadId, messageId, claimed);
+      } else {
+        try { this.recoverDispatch(threadId, messageId); } catch (recoveryError) { this.deps.report(recoveryError); }
+      }
       return "interrupted";
     }
   }

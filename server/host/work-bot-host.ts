@@ -13,12 +13,37 @@ import { WorkBotRouter } from "../work-bot-routing.ts";
 import { captureWorkBotContext, scanWorkBotContext, unsupportedWorkBotContext } from "../work-bot-context.ts";
 import { mayDispatchWorkBot, type WorkBotMember } from "../work-bot-access.ts";
 
+export function cleanupWorkBotSetup(steps: readonly (() => void)[]): boolean {
+  let clean = true;
+  for (const step of steps) try { step(); } catch { clean = false; }
+  return clean;
+}
+
+export function updateWorkBotRoutingIndex(idsByThread: Map<string, Set<string>>, threadId: string, messageId: string, state: NonNullable<Message["workBotRouting"]>["state"]): void {
+  const ids = idsByThread.get(threadId) ?? new Set<string>();
+  if (state === "classifying" || state === "waiting_choice" || state === "dispatching") { ids.add(messageId); idsByThread.set(threadId, ids); }
+  else { ids.delete(messageId); if (!ids.size) idsByThread.delete(threadId); }
+}
+
+type TargetLock = { sourceThreadId: string; messageId: string; cleanupFailed?: boolean };
+
+export function releaseWorkBotTargetLock(locks: Map<string, TargetLock>, threadId: string, messageId: string, settled: (threadId: string) => void): void {
+  const lock = locks.get(threadId);
+  if (lock?.messageId !== messageId) return;
+  locks.delete(threadId);
+  try { settled(threadId); } catch (error) {
+    locks.set(threadId, { ...lock, cleanupFailed: true });
+    throw Object.assign(error instanceof Error ? error : new Error("Work bot completion fence failed"), { workBotCleanupFailed: true });
+  }
+}
+
 export function createWorkBotHost(deps: {
   store: Store;
   pendingWorkBotIds: Map<string, Set<string>>;
-  workBotTargetLocks: Map<string, { sourceThreadId: string; messageId: string }>;
+  workBotTargetLocks: Map<string, TargetLock>;
   indexWorkBotRouting(threadId: string, messageId: string, state: NonNullable<Message["workBotRouting"]>["state"]): void;
   drainQueuedSends(): void;
+  targetUnlocked(threadId: string): void;
   assertAvailable(): void;
   offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal, mayContinue?: () => boolean): ReturnType<TeamSetupRequestService["offerFromChat"]> | undefined;
   teamPersonFor(person: string): WorkBotMember | undefined;
@@ -31,7 +56,7 @@ export function createWorkBotHost(deps: {
   threadBusy(botId: string, threadId: string): boolean;
   startTurn(botId: string, text: string, opts: { threadId: string; userMessage?: Message; sender?: Message["sender"]; trigger: UsageTrigger; replyTo?: ReplyTarget; dataContext?: Message["dataContext"]; sendId?: string; allowRoomTurnElsewhere: true; workBotRoutingMessageId: string; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget } }): Promise<unknown>;
 }) {
-  const { store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, assertAvailable, offerWorkBot, teamPersonFor, sessionFor, cloudTeam, sharedNonTeam, teamHost, conversationShares, threadStarters, threadBusy, startTurn } = deps;
+  const { store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked, assertAvailable, offerWorkBot, teamPersonFor, sessionFor, cloudTeam, sharedNonTeam, teamHost, conversationShares, threadStarters, threadBusy, startTurn } = deps;
 function reconcileWorkBotBranch(threadId: string): void {
   const ids = pendingWorkBotIds.get(threadId);
   if (!ids?.size) return;
@@ -52,27 +77,35 @@ function reconcileWorkBotBranch(threadId: string): void {
 
 const workBotRouter = new WorkBotRouter({
   message: (threadId, messageId) => store.messagesFor(threadId).find(message => message.id === messageId),
+  blockCleanupFailure: (threadId, messageId, route) => {
+    if (route.targetThreadId) workBotTargetLocks.set(route.targetThreadId, { sourceThreadId: threadId, messageId, cleanupFailed: true });
+    const current = store.messagesFor(threadId).find(row => row.id === messageId);
+    if (current?.workBotRouting?.state === "dispatching") store.patchMessage(threadId, messageId, { workBotRouting: { ...current.workBotRouting, recoveryBlocked: true } });
+  },
   recoverDispatch: (_threadId, messageId, route) => {
     if (!route.targetBotId || !route.targetThreadId) return route.state === "dispatching";
     const target = store.messagesFor(route.targetThreadId).find(row => row.id === messageId || row.sendId === `workbot-${messageId}`);
-    if (route.state !== "dispatching" && target?.requestPending !== true) return false;
+    if (route.state !== "dispatching" && target?.requestPending !== true && !target?.workBotRecoveryPending) return false;
     if (target && !store.patchMessage(route.targetThreadId, target.id, { workBotExecutionUncertain: true })) return false;
     if (target && !store.patchTask(route.targetBotId, route.targetThreadId, { resumeCursors: {}, rewound: true })) return false;
     return true;
   },
   finishRecovery: (_threadId, messageId, route) => {
     if (!route.targetThreadId) return;
+    const lock = workBotTargetLocks.get(route.targetThreadId);
+    if (lock?.messageId === messageId && lock.cleanupFailed) return;
     const target = store.messagesFor(route.targetThreadId).find(row => row.id === messageId || row.sendId === `workbot-${messageId}`);
-    if (target?.workBotExecutionUncertain && target.requestPending === true) store.patchMessage(route.targetThreadId, target.id, { requestPending: false });
+    if (target?.workBotExecutionUncertain && !store.patchMessage(route.targetThreadId, target.id, { requestPending: false, workBotRecoveryPending: undefined })) return;
+    if (lock?.messageId === messageId) workBotTargetLocks.delete(route.targetThreadId);
   },
   patch: (threadId, messageId, expected, routing) => {
     const message = store.messagesFor(threadId).find(row => row.id === messageId);
     if (!message || message.workBotRouting?.state !== expected) return false;
     if (!store.activePath(threadId).some(row => row.id === messageId)) {
-      store.patchMessage(threadId, messageId, { workBotRouting: { ...message.workBotRouting, state: "interrupted" } });
+      const updated = store.patchMessage(threadId, messageId, { workBotRouting: { ...message.workBotRouting, state: "interrupted", recoveryBlocked: undefined } });
       indexWorkBotRouting(threadId, messageId, "interrupted");
       queueMicrotask(drainQueuedSends);
-      return false;
+      return routing.state === "interrupted" && Boolean(updated);
     }
     const updated = store.patchMessage(threadId, messageId, { workBotRouting: routing });
     if (updated) indexWorkBotRouting(threadId, messageId, routing.state);
@@ -150,6 +183,7 @@ const workBotRouter = new WorkBotRouter({
       if (sharedNonTeam() || (cloudTeam && audienceMember(teamHost.audienceOf(threadId)))) throw new Error("This conversation cannot be handed off safely");
       if (threadBusy(target.botId, target.threadId)) throw new Error("The target conversation is already in use");
       workBotTargetLocks.set(target.threadId, { sourceThreadId: threadId, messageId });
+      let admitted = false;
       try {
         if (store.messagesFor(target.threadId).some(row => row.role === "user" || row.workBotCopy)) throw new Error("The target conversation is already in use");
         const sourceAudience = teamHost.audienceOf(threadId);
@@ -199,13 +233,18 @@ const workBotRouter = new WorkBotRouter({
           validateHandoff();
           validateContext();
           const copied = store.appendWorkBotContext(target.threadId, [...staged, { sourceId: messageId, ...(source.replyToId ? { replySourceId: source.replyToId } : {}), message: {
-            role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`, workBotHandoffSource: { threadId, messageId },
+            role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`, workBotHandoffSource: { threadId, messageId }, workBotRecoveryPending: true,
             ...(source.sender ? { sender: source.sender } : {}), ...(source.dataContext ? { dataContext: source.dataContext } : {}),
           } }]);
           return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}) };
         } });
+        admitted = true;
+      } catch (error) {
+        const lock = workBotTargetLocks.get(target.threadId);
+        if (lock?.messageId === messageId && (error as { workBotCleanupFailed?: boolean })?.workBotCleanupFailed) lock.cleanupFailed = true;
+        throw error;
       } finally {
-        if (workBotTargetLocks.get(target.threadId)?.messageId === messageId) workBotTargetLocks.delete(target.threadId);
+        if (admitted) releaseWorkBotTargetLock(workBotTargetLocks, target.threadId, messageId, targetUnlocked);
         queueMicrotask(drainQueuedSends);
       }
     }

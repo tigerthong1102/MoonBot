@@ -67,6 +67,23 @@ describe("work bot request routing", () => {
     expect(f.dispatch).toHaveBeenCalledTimes(1);
   });
 
+  it("leaves dispatch claimed when durable recovery fails, and finishes it after recovery succeeds", async () => {
+    const f = fixture();
+    await f.router.classify("main-thread", "source");
+    let recovered = false;
+    f.deps.recoverDispatch = vi.fn(() => recovered);
+    f.deps.finishRecovery = vi.fn();
+    f.dispatch.mockRejectedValueOnce(new Error("fixture storage failure after staging"));
+    expect(await f.router.choose("main-thread", "source", "offer", { botId: "worker", threadId: "worker-thread" })).toBe("interrupted");
+    expect(f.message().workBotRouting?.state).toBe("dispatching");
+    expect(f.deps.finishRecovery).not.toHaveBeenCalled();
+    recovered = true;
+    f.router.recoverDispatch("main-thread", "source");
+    expect(f.message().workBotRouting?.state).toBe("interrupted");
+    expect(f.deps.finishRecovery).toHaveBeenCalledOnce();
+    expect(f.dispatch).toHaveBeenCalledOnce();
+  });
+
   it("times out a stalled classifier and dispatches to the main bot once", async () => {
     const f = fixture();
     f.offer.mockImplementationOnce(() => new Promise(() => {}));

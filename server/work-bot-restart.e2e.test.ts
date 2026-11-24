@@ -52,6 +52,7 @@ it("reopens a pending work-bot choice without dispatching it twice", async () =>
       const index = messages.findIndex(row => row.role === "user" && row.text === text);
       return index >= 0 && messages.slice(index + 1).some(row => row.role === "bot" && row.kind === "text");
     }, { timeout: 20000 }).toBe(true);
+    await expect.poll(async () => (await api<{ messages: Message[] }>(`/api/threads/${bot.threadId}/messages`)).messages.find(row => row.text === text)?.workBotRecoveryPending, { timeout: 20000 }).toBeUndefined();
     expect(readFileSync(prompts, "utf8").trim().split("\n").map(line => JSON.parse(line) as unknown).filter(prompt => JSON.stringify(prompt).includes(text))).toHaveLength(1);
     restarted.kill("SIGTERM");
     await new Promise<void>(resolve => restarted!.once("exit", () => resolve()));

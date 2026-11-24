@@ -15,8 +15,11 @@ it("finds unresolved dispatches without treating completed requests as interrupt
     source("self", "dispatched", "main", true);
     source("settled-self", "dispatched", "main", false);
     source("already-interrupted", "interrupted", "target-already-interrupted"); target("already-interrupted", true);
+    source("staged", "interrupted", "target-staged");
+    insert.run("target-staged", "copy-staged", JSON.stringify({ id: "copy-staged", sendId: "workbot-staged", workBotHandoffSource: { threadId: "main", messageId: "staged" }, workBotRecoveryPending: true }));
     const api = createWorkBotMessageDb({ db: () => db, transaction: fn => fn(db), insertMessage: () => {}, setActiveLeaf: () => {} });
-    expect(api.pendingWorkBotRoutes().map(row => row.message.id).sort()).toEqual(["already-interrupted", "partial", "pending", "self"]);
+    expect(api.pendingWorkBotRoutes().map(row => row.message.id).sort()).toEqual(["already-interrupted", "partial", "pending", "self", "staged"]);
+    expect(api.pendingWorkBotTargets().map(row => row.message.id)).toEqual(["copy-staged"]);
   } finally {
     db.close();
   }

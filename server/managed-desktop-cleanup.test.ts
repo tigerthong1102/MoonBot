@@ -66,6 +66,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     started.set(threadId, deferred()); interrupted.set(threadId, deferred());
   }
   const context = vm.createContext({
+    CLOUD_TEAM: false, handedRunTarget: () => undefined, workBotTargetLocks: new Map(),
     companyShutdown: false, providerInstancesChanging: new Set(),
     providerAuthSessions: { clearInstance() {} }, bus: { detach: (id: string) => detached.push(id) },
     liveTurnByThread: new Map(), stoppedTurnText: (_threadId: string, _turnId: string | undefined, cause: string) => cause,
@@ -76,6 +77,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
       tasks: (botId: string) => kind === "direct" ? [tasks.get(botId)] : [],
       bot: (botId: string) => bots.get(botId), groupByThread: (threadId: string) => groups.get(threadId),
       taskByThread: (_botId: string, threadId: string) => tasks.get(threadId),
+      activePath: () => [], messagesFor: () => [],
       appendMessage: (threadId: string) => messages.push(threadId),
       patchMessage: (threadId: string, messageId: string, patch: object) => patched.push([threadId, messageId, patch]),
       setTaskActivity: (_botId: string, threadId: string) => { tasks.get(threadId)!.busy = false; },

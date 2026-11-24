@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "../store.ts";
 import { createPersonStop, type PersonStopDeps, type TypedStop } from "./person-stop.ts";
 
-function world(over: { working?: string[]; asking?: boolean; threads?: string[] } = {}) {
+function world(over: { working?: string[]; asking?: boolean; threads?: string[]; blocked?: string[]; stopFails?: string[]; refused?: string[] } = {}) {
   const rows: Partial<Message>[] = [], stopped: string[] = [];
   const stop = createPersonStop({
     store: {
@@ -11,7 +11,9 @@ function world(over: { working?: string[]; asking?: boolean; threads?: string[] 
       bot: () => ({ name: "Ada" }), botByThread: () => undefined, groupByThread: () => undefined, taskByThread: () => undefined,
       tasks: () => (over.threads ?? ["t", "other"]).map((threadId) => ({ threadId })),
     } as unknown as PersonStopDeps["store"],
-    routines: () => null, handoffs: () => ({ stoppedByPerson: () => {} }) as never, interruptDirectThread: async (_botId, threadId) => { stopped.push(threadId); }, stopping: () => () => {},
+    routines: () => null, handoffs: () => ({ stoppedByPerson: () => {} }) as never, interruptDirectThread: async (_botId, threadId) => { if (over.stopFails?.includes(threadId)) throw new Error("synthetic stop failure"); stopped.push(threadId); }, stopping: () => () => {},
+    assertStopAllowed: threadId => { if (over.blocked?.includes(threadId)) throw new Error("synthetic recovery lock"); },
+    stopRefusal: threadId => over.refused?.includes(threadId) ? "not the owner" : null,
     clearUnattended: () => {}, markStopped: () => {}, stopGoal: () => {},
     working: (_botId, threadId) => (over.working ?? []).includes(threadId), asking: () => over.asking === true, language: () => undefined,
   });
@@ -20,6 +22,19 @@ function world(over: { working?: string[]; asking?: boolean; threads?: string[] 
 }
 
 describe("a typed stop", () => {
+  it("stops other work and reports an incomplete everyone stop", async () => {
+    const w = world({ working: ["t", "other", "third"], threads: ["t", "other", "third"], blocked: ["t"], stopFails: ["other"] });
+    expect(await w.send("@everyone stop", { busy: true })).toMatchObject({ ok: true });
+    expect(w.stopped).toEqual(["third"]);
+    expect(w.rows.at(-1)?.tool?.name).toBe("Stop was attempted where permitted. Check any remaining work.");
+  });
+
+  it("reports when an everyone stop cannot stop another person's shared run", async () => {
+    const w = world({ working: ["t", "other"], threads: ["t", "other"], refused: ["other"] });
+    expect(await w.send("@everyone stop", { busy: true })).toMatchObject({ ok: true });
+    expect(w.stopped).toEqual(["t"]);
+    expect(w.rows.at(-1)?.tool?.name).toBe("Stop was attempted where permitted. Check any remaining work.");
+  });
   it("stops the running turn at once, and is never a message to it", async () => {
     const w = world({ working: ["t"] });
     expect(await w.send("alles stoppen", { busy: true })).toMatchObject({ ok: true });
@@ -48,14 +63,14 @@ describe("a typed stop", () => {
     const w = world();
     expect(await w.send("@everyone alles stoppen")).toMatchObject({ ok: true });
     expect(w.stopped).toEqual([]);
-    expect(w.rows.map((row) => row.tool?.name ?? row.text)).toEqual(["@everyone alles stoppen", "Nothing was running here, so nothing needed stopping."]);
+    expect(w.rows.map((row) => row.tool?.name ?? row.text)).toEqual(["@everyone alles stoppen", "Stop was attempted where permitted. Check any remaining work."]);
   });
 
   it("said to @everyone stops all of the bot's work, in whichever thread", async () => {
     const w = world({ working: ["other"] });
     expect(await w.send("@everyone stop")).toMatchObject({ ok: true });
     expect(w.stopped).toEqual(["other"]);
-    expect(w.rows).toHaveLength(1);
+    expect(w.rows.at(-1)?.tool?.name).toBe("Stop was attempted where permitted. Check any remaining work.");
   });
 
   it("leaves a real sentence, another's tag, an app's message, a routine and a spoken line alone", async () => {

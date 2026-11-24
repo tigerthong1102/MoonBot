@@ -103,7 +103,7 @@ describe("the pause routes", () => {
     } as RouteContext).then(() => out);
   }
 
-  it("pauses, stops only the bots that just became paused, records it, and resumes without stopping anything", async () => {
+  it("pauses, checks all held bots in scope, records it, and resumes without stopping anything", async () => {
     const { make } = setup();
     const holds = make();
     const stop = vi.fn(async (ids: readonly string[]) => ids.length);
@@ -112,8 +112,8 @@ describe("the pause routes", () => {
       named: (kind, id) => (kind === "bot" ? ({ ada: "Ada", bo: "Bo" } as Record<string, string>)[id] ?? null : id === "Sales" ? "Sales" : null) });
 
     expect(await call(routes, "POST", { kind: "bot", id: "ada", paused: true })).toMatchObject({ status: 200, body: { bots: ["ada"], heldBots: ["ada"], stopped: 1 } });
-    expect(await call(routes, "POST", { kind: "department", id: "Sales", paused: true })).toMatchObject({ status: 200, body: { heldBots: ["ada", "bo"], stopped: 1 } });
-    expect(stop.mock.calls).toEqual([[["ada"]], [["bo"]]]);
+    expect(await call(routes, "POST", { kind: "department", id: "Sales", paused: true })).toMatchObject({ status: 200, body: { heldBots: ["ada", "bo"], stopped: 2 } });
+    expect(stop.mock.calls).toEqual([[["ada"]], [["ada", "bo"]]]);
     expect(await call(routes, "POST", { kind: "department", id: "Sales", paused: false })).toMatchObject({ status: 200, body: { heldBots: ["ada"], stopped: 0 } });
     expect(stop).toHaveBeenCalledTimes(2);
     expect(audit.mock.calls.map(([entry]) => entry)).toEqual([
@@ -135,8 +135,8 @@ describe("the pause routes", () => {
     const named = vi.fn(() => null);
     const routes = createBotHoldRoutes({ holds, stop, audit, named });
 
-    expect(await call(routes, "POST", { kind: "all", paused: true })).toMatchObject({ status: 200, body: { all: true, bots: ["ada"], heldBots: ["ada", "bo", "cy", "di"], stopped: 3 } });
-    expect(stop.mock.calls).toEqual([[["bo", "cy", "di"]]]);
+    expect(await call(routes, "POST", { kind: "all", paused: true })).toMatchObject({ status: 200, body: { all: true, bots: ["ada"], heldBots: ["ada", "bo", "cy", "di"], stopped: 4 } });
+    expect(stop.mock.calls).toEqual([[["ada", "bo", "cy", "di"]]]);
     expect(await call(routes, "GET")).toMatchObject({ status: 200, body: { all: true, heldBots: ["ada", "bo", "cy", "di"] } });
     const resumed = await call(routes, "POST", { kind: "all", paused: false });
     expect(resumed).toMatchObject({ status: 200, body: { bots: ["ada"], heldBots: ["ada"], stopped: 0 } });
@@ -148,5 +148,54 @@ describe("the pause routes", () => {
       { kind: "all", id: "all", name: "Every bot", paused: false },
     ]);
     expect(await call(routes, "POST", { kind: "all" })).toMatchObject({ status: 400 });
+  });
+
+  it("records the pause even when stopping a task fails", async () => {
+    const holds = setup().make();
+    const audit = vi.fn();
+    const stop = vi.fn().mockRejectedValueOnce(new Error("synthetic stop failure")).mockResolvedValueOnce(1);
+    const routes = createBotHoldRoutes({ holds, audit, named: () => null, stop });
+    await expect(call(routes, "POST", { kind: "all", paused: true })).rejects.toThrow("synthetic stop failure");
+    expect(holds.state()).toMatchObject({ all: true });
+    expect(audit).toHaveBeenCalledOnce();
+    expect(await call(routes, "POST", { kind: "all", paused: true })).toMatchObject({ status: 200, body: { all: true, stopped: 1 } });
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(stop.mock.calls[1]).toEqual(stop.mock.calls[0]);
+  });
+
+  it("retries held bots after the route is recreated", async () => {
+    const { make } = setup();
+    const first = createBotHoldRoutes({ holds: make(), audit: vi.fn(), named: () => null, stop: async () => { throw new Error("synthetic stop failure"); } });
+    await expect(call(first, "POST", { kind: "all", paused: true })).rejects.toThrow();
+    const stop = vi.fn().mockResolvedValue(1);
+    const restarted = createBotHoldRoutes({ holds: make(), audit: vi.fn(), named: () => null, stop });
+    expect(await call(restarted, "POST", { kind: "all", paused: true })).toMatchObject({ status: 200, body: { all: true, stopped: 1 } });
+    expect(stop).toHaveBeenCalledWith(["ada", "bo", "cy", "di"]);
+  });
+
+  it("retries only the requested bot or department", async () => {
+    const holds = setup().make();
+    holds.set("bot", "cy", true);
+    const stop = vi.fn().mockResolvedValue(1);
+    const routes = createBotHoldRoutes({ holds, audit: vi.fn(), named: () => "Fixture", stop });
+    await call(routes, "POST", { kind: "bot", id: "ada", paused: true });
+    expect(stop).toHaveBeenLastCalledWith(["ada"]);
+    await call(routes, "POST", { kind: "department", id: "Sales", paused: true });
+    expect(stop).toHaveBeenLastCalledWith(["ada", "bo"]);
+  });
+
+  it("rejects pause and unpause while the previous stop is unsettled", async () => {
+    const holds = setup().make();
+    let fail!: (error: Error) => void;
+    const stop = vi.fn().mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; })).mockResolvedValueOnce(1);
+    const routes = createBotHoldRoutes({ holds, audit: vi.fn(), named: () => null, stop });
+    const first = call(routes, "POST", { kind: "all", paused: true });
+    await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
+    expect(await call(routes, "POST", { kind: "all", paused: true })).toMatchObject({ status: 409 });
+    expect(await call(routes, "POST", { kind: "all", paused: false })).toMatchObject({ status: 409 });
+    fail(new Error("synthetic stop failure"));
+    await expect(first).rejects.toThrow("synthetic stop failure");
+    expect(await call(routes, "POST", { kind: "all", paused: true })).toMatchObject({ status: 200, body: { all: true, stopped: 1 } });
+    expect(stop).toHaveBeenCalledTimes(2);
   });
 });

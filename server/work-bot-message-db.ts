@@ -22,12 +22,12 @@ export function createWorkBotMessageDb(deps: {
         "json_extract(source.json, '$.workBotRouting.state') IN ('dispatched', 'interrupted') AND EXISTS (" +
         "SELECT 1 FROM messages target WHERE target.thread_id = json_extract(source.json, '$.workBotRouting.targetThreadId') AND " +
         "(target.id = source.id OR json_extract(target.json, '$.sendId') = 'workbot-' || source.id) AND " +
-        "json_extract(target.json, '$.requestPending') = 1)))",
+        "(json_extract(target.json, '$.requestPending') = 1 OR json_extract(target.json, '$.workBotRecoveryPending') = 1))))",
       ).all() as Array<{ thread_id: string; json: string }>;
       return rows.map(row => ({ threadId: row.thread_id, message: JSON.parse(row.json) as Message }));
     },
     pendingWorkBotTargets(): Array<{ threadId: string; message: Message }> {
-      const rows = deps.db().prepare("SELECT thread_id, json FROM messages WHERE role = 'user' AND kind = 'text' AND json_extract(json, '$.requestPending') = 1 AND json_extract(json, '$.workBotHandoffSource.messageId') IS NOT NULL").all() as Array<{ thread_id: string; json: string }>;
+      const rows = deps.db().prepare("SELECT thread_id, json FROM messages WHERE role = 'user' AND kind = 'text' AND (json_extract(json, '$.requestPending') = 1 OR json_extract(json, '$.workBotRecoveryPending') = 1) AND json_extract(json, '$.workBotHandoffSource.messageId') IS NOT NULL").all() as Array<{ thread_id: string; json: string }>;
       return rows.map(row => ({ threadId: row.thread_id, message: JSON.parse(row.json) as Message }));
     },
   };

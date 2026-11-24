@@ -30,6 +30,24 @@ export function updateWorkBotRoutingIndex(idsByThread: Map<string, Set<string>>,
 
 type TargetLock = { sourceThreadId: string; messageId: string; cleanupFailed?: boolean };
 
+export function cancelWorkBotRoutes(store: Store, locks: Map<string, TargetLock>, router: WorkBotRouter, index: (threadId: string, messageId: string, state: NonNullable<Message["workBotRouting"]>["state"]) => void, threadId: string): void {
+  for (const lock of locks.values()) {
+    if (lock.sourceThreadId !== threadId && locks.get(threadId) !== lock) continue;
+    if (lock.cleanupFailed) continue;
+    const source = store.messagesFor(lock.sourceThreadId).find(row => row.id === lock.messageId);
+    if (source?.workBotRouting?.state === "dispatching") {
+      store.patchMessage(lock.sourceThreadId, lock.messageId, { workBotRouting: { ...source.workBotRouting, state: "cancelled" }, requestCancelled: true });
+      index(lock.sourceThreadId, lock.messageId, "cancelled");
+    }
+  }
+  for (const message of store.activePath(threadId)) {
+    if (!message.workBotRouting || !router.cancel(threadId, message.id)) continue;
+    store.patchMessage(threadId, message.id, { requestCancelled: true });
+    const card = store.messagesFor(threadId).find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === message.id);
+    if (card?.card && !card.card.answered) store.patchMessage(threadId, card.id, { card: { ...card.card, dismissed: true } });
+  }
+}
+
 export function assertWorkBotStopAllowed(choices: Set<string>, locks: Map<string, TargetLock>, language: string | undefined, threadId: string): void {
   if (choices.has(threadId)) throw Object.assign(new Error(serverLine(language, "server.workBot.choiceInProgress")), { status: 409 });
   if ([...locks].some(([target, lock]) => lock.cleanupFailed && (target === threadId || lock.sourceThreadId === threadId))) throw Object.assign(new Error(serverLine(language, "server.workBot.restartToRecover")), { status: 409 });

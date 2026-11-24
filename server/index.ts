@@ -1,6 +1,6 @@
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
-import { assertWorkBotStopAllowed as assertWorkBotStop, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
+import { assertWorkBotStopAllowed as assertWorkBotStop, cancelWorkBotRoutes, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
 import { createProfileModelResponder } from "./host/profile-model-responder.ts";
@@ -2278,21 +2278,7 @@ async function interruptDirectThread(botId: string, threadId: string, cause?: st
     await interruptDirectThread(target.botId, target.threadId, cause);
     return;
   }
-  for (const lock of workBotTargetLocks.values()) {
-    if (lock.sourceThreadId !== threadId && workBotTargetLocks.get(threadId) !== lock) continue;
-    if (lock.cleanupFailed) continue;
-    const source = store.messagesFor(lock.sourceThreadId).find(row => row.id === lock.messageId);
-    if (source?.workBotRouting?.state === "dispatching") {
-      store.patchMessage(lock.sourceThreadId, lock.messageId, { workBotRouting: { ...source.workBotRouting, state: "cancelled" }, requestCancelled: true });
-      indexWorkBotRouting(lock.sourceThreadId, lock.messageId, "cancelled");
-    }
-  }
-  for (const message of store.activePath(threadId)) {
-    if (!message.workBotRouting || !workBotRouter.cancel(threadId, message.id)) continue;
-    store.patchMessage(threadId, message.id, { requestCancelled: true });
-    const card = store.messagesFor(threadId).find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === message.id);
-    if (card?.card && !card.card.answered) store.patchMessage(threadId, card.id, { card: { ...card.card, dismissed: true } });
-  }
+  cancelWorkBotRoutes(store, workBotTargetLocks, workBotRouter, indexWorkBotRouting, threadId);
   if (store.taskByThread(botId, threadId)?.activity === "parked.computer") store.setTaskActivity(botId, threadId, "idle");
   const requestOwner = directRequestOwners.get(threadId);
   if (requestOwner) {

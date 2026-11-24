@@ -322,6 +322,29 @@ describe("RoutineRequestService", () => {
     expect(store.messagesFor("thread-a")[0]?.card).toMatchObject({ dismissed: true, options: [] });
   });
 
+  it("records a schedule conflict without creating a routine", async () => {
+    const { service, routines, store } = harness(undefined, undefined, undefined, () => "full-access");
+    vi.spyOn(routines, "assertHandoffRoutineSafe").mockImplementation(() => {
+      throw Object.assign(new Error("A linked schedule may overlap."), { code: "work_bot_schedule_conflict" });
+    });
+    await expect(service.submit({ botId: "bot-a", threadId: "thread-a", proposal: createProposal() })).rejects.toMatchObject({ status: 409 });
+    expect(routines.listRoutines()).toHaveLength(0);
+    expect(store.messagesFor("thread-a")[0]?.card).toMatchObject({ heldCode: "server.workBot.scheduleConflict", expired: true, options: [], dismissed: true });
+  });
+
+  it("ends a manually confirmed request when a schedule conflict is found", async () => {
+    const { service, routines, store } = harness();
+    const proposal = await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal() });
+    vi.spyOn(routines, "assertHandoffRoutineSafe").mockImplementation(() => {
+      throw Object.assign(new Error("A linked schedule may overlap."), { code: "work_bot_schedule_conflict" });
+    });
+    const resolve = () => service.resolve({ botId: "bot-a", threadId: "thread-a", requestId: proposal.requestId, behavior: "allow" });
+    expect(resolve()).toMatchObject({ state: "invalid", status: 409 });
+    expect(store.messagesFor("thread-a")[0]?.card).toMatchObject({ heldCode: "server.workBot.scheduleConflict", expired: true, options: [] });
+    expect(resolve()).toMatchObject({ state: "invalid", status: 409 });
+    expect(routines.listRoutines()).toHaveLength(0);
+  });
+
   it("writes a cron schedule in the conversation person's language", async () => {
     setConversationLanguage((threadId) => threadId === "thread-a" ? "pt-br" : undefined);
     const { service, store } = harness();

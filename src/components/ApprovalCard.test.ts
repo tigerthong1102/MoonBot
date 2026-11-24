@@ -26,6 +26,18 @@ const createRoutineOperation = {
   },
 };
 
+it("presents a schedule conflict as a red alert without a confirmation button", () => {
+  const message: Message = { id: "conflict", role: "bot", kind: "options", at: 1, card: {
+    title: "Schedule", subtitle: "", options: [], dismissed: true,
+    held: "A linked schedule may overlap.", heldCode: "server.workBot.scheduleConflict",
+  } };
+  const markup = renderToStaticMarkup(createElement(ApprovalCard, { message }));
+  expect(markup).toContain('role="alert"');
+  expect(markup).toContain("text-danger");
+  expect(markup).toContain("The requested action was not performed");
+  expect(markup).not.toContain("<button");
+});
+
 describe("ApprovalCard decided by voice", () => {
   const bash = (answered: string, via?: "call" | "reaction"): Message => ({
     id: "bash-card",

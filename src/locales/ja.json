@@ -1,6 +1,6 @@
 {
   "workBotOffer.continueHere": "ここで続ける",
-  "server.workBot.scheduleConflict": "関連するボットのスケジュールや実行が重複する可能性があるか、関連を確認できません。関連する設定を確認してください。",
+  "server.workBot.scheduleConflict": "関連するボットのスケジュールや実行が重複する可能性があるか、関連を確認できません。要求された操作は実行されていません。自動化を確認し、次の指示を送ってください。",
   "server.workBot.choiceInProgress": "ボットの選択を処理しています。完了後にもう一度お試しください。",
   "server.workBot.pendingUnavailable": "待機中の一部のメッセージは安全に転送できません。キューから削除するか、ここで続けてください。",
   "workBotOffer.queuedNotice": "同意すると、この選択を待つ間に送ったメッセージも新しいボットに渡されます。無関係な待機メッセージは選択前に削除してください。",

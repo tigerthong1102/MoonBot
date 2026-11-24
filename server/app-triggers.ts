@@ -4,6 +4,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 
 import {
@@ -59,11 +60,13 @@ export interface AppTriggerManagerOptions {
   service: () => { available: true } | { available: false; reason: "self-hosted" | "unavailable" | "off" };
   connectedApps: () => Promise<ConnectedApps>;
   botState: (botId: string) => "ready" | "busy" | "missing";
+  linkedOwners?: (botId: string, threadId?: string) => ReadonlySet<string>;
   runs: {
     enqueue(input: { webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number; eventSource: "app"; sameConversation?: boolean }): { id: string };
     merge(triggerId: string, eventId: string, sameConversation: boolean, merge: (prompt: string) => string | null): { id: string } | null;
     receipt(triggerId: string, eventId: string): { id: string } | null;
     pending(triggerId: string): number;
+    pendingCounts?(): ReadonlyMap<string, number>;
     cancelQueued(triggerId: string, message: string): void;
   };
   emit?: (frame: Frame) => void;
@@ -194,6 +197,11 @@ function publicTrigger(stored: StoredTrigger): AppTrigger {
   return structuredClone(trigger);
 }
 
+function sameWork(a: StoredTrigger, b: StoredTrigger): boolean {
+  return a.app === b.app && a.event === b.event && a.accountId === b.accountId && a.prompt === b.prompt
+    && isDeepStrictEqual(a.config, b.config) && isDeepStrictEqual(a.filter, b.filter);
+}
+
 export class AppTriggerManager {
   private readonly file: string;
   private readonly now: () => number;
@@ -206,6 +214,7 @@ export class AppTriggerManager {
   private unreadable = false;
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
+  private pendingExclusive = 0;
   private failures = new Map<string, number>();
   private stopped = true;
   private abort = new AbortController();
@@ -214,6 +223,43 @@ export class AppTriggerManager {
   private runVersion = 0;
   /** A deleted automation's service copy could not be removed yet; reconciliation removes it. */
   private releasePending = false;
+
+  private assertNoLinkedDuplicate(trigger: StoredTrigger): void {
+    if (!trigger.enabled) return;
+    const linked = this.options.linkedOwners?.(trigger.botId, trigger.sourceThreadId);
+    if (!linked?.size) return;
+    const counts = this.options.runs.pendingCounts?.();
+    const candidates = [...this.triggers.map(candidate => ({ candidate, enabled: candidate.enabled })), ...this.deleted.map(entry => ({ candidate: entry.trigger, enabled: false }))];
+    const conflict = candidates.some(({ candidate, enabled }) => candidate.id !== trigger.id && linked.has(candidate.botId)
+      && ((counts ? counts.get(candidate.id) ?? 0 : this.options.runs.pending(candidate.id)) > 0 || (enabled && sameWork(candidate, trigger))));
+    if (conflict) throw new AppTriggerError("A linked bot may already be watching this event. Review its automations before enabling another.", 409);
+  }
+
+  assertCanLink(source: string, target: string): void {
+    this.assertWritable();
+    if (this.pendingExclusive) throw new AppTriggerError("App automations are changing. Try the handoff again when they finish.", 409);
+    const sourceOwners = new Set([source, ...this.options.linkedOwners?.(source) ?? []]);
+    const targetOwners = new Set([target, ...this.options.linkedOwners?.(target) ?? []]);
+    if ([...sourceOwners].some(id => targetOwners.has(id))) return;
+    const counts = this.options.runs.pendingCounts?.();
+    const all = [...this.triggers.map(trigger => ({ trigger, deleted: false })), ...this.deleted.map(entry => ({ trigger: entry.trigger, deleted: true }))];
+    const active = all.flatMap(({ trigger, deleted }) => {
+      if (!sourceOwners.has(trigger.botId) && !targetOwners.has(trigger.botId)) return [];
+      const pending = (counts ? counts.get(trigger.id) ?? 0 : this.options.runs.pending(trigger.id)) > 0;
+      return pending || (!deleted && trigger.enabled) ? [{ trigger, pending }] : [];
+    });
+    const left = active.filter(row => sourceOwners.has(row.trigger.botId));
+    const right = active.filter(row => targetOwners.has(row.trigger.botId));
+    const key = (trigger: StoredTrigger) => JSON.stringify([trigger.app, trigger.event, trigger.accountId, trigger.prompt]);
+    const buckets = new Map<string, StoredTrigger[]>();
+    for (const { trigger } of left) {
+      const id = key(trigger);
+      const bucket = buckets.get(id);
+      if (bucket) bucket.push(trigger);
+      else buckets.set(id, [trigger]);
+    }
+    if (left.length && right.length && (active.some(row => row.pending) || right.some(({ trigger }) => buckets.get(key(trigger))?.some(candidate => sameWork(candidate, trigger))))) throw new AppTriggerError("The bots may already be watching the same event. Review their automations before handoff.", 409);
+  }
 
   constructor(options: AppTriggerManagerOptions) {
     this.options = options;
@@ -286,6 +332,7 @@ export class AppTriggerManager {
     };
     await this.exclusive(async () => {
       if (this.triggers.some((candidate) => candidate.id === trigger.id)) throw new AppTriggerError("An automation with this id already exists.", 409);
+      this.assertNoLinkedDuplicate(trigger);
       const duplicate = this.triggers.find((trigger) => trigger.enabled && trigger.botId === input.botId && trigger.event === type.slug &&
         trigger.accountId === account.id && trigger.prompt === prompt && JSON.stringify(trigger.config) === JSON.stringify(config));
       if (duplicate) throw new AppTriggerError(`The same automation already exists (${duplicate.id}). Use trigger_info to review it, then change that one instead.`, 409);
@@ -330,6 +377,8 @@ export class AppTriggerManager {
     this.assertWritable();
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
+    const originalConfig = structuredClone(trigger.config);
+    const originalFilter = structuredClone(trigger.filter);
     const name = patch.name === undefined ? trigger.name : patch.name.trim().slice(0, NAME_MAX);
     if (!name) throw new AppTriggerError("An automation needs a name.");
     if (patch.prompt !== undefined && patch.prompt.trim().length > PROMPT_MAX) throw new AppTriggerError(`Instructions can be at most ${PROMPT_MAX} characters.`);
@@ -344,21 +393,28 @@ export class AppTriggerManager {
       config = triggerConfig(type, Object.fromEntries(Object.entries(base).filter(([, value]) => value !== undefined)), filter);
     }
     await this.exclusive(async () => {
+      if (!this.triggers.includes(trigger)) throw new AppTriggerError("This automation changed. Refresh and try again.", 409);
+      if (reconfigure && (!isDeepStrictEqual(trigger.config, originalConfig) || !isDeepStrictEqual(trigger.filter, originalFilter))) throw new AppTriggerError("This automation changed. Refresh and try again.", 409);
       if (options.protectInstructions) {
         const refusal = instructionsUpdateRefusal(trigger.prompt, patch.prompt);
         if (refusal) throw new AppTriggerError(refusal, 409);
       }
+      const effectiveFilter = patch.filter === undefined ? trigger.filter : filter;
+      const effectiveConfig = reconfigure ? config : trigger.config;
+      const prospective = { ...trigger, prompt: patch.prompt === undefined ? trigger.prompt : patch.prompt.trim(), runOn: patch.runOn ?? trigger.runOn,
+        enabled: patch.enabled ?? trigger.enabled, config: effectiveConfig, filter: effectiveFilter, sameConversation: patch.sameConversation ?? trigger.sameConversation };
+      if (prospective.enabled && (patch.enabled === true || patch.prompt !== undefined || patch.runOn !== undefined || reconfigure || patch.sameConversation !== undefined)) this.assertNoLinkedDuplicate(prospective);
       const previous = trigger.remote.triggerId;
       const previousConfig = JSON.stringify(trigger.config);
       Object.assign(trigger, {
-        name,
+        name: patch.name === undefined ? trigger.name : name,
         prompt: patch.prompt === undefined ? trigger.prompt : patch.prompt.trim(),
         runOn: patch.runOn ?? trigger.runOn,
         enabled: patch.enabled ?? trigger.enabled,
-        config,
+        config: effectiveConfig,
         updatedAt: this.now(),
       });
-      if (filter) trigger.filter = filter;
+      if (effectiveFilter) trigger.filter = effectiveFilter;
       else delete trigger.filter;
       if (patch.sameConversation === true) trigger.sameConversation = true;
       else if (patch.sameConversation === false) delete trigger.sameConversation;
@@ -410,6 +466,7 @@ export class AppTriggerManager {
       if (!entry || this.triggers.some((trigger) => trigger.id === id)) return null;
       if (this.options.botState(entry.trigger.botId) === "missing") throw new AppTriggerError("The assigned bot no longer exists.", 410);
       const trigger: StoredTrigger = { ...structuredClone(entry.trigger), remote: { state: "pending" }, updatedAt: this.now() };
+      this.assertNoLinkedDuplicate(trigger);
       try { await this.bind(trigger); await this.applyEnabled(trigger.remote.triggerId, trigger.enabled); }
       catch (error) { this.markRemoteFailure(trigger, error); }
       this.deleted = this.deleted.filter((candidate) => candidate !== entry);
@@ -423,6 +480,7 @@ export class AppTriggerManager {
 
   /** A test event marked as one, sent through the service's real queue when the automation has its copy there. */
   async runNow(id: string): Promise<{ via: "service" | "here"; runId?: string } | null> {
+    if (this.pendingExclusive) throw new AppTriggerError("App automations are changing. Try the test again when they finish.", 409);
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
     const data = { omb_test: true, note: "A test run started from StartupBot." };
@@ -432,7 +490,8 @@ export class AppTriggerManager {
         this.wake();
         return { via: "service" };
       } catch (error) {
-        if (!(error instanceof BrokerError) || !error.transient) throw new AppTriggerError(error instanceof Error ? error.message : String(error), 502);
+        if (error instanceof BrokerError && error.status === 429) throw new AppTriggerError("The test was rejected by the connected-apps service limit. Try later.", 429);
+        throw new AppTriggerError("The connected-apps service did not confirm the test. Check the automation's activity before trying again; the test may already be queued.", 502);
       }
     }
     const eventId = `test_${randomUUID()}`;
@@ -776,7 +835,9 @@ export class AppTriggerManager {
   }
 
   private exclusive<T>(work: () => Promise<T>): Promise<T> {
-    const next = this.serial.then(work, work);
+    this.pendingExclusive++;
+    const run = async () => { try { return await work(); } finally { this.pendingExclusive--; } };
+    const next = this.serial.then(run, run);
     this.serial = next.catch(() => undefined);
     return next;
   }

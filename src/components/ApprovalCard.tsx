@@ -460,6 +460,9 @@ export function ApprovalCard({
   const card = message.card;
   if (!card) return null;
   if (card.teamSetupRequest?.workBotOffer) return <WorkBotOfferCard card={card} threadId={threadId} />;
+  if (card.heldCode === "server.workBot.scheduleConflict" && card.held) {
+    return <div role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[13px] text-danger">{tFromServer(card.heldCode, card.held)}</div>;
+  }
   if (cardAutomation(card)) return <TriggerCard card={card} threadId={threadId} />;
   const applied = card.autoApplied === true && card.answered === "allow" && !card.held
     ? appliedChange(card, bot?.name ?? t("approval.someone"))

@@ -4442,3 +4442,28 @@ describe("schedule automations that keep one conversation", () => {
     expect(() => h.manager.create({ ...daily, sameConversation: true, schedule: { type: "limit_reset", engine: "claude" } as never })).toThrow("already continues its conversation");
   });
 });
+
+it("reports active webhook run counts across queue, execution, approval and completion", async () => {
+  const h = harness();
+  h.setBot("busy");
+  const enqueue = (webhookId: string, deliveryId: string) => h.manager.enqueueWebhook({ webhookId, webhookName: "Fixture", prompt: "Fixture", botId: "fixture-bot", runOn: "maus", deliveryId, receivedAt: Date.now() });
+  enqueue("first-hook", "one");
+  enqueue("second-hook", "two");
+  const check = () => {
+    const counts = h.manager.activeWebhookRunCounts();
+    for (const id of ["first-hook", "second-hook", "missing-hook"]) expect(counts.get(id) ?? 0).toBe(h.manager.activeWebhookRunCount(id));
+  };
+  check();
+  h.setBot("ready");
+  await h.manager.tick();
+  check();
+  const run = h.manager.listRuns().find(row => row.status === "running")!;
+  expect(run).toBeDefined();
+  h.manager.handleRuntimeEvent({ eventId: "fixture-approval", provider: "fake", threadId: run.threadId!, createdAt: new Date().toISOString(), type: "request.opened", requestType: "question", tool: "ask", summary: "Fixture approval" });
+  expect(h.manager.listRuns().find(row => row.id === run.id)?.status).toBe("waiting");
+  check();
+  h.manager.handleRuntimeEvent({ eventId: "fixture-complete", provider: "fake", threadId: run.threadId!, createdAt: new Date().toISOString(), type: "turn.completed", ok: true });
+  expect(h.manager.listRuns().find(row => row.id === run.id)?.status).toBe("completed");
+  check();
+  h.manager.close();
+});

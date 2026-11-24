@@ -1,5 +1,6 @@
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
+import { linkedWorkBotOwners } from "./work-bot-linked-owners.ts";
 import { assertWorkBotStopAllowed as assertWorkBotStop, cancelWorkBotRoutes, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
 import { assertWorkBotRoutineSafe } from "./host/work-bot-routine-guard.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
@@ -9353,6 +9354,7 @@ function offerWorkBot(botId: string, threadId: string, text: string, owner: stri
 const workBotHost = createWorkBotHost({
   store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked: settleTrackedRequest,
   assertAvailable: (botId, threadId) => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); if (botId && threadId) { const paused = botHolds.text(botId, threadLanguage(threadId)) ?? starterCaps.pausedText(botId, threadLanguage(threadId)); if (paused) throw Object.assign(new Error(paused), { status: 409 }); } },
+  assertCanLink: (sourceBotId, targetBotId) => appTriggers.manager.assertCanLink(sourceBotId, targetBotId),
   offerWorkBot, teamPersonFor: person => teamOwners.people?.everyone().find(entry => personKey({ id: "", email: entry.email }) === person),
   sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(),
   teamHost, conversationShares, threadStarters, threadBusy, approvalMode: sourceApprovalMode, startTurn,
@@ -9473,6 +9475,7 @@ const webhooks = new WebhookManager({
   }, ...createWebhookRoomPost({ store, cfg, roomTalks }) });
 const webhookRequests = new WebhookRequestService({ store, webhooks, botName: (botId) => store.bot(botId)?.name ?? "the bot" }); const botApi = createBotApiHost({ store, manager: botApiManager, actsAsOwner: { available: botApiAsOwnerAvailable, refusal: (auth) => !botApiAsOwnerAvailable() ? "A key can act as the owner only on a server one person uses (no members and at most one admin, named by address), not on a team's Cloud or a shared or hosted workspace." : (sharedWorkspaceFullAccessEnabled() ? auth.scopes.includes("admin") : ownHome.owner(auth) || (CLOUD_PERSONAL && cloudOwnerSession(auth)) || (auth.kind === "loopback" && auth.trust !== "service" && auth.scopes.includes("admin") && !CLOUD_HOME)) ? null : "Only this server's owner can let a key act as them." }, startTurn, threadBusy, canStart: canAdmitDirectTurn, canConfine: (botId) => registry.get(store.bot(botId)?.modelSelection.instanceId ?? "")?.adapter.capabilities.guestTurns === "confined", discard: (botId, threadId) => { store.deleteTask(botId, threadId); }, included: () => !cloudPlanTier.starter(), opened: (threadId) => { if (CLOUD_OWNER_KEY) threadStarters.set(threadId, CLOUD_OWNER_KEY); }, hooksBaseUrl: () => webhookIngressStatus().baseUrl, manageRefusal: (auth, botId) => auth.scopes.includes("admin") || (CLOUD_TEAM && levelOf(auth, botId) === "edit") ? null : refusalFor(store.bot(botId)?.name ?? "this bot", "edit").error, claimRequest: () => { cloudPower?.arrived("/hooks", {}); moveFreeze.assertTurns(); return workspaceMaintenance.request(); }, record: (auth, row) => appendAdminAction(DATA_DIR, { ...row, actor: decisionActorFor(auth) }) });
 const appTriggers = createAppTriggerHost({ store, webhooks, webhookBase: () => webhookIngressStatus().baseUrl, routines: () => routines!, botState: unattendedDispatchState, timeZone: routineTimeZone, emit: broadcast, connectionMode: () => composio.connectionMode(cfg),
+  linkedOwners: botId => linkedWorkBotOwners(botId, id => workBotLinksForThread("", id)),
   access: composio.brokerAccess, connectedApps: () => composio.connectedServices(cfg), visibleBot: (auth, botId) => visibleTo(viewerFor(auth)).bot(botId),
   audit: (row) => appendDecision(DATA_DIR, { ...row, decision: "auto-approved", source: "routine" }) });
 tieAutomationsToBots(store, { routines: routines!, webhooks, apps: appTriggers.manager, waits: botWaits });

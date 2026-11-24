@@ -824,6 +824,15 @@ export class RoutineManager {
     ).length;
   }
 
+  activeWebhookRunCounts(): ReadonlyMap<string, number> {
+    const counts = new Map<string, number>();
+    for (const run of this.runs) {
+      if (!run.webhookId || (run.status !== "queued" && run.status !== "running" && run.status !== "waiting")) continue;
+      counts.set(run.webhookId, (counts.get(run.webhookId) ?? 0) + 1);
+    }
+    return counts;
+  }
+
   cancelQueuedWebhook(webhookId: string, message: string): void {
     let changed = false;
     for (const run of this.runs) {

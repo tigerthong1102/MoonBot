@@ -101,6 +101,7 @@ export function createWorkBotHost(deps: {
   drainQueuedSends(): void;
   targetUnlocked(threadId: string): void;
   assertAvailable(botId?: string, threadId?: string): void;
+  assertCanLink(sourceBotId: string, targetBotId: string): void;
   offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal, mayContinue?: () => boolean, contextBlock?: () => "files" | "data" | undefined): ReturnType<TeamSetupRequestService["offerFromChat"]> | undefined;
   teamPersonFor(person: string): WorkBotMember | undefined;
   sessionFor(person: string): { email?: string } | undefined;
@@ -315,6 +316,7 @@ const workBotRouter = new WorkBotRouter({
         await startTurn(target.botId, source.text, { threadId: target.threadId, sendId: `workbot-${messageId}`, sender: source.sender, trigger, dataContext: source.dataContext, allowRoomTurnElsewhere: true, workBotRoutingMessageId: messageId, prepareWorkBotContext: () => {
           validateHandoff();
           validateContext();
+          deps.assertCanLink(route.sourceBotId!, target.botId);
           const followups = workBotQueuedFollowups(route.sourceBotId!, threadId, messageId);
           const first = followups[0];
           if (followups.some(item => item.sender?.id !== source.sender?.id || item.trigger?.kind !== route.triggerKind || JSON.stringify(item.trigger ?? null) !== JSON.stringify(first?.trigger ?? null) || item.workBotOfferOwner !== first?.workBotOfferOwner || unsupportedWorkBotContext([{ id: item.messageId, role: "user", kind: "text", at: item.queuedAt, text: item.text, dataContext: item.dataContext }]))) throw new Error("Queued work cannot be transferred safely");

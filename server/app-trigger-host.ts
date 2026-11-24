@@ -35,6 +35,7 @@ export interface AppTriggerHostDeps {
   /** Where webhook addresses start: this computer's receiver, or the workspace's public address. */
   webhookBase: () => string;
   botState: (botId: string) => "ready" | "busy" | "missing";
+  linkedOwners?: (botId: string, threadId?: string) => ReadonlySet<string>;
   timeZone: () => string;
   visibleBot: (auth: RequestAuth, botId: string) => boolean;
   emit: (frame: Record<string, unknown>) => void;
@@ -75,11 +76,13 @@ export function createAppTriggerHost(deps: AppTriggerHostDeps) {
     service,
     connectedApps: deps.connectedApps,
     botState: deps.botState,
+    linkedOwners: deps.linkedOwners,
     runs: {
       enqueue: (input) => deps.routines().enqueueWebhook(input),
       merge: (triggerId, eventId, sameConversation, merge) => deps.routines().mergeIntoQueuedRun(triggerId, eventId, sameConversation, merge),
       receipt: (triggerId, eventId) => deps.routines().webhookRunReceipt(triggerId, eventId),
       pending: (triggerId) => deps.routines().activeWebhookRunCount(triggerId),
+      pendingCounts: () => deps.routines().activeWebhookRunCounts(),
       cancelQueued: (triggerId, message) => deps.routines().cancelQueuedWebhook(triggerId, message),
     },
     emit: deps.emit,

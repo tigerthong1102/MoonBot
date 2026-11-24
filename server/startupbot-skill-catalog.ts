@@ -8,6 +8,7 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["dafedc743725177cab814c9c556e31499cdb83e53540886617654ed1dc413c66", "hyperframes"],
   ["b93a65ef1e361e7df9d837b029cbae8841365bed363c4e0a82c8726796c0b069", "producthunt"],
   ["adfa8a000dc22d041f444be9a841c075dec76c0a9edd0091da23159013249757", "docx"],
   ["3b0ee778f53c9fbf88d64b026b233321180aeecfd93713ebe3c9623b59c47ab6", "pptx"],
@@ -34,6 +35,10 @@ const olderInstructions = new Map([
   ["hyperframes", "afe67b17e26fb9d3132da33ff9143f79025da60dd9da123aad7feeb81684fbf2"],
   ["hyperframes-cli", "93b586ee1f828a0b02326e730ac0bc3916ed6e0b909077d8300ee0080b21be27"],
   ["byted-seedream-image-generate", "9f525c94dd91cedae6507002f875266645a732134967e63f09d230ba4e3367cb"],
+]);
+
+const additionalOlderInstructions = new Map([
+  ["hyperframes", "5b3f2384088aae01eaf835ec1588128387432f7ddc112321f80dfa22b3ab7880"],
 ]);
 
 const catalogSchema = z.array(z.object({
@@ -84,7 +89,7 @@ export function installStartupBotSkillCatalog({
       }
       if (previous) {
         const expected = olderInstructions.get(entry.name) ?? createHash("sha256").update(folder.skillMd).digest("hex");
-        if (previous.sha256 !== expected) continue;
+        if (previous.sha256 !== expected && previous.sha256 !== additionalOlderInstructions.get(entry.name)) continue;
         const archived = retireLibrarySkill(entry.name, previous.sha256, root);
         if ("error" in archived) throw new Error(archived.error);
         if ("stale" in archived) continue;

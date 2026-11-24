@@ -11,6 +11,8 @@ license: Apache-2.0
 
 # HyperFrames
 
+For a short, simple video with a clear brief, start with a compact shot plan and create the project immediately. Read `references/format.md` and only the references needed for the requested effects. Use `hyperframes init <project> --example blank --non-interactive --skip-skills`, replace the placeholders, then check, inspect representative frames and render the requested file. Use installed local assets and fonts when the person requests an offline video. If the result cannot be rendered or a required tool is missing, report the concrete error and preserve the project.
+
 HyperFrames renders HTML to video by seeking a paused timeline frame by frame, so every render is identical; the person edits the same files in the Studio preview. Use it unless another framework or a plain browser recording is asked for. Use the installed `hyperframes` CLI. On the provisioned Mac, use `"$HOME/.local/share/startupbot/hyperframes/node_modules/.bin/hyperframes"`.
 
 `index.html` is the root composition: it declares the video's variables and mounts one scene per sub-composition from `compositions/`. Media and fonts live in `assets/`. A new project: `npx hyperframes init <dir> --skip-skills`. A website as the subject: `npx hyperframes capture <url> --json`.

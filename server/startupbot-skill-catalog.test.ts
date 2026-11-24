@@ -79,3 +79,25 @@ it("upgrades original catalog folders and keeps their review choices", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+it("upgrades the earlier expanded HyperFrames skill", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-hyperframes-v2-"));
+  try {
+    const catalog = join(root, "old-catalog");
+    const library = join(root, "library");
+    const oldSkill = join(catalog, "hyperframes");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/hyperframes", oldSkill, { recursive: true });
+    cpSync("server/testing/fixtures/startupbot-old-skills/hyperframes-v2", oldSkill, { recursive: true });
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
+      .filter((entry: { name: string }) => entry.name === "hyperframes");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 61, failed: [] });
+    expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("compact shot plan");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

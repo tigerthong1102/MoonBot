@@ -2,6 +2,8 @@
 
 # HyperFrames
 
+Với video marketing ngắn chưa có kịch bản cảnh, lập nhịp mở đầu thu hút, giới thiệu sản phẩm hoặc lợi ích, rồi kết thúc bằng lời kêu gọi hành động rõ ràng. Mặc định tạo ít nhất ba nhịp hình ảnh khác nhau, có chuyển động hoặc chuyển cảnh có chủ đích; tôn trọng yêu cầu quay một cảnh hay phong cách khác. Dùng tài nguyên người dùng cung cấp hoặc được phép sử dụng; ghi rõ hình minh họa nếu dễ bị nhầm với sản phẩm hoặc địa điểm thật. Giữ chữ dễ đọc trong vùng an toàn. Xem khung hình đại diện ở đầu, giữa, cuối và các điểm chuyển cảnh; sửa chữ bị cắt, cảnh tĩnh lặp lại và lỗi chính tả trước khi xuất. Nếu có yêu cầu thuyết minh hoặc phụ đề, kiểm tra thời điểm và âm thanh đã xuất; báo rõ phần kiểm tra chất lượng chưa thể thực hiện, không nhận đã nghe hay xem nếu chưa làm.
+
 Với video ngắn, đơn giản và yêu cầu rõ ràng, lập kế hoạch cảnh ngắn rồi tạo dự án ngay. Đọc `references/format.md` và chỉ các tài liệu cần cho hiệu ứng được yêu cầu. Dùng `hyperframes init <project> --example blank --non-interactive --skip-skills`, thay nội dung mẫu, kiểm tra, xem các khung hình đại diện rồi kết xuất tệp được yêu cầu. Dùng tài nguyên và phông chữ cục bộ khi người dùng yêu cầu video ngoại tuyến. Nếu không kết xuất được hoặc thiếu công cụ bắt buộc, báo lỗi cụ thể và giữ lại dự án.
 
 HyperFrames kết xuất HTML thành video bằng cách đưa dòng thời gian tạm dừng tới từng khung hình, để mỗi lần kết xuất cho cùng kết quả; người dùng chỉnh cùng các tệp đó trong bản xem trước Studio. Dùng công cụ này trừ khi được yêu cầu dùng framework khác hoặc ghi trực tiếp trình duyệt. Dùng CLI `hyperframes` đã cài. Trên Mac đã cấu hình, dùng `"$HOME/.local/share/startupbot/hyperframes/node_modules/.bin/hyperframes"`.

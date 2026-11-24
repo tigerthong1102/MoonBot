@@ -32,10 +32,11 @@ export async function waitPortClosed(port, label) {
   }), label, 15_000);
 }
 
-export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, prompts, workspaceFile, botIds, evidence, lifecycle }) {
+export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId }) {
   const port = await freePort(), webhook = await freePort(), debug = await freePort();
   const args = [`--user-data-dir=${profile}`, `--remote-debugging-port=${debug}`, "--remote-debugging-address=127.0.0.1", "--no-first-run"];
   lifecycle.started = true;
+  lifecycle.stopped = false;
   const child = spawn(executable, args, { cwd: fixture, env: { ...env, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(webhook) }, stdio: ["ignore", "pipe", "pipe"] });
   let socket;
   let output = "";
@@ -78,16 +79,40 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     assert.equal(bots.find(bot => bot.id === workBot.id)?.threadId, workBot.threadId);
     const rows = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
     assert(rows.some(row => row.id === workRequestId && row.text === workMessage && row.requestPending === false));
-    assert(rows.some(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === workRequestId));
+    assert(rows.some(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === workRequestId && (replyText === undefined || row.text === replyText)));
     const botRow = `document.querySelector('[data-sidebar-bot-row="${workBot.id}"]')`;
     await until(() => evaluate(`Boolean(${botRow})`), "the restored bot in the sidebar");
     await evaluate(`${botRow}.click()`);
     await until(() => evaluate(`${botRow}?.getAttribute('aria-current') === 'page' && document.body.innerText.includes(${JSON.stringify(workMessage)})`), "the restored conversation on screen");
-    assert.equal(readFileSync(workspaceFile, "utf8"), "synthetic report");
+    assert.equal(readFileSync(workspaceFile, "utf8"), fileContents);
+    if (routineId) {
+      const state = (await request("/api/routines")).body;
+      assert.equal(state.routines.find(routine => routine.id === routineId)?.enabled, false);
+      assert(!state.runs.some(run => run.routineId === routineId));
+    }
     const promptCount = () => readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(workMessage)).length;
     assert.equal(promptCount(), 1);
     await new Promise(resolve => setTimeout(resolve, 3_000));
     assert.equal(promptCount(), 1);
+    if (followupText) {
+      const before = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
+      assert(!before.some(row => row.role === "user" && row.text === followupText));
+      assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(followupText)).length, 0);
+      const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
+      await until(() => evaluate(`Boolean(${composer})`), "the restored conversation composer");
+      await evaluate(`(${composer}).focus()`);
+      await cdp("Input.insertText", { text: followupText });
+      assert.equal(await evaluate("document.activeElement.value"), followupText);
+      const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+      await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
+      await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
+      await until(async () => {
+        const messages = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
+        const input = messages.find(row => row.role === "user" && row.text === followupText);
+        return input?.requestPending === false && messages.filter(row => row.role === "user" && row.text === followupText).length === 1 && messages.some(row => row.role === "bot" && row.text === followupReply && row.turnTerminal && row.turnSucceeded && row.requestMessageId === input.id);
+      }, "a new reply in the restored conversation");
+      assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(followupText)).length, 1);
+    }
     if (process.platform === "darwin") { socket.close(); child.kill("SIGTERM"); }
     else await cdp("Browser.close").catch(() => {});
     await until(() => child.exitCode !== null || child.signalCode !== null, "the restarted application to exit", 45_000);

@@ -1,5 +1,7 @@
 # Launch, promo and feature films
 
+<!-- Modified by StartupBot: changed the example screenshot label. -->
+
 The shape is `../story.md` §4 (hook → tension → reveal → proof → payoff → claim → end card), usually 20–45 s. What a viewer shares is real people and real output: in the official films, effects-heavy pieces drew about a tenth of the views of ones built on a real result.
 
 ## Real UI, never a mockup

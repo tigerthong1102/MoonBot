@@ -511,7 +511,8 @@
     "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "references/types/launch.md"
     ],
     "excludedFiles": [
       "assets/frame-presets/biennale-yellow/FRAME.md",

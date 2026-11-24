@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title data-i18n="personalInbox.pageTitle">Messages · StartupBot</title>
     <link rel="stylesheet" href="/inbox-skins.css" />
-    <link rel="stylesheet" href="/inbox.css?v=4" />
-    <script type="module" src="/inbox.js?v=15"></script>
+    <link rel="stylesheet" href="/inbox.css?v=5" />
+    <script type="module" src="/inbox.js?v=16"></script>
   </head>
   <body>
     <header>
@@ -150,5 +150,14 @@
         </section>
       </div>
     </main>
+    <dialog id="close-conversation" aria-labelledby="close-conversation-title">
+      <form method="dialog">
+        <p id="close-conversation-title" data-i18n="personalInbox.confirmClose">Close this conversation and delete its shared history for everyone?</p>
+        <div>
+          <button class="ui-button" value="cancel" autofocus data-i18n="common.cancel">Cancel</button>
+          <button class="ui-button" value="confirm" data-i18n="personalInbox.closeRoom">Close conversation</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

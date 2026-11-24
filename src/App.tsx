@@ -20,7 +20,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
 import { InboxDictation } from "@/components/InboxDictation";
 import { PersonalAccountSignIn } from "@/components/PersonalAccountSignIn";
-import { PersonalInboxPane, usePersonalInboxPane } from "@/components/PersonalInboxPane";
+import { closePersonalInboxOnConversationClick, PersonalInboxPane, usePersonalInboxPane } from "@/components/PersonalInboxPane";
 import { GroupView } from "@/components/GroupView";
 import { ForkPanel } from "@/components/ForkPanel";
 import { SIDEBAR_AND_PANEL_FIT, SIDEBAR_INLINE, TWO_SIDE_PANELS_FIT, useMediaQuery } from "@/lib/use-media-query";
@@ -337,7 +337,10 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
     <AppNotices quiet={paletteOpen || drawerOpen || Boolean(localVmWorkspaceBotId)} viewer={viewer} />
   </>;
   return (
-    <div data-look="app" className={cn("flex h-full flex-col", framed && "bg-frame")} onClickCapture={drawerOpen ? noteDrawerAction : undefined} onKeyDownCapture={drawerOpen ? noteDrawerAction : undefined}>
+    <div data-look="app" className={cn("flex h-full flex-col", framed && "bg-frame")} onClickCapture={event => {
+      if (drawerOpen) noteDrawerAction(event);
+      if (personalInboxShown) closePersonalInboxOnConversationClick(event.target);
+    }} onKeyDownCapture={drawerOpen ? noteDrawerAction : undefined}>
       <WindowFrameBar notifications={notificationTray} />
       <BotLimitPopup />
       <ConversationShareDialogs />

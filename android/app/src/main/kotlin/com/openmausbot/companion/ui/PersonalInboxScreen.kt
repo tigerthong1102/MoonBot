@@ -64,7 +64,8 @@ private data class InboxDownload(val url: String, val name: String)
 
 private fun saveInboxDownload(context: Context, origin: Uri, download: InboxDownload, destination: Uri): Boolean {
     val url = Uri.parse(download.url)
-    if (!origin.matchesInbox(url) || !Regex("/api/rooms/[0-9a-f-]{36}/files/[0-9]+").matches(url.path.orEmpty())) return false
+    if (!origin.matchesInbox(url) ||
+        !Regex("/api/(rooms/[0-9a-f-]{36}/files/[0-9]+|saved/[0-9]+/download)").matches(url.path.orEmpty())) return false
     val cookie = CookieManager.getInstance().getCookie(download.url) ?: return false
     return runCatching {
         val connection = URI(download.url).toURL().openConnection() as HttpsURLConnection

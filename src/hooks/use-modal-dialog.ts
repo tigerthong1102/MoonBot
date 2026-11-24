@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { imeComposing } from "@/lib/send-key";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]';
 
@@ -16,8 +17,9 @@ export function useModalDialog(dialogRef: RefObject<HTMLElement | null>, onClose
     const onKey = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (event.key === "Escape") {
-        event.preventDefault();
         event.stopPropagation();
+        if (imeComposing(event)) return;
+        event.preventDefault();
         onCloseRef.current();
         return;
       }

@@ -196,6 +196,13 @@ it("delivers private group invitations, enforces join history and revocation, an
   expect(idle).not.toHaveProperty("detail");
   expect((await call("saved", b.cookie, { action: "save", seq: seq - 1 })).status).toBe(404);
   expect((await call("saved", b.cookie, { action: "save", seq })).status).toBe(200);
+  expect((await call("saved/" + seq + "/download", b.cookie)).status).toBe(404);
+  const skillBody = "# Kỹ năng đối chiếu\n\nĐọc chứng từ.";
+  await call(room + "/posts", a.cookie, { kind: "skill", nonce: uuid(), body: skillBody });
+  const skillView = await (await call(room, b.cookie)).json<{ posts: { seq: number; body: string }[] }>();
+  const skillSeq = skillView.posts.find(p => p.body === skillBody)!.seq;
+  const skillPath = "saved/" + skillSeq + "/download";
+  expect((await call("saved", b.cookie, { action: "save", seq: skillSeq })).status).toBe(200);
   await call(room + "/remove", a.cookie, { person: b.id });
   expect(await (await call(openRoom + "&latest=" + seq, b.cookie)).json()).toMatchObject({ rooms: [], detail: null });
   expect((await call(room, b.cookie)).status).toBe(404);
@@ -206,8 +213,15 @@ it("delivers private group invitations, enforces join history and revocation, an
   expect((await call("saved", b.cookie, { action: "done", seq })).status).toBe(200);
   expect(await (await call("saved", a.cookie)).json()).toEqual({ saved: [] });
   expect(await (await call("saved", b.cookie)).json()).toMatchObject({
-    saved: [{ body: payload.body, done: 1 }],
+    saved: [{ body: skillBody }, { body: payload.body, done: 1 }],
   });
+  expect((await call(skillPath)).status).toBe(401);
+  expect((await call(skillPath, a.cookie)).status).toBe(404);
+  const skillDownload = await call(skillPath, b.cookie);
+  expect(skillDownload.headers.get("content-disposition")).toBe('attachment; filename="SKILL.md"');
+  expect(await skillDownload.text()).toBe(skillBody);
+  expect((await call("saved", b.cookie, { action: "delete", seq: skillSeq })).status).toBe(200);
+  expect((await call(skillPath, b.cookie)).status).toBe(404);
 });
 
 it("protects a direct chat against invite substitution, spam after blocking and expired sessions", async () => {

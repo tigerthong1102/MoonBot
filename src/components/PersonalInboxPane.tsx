@@ -1,5 +1,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
+export function closePersonalInboxOnConversationClick(target: EventTarget) {
+  if (target instanceof Element && target.closest("[data-sidebar-bot-row], [data-sidebar-hero], [data-sidebar-group-row], [data-sidebar-thread-row]")) {
+    void window.ogb?.personalInbox?.close().catch(() => {});
+  }
+}
+
 export function usePersonalInboxPane(workspaceSelection: string) {
   const [shown, setShown] = useState(false);
   const selection = useRef(workspaceSelection);
@@ -21,9 +27,13 @@ export function PersonalInboxPane({ overlay }: { overlay: boolean }) {
     let frame = 0;
     let previous = "";
     const render = () => {
-      const modal = [...document.querySelectorAll('dialog[open], [aria-modal="true"]')]
-        .some(dialog => dialog.getClientRects().length > 0 && !dialog.closest("[hidden], [inert]"));
-      const { x, y, width, height } = element.getBoundingClientRect();
+      const pane = element.getBoundingClientRect();
+      const modal = [...document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"]')].some(dialog => {
+        if (!dialog.getClientRects().length || dialog.closest("[hidden], [inert]")) return false;
+        const rect = dialog.getBoundingClientRect();
+        return rect.left < pane.right && pane.left < rect.right && rect.top < pane.bottom && pane.top < rect.bottom;
+      });
+      const { x, y, width, height } = pane;
       const bounds = overlay || modal || !width || !height ? null : { x, y, width, height };
       const key = JSON.stringify(bounds);
       if (key === previous) return;

@@ -131,6 +131,18 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
 export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx: ExecutionContext) {
   const db = env.DB;
   const url = new URL(req.url);
+  const skillDownload = /^\/api\/saved\/([0-9]{1,16})\/download$/.exec(url.pathname);
+  if (skillDownload && req.method === "GET") {
+    const seq = Number(skillDownload[1]);
+    if (!Number.isSafeInteger(seq)) throw new HTTPError(404, "unavailable");
+    const skill = await db.prepare("SELECT body FROM inbox_saved WHERE person=? AND source_seq=? AND kind='skill'")
+      .bind(user, seq).first<string>("body");
+    if (skill === null) throw new HTTPError(404, "unavailable");
+    return new Response(skill, { headers: {
+      "content-type": "text/markdown; charset=utf-8",
+      "content-disposition": 'attachment; filename="SKILL.md"',
+    } });
+  }
   if (url.pathname === "/api/bot-turns" && req.method === "GET") return pendingBotTurns(db,user);
   const botRoom = /^\/api\/rooms\/([a-f0-9-]{36})\/bots$/.exec(url.pathname);
   if (botRoom) {

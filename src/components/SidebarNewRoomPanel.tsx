@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { track } from "@/lib/analytics";
 import { useStore } from "@/state/store";
 import { t } from "@/lib/i18n";
@@ -75,6 +75,11 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
     track("room_created", { members: picked.size, context: Boolean(section.trim()) });
     onClose();
   };
+  const enter = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (!imeComposing(event.nativeEvent)) void create();
+  };
   const direct = withPeople && emails.length === 1 && !name.trim();
   return (
     <Layer modal><div
@@ -93,7 +98,7 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
           <input autoFocus dir="ltr" inputMode="email" className={FIELD} value={addressees} maxLength={2050}
             aria-describedby={withPeople ? "new-group-recipients-hint" : undefined}
             disabled={busy} placeholder="@email@example.com" onChange={event => { setAddressees(event.target.value); setError(null); }}
-            onKeyDown={event => { if (imeComposing(event.nativeEvent) && event.key === "Enter") event.preventDefault(); }} />
+            onKeyDown={enter} />
         </label>}
         {withPeople && <small id="new-group-recipients-hint" className="text-xs text-ink-secondary">{t("personalInbox.emailRecipientsHint")}</small>}
         <input
@@ -102,9 +107,7 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
           value={name}
           disabled={busy}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (imeComposing(e.nativeEvent) && e.key === "Enter") e.preventDefault();
-          }}
+          onKeyDown={enter}
           aria-label={t("sidebar.newChannel.nameLabel")}
           placeholder={t(withPeople ? "personalInbox.groupName" : "sidebar.newChannel.name")}
           className={FIELD}
@@ -114,9 +117,7 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
           value={section}
           maxLength={60}
           onChange={(e) => setSection(e.target.value)}
-          onKeyDown={(e) => {
-            if (imeComposing(e.nativeEvent) && e.key === "Enter") e.preventDefault();
-          }}
+          onKeyDown={enter}
           placeholder={t("sidebar.newChannel.context")}
           aria-label={t("sidebar.newChannel.contextAria")}
           className={FIELD}

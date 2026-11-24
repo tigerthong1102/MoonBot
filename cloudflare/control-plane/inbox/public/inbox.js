@@ -116,10 +116,20 @@ function button(text, action) {
   });
   return b;
 }
+function confirmClose() {
+  const dialog = el("close-conversation");
+  if (dialog.open) return false;
+  dialog.returnValue = "";
+  dialog.showModal();
+  return new Promise(resolve => {
+    dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
+  });
+}
 let lastDetailAt = 0;
 let lastActivity = 0;
 let refreshes = 0;
 function clearRoom() {
+  el("close-conversation").close("cancel");
   lastDetailAt = 0;
   revision++;
   current = null;
@@ -411,7 +421,8 @@ async function refreshRoom(poll) {
     if (r.isOwner)
     el("manage").append(
       button(t("personalInbox.closeRoom"), async () => {
-        if (!window.confirm(t("personalInbox.confirmClose"))) return;
+        const account = me?.id;
+        if (!(await confirmClose()) || me?.id !== account || current !== r.id) return;
         await api("rooms/" + r.id + "/close", {});
         clearRoom();
         await refresh();
@@ -1010,16 +1021,12 @@ async function showSaved() {
         node("small", p.kind === "skill" ? t("personalInbox.skill") : p.done ? t("personalInbox.completedTask") : t("personalInbox.receivedTask")),
         node("pre", p.body),
       );
-      if (p.kind === "skill")
-        item.append(
-          button(t("personalInbox.downloadSkill"), () => {
-            const link = document.createElement("a");
-            link.download = "SKILL.md";
-            link.href = URL.createObjectURL(new Blob([p.body], { type: "text/plain;charset=utf-8" }));
-            link.click();
-            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-          }),
-        );
+      if (p.kind === "skill") {
+        const link = node("a", t("personalInbox.downloadSkill"));
+        link.download = "SKILL.md";
+        link.href = "/api/saved/" + p.seq + "/download";
+        item.append(link);
+      }
       if (p.kind === "task" && !p.done)
         item.append(
           button(t("personalInbox.complete"), async () => {

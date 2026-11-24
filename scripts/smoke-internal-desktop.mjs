@@ -318,7 +318,7 @@ try {
     const terminal = rows.find(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === inputs[0].id);
     return terminal?.turnId ? { requestId: inputs[0].id, turnId: terminal.turnId } : false;
   };
-  await until(() => completedRequest(workBot.threadId, workMessage), "the handed-off request to settle by ID");
+  const workCompletion = await until(() => completedRequest(workBot.threadId, workMessage), "the handed-off request to settle by ID");
   const transferred = await until(async () => {
     const rows = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
     const first = rows.find(row => row.role === "user" && row.text === extra);
@@ -326,6 +326,7 @@ try {
     return first && second && !first.workBotRecoveryPending && !second.workBotRecoveryPending && [first, second];
   }, "both queued clarifications to settle with the handed-off request");
   assert.notEqual(transferred[0].id, transferred[1].id);
+  const transferredClarifications = transferred.map(row => ({ messageId: row.id, includedInSinglePrompt: true }));
   assert(!(await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.text === extra || row.text === extraNext));
   assert(JSON.stringify(workPrompts()[0]).includes(extra) && JSON.stringify(workPrompts()[0]).includes(extraNext));
   writeFileSync(path.join(evidence, "work-bot-prompt-fixture.json"), JSON.stringify(workPrompts(), null, 2) + "\n");
@@ -454,7 +455,7 @@ try {
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion, declinedCompletion },
+    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion },
     computerPanelNavigation: disposableDesktop ? "PASS (opened and closed on disposable runner; no desktop control)" : "NOT RUN (requires disposable desktop)",
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,

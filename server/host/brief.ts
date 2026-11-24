@@ -62,7 +62,7 @@ const stateSchema = z.object({
   introducedOn: z.string().max(10).optional(),
   card: z.object({ day: z.string().max(10), botId: id, threadId: id, messageId: id, postedAt: at }).optional(),
   earlier: z.array(z.object({ threadId: id, messageId: id })).max(EARLIER_CARDS).optional(),
-  important: z.array(z.object({ messageId: id, threadId: id, at, judgedAt: at, needsReply: z.boolean() })).max(MAX_ROWS),
+  important: z.array(z.object({ messageId: id, threadId: id, at, judgedAt: at, needsReply: z.boolean(), app: z.enum(["gmail", "outlook"]).optional() })).max(MAX_ROWS),
   dismissed: z.array(z.object({ messageId: id, from: z.string().max(320), at })).max(MAX_ROWS),
   preps: z.array(z.object({ key: id, at })).max(MAX_ROWS),
   notified: z.array(z.string().max(600)).max(200).optional(),
@@ -288,7 +288,7 @@ export function createBrief(deps: BriefDeps) {
       said: { text: words("brief.row.clash", { first: oneLine(first.title, 52), second: oneLine(second.title, 52) }), note: words("brief.row.clashNote", { first: moment(first.start, "clock", zone), second: moment(second.start, "clock", zone) }) },
     }));
     const troubleRows: NeedRow[] = (trouble ?? []).map((one) => {
-      const app = one.app === "gmail" ? "Gmail" : "Google Calendar";
+      const app = one.app === "gmail" ? "Gmail" : one.app === "outlook" ? "Outlook" : "Google Calendar";
       // Several accounts connected: the newest was read and refused, so Connected apps is where to look, not a later try.
       const connectedApps = one.signedOut || one.severalAccounts === true;
       return { key: `trouble:${one.app}`, text: w.couldNotRead(app), note: connectedApps ? w.reconnect(app) : w.tryAgainSoon,
@@ -304,7 +304,8 @@ export function createBrief(deps: BriefDeps) {
       .map((meeting) => ({ title: meeting.title, start: meeting.start, ...(meeting.joinUrl ? { joinUrl: meeting.joinUrl } : {}) }));
     const emails = liveImportant(at).flatMap((row): BriefEmail[] => {
       const header = headers.get(row.messageId);
-      return header ? [{ messageId: row.messageId, threadId: row.threadId, from: header.from, subject: header.subject, needsReply: row.needsReply, ...(header.why ? { why: header.why, ...(header.whyText ? { whyText: header.whyText } : {}) } : {}) }] : [];
+      return header ? [{ messageId: row.messageId, threadId: row.threadId, from: header.from, subject: header.subject, needsReply: row.needsReply, ...(header.why ? { why: header.why, ...(header.whyText ? { whyText: header.whyText } : {}) } : {}),
+        ...(row.app === "outlook" ? { app: "outlook" as const, ...(header.link ? { link: header.link } : {}) } : {}) }] : [];
     });
     const dreamt = deps.ideas?.(chiefBot.id);
     const ideas = (dreamt?.ideas ?? []).map((idea): BriefRow => ({ text: idea, note: w.noticedAcross(dreamt!.conversations), said: { note: words("brief.row.noticedAcross", { count: String(dreamt!.conversations) }) } }));
@@ -330,9 +331,9 @@ export function createBrief(deps: BriefDeps) {
     if (!session) return;
     for (const row of missing.slice(0, 12)) {
       try {
-        const header = await session.message(row.messageId);
+        const header = row.app === "outlook" ? await session.outlookMessage?.(row.messageId) : await session.message(row.messageId);
         if (header) headers.set(row.messageId, header);
-        else state.important = state.important.filter((one) => one.messageId !== row.messageId);
+        else if (header === null) state.important = state.important.filter((one) => one.messageId !== row.messageId);
       } catch {
         return;
       }
@@ -420,7 +421,7 @@ export function createBrief(deps: BriefDeps) {
   /** An email picked for the brief, by a watch run or by the helper models: its row, with the why kept for this process. */
   function keepImportant(email: EmailHeader, why: string, needsReply: boolean, at: number, whyText?: ServerText): void {
     headers.set(email.id, { ...email, why, ...(whyText ? { whyText } : {}) });
-    state.important = [...state.important.filter((row) => row.messageId !== email.id), { messageId: email.id, threadId: email.threadId, at: email.at, judgedAt: at, needsReply }].slice(-MAX_ROWS);
+    state.important = [...state.important.filter((row) => row.messageId !== email.id), { messageId: email.id, threadId: email.threadId, at: email.at, judgedAt: at, needsReply, ...(email.app === "outlook" ? { app: "outlook" as const } : {}) }].slice(-MAX_ROWS);
   }
 
   /** What the checks found that needs no AI: today's meetings, clashes, reminders, other routines, trouble, and the
@@ -444,7 +445,7 @@ export function createBrief(deps: BriefDeps) {
   /** An email waiting on a reply leaves the brief once the person has replied in its thread. */
   async function followUpReplies(session: ReadSession | undefined): Promise<void> {
     const address = deps.address();
-    const open = liveImportant(now()).filter((row) => row.needsReply);
+    const open = liveImportant(now()).filter((row) => row.needsReply && row.app !== "outlook");
     if (!session || !address || !open.length) return;
     for (const row of open.slice(0, 10)) {
       try {
@@ -564,11 +565,15 @@ export function createBrief(deps: BriefDeps) {
     const row = typeof messageId === "string" ? state.important.find((one) => one.messageId === messageId) : undefined;
     if (!row) return null;
     const header = headers.get(row.messageId);
+    const outlook = row.app === "outlook";
+    const ids = `id ${clean(row.messageId, 512)} · thread ${clean(row.threadId, 512)}`;
     return [
-      recordsBlock("Gmail", [header
-        ? `id ${clean(row.messageId, 120)} · thread ${clean(row.threadId, 120)} · from ${clean(header.from, 160)} · subject ${clean(header.subject, 200)} · preview ${clean(header.preview, 300)}`
-        : `id ${clean(row.messageId, 120)} · thread ${clean(row.threadId, 120)}`]),
-      "Write a reply to this email as a Gmail draft in the same thread, to its sender, and leave it for the person to send. Do not send it.",
+      recordsBlock(outlook ? "Outlook" : "Gmail", [header
+        ? `${ids} · from ${clean(header.from, 160)} · subject ${clean(header.subject, 200)} · preview ${clean(header.preview, 300)}`
+        : ids]),
+      outlook
+        ? "Write a reply to this email as an Outlook draft replying to this message, to its sender, and leave it for the person to send. Do not send it."
+        : "Write a reply to this email as a Gmail draft in the same thread, to its sender, and leave it for the person to send. Do not send it.",
     ].join("\n");
   }
 

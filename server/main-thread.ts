@@ -29,3 +29,9 @@ export function mainThread(tasks: readonly MainThreadCandidate[], selectedId?: s
   );
   return asked?.threadId ?? open.find((task) => task.threadId === selectedId)?.threadId ?? oldestThread(tasks);
 }
+
+export function memoryHomeThread(tasks: readonly MainThreadCandidate[], chosenId?: string): string | undefined {
+  const conversations = tasks.filter((task) => !task.routineRunId);
+  if (chosenId && conversations.some((task) => task.threadId === chosenId && task.archivedAt === undefined)) return chosenId;
+  return conversations.reduce<MainThreadCandidate | undefined>((oldest, task) => (!oldest || task.createdAt < oldest.createdAt ? task : oldest), undefined)?.threadId;
+}

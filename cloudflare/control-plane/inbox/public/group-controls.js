@@ -1,5 +1,4 @@
 import { t } from "./inbox-i18n.js";
-import { copyText } from "./inbox-copy-text.js";
 
 export function groupControls({ room, detail, me, node, button, api, refresh, status }) {
   const owner = !!room.isOwner,
@@ -53,27 +52,6 @@ export function groupControls({ room, detail, me, node, button, api, refresh, st
     list.append(li);
   }
   const controls = document.createDocumentFragment();
-  if (detail.group.link || manager) {
-    controls.append(
-      button(t("personalInbox.copyLink"), async () => {
-        const token = manager
-          ? (await api("rooms/" + room.id + "/moderate", { action: "ensureLink" })).token
-          : detail.group.link;
-        const address = new URL("/", location.origin);
-        address.hash = "join=" + token;
-        if (await copyText(address.href) === "copied") {
-          status(t("personalInbox.copied"));
-        } else {
-          const field = document.getElementById("invite-link-field");
-          field.value = address.href;
-          field.hidden = false;
-          field.focus();
-          field.select();
-          status(t("personalInbox.copySelected"));
-        }
-      }),
-    );
-  }
   if (manager) {
     const menu = node("details", "");
     menu.append(node("summary", t("personalInbox.permissions")));

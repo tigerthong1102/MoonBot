@@ -787,3 +787,37 @@ describe("helper threads a bot opened", () => {
     expect(partitionHelperThreads(tasks, "mine", "email")).toEqual({ own: tasks, helpers: [] });
   });
 });
+
+describe("the thread menu", () => {
+  const openMenu = (tree: RowNode) => {
+    (moreMenuButton(tree)!.props!.onClick as (event: unknown) => void)({ currentTarget: { getBoundingClientRect: () => ({ left: 100, bottom: 200 }) } });
+  };
+  const every = {
+    onRegenerateTitle: vi.fn(), onMove: vi.fn(), onArchive: vi.fn(), onPin: vi.fn(), onSnooze: vi.fn(), onLink: vi.fn(),
+    onRefreshPermissions: vi.fn(), onMemory: vi.fn(), folders: [{ id: "f", name: "Folder" }],
+  } as Partial<ThreadRowProps>;
+  it("adds Memory alongside the existing conversation actions", () => {
+    vi.stubGlobal("window", { innerWidth: 1024, innerHeight: 768 });
+    vi.stubGlobal("document", { body: { nodeType: 1 } });
+    const task = { threadId: "t1", title: "Acme NDA", link: "https://example.com/pr/1" };
+    openMenu(renderRow(task, "scout", true, every));
+    const menu = renderRow(task, "scout", false, every);
+    for (const label of ["Copy link", "Rename", "Memory", "Regenerate title", "Pin", "Remove link", "Archive", "Refresh permissions", "Delete"]) {
+      expect(buttonWithLabel(menu, label), label).toBeDefined();
+    }
+    vi.unstubAllGlobals();
+  });
+
+  it("opens the conversation, then its memory", () => {
+    vi.stubGlobal("window", { innerWidth: 1024, innerHeight: 768 });
+    vi.stubGlobal("document", { body: { nodeType: 1 } });
+    const order: string[] = [];
+    const extra = { onSelect: vi.fn(() => order.push("select")), onMemory: vi.fn(() => order.push("memory")) } as Partial<ThreadRowProps>;
+    const task = { threadId: "t2", title: "Supermouse lease" };
+    openMenu(renderRow(task, "scout", true, extra));
+    (buttonWithLabel(renderRow(task, "scout", false, extra), "Memory")!.props!.onClick as () => void)();
+    expect(order).toEqual(["select", "memory"]);
+    expect(extra.onMemory).toHaveBeenCalledWith(task);
+    vi.unstubAllGlobals();
+  });
+});

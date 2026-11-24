@@ -891,12 +891,13 @@ export function MarkdownImagePreview({
   );
 }
 
-export function AttachedFileChip({ file, message, linked = false, compact = false, className }: {
+export function AttachedFileChip({ file, message, linked = false, compact = false, className, note }: {
   file: TranscriptFileAttachment;
   message?: MessageAttachmentContext;
   linked?: boolean;
   compact?: boolean;
   className?: string;
+  note?: string;
 }) {
   const save = useLocalFileSave(file.path, file.name, message);
   const preview = useHtmlPreview(file.path, file.name, message);
@@ -924,6 +925,7 @@ export function AttachedFileChip({ file, message, linked = false, compact = fals
         >
           <FileText size={14} className="shrink-0" aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate text-ink">{file.name}</span>
+          {note && <span className="min-w-0 max-w-[45%] shrink truncate text-[11px] text-ink-tertiary">{note}</span>}
           {preview.opens ? <Eye size={13} className="shrink-0" /> : save.state === "saving" ? (
             <LoaderCircle size={13} className="shrink-0 animate-spin" />
           ) : save.state === "saved" ? (
@@ -940,10 +942,8 @@ export function AttachedFileChip({ file, message, linked = false, compact = fals
       {save.state !== "idle" && (
         <div
           role={failed ? "alert" : "status"}
-          className={cn(
-            "border-t border-hairline/30 px-2.5 py-1.5 text-[11px]",
-            failed ? "text-danger" : save.state === "saved" ? "text-success" : "text-ink-secondary",
-          )}
+          className={cn("border-t border-hairline/30 px-2.5 py-1.5 text-[11px]",
+            failed ? "text-danger" : save.state === "saved" ? "text-success" : "text-ink-secondary")}
         >
           {save.state === "saving"
             ? t("attach.downloading")

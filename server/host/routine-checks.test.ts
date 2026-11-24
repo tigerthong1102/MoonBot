@@ -11,19 +11,22 @@ const MINUTE = 60_000;
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
-function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean } = {}) {
+function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean; connected?: Partial<Record<ReadApp, boolean>> } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "omb-routine-checks-"));
   dirs.push(dir);
   let now = Date.parse("2026-10-22T08:00:00Z");
   const inbox: EmailHeader[] = [];
+  const outlookInbox: EmailHeader[] = [];
+  const limits = { outlook: Infinity };
   const events: CalendarEvent[] = [];
   const failing: Partial<Record<ReadApp, string>> = {};
   const several = new Set<ReadApp>();
   const calls: string[] = [];
   const runs: RoutineRun[] = [];
   const reports: CheckReport[] = [];
+  const connected: Partial<Record<ReadApp, boolean>> = options.connected ?? { gmail: true, googlecalendar: true };
   const reads: ConnectedReads = {
-    connected: async () => ({ gmail: true, googlecalendar: true }),
+    connected: async () => connected,
     session: () => ({
       async address() { calls.push("address"); if (failing.gmail) throw new SourceError("gmail", failing.gmail, several.has("gmail")); return "me@x.test"; },
       async events() { calls.push("events"); if (failing.googlecalendar) throw new SourceError("googlecalendar", failing.googlecalendar, several.has("googlecalendar")); return events; },
@@ -32,6 +35,13 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean } = 
         if (failing.gmail) throw new SourceError("gmail", failing.gmail, several.has("gmail"));
         const found = inbox.filter((email) => email.at >= since).sort((a, b) => b.at - a.at);
         return { emails: found.slice(0, limit), more: found.length > limit };
+      },
+      async outlookEmails(since, limit, judged) {
+        calls.push("outlookEmails");
+        if (failing.outlook) throw new SourceError("outlook", failing.outlook, several.has("outlook"));
+        const found = outlookInbox.filter((email) => email.at >= since && !judged?.has(email.id)).sort((a, b) => b.at - a.at);
+        const returned = Math.min(limit, limits.outlook);
+        return { emails: found.slice(0, returned), more: found.length > returned };
       },
       async message() { return null; },
       async thread() { return []; },
@@ -53,13 +63,18 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean } = 
     inbox.push(email);
     return email;
   };
+  const outlookMail = (id: string, agoMinutes: number): EmailHeader => {
+    const email: EmailHeader = { id, threadId: `conv-${id}`, at: now - agoMinutes * MINUTE, from: `Sender ${id} <${id}@outlook.test>`, subject: `Outlook ${id}`, preview: "hello", app: "outlook" };
+    outlookInbox.push(email);
+    return email;
+  };
   const meeting = (id: string, startsInMinutes: number): CalendarEvent => {
     const event: CalendarEvent = { id, title: id, start: now + startsInMinutes * MINUTE, end: now + (startsInMinutes + 30) * MINUTE, allDay: false, status: "confirmed", selfDeclined: false,
       attendees: [{ email: "me@x.test", self: true, organizer: true }, { email: "ada@x.test", self: false, organizer: false }], ownedCalendar: true };
     events.push(event);
     return event;
   };
-  return { checks, routine, mail, meeting, failing, several, calls, runs, reports, inbox, sorted, advance: (ms: number) => { now += ms; }, now: () => now, file: join(dir, CHECKS_FILE) };
+  return { checks, routine, mail, outlookMail, meeting, failing, several, calls, runs, reports, inbox, outlookInbox, limits, sorted, advance: (ms: number) => { now += ms; }, now: () => now, file: join(dir, CHECKS_FILE) };
 }
 
 const run = (key: string, status: RoutineRun["status"], deliver?: "brief"): RoutineRun => ({
@@ -218,5 +233,53 @@ describe("a routine's checks", () => {
     s.advance(15 * MINUTE);
     expect((await s.checks.check(own, { manual: false })).run).toBeUndefined();
     expect(s.reports).toEqual([]);
+  });
+
+  it("reads Outlook emails when Outlook is connected without Gmail, and settles them once committed", async () => {
+    const s = setup({ connected: { gmail: false, outlook: true, googlecalendar: false } });
+    s.outlookMail("o1", 5);
+    s.outlookMail("o2", 2);
+    const result = await s.checks.check(s.routine(), { manual: true });
+    expect(s.calls).toEqual(["outlookEmails"]);
+    expect(result.run?.key).toMatch(/^chk-/);
+    expect(result.run!.prompt).toContain("[Records from Outlook.");
+    expect(result.run!.prompt).toContain("id o2 · from Sender o2 <o2@outlook.test>");
+    expect(s.checks.items(result.run!.key)?.mail.map((email) => email.id)).toEqual(["o2", "o1"]);
+    expect(s.checks.mayDraft(result.run!.key, "conv-o2", "o2@outlook.test")).toBe(false);
+    s.checks.commit(result.run!.key);
+    s.advance(15 * MINUTE);
+    expect((await s.checks.check(s.routine(), { manual: true })).run).toBeUndefined();
+  });
+
+  it("reads both Gmail and Outlook when both are connected, and keeps the cursor back if one fails", async () => {
+    const s = setup({ connected: { gmail: true, outlook: true, googlecalendar: false } });
+    s.mail("g1", 5);
+    s.failing.outlook = "Connected account is not ACTIVE";
+    const first = await s.checks.check(s.routine({ checks: ["mail"] }), { manual: false });
+    expect(first.run).toBeDefined();
+    expect(first.trouble).toBe("Couldn't read Outlook. Reconnect it in Connected apps.");
+    expect(s.reports.at(-1)!.trouble).toEqual([{ app: "outlook", signedOut: true }]);
+    s.checks.commit(first.run!.key);
+    delete s.failing.outlook;
+    s.outlookMail("o1", 4);
+    s.advance(15 * MINUTE);
+    const second = await s.checks.check(s.routine({ checks: ["mail"] }), { manual: true });
+    expect(s.checks.items(second.run!.key)?.mail.map((email) => email.id)).toEqual(["o1"]);
+  });
+
+  it("keeps earlier Outlook mail eligible after committing an incomplete page", async () => {
+    const s = setup({ connected: { outlook: true } });
+    s.outlookMail("older", 5);
+    s.outlookMail("newer", 2);
+    s.limits.outlook = 1;
+    const routine = s.routine({ checks: ["mail"] });
+    const first = await s.checks.check(routine, { manual: true });
+    expect(s.checks.items(first.run!.key)?.mail.map((mail) => mail.id)).toEqual(["newer"]);
+    expect(s.reports.at(-1)?.waiting).toBe(true);
+    s.checks.commit(first.run!.key);
+
+    s.advance(15 * MINUTE);
+    const second = await s.checks.check(routine, { manual: true });
+    expect(s.checks.items(second.run!.key)?.mail.map((mail) => mail.id)).toEqual(["older"]);
   });
 });

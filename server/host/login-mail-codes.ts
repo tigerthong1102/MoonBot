@@ -84,7 +84,7 @@ export function createLoginMailCodes(deps: LoginMailCodesDeps) {
 
   function appBox(app: MailApp, reads: MailBodySession): CodeMailbox {
     if (app === "gmail") return { list: async (sinceMs) => (await reads.emails(sinceMs, LIST_LIMIT)).emails, body: (id) => reads.messageBody(id) };
-    return { list: (sinceMs) => reads.outlookEmails(sinceMs, LIST_LIMIT), body: (id) => reads.outlookBody(id) };
+    return { list: async (sinceMs) => (await reads.outlookEmails(sinceMs, LIST_LIMIT)).emails, body: (id) => reads.outlookBody(id) };
   }
 
   async function appBoxes(turn: Turn, app: MailApp): Promise<CodeMailbox[]> {

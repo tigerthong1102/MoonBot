@@ -5,6 +5,10 @@ import { formatServerText, isReferenceParam, type ServerTextParams } from "../..
 
 type NoticeTool = Pick<NonNullable<Message["tool"]>, "nameCode" | "nameParams">;
 
+export function isSavedToThreadLine(message: { tool?: { nameCode?: string } | null }): boolean {
+  return message.tool?.nameCode === "chat.notice.savedToThread";
+}
+
 export function isNoticeCode(code: string | undefined): code is string {
   return code?.startsWith("chat.notice.") === true;
 }

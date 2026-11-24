@@ -1245,17 +1245,19 @@ describe("agents-proxy MCP surface", () => {
     expect(JSON.stringify(tool.inputSchema)).not.toMatch(/"(oneOf|anyOf|allOf|const|format)":/);
   });
 
-  it("assignment_status relays the harness's refusal to read an assignment handed out this turn", async () => {
+  it("assignment_status passes on an assignment sent this turn, and keeps a real failure a failure", async () => {
     // Which turn made it is the harness's to know: a warm proxy serves many.
     assignmentStatusCode = 409;
-    assignmentStatusResponse = { error: "Assignment asg-abc123 was handed out during this turn. Finish your response now so the teammate can work; its result returns to this conversation and resumes you. Do not check or wait for it until a later turn." };
+    assignmentStatusResponse = { error: "Assignment asg-abc123 was handed out during this turn. Finish your response now so the teammate can work; its result returns to this conversation and resumes you. Do not check or wait for it until a later turn.", sentThisTurn: true };
     try {
       lastAssignmentStatusUrl = null;
       const status = await callTool("assignment_status", { id: "asg-abc123", wait_ms: 240_000 });
-      expect(status.result.isError).toBe(true);
+      expect(status.result.isError).toBeFalsy();
       expect(status.result.content[0].text).toContain("handed out during this turn");
       expect(status.result.content[0].text).toContain("Finish your response now");
       expect(lastAssignmentStatusUrl).toBe("/api/internal/assignment-status?id=asg-abc123&wait_ms=240000");
+      assignmentStatusResponse = { error: "Assignment asg-abc123 was handed out during this turn. Finish your response now so the teammate can work; its result returns to this conversation and resumes you. Do not check or wait for it until a later turn." };
+      expect((await callTool("assignment_status", { id: "asg-abc123" })).result.isError).toBe(true);
     } finally {
       assignmentStatusCode = 200;
       assignmentStatusResponse = DONE_ASSIGNMENT;
@@ -1507,7 +1509,7 @@ describe("agents-proxy MCP surface", () => {
 
   it("session_search lists memory-file hits by file, ahead of conversation hits, and forwards the scope", async () => {
     const list = await rpc("tools/list");
-    expect(list.result.tools.find((t: { name: string }) => t.name === "session_search").inputSchema.properties.scope.enum).toEqual(["all", "conversations", "memory", "team"]);
+    expect(list.result.tools.find((t: { name: string }) => t.name === "session_search").inputSchema.properties.scope.enum).toEqual(["all", "conversations", "memory", "team", "threads"]);
     sessionSearchResponse = {
       hits: [{ threadId: "thread-old", messageId: "m-audit", at: Date.UTC(2026, 8, 1), role: "bot", snippet: "the [audit] found three [broken] [links]", task: "Site audit", current: false }],
       memoryHits: [

@@ -32,7 +32,6 @@ it("keeps a newly moved removal when the stored removal history is already full"
   writeFileSync(path, JSON.stringify({ learned: [], removed: old }));
   await receive(["Prefers phone calls"]);
 
-  // Planning reopens the file, as a later bot turn or restarted server would.
   expect(planLearned({ botId: "bot", botName: "Nova" }, ["Prefers phone calls"], "", "2026-11-21")).toEqual([]);
   expect(learnedState().removed).toEqual([...old.slice(1), "Prefers phone calls"]);
   const once = readFileSync(path, "utf8");

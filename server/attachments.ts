@@ -554,7 +554,6 @@ export async function saveNamedAttachment(name: string, chunks: AsyncIterable<Ui
   ensureAttachmentsDir();
   const path = join(ATTACHMENTS_DIR, name);
   if (statSizeIfFile(path) !== null) {
-    // A retried move already owns these bytes. Drain its request without reserving another copy at a full store.
     let bytes = 0;
     for await (const chunk of chunks) {
       bytes += chunk.byteLength;

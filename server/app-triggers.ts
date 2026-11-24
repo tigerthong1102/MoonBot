@@ -318,7 +318,6 @@ export class AppTriggerManager {
         ...(record.filter ? { filter: record.filter } : {}), config, runOn: record.runOn, enabled: false, ...(record.sourceThreadId ? { sourceThreadId: record.sourceThreadId } : {}),
         ...(record.sameConversation ? { sameConversation: true } : {}) });
     } catch (error) {
-      // Another copy of the same move may have completed while this one validated its account and event.
       if (error instanceof AppTriggerError && error.status === 409 && this.triggers.some((candidate) => candidate.id === record.id)) {
         return (await this.update(record.id, { name: record.name, prompt: record.prompt, runOn: record.runOn, filter: record.filter ?? null, config,
           sameConversation: record.sameConversation === true }))!;
@@ -718,7 +717,6 @@ export class AppTriggerManager {
     await this.options.broker.remove(triggerId);
   }
 
-  /** A new or restored automation is not in this.triggers yet when its binding is configured. */
   private async applyEnabled(triggerId: string | undefined, alsoEnabled = false): Promise<void> {
     if (triggerId && !this.serviceOutOfReach()) await this.options.broker.setEnabled(triggerId, alsoEnabled || this.wantsEnabled(triggerId));
   }

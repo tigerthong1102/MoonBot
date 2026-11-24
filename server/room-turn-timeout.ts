@@ -60,9 +60,7 @@ const SUSPENDED_LOOKS = 3;
 
 export interface RoomTurnClock {
   now(): number;
-  /** Returns the cancel. */
   after(ms: number, run: () => void): () => void;
-  /** Returns the cancel. */
   every(ms: number, run: () => void): () => void;
 }
 
@@ -162,7 +160,6 @@ export class RoomTurnDeadline {
     this.cancelTimer = null;
   }
 
-  /** A look late enough moves the turn's progress, and a wait's start, on by the whole gap. */
   private discountSleep(): void {
     if (this.stopLooking === null) return;
     const at = this.clock.now();

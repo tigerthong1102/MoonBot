@@ -61,7 +61,6 @@ const stateSchema = z.object({
   /** The day the first brief was posted: that day's card says what it does. */
   introducedOn: z.string().max(10).optional(),
   card: z.object({ day: z.string().max(10), botId: id, threadId: id, messageId: id, postedAt: at }).optional(),
-  /** Earlier days' cards: their Dismiss presses are still the brief's own. */
   earlier: z.array(z.object({ threadId: id, messageId: id })).max(EARLIER_CARDS).optional(),
   important: z.array(z.object({ messageId: id, threadId: id, at, judgedAt: at, needsReply: z.boolean() })).max(MAX_ROWS),
   dismissed: z.array(z.object({ messageId: id, from: z.string().max(320), at })).max(MAX_ROWS),

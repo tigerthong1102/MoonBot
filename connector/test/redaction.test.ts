@@ -25,7 +25,6 @@ describe("connector secret redaction", () => {
     const sentinelSecret = "SENTINEL_BOOTSTRAP_SECRET_12345";
     const sentinelToken = "SENTINEL_TOKEN_ABCDEF_98765";
 
-    // First process run: saves home environment with secrets
     const firstState = new StateStore(dir);
     firstState.saveHomeEnv({
       OMB_CLOUD_IMAGE: "example/image:v1",
@@ -33,16 +32,13 @@ describe("connector secret redaction", () => {
       OMB_AGENT_TOKEN: sentinelToken,
     });
 
-    // Simulate restart: clear in-memory secrets registry
     clearSecrets();
     expect(redact(`failure with ${sentinelSecret}`)).toContain(sentinelSecret);
 
-    // Second process run: loads persisted state from disk
     const reloadedState = new StateStore(dir);
     const loadedEnv = reloadedState.homeEnv();
     expect(loadedEnv).not.toBeNull();
 
-    // After loading, all secrets from persisted env must be redacted
     const testLog = `Failed to start container with ${sentinelSecret} and token ${sentinelToken}`;
     const redacted = redact(testLog);
     expect(redacted).not.toContain(sentinelSecret);
@@ -57,12 +53,9 @@ describe("connector secret redaction", () => {
       OMB_TEST_SECRET: complexSecret,
     });
 
-    // Raw
     expect(redact(`Error: ${complexSecret}`)).not.toContain(complexSecret);
-    // URL-encoded
     const urlEncoded = encodeURIComponent(complexSecret);
     expect(redact(`Error: ${urlEncoded}`)).not.toContain(urlEncoded);
-    // JSON-escaped
     const jsonEscaped = JSON.stringify(complexSecret).slice(1, -1);
     expect(redact(`Error: ${jsonEscaped}`)).not.toContain(jsonEscaped);
   });
@@ -128,7 +121,6 @@ describe("connector secret redaction", () => {
       heartbeat: async () => ({ heartbeat: { host: {} as never, home: {} as never, connector: {} as never } }),
     });
 
-    // Directly invoke reply
     const reply: JobReply = {
       id: "job-1",
       ok: false,
@@ -140,13 +132,11 @@ describe("connector secret redaction", () => {
 
     agent.reply(reply);
 
-    // The reply in agent's internal store should be redacted
     const internal = agent as unknown as { replies: Map<string, JobReply>; unacked: Map<string, { text: string }> };
     const stored = internal.replies.get("job-1");
     expect(stored && !stored.ok && stored.error.message).not.toContain(secret);
     expect(stored && !stored.ok && stored.error.message).toContain("[secret]");
 
-    // The unacked message should also be redacted
     const unacked = internal.unacked.get("job-1");
     expect(unacked?.text).not.toContain(secret);
     expect(unacked?.text).toContain("[secret]");

@@ -14,13 +14,11 @@ export function registerSecret(value: string | undefined | null): void {
     const urlEncoded = encodeURIComponent(value);
     if (urlEncoded.length >= 8) secrets.add(urlEncoded);
   } catch {
-    // Malformed URI component ignored
   }
   try {
     const jsonEscaped = JSON.stringify(value).slice(1, -1);
     if (jsonEscaped.length >= 8) secrets.add(jsonEscaped);
   } catch {
-    // Invalid JSON escaped ignored
   }
 }
 

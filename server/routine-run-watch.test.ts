@@ -22,7 +22,6 @@ it("keeps event sweeping proportional to the number of runs and conversations", 
     expect(watch.lost(runs, 1)).toEqual([]);
     return looked;
   }
-  // Doubling the rows and their event histories must not quadruple the scan work.
   expect(reads(200)).toBeLessThan(reads(100) * 3);
 });
 

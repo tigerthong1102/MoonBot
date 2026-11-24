@@ -202,7 +202,6 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
     if (!pageNow.current || pageNow.current === "about:blank") interact({ type: "navigate", url });
   };
   latest.current = { openSignInPage, takeControl };
-  // Woken once per request: a browser that cannot start answers "asleep" again, and Wake stays for the person.
   useEffect(() => {
     if (!signIn || !connected || signInHandled.current === signIn.nonce) return;
     if (asleep) {

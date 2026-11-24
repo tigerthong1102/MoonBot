@@ -12,6 +12,8 @@ grep -F "name='ai.startupbot.android' versionCode='10001' versionName='1.0.1'" "
 grep -F "$STARTUPBOT_INBOX_ORIGIN" "$RUNNER_TEMP/pilot-resources.txt" >/dev/null
 image="system-images;android-35;google_apis;x86_64"
 "$sdk/sdkmanager" --install "$image" emulator platform-tools
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+test -x "$ANDROID_HOME/platform-tools/adb"
 echo no | "$sdk/avdmanager" create avd -n StartupBotPilot -k "$image"
 sudo chown "$USER" /dev/kvm
 "$ANDROID_HOME/emulator/emulator" -avd StartupBotPilot -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -memory 2500 > "$RUNNER_TEMP/emulator.log" 2>&1 &

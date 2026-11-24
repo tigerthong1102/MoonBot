@@ -3,6 +3,11 @@ name: Package StartupBot pilot
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: "Platform to build"
+        type: choice
+        default: all
+        options: [all, windows, android, ios]
       origin:
         description: "HTTPS Inbox origin"
         required: true
@@ -21,6 +26,7 @@ env:
 
 jobs:
   windows:
+    if: inputs.target == 'all' || inputs.target == 'windows'
     runs-on: windows-latest
     timeout-minutes: 40
     steps:
@@ -73,6 +79,7 @@ jobs:
           compression-level: 0
 
   android:
+    if: inputs.target == 'all' || inputs.target == 'android'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -95,6 +102,7 @@ jobs:
           compression-level: 0
 
   ios:
+    if: inputs.target == 'all' || inputs.target == 'ios'
     runs-on: macos-26-intel
     timeout-minutes: 35
     steps:

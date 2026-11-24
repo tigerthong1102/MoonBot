@@ -7824,7 +7824,7 @@ async function beginTurn(
   if (notesRefused) noteForeignTurn(botId, threadId, dispatchClaimId);
   // An unknown control-plane wake must never acquire authority by guessing the latest user as its origin.
   const pendingSource = requestMessageId ?? store.activePath(threadId).findLast(message => message.role === "user")?.id;
-  if (pendingSource) store.patchMessage(threadId, pendingSource, { requestPending: true });
+  if (pendingSource && !opts?.compactOnly) store.patchMessage(threadId, pendingSource, { requestPending: true });
   const settleOutcome = opts?.coordination?.settle ?? opts?.onSettled;
   if (settleOutcome) directCoordinationSettlers.set(dispatchClaimId, { nodeId: opts?.coordination?.id ?? dispatchClaimId, settle: settleOutcome });
   directFollowupSettlers.set(dispatchClaimId, { threadId, settle: opts?.onTurnSettled }); peerLimitResend.track({ generation: dispatchClaimId, botId: bot.id, threadId, text, opts: opts ?? {}, userMessage, latestUser: recoveryUserMessageId });

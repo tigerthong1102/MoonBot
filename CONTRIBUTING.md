@@ -53,21 +53,7 @@ For Ubuntu installation and real desktop checks, see [`docs/linux-desktop.md`](d
 
 ## Ubuntu release checklist
 
-Ubuntu release packages must come from the manual **Package Ubuntu** workflow on an exact release commit or tag,
-not from a developer workstation. The Ubuntu 24.04 runner builds and verifies both formats, launches the unpacked
-app and AppImage, routes `click` and `type_text` through the overlay-free bundled Cua runtime on Xorg, runs the
-fail-closed Wayland CUA smoke,
-and produces one release artifact containing:
-
-- the versioned `.deb` and AppImage;
-- stable `OpenMausBot-amd64.deb` and `OpenMausBot.AppImage` copies used by the latest-download links;
-- `SHA256SUMS-ubuntu-x64.txt` covering both versioned and stable names.
-
-Before publishing, confirm that `package.json` has the release version and dispatch the workflow against the same
-commit used for the other platforms. Attach all five Ubuntu files to the matching release in the separate
-[OpenMausBot releases](https://github.com/milind-soni/OpenMausBot/releases). Then verify the checksum
-file and install the `.deb` plus launch the AppImage in a clean Ubuntu 24.04 x86_64 GNOME environment. Never combine
-packages built from different commits under one version.
+Run **Internal package verification** on the intended commit to build the Ubuntu x86-64 test packages. The job checks a Debian install and upgrade, starts the installed application and AppImage, exercises X11 input, and checks that Wayland computer control fails closed. The Actions artifact contains both versioned packages, SHA-256 checksums and Vietnamese installation instructions.
 
 ## Repo map
 

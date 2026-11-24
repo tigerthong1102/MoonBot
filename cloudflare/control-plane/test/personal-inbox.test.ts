@@ -46,11 +46,19 @@ async function call(
   from = origin,
   language = "en",
   languageSource = "app",
+  invite?: string,
 ) {
   const ctx = createExecutionContext();
   const req = new Request(origin + "/api/" + path, {
     method: data === undefined ? "GET" : "POST",
-    headers: { cookie, origin: from, "content-type": "application/json", "x-inbox-language": language, "x-inbox-language-source": languageSource },
+    headers: {
+      cookie,
+      origin: from,
+      "content-type": "application/json",
+      "x-inbox-language": language,
+      "x-inbox-language-source": languageSource,
+      ...(invite ? { "x-inbox-invite": invite } : {}),
+    },
     body: JSON.stringify(data),
   });
   const res = await worker.fetch(req, { ...testEnv, ...overrides }, ctx);
@@ -58,7 +66,7 @@ async function call(
   return res;
 }
 
-async function login(email: string) {
+async function login(email: string, invite?: string) {
   let otp = "";
   const emailBinding = {
     send: async (msg: { text: string }) => {
@@ -72,11 +80,15 @@ async function login(email: string) {
         "",
         { email, type: "sign-in" },
         { EMAIL: emailBinding },
+        origin,
+        "en",
+        "app",
+        invite,
       )
     ).status,
   ).toBe(200);
   expect(otp).toHaveLength(8);
-  const res = await call("auth/sign-in/email-otp", "", { email, otp });
+  const res = await call("auth/sign-in/email-otp", "", { email, otp }, {}, origin, "en", "app", invite);
   expect(await res.clone().json()).toEqual({ ok: true });
   const cookie = res.headers
     .getSetCookie()
@@ -703,6 +715,21 @@ it("enforces group management on the server across role changes, links, bans, me
   expect((await call(room+"/close",member.cookie,{})).status).toBe(200);
 });
 
+it("lets a new address verify through a group link without granting membership until approval", async () => {
+  const owner = await login("owner@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  await call("rooms", owner.cookie, { id, kind: "group", title: "Guest group" });
+  const link = await call(room + "/moderate", owner.cookie, { action: "ensureLink" });
+  const { token } = await link.json<{ token: string }>();
+  const guest = await login("link-guest@example.test", token);
+
+  expect((await call(room, guest.cookie)).status).toBe(404);
+  expect(await (await call("join", guest.cookie, { token })).json()).toEqual({ id, state: "requested" });
+  expect((await call(room, guest.cookie)).status).toBe(404);
+  expect((await call(room + "/moderate", owner.cookie, { action: "approve", person: guest.id })).status).toBe(200);
+  expect((await call(room, guest.cookie)).status).toBe(200);
+});
+
 it("lets members invite only their bots and only managers remove them, even during a discussion", async () => {
   const a=await login("owner@example.test"), b=await login("member@example.test");
   const id=uuid(), first=uuid(), second=uuid(), room="rooms/"+id;
@@ -750,6 +777,44 @@ it("lets members invite only their bots and only managers remove them, even duri
   await call(room+"/moderate",a.cookie,{action:"promote",person:b.id});
   expect((await cmd(b,"remove",{bot:first})).ok).toBe(true);
   expect((await cmd(a,"reply",{round:other,bot:first,claim:inFlight.claim,text:"Late reply"})).ok).toBe(false);
+});
+
+it("offers only the caller's registered bots for groups where they can post", async () => {
+  const owner = await login("owner@example.test");
+  const member = await login("member@example.test");
+  const outsider = await login("third@example.test");
+  const source = uuid(), destination = uuid();
+  const ownerBot = uuid(), memberBot = uuid();
+  const room = "rooms/" + destination;
+  const available = async (who: typeof owner) =>
+    (await call(room + "/bots?available=1", who.cookie)).json();
+  const add = (who: typeof owner, bot: string) =>
+    call(room + "/bots", who.cookie, { action: "add", bot });
+
+  for (const id of [source, destination]) {
+    await call("rooms", owner.cookie, { id, kind: "group", title: "Test group" });
+    await call("rooms/" + id + "/invite", owner.cookie, { email: member.email });
+    await call("rooms/" + id + "/accept", member.cookie, {});
+  }
+  for (const [who, bot, name] of [[owner, ownerBot, "Planner"], [member, memberBot, "Reviewer"]] as const) {
+    expect((await call("rooms/" + source + "/bots", who.cookie, {
+      action: "invite", owner: who.id, bot, name,
+    })).status).toBe(200);
+  }
+
+  expect(await available(owner)).toEqual({ bots: [{ id: ownerBot, name: "Planner" }] });
+  expect(await available(member)).toEqual({ bots: [{ id: memberBot, name: "Reviewer" }] });
+  expect(await available(outsider)).toEqual({ bots: [] });
+  expect((await add(member, ownerBot)).status).toBe(409);
+  expect((await call(room + "/moderate", owner.cookie, { action: "mute", person: member.id })).status).toBe(200);
+  expect(await available(member)).toEqual({ bots: [] });
+  expect((await add(member, memberBot)).status).toBe(409);
+
+  expect((await add(owner, ownerBot)).status).toBe(200);
+  expect(await available(owner)).toEqual({ bots: [] });
+  expect(await (await call(room + "/bots", member.cookie)).json()).toMatchObject({
+    bots: [{ id: ownerBot, name: "Planner", owner: owner.email }],
+  });
 });
 
 it("keeps explicit email-update choices with the verified account across devices", async () => {

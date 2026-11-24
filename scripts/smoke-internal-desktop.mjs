@@ -104,6 +104,8 @@ child.stdout.on("data", bytes => { output += bytes; appendFileSync(launchLog, by
 child.stderr.on("data", bytes => { output += bytes; appendFileSync(launchLog, bytes); });
 child.on("error", error => { output += `\n${error.stack}\n`; });
 let socket;
+const rendererErrors = [];
+let computerPanelVisible = false;
 let captureFailure = async () => {};
 const restartLifecycle = { started: false, stopped: false };
 let report = { platform: process.platform, arch: process.arch, app, status: "FAIL" };
@@ -119,6 +121,8 @@ try {
   const pending = new Map();
   socket.addEventListener("message", event => {
     const message = JSON.parse(String(event.data));
+    if (message.method === "Runtime.exceptionThrown") rendererErrors.push({ kind: "exception", detail: message.params?.exceptionDetails?.text ?? "unknown" });
+    if (message.method === "Inspector.targetCrashed") rendererErrors.push({ kind: "renderer-crash" });
     const request = pending.get(message.id);
     if (!request) return;
     pending.delete(message.id); clearTimeout(request.timer);
@@ -138,9 +142,13 @@ try {
   captureFailure = async () => {
     const snapshot = await evaluate(`({text: document.body.innerText, welcome: document.querySelector('[data-welcome]')?.getAttribute('data-welcome'), buttons: Array.from(document.querySelectorAll('[data-welcome] button')).map(button => ({text: button.innerText, disabled: button.disabled, signIn: button.getAttribute('data-sign-in')}))})`);
     writeFileSync(path.join(evidence, "desktop-failure.json"), JSON.stringify(snapshot, null, 2) + "\n");
-    const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
-    writeFileSync(path.join(evidence, "desktop-failure.png"), Buffer.from(screenshot.data, "base64"));
+    if (!computerPanelVisible) {
+      const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
+      writeFileSync(path.join(evidence, "desktop-failure.png"), Buffer.from(screenshot.data, "base64"));
+    }
   };
+  await cdp("Runtime.enable");
+  await cdp("Inspector.enable");
   await until(() => evaluate("Boolean(window.ogb?.getCapabilities && document.readyState === 'complete')"), "the preload bridge");
   const request = (route, body, method = "POST") => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)},${JSON.stringify(body === undefined ? {} : { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) })});return {status:r.status,body:await r.json()};})()`);
   const health = await request("/api/health");
@@ -184,6 +192,16 @@ try {
     assert.equal(result.status, 200);
     return result.body.bots;
   };
+  const disposableDesktop = process.env.GITHUB_ACTIONS === "true" && process.env.RUNNER_ENVIRONMENT === "github-hosted";
+  if (disposableDesktop) {
+    await until(() => evaluate("Boolean(document.querySelector('[data-tour=computer]'))"), "the computer panel entry");
+    computerPanelVisible = true;
+    await evaluate("document.querySelector('[data-tour=computer]').click()");
+    await until(() => evaluate("Boolean(document.querySelector('[data-computer-panel-close]'))"), "the computer panel");
+    await evaluate("document.querySelector('[data-computer-panel-close]').click()");
+    await until(() => evaluate("!document.querySelector('[data-computer-panel-close]')"), "the computer panel to close");
+    computerPanelVisible = false;
+  }
   const initialBots = await roster();
   const helper = initialBots.find(row => row.defaultBot);
   assert(helper?.threadId, "The first-run main helper must exist");
@@ -213,10 +231,12 @@ try {
     assert.equal(routine.status, 201, JSON.stringify(routine.body));
     assert.equal(routine.body.routine.enabled, false);
     writeFileSync(path.join(home, "synthetic-old-file.txt"), "baseline fixture file");
+    assert.deepEqual(rendererErrors, [], "The baseline renderer reported an uncaught exception or crash");
     if (mac) { socket.close(); child.kill("SIGTERM"); }
     else await cdp("Browser.close").catch(() => {});
     await until(() => child.exitCode !== null || child.signalCode !== null, "the baseline application shutdown", 45_000);
     await waitPortClosed(port, "the baseline server shutdown");
+    assert.deepEqual(rendererErrors, [], "The baseline renderer reported an uncaught exception or crash");
     const destination = path.resolve(values["create-upgrade-fixture"]);
     mkdirSync(destination);
     try {
@@ -424,14 +444,18 @@ try {
   }
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
+  assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   const botIds = (await roster()).map(row => row.id);
+  assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   if (mac) { socket.close(); child.kill("SIGTERM"); }
   else await cdp("Browser.close").catch(() => {});
   await until(() => child.exitCode !== null || child.signalCode !== null, "the first application shutdown", 45_000);
   await waitPortClosed(port, "the first server to stop");
+  assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion, declinedCompletion },
+    computerPanelNavigation: disposableDesktop ? "PASS (opened and closed on disposable runner; no desktop control)" : "NOT RUN (requires disposable desktop)",
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     restart, computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
@@ -459,6 +483,7 @@ try {
     report.cleanupError = error.stack;
   } finally {
     if (!firstStopped || (restartLifecycle.started && !restartLifecycle.stopped)) report.retainedFixture = fixture;
+    writeFileSync(path.join(evidence, "renderer-errors.json"), JSON.stringify(rendererErrors, null, 2) + "\n");
     writeFileSync(path.join(evidence, "desktop-smoke.json"), JSON.stringify(report, null, 2) + "\n");
     const appLog = path.join(profile, "logs", "server.log");
     writeFileSync(launchLog, output + (existsSync(appLog) ? `\n${readFileSync(appLog, "utf8")}` : ""));

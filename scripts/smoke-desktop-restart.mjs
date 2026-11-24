@@ -41,6 +41,7 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
   let socket;
   let output = "";
   let spawnError;
+  const rendererErrors = [];
   child.stdout.on("data", bytes => { output += bytes; });
   child.stderr.on("data", bytes => { output += bytes; });
   child.on("error", error => { spawnError = error; });
@@ -56,7 +57,10 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     let sequence = 0;
     const pending = new Map();
     socket.addEventListener("message", event => {
-      const message = JSON.parse(String(event.data)), entry = pending.get(message.id);
+      const message = JSON.parse(String(event.data));
+      if (message.method === "Runtime.exceptionThrown") rendererErrors.push({ kind: "exception", detail: message.params?.exceptionDetails?.text ?? "unknown" });
+      if (message.method === "Inspector.targetCrashed") rendererErrors.push({ kind: "renderer-crash" });
+      const entry = pending.get(message.id);
       if (!entry) return;
       pending.delete(message.id); clearTimeout(entry.timer);
       if (message.error) entry.reject(new Error(message.error.message)); else entry.resolve(message.result);
@@ -71,6 +75,8 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
       if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
       return result.result.value;
     };
+    await cdp("Runtime.enable");
+    await cdp("Inspector.enable");
     await until(() => evaluate("Boolean(window.ogb?.getCapabilities && document.readyState === 'complete')"), "the restarted preload");
     const request = route => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)});return {status:r.status,body:await r.json()};})()`);
     const bots = await until(async () => { const response = await request("/api/bots?messages=0"); return response.status === 200 && response.body.bots; }, "the restored bots");
@@ -126,10 +132,12 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
       }, "a new reply in the restored conversation");
       assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(followupText)).length, 1);
     }
+    assert.deepEqual(rendererErrors, [], "The restarted renderer reported an uncaught exception or crash");
     if (process.platform === "darwin") { socket.close(); child.kill("SIGTERM"); }
     else await cdp("Browser.close").catch(() => {});
     await until(() => child.exitCode !== null || child.signalCode !== null, "the restarted application to exit", 45_000);
     await waitPortClosed(port, "the restarted server to stop");
+    assert.deepEqual(rendererErrors, [], "The restarted renderer reported an uncaught exception or crash");
     return { status: "PASS", sameBotAndThread: true, workRequestId, noReplayObservedMs: 3000, fileRetained: true, fullAccessRetained: true };
   } finally {
     socket?.close();
@@ -139,6 +147,9 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
       await until(() => spawnError || child.exitCode !== null || child.signalCode !== null, "restarted application exit", 15_000);
       await waitPortClosed(port, "restarted server shutdown");
       lifecycle.stopped = true;
-    } finally { writeFileSync(path.join(evidence, "desktop-restart.log"), output); }
+    } finally {
+      writeFileSync(path.join(evidence, "desktop-restart-renderer-errors.json"), JSON.stringify(rendererErrors, null, 2) + "\n");
+      writeFileSync(path.join(evidence, "desktop-restart.log"), output);
+    }
   }
 }

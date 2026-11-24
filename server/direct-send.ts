@@ -29,4 +29,5 @@ export interface DirectSendInput {
 
 export type DirectSendReceipt =
   | { ok: true; threadId: string; message: Message; steered?: true }
+  | { ok: true; transferred: true; queueId: string; threadId: string }
   | { ok: true; queued: true; queueId: string; threadId: string; reason?: SteerQueueReason; why?: string };

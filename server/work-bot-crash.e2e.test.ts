@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,6 +13,8 @@ it.each([true, false])("does not repeat a synthetic schedule after a crash (dedi
   const routes = join(dir, "routes.json"), prompts = join(dir, "prompts.jsonl");
   const ready = join(dir, "ready"), gate = join(dir, "gate");
   const text = "Track the synthetic inventory every week";
+  const detail = "Create the synthetic weekly schedule at 03:01";
+  const detailSendId = randomUUID();
   writeFileSync(routes, JSON.stringify({ [text]: JSON.stringify({ name: "Inventory", icon: "box" }) }));
   const token = randomBytes(32).toString("base64url");
   const env = { ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_PROMPTS: prompts, OMB_TEST_DESKTOP_OWNER_TOKEN: token };
@@ -33,6 +36,7 @@ it.each([true, false])("does not repeat a synthetic schedule after a crash (dedi
     await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text, sendId: randomUUID() });
     await expect.poll(async () => (await rows(main.threadId)).some(row => row.card?.teamSetupRequest?.workBotOffer), { timeout: 20000 }).toBe(true);
     const card = (await rows(main.threadId)).find(row => row.card?.teamSetupRequest?.workBotOffer)!.card!;
+    if (dedicated) await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: detail, sendId: detailSendId });
     const targetId = dedicated ? card.teamSetupRequest!.operations.find(operation => operation.action === "create")!.botId : main.id;
     const weekday = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][(new Date().getDay() + 3) % 7];
     const plan = join(fixture.info.dataDir, "room-plan.json");
@@ -50,6 +54,13 @@ it.each([true, false])("does not repeat a synthetic schedule after a crash (dedi
     expect(scheduled).toMatchObject({ botId: bot.id, sourceThreadId: bot.threadId });
     fixture.child.kill("SIGKILL");
     await new Promise<void>(resolve => fixture!.child.once("exit", () => resolve()));
+    if (dedicated) {
+      const db = new DatabaseSync(join(fixture.info.dataDir, "messages.db"));
+      try {
+        const changed = db.prepare("UPDATE messages SET json = json_remove(json, '$.workBotRecoveryPending') WHERE thread_id = ? AND json_extract(json, '$.queueId') IS NOT NULL AND text = ?").run(bot.threadId, detail);
+        expect(changed.changes).toBe(1);
+      } finally { db.close(); }
+    }
     writeFileSync(gate, "release");
     const childEnv = verificationServerEnvironment(env, fixture.info.dataDir, Number(new URL(base).port));
     restarted = spawn(process.execPath, verificationServerArgs(childEnv), { cwd: process.cwd(), env: childEnv, stdio: "ignore" });
@@ -57,7 +68,10 @@ it.each([true, false])("does not repeat a synthetic schedule after a crash (dedi
     const target = (await rows(bot.threadId)).find(row => row.text === text)!;
     expect(target.workBotExecutionUncertain).toBe(true);
     expect(target.requestPending).toBe(false);
-    await api(`/api/bots/${bot.id}/messages`, { threadId: bot.threadId, text: "Show status", sendId: randomUUID() });
+    const detailRow = dedicated ? (await rows(bot.threadId)).find(row => row.text === detail) : undefined;
+    if (dedicated) expect(detailRow).toMatchObject({ workBotExecutionUncertain: true });
+    if (dedicated) expect((await api<{ transferred: boolean }>(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: detail, sendId: detailSendId })).transferred).toBe(true);
+    await api(`/api/bots/${bot.id}/messages`, { threadId: bot.threadId, text: "Show status", sendId: randomUUID(), ...(detailRow ? { replyToId: detailRow.id } : {}) });
     await expect.poll(async () => (await rows(bot.threadId)).some(row => row.role === "bot" && row.text === "Status checked."), { timeout: 20000 }).toBe(true);
     const after = (await api<{ routines: Array<{ id: string; botId: string; sourceThreadId: string }> }>("/api/routines")).routines;
     expect(after).toHaveLength(before + 1);
@@ -66,6 +80,7 @@ it.each([true, false])("does not repeat a synthetic schedule after a crash (dedi
     const followup = JSON.stringify(captured.find(prompt => JSON.stringify(prompt).includes("Show status")));
     expect(followup).toContain("Do not repeat it automatically");
     expect(followup).not.toContain(`User: ${text}`);
+    if (dedicated) expect(followup).not.toContain(detail);
     expect(followup).toContain("Crash fixture schedule");
   } finally {
     writeFileSync(gate, "release");

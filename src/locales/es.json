@@ -1,4 +1,7 @@
 {
+  "server.workBot.choiceInProgress": "Se está procesando la elección del bot. Vuelve a intentarlo cuando termine.",
+  "server.workBot.pendingUnavailable": "Algunos mensajes en espera no se pueden transferir de forma segura. Retíralos de la cola o continúa aquí.",
+  "workBotOffer.queuedNotice": "Si aceptas, los mensajes que envíes mientras decides irán al nuevo bot. Retira antes los mensajes en espera que no estén relacionados.",
   "server.workBot.genericName": "Trabajo",
   "server.workBot.standingGuidance": "Ayuda con las tareas asignadas en esta conversación. Trata las solicitudes anteriores como historial; no repitas acciones completadas sin una nueva solicitud.",
   "native.menu.personalInbox": "Mensajes",

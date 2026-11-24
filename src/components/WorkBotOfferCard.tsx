@@ -22,6 +22,7 @@ export function WorkBotOfferCard({ card, threadId }: { card: OptionCardData; thr
       <summary className="cursor-pointer">{t("approval.applied.details")}</summary>
       <p className="mt-2 whitespace-pre-line break-words">{card.subtitle}</p>
     </details>}
+    {pending && <p className="mt-2 text-sm text-ink-secondary">{t("workBotOffer.queuedNotice")}</p>}
     {pending && threadId && canAnswer && <div className="mt-3 flex flex-wrap gap-2">
       <button type="button" onClick={() => decide("allow")} className={askPrimary(undefined).className}>{card.options[0]}</button>
       <button type="button" onClick={() => decide("deny")} className={ASK_SECONDARY_BUTTON}>{t("notice.notNow")}</button>

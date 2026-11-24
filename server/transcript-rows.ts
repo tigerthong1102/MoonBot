@@ -12,6 +12,8 @@ export const TRANSCRIPT_RETENTION_SCHEMA = `
 `;
 
 export function clearTranscriptRows(connection: DatabaseSync, threadId: string) {
+  connection.prepare("UPDATE chat_followups SET payload = json_remove(payload, '$.transfer.salt', '$.transfer.fingerprint') WHERE status = 'transferred' AND thread_id = ?").run(threadId);
+  connection.prepare("UPDATE chat_followups SET payload = '{\"text\":\"\"}' WHERE status = 'transferred' AND json_extract(payload, '$.transfer.threadId') = ?").run(threadId);
   const retain = connection.prepare("INSERT OR IGNORE INTO retained_uploads(thread_id, name) VALUES (?, ?)");
   for (const row of connection.prepare("SELECT json FROM messages WHERE thread_id = ?").iterate(threadId)) {
     for (const match of String(row.json).matchAll(ATTACHMENT_IN_TRANSCRIPT)) retain.run(threadId, match[1]!);
@@ -25,8 +27,12 @@ export function clearTranscriptRows(connection: DatabaseSync, threadId: string) 
 }
 
 export function deleteTranscriptRows(connection: DatabaseSync, threadIds: readonly string[]) {
+  const clearReceipts = connection.prepare("UPDATE chat_followups SET payload = '{\"text\":\"\"}' WHERE status = 'transferred' AND json_extract(payload, '$.transfer.threadId') = ?");
+  for (const id of threadIds) clearReceipts.run(id);
+  const clearSourceFingerprints = connection.prepare("UPDATE chat_followups SET payload = json_remove(payload, '$.transfer.salt', '$.transfer.fingerprint') WHERE status = 'transferred' AND thread_id = ?");
+  for (const id of threadIds) clearSourceFingerprints.run(id);
   const statements = [
-    connection.prepare("DELETE FROM chat_followups WHERE thread_id = ?"),
+    connection.prepare("DELETE FROM chat_followups WHERE thread_id = ? AND status != 'transferred'"),
     connection.prepare("DELETE FROM messages WHERE thread_id = ?"),
     connection.prepare("DELETE FROM thread_state WHERE thread_id = ?"),
     connection.prepare("DELETE FROM cleared_transcripts WHERE thread_id = ?"),

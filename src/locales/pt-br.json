@@ -1,4 +1,7 @@
 {
+  "server.workBot.choiceInProgress": "A escolha do bot está sendo processada. Tente novamente quando terminar.",
+  "server.workBot.pendingUnavailable": "Algumas mensagens na fila não podem ser transferidas com segurança. Remova-as da fila ou continue aqui.",
+  "workBotOffer.queuedNotice": "Se você concordar, as mensagens enviadas enquanto decide irão para o novo bot. Remova antes as mensagens da fila que não tiverem relação.",
   "native.menu.personalInbox": "Mensagens",
   "settings.account.connectionFailed": "Não foi possível conectar ao StartupBot. Tente novamente.",
   "settings.account.emailAccess": "Entrar ou criar uma conta",

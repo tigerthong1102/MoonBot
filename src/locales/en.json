@@ -1,4 +1,6 @@
 {
+  "server.workBot.choiceInProgress": "The bot choice is being processed. Try again when it finishes.",
+  "server.workBot.pendingUnavailable": "Some queued messages cannot be transferred safely. Remove them from the queue or choose to continue here.",
   "reconcile.title": "Reconcile documents",
   "reconcile.close": "Close",
   "reconcile.intro": "Choose two UTF-8 CSV or single-sheet XLSX files. Your files stay on this device.",
@@ -569,6 +571,7 @@
   "server.workBot.pauseInProgress": "A pause change is still being processed. Try again when it finishes.",
   "workBotRouting.cancelled": "Cancelled.",
   "workBotOffer.created": "Created “{name}”",
+  "workBotOffer.queuedNotice": "Messages you send while this choice is open will go to the new bot if you agree. Remove any unrelated queued message before choosing.",
   "server.workBot.legacyUnavailable": "This earlier suggestion cannot transfer work safely. Review the existing work before starting a new request.",
   "server.workBot.privateUnavailable": "A dedicated bot cannot yet be created safely from this private conversation. The existing conversation remains available.",
   "server.workBot.sharedUnavailable": "A dedicated bot cannot yet be created safely in this shared installation. Continue in this conversation.",

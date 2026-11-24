@@ -214,8 +214,8 @@ try {
     report = { ...report, status: "PASS", baselineFixture: destination };
   } else {
   assert(!initialBots.some(row => row.name === workName));
-  const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
-  const extraNext = "Xin xác nhận ghi chú thử thứ hai.";
+  const extra = "Chỉ chọn nguồn đáng tin cậy.";
+  const extraNext = "Tóm tắt ngắn gọn bằng tiếng Việt.";
   const declinedWork = "Theo dõi lịch bảo trì thiết bị thử mỗi tháng.";
   writeFileSync(textRoutes, JSON.stringify({ [workMessage]: JSON.stringify({ name: workName, icon: "calendar" }), [declinedWork]: JSON.stringify({ name: "Bảo trì", icon: "calendar" }) }));
   writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [
@@ -281,13 +281,16 @@ try {
     const terminal = rows.find(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === inputs[0].id);
     return terminal?.turnId ? { requestId: inputs[0].id, turnId: terminal.turnId } : false;
   };
-  const workCompletion = await until(() => completedRequest(workBot.threadId, workMessage), "the handed-off request to settle by ID");
-  const queuedCompletion = await until(() => completedRequest(helper.threadId, extra), "the queued request to settle by ID");
-  const nextCompletion = await until(() => completedRequest(helper.threadId, extraNext), "the next queued request to settle by ID");
-  assert.notEqual(workCompletion.requestId, queuedCompletion.requestId);
-  assert.notEqual(workCompletion.turnId, queuedCompletion.turnId);
-  assert.notEqual(queuedCompletion.requestId, nextCompletion.requestId);
-  assert.notEqual(queuedCompletion.turnId, nextCompletion.turnId);
+  await until(() => completedRequest(workBot.threadId, workMessage), "the handed-off request to settle by ID");
+  const transferred = await until(async () => {
+    const rows = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
+    const first = rows.find(row => row.role === "user" && row.text === extra);
+    const second = rows.find(row => row.role === "user" && row.text === extraNext);
+    return first && second && !first.workBotRecoveryPending && !second.workBotRecoveryPending && [first, second];
+  }, "both queued clarifications to settle with the handed-off request");
+  assert.notEqual(transferred[0].id, transferred[1].id);
+  assert(!(await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.text === extra || row.text === extraNext));
+  assert(JSON.stringify(workPrompts()[0]).includes(extra) && JSON.stringify(workPrompts()[0]).includes(extraNext));
   writeFileSync(path.join(evidence, "work-bot-prompt-fixture.json"), JSON.stringify(workPrompts(), null, 2) + "\n");
   assert.equal(workPrompts().length, 1);
   const handedOffScreenshot = await cdp("Page.captureScreenshot", { format: "png" });

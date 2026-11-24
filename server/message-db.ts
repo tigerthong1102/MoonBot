@@ -208,9 +208,9 @@ export interface FollowupPayload {
   trigger?: UsageTrigger;
   origin?: WorkOrigin;
   queuedAt?: number;
-  rowId?: string; mentions?: string[]; workBotOfferOwner?: string;
+  rowId?: string; mentions?: string[]; workBotOfferOwner?: string; workBotOfferSource?: string; workBotFollowUp?: import("../shared/follow-up.ts").FollowUp;
 }
-export type FollowupStatus = "pending" | "dispatching" | "interrupted" | "cancelled";
+export type FollowupStatus = "pending" | "dispatching" | "interrupted" | "cancelled" | "transferred";
 export interface ChatFollowup {
   id: string;
   kind: "bot" | "channel" | "aside";
@@ -457,7 +457,7 @@ export function appendMessage(threadId: string, message: Message): void {
   });
 }
 
-export const { appendMessageBatch, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, insertMessage, setActiveLeaf });
+export const { appendMessageBatch, transferQueuedWorkBotMessages, transferredChatFollowup, verifiedWorkBotFollowup, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, durableTransaction: writeFollowups, insertMessage, setActiveLeaf });
 
 export function updateMessage(threadId: string, message: Message): void {
   prepared("UPDATE messages SET at = ?, role = ?, kind = ?, text = ?, json = ?, search_text = ? WHERE thread_id = ? AND id = ?").run(message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), cjkSearchText(message.text), threadId, message.id);

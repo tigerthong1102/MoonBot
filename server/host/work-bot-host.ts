@@ -12,6 +12,9 @@ import type { TeamSetupRequestService } from "../team-setup-requests.ts";
 import { WorkBotRouter } from "../work-bot-routing.ts";
 import { captureWorkBotContext, scanWorkBotContext, unsupportedWorkBotContext } from "../work-bot-context.ts";
 import { mayDispatchWorkBot, type WorkBotMember } from "../work-bot-access.ts";
+import { forgetTransferredWorkBotFollowups, workBotQueuedFollowups } from "../steer-queue.ts";
+import { pendingWorkBotTargets } from "../message-db.ts";
+import { serverLine } from "../server-lines.ts";
 
 export function cleanupWorkBotSetup(steps: readonly (() => void)[]): boolean {
   let clean = true;
@@ -26,6 +29,37 @@ export function updateWorkBotRoutingIndex(idsByThread: Map<string, Set<string>>,
 }
 
 type TargetLock = { sourceThreadId: string; messageId: string; cleanupFailed?: boolean };
+
+export function assertWorkBotStopAllowed(choices: Set<string>, locks: Map<string, TargetLock>, language: string | undefined, threadId: string): void {
+  if (choices.has(threadId)) throw Object.assign(new Error(serverLine(language, "server.workBot.choiceInProgress")), { status: 409 });
+  if ([...locks].some(([target, lock]) => lock.cleanupFailed && (target === threadId || lock.sourceThreadId === threadId))) throw Object.assign(new Error(serverLine(language, "server.workBot.restartToRecover")), { status: 409 });
+}
+
+export function handedRunTarget(store: Store, busy: (botId: string, threadId: string) => boolean, ownerFor: (threadId: string) => { messageId?: string; stopped?: boolean } | undefined, botId: string, threadId: string): { botId: string; threadId: string } | null {
+  const lastUser = store.activePath(threadId).findLast(row => row.role === "user");
+  const handed = lastUser?.workBotRouting;
+  if (lastUser && !busy(botId, threadId) && handed?.state === "dispatched" && handed.targetThreadId && handed.targetBotId && handed.targetThreadId !== threadId) {
+    const targetOwner = ownerFor(handed.targetThreadId);
+    const handedMessage = store.messagesFor(handed.targetThreadId).find(row => row.sendId === `workbot-${lastUser.id}`);
+    if (handedMessage && targetOwner?.messageId === handedMessage.id && !targetOwner.stopped) return { botId: handed.targetBotId, threadId: handed.targetThreadId };
+  }
+  return null;
+}
+
+export function unambiguousWorkBotRequest(path: readonly Message[], ownerMessageId: string | undefined, verified: (message: Message) => boolean): boolean {
+  if (!ownerMessageId) return false;
+  const index = path.findIndex(message => message.id === ownerMessageId && message.role === "user");
+  if (index < 0) return false;
+  const source = path[index]!.workBotHandoffSource;
+  return !path.slice(index + 1).some(message => message.role === "user" && (!source || message.workBotHandoffSource?.threadId !== source.threadId || message.workBotHandoffSource.messageId !== source.messageId || !verified(message)));
+}
+
+export function pendingWorkBotOfferSource(store: Store, pending: Map<string, Set<string>>, locks: Set<string>, threadId: string, sender: Message["sender"], cloudTeam: boolean, language: string | undefined): string | undefined {
+  const ids = pending.get(threadId), rows = store.messagesFor(threadId);
+  if (locks.has(threadId) || (ids && rows.some(row => ids.has(row.id) && row.workBotRouting?.state === "dispatching" && row.workBotRouting.targetThreadId !== threadId))) throw Object.assign(new Error(serverLine(language, "server.workBot.choiceInProgress")), { status: 409, code: "work_bot_handoff_in_progress" });
+  const source = ids?.size === 1 ? rows.find(row => ids.has(row.id) && (row.workBotRouting?.state === "classifying" || row.workBotRouting?.state === "waiting_choice")) : undefined;
+  return source && source.sender?.id === sender?.id && (!cloudTeam || sender?.id) ? source.id : undefined;
+}
 
 export function releaseWorkBotTargetLock(locks: Map<string, TargetLock>, threadId: string, messageId: string, settled: (threadId: string) => void): void {
   const lock = locks.get(threadId);
@@ -44,7 +78,7 @@ export function createWorkBotHost(deps: {
   indexWorkBotRouting(threadId: string, messageId: string, state: NonNullable<Message["workBotRouting"]>["state"]): void;
   drainQueuedSends(): void;
   targetUnlocked(threadId: string): void;
-  assertAvailable(): void;
+  assertAvailable(botId?: string, threadId?: string): void;
   offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal, mayContinue?: () => boolean): ReturnType<TeamSetupRequestService["offerFromChat"]> | undefined;
   teamPersonFor(person: string): WorkBotMember | undefined;
   sessionFor(person: string): { email?: string } | undefined;
@@ -54,7 +88,7 @@ export function createWorkBotHost(deps: {
   conversationShares: { isShareKey(person: string): boolean };
   threadStarters: { get(threadId: string): string | undefined; setRequired(threadId: string, person: string): void };
   threadBusy(botId: string, threadId: string): boolean;
-  startTurn(botId: string, text: string, opts: { threadId: string; userMessage?: Message; sender?: Message["sender"]; trigger: UsageTrigger; replyTo?: ReplyTarget; dataContext?: Message["dataContext"]; sendId?: string; allowRoomTurnElsewhere: true; workBotRoutingMessageId: string; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget } }): Promise<unknown>;
+  startTurn(botId: string, text: string, opts: { threadId: string; userMessage?: Message; sender?: Message["sender"]; trigger: UsageTrigger; replyTo?: ReplyTarget; dataContext?: Message["dataContext"]; sendId?: string; allowRoomTurnElsewhere: true; workBotRoutingMessageId: string; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredText?: string[]; transferredMessageIds?: string[] } }): Promise<unknown>;
 }) {
   const { store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked, assertAvailable, offerWorkBot, teamPersonFor, sessionFor, cloudTeam, sharedNonTeam, teamHost, conversationShares, threadStarters, threadBusy, startTurn } = deps;
 function reconcileWorkBotBranch(threadId: string): void {
@@ -86,7 +120,10 @@ const workBotRouter = new WorkBotRouter({
     if (!route.targetBotId || !route.targetThreadId) return route.state === "dispatching";
     const target = store.messagesFor(route.targetThreadId).find(row => row.id === messageId || row.sendId === `workbot-${messageId}`);
     if (route.state !== "dispatching" && target?.requestPending !== true && !target?.workBotRecoveryPending) return false;
-    if (target && !store.patchMessage(route.targetThreadId, target.id, { workBotExecutionUncertain: true })) return false;
+    if (target) {
+      const group = store.messagesFor(route.targetThreadId).filter(row => row.id === target.id || (row.workBotHandoffSource?.threadId === _threadId && row.workBotHandoffSource.messageId === messageId));
+      for (const row of group) if (!store.patchMessage(route.targetThreadId, row.id, { workBotExecutionUncertain: true })) return false;
+    }
     if (target && !store.patchTask(route.targetBotId, route.targetThreadId, { resumeCursors: {}, rewound: true })) return false;
     return true;
   },
@@ -95,7 +132,10 @@ const workBotRouter = new WorkBotRouter({
     const lock = workBotTargetLocks.get(route.targetThreadId);
     if (lock?.messageId === messageId && lock.cleanupFailed) return;
     const target = store.messagesFor(route.targetThreadId).find(row => row.id === messageId || row.sendId === `workbot-${messageId}`);
-    if (target?.workBotExecutionUncertain && !store.patchMessage(route.targetThreadId, target.id, { requestPending: false, workBotRecoveryPending: undefined })) return;
+    if (target?.workBotExecutionUncertain) {
+      const group = store.messagesFor(route.targetThreadId).filter(row => row.id === target.id || (row.workBotExecutionUncertain && row.workBotHandoffSource?.threadId === _threadId && row.workBotHandoffSource.messageId === messageId));
+      for (const row of group) if (!store.patchMessage(route.targetThreadId, row.id, { ...(row.id === target.id ? { requestPending: false } : {}), workBotRecoveryPending: undefined })) return;
+    }
     if (lock?.messageId === messageId) workBotTargetLocks.delete(route.targetThreadId);
   },
   patch: (threadId, messageId, expected, routing) => {
@@ -196,7 +236,7 @@ const workBotRouter = new WorkBotRouter({
         const sourceLeaf = store.activeLeaf(threadId);
         const targetLeaf = store.activeLeaf(target.threadId);
         const validateHandoff = () => {
-          assertAvailable();
+          assertAvailable(route.sourceBotId!, threadId);
           const currentSource = store.messagesFor(threadId).find(message => message.id === messageId);
           const from = store.bot(route.sourceBotId!);
           const to = store.bot(target.botId);
@@ -232,11 +272,16 @@ const workBotRouter = new WorkBotRouter({
         await startTurn(target.botId, source.text, { threadId: target.threadId, sendId: `workbot-${messageId}`, sender: source.sender, trigger, dataContext: source.dataContext, allowRoomTurnElsewhere: true, workBotRoutingMessageId: messageId, prepareWorkBotContext: () => {
           validateHandoff();
           validateContext();
-          const copied = store.appendWorkBotContext(target.threadId, [...staged, { sourceId: messageId, ...(source.replyToId ? { replySourceId: source.replyToId } : {}), message: {
+          const followups = workBotQueuedFollowups(route.sourceBotId!, threadId, messageId);
+          const first = followups[0];
+          if (followups.some(item => item.sender?.id !== source.sender?.id || item.trigger?.kind !== route.triggerKind || JSON.stringify(item.trigger ?? null) !== JSON.stringify(first?.trigger ?? null) || item.workBotOfferOwner !== first?.workBotOfferOwner || unsupportedWorkBotContext([{ id: item.messageId, role: "user", kind: "text", at: item.queuedAt, text: item.text, dataContext: item.dataContext }]))) throw new Error("Queued work cannot be transferred safely");
+          const queueIds = followups.map(item => item.messageId);
+          const rows: Parameters<typeof store.appendWorkBotContext>[1] = [...staged, { sourceId: messageId, ...(source.replyToId ? { replySourceId: source.replyToId } : {}), message: {
             role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`, workBotHandoffSource: { threadId, messageId }, workBotRecoveryPending: true,
             ...(source.sender ? { sender: source.sender } : {}), ...(source.dataContext ? { dataContext: source.dataContext } : {}),
-          } }]);
-          return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}) };
+          } }, ...followups.map(item => ({ sourceId: item.messageId, message: { role: "user" as const, kind: "text" as const, text: item.text, at: item.queuedAt, queueId: item.messageId, workBotHandoffSource: { threadId, messageId }, workBotRecoveryPending: true as const, ...(item.sendId ? { sendId: item.sendId } : {}), ...(item.sender ? { sender: item.sender } : {}) } }))];
+          const copied = store.appendWorkBotContext(target.threadId, rows, first ? { claim: { botId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, queueIds, trigger: first.trigger, offerOwner: first.workBotOfferOwner }, afterCommit: () => forgetTransferredWorkBotFollowups(route.sourceBotId!, threadId, messageId, queueIds) } : undefined);
+          return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}), ...(followups.length ? { transferredText: followups.map(item => item.text), transferredMessageIds: queueIds.map(id => copied.get(id)!.id) } : {}) };
         } });
         admitted = true;
       } catch (error) {
@@ -252,5 +297,14 @@ const workBotRouter = new WorkBotRouter({
   report: error => console.warn("Work bot routing could not complete", error instanceof Error ? error.name : "unknown error"),
 });
 
-  return { workBotRouter, reconcileWorkBotBranch };
+  function recoverWorkBotTargets(): void {
+    for (const pending of pendingWorkBotTargets()) {
+      const bot = store.botByThread(pending.threadId), source = pending.message.workBotHandoffSource;
+      if (!bot || !source) continue;
+      const group = store.messagesFor(pending.threadId).filter(row => row.workBotHandoffSource?.threadId === source.threadId && row.workBotHandoffSource.messageId === source.messageId);
+      if (!group.every(row => store.patchMessage(pending.threadId, row.id, { workBotExecutionUncertain: true })) || !store.patchTask(bot.id, pending.threadId, { resumeCursors: {}, rewound: true })) continue;
+      for (const row of group) store.patchMessage(pending.threadId, row.id, { ...(row.queueId ? {} : { requestPending: false }), workBotRecoveryPending: undefined });
+    }
+  }
+  return { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets, assertAvailable };
 }

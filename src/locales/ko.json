@@ -1,4 +1,7 @@
 {
+  "server.workBot.choiceInProgress": "봇 선택을 처리 중입니다. 완료된 후 다시 시도해 주세요.",
+  "server.workBot.pendingUnavailable": "대기 중인 일부 메시지를 안전하게 전달할 수 없습니다. 대기열에서 삭제하거나 여기서 계속하세요.",
+  "workBotOffer.queuedNotice": "동의하면 선택을 기다리는 동안 보낸 메시지도 새 봇으로 전달됩니다. 관련 없는 대기 메시지는 선택하기 전에 삭제하세요.",
   "server.workBot.genericName": "업무",
   "server.workBot.standingGuidance": "이 대화에서 맡은 업무를 돕습니다. 이전 요청은 기록으로 취급하고 새 요청 없이 완료된 작업을 반복하지 않습니다.",
   "native.menu.personalInbox": "메시지",

@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
 import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
@@ -34,7 +35,7 @@ it("keeps work referring to a relative fixture file in its original conversation
   }
 }, 60000);
 
-it.each(["deny", "allow", "queued", "codex"])("the main helper offers a bot without interrupting the work, then handles %s once", async scenario => {
+it.each(["deny", "allow", "queued", "codex", "unsupported"])("the main helper offers a bot without interrupting the work, then handles %s once", async scenario => {
   const queued = scenario === "queued";
   const codex = scenario === "codex";
   const behavior = scenario === "deny" ? "deny" : "allow";
@@ -102,7 +103,28 @@ it.each(["deny", "allow", "queued", "codex"])("the main helper offers a bot with
     expect(offers).toHaveLength(1);
     expect(await roster()).toHaveLength(original.length);
     if (!queued && !codex) expect(workPrompts()).toHaveLength(0);
+    const clarification = "Chỉ theo dõi tuyến đường quanh nhà tôi.";
+    const clarificationSendId = randomUUID();
+    if (scenario === "allow") {
+      const receipt = await api<{ queued: boolean; queueId: string }>(sendPath, { threadId: helper.threadId, text: clarification, sendId: clarificationSendId });
+      expect(receipt.queued).toBe(true);
+      const db = new DatabaseSync(join(fixture.info.dataDir, "messages.db"), { readOnly: true });
+      try {
+        const row = db.prepare("SELECT payload FROM chat_followups WHERE id = ?").get(receipt.queueId) as { payload: string };
+        expect(JSON.parse(row.payload).workBotOfferSource).toBe((await messages()).find(message => message.text === work)?.id);
+      } finally { db.close(); }
+    }
     const requestId = offers[0]!.requestId;
+    if (scenario === "unsupported") {
+      const originalMessage = (await messages()).find(row => row.role === "user" && row.text === work)!;
+      const pending = await api<{ queueId: string }>(sendPath, { threadId: helper.threadId, text: "A reply with context", replyToId: originalMessage.id, sendId: randomUUID() });
+      const refused = await fetch(url + path + "/respond", { method: "POST", headers: { origin: url, "content-type": "application/json" }, body: JSON.stringify({ requestId, behavior: "allow" }) });
+      expect(refused.status).toBe(409);
+      expect((await refused.json() as { error: string }).error).toContain("queued messages");
+      expect(await roster()).toHaveLength(original.length);
+      expect((await messages()).find(row => row.card?.requestId === requestId)?.card?.answered).toBeUndefined();
+      await api(`/api/bots/${helper.id}/queue/${pending.queueId}`, { threadId: helper.threadId }, "DELETE");
+    }
     const answer = () => api<{ result: { state: string; bots: { id: string }[] } }>(path + "/respond", { requestId, behavior });
     const result = await answer();
     await answer();
@@ -115,8 +137,27 @@ it.each(["deny", "allow", "queued", "codex"])("the main helper offers a bot with
       expect(added[0]).toMatchObject({ id: result.result.bots[0]!.id, name, avatarCrop: "rounded" });
       if (codex) expect(added[0]!.modelSelection).toMatchObject({ instanceId: "codex", model: selectedModel });
       await expect.poll(async () => (await api<{ messages: Message[] }>(`/api/threads/${added[0]!.threadId}/messages`)).messages.some(row => row.role === "user" && row.text?.includes(work)), { timeout: 15000 }).toBe(true);
+      if (scenario === "allow") {
+        expect((await api<{ transferred: boolean }>(sendPath, { threadId: helper.threadId, text: clarification, sendId: clarificationSendId })).transferred).toBe(true);
+        await expect.poll(async () => (await api<{ messages: Message[] }>(`/api/threads/${added[0]!.threadId}/messages`)).messages.some(row => row.role === "user" && row.text === clarification), { timeout: 15000 }).toBe(true);
+        expect((await messages()).some(row => row.role === "user" && row.text === clarification)).toBe(false);
+      }
       if (!codex) await expect.poll(async () => (await api<{ messages: Message[] }>(`/api/threads/${added[0]!.threadId}/messages`)).messages.filter(row => row.role === "bot" && row.kind === "text" && row.text === "hello from fake claude").length, { timeout: 15000 }).toBe(1);
+      if (scenario === "allow") await expect.poll(async () => {
+        const rows = (await api<{ messages: Message[] }>(`/api/threads/${added[0]!.threadId}/messages`)).messages;
+        return rows.find(row => row.role === "user" && row.text === work)?.requestPending === false && rows.find(row => row.text === clarification)?.workBotRecoveryPending !== true;
+      }, { timeout: 15000 }).toBe(true);
       if (!queued && !codex) expect(workPrompts()).toHaveLength(1);
+      if (scenario === "allow") expect(JSON.stringify(workPrompts()[0]).split(clarification)).toHaveLength(2);
+      if (scenario === "allow") {
+        const conflict = await fetch(url + sendPath, { method: "POST", headers: { origin: url, "content-type": "application/json" }, body: JSON.stringify({ threadId: helper.threadId, text: "Different text", sendId: clarificationSendId }) });
+        expect(conflict.status).toBe(409);
+        for (const changed of [{ followUp: "restart" }, { mode: "goal" }, { widgetAction: { messageId: "fixture", action: "confirm" } }, { dataContext: { cardId: "c_1" } }]) {
+          const mismatch = await fetch(url + sendPath, { method: "POST", headers: { origin: url, "content-type": "application/json" }, body: JSON.stringify({ threadId: helper.threadId, text: clarification, sendId: clarificationSendId, ...changed }) });
+          expect(mismatch.status).toBe(409);
+        }
+        expect(workPrompts()).toHaveLength(1);
+      }
       const png = await fetch(url + added[0]!.avatarUrl);
       expect(png.status).toBe(200);
       expect(Buffer.from(await png.arrayBuffer()).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");

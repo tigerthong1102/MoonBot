@@ -1,4 +1,7 @@
 {
+  "server.workBot.choiceInProgress": "ボットの選択を処理しています。完了後にもう一度お試しください。",
+  "server.workBot.pendingUnavailable": "待機中の一部のメッセージは安全に転送できません。キューから削除するか、ここで続けてください。",
+  "workBotOffer.queuedNotice": "同意すると、この選択を待つ間に送ったメッセージも新しいボットに渡されます。無関係な待機メッセージは選択前に削除してください。",
   "server.workBot.genericName": "作業",
   "server.workBot.standingGuidance": "この会話で依頼された作業を支援します。過去の依頼は履歴として扱い、新しい依頼がなければ完了した操作を繰り返しません。",
   "native.menu.personalInbox": "メッセージ",

@@ -1,4 +1,6 @@
 {
+  "server.workBot.choiceInProgress": "Die Bot-Auswahl wird verarbeitet. Versuche es danach erneut.",
+  "server.workBot.pendingUnavailable": "Einige wartende Nachrichten können nicht sicher übertragen werden. Entferne sie aus der Warteschlange oder fahre hier fort.",
   "native.menu.personalInbox": "Nachrichten",
   "cloudBuy.signIn.email": "E-Mail",
   "settings.account.connectionFailed": "StartupBot ist nicht erreichbar. Bitte erneut versuchen.",
@@ -352,6 +354,7 @@
   "server.workBot.pauseInProgress": "Eine Änderung der Pause wird noch verarbeitet. Versuche es erneut, wenn sie abgeschlossen ist.",
   "workBotRouting.cancelled": "Abgebrochen.",
   "workBotOffer.created": "Bot „{name}“ erstellt",
+  "workBotOffer.queuedNotice": "Nachrichten, die du während dieser Auswahl sendest, gehen bei Zustimmung an den neuen Bot. Entferne vorher nicht zugehörige Nachrichten aus der Warteschlange.",
   "server.workBot.legacyUnavailable": "Dieser ältere Vorschlag kann die Aufgabe nicht sicher übertragen. Prüfe die bestehende Arbeit, bevor du eine neue Anfrage stellst.",
   "server.workBot.privateUnavailable": "Ein eigener Bot kann aus dieser privaten Unterhaltung noch nicht sicher erstellt werden. Die bisherige Unterhaltung bleibt verfügbar.",
   "server.workBot.sharedUnavailable": "In diesem gemeinsamen Arbeitsbereich kann noch kein eigener Bot sicher erstellt werden. Setze die Unterhaltung hier fort.",

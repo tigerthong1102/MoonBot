@@ -1,10 +1,10 @@
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
-import { cleanupWorkBotSetup, createWorkBotHost, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
+import { assertWorkBotStopAllowed as assertWorkBotStop, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
 import { createProfileModelResponder } from "./host/profile-model-responder.ts";
-import { pendingWorkBotRoutes, pendingWorkBotTargets } from "./message-db.ts";
+import { pendingWorkBotRoutes, verifiedWorkBotFollowup } from "./message-db.ts";
 import { startFailureText } from "./start-failure-text.ts";
 import { reserveGmailDrafts } from "./gmail-draft-policy.ts";
 import { createGmailDrafts } from "./host/gmail-drafts.ts";
@@ -241,7 +241,8 @@ import { createOneOnOneGoals } from "./host/one-on-one-goals.ts";
 
 import { BUILT_IN_DRIVERS } from "./drivers/builtIn.ts";
 import { openCodeProviderKeysAllowed, setOpenCodeProviderKeyPolicy } from "./drivers/acp/opencode-go.ts";
-import { forgetNotificationReader, liveAppRows, openCardRows, readMessageText, recallMessages, recentMessages, closeMessageSearch, closeMessageDb, chatFollowups, cancelledChatFollowup, settleChatFollowups, retainedUploads, threadsReferencing, logNotification, lastRowAt, threadsWithCardsSince } from "./message-db.ts";
+import { forgetNotificationReader, liveAppRows, openCardRows, readMessageText, recallMessages, recentMessages, closeMessageSearch, closeMessageDb, chatFollowups, cancelledChatFollowup, transferredChatFollowup, settleChatFollowups, retainedUploads, threadsReferencing, logNotification, lastRowAt, threadsWithCardsSince } from "./message-db.ts";
+import { transferredWorkBotReceipt } from "./work-bot-receipt.ts";
 import { briefCrossingLabel, claimRecallCrossings, recallCrossingLabel } from "./recall-disclosure.ts";
 import { parseSince, parseUntil, recentWork, recentWorkPrompt, turnOutcomeLine } from "./recent-work.ts";
 import { createChiefNotices } from "./host/chief-notices.ts"; import { sessionHolds } from "./routine-recovery.ts"; import { dismissLeftoverPeerCards } from "./host/leftover-peer-cards.ts";
@@ -2213,8 +2214,9 @@ function botForThread(botId: string, threadId: string): BotRecord | null {
 }
 
 const pendingWorkBotIds = new Map<string, Set<string>>();
+const workBotChoiceLocks = new Set<string>();
 const workBotTargetLocks = new Map<string, { sourceThreadId: string; messageId: string; cleanupFailed?: boolean }>();
-function assertWorkBotStopAllowed(threadId: string): void { if ([...workBotTargetLocks].some(([target, lock]) => lock.cleanupFailed && (target === threadId || lock.sourceThreadId === threadId))) throw Object.assign(new Error(serverLine(threadLanguage(threadId), "server.workBot.restartToRecover")), { status: 409 }); }
+function assertWorkBotStopAllowed(threadId: string): void { assertWorkBotStop(workBotChoiceLocks, workBotTargetLocks, threadLanguage(threadId), threadId); }
 function workBotRoutingBlocks(threadId: string, exceptMessageId?: string): boolean { const ids = pendingWorkBotIds.get(threadId); return Boolean(ids?.size && !(ids.size === 1 && exceptMessageId && ids.has(exceptMessageId)) && store.activePath(threadId).some(message => message.id !== exceptMessageId && ids.has(message.id))); }
 function indexWorkBotRouting(threadId: string, messageId: string, state: NonNullable<Message["workBotRouting"]>["state"]): void { updateWorkBotRoutingIndex(pendingWorkBotIds, threadId, messageId, state); }
 
@@ -2268,19 +2270,9 @@ function requestedTaskBot(botId: string, rawThreadId: unknown): BotRecord {
   return task;
 }
 
-function handedRunTarget(botId: string, threadId: string): { botId: string; threadId: string } | null {
-  const lastUser = store.activePath(threadId).findLast(row => row.role === "user");
-  const handed = lastUser?.workBotRouting;
-  if (lastUser && !threadBusy(botId, threadId) && handed?.state === "dispatched" && handed.targetThreadId && handed.targetBotId && handed.targetThreadId !== threadId) {
-    const targetOwner = directRequestOwners.get(handed.targetThreadId);
-    const handedMessage = store.messagesFor(handed.targetThreadId).find(row => row.sendId === `workbot-${lastUser.id}`);
-    if (handedMessage && targetOwner?.messageId === handedMessage.id && !targetOwner.stopped) return { botId: handed.targetBotId, threadId: handed.targetThreadId };
-  }
-  return null;
-}
-
 async function interruptDirectThread(botId: string, threadId: string, cause?: string): Promise<void> {
-  const target = !CLOUD_TEAM && handedRunTarget(botId, threadId);
+  if (workBotChoiceLocks.has(threadId)) assertWorkBotStopAllowed(threadId);
+  const target = !CLOUD_TEAM && handedRunTarget(store, threadBusy, id => directRequestOwners.get(id), botId, threadId);
   if (target) {
     await interruptDirectThread(target.botId, target.threadId, cause);
     return;
@@ -4656,13 +4648,17 @@ function settleTrackedRequest(threadId: string, incoming: ReadonlySet<string> = 
   const newest = coordinator.newestRoot(threadId, owner.generations);
   if (newest && newest.status !== "completed") return;
   const path = store.activePath(threadId).filter(message => !incoming.has(message.id));
-  const source = path.findLast(message => message.role === "user");
-  if (source?.id !== owner.messageId || source.requestCancelled || source.requestPending !== true) return;
+  const source = path.find(message => message.id === owner.messageId && message.role === "user");
+  const lastUser = path.findLast(message => message.role === "user");
+  const sameHandoff = source?.workBotHandoffSource && lastUser?.workBotHandoffSource && source.workBotHandoffSource.threadId === lastUser.workBotHandoffSource.threadId && source.workBotHandoffSource.messageId === lastUser.workBotHandoffSource.messageId;
+  if (!source || (lastUser?.id !== source.id && !sameHandoff) || source.requestCancelled || source.requestPending !== true) return;
   const messages = path.slice(path.indexOf(source) + 1);
+  if (messages.some(message => message.role === "user" && (!source.workBotHandoffSource || message.workBotHandoffSource?.threadId !== source.workBotHandoffSource.threadId || message.workBotHandoffSource.messageId !== source.workBotHandoffSource.messageId || !message.queueId || !verifiedWorkBotFollowup(message.queueId, source.workBotHandoffSource.threadId, source.workBotHandoffSource.messageId, threadId, message.id)))) return;
   const terminal = messages.findLast(message => message.turnTerminal && message.role === "bot" && message.kind === "text");
   if (messages.some(requestNeedsInput) || terminal?.requestMessageId !== source.id || !terminal.turnSucceeded ||
       terminal.turnId !== owner.turnId || messages.findLast(message => message.turnId)?.turnId !== terminal.turnId ||
       messages.findLast(message => message.turnSucceeded !== undefined)?.turnSucceeded !== true) return;
+  for (const message of messages) if (message.workBotRecoveryPending && message.workBotHandoffSource?.threadId === source.workBotHandoffSource?.threadId && message.workBotHandoffSource?.messageId === source.workBotHandoffSource?.messageId && !store.patchMessage(threadId, message.id, { workBotRecoveryPending: undefined })) return;
   store.patchMessage(threadId, source.id, { requestPending: false, workBotRecoveryPending: undefined }); savedSteps.requestSettled({ botId: bot.id, threadId, request: source, reply: terminal, after: messages, generations: owner.generations, automated: !personRequest(owner) });
 }
 
@@ -7280,6 +7276,9 @@ async function acceptDirectSend(
   guardedStart?: (currentAtStart: BotRecord) => Promise<DirectSendReceipt>,
 ): Promise<DirectSendReceipt> {
   const { botId, threadId, text, sendId, replyTo, sender, trigger, via, callId, dataContext, personPresent, app, followUp, mentions, admin, workBotOfferOwner } = input;
+  if (!store.taskByThread(botId, threadId)) throw Object.assign(new Error("the bot switched tasks before it could receive the message"), { status: 409 });
+  const transferred = transferredWorkBotReceipt(input, transferredChatFollowup);
+  if (transferred) return transferred;
   const refused = directSendRefusal(botId, threadId);
   if (refused) throw refused;
   return sendSequencer.run(
@@ -7334,10 +7333,11 @@ async function acceptDirectSend(
       const typedStop = await stopOnTypedCommand({ botId, threadId, text, trigger, personPresent, fromApp: Boolean(app), busy: currentAtStart.busy === true || workBotRoutingBlocks(threadId), row: { replyToId: replyTo?.id, sendId, sender, ...spokenLineFields(via, callId) }, by: { ...(sender?.id ? { person: sender.id } : {}), admin: admin === true } });
       if (typedStop) return typedStop;
       if (workBotRoutingBlocks(threadId) && personPresent && !app && !guardedStart) {
+        const offerSource = pendingWorkBotOfferSource(store, pendingWorkBotIds, workBotChoiceLocks, threadId, sender, Boolean(CLOUD_TEAM), threadLanguage(threadId));
         const queued = queueSteeredMessage(botId, threadId, text, {
           replyToId: replyTo?.id, sendId, dataContext, sender, trigger, via, callId,
           prompt: personPrompt(threadId, sender, promptWithReply(promptWithDataContext(text, dataContext), replyTo, userNameFor(threadId))),
-          workBotOfferOwner, ...(mentions?.length ? { mentions } : {}),
+          workBotOfferOwner, ...(offerSource ? { workBotOfferSource: offerSource, ...(followUp ? { workBotFollowUp: followUp } : {}) } : {}), ...(mentions?.length ? { mentions } : {}),
         });
         return { ok: true as const, queued: true as const, queueId: queued.id, threadId };
       }
@@ -7630,7 +7630,7 @@ async function beginTurn(
     automaticRecoveryIndex?: number; peerLimitResent?: boolean; // already the one resend of a bot-to-bot turn on the backup AI
     onTurnSettled?: () => void;
     workBotRoutingMessageId?: string;
-    prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget };
+    prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredText?: string[]; transferredMessageIds?: string[] };
     /** The turn's outcome, for a caller that runs it outside any coordinated work. */
     onSettled?: (outcome: HostTurnResult) => void;
     /** A one-on-one goal step: a card continuation that is still its own turn, as a room goal step is. */
@@ -7747,7 +7747,12 @@ async function beginTurn(
     );
   }
 
-  if (opts?.prepareWorkBotContext) opts = { ...opts, ...opts.prepareWorkBotContext(), prepareWorkBotContext: undefined };
+  if (opts?.prepareWorkBotContext) {
+    const prepared = opts.prepareWorkBotContext();
+    for (const id of prepared.transferredMessageIds ?? []) turnLineIds.add(id);
+    if (prepared.transferredText?.length) providerText = [providerText, ...prepared.transferredText].join("\n\n");
+    opts = { ...opts, ...prepared, excludeMessageIds: [...(opts.excludeMessageIds ?? []), ...(prepared.transferredMessageIds ?? [])], prepareWorkBotContext: undefined };
+  }
   let userMessage = opts?.userMessage;
   if (opts?.editedMessageId) {
     const edited = store.branchMessage(threadId, opts.editedMessageId, text, opts.sendId, opts.sender, opts.dataContext);
@@ -9357,17 +9362,18 @@ function offerWorkBot(botId: string, threadId: string, text: string, owner: stri
 
 const workBotHost = createWorkBotHost({
   store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked: settleTrackedRequest,
-  assertAvailable: () => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); },
+  assertAvailable: (botId, threadId) => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); if (botId && threadId) { const paused = botHolds.text(botId, threadLanguage(threadId)) ?? starterCaps.pausedText(botId, threadLanguage(threadId)); if (paused) throw Object.assign(new Error(paused), { status: 409 }); } },
   offerWorkBot, teamPersonFor: person => teamOwners.people?.everyone().find(entry => personKey({ id: "", email: entry.email }) === person),
   sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(),
   teamHost, conversationShares, threadStarters, threadBusy, startTurn,
 });
-const { workBotRouter, reconcileWorkBotBranch } = workBotHost;
+const { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets } = workBotHost;
 for (const pending of pendingWorkBotRoutes()) workBotRouter.recoverDispatch(pending.threadId, pending.message.id);
-for (const pending of pendingWorkBotTargets()) { const bot = store.botByThread(pending.threadId); if (bot && store.patchMessage(pending.threadId, pending.message.id, { workBotExecutionUncertain: true }) && store.patchTask(bot.id, pending.threadId, { resumeCursors: {}, rewound: true })) store.patchMessage(pending.threadId, pending.message.id, { requestPending: false, workBotRecoveryPending: undefined }); }
+recoverWorkBotTargets();
 
 const resolveAndSendTeamSetup = createTeamSetupResponder({ store,
-  assertAvailable: () => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); },
+  workBotChoiceLocks,
+  assertAvailable: workBotHost.assertAvailable,
   cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(), teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter,
   dataDir: DATA_DIR, answerCardNode, teamSetupDecisionText,
 });
@@ -12069,6 +12075,7 @@ ROUTES.push(createSharedComputerRoutes({ enabled: (auth) => lendingEnabled() || 
 // `routines` is assigned at boot, so it is read per request.
 ROUTES.push(createBotMessageRoutes({
   store, registry, handoffs, liveTurn: (threadId) => liveTurns.running(threadId), phoneSecretSubmissions, directTurnDispatchClaims, groupSpeakers,
+  transferredSend: (botId, threadId, sendId) => Boolean(transferredChatFollowup(botId, threadId, sendId)),
   routines: () => routines,
   fromPhone: phones.fromPhone, notePhoneSend: phones.noteSend,
   desktopManaged: DESKTOP_MANAGED, cloudHome: Boolean(CLOUD_HOME), DirectSendRefused,
@@ -12078,7 +12085,7 @@ ROUTES.push(createBotMessageRoutes({
   turnSelection, policyModelRefusal, clearUnattended, drainQueuedSends, answeringCardAs, resolveAndSendTrust, resolveAndSendTeamSetup, resolveAndSendMcp,
   resolveAndSendRoutine, resolveAndSendProfile, resolveAndSendModel, resolveSkillRequest, sendSkillResolution, answerRequest,
   deliverLateQuestionAnswer, stopThreadForPerson, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread,
-  handoffStopRefusal: (botId, threadId) => CLOUD_TEAM && handedRunTarget(botId, threadId) ? serverLine(threadLanguage(threadId), "server.workBot.stopInAssignedBot") : null,
+  handoffStopRefusal: (botId, threadId) => CLOUD_TEAM && handedRunTarget(store, threadBusy, id => directRequestOwners.get(id), botId, threadId) ? serverLine(threadLanguage(threadId), "server.workBot.stopInAssignedBot") : null,
   cancelGroupTurnOperations, closeOpenApprovals, harnessCardOutcome, answeredIn: (threadId, requestId) => automationReports.answeredIn(teamMessages.inbox.answeredIn(threadId, requestId), requestId), pressRecords: proactive.brief.pressRecords, serverPress: (bot, threadId, messageId, action, auth) => meetingsHost.serverPress(bot, threadId, messageId, action, auth) ?? proactive.brief.serverPress(bot, threadId, messageId, action, auth),
   goals: oneOnOneGoals, inboxReply: teamMessages.replyIn, typedCardAnswer: askCards.typed, ...(CLOUD_TEAM ? { teamAiOwnerName: () => teamAiOwner(teamOwners.people?.list() ?? [], teamHost.personName)?.name ?? "" } : {}),
   relayedReaction: (threadId, messageId, person, emoji) => void store.setReaction(threadId, messageId, relayedPersonKey(person),
@@ -12456,7 +12463,7 @@ const liveCalls = new LiveCallController({
       callId,
       personPresent: true, admin: runActor(auth).admin,
     });
-    if ("queued" in receipt) return { kind: "queued", queueId: receipt.queueId };
+    if ("queued" in receipt || "transferred" in receipt) return { kind: "queued", queueId: receipt.queueId };
     return { kind: receipt.steered ? "steered" : "started", messageId: receipt.message.id };
   },
   respond: async (input) => {
@@ -13303,13 +13310,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           cloudRoutineAuthors?.writer(String(proposedInput.routineId)) === CLOUD_OWNER_KEY) && (run?.threadId === fromThreadId || ownerSpokeOnly(store.messagesFor(fromThreadId), cloudThreadStarters(fromThreadId), cloudProvenOwnerPerson, cloudCardAnswerer));
         const requestOwner = directRequestOwners.get(fromThreadId);
         const ownerMessageId = requestOwner && !requestOwner.stopped && requestOwner.generations.has(internalCapability.generation) ? requestOwner.messageId : undefined;
-        const unambiguousRequest = () => {
-          if (!ownerMessageId) return false;
-          const path = store.activePath(fromThreadId);
-          const index = path.findIndex(message => message.id === ownerMessageId && message.role === "user");
-          return index >= 0 && !path.slice(index + 1).some(message => message.role === "user");
-        };
-        const requestMessageId = () => directRequestOwners.get(fromThreadId) === requestOwner && !requestOwner?.stopped && requestOwner?.messageId === ownerMessageId && unambiguousRequest() ? ownerMessageId : undefined;
+        const requestMessageId = () => directRequestOwners.get(fromThreadId) === requestOwner && !requestOwner?.stopped && requestOwner?.messageId === ownerMessageId && unambiguousWorkBotRequest(store.activePath(fromThreadId), ownerMessageId, message => Boolean(message.queueId && message.workBotHandoffSource && verifiedWorkBotFollowup(message.queueId, message.workBotHandoffSource.threadId, message.workBotHandoffSource.messageId, fromThreadId, message.id))) ? ownerMessageId : undefined;
         const proposed = await routineRequests.submit({
           botId: from.id,
           threadId: fromThreadId,

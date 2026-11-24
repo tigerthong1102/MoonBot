@@ -295,7 +295,7 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
       return sendRefused(error);
     }
     // A line made of stop words ended the run instead of starting one, as it does in the app.
-    const stopWords = !("queued" in receipt) && !receipt.steered && isStopCommand(input.text, bot.name) && deps.request(threadId)?.messageId !== receipt.message.id;
+    const stopWords = "message" in receipt && !receipt.steered && isStopCommand(input.text, bot.name) && deps.request(threadId)?.messageId !== receipt.message.id;
     const record: TeamSlackRecord = { id: input.id, person, botId: bot.id, botName: bot.name, threadId, audience: input.audience, at: now(), state: stopWords ? "stopped" : "running" };
     messages.put(record);
     void flush(record.id);

@@ -11,6 +11,12 @@ import { closeMessageDb,
   indexedMemoryFiles,
   insertMessage,
   appendMessageBatch,
+  transferQueuedWorkBotMessages,
+  saveChatFollowup,
+  chatFollowups,
+  settleChatFollowups,
+  transferredChatFollowup,
+  verifiedWorkBotFollowup,
   insertNotificationLog,
   lastRowAt,
   liveAppRows,
@@ -20,6 +26,7 @@ import { closeMessageDb,
   logNotification,
   openRescueMessages,
   pendingWorkBotRoutes,
+  pendingWorkBotTargets,
   latestSaidByBot,
   markNotificationLogRead,
   readMessageText,
@@ -37,6 +44,8 @@ import type { NotificationLogEntry } from "../shared/notification.ts";
 import { withPeerProvenance } from "./peer-provenance.ts";
 import { Store, type Message } from "./store.ts";
 import type { ModelSelection } from "./contracts.ts";
+import { workBotReceiptFingerprint } from "./work-bot-receipt.ts";
+import { unambiguousWorkBotRequest } from "./host/work-bot-host.ts";
 
 const selection = (): ModelSelection => ({ instanceId: "claude", model: "claude-sonnet-5" });
 const legacy = (threadId: string) => join(DATA_DIR, `messages-${threadId}.json`);
@@ -87,6 +96,67 @@ describe("message-db", () => {
     const after = readThread("target", legacy("target"));
     expect(after.messages.map(row => [row.id, row.parentId, row.replyToId])).toEqual([["first", null, undefined], ["second", "first", "first"]]);
     expect(after.activeLeafId).toBe("second");
+  });
+
+  it("atomically claims queued follow-ups and persists their destination, rolling back if any claim is stale", () => {
+    const claim = { botId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", queueIds: ["q1", "q2"] };
+    for (const id of claim.queueIds) saveChatFollowup({ id, kind: "bot", ownerId: claim.botId, threadId: claim.sourceThreadId, payload: { text: id, sendId: id, workBotOfferSource: claim.sourceMessageId } });
+    const origin = { workBotHandoffSource: { threadId: "source", messageId: "offer" }, workBotRecoveryPending: true as const };
+    const messages = [msg("source-copy", "source", origin), msg("copy", "q1", { ...origin, parentId: "source-copy", queueId: "q1", sendId: "q1" }), msg("copy2", "q2", { ...origin, parentId: "copy", queueId: "q2", sendId: "q2" })];
+    expect(() => transferQueuedWorkBotMessages("target", [...messages.slice(0, 2), msg("missing", "missing", { ...origin, parentId: "copy", queueId: "missing" })], { ...claim, queueIds: ["q1", "missing"] })).toThrow("Queued work changed");
+    expect(chatFollowups().map(row => row.status)).toEqual(["pending", "pending"]);
+    expect(readThread("target", legacy("target")).messages).toEqual([]);
+    expect(() => transferQueuedWorkBotMessages("target", [messages[0], messages[1], { ...messages[2], text: "different" }], claim)).toThrow("does not match");
+    insertMessage("target", msg("copy", "existing"));
+    expect(() => transferQueuedWorkBotMessages("target", messages, claim)).toThrow("destination message already exists");
+    expect(readThread("target", legacy("target")).messages[0].text).toBe("existing");
+    clearThreadMessages("target", () => {});
+    const db = new DatabaseSync(join(DATA_DIR, "messages.db"));
+    db.exec("CREATE TRIGGER fail_queued_handoff BEFORE INSERT ON messages WHEN NEW.id = 'copy2' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END");
+    expect(() => transferQueuedWorkBotMessages("target", messages, claim)).toThrow("fixture failure");
+    expect(chatFollowups().map(row => row.status)).toEqual(["pending", "pending"]);
+    expect(readThread("target", legacy("target")).messages).toEqual([]);
+    db.exec("DROP TRIGGER fail_queued_handoff");
+    db.close();
+    transferQueuedWorkBotMessages("target", messages, claim);
+    closeMessageDb();
+    expect(chatFollowups().map(row => row.status)).toEqual(["transferred", "transferred"]);
+    expect(readThread("target", legacy("target")).messages.map(row => row.text)).toEqual(["source", "q1", "q2"]);
+    expect(pendingWorkBotTargets().map(row => row.message.id)).toEqual(["source-copy", "copy", "copy2"]);
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "target", "copy")).toBe(true);
+    expect(verifiedWorkBotFollowup("q1", "source", "forged", "target", "copy")).toBe(false);
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "other", "copy")).toBe(false);
+    const verified = (row: Message) => Boolean(row.queueId && row.workBotHandoffSource && verifiedWorkBotFollowup(row.queueId, row.workBotHandoffSource.threadId, row.workBotHandoffSource.messageId, "target", row.id));
+    expect(unambiguousWorkBotRequest(messages, "source-copy", verified)).toBe(true);
+    expect(unambiguousWorkBotRequest([...messages, msg("forged", "other", { ...origin, queueId: "q1" })], "source-copy", verified)).toBe(false);
+    expect(() => transferQueuedWorkBotMessages("target", messages, claim)).toThrow("destination changed");
+    const receipt = transferredChatFollowup("source-bot", "source", "q1")!;
+    expect(receipt.fingerprint).toBe(workBotReceiptFingerprint(receipt.salt, "q1", undefined, undefined));
+    updateMessage("target", { ...messages[1], text: "edited" });
+    expect(transferredChatFollowup("source-bot", "source", "q1")).toEqual(receipt);
+    clearThreadMessages("source", () => {});
+    expect(transferredChatFollowup("source-bot", "source", "q1")).toEqual({ id: "q1", salt: "", fingerprint: "" });
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "target", "copy")).toBe(true);
+    deleteThread("source");
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "target", "copy")).toBe(true);
+    clearThreadMessages("target", () => {});
+    expect(transferredChatFollowup("source-bot", "source", "q1")).toEqual({ id: "q1", salt: "", fingerprint: "" });
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "target", "copy")).toBe(false);
+    expect(JSON.stringify(chatFollowups())).not.toContain(receipt.fingerprint);
+  });
+
+  it("does not transfer follow-ups with an already steered row or hidden prompt context", () => {
+    const claim = { botId: "bot", sourceThreadId: "source", sourceMessageId: "offer", queueIds: ["q"] };
+    const source = msg("source-copy", "source", { workBotHandoffSource: { threadId: "source", messageId: "offer" }, workBotRecoveryPending: true });
+    const copy = msg("copy", "follow-up", { parentId: "source-copy", queueId: "q", workBotHandoffSource: { threadId: "source", messageId: "offer" }, workBotRecoveryPending: true });
+    saveChatFollowup({ id: "q", kind: "bot", ownerId: "bot", threadId: "source", payload: { text: "follow-up", rowId: "already-steered", workBotOfferSource: "offer" } });
+    expect(() => transferQueuedWorkBotMessages("target", [source, copy], claim)).toThrow("cannot be transferred safely");
+    expect(chatFollowups()[0].status).toBe("pending");
+    expect(readThread("target", legacy("target")).messages).toEqual([]);
+    settleChatFollowups(["q"], null);
+    saveChatFollowup({ id: "q", kind: "bot", ownerId: "bot", threadId: "source", payload: { text: "follow-up", prompt: "hidden context\nfollow-up", workBotOfferSource: "offer" } });
+    expect(() => transferQueuedWorkBotMessages("target", [source, copy], claim)).toThrow("cannot be transferred safely");
+    expect(chatFollowups()[0].status).toBe("pending");
   });
 
   it("clears search and every branch while retaining page files until the thread itself is deleted", () => {

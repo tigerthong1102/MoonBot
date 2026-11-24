@@ -10,10 +10,12 @@ import { serverLine } from "../server-lines.ts";
 import { json } from "../harness/http.ts";
 import { appendDecision } from "../decision-log.ts";
 import { unsupportedWorkBotContext } from "../work-bot-context.ts";
+import { safeWorkBotFollowups } from "../steer-queue.ts";
 
 export function createTeamSetupResponder(deps: {
   store: Store;
-  assertAvailable(): void;
+  workBotChoiceLocks: Set<string>;
+  assertAvailable(botId?: string, threadId?: string): void;
   cloudTeam: boolean;
   sharedNonTeam(): boolean;
   teamHost: { audienceOf(threadId: string): Audience };
@@ -25,12 +27,13 @@ export function createTeamSetupResponder(deps: {
   answerCardNode(threadId: string, messageId: string, text: string): boolean;
   teamSetupDecisionText(request: TeamSetupRequest): string;
 }) {
-  const { store, assertAvailable, cloudTeam, sharedNonTeam, teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter, dataDir, answerCardNode, teamSetupDecisionText } = deps;
+  const { store, workBotChoiceLocks, assertAvailable, cloudTeam, sharedNonTeam, teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter, dataDir, answerCardNode, teamSetupDecisionText } = deps;
 async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: string; threadId: string; requestId: string; behavior: string }, ownerReview: boolean): Promise<boolean> {
   const card = store.messagesFor(args.threadId).find((item) => item.card?.requestId === args.requestId && item.card.teamSetupRequest)?.card;
   if (!card) return false;
   if (card.teamSetupRequest?.workBotOffer?.sourceMessageId && store.messagesFor(args.threadId).some(row => row.id === card.teamSetupRequest?.workBotOffer?.sourceMessageId && row.workBotRouting)) {
-    assertAvailable();
+    if (args.behavior === "allow") assertAvailable(args.botId, args.threadId);
+    else assertAvailable();
   }
   if (args.behavior === "allow" && !ownerReview) { json(res, 403, { error: "Approve team setup or deletion from the desktop app or a paired Full-access device. In a local browser, wait until every bot is idle." }); return true; }
   if (args.behavior === "allow" && card.teamSetupRequest?.workBotOffer && !store.messagesFor(args.threadId).some(row => row.id === card.teamSetupRequest?.workBotOffer?.sourceMessageId && row.workBotRouting)) {
@@ -49,6 +52,11 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
       json(res, 409, { error: serverLine(threadLanguage(args.threadId), unsupported === "data" ? "server.workBot.dataUnavailable" : "server.workBot.fileUnavailable") });
       return true;
     }
+    const source = sourceIndex >= 0 ? path[sourceIndex] : undefined;
+    if (!source || !safeWorkBotFollowups(args.botId, args.threadId, source)) {
+      json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.pendingUnavailable") });
+      return true;
+    }
   }
   if (args.behavior === "allow" && !card.answered && !card.dismissed && !card.expired) {
     for (const operation of card.teamSetupRequest!.operations) {
@@ -56,6 +64,10 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
       if (before && operation.action === "update") assertTeamComputerChangeIdle(before, { ...before, ...operation.fields });
     }
   }
+  const shouldLock = args.behavior === "allow" && Boolean(card.teamSetupRequest?.workBotOffer) && !card.answered;
+  if (shouldLock && workBotChoiceLocks.has(args.threadId)) { json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.pendingUnavailable") }); return true; }
+  if (shouldLock) workBotChoiceLocks.add(args.threadId);
+  try {
   const resolved = await teamSetupRequests.resolve(args);
   if (!resolved) return false;
   const sourceMessageId = resolved.request.workBotOffer?.sourceMessageId;
@@ -73,6 +85,7 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
   const routingState = sourceMessageId ? store.messagesFor(args.threadId).find(row => row.id === sourceMessageId)?.workBotRouting?.state : undefined;
   json(res, 200, { ok: true, outcome: resolved.result.state === "applied" ? "allowed-once" : "rejected", result: resolved.result, alreadySettled: resolved.duplicate, ...(routingState ? { routingState } : {}) });
   return true;
+  } finally { if (shouldLock) workBotChoiceLocks.delete(args.threadId); }
 }
 
   return resolveAndSendTeamSetup;

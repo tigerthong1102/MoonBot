@@ -2353,6 +2353,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               action.onAccepted?.();
               if (!("body" in sent)) return;
               const body = sent.body;
+              if (body?.transferred === true && typeof body.threadId === "string" && typeof body.queueId === "string") {
+                rawDispatch({ type: "optimisticMessageRemoved", threadId: body.threadId, sendId });
+                rawDispatch({ type: "consumePendingQueued", threadId: body.threadId, queueId: body.queueId });
+              }
               if (body?.message && typeof body.threadId === "string") {
                 rawDispatch({ type: "messageAdded", threadId: body.threadId, message: body.message });
                 rawDispatch({ type: "forkPanelMessage", threadId: body.threadId, message: body.message });

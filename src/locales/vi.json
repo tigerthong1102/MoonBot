@@ -1,4 +1,6 @@
 {
+  "server.workBot.choiceInProgress": "Đang xử lý lựa chọn tạo bot. Hãy thử lại sau khi bước này hoàn tất.",
+  "server.workBot.pendingUnavailable": "Một số tin nhắn đang chờ chưa thể chuyển an toàn. Hãy xóa chúng khỏi hàng chờ hoặc chọn tiếp tục tại đây.",
   "reconcile.title": "Đối chiếu chứng từ",
   "reconcile.close": "Đóng",
   "reconcile.intro": "Chọn hai tệp CSV UTF-8 hoặc XLSX một trang tính. Tệp được xử lý ngay trên máy.",
@@ -6289,6 +6291,7 @@
   "server.workBot.pauseInProgress": "Ứng dụng đang xử lý thay đổi tạm dừng. Hãy thử lại khi việc này hoàn tất.",
   "workBotRouting.cancelled": "Đã hủy.",
   "workBotOffer.created": "Đã tạo bot “{name}”",
+  "workBotOffer.queuedNotice": "Tin nhắn bạn gửi trong lúc chờ sẽ được chuyển cùng sang bot mới nếu bạn đồng ý. Hãy xóa tin nhắn chờ không liên quan trước khi chọn.",
   "server.workBot.legacyUnavailable": "Đề xuất cũ này chưa thể chuyển việc an toàn. Hãy kiểm tra công việc hiện tại trước khi giao yêu cầu mới.",
   "server.workBot.privateUnavailable": "Chưa thể tạo bot riêng an toàn từ hội thoại riêng tư này. Bạn vẫn có thể tiếp tục trong hội thoại hiện tại.",
   "server.workBot.sharedUnavailable": "Chưa thể tạo bot riêng an toàn trong không gian dùng chung này. Bạn hãy tiếp tục tại hội thoại hiện tại.",

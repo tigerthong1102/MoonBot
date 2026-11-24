@@ -3856,5 +3856,14 @@
   "personalInbox.botNone": "इस कंप्यूटर पर आमंत्रित करने के लिए कोई बॉट उपलब्ध नहीं है।",
   "personalInbox.botFailed": "बॉट जवाब नहीं दे सका।",
   "personalInbox.botDone": "चर्चा पूरी हुई",
-  "personalInbox.botCancel": "चर्चा रोकें"
+  "personalInbox.botCancel": "चर्चा रोकें",
+  "personalInbox.voiceMessage": "वॉइस संदेश",
+  "personalInbox.recordVoice": "वॉइस संदेश रिकॉर्ड करें",
+  "personalInbox.stopRecording": "रिकॉर्डिंग रोकें",
+  "personalInbox.discardVoice": "वॉइस इनपुट रद्द करें",
+  "personalInbox.recordingVoice": "रिकॉर्ड हो रहा है…",
+  "personalInbox.startingVoice": "माइक्रोफ़ोन चालू हो रहा है…",
+  "personalInbox.dictatingVoice": "बोलकर लिखा जा रहा है…",
+  "personalInbox.microphoneUnavailable": "माइक्रोफ़ोन उपलब्ध नहीं है। उसकी अनुमतियाँ जाँचें।",
+  "personalInbox.recordingFailed": "रिकॉर्डिंग नहीं हो सकी। फिर से कोशिश करें।"
 }

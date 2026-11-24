@@ -6200,5 +6200,14 @@
   "personalInbox.fileAudience": "{file} · Gönderilecek sohbet: {room}",
   "personalInbox.maxSize": "Dosya {size} sınırını aşıyor.",
   "personalInbox.removeFile": "{file} dosyasını kaldır",
-  "personalInbox.sendingFile": "{file} gönderiliyor…"
+  "personalInbox.sendingFile": "{file} gönderiliyor…",
+  "personalInbox.voiceMessage": "Sesli mesaj",
+  "personalInbox.recordVoice": "Sesli mesaj kaydet",
+  "personalInbox.stopRecording": "Kaydı durdur",
+  "personalInbox.discardVoice": "Sesli girişi iptal et",
+  "personalInbox.recordingVoice": "Kaydediliyor…",
+  "personalInbox.startingVoice": "Mikrofon açılıyor…",
+  "personalInbox.dictatingVoice": "Dikte ediliyor…",
+  "personalInbox.microphoneUnavailable": "Mikrofon kullanılamıyor. Mikrofon izinlerini kontrol edin.",
+  "personalInbox.recordingFailed": "Kayıt başarısız oldu. Tekrar deneyin."
 }

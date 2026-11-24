@@ -168,6 +168,14 @@ function invokeWithPlainError(channel, ...args) {
 const bridge = {
   platform: process.platform,
   ...(personalAccountEnabled ? {
+    inboxDictation: {
+      subscribe: (listener) => {
+        const receive = (_event, command) => listener(command);
+        ipcRenderer.on("personal-inbox:dictation-command", receive);
+        return () => ipcRenderer.removeListener("personal-inbox:dictation-command", receive);
+      },
+      report: (id, result) => ipcRenderer.invoke("personal-inbox:dictation-result", id, result),
+    },
     personalAccount: {
       open: () => ipcRenderer.invoke("personal-account:open"),
       state: () => ipcRenderer.invoke("personal-account:state"),

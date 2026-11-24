@@ -6699,5 +6699,14 @@
   "personalInbox.botNone": "No hay bots disponibles en este equipo.",
   "personalInbox.botFailed": "El bot no pudo responder.",
   "personalInbox.botDone": "Debate completo",
-  "personalInbox.botCancel": "Detener conversación"
+  "personalInbox.botCancel": "Detener conversación",
+  "personalInbox.voiceMessage": "Mensaje de voz",
+  "personalInbox.recordVoice": "Grabar mensaje de voz",
+  "personalInbox.stopRecording": "Detener grabación",
+  "personalInbox.discardVoice": "Cancelar entrada de voz",
+  "personalInbox.recordingVoice": "Grabando…",
+  "personalInbox.startingVoice": "Abriendo micrófono…",
+  "personalInbox.dictatingVoice": "Dictando…",
+  "personalInbox.microphoneUnavailable": "Micrófono no disponible. Revisa los permisos del micrófono.",
+  "personalInbox.recordingFailed": "No se pudo grabar. Inténtalo de nuevo."
 }

@@ -10561,5 +10561,14 @@
   "personalInbox.botNone": "這台電腦沒有可邀請的機器人。",
   "personalInbox.botFailed": "機器人無法回應。",
   "personalInbox.botDone": "討論完成",
-  "personalInbox.botCancel": "停止討論"
+  "personalInbox.botCancel": "停止討論",
+  "personalInbox.voiceMessage": "語音訊息",
+  "personalInbox.recordVoice": "錄製語音訊息",
+  "personalInbox.stopRecording": "停止錄音",
+  "personalInbox.discardVoice": "取消語音輸入",
+  "personalInbox.recordingVoice": "正在錄音…",
+  "personalInbox.startingVoice": "正在啟用麥克風…",
+  "personalInbox.dictatingVoice": "正在語音輸入…",
+  "personalInbox.microphoneUnavailable": "無法使用麥克風。請檢查麥克風權限。",
+  "personalInbox.recordingFailed": "錄音失敗，請再試一次。"
 }

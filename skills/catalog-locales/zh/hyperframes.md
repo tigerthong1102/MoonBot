@@ -4,6 +4,10 @@
 
 **HTML 文档结构。** 编写根合成时，保留完整的 `<!doctype html>`、`<html>`、`<head>`、`<body>` 及其闭合标签。即使浏览器自动修复 HTML，HyperFrames CLI 0.9.88 仍可能因源文件缺少这些标签而无法初始化播放器；存在 GSAP 时间线并不代表 HyperFrames 播放器已初始化。如果 `check` 或 `snapshot` 报告 `window.__player` 未设置，检查并修复文档结构，然后重试真正的 CLI，再考虑其他渲染器。
 
+**如实报告渲染器。** 如果 HyperFrames 的 `check`、`snapshot` 或渲染失败，而文件由其他渲染器生成，应明确说明所用渲染器和失败或跳过的 HyperFrames 检查。不要将替代文件描述为 HyperFrames 渲染成功。未实际试听音频或检查字幕同步时，不要声称已完成。
+
+制作营销视频时，先阅读 `references/look.md`，根据需求确定视觉方向后再制作场景；合适时使用随附的预设设计文档，或使用用户提供的品牌和参考素材。规划镜头的视觉层级和运动，检查画面是否重复或像临时占位图。有合适且获准使用的照片、视频、插图或动画素材时优先使用；缺少时如实说明质量限制。
+
 # HyperFrames
 
 **按要求设计动作。** 人物动画或故事先读 `references/types/character.md` 和 `references/story.md`。对静态插画平移或缩放只是故事板，不是人物动画：使用角色骨骼、授权动画素材或已获授权且可用的生成服务，制作独立、定时的姿势和动作。保持人物外观一致、动作清楚；按需同步对白、口型和声音。缺少必要素材或能力时说明原因，把静态版本标为草稿，不要擅自当作完成的动画交付。
@@ -16,7 +20,7 @@
 
 对于没有分镜脚本的短营销视频，规划清晰的开场吸引点、产品或利益展示以及结尾行动号召。默认制作至少三个视觉上不同的段落，并使用有目的的运动或转场；若用户要求单镜头或其他创意处理，则遵循其要求。使用用户提供或获授权的素材；插画可能被误认为真实产品或地点时应明确标注。确保重要文字易读并处于安全区域。检查开头、中间、结尾和转场处的代表性画面，导出前修正文字裁切、重复静态画面及拼写错误。若要求旁白或字幕，检查时间同步和导出的音频；如无法完成某项质量检查，应如实说明，不要声称听过或看过。
 
-对于需求明确的短视频，先制定简短镜头计划，立即创建项目。阅读 `references/format.md` 和所需效果对应的资料。制作营销视频时，若 CLI 支持，先运行 `hyperframes init <scratch-project> --example product-promo --non-interactive --skip-skills` 在临时项目中检查模板，合适时再选用；自定义作品或没有合适模板时使用 `blank`。用 `hyperframes init <project> --example <example> --non-interactive --skip-skills` 创建项目。替换占位内容和第三方品牌，检查使用权限及外部依赖。检查、审看动作并渲染所需文件。用户要求离线视频时使用已安装的本地素材和字体。无法渲染或缺少工具时，报告具体错误并保留项目。
+对于需求明确的短视频，先制定简短镜头计划，立即创建项目。阅读 `references/format.md` 和所需效果对应的资料。制作营销视频且允许联网时，若 CLI 支持，先运行 `hyperframes init <scratch-project> --example product-promo --non-interactive --skip-skills` 在临时项目中检查模板，合适时再选用；自定义作品或没有合适模板时使用 `blank`。用 `hyperframes init <project> --example <example> --non-interactive --skip-skills` 创建项目。替换占位内容和第三方品牌，检查使用权限及外部依赖。检查、审看动作并渲染所需文件。用户要求离线视频时使用已安装的本地素材和字体。无法渲染或缺少工具时，报告具体错误并保留项目。 `product-promo` 模板可能从 GitHub 下载文件；离线请求应使用本地可用的 `blank` 模板，不尝试下载远程目录或示例。
 
 HyperFrames 通过逐帧定位暂停的时间线把 HTML 渲染成视频，因此每次渲染一致；用户在 Studio 预览中编辑同一组文件。除非要求其他框架或直接录制浏览器，否则使用它。使用已安装的 `hyperframes` CLI；已配置的 Mac 使用 `"$HOME/.local/share/startupbot/hyperframes/node_modules/.bin/hyperframes"`。
 

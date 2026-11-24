@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -37,6 +38,10 @@ it("upgrades verified audit snapshots while preserving approvals and customized 
     for (const name of names) expect(index[name].reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/comps-analysis/SKILL.md"), "utf8")).not.toContain("examples/comps_example.xlsx");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("Offline fonts.");
+    expect(index.hyperframes.files).toContain("assets/frame-presets/code-editorial/FRAME.md");
+    expect(index.hyperframes.files).toContain("assets/frame-presets/code-editorial/fonts/OFL-inter.txt");
+    const font = readFileSync(join(library, "skills/hyperframes/assets/frame-presets/code-editorial/fonts/JetBrainsMono-700.woff2"));
+    expect(createHash("sha256").update(font).digest("hex")).toBe("d0d4e818808f2a0ba39b2b09d1989366f63494e295f003c7ef436697378507e8");
     expect(index["gemini-api"].files).toContain("references/media_generation.md");
     expect(index["google-ads-api-mcp-setup"].files).toContain("references/tools.md");
     expect(index.pptx.files).toContain("scripts/slide_text.py");
@@ -135,8 +140,8 @@ it("upgrades original catalog folders and keeps their review choices", () => {
     expect(filmGuide).toContain("user-provided image or video");
     expect(filmGuide).not.toMatch(/scripts\/(?:bake-basemap|locate)\.mjs/);
     const lookGuide = readFileSync(join(library, "skills/hyperframes/references/look.md"), "utf8");
-    expect(lookGuide).toContain("not installed preset files");
-    expect(lookGuide).not.toContain("../assets/frame-presets/");
+    expect(lookGuide).toContain("not complete ready-to-render templates");
+    expect(lookGuide).toContain("../assets/frame-presets/");
     expect(index["hyperframes-cli"].files).toContain("references/preview-render.md");
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
   } finally {
@@ -152,6 +157,8 @@ it.each(["hyperframes-v2", "hyperframes-v3", "hyperframes-v4", "hyperframes-v5",
     const oldSkill = join(catalog, "hyperframes");
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", oldSkill, { recursive: true });
+    rmSync(join(oldSkill, "assets"), { recursive: true, force: true });
+    writeFileSync(join(oldSkill, "references/look.md"), Buffer.from(auditSnapshot["hyperframes/references/look.md"], "base64"));
     cpSync(join("server/testing/fixtures/startupbot-old-skills", version), oldSkill, { recursive: true });
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
       .filter((entry: { name: string }) => entry.name === "hyperframes");
@@ -177,6 +184,8 @@ it("preserves a customized HyperFrames reference during catalog upgrade", () => 
     const library = join(root, "library");
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    rmSync(join(catalog, "hyperframes/assets"), { recursive: true, force: true });
+    writeFileSync(join(catalog, "hyperframes/references/look.md"), Buffer.from(auditSnapshot["hyperframes/references/look.md"], "base64"));
     cpSync("server/testing/fixtures/startupbot-old-skills/hyperframes-v4", join(catalog, "hyperframes"), { recursive: true });
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
       .filter((entry: { name: string }) => entry.name === "hyperframes");

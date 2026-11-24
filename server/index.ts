@@ -1,9 +1,9 @@
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
-import { WorkBotRouter } from "./work-bot-routing.ts";
-import { defaultBotPerson } from "../shared/default-bot.ts";
-import { sameModelSelection } from "../shared/thread-model.ts";
-import { sameAccess } from "../shared/bot-access.ts";
+import { createWorkBotHost } from "./host/work-bot-host.ts";
+import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
+import { createRoutineResponder } from "./host/routine-responder.ts";
+import { createProfileModelResponder } from "./host/profile-model-responder.ts";
 import { pendingWorkBotRoutes } from "./message-db.ts";
 import { startFailureText } from "./start-failure-text.ts";
 import { reserveGmailDrafts } from "./gmail-draft-policy.ts";
@@ -284,7 +284,7 @@ import { botBox, startBotBoxAtBoot } from "./bot-box/boot.ts"; import { attachme
 import { createCloudSignedHost } from "./host/cloud-signed-host.ts"; import { createDeleteLeftovers, engineSessionFolders, instanceEnvironment } from "./host/delete-leftovers.ts"; import { createBotNameClash } from "./host/bot-name-clash.ts"; import { hiddenThreadRefusal, hideOthersSyncFolders } from "./host/team-private.ts"; import { createTeamMemberLeft, memoryLayerRecords } from "./host/team-member-left.ts"; import { createUploadOwners, uploadsFor } from "./host/member-uploads.ts"; import { createMemberOwnBot } from "./host/member-own-bot.ts"; import { createVisibilityHost } from "./host/visibility-host.ts"; import { createBotAccessHost, refusalFor, relayedSendRefusal } from "./host/bot-access-gate.ts"; import { createBotAccessRoutes, writeAccess } from "./routes/bot-access.ts"; import { createAccessRequests } from "./host/access-requests.ts";
 import { cloudPowerNow, createCloudPower, registerCloudPower, wokeFromSleep, type CloudPower } from "./cloud-power.ts"; import { createWokeNotifier } from "./cloud-woke.ts"; import { createSharedComputerRoutes } from "./routes/shared-computers.ts";
 import { lentCopies, noteSyncBotTurn } from "./routes/cloud-sync.ts"; import { mcpReconnectLine, retryBrokeredMcp } from "./bot-box/broker-mcp.ts";
-import { type CloudOwnership } from "./cloud-owner.ts"; import { memberLoginRefusal, personalMoveRefusal } from "./cloud-team.ts"; import { createCloudTeamHost, type MemberProfile } from "./host/cloud-team-host.ts"; import { engineHomes } from "./engine-homes/engine-homes.ts"; import { audienceMember, layerId, mayRead, memberAudience } from "./audience.ts"; import { createPersonRooms, createRoomReads, type OwnGroupFrames } from "./host/room-reads.ts"; import { createPersonBotOrder } from "./host/person-bot-order.ts"; import { createMeRoutes } from "./routes/me.ts"; import { createTeamPhoneRoutes } from "./routes/team-phone.ts"; import { settleCloudHome } from "./cloud-home-settle.ts"; import { CLOUD_NOBODY_KEY, CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts"; import { createTeamSlackHost } from "./host/team-slack-host.ts"; import { createTeamSlackMessages } from "./team-slack.ts"; import { createTeamSlackRoutes } from "./routes/team-slack.ts";
+import { type CloudOwnership } from "./cloud-owner.ts"; import { memberLoginRefusal, personalMoveRefusal } from "./cloud-team.ts"; import { createCloudTeamHost, type MemberProfile } from "./host/cloud-team-host.ts"; import { engineHomes } from "./engine-homes/engine-homes.ts"; import { audienceMember, layerId, memberAudience } from "./audience.ts"; import { createPersonRooms, createRoomReads, type OwnGroupFrames } from "./host/room-reads.ts"; import { createPersonBotOrder } from "./host/person-bot-order.ts"; import { createMeRoutes } from "./routes/me.ts"; import { createTeamPhoneRoutes } from "./routes/team-phone.ts"; import { settleCloudHome } from "./cloud-home-settle.ts"; import { CLOUD_NOBODY_KEY, CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts"; import { createTeamSlackHost } from "./host/team-slack-host.ts"; import { createTeamSlackMessages } from "./team-slack.ts"; import { createTeamSlackRoutes } from "./routes/team-slack.ts";
 import { createCloudMoveRoutes } from "./cloud-move-http.ts";
 import { RESTART_EXIT_CODE } from "./restart.ts"; import { installCrashGuard, SERVER_ERROR_CAUSE } from "./crash-guard.ts"; import { markRequestArrival } from "./perf/loop-stalls.ts"; import { createThreadMaps, keepThreadEntry } from "./host/thread-maps.ts"; import { botLimitRefusal } from "./bot-limit.ts";
 import { applyIncludedXMessage, holdIncludedServices, hostingCredential, researchCredential, trialCreditCredential, xCredential, xResearchStatus } from "./included-services.ts"; import { applyPhoneLinkMessage, phoneLinkPart } from "./phone-link.ts"; import { createResearchAvailability } from "./research.ts";
@@ -9344,327 +9344,28 @@ function offerWorkBot(botId: string, threadId: string, text: string, owner: stri
   }, signal);
 }
 
-function reconcileWorkBotBranch(threadId: string): void {
-  const ids = pendingWorkBotIds.get(threadId);
-  if (!ids?.size) return;
-  const path = store.activePath(threadId);
-  for (const id of ids) {
-    const source = store.messagesFor(threadId).find(row => row.id === id);
-    const route = source?.workBotRouting;
-    if (!route || route.state === "dispatching") continue;
-    const sourceVisible = path.some(row => row.id === id);
-    const cardVisible = route.state !== "waiting_choice" || path.some(row => row.card?.requestId === route.requestId);
-    if (!sourceVisible || !cardVisible) {
-      if (source) store.patchMessage(threadId, id, { workBotRouting: { ...route, state: "interrupted" } });
-      indexWorkBotRouting(threadId, id, "interrupted");
-      queueMicrotask(drainQueuedSends);
-    }
-  }
-}
-
-function workBotRoutingBlocks(threadId: string, exceptMessageId?: string): boolean {
-  const ids = pendingWorkBotIds.get(threadId);
-  if (!ids?.size || (ids.size === 1 && exceptMessageId && ids.has(exceptMessageId))) return false;
-  return store.activePath(threadId).some(message => message.id !== exceptMessageId && ids.has(message.id));
-}
-
-const workBotRouter = new WorkBotRouter({
-  message: (threadId, messageId) => store.messagesFor(threadId).find(message => message.id === messageId),
-  patch: (threadId, messageId, expected, routing) => {
-    const message = store.messagesFor(threadId).find(row => row.id === messageId);
-    if (!message || message.workBotRouting?.state !== expected) return false;
-    if (!store.activePath(threadId).some(row => row.id === messageId)) {
-      store.patchMessage(threadId, messageId, { workBotRouting: { ...message.workBotRouting, state: "interrupted" } });
-      indexWorkBotRouting(threadId, messageId, "interrupted");
-      queueMicrotask(drainQueuedSends);
-      return false;
-    }
-    const updated = store.patchMessage(threadId, messageId, { workBotRouting: routing });
-    if (updated) indexWorkBotRouting(threadId, messageId, routing.state);
-    if (updated && (routing.state === "dispatched" || routing.state === "cancelled" || routing.state === "interrupted")) queueMicrotask(drainQueuedSends);
-    return Boolean(updated);
-  },
-  offer: async (threadId, messageId, signal) => {
-    workspaceMaintenance.assertAvailable();
-    moveFreeze.assertTurns();
-    const source = store.messagesFor(threadId).find(row => row.id === messageId);
-    const route = source?.workBotRouting;
-    const bot = route?.sourceBotId ? store.bot(route.sourceBotId) : null;
-    const owner = bot?.defaultBot ? defaultBotPerson(bot) : undefined;
-    if (!source?.text || !route?.sourceBotId || !route.modelSelection || owner === undefined || route.ownerKey !== (owner ? personKey({ id: "", email: owner }) : "") || !sameModelSelection(store.projectBotForTask(route.sourceBotId, threadId)?.modelSelection, route.modelSelection)) return { interrupted: true };
-    const path = sinceFreshStart(store.activePath(threadId));
-    const sourceIndex = path.findIndex(row => row.id === messageId);
-    if (sourceIndex < 0) return { interrupted: true };
-    if (path.slice(0, sourceIndex + 1).some(row => row.dataContext)) return null;
-    const previous = store.messagesFor(threadId).find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === messageId && row.card.requestId);
-    if (previous?.card?.requestId) {
-      if (!store.activePath(threadId).some(row => row.id === previous.id)) return { interrupted: true };
-      return { requestId: previous.card.requestId };
-    }
-    const offer = await offerWorkBot(route.sourceBotId, threadId, source.text, owner, messageId, signal);
-    return offer?.state === "pending" ? { requestId: offer.requestId } : null;
-  },
-  mainTarget: (threadId, messageId) => {
-    const source = store.messagesFor(threadId).find(message => message.id === messageId);
-    const botId = source?.workBotRouting?.sourceBotId;
-    const bot = botId && store.bot(botId);
-    return bot && !bot.hidden && bot.defaultBot && (defaultBotPerson(bot) ? personKey({ id: "", email: defaultBotPerson(bot) }) : "") === source?.workBotRouting?.ownerKey && store.taskByThread(bot.id, threadId) ? { botId: bot.id, threadId } : null;
-  },
-  decision: async (threadId, messageId, requestId) => {
-    const source = store.messagesFor(threadId).find(row => row.id === messageId);
-    const route = source?.workBotRouting;
-    const card = store.messagesFor(threadId).find(row => row.card?.requestId === requestId)?.card;
-    const request = card?.teamSetupRequest;
-    if (!route?.sourceBotId || !card || request?.workBotOffer?.sourceMessageId !== messageId) return { state: "interrupted" };
-    if (!card.answered && !card.dismissed && !card.expired) return { state: "pending" };
-    if (card.answered === "deny" && request.result?.state === "denied") return { state: "chosen", target: { botId: route.sourceBotId, threadId } };
-    if (card.answered === "allow" && request.result?.state === "applied") {
-      const created = request.result.bots.find(bot => bot.action === "created");
-      const operation = request.operations.find(item => item.action === "create" && item.botId === created?.id);
-      const bot = created && store.bot(created.id);
-      if (bot && !bot.hidden && operation?.threadId && store.taskByThread(bot.id, operation.threadId)) return { state: "chosen", target: { botId: bot.id, threadId: operation.threadId } };
-    }
-    return { state: "interrupted" };
-  },
-  dispatch: async (threadId, messageId, target) => {
-    const source = store.messagesFor(threadId).find(row => row.id === messageId);
-    const route = source?.workBotRouting;
-    const original = route?.sourceBotId ? store.bot(route.sourceBotId) : null;
-    const owner = original?.defaultBot ? defaultBotPerson(original) : undefined;
-    if (!source?.text || !route?.sourceBotId || !route.triggerKind || !route.modelSelection || !original || owner === undefined || route.ownerKey !== (owner ? personKey({ id: "", email: owner }) : "") || !sameModelSelection(store.projectBotForTask(route.sourceBotId, threadId)?.modelSelection, route.modelSelection) || !sameModelSelection(store.projectBotForTask(target.botId, target.threadId)?.modelSelection, route.modelSelection) || !store.activePath(threadId).some(row => row.id === messageId)) throw new Error("Work bot request is no longer available");
-    const person = source.sender?.id;
-    const teamPerson = person ? teamOwners.people?.everyone().find(entry => personKey({ id: "", email: entry.email }) === person) : undefined;
-    const session = person ? sessions.list().find(entry => personKey(entry) === person) : undefined;
-    const email = teamPerson?.email ?? session?.email;
-    if (CLOUD_TEAM && (!person || !teamPerson || teamPerson.leftAt !== undefined)) throw new Error("The requesting person is no longer available");
-    const trigger: UsageTrigger = { kind: route.triggerKind, ...(email ? { email } : {}) };
-    if (target.botId === route.sourceBotId && target.threadId === threadId) {
-      const replyTo = source.replyToId ? store.messagesFor(threadId).find(row => row.id === source.replyToId) : undefined;
-      if (source.replyToId && !replyTo) throw new Error("The replied-to message is no longer available");
-      await startTurn(target.botId, source.text, { threadId, userMessage: source, sender: source.sender, trigger, replyTo, dataContext: source.dataContext, allowRoomTurnElsewhere: true, workBotRoutingMessageId: messageId });
-    } else {
-      if (threadBusy(target.botId, target.threadId)) throw new Error("The target conversation is already in use");
-      workBotTargetLocks.set(target.threadId, { sourceThreadId: threadId, messageId });
-      try {
-        if (store.messagesFor(target.threadId).some(row => row.role === "user" || row.workBotCopy)) throw new Error("The target conversation is already in use");
-        const sourceAudience = teamHost.audienceOf(threadId);
-        const sourcePerson = audienceMember(sourceAudience);
-        if (sourcePerson && conversationShares.isShareKey(sourcePerson)) throw new Error("This shared conversation cannot be handed off safely");
-        if (CLOUD_TEAM && sourcePerson && !threadStarters.get(target.threadId)) {
-          if (store.messagesFor(target.threadId).length) throw new Error("The target conversation is already in use");
-          threadStarters.setRequired(target.threadId, sourcePerson);
-        }
-        const sourceLeaf = store.activeLeaf(threadId);
-        const targetLeaf = store.activeLeaf(target.threadId);
-        const validateHandoff = () => {
-          workspaceMaintenance.assertAvailable();
-          moveFreeze.assertTurns();
-          const currentSource = store.messagesFor(threadId).find(message => message.id === messageId);
-          const from = store.bot(route.sourceBotId!);
-          const to = store.bot(target.botId);
-          const accessMatches = from?.access && to?.access ? sameAccess(from.access, to.access) : !from?.access && !to?.access;
-          if (currentSource?.workBotRouting?.state !== "dispatching" || currentSource.text !== source.text || store.activeLeaf(threadId) !== sourceLeaf || store.activeLeaf(target.threadId) !== targetLeaf || !from || !to || to.hidden || !store.taskByThread(target.botId, target.threadId) || !sameAudience(from.visibility, to.visibility) || !accessMatches || !mayRead(teamHost.audienceOf(threadId), teamHost.audienceOf(target.threadId)) || !sameModelSelection(store.projectBotForTask(route.sourceBotId!, threadId)?.modelSelection, route.modelSelection) || !sameModelSelection(store.projectBotForTask(target.botId, target.threadId)?.modelSelection, route.modelSelection)) throw new Error("The conversation or its access changed during handoff");
-        };
-        validateHandoff();
-        const path = sinceFreshStart(store.activePath(threadId));
-        const sourceIndex = path.findIndex(row => row.id === messageId);
-        if (sourceIndex < 0) throw new Error("Work bot request is no longer in the active context");
-        if (source.dataContext || path.slice(0, sourceIndex).some(row => row.dataContext)) throw new Error("Data context cannot be transferred safely to another bot");
-        const staged: Parameters<typeof store.appendWorkBotContext>[1] = [];
-        for (let index = 0; index < sourceIndex; index += 1) {
-          if (index > 0 && index % 100 === 0) {
-            await new Promise<void>(resolve => setImmediate(resolve));
-            validateHandoff();
-          }
-          const row = path[index]!;
-          if (row.kind !== "text" || !row.text || (row.role !== "user" && row.role !== "bot")) continue;
-          const from = row.role === "bot" ? row.from ?? { botId: original.id, name: original.name, color: original.color } : undefined;
-          staged.push({ sourceId: row.id, ...(row.replyToId ? { replySourceId: row.replyToId } : {}), message: {
-            role: row.role, kind: "text", text: row.text, at: row.at,
-            workBotCopy: { sourceThreadId: threadId, sourceMessageId: row.id, requestMessageId: messageId,
-              status: row.requestCancelled ? "cancelled" : row.requestPending === true ? "unsettled" : row.requestPending === false ? "settled" : "unknown" },
-            ...(row.sender ? { sender: row.sender } : {}), ...(from ? { from } : {}), ...(row.attachments ? { attachments: row.attachments } : {}),
-          } });
-        }
-        if (source.replyToId && !staged.some(row => row.sourceId === source.replyToId)) throw new Error("The replied-to message is no longer available");
-        validateHandoff();
-        await startTurn(target.botId, source.text, { threadId: target.threadId, sendId: `workbot-${messageId}`, sender: source.sender, trigger, dataContext: source.dataContext, allowRoomTurnElsewhere: true, workBotRoutingMessageId: messageId, prepareWorkBotContext: () => {
-          validateHandoff();
-          const copied = store.appendWorkBotContext(target.threadId, [...staged, { sourceId: messageId, ...(source.replyToId ? { replySourceId: source.replyToId } : {}), message: {
-            role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`,
-            ...(source.sender ? { sender: source.sender } : {}), ...(source.dataContext ? { dataContext: source.dataContext } : {}),
-          } }]);
-          return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}) };
-        } });
-      } finally {
-        if (workBotTargetLocks.get(target.threadId)?.messageId === messageId) workBotTargetLocks.delete(target.threadId);
-        queueMicrotask(drainQueuedSends);
-      }
-    }
-  },
-  report: error => console.warn("Work bot routing could not complete", error instanceof Error ? error.name : "unknown error"),
+const workBotHost = createWorkBotHost({
+  store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends,
+  assertAvailable: () => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); },
+  offerWorkBot, teamPersonFor: person => teamOwners.people?.everyone().find(entry => personKey({ id: "", email: entry.email }) === person),
+  sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM),
+  teamHost, conversationShares, threadStarters, threadBusy, startTurn,
 });
+const { workBotRouter, reconcileWorkBotBranch, workBotRoutingBlocks } = workBotHost;
 
-async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: string; threadId: string; requestId: string; behavior: string }, ownerReview: boolean): Promise<boolean> {
-  const card = store.messagesFor(args.threadId).find((item) => item.card?.requestId === args.requestId && item.card.teamSetupRequest)?.card;
-  if (!card) return false;
-  if (card.teamSetupRequest?.workBotOffer?.sourceMessageId && store.messagesFor(args.threadId).some(row => row.id === card.teamSetupRequest?.workBotOffer?.sourceMessageId && row.workBotRouting)) {
-    workspaceMaintenance.assertAvailable();
-    moveFreeze.assertTurns();
-  }
-  if (args.behavior === "allow" && !ownerReview) { json(res, 403, { error: "Approve team setup or deletion from the desktop app or a paired Full-access device. In a local browser, wait until every bot is idle." }); return true; }
-  if (args.behavior === "allow" && card.teamSetupRequest?.workBotOffer && !store.messagesFor(args.threadId).some(row => row.id === card.teamSetupRequest?.workBotOffer?.sourceMessageId && row.workBotRouting)) {
-    json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.legacyUnavailable") });
-    return true;
-  }
-  if (args.behavior === "allow" && CLOUD_TEAM && card.teamSetupRequest?.workBotOffer && audienceMember(teamHost.audienceOf(args.threadId))) {
-    json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.privateUnavailable") });
-    return true;
-  }
-  if (args.behavior === "allow" && card.teamSetupRequest?.workBotOffer) {
-    const path = sinceFreshStart(store.activePath(args.threadId));
-    const sourceIndex = path.findIndex(row => row.id === card.teamSetupRequest?.workBotOffer?.sourceMessageId);
-    if (sourceIndex >= 0 && path.slice(0, sourceIndex + 1).some(row => row.dataContext)) {
-      json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.dataUnavailable") });
-      return true;
-    }
-  }
-  if (args.behavior === "allow" && !card.answered && !card.dismissed && !card.expired) {
-    for (const operation of card.teamSetupRequest!.operations) {
-      const before = store.bot(operation.botId);
-      if (before && operation.action === "update") assertTeamComputerChangeIdle(before, { ...before, ...operation.fields });
-    }
-  }
-  const resolved = await teamSetupRequests.resolve(args);
-  if (!resolved) return false;
-  const sourceMessageId = resolved.request.workBotOffer?.sourceMessageId;
-  if (sourceMessageId) await workBotRouter.reconcileChoice(args.threadId, sourceMessageId);
-  if (!resolved.duplicate) {
-    appendDecision(DATA_DIR, { threadId: args.threadId, requestId: args.requestId, botId: args.botId, tool: card.tool,
-      summary: card.subtitle, decision: resolved.result.state === "applied" ? "user-approved" : "user-denied", source: "user" });
-  }
-  const current = store.messagesFor(args.threadId).find((item) => item.id === resolved.messageId);
-  if (!resolved.request.workBotOffer && current?.card?.teamSetupRequest?.result && !current.card.teamSetupRequest.resumed) {
-    if (answerCardNode(args.threadId, current.id, teamSetupDecisionText(resolved.request))) {
-      store.patchMessage(args.threadId, current.id, { card: { ...current.card, teamSetupRequest: { ...current.card.teamSetupRequest, resumed: true } } });
-    }
-  }
-  const routingState = sourceMessageId ? store.messagesFor(args.threadId).find(row => row.id === sourceMessageId)?.workBotRouting?.state : undefined;
-  json(res, 200, { ok: true, outcome: resolved.result.state === "applied" ? "allowed-once" : "rejected", result: resolved.result, alreadySettled: resolved.duplicate, ...(routingState ? { routingState } : {}) });
-  return true;
-}
+const resolveAndSendTeamSetup = createTeamSetupResponder({ store,
+  assertAvailable: () => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); },
+  cloudTeam: Boolean(CLOUD_TEAM), teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter,
+  dataDir: DATA_DIR, answerCardNode, teamSetupDecisionText,
+});
 
 const { mcpRequests, mcpSignInCards, mcpServerDeps, resolveAndSendMcp, mcpServerResponse, mcpPolicyRefusal } = createMcpChat({ store, cfg, mcpOAuth, teamConnections, mcpServersHost, managedPolicy,
   secretCards: () => secretCards, mcpConfig: () => mcpConfig, teamCloud: Boolean(CLOUD_TEAM), threadLanguage, answerCardNode, followCard: (threadId, from, to) => coordinator.followCard(threadId, from, to), fullAccessForSource, cloudGuestDriven, liveTurnByThread, broadcast,
   publicOrigins: () => [CLOUD_HOME?.publicOrigin, hostedWorkspaceConfiguration()?.tenant.origin, savedCustomDomain(), FALLBACK_PUBLIC_URL], threadVisible: (auth, threadId) => visibleTo(viewerFor(auth)).thread(threadId), lending: () => lentMcp });
 const routineTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-function sendRoutineResolution(
-  res: ServerResponse,
-  result: ReturnType<RoutineRequestService["resolve"]>,
-): boolean {
-  if (!result.claimed) return false;
-  if (result.state === "invalid") {
-    json(res, result.status, { error: result.error });
-    return true;
-  }
-  if (result.state === "already_settled") {
-    json(res, 200, {
-      ok: true,
-      outcome: result.behavior === "allow" ? "allowed-once" : result.behavior === "deny" ? "rejected" : "unavailable",
-      alreadySettled: true,
-    });
-    return true;
-  }
-  if (result.state === "denied") {
-    json(res, 200, { ok: true, outcome: "rejected" });
-    return true;
-  }
-  json(res, 200, {
-    ok: true,
-    outcome: "allowed-once",
-    routineAction: result.action,
-    resultId: result.resultId,
-  });
-  return true;
-}
-/** Routine changes apply on their own since Triggers v2; a card left open from before is expired, never confirmed. */
-function resolveAndSendRoutine(res: ServerResponse, args: { botId: string; botName?: string; threadId: string; requestId: string; behavior: string }): boolean {
-  const message = store.messagesFor(args.threadId).find((candidate) => candidate.card?.requestId === args.requestId && candidate.card.routineRequest);
-  if (!message?.card) return false;
-  if (message.card.answered) return sendRoutineResolution(res, { claimed: true, state: "already_settled", behavior: message.card.answered });
-  store.patchMessage(args.threadId, message.id, { card: { ...message.card, expired: true, options: [] } });
-  json(res, 410, { error: "This routine request is from before triggers applied on their own. Ask the bot again and it will set it up directly." });
-  return true;
-}
-function resolveAndSendProfile(
-  res: ServerResponse,
-  args: { botId: string; botName?: string; threadId: string; requestId: string; behavior: string },
-): boolean {
-  const card = store.messagesFor(args.threadId).find(
-    (message) => message.card?.requestId === args.requestId && message.card.profileRequest,
-  )?.card;
-  if (!card) return false;
-  const result = profileRequests.resolve(args);
-  if (!result.claimed) return false;
-  if (result.state === "applied" || result.state === "denied") {
-    appendDecision(DATA_DIR, {
-      threadId: args.threadId, requestId: args.requestId, botId: args.botId, botName: args.botName,
-      tool: "update_profile", summary: card.subtitle,
-      decision: result.state === "applied" ? "user-approved" : "user-denied", source: "user",
-    });
-  }
-  if (result.state === "applied") {
-    const target = store.bot(result.targetBotId);
-    if (target) broadcast({ kind: "bot", bot: wireBot(target) });
-    json(res, 200, {
-      ok: true, outcome: "allowed-once", profileFields: result.fields,
-      ...(result.settlementPending ? { settlementPending: true, message: result.message } : {}),
-    });
-    return true;
-  }
-  if (result.state === "invalid") { json(res, result.status, { error: result.error }); return true; }
-  if (result.state === "already_settled") {
-    json(res, 200, { ok: true, outcome: result.behavior === "allow" ? "allowed-once" : "rejected", alreadySettled: true });
-    return true;
-  }
-  json(res, 200, { ok: true, outcome: "rejected" });
-  return true;
-}
+const resolveAndSendRoutine = createRoutineResponder(store);
 
-function resolveAndSendModel(
-  res: ServerResponse,
-  args: { botId: string; botName?: string; threadId: string; requestId: string; behavior: string },
-): boolean {
-  const card = store.messagesFor(args.threadId).find(
-    (message) => message.card?.requestId === args.requestId && message.card.modelRequest,
-  )?.card;
-  if (!card) return false;
-  const result = modelRequests.resolve(args);
-  if (!result.claimed) return false;
-  if (result.state === "applied" || result.state === "denied") {
-    appendDecision(DATA_DIR, {
-      threadId: args.threadId, requestId: args.requestId, botId: args.botId, botName: args.botName,
-      tool: "update_model", summary: card.subtitle,
-      decision: result.state === "applied" ? "user-approved" : "user-denied", source: "user",
-    });
-  }
-  if (result.state === "applied") {
-    const target = store.bot(result.targetBotId);
-    if (target) broadcast({ kind: "bot", bot: wireBot(target) });
-    json(res, 200, {
-      ok: true, outcome: "allowed-once",
-      ...(result.settlementPending ? { settlementPending: true, message: result.message } : {}),
-    });
-    return true;
-  }
-  if (result.state === "invalid") { json(res, result.status, { error: result.error }); return true; }
-  if (result.state === "already_settled") {
-    json(res, 200, { ok: true, outcome: result.behavior === "allow" ? "allowed-once" : "rejected", alreadySettled: true });
-    return true;
-  }
-  json(res, 200, { ok: true, outcome: "rejected" });
-  return true;
-}
+const { resolveAndSendProfile, resolveAndSendModel } = createProfileModelResponder({ store, profileRequests, modelRequests, dataDir: DATA_DIR, broadcast, wireBot });
 
 type UndoResult =
   | { claimed: false }

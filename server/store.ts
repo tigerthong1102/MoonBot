@@ -40,8 +40,8 @@ import { sameModelSelection } from "../shared/thread-model.ts";
 import { initialGreetingMessage } from "./initial-greeting.ts"; import { createDefaultBot, defaultBotRefusal, type DefaultBotIntro } from "./default-bot.ts";
 import { appsFromCreator } from "./inherited-apps.ts"; import { newBotOwner, sharedAsMaker, sharedUnlessRestricted, type NewBotSharingRule } from "./new-bot-sharing.ts";
 import { ThreadCache, type ThreadState } from "./thread-cache.ts";
-import { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts";
-import { buildTask, mirrorActiveTask, threadTitleFrom, UNTITLED_THREAD } from "./task-record.ts";
+import { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts"; export { titleFromLlm } from "./thread-title.ts";
+import { buildTask, mirrorActiveTask, threadTitleFrom, UNTITLED_THREAD } from "./task-record.ts"; export { toWireTask } from "./task-record.ts";
 import { createBotFork, createGroupFork } from "./store-forks.ts";
 import { activeGroupTask, groupTaskByThread, groupTasks, migrateGroupTaskRead, mirrorActiveGroupTask, refreshGroupUnread, setGroupTaskRead, syncGroupReadPatch } from "./group-task-state.ts";
 export { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts";
@@ -96,14 +96,6 @@ type AssertSameKeys<A, B> = [keyof A] extends [keyof B] ? ([keyof B] extends [ke
 export type TaskWireProjectionIsExact = AssertExact<WireTask, TaskWireProjection> & AssertSameKeys<WireTask, TaskWireProjection>;
 export const taskWireProjectionIsExact: TaskWireProjectionIsExact = true;
 
-export function toWireTask(task: TaskRecord, botModel: ModelSelection): WireTask {
-  const { resumeCursors: _resumeCursors, lastInstanceId: _lastInstanceId, handedMessages: _handedMessages,
-    appliedCompactionId: _appliedCompactionId, contextFloor: _contextFloor, lastContextModel: _lastContextModel,
-    surfaceSource, askedAt: _askedAt, ...stored } = task;
-  const wire: WireTask = { ...stored, modelSelection: structuredClone(task.modelSelection ?? botModel), followsBotModel: task.modelSelection === undefined };
-  return surfaceSource === "auto" && wire.surface !== undefined ? { ...wire, surfaceAuto: true } : wire;
-}
-
 const ASK_NOW = { approvalMode: "ask" as const, autoApprove: false, alwaysAllow: [] as string[] };
 
 const TASK_PATCH_FIELDS = [
@@ -137,21 +129,6 @@ export type StoreChange =
   | { type: "bots.order" } | { type: "groups.order" }
   | { type: "group"; groupId: string }
   | { type: "group.deleted"; groupId: string };
-
-export function titleFromLlm(raw: string): string | null {
-  const line = raw
-    .trim()
-    .split("\n")[0]!
-    .replace(/^[#*\-\u2022]+/, "")
-    .replace(/^["'\u201C\u201D\u2018\u2019\u0060]+/, "")
-    .replace(/["'\u201C\u201D\u2018\u2019\u0060]+$/, "")
-    .replace(/^[#*\-\u2022]+/, "")
-    .replace(/[#*]+$/, "")
-    .replace(/[.\u3002]+$/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return line.length >= 1 && line.length <= 48 ? line : null;
-}
 
 export interface BotRecord extends Omit<WireBot, "avatarUrl" | "tasks"> {
   tasks?: TaskRecord[];

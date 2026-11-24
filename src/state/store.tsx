@@ -18,7 +18,10 @@ import { botOpensTo, closeTrayUnlessShown, closeUnpinnedTray, openBot, openThrea
 import { patchGroupTask } from "./thread-edits"; import { unreadBeyondFrame, wholeBotFrame } from "./bot-thread-frame";
 import type { EngineInstall } from "./engine-install";
 import { optimisticMessageId, optimisticUserMessage, sendArrived, sendReconciled } from "./optimistic-send";
-import { foldSnapshotOntoStreamed, patchedGroups, roomAnswers, snapshotPatch } from "./room-frames";
+import { patchedGroups, roomAnswers, snapshotPatch } from "./room-frames";
+import { createdBotSnapshot } from "./created-bot-snapshot";
+import { openCreatedWorkBot } from "./open-created-work-bot";
+import { loadSnapshotBoundary, normalizeSnapshotFailure } from "./snapshot-boundary"; export { loadSnapshotBoundary, type PeripheralSnapshotLoad } from "./snapshot-boundary";
 import { savedStateAction, type SavedOwner, type SavedSnapshot } from "./saved-state";
 import { keepBotNavigation, keepGroupNavigation, navigatedSince, visibleMessages } from "./snapshot-navigation";
 export { visibleMessages } from "./snapshot-navigation";
@@ -1107,25 +1110,7 @@ export function reducer(state: AppState, action: Action): AppState {
     }
     case "markUnread":
       return updateBot(withMascotMotion(state, action.botId, "surprise"), action.botId, (b) => ({ ...b, unread: true }));
-    case "createdBotSnapshot": {
-      const { bot, since, olderSince, deletionRevision, heldAtStart } = action;
-      const current = state.bots.find(item => item.id === bot.id);
-      if ((state.botDeletionRevision[bot.id] ?? 0) !== deletionRevision || current?.hidden) return state;
-      if ((state.transcriptGeneration[bot.threadId] ?? 0) !== (since[bot.threadId] ?? 0)) return state;
-      if (!current) return reducer(reducer(state, { type: "botPatched", bot }), { type: "select", id: bot.id });
-      if (current.threadId !== bot.threadId) return state;
-      if ((state.olderPageRevision[bot.threadId] ?? 0) !== (olderSince[bot.threadId] ?? 0) || state.loadingOlder[bot.threadId]) return reducer(state, { type: "select", id: bot.id });
-      const messages = foldSnapshotOntoStreamed(current.messages, new Set(heldAtStart), bot.messages ?? []);
-      const snapshotIds = new Set((bot.messages ?? []).map(message => message.id));
-      const heldIds = new Set(heldAtStart.map(message => message.id));
-      const streamedLeaf = current.activeLeafId && !heldIds.has(current.activeLeafId) && !snapshotIds.has(current.activeLeafId) && messages.some(message => message.id === current.activeLeafId);
-      let activeLeafId = streamedLeaf ? current.activeLeafId : bot.activeLeafId;
-      for (const message of messages) {
-        if (!snapshotIds.has(message.id) && message.parentId === activeLeafId) activeLeafId = message.id;
-      }
-      const updated = updateBot(state, bot.id, previous => ({ ...previous, messages, activeLeafId, hasMore: bot.hasMore }));
-      return reducer(updated, { type: "select", id: bot.id });
-    }
+    case "createdBotSnapshot": return createdBotSnapshot(state, action, reducer, updateBot);
     case "botPatched": {
       const before = state.bots.find((b) => b.id === action.bot.id);
       if (action.tasksPartial) return before ? reducer(state, { type: "botPatched", bot: wholeBotFrame(before, action.bot) }) : state;
@@ -2026,32 +2011,6 @@ export async function requestConfirmedBotDeletion<Answer>(
   }
 }
 
-export interface PeripheralSnapshotLoad<Key extends string = string> {
-  key: Key;
-  load: () => Promise<void>;
-}
-
-function normalizeSnapshotFailure(cause: unknown): Error {
-  return cause instanceof Error ? cause : new Error(String(cause));
-}
-
-export async function loadSnapshotBoundary<Key extends string>(
-  loadChat: () => Promise<void>,
-  peripherals: readonly PeripheralSnapshotLoad<Key>[],
-  onPeripheralFailure: (part: PeripheralSnapshotLoad<Key>, error: Error) => void,
-): Promise<boolean> {
-  const [chat, ...settledPeripherals] = await Promise.allSettled([
-    loadChat(),
-    ...peripherals.map((part) => part.load()),
-  ]);
-  settledPeripherals.forEach((result, index) => {
-    if (result.status === "rejected") {
-      onPeripheralFailure(peripherals[index]!, normalizeSnapshotFailure(result.reason));
-    }
-  });
-  return chat.status === "fulfilled";
-}
-
 export function runtimeFrameAction(event: RuntimeEvent): Action | null {
   noteRuntimeTurn(event);
   return event.type === "turn.started" || event.type === "session.model-variants" || event.type === "turn.completed"
@@ -2487,21 +2446,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               if (action.openCreatedBot && response?.routingState === "interrupted") showError(new Error(t("workBotRouting.interrupted")));
               if (action.openCreatedBot && action.behavior === "allow" && response?.result?.state === "applied" && response?.routingState === "dispatched") {
                 const created = response.result.bots?.find((bot: { id?: unknown; action?: unknown }) => bot.action === "created" && typeof bot.id === "string");
-                if (created && selectionRevision.current === navigationAtDecision) {
-                  const since = stateRef.current.transcriptGeneration;
-                  const olderSince = stateRef.current.olderPageRevision;
-                  const deletionRevision = stateRef.current.botDeletionRevision[created.id] ?? 0;
-                  const heldAtStart = stateRef.current.bots.find(item => item.id === created.id)?.messages ?? [];
-                  const bot = await readOneBot(created.id, MESSAGE_PAGE_SIZE);
-                  if (!bot || bot.hidden || !Array.isArray(bot.messages)) throw new Error(t("serverError.owner.unavailable"));
-                  if (selectionRevision.current === navigationAtDecision) {
-                    rawDispatch({ type: "createdBotSnapshot", bot: withTaskWrites(bot), since, olderSince, deletionRevision, heldAtStart });
-                    const opened = store.getState();
-                    if (opened.selectedId === bot.id && opened.activeView === "chat" && opened.bots.some(item => item.id === bot.id && item.threadId === bot.threadId && !item.hidden)) {
-                      void api(`/api/bots/${bot.id}/read`, { method: "POST", body: JSON.stringify({ threadId: bot.threadId }) }).catch(() => {});
-                    }
-                  }
-                }
+                if (created) await openCreatedWorkBot(created.id, navigationAtDecision, { revision: () => selectionRevision.current, state: () => stateRef.current, current: store.getState, dispatch: rawDispatch, withTaskWrites });
               }
             })
             .catch((error) => {

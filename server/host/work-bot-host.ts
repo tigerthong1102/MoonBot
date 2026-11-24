@@ -50,12 +50,6 @@ function reconcileWorkBotBranch(threadId: string): void {
   }
 }
 
-function workBotRoutingBlocks(threadId: string, exceptMessageId?: string): boolean {
-  const ids = pendingWorkBotIds.get(threadId);
-  if (!ids?.size || (ids.size === 1 && exceptMessageId && ids.has(exceptMessageId))) return false;
-  return store.activePath(threadId).some(message => message.id !== exceptMessageId && ids.has(message.id));
-}
-
 const workBotRouter = new WorkBotRouter({
   message: (threadId, messageId) => store.messagesFor(threadId).find(message => message.id === messageId),
   recoverDispatch: (_threadId, messageId, route) => {
@@ -219,5 +213,5 @@ const workBotRouter = new WorkBotRouter({
   report: error => console.warn("Work bot routing could not complete", error instanceof Error ? error.name : "unknown error"),
 });
 
-  return { workBotRouter, reconcileWorkBotBranch, workBotRoutingBlocks };
+  return { workBotRouter, reconcileWorkBotBranch };
 }

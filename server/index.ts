@@ -2214,6 +2214,7 @@ function botForThread(botId: string, threadId: string): BotRecord | null {
 
 const pendingWorkBotIds = new Map<string, Set<string>>();
 const workBotTargetLocks = new Map<string, { sourceThreadId: string; messageId: string }>();
+function workBotRoutingBlocks(threadId: string, exceptMessageId?: string): boolean { const ids = pendingWorkBotIds.get(threadId); return Boolean(ids?.size && !(ids.size === 1 && exceptMessageId && ids.has(exceptMessageId)) && store.activePath(threadId).some(message => message.id !== exceptMessageId && ids.has(message.id))); }
 function indexWorkBotRouting(threadId: string, messageId: string, state: NonNullable<Message["workBotRouting"]>["state"]): void {
   const pending = state === "classifying" || state === "waiting_choice" || state === "dispatching";
   const ids = pendingWorkBotIds.get(threadId) ?? new Set<string>();
@@ -9354,7 +9355,7 @@ const workBotHost = createWorkBotHost({
   sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(),
   teamHost, conversationShares, threadStarters, threadBusy, startTurn,
 });
-const { workBotRouter, reconcileWorkBotBranch, workBotRoutingBlocks } = workBotHost;
+const { workBotRouter, reconcileWorkBotBranch } = workBotHost;
 for (const pending of pendingWorkBotRoutes()) workBotRouter.recoverDispatch(pending.threadId, pending.message.id);
 for (const pending of pendingWorkBotTargets()) { const bot = store.botByThread(pending.threadId); if (bot && store.patchMessage(pending.threadId, pending.message.id, { workBotExecutionUncertain: true }) && store.patchTask(bot.id, pending.threadId, { resumeCursors: {}, rewound: true })) store.patchMessage(pending.threadId, pending.message.id, { requestPending: false }); }
 

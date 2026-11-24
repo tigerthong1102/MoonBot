@@ -33,6 +33,7 @@ jobs:
           test -S "$XDG_RUNTIME_DIR/wayland-omb"
           export WAYLAND_DISPLAY=wayland-omb CUA_DRIVER_RS_ENABLE_WAYLAND=1
           echo "WAYLAND_COMPOSITOR_RUNNING"
+          node scripts/probe-gnome-wayland.mjs
           dist-native/cua-linux-x64/cua-driver doctor || true
           dist-native/cua-linux-x64/cua-driver --help | head -80
           SHELL

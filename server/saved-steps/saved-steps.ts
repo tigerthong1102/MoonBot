@@ -62,7 +62,7 @@ export interface SavedSteps {
 }
 
 export function savedStepsEnabled(cfg: Pick<AppConfig, "features">, platform: NodeJS.Platform = process.platform): boolean {
-  return cfg.features?.savedSteps ?? (platform === "darwin");
+  return cfg.features?.savedSteps ?? (platform !== "win32" && platform !== "linux");
 }
 
 const keepsFromSaving = (event: RuntimeEvent): boolean =>

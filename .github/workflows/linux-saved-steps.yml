@@ -35,6 +35,7 @@ jobs:
           sudo apt-get install -y at-spi2-core dbus-x11 libatk-adaptor python3-gi gir1.2-gtk-3.0 openbox x11-utils xdotool xvfb
       - run: node scripts/prepare-cua-linux.mjs
       - run: pnpm exec vitest run server/saved-steps
+      - run: pnpm exec vitest run server/index.test.ts -t 'keeps skill authoring on by default and persists an explicit opt-out'
       - run: pnpm exec tsc -p tsconfig.server.json
       - name: Record, save and replay on real GTK
         run: dbus-run-session -- xvfb-run -a node --experimental-strip-types scripts/smoke-linux-saved-steps-probe.mjs

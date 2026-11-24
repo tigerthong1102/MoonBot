@@ -252,6 +252,7 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
           resolve();
         }, 10);
       });
+      if (typeof plan.afterGateFile === "string") writeFileSync(plan.afterGateFile, "continued");
       if (typeof plan.progressAfterGate === "string") progress?.(plan.progressAfterGate);
       if (plan.delayMs) await new Promise(resolve => { delayTimer = setTimeout(resolve, plan.delayMs); });
       if (plan.fail && !resumed) throw new Error("Scripted addressed agent failure");

@@ -114,6 +114,7 @@ child.on("error", error => { output += `\n${error.stack}\n`; });
 let socket;
 const rendererErrors = [];
 let computerPanelVisible = false;
+let stoppedGateToRelease;
 let captureFailure = async () => {};
 const restartLifecycle = { started: false, stopped: false };
 let report = { platform: process.platform, arch: process.arch, app, status: "FAIL" };
@@ -400,6 +401,10 @@ try {
   const rename = `Đổi tên hội thoại này thành “${newTitle}”.`;
   const clear = "Xóa tin nhắn của đúng hội thoại này";
   const followup = "Continue the fixture conversation.";
+  const stopText = "Hold the synthetic turn for cancellation";
+  const stopReady = path.join(fixture, "stop-ready"), stopGate = path.join(fixture, "stop-gate"), stopContinued = path.join(fixture, "stop-continued");
+  const postStop = "Check the synthetic conversation after stop";
+  stoppedGateToRelease = stopGate;
   writeFileSync(plan, JSON.stringify({ [bot.id]: { script: [
     { key: "first", match: [first], reply },
     { key: "create", match: [create], steps: [
@@ -409,6 +414,8 @@ try {
     { key: "rename", match: [rename], steps: [{ tool: "rename_thread", arguments: { title: newTitle } }], reply: "Đã đổi tên hội thoại thử." },
     { key: "clear", match: [clear], steps: [{ tool: "app_settings", arguments: { action: "show_card", card: "clear-messages" } }], reply: "Confirm in chat." },
     { key: "followup", match: [followup], reply: "Fresh fixture reply." },
+    { key: "stop", match: [stopText], readyFile: stopReady, gateFile: stopGate, afterGateFile: stopContinued, progressAfterGate: "CANCELED_GATE_RELEASED", reply: "Canceled fixture should not finish." },
+    { key: "post-stop", match: [postStop], reply: "Synthetic conversation remains usable." },
   ] } }));
   const sent = await request(`/api/bots/${encodeURIComponent(bot.id)}/messages`, { text: first });
   assert.equal(sent.status, 202, JSON.stringify(sent.body));
@@ -453,6 +460,29 @@ try {
   await send(followup);
   await until(async () => (await transcript()).some(row => row.text === "Fresh fixture reply."), "a fresh reply in the same thread");
   assert(!(await transcript()).some(row => row.text === first));
+  await send(stopText);
+  await until(() => existsSync(stopReady), "the synthetic turn to be running");
+  const stopSource = (await transcript()).find(row => row.role === "user" && row.text === stopText);
+  assert(stopSource?.id);
+  await evaluate(`${helperRow}.click()`);
+  await until(() => evaluate(`${helperRow}?.getAttribute('aria-current') === 'page'`), "navigation away from the running turn");
+  await evaluate(`${selectBot}.click()`);
+  await until(() => evaluate(`${selectBot}?.getAttribute('aria-current') === 'page'`), "navigation back to the running turn");
+  await until(() => evaluate("Boolean(document.querySelector('button[aria-label=\"Stop this turn\"]'))"), "the Stop button after navigation");
+  await evaluate("document.querySelector('button[aria-label=\"Stop this turn\"]').click()");
+  await until(async () => (await transcript()).find(row => row.id === stopSource.id)?.requestCancelled === true && !(await readBot()).busy, "the synthetic turn to stop");
+  assert(!(await transcript()).some(row => row.text === "Canceled fixture should not finish."));
+  assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(stopText)).length, 1);
+  assert.equal((await transcript()).filter(row => row.role === "user" && row.text === stopText).length, 1);
+  writeFileSync(stopGate, "release");
+  await send(postStop);
+  await until(() => completedRequest(bot.threadId, postStop), "a new synthetic turn to finish after Stop");
+  const stoppedRows = await transcript();
+  assert(stoppedRows.some(row => row.role === "bot" && row.text === "Synthetic conversation remains usable."));
+  assert(!stoppedRows.some(row => row.text === "Canceled fixture should not finish." || JSON.stringify(row).includes("CANCELED_GATE_RELEASED")));
+  assert(!stoppedRows.some(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === stopSource.id));
+  await new Promise(resolve => setTimeout(resolve, 1_000));
+  assert.equal(existsSync(stopContinued), false, "The canceled fake provider must not continue after its gate opens");
   const unauthenticated = await fetch(new URL("/api/auth/stream-ticket", target.url), { method: "POST", signal: AbortSignal.timeout(5_000) });
   assert([401, 403].includes(unauthenticated.status), "An external process must not inherit the renderer's mutation capability");
   assert.equal(createHash("sha256").update(readFileSync(sentinel)).digest("hex"), sentinelHash);
@@ -480,6 +510,7 @@ try {
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion },
+    stopAfterNavigation: "PASS (synthetic turn canceled; no fake continuation observed for one second after a follow-up)",
     computerPanelNavigation: disposableDesktop ? "PASS (opened and closed on disposable runner; no desktop control)" : "NOT RUN (requires disposable desktop)",
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
@@ -490,6 +521,8 @@ try {
   await captureFailure().catch(failure => { report.diagnosticsError = failure.message; });
   throw error;
 } finally {
+  try { if (stoppedGateToRelease && !existsSync(stoppedGateToRelease)) writeFileSync(stoppedGateToRelease, "cleanup"); }
+  catch (error) { report.status = "FAIL"; report.cleanupGateError = error.stack; }
   socket?.close();
   let firstStopped = false;
   try {

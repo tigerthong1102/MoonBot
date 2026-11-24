@@ -22,6 +22,7 @@ person sends the same words again (design:
   computer is mounted at Full access and the bot has steps for those words.
 - With the switch off, the AI runs and nothing is saved, though steps exist.
 - On Windows, a failed saved step ends the turn. If a replayed click may have reached the app but its result cannot be verified, the same request is blocked even after a restart. Check the app first. After reconciling the result, an owner can use **Forget saved steps** on the original learned reply.
+- Linux uses the same opt-in and uncertain-click protection. Its supported initial scope is one background accessibility click on a uniquely named, enabled button and a verified change to an explicitly named window title. The complete window must be readable before and after the click; other actions do not save as Linux steps.
 - On macOS, a failed step hands the request to the AI with a note of what already
   happened, deletes the steps, and that request does not save even though the
   AI's own run is clean.
@@ -34,7 +35,7 @@ Unit and route checks:
 pnpm exec vitest run server/saved-steps server/routes/saved-steps.test.ts server/routes/computer-journal.test.ts server/local-computer-proxy.test.ts server/local-computer.test.ts server/delta-context.test.ts src/components/SavedStepsChip.test.ts src/components/SavedStepsRow.test.ts server/testing/fake-cua-driver.test.ts
 ```
 
-The TextEdit fixture below runs on macOS. A Linux server never mounts this computer from this record.
+The TextEdit fixture below runs on macOS. For Linux, `scripts/smoke-linux-saved-steps-probe.mjs` runs under an isolated X11 display with the real Linux driver and a disposable GTK app. It tests recording, persistence, a restarted app, replay and a separate isolated chat-server round trip. This does not establish Wayland compatibility.
 
 For a Windows chat smoke, turn on Saved Steps in the generic fixture's settings, choose this computer explicitly and use Full access. Use a read-only navigation command in this form: `Navigate using button "Navigate fixture" and verify window title "Fixture destination"`. Vietnamese chats can use `Điều hướng bằng nút "Navigate fixture" và xác minh tiêu đề cửa sổ "Fixture destination"`. The exact button and both window states must be readable by UI Automation. Record the original window, invoke the unique enabled button once using a fresh background token, then read the same window again with `get_window_state` and the `elements` projection. The title must change to the explicitly named destination; click delivery or unrelated UI changes do not count. Reopen the fixture at its starting title, send the identical command, approve the replay, and verify the replay marker and destination. A missing destination, different window or ambiguous target is a failed smoke. Test only on the isolated fixture; MISA is not required. The duplicate-delivery protection is for Saved Steps replay, not a new safeguard for arbitrary AI tool calls.
 
@@ -229,3 +230,4 @@ pinned to this computer after the person allowed it once is not exercised: the
 dispatch tests prove that a turn whose place the person did not pick never
 replays, but nothing runs the server's own check that counts an Auto pin as
 not picked.
+

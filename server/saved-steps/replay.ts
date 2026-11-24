@@ -45,7 +45,7 @@ async function reachedWindowsDestination(caller: ComputerCaller, step: RecipeSte
     if (bounded.aborted) return false;
     const response = await caller.call("get_window_state", { pid, window_id, tree_format: "elements", include_screenshot: false, timeout_ms: 30000, max_elements: 5000 }, bounded);
     if (!response.ok || bounded.aborted || response.structured.tree_format !== "elements") return false;
-    const state = slimResponse({ result: { structuredContent: response.structured } }, "win32").structured;
+    const state = slimResponse({ result: { structuredContent: response.structured } }, step.element?.linuxWindowChild ? "linux" : "win32").structured;
     if ("title" in destination && windowsSnapshotMatches(state, step, pid, window_id, destination.title)) return true;
     if ("tab" in destination && windowsSnapshotMatches(state, step, pid, window_id, step.window!.title)
       && windowsTabSelected(state, destination.tab)) return true;
@@ -70,7 +70,7 @@ export async function runSteps(
     const label = stepLabel(step);
     const failed = ({ error, gate }: Extract<CallOutcome, { ok: false }>): ReplayOutcome =>
       (signal.aborted ? STOPPED : { kind: "failed", done, total, tool: step.tool, label, error, ...(gate ? { gate } : {}) });
-    const windows = step.element?.uiaWindowChild === true;
+    const windows = step.element?.uiaWindowChild === true || step.element?.linuxWindowChild === true;
     const destination = windows ? expectedWindowsDestination(recipe) : undefined;
     if (windows && (!destination || !deps.windowsAttempt)) return failed({ ok: false, error: "This Windows recipe does not name a verifiable navigation destination." });
     let target = await resolveStepSoon(step, caller, signal, patience);
@@ -158,3 +158,4 @@ export function fallbackNote(outcome: Extract<ReplayOutcome, { kind: "failed" }>
 export function declinedReply(outcome: Extract<ReplayOutcome, { kind: "declined" }>): string {
   return `I stopped the saved steps because a step on ${outcome.label} was declined. Nothing after it ran.`;
 }
+

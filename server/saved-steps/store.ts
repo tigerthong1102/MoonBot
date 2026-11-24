@@ -18,7 +18,7 @@ const step = z.object({
   args: z.record(z.string(), z.unknown()),
   app: identity.optional(),
   window: z.object({ title: z.string() }).optional(),
-  element: z.object({ role: z.string(), label: z.string(), path: z.array(z.string()), uiaWindowChild: z.literal(true).optional() }).optional(),
+  element: z.object({ role: z.string(), label: z.string(), path: z.array(z.string()), uiaWindowChild: z.literal(true).optional(), linuxWindowChild: z.literal(true).optional() }).optional(),
 });
 const ADDRESSING_KEYS = new Set(["x", "y", "element_token", "element_index", "pid", "window_id", "session"]);
 const argsFitTool = (tool: keyof typeof KEPT_ARGS, args: Record<string, unknown>) =>
@@ -26,6 +26,8 @@ const argsFitTool = (tool: keyof typeof KEPT_ARGS, args: Record<string, unknown>
 const targetsFitTool = (entry: z.infer<typeof step>) => (!ELEMENT_TOOLS.has(entry.tool) || (entry.element !== undefined && entry.app !== undefined))
   && (!KEY_TOOLS.has(entry.tool) || (entry.app !== undefined && entry.window !== undefined))
   && (!entry.element?.uiaWindowChild || (entry.element.role === "Button" && entry.element.path.length === 0
+    && !!entry.element.label && !!entry.window?.title && windowButtonClick(entry.tool, entry.args)))
+  && (!entry.element?.linuxWindowChild || (!entry.element.uiaWindowChild && entry.element.role === "push button" && entry.element.path.length === 0
     && !!entry.element.label && !!entry.window?.title && windowButtonClick(entry.tool, entry.args)))
   && !(entry.element && flipsToggle(entry.tool, entry.element.role)) && unsafeStep(entry) === null;
 const safeBotId = (botId: string) => botId !== "" && botId !== "." && botId !== ".." && basename(botId) === botId && !/[\\/]/.test(botId);
@@ -54,7 +56,7 @@ export class RecipeStore {
   }
 
   save(botId: string, recipe: Recipe): boolean {
-    if (!safeBotId(botId) || (recipe.steps.some((step) => step.element?.uiaWindowChild) && this.windowsPending(botId, recipe.key))) return false;
+    if (!safeBotId(botId) || (recipe.steps.some((step) => step.element?.uiaWindowChild || step.element?.linuxWindowChild) && this.windowsPending(botId, recipe.key))) return false;
     const kept = this.read(botId).recipes.filter((existing) => existing.key !== recipe.key && existing.id !== recipe.id);
     kept.push(recipe);
     kept.sort((a, b) => b.lastUsedAt - a.lastUsedAt);
@@ -177,3 +179,4 @@ export class RecipeStore {
     writeFileAtomic(this.path(botId), JSON.stringify({ version: VERSION, recipes }), { mode: 0o600 });
   }
 }
+

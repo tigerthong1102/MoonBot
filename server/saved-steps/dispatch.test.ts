@@ -233,6 +233,22 @@ describe("SavedStepsDispatch.sendTurn", () => {
     expect(turnCompleted()).toMatchObject([{ ok: false }]);
   });
 
+  it("only replays verified Linux button recipes on a Linux host and does not retry failures with AI", async () => {
+    const linux = new SavedStepsDispatch({ ...deps, platform: "linux" });
+    const button: RecipeStep = { ...WIN_BUTTON, element: { role: "push button", label: "Navigate", path: [], linuxWindowChild: true } };
+    const recipe = { ...WIN_RECIPE, steps: [button] };
+    recipes.find.mockReturnValue(recipe);
+    openCaller.mockRejectedValueOnce(new Error("Fixture is unavailable"));
+    const input = { ...INPUT, text: WIN_REQUEST, integrations: { localComputer: { ...COMPUTER, platform: "linux" as const } } };
+    await linux.sendTurn(engine, reworded(WIN_REQUEST), input, start);
+    await settled();
+    expect(linux.wouldReplay("t1", recipe)).toBe(true);
+    expect(linux.wouldReplay("t1", WIN_RECIPE)).toBe(false);
+    expect(linux.wouldReplay("t1", { ...recipe, steps: [button, button] })).toBe(false);
+    expect(start).not.toHaveBeenCalled();
+    expect(turnCompleted()).toMatchObject([{ ok: false }]);
+  });
+
   it("runs the AI when the request cannot be kept from saving", async () => {
     taint.mockReturnValueOnce(false);
     expect(await dispatch.sendTurn(engine, REQ, INPUT, start)).toEqual({ turnId: "e1" });
@@ -856,3 +872,4 @@ describe("SavedStepsDispatch with the quick model fallback", () => {
     ]);
   });
 });
+

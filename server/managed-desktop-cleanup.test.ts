@@ -3,6 +3,7 @@ import vm from "node:vm";
 import ts from "@typescript/typescript6";
 import { expect, it } from "vitest";
 import { changedInstanceIds, engineLaunches } from "./config.ts";
+import { recordStoppedRequest } from "./host/work-bot-stop-state.ts";
 
 // Runs the real cleanup functions sliced from index.ts: importing index.ts would start a server.
 const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
@@ -66,7 +67,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     started.set(threadId, deferred()); interrupted.set(threadId, deferred());
   }
   const context = vm.createContext({
-    CLOUD_TEAM: false, handedRunTarget: () => undefined, workBotTargetLocks: new Map(), workBotChoiceLocks: new Set(), cancelWorkBotRoutes() {}, workBotRouter: {}, indexWorkBotRouting() {},
+    recordStoppedRequest, CLOUD_TEAM: false, handedRunTarget: () => undefined, workBotTargetLocks: new Map(), workBotChoiceLocks: new Set(), cancelWorkBotRoutes() {}, workBotRouter: {}, indexWorkBotRouting() {},
     companyShutdown: false, providerInstancesChanging: new Set(),
     providerAuthSessions: { clearInstance() {} }, bus: { detach: (id: string) => detached.push(id) },
     liveTurnByThread: new Map(), stoppedTurnText: (_threadId: string, _turnId: string | undefined, cause: string) => cause,
@@ -80,6 +81,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
       activePath: () => [], messagesFor: () => [],
       appendMessage: (threadId: string) => messages.push(threadId),
       patchMessage: (threadId: string, messageId: string, patch: object) => patched.push([threadId, messageId, patch]),
+      patchTask: () => null,
       setTaskActivity: (_botId: string, threadId: string) => { tasks.get(threadId)!.busy = false; },
       patchGroup: (groupId: string, patch: object) => Object.assign(groups.get(groupId)!, patch),
       setActivity: (botId: string) => { bots.get(botId)!.busy = false; },

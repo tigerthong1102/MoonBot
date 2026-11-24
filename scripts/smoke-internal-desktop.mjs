@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { desktopSmokeNetwork } from "./desktop-smoke-network.mjs";
 import { smokeDesktopRestart, waitPortClosed } from "./smoke-desktop-restart.mjs";
@@ -61,6 +61,8 @@ const textRoutes = path.join(fixture, "work-topic.json");
 const prompts = path.join(fixture, "provider-prompts.jsonl");
 writeFileSync(textRoutes, JSON.stringify({ [workMessage]: JSON.stringify({ name: workName, icon: "calendar" }) }));
 writeFileSync(plan, "{}");
+const artifactName = "synthetic result Việt 4102.md";
+const artifactText = "Synthetic artifact result 4102";
 const reply = "StartupBot packaged agent fixture answered successfully";
 writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", profile: { name: "Fixture Owner" }, features: { smartSetupChoices: false }, instances: {
   claude: { driver: "claudeAgent", displayName: "Internal package fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") },
@@ -250,11 +252,22 @@ try {
   await until(() => evaluate(`Boolean(${lightRadio})`), "the light appearance choice");
   await evaluate(`(${lightRadio}).click()`);
   await until(() => evaluate("localStorage.getItem('omb-skin') === 'daylight' && document.documentElement.dataset.skin === 'daylight'"), "the chosen light appearance");
+  await evaluate("document.querySelector('[data-settings-sheet] [data-settings-page=app]').click()");
+  const notificationSwitch = `document.querySelector('[data-settings-sheet] [aria-label="Show the notification feed"]')`;
+  await until(() => evaluate(`Boolean(${notificationSwitch})`), "the notification feed preference");
+  await evaluate(`if ((${notificationSwitch}).getAttribute('aria-checked') !== 'true') (${notificationSwitch}).click()`);
+  await until(() => evaluate(`(${notificationSwitch}).getAttribute('aria-checked') === 'true'`), "the enabled synthetic notification feed");
   await evaluate("document.querySelector('[data-settings-sheet] button[aria-label=\"Close settings\"]').click()");
   await until(() => evaluate("!document.querySelector('[data-settings-sheet]')"), "Settings to close");
   const configuredHelper = (await roster()).find(row => row.id === helper.id);
   assert.equal(configuredHelper?.approvalMode, "full");
   assert.equal(configuredHelper?.cwd, home);
+  await until(() => evaluate("Boolean(document.querySelector('[data-notification-bell]')?.getClientRects().length)"), "the notification feed entry");
+  await evaluate("document.querySelector('[data-notification-bell]').click()");
+  await until(() => evaluate("Boolean(document.querySelector('button[aria-label=\"Close Notifications\"]')?.getClientRects().length)"), "the notification feed panel");
+  await evaluate("document.querySelector('button[aria-label=\"Close Notifications\"]').click()");
+  await until(() => evaluate("!document.querySelector('button[aria-label=\"Close Notifications\"]') && document.querySelector('[data-notification-bell]')?.getAttribute('aria-pressed') === 'false'"), "the notification feed to close");
+  writeFileSync(path.join(evidence, "notification-navigation-fixture.json"), JSON.stringify({ enabled: true, opened: true, closed: true }, null, 2) + "\n");
   if (values["create-upgrade-fixture"]) {
     const oldText = "Synthetic archived inventory note 4102", oldReply = "Synthetic archived result 4102";
     writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [{ key: "legacy-offer", match: [workMessage], reply: "Synthetic legacy work result." }, { key: "old-message", match: [oldText], reply: oldReply }] } }));
@@ -450,7 +463,7 @@ try {
   await until(async () => {
     const transcript = await request(`/api/bots/${encodeURIComponent(bot.id)}`);
     assert.equal(transcript.status, 200);
-    return JSON.stringify(transcript.body).includes(reply);
+    return JSON.stringify(transcript.body).includes("StartupBot packaged agent fixture answered successfully");
   }, "the packaged agent's completed response", 60_000);
   const transcript = async () => {
     const result = await request(`/api/threads/${encodeURIComponent(bot.threadId)}/messages`);
@@ -462,6 +475,32 @@ try {
   const selectBot = `document.querySelector('[data-sidebar-bot-row="${bot.id}"]')`;
   await until(() => evaluate(`Boolean(${selectBot})`), "the fixture bot in the sidebar");
   await evaluate(`${selectBot}.click()`);
+  await until(() => evaluate(`${selectBot}?.getAttribute('aria-current') === 'page'`), "the fixture conversation");
+  await until(() => completedRequest(bot.threadId, first), "the first fixture request to complete");
+  const artifactWorkspace = await until(async () => (await roster()).find(row => row.id === bot.id)?.tasks?.find(task => task.threadId === bot.threadId)?.cwd, "the fixture conversation workspace");
+  assert(path.isAbsolute(artifactWorkspace), "The fixture conversation must have an absolute workspace");
+  const workspaceRelative = path.relative(realpathSync(fixture), realpathSync(artifactWorkspace));
+  assert(workspaceRelative && workspaceRelative !== ".." && !workspaceRelative.startsWith(`..${path.sep}`) && !path.isAbsolute(workspaceRelative), "The artifact workspace must stay inside the fixture");
+  const artifactPath = path.join(artifactWorkspace, artifactName);
+  const artifactTask = "Create a synthetic result for preview";
+  const artifactReplyText = `Synthetic result ready.\n\n[Open synthetic result](${pathToFileURL(artifactPath).href})`;
+  const updatedPlan = JSON.parse(readFileSync(plan, "utf8"));
+  updatedPlan[bot.id].script.push({ key: "artifact", match: [artifactTask], fixtureArtifactFile: artifactPath, fixtureArtifactText: artifactText, reply: artifactReplyText });
+  writeFileSync(plan, JSON.stringify(updatedPlan));
+  await send(artifactTask);
+  const artifactCompletion = await until(() => completedRequest(bot.threadId, artifactTask), "the artifact request to complete");
+  const artifactRows = (await request(`/api/threads/${bot.threadId}/messages`)).body.messages;
+  const artifactReply = artifactRows.find(row => row.role === "bot" && row.requestMessageId === artifactCompletion.requestId && row.text === artifactReplyText);
+  assert(artifactReply?.id, "The artifact must belong to the completed fixture request");
+  const artifactOwner = `document.querySelector('[data-citation-owner="${bot.id}"][data-citation-thread="${bot.threadId}"][data-citation-source="${artifactReply.id}"]')`;
+  const artifactButton = `[...(${artifactOwner})?.querySelectorAll('button') ?? []].find(button => button.getClientRects().length && button.textContent.trim() === "Open synthetic result")`;
+  await until(() => evaluate(`Boolean(${artifactButton})`), "the synthetic result link in its source message");
+  assert.equal(readFileSync(artifactPath, "utf8"), artifactText);
+  await evaluate(`(${artifactButton}).click()`);
+  await until(() => evaluate(`document.querySelector('[data-markdown-file]')?.innerText.includes(${JSON.stringify(artifactText)})`), "the synthetic result preview");
+  await evaluate("document.querySelector('dialog:has([data-markdown-file]) button[aria-label=\"Close table\"]').click()");
+  await until(() => evaluate("!document.querySelector('[data-markdown-file]')"), "the synthetic result preview to close");
+  writeFileSync(path.join(evidence, "artifact-fixture.json"), JSON.stringify({ botId: bot.id, threadId: bot.threadId, requestId: artifactCompletion.requestId, messageId: artifactReply.id, name: artifactName, opened: true }, null, 2) + "\n");
   const readBot = async () => (await request("/api/bots?messages=0")).body.bots.find(row => row.id === bot.id);
   const finished = async text => (await transcript()).some(row => row.role === "bot" && row.text === text) && !(await readBot()).busy;
   await send(rename);
@@ -650,6 +689,8 @@ try {
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion },
+    artifactPreview: "PASS (synthetic Markdown opened from its conversation)",
+    notificationNavigation: "PASS (feed enabled and opened in isolated profile)",
     permissionFixture: permissionCounts,
     reconnect: { status: "PASS", reconnectCompletion, oldStreamClosed: true, retryHandshakeFailed: true, replacementStreamOpened: true, notificationRecords: "at most one new record for fixture thread" },
     stopAfterNavigation: "PASS (synthetic turn canceled; no fake continuation observed for one second after a follow-up)",

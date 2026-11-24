@@ -247,6 +247,7 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
       if (typeof plan.progress === "string") progress?.(plan.progress);
       // `writeFiles` { name: content }: files the turn writes in its working folder.
       for (const [name, content] of Object.entries((plan.writeFiles ?? {}) as Record<string, string>)) writeFileSync(join(process.cwd(), name), content);
+      if (typeof plan.fixtureArtifactFile === "string" && typeof plan.fixtureArtifactText === "string") writeFileSync(plan.fixtureArtifactFile, plan.fixtureArtifactText, { flag: "wx" });
       if (plan.readyFile) writeFileSync(plan.readyFile, "ready");
       if (plan.gateFile && !existsSync(plan.gateFile)) await new Promise<void>(resolve => {
         gateTimer = setInterval(() => {

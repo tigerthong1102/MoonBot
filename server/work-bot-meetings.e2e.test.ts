@@ -53,7 +53,7 @@ it.each(["source", "target"])("rejects the linked meeting schedule over HTTP whe
     await waitForExit(fixture.child, { signal: "SIGTERM" });
     const childEnv = verificationServerEnvironment(env, fixture.info.dataDir, Number(new URL(base).port));
     restarted = spawn(process.execPath, verificationServerArgs(childEnv), { cwd: process.cwd(), env: childEnv, stdio: "ignore" });
-    await expect.poll(async () => { try { const response = await fetch(base + "/api/health"); const health = await response.json(); return response.ok && health.app === "openmausbot" && health.pid === restarted?.pid; } catch { return false; } }, { timeout: 30000 }).toBe(true);
+    await expect.poll(async () => { try { const response = await fetch(base + "/api/health"); const health = await response.json() as { app?: string; pid?: number }; return response.ok && health.app === "openmausbot" && health.pid === restarted?.pid; } catch { return false; } }, { timeout: 30000 }).toBe(true);
     const restored = (await api("/api/routines")).body.routines;
     expect(restored).toHaveLength(1);
     expect(restored[0].id).toBe(routines[0].id);

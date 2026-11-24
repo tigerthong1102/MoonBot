@@ -338,7 +338,7 @@ import { createTtsRoutes } from "./routes/tts.ts";
 import { turnStartLogLine } from "./turn-log.ts";
 import { TurnStops, outwardActions, stoppedTurnOutcome, turnEvidence } from "./turn-outcome.ts";
 import { buildRecoveryText, buildTurnContext, engineIsFresh, replaysNatively } from "./turn-context.ts";
-import { Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionStart, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
+import { Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionStart, stoppedWorkNeedsFreshSession, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { recordStoppedRequest } from "./host/work-bot-stop-state.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
 import { extractReplayImages, extractTurnImages, videoFramesWithin } from "./turn-images.ts";
 import { callTitleExcerpt } from "./thread-title.ts";
 import { createThreadTitleGate, generateThreadTitle, llmThreadTitlesEnabled } from "./thread-title-generate.ts";
@@ -2279,22 +2279,22 @@ async function interruptDirectThread(botId: string, threadId: string, cause?: st
     await interruptDirectThread(target.botId, target.threadId, cause);
     return;
   }
-  cancelWorkBotRoutes(store, workBotTargetLocks, workBotRouter, indexWorkBotRouting, threadId);
-  if (store.taskByThread(botId, threadId)?.activity === "parked.computer") store.setTaskActivity(botId, threadId, "idle");
+  const stopFailures: unknown[] = []; try { cancelWorkBotRoutes(store, workBotTargetLocks, workBotRouter, indexWorkBotRouting, threadId); } catch (error) { stopFailures.push(error); }
+  try { if (store.taskByThread(botId, threadId)?.activity === "parked.computer") store.setTaskActivity(botId, threadId, "idle"); } catch (error) { stopFailures.push(error); }
   const requestOwner = directRequestOwners.get(threadId);
   if (requestOwner) {
     requestOwner.stopped = true;
-    if (requestOwner.messageId) store.patchMessage(threadId, requestOwner.messageId, { requestCancelled: true });
+    if (requestOwner.messageId) stopFailures.push(...recordStoppedRequest(store, botId, threadId, requestOwner.messageId));
   }
-  stopParkedCards(threadId);
-  coordinator.stopAwaitingDirect(threadId, cause);
+  try { stopParkedCards(threadId); } catch (error) { stopFailures.push(error); }
+  try { coordinator.stopAwaitingDirect(threadId, cause); } catch (error) { stopFailures.push(error); }
   const owner = botForThread(botId, threadId);
   const generation = directTurnGenerationByThread.get(threadId);
-  cancelDirectTurnDispatch(botId, threadId);
-  revokeInternalCapabilitiesForThread(threadId);
+  try { cancelDirectTurnDispatch(botId, threadId); } catch (error) { stopFailures.push(error); }
+  try { revokeInternalCapabilitiesForThread(threadId); } catch (error) { stopFailures.push(error); }
   // Keep the generation fence so a replacement turn's approvals are never closed here.
-  await (owner ? runningTurnInstance(owner, threadId) : null)?.adapter.interruptTurn(threadId);
-  if (directTurnGenerationByThread.get(threadId) === generation) closeOpenApprovals(threadId);
+  try { await (owner ? runningTurnInstance(owner, threadId) : null)?.adapter.interruptTurn(threadId); } catch (error) { stopFailures.push(error); }
+  try { if (directTurnGenerationByThread.get(threadId) === generation) closeOpenApprovals(threadId); } catch (error) { stopFailures.push(error); } if (stopFailures.length) throw new AggregateError(stopFailures, "The turn was stopped, but its state could not be saved");
 }
 
 async function interruptParkedTurn(botId: string, threadId: string): Promise<void> {
@@ -7902,7 +7902,7 @@ async function beginTurn(
       const followed = folderToFollow(bot, threadId, task.cwd, { worksInFolders: supportsWorkspaceFiles(instance.driverKind), keepsPrivateFolder: guestConfined || cloudGuestOpened(threadId) }); if (followed) store.patchTask(bot.id, threadId, { cwd: followed, resumeCursors: {} });
 
       // After a rewind the native session still holds the abandoned branch; the flag clears only once dispatched, or a failed dispatch loses the next attempt's history.
-      const rewound = Boolean(task.rewound);
+      const rewound = Boolean(task.rewound) || stoppedWorkNeedsFreshSession(activeMessages.filter(message => !skipTranscript.has(message.id)));
       const externalContextMarker = isExternalContextMarker(task.lastInstanceId)
         ? task.lastInstanceId
         : undefined;

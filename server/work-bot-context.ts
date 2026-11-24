@@ -7,7 +7,7 @@ const cache = new WeakMap<Message, { text: string | undefined; hasData: boolean;
 function relativeFileReference(text: string): boolean {
   return /(?<![\p{L}\p{M}\p{N}_@./:\\-])(?:\.{1,2}[\\/]|[\p{L}\p{M}\p{N}_.-]+[\\/])(?:[\p{L}\p{M}\p{N}_.-]+[\\/])*[\p{L}\p{M}\p{N}_-][\p{L}\p{M}\p{N}_.-]*\.[\p{L}\p{M}\p{N}]{1,16}(?![\p{L}\p{M}\p{N}_])/iu.test(text) ||
     /(?<![\p{L}\p{M}\p{N}_@./:\\-])\.{1,2}[\\/][\p{L}\p{M}\p{N}_.-]+/iu.test(text) ||
-    /(?<![\p{L}\p{M}\p{N}_@./:\\-])[\p{L}\p{M}\p{N}_-][\p{L}\p{M}\p{N}_.-]*\.(?:csv|tsv|xlsx?|xlsm|pdf|docx?|pptx?|txt|md|sql|sqlite|db|json|xml|zip|tar|gz|7z|png|jpe?g|webp|heic|avif|gif|tiff?|mp[34]|wav|m4a|mov)(?![\p{L}\p{M}\p{N}_])/iu.test(text);
+    /(?<![\p{L}\p{M}\p{N}_@./:\\-])[\p{L}\p{M}\p{N}_-][\p{L}\p{M}\p{N}_.-]*\.(?:csv|tsv|xlsx?|xlsm|numbers|pages|log|pdf|docx?|pptx?|txt|md|sql|sqlite|db|json|xml|zip|tar|gz|7z|png|jpe?g|webp|heic|avif|gif|tiff?|mp[34]|wav|m4a|mov)(?![\p{L}\p{M}\p{N}_@])/iu.test(text);
 }
 
 export function unsupportedWorkBotContext(messages: readonly Message[]): "data" | "files" | null {

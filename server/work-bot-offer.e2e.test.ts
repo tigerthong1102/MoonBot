@@ -10,7 +10,7 @@ import type { BotRecord, Message } from "./store.ts";
 it("keeps work referring to a relative fixture file in its original conversation", async () => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-relative-file-"));
   const routes = join(dir, "routes.json");
-  const text = "Theo dõi data/hoadon.xlsx mỗi tuần";
+  const text = "Theo dõi hoadon.numbers mỗi tuần";
   writeFileSync(routes, JSON.stringify({ [text]: JSON.stringify({ name: "Hóa đơn", icon: "ledger" }) }));
   const token = randomBytes(32).toString("base64url");
   const originalFetch = globalThis.fetch;
@@ -293,6 +293,48 @@ it("stops a request while work-bot classification is stalled", async () => {
   }
 }, 60000);
 
+it("does not replay a stopped work-bot request in a later main-chat turn", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "work-bot-stop-followup-"));
+  const routes = join(dir, "routes.json"), prompts = join(dir, "prompts.jsonl");
+  const text = "Track the synthetic stock each week STOPPED_SENTINEL", later = "Xin chào lần sau", nextWork = "Track the synthetic temperature daily";
+  writeFileSync(routes, JSON.stringify({ [text]: JSON.stringify({ name: "Stock", icon: "box" }), [later]: "null", [nextWork]: JSON.stringify({ name: "Temperature", icon: "tasks" }) }));
+  const token = randomBytes(32).toString("base64url"), originalFetch = globalThis.fetch;
+  globalThis.fetch = (input, init = {}) => originalFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": token } });
+  let fixture: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
+  try {
+    fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_PROMPTS: prompts, OMB_TEST_DESKTOP_OWNER_TOKEN: token });
+    const base = fixture.info.url;
+    const api = async <T>(path: string, body?: unknown): Promise<T> => {
+      const response = await fetch(base + path, { method: body ? "POST" : "GET", headers: { origin: base, "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      const value = await response.json(); expect(response.ok, JSON.stringify(value)).toBe(true); return value as T;
+    };
+    const main = (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.defaultBot)!;
+    const rows = async () => (await api<{ messages: Message[] }>(`/api/threads/${main.threadId}/messages`)).messages;
+    await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text, sendId: randomUUID() });
+    await expect.poll(async () => (await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer), { timeout: 20000 }).toBe(true);
+    await api(`/api/bots/${main.id}/interrupt`, { threadId: main.threadId });
+    await expect.poll(async () => (await rows()).find(row => row.text === text)?.workBotRouting?.state, { timeout: 15000 }).toBe("cancelled");
+    await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: later, sendId: randomUUID() });
+    await expect.poll(() => existsSync(prompts) && readFileSync(prompts, "utf8").includes(later), { timeout: 20000 }).toBe(true);
+    const providerCalls = readFileSync(prompts, "utf8").trim().split("\n").map(line => JSON.parse(line) as unknown);
+    expect(providerCalls).toHaveLength(1);
+    expect(JSON.stringify(providerCalls[0])).not.toContain("STOPPED_SENTINEL");
+    expect(JSON.stringify(providerCalls[0])).toContain("This earlier request was stopped");
+    expect((await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.filter(bot => !bot.defaultBot)).toHaveLength(0);
+    await expect.poll(async () => !(await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.id === main.id)?.busy, { timeout: 15000 }).toBe(true);
+    await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: nextWork, sendId: randomUUID() });
+    await expect.poll(async () => (await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer && !row.card.answered && !row.card.dismissed), { timeout: 20000 }).toBe(true);
+    const card = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer && !row.card.answered && !row.card.dismissed)!.card!;
+    await api(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior: "allow" });
+    await expect.poll(() => readFileSync(prompts, "utf8").trim().split("\n").length, { timeout: 20000 }).toBe(2);
+    const transferredCall = JSON.stringify(JSON.parse(readFileSync(prompts, "utf8").trim().split("\n")[1]!));
+    expect(transferredCall).toContain(nextWork);
+    expect(transferredCall).not.toContain("STOPPED_SENTINEL");
+  } finally {
+    globalThis.fetch = originalFetch; await fixture?.close(); rmSync(dir, { recursive: true, force: true });
+  }
+}, 60000);
+
 it("keeps follow-up work with a synthetic file in the original conversation", async () => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-file-context-"));
   const path = join(dir, "Tệp thử.txt");
@@ -376,10 +418,10 @@ it("does not offer a dedicated bot after a Data-context request has already run"
   }
 }, 60000);
 
-it("stops the handed-off run from the original conversation", async () => {
+it.each(["allow", "deny"])("stops the %s run from the original conversation without resuming its old session", async behavior => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-stop-target-"));
   const routes = join(dir, "routes.json");
-  const finishGate = join(dir, "finish");
+  const finishGate = join(dir, "finish"), prompts = join(dir, "prompts.jsonl");
   const text = "Monitor the synthetic stock each week";
   writeFileSync(routes, JSON.stringify({ [text]: JSON.stringify({ name: "Stock watch", icon: "box" }) }));
   const token = randomBytes(32).toString("base64url");
@@ -387,7 +429,7 @@ it("stops the handed-off run from the original conversation", async () => {
   globalThis.fetch = (input, init = {}) => originalFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": token } });
   let fixture: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
   try {
-    fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_MODE: "slow", FAKE_CLAUDE_SLOW_FINISH_GATE: finishGate, OMB_TEST_DESKTOP_OWNER_TOKEN: token });
+    fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_MODE: "slow", FAKE_CLAUDE_SLOW_FINISH_GATE: finishGate, FAKE_CLAUDE_PROMPTS: prompts, OMB_TEST_DESKTOP_OWNER_TOKEN: token });
     const base = fixture.info.url;
     const api = async <T>(path: string, body?: unknown): Promise<T> => {
       const response = await fetch(base + path, { method: body ? "POST" : "GET", headers: { origin: base, "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
@@ -400,20 +442,59 @@ it("stops the handed-off run from the original conversation", async () => {
     await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text, sendId: randomUUID() });
     await expect.poll(async () => (await rows(main.threadId)).some(row => row.card?.teamSetupRequest?.workBotOffer), { timeout: 20000 }).toBe(true);
     const offer = (await rows(main.threadId)).find(row => row.card?.teamSetupRequest?.workBotOffer)!.card!;
-    const response = await api<{ result: { bots: Array<{ id: string }> } }>(`/api/threads/${main.threadId}/respond`, { requestId: offer.requestId, behavior: "allow" });
-    const worker = (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.id === response.result.bots[0]?.id)!;
+    const response = await api<{ result: { bots: Array<{ id: string }> } }>(`/api/threads/${main.threadId}/respond`, { requestId: offer.requestId, behavior });
+    const worker = behavior === "deny" ? main : (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.id === response.result.bots[0]?.id)!;
     await expect.poll(async () => (await rows(worker.threadId)).some(row => row.role === "user" && row.text === text), { timeout: 15000 }).toBe(true);
+    await expect.poll(() => existsSync(prompts) && readFileSync(prompts, "utf8").includes(text), { timeout: 15000 }).toBe(true);
+    await expect.poll(() => {
+      const saved = JSON.parse(readFileSync(join(fixture!.info.dataDir, "bots.json"), "utf8")) as BotRecord[];
+      return Boolean(saved.find(bot => bot.id === worker.id)?.tasks?.find(task => task.threadId === worker.threadId)?.resumeCursors?.claude);
+    }, { timeout: 15000 }).toBe(true);
     await api(`/api/bots/${main.id}/interrupt`, { threadId: main.threadId });
     await expect.poll(async () => (await rows(worker.threadId)).find(row => row.role === "user" && row.text === text)?.requestCancelled, { timeout: 15000 }).toBe(true);
     await expect.poll(async () => !(await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.id === worker.id)?.busy, { timeout: 15000 }).toBe(true);
     const later = "A different synthetic request";
     await api(`/api/bots/${worker.id}/messages`, { threadId: worker.threadId, text: later, sendId: randomUUID() });
     await expect.poll(async () => (await rows(worker.threadId)).find(row => row.text === later)?.requestPending, { timeout: 15000 }).toBe(true);
+    await expect.poll(() => existsSync(fixture!.fixtureDumpPath) && JSON.stringify(JSON.parse(readFileSync(fixture!.fixtureDumpPath, "utf8")).prompt).includes(later), { timeout: 15000 }).toBe(true);
+    const resumed = JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")) as { argv: string[]; prompt: unknown };
+    expect(resumed.argv).not.toContain("--resume");
+    expect(JSON.stringify(resumed.prompt)).not.toContain(text);
+    expect(JSON.stringify(resumed.prompt)).toContain("This earlier request was stopped");
     await api(`/api/bots/${main.id}/interrupt`, { threadId: main.threadId });
-    expect((await rows(worker.threadId)).find(row => row.text === later)?.requestCancelled).not.toBe(true);
+    expect(Boolean((await rows(worker.threadId)).find(row => row.text === later)?.requestCancelled)).toBe(behavior === "deny");
   } finally {
     globalThis.fetch = originalFetch;
     await fixture?.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+}, 60000);
+
+it("keeps the existing provider session for ordinary turns without a stop", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "work-bot-session-reuse-"));
+  const routes = join(dir, "routes.json"), first = "FIRST_SYNTHETIC_HELLO", second = "SECOND_SYNTHETIC_HELLO";
+  writeFileSync(routes, JSON.stringify({ [first]: "null", [second]: "null" }));
+  const token = randomBytes(32).toString("base64url"), originalFetch = globalThis.fetch;
+  globalThis.fetch = (input, init = {}) => originalFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": token } });
+  let fixture: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
+  try {
+    fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, OMB_TEST_DESKTOP_OWNER_TOKEN: token });
+    const base = fixture.info.url;
+    const api = async <T>(path: string, body?: unknown): Promise<T> => { const response = await fetch(base + path, { method: body ? "POST" : "GET", headers: { origin: base, "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) }); const value = await response.json(); expect(response.ok, JSON.stringify(value)).toBe(true); return value as T; };
+    const bots = async () => (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots;
+    const main = (await bots()).find(bot => bot.defaultBot)!;
+    const rows = async () => (await api<{ messages: Message[] }>(`/api/threads/${main.threadId}/messages`)).messages;
+    const send = (text: string) => api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text, sendId: randomUUID() });
+    const dump = () => JSON.parse(readFileSync(fixture!.fixtureDumpPath, "utf8")) as { pid: number; argv: string[]; prompt: unknown };
+    await send(first);
+    await expect.poll(async () => (await rows()).some(row => row.role === "user" && row.text === first && row.requestPending === false), { timeout: 20000 }).toBe(true);
+    const initial = dump();
+    await send(second);
+    await expect.poll(() => JSON.stringify(dump().prompt).includes(second), { timeout: 20000 }).toBe(true);
+    const continued = dump();
+    expect(continued.pid === initial.pid || continued.argv.includes("--resume")).toBe(true);
+    expect(JSON.stringify(continued.prompt)).not.toContain(first);
+  } finally {
+    globalThis.fetch = originalFetch; await fixture?.close(); rmSync(dir, { recursive: true, force: true });
   }
 }, 60000);

@@ -1,6 +1,6 @@
 {
   "workBotOffer.continueHere": "Continuar aqui",
-  "server.workBot.scheduleConflict": "Uma programação ou execução do bot vinculado pode se sobrepor, ou o vínculo não pode ser verificado. Revise as programações relacionadas.",
+  "server.workBot.scheduleConflict": "Um bot vinculado tem uma agenda ou execução que pode se sobrepor, ou o vínculo não pode ser verificado. Revise as agendas em Automações. Se for outra tarefa, escolha Nova → Configurar manualmente para criá-la manualmente.",
   "server.workBot.choiceInProgress": "A escolha do bot está sendo processada. Tente novamente quando terminar.",
   "server.workBot.pendingUnavailable": "Algumas mensagens na fila não podem ser transferidas com segurança. Remova-as da fila ou continue aqui.",
   "workBotOffer.queuedNotice": "Se você concordar, as mensagens enviadas enquanto decide irão para o novo bot. Remova antes as mensagens da fila que não tiverem relação.",

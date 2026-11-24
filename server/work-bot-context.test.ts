@@ -15,6 +15,13 @@ it("keeps untransferred Data and files in the original conversation", () => {
   expect(unsupportedWorkBotContext([row("Read:C:\\fixture\\report.xlsx")])).toBe("files");
   expect(unsupportedWorkBotContext([row("Theo dõi data/hoadon.xlsx mỗi tuần")])).toBe("files");
   expect(unsupportedWorkBotContext([row("Review báo-cáo.csv")])).toBe("files");
+  for (const text of ["Read report.numbers", "Open budget.pages", "Inspect report.log"]) {
+    expect(unsupportedWorkBotContext([row(text)])).toBe("files");
+  }
+  expect(unsupportedWorkBotContext([row("Track version 1.2 and price 3.50")])).toBeNull();
+  for (const text of ["Theo dõi startupbot.vn mỗi ngày", "Theo dõi google.com mỗi ngày", "Theo dõi email john.smith@example.com", "Theo dõi khách hàng v.d. mỗi tuần", "Tóm tắt tin mới nhé.Chi tiết gửi sau"]) {
+    expect(unsupportedWorkBotContext([row(text)])).toBeNull();
+  }
   expect(unsupportedWorkBotContext([row("Read .\\reports\\stock.pdf")])).toBe("files");
   expect(unsupportedWorkBotContext([row("Check reports/report.md and data/ledger.sqlite")])).toBe("files");
   expect(unsupportedWorkBotContext([row("Open data/query.sql")])).toBe("files");

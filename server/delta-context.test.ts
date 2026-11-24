@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { RuntimeEvent } from "./contracts.ts";
 import {
   Handoffs,
+  contextText,
+  stoppedWorkNeedsFreshSession,
   UNSEEN_MAX_BYTES,
   UNSEEN_MAX_MESSAGES,
   handedStateUsable,
@@ -529,4 +531,27 @@ describe("isContextMessage", () => {
     expect(isContextMessage({ kind: "app", text: "" })).toBe(false);
     expect(isContextMessage({ kind: "app" })).toBe(false);
   });
+});
+
+it("does not include cancelled work-bot instructions in replayed context", () => {
+  const request = { text: "STOPPED_PRIVATE_INSTRUCTION", workBotRouting: { state: "cancelled" } } as Parameters<typeof contextText>[0];
+  expect(contextText(request)).not.toContain("STOPPED_PRIVATE_INSTRUCTION");
+  expect(contextText(request)).toContain("Do not execute or repeat");
+  const stoppedTarget = { text: "STOPPED_TARGET", requestCancelled: true, workBotHandoffSource: { threadId: "source", messageId: "root" } } as Parameters<typeof contextText>[0];
+  expect(contextText(stoppedTarget)).not.toContain("STOPPED_TARGET");
+  const unsavedStop = { text: "PENDING_PRIVATE_INSTRUCTION", requestPending: true, workBotRouting: { state: "dispatched", sourceBotId: "same", targetBotId: "same" } } as Parameters<typeof contextText>[0];
+  expect(contextText(unsavedStop)).not.toContain("PENDING_PRIVATE_INSTRUCTION");
+  const legacyCopy = { text: "LEGACY_STOPPED_INSTRUCTION", workBotCopy: { sourceThreadId: "source", sourceMessageId: "old", requestMessageId: "new", status: "cancelled" } } as Parameters<typeof contextText>[0];
+  expect(contextText(legacyCopy)).not.toContain("LEGACY_STOPPED_INSTRUCTION");
+  expect(contextText({ text: "a normal message" })).toBe("a normal message");
+});
+
+it("requires a fresh session after stopped routed work until a later request succeeds", () => {
+  const stopped = { id: "stopped", role: "user", kind: "text", at: 1, requestCancelled: true, workBotHandoffSource: { threadId: "source", messageId: "root" } } as import("./store.ts").Message;
+  const next = { id: "next", role: "user", kind: "text", at: 2 } as import("./store.ts").Message;
+  const result = { id: "result", role: "bot", kind: "text", at: 3, requestMessageId: "next", turnTerminal: true, turnSucceeded: true } as import("./store.ts").Message;
+  expect(stoppedWorkNeedsFreshSession([stopped, next])).toBe(true);
+  expect(stoppedWorkNeedsFreshSession([{ ...stopped, requestCancelled: false, requestPending: true }, next])).toBe(true);
+  expect(stoppedWorkNeedsFreshSession([stopped, next, { ...result, requestMessageId: "stopped" }])).toBe(true);
+  expect(stoppedWorkNeedsFreshSession([stopped, next, result])).toBe(false);
 });

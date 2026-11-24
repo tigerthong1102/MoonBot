@@ -1,3 +1,4 @@
+import { routedWorkMarker } from "../delta-context.ts";
 import { workBotGrantsMatch } from "../work-bot-permissions.ts";
 import { parseToolScope, toolScopeWidens } from "../../shared/tool-scope.ts";
 import { levelWithin } from "../../shared/approval-mode.ts";
@@ -302,7 +303,7 @@ const workBotRouter = new WorkBotRouter({
           if (row.kind !== "text" || !row.text || (row.role !== "user" && row.role !== "bot")) continue;
           const from = row.role === "bot" ? row.from ?? { botId: original.id, name: original.name, color: original.color } : undefined;
           staged.push({ sourceId: row.id, ...(row.replyToId ? { replySourceId: row.replyToId } : {}), message: {
-            role: row.role, kind: "text", text: row.text, at: row.at,
+            role: row.role, kind: "text", text: routedWorkMarker(row) ?? row.text, at: row.at,
             workBotCopy: { sourceThreadId: threadId, sourceMessageId: row.id, requestMessageId: messageId,
               status: row.requestCancelled ? "cancelled" : row.requestPending === true ? "unsettled" : row.requestPending === false ? "settled" : "unknown" },
             ...(row.sender ? { sender: row.sender } : {}), ...(from ? { from } : {}), ...(row.attachments ? { attachments: row.attachments } : {}),

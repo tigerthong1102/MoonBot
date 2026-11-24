@@ -30,6 +30,14 @@ describe("Linux AT-SPI saved navigation", () => {
     expect(recordedWindowsDestination(result.recipe, { calls: calls(), complete: true, tainted: false })).toBe(true);
   });
 
+  it("uses the process name when the window was listed before the app", () => {
+    const journal = calls();
+    journal.unshift(entry("list_windows", {}, { windows: [{ ...address, title: "Start", app_name: "gtk-window" }] }));
+    const result = build(journal);
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.recipe.steps[0]?.app).toEqual({ name: "fixture" });
+  });
+
   it("rejects incomplete or ambiguous observations, unlisted apps and unverified delivery", () => {
     expect(build(calls().slice(1)).ok).toBe(false);
     expect(build(calls({ ...tree, elements_complete: false })).ok).toBe(false);

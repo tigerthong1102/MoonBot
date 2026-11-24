@@ -754,12 +754,12 @@ const mcpToolCall = (serverName: string, name: string, input: Record<string, unk
   return { ok: !reply.error && !reply.result?.isError, content: reply.result?.content ?? reply.error?.message ?? "" };
 };
 
-function runWindowsNavigationFixture(calls: ScriptedToolCall[], linux = false): Array<{ ok: true; input: Record<string, unknown>; content: unknown }> {
+function runNavigationFixture(calls: ScriptedToolCall[], linux = false): Array<{ ok: true; input: Record<string, unknown>; content: unknown }> {
   launchFiles ??= readLaunchFiles();
   const server = (launchFiles.mcpConfig as { mcpServers?: Record<string, unknown> } | null)?.mcpServers?.computer;
   const fail = (issue: string): never => {
     // Keep the bounded, non-sensitive reason at the end of stderr, without a stack that hides it.
-    process.stderr.write("Windows navigation fixture failed: " + issue + "\n");
+    process.stderr.write("Navigation fixture failed: " + issue + "\n");
     process.exit(1);
   };
   if (!server) return fail("config:missing-computer");
@@ -1261,7 +1261,7 @@ const playTurn = (prompt: JsonValue, late = false) => {
     const failureContext: string[] = [];
     const windowsFixture = process.env.FAKE_CLAUDE_WINDOWS_NAVIGATION_FIXTURE === "1" && scriptedToolCalls.length > 0;
     const linuxFixture = process.env.FAKE_CLAUDE_LINUX_NAVIGATION_FIXTURE === "1" && scriptedToolCalls.length > 0;
-    const fixtureReplies = windowsFixture || linuxFixture ? runWindowsNavigationFixture(scriptedToolCalls, linuxFixture) : undefined;
+    const fixtureReplies = windowsFixture || linuxFixture ? runNavigationFixture(scriptedToolCalls, linuxFixture) : undefined;
     for (const [index, call] of scriptedToolCalls.entries()) {
       const id = call.id ?? `tu-${process.pid}-${++toolUseCount}`;
       const fixtureReply = fixtureReplies?.[index];

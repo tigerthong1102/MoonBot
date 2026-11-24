@@ -800,9 +800,10 @@ async function postFile(url, body, headers) {
   }
 }
 
-async function uploadParts(url, item, headers, partSize, batchParts, compressor) {
+async function uploadParts(url, item, headers, partSize, batchParts, compressor, raw = false) {
   const pack = (blob) => compressor ? compressor.compress(blob) : smallerBody(blob);
   const encoding = compressor ? "br" : "gzip";
+  const rawBatchParts = me.fileRawBatchParts ?? 0;
   const parts = [];
   const hashes = [];
   for (let offset = 0; offset < item.file.size; offset += partSize) {
@@ -824,11 +825,14 @@ async function uploadParts(url, item, headers, partSize, batchParts, compressor)
   }
   async function sendPart(group) {
     const index = group[0];
-    if (group.length > 1) {
+    if (raw || group.length > 1) {
       const slice = item.file.slice(index * partSize, (group.at(-1) + 1) * partSize);
-      const packed = await pack(slice);
-      if (packed !== slice && packed.size <= partSize) {
-        await postFile(url + "/" + index, packed, { ...headers, "x-inbox-encoding": encoding, "x-inbox-parts": String(group.length) });
+      const packed = raw ? slice : await pack(slice);
+      const acceptsRawBatch = group.length <= rawBatchParts;
+      if (acceptsRawBatch || (packed !== slice && packed.size <= partSize)) {
+        await postFile(url + "/" + index, packed, {
+          ...headers, "x-inbox-encoding": packed === slice ? "identity" : encoding, "x-inbox-parts": String(group.length),
+        });
         return;
       }
     }
@@ -863,13 +867,15 @@ async function uploadFile(room, item) {
     const sample = new Blob([item.file.slice(0, 65536), item.file.slice(middle, middle + 65536), item.file.slice(-65536)]);
     const packedSample = me.fileGzip ? await smallerBody(sample) : sample;
     const compressible = packedSample !== sample;
+    if (!compressible && me.fileRawBatchParts)
+      return uploadParts(url, item, headers, partSize, me.fileRawBatchParts, null, true);
     if (!compressible || item.file.size > 20_000_000 || item.file.size * packedSample.size / sample.size > 2 * partSize) {
       const codec = compressible && me.fileBrotli && typeof Worker === "function" ? fileCompressor() : null;
       try {
         const br = codec ? await codec.compress(sample) : sample;
         const useBr = codec && br.size < packedSample.size * 0.98;
         const ratio = sample.size / (useBr ? br.size : packedSample.size);
-        const batch = Math.min(me.fileBatchParts ?? 1, Math.max(1, Math.floor(ratio * 0.85)));
+        const batch = Math.min(me.fileBatchParts ?? 1, Math.max(me.fileRawBatchParts ?? 1, Math.floor(ratio * 0.85)));
         await uploadParts(url, item, headers, partSize, batch, useBr ? codec : null);
       } finally {
         codec?.close();

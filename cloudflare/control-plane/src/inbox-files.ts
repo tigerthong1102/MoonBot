@@ -6,6 +6,7 @@ import { HTTPError, json, readBoundedBody, readBoundedJSON } from "./http";
 export const maxFileBytes = 50_000_000;
 const singleRequestBytes = 20_000_000;
 export const maxBatchParts = 8;
+export const maxRawBatchParts = 2;
 const dailyBytes = 60_000_000;
 const retainedBytes = 180_000_000;
 // Base64 keeps each D1 binding below the row limit without expanding a binary binding to a JSON array.
@@ -146,10 +147,10 @@ export async function inboxFilePart(req: Request, db: D1Database, user: string, 
   const encoding = req.headers.get("x-inbox-encoding") ?? "identity";
   if (!["gzip", "br", "identity"].includes(encoding)) throw new HTTPError(400, "invalid_file_encoding");
   const packed = encoding !== "identity";
-  if (!Number.isInteger(count) || count < 1 || count > maxBatchParts || part + count > hashes.length || (count > 1 && !packed))
+  if (!Number.isInteger(count) || count < 1 || count > (packed ? maxBatchParts : maxRawBatchParts) || part + count > hashes.length)
     throw new HTTPError(400, "invalid_request");
   const length = Math.min(count * partBytes, entry.size - part * partBytes);
-  const wire = await readBoundedBody(req, Math.min(partBytes, length));
+  const wire = await readBoundedBody(req, packed && count > maxRawBatchParts ? partBytes : length);
   const bytes = packed ? unpackUpload(wire, length, encoding === "br") : wire;
   if (bytes.length !== length) throw new HTTPError(400, "invalid_part");
   const inserts = [];

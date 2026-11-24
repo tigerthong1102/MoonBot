@@ -2,7 +2,7 @@ import { inboxLanguage, supportedInboxLanguage } from "./inbox-language";
 import { previewGroup } from "./inbox-group";
 import { InboxSignals, notifyRoom } from "./inbox-signals";
 export { InboxSignals };
-import { inboxFile, inboxFilePart, maxFileBytes, maxBatchParts, partBytes } from "./inbox-files";
+import { inboxFile, inboxFilePart, maxFileBytes, maxBatchParts, maxRawBatchParts, partBytes } from "./inbox-files";
 import { allowPilotLogin, claimGuestInvites, suppressGuestMail } from "./inbox-guest";
 import { z } from "zod";
 import { createAuth, deleteExpiredVerifications } from "./auth";
@@ -141,7 +141,7 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   if (req.method === "GET" && url.pathname === "/api/me") {
     await claimGuestInvites(env.DB, session.user.id, session.user.email.toLowerCase());
     const locale = await env.DB.prepare("SELECT locale FROM inbox_languages WHERE person=?").bind(session.user.id).first<string>("locale");
-    return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts });
+    return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts });
   }
   const result = await inboxRoutes(req, env, session.user.id, ctx);
   if (env.SIGNALS && result.ok && req.method === "POST") {

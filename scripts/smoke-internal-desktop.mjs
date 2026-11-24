@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,7 +11,7 @@ import { desktopSmokeNetwork } from "./desktop-smoke-network.mjs";
 import { smokeDesktopRestart, waitPortClosed } from "./smoke-desktop-restart.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const { values } = parseArgs({ options: { app: { type: "string" }, output: { type: "string" } } });
+const { values } = parseArgs({ options: { app: { type: "string" }, output: { type: "string" }, "create-upgrade-fixture": { type: "string" } } });
 assert(values.app, "--app must name the packaged application");
 const app = path.resolve(values.app);
 const mac = process.platform === "darwin";
@@ -184,6 +184,35 @@ try {
   const helper = initialBots.find(row => row.defaultBot);
   assert(helper?.threadId, "The first-run main helper must exist");
   assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: "full" }, "PATCH")).status, 200);
+  if (values["create-upgrade-fixture"]) {
+    const oldText = "Synthetic archived inventory note 4102", oldReply = "Synthetic archived result 4102";
+    writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [{ key: "old-message", match: [oldText], reply: oldReply }] } }));
+    await until(async () => !(await roster()).find(row => row.id === helper.id)?.busy, "the baseline helper to become idle");
+    const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
+    await until(() => evaluate(`Boolean(${helperRow})`), "the baseline helper row");
+    await evaluate(`${helperRow}.click()`);
+    await send(oldText);
+    const oldMessage = await until(async () => {
+      const rows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+      const sources = rows.filter(row => row.role === "user" && row.text === oldText), source = sources[0];
+      return sources.length === 1 && source?.requestPending === false && rows.some(row => row.role === "bot" && row.text === oldReply && row.turnTerminal && row.turnSucceeded && row.requestMessageId === source.id) && source;
+    }, "the baseline message and reply");
+    const routine = await request("/api/routines", { name: "Synthetic paused reminder", prompt: "Fixture only", botId: helper.id, enabled: false, schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 86_400_000 } });
+    assert.equal(routine.status, 201, JSON.stringify(routine.body));
+    assert.equal(routine.body.routine.enabled, false);
+    writeFileSync(path.join(home, "synthetic-old-file.txt"), "baseline fixture file");
+    if (mac) { socket.close(); child.kill("SIGTERM"); }
+    else await cdp("Browser.close").catch(() => {});
+    await until(() => child.exitCode !== null || child.signalCode !== null, "the baseline application shutdown", 45_000);
+    await waitPortClosed(port, "the baseline server shutdown");
+    const destination = path.resolve(values["create-upgrade-fixture"]);
+    mkdirSync(destination);
+    try {
+      cpSync(fixture, destination, { recursive: true, errorOnExist: true, force: false });
+      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id }));
+    } catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
+    report = { ...report, status: "PASS", baselineFixture: destination };
+  } else {
   assert(!initialBots.some(row => row.name === workName));
   const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
   const extraNext = "Xin xác nhận ghi chú thử thứ hai.";
@@ -381,6 +410,7 @@ try {
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     restart, computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
+  }
 } catch (error) {
   report.error = error.stack;
   await captureFailure().catch(failure => { report.diagnosticsError = failure.message; });

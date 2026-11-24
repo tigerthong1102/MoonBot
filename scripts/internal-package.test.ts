@@ -11,7 +11,12 @@ describe("StartupBot internal distribution boundary", () => {
     expect(workflow.permissions).toEqual({ contents: "read" });
     expect(workflow.on.workflow_dispatch.inputs.macos_runner.options).toEqual(["macos-26-intel", "macos-26"]);
     expect(workflow.jobs.macos["runs-on"]).toBe("${{ inputs.macos_runner || 'macos-26-intel' }}");
-    expect(workflow.jobs.package.if).toBe("${{ !inputs.desktop && !inputs.mobile }}");
+    expect(workflow.jobs.package.if).toBe("${{ !inputs.desktop && !inputs.mobile && !inputs.upgrade_baseline }}");
+    const upgrade = workflow.jobs["windows-upgrade"];
+    expect(upgrade.if).toBe("${{ inputs.upgrade_baseline != '' }}");
+    expect(JSON.stringify(upgrade)).not.toMatch(/secrets\.|gh release|packages:\s*write|contents:\s*write/);
+    expect(upgrade.steps.filter((step: { run?: string }) => step.run?.includes("electron-builder")).every((step: { run: string }) => step.run.includes("--publish never"))).toBe(true);
+    expect(upgrade.steps.find((step: { name?: string }) => step.name === "Create closed baseline fixture and test candidate twice").run).toContain("smoke-upgrade-profile.mjs");
     for (const name of ["macos", "windows"]) {
       const job = workflow.jobs[name];
       expect(job.if).toBe(`inputs.desktop && (inputs.desktop_os == 'all' || inputs.desktop_os == '${name}')`);

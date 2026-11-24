@@ -47,12 +47,17 @@ on:
         required: false
         type: string
 
+      upgrade_baseline:
+        description: "Full baseline SHA for the separate Windows upgrade fixture"
+        required: false
+        type: string
+
 permissions:
   contents: read
 
 jobs:
   package:
-    if: ${{ !inputs.desktop && !inputs.mobile }}
+    if: ${{ !inputs.desktop && !inputs.mobile && !inputs.upgrade_baseline }}
     name: DEB + AppImage (Ubuntu 24.04 x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -520,3 +525,79 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
+
+  windows-upgrade:
+    if: ${{ inputs.upgrade_baseline != '' }}
+    name: Windows packaged old-profile upgrade
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      NODE_OPTIONS: --max-old-space-size=4096
+      BASE_SHA: ${{ inputs.upgrade_baseline }}
+      CANDIDATE_SHA: ${{ inputs.ref }}
+    steps:
+      - name: Validate exact revisions
+        shell: pwsh
+        run: |
+          if ($env:BASE_SHA -notmatch '^[a-f0-9]{40}$' -or $env:CANDIDATE_SHA -notmatch '^[a-f0-9]{40}$') { throw 'Both revisions must be full commit SHAs' }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.upgrade_baseline }}
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref }}
+          path: candidate
+          persist-credentials: false
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+        with:
+          package_json_file: candidate/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Prepare and package baseline
+        working-directory: baseline
+        shell: pwsh
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline dependencies failed' }
+          pnpm build:cua:win
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline CUA preparation failed' }
+          pnpm package:prepare
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline build failed' }
+          pnpm exec electron-builder --config electron-builder.internal.yml --win dir --x64 --publish never
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline package failed' }
+      - name: Prepare and package candidate
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate dependencies failed' }
+          pnpm build:cua:win
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate CUA preparation failed' }
+          pnpm package:prepare
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate build failed' }
+          pnpm exec electron-builder --config electron-builder.internal.yml --win dir --x64 --publish never
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate package failed' }
+      - name: Create closed baseline fixture and test candidate twice
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'startupbot-old-profile-fixture'
+          $logs = Join-Path $env:RUNNER_TEMP 'startupbot-upgrade-evidence'
+          $baseline = Join-Path $env:GITHUB_WORKSPACE 'baseline/release/internal/win-unpacked/StartupBot.exe'
+          $candidate = Join-Path $env:GITHUB_WORKSPACE 'candidate/release/internal/win-unpacked/StartupBot.exe'
+          node scripts/smoke-internal-desktop.mjs --app "$baseline" --output "$logs/baseline" --create-upgrade-fixture "$fixture"
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline fixture creation failed' }
+          node scripts/smoke-upgrade-profile.mjs --fixture "$fixture" --app "$candidate" --output "$logs/candidate"
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate upgrade verification failed' }
+      - name: Upload synthetic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: work-bot-windows-upgrade-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/startupbot-upgrade-evidence/
+          if-no-files-found: error
+          retention-days: 7

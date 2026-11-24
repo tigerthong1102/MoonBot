@@ -42,6 +42,7 @@ function knownDirs(home: string = homedir()): string[] {
     join(home, ".local", "share", "mise", "shims"), // mise installer
     join(home, ".deno", "bin"),
     join(home, "bin"),
+    join(home, ".local", "share", "startupbot", "hyperframes", "node_modules", ".bin"),
     ...nvmBinDirs(home),
     // Mac Local VM runtimes: Docker Desktop's per-user CLI install and Podman's official pkg.
     ...(process.platform === "darwin" ? [
@@ -70,6 +71,7 @@ function windowsKnownDirs(): string[] {
     join(home, ".bun", "bin"),
     join(home, ".deno", "bin"),
     join(home, "go", "bin"),
+    join(home, ".local", "share", "startupbot", "hyperframes", "node_modules", ".bin"),
     join(programFiles, "Docker", "Docker", "resources", "bin"), // Docker Desktop installer
     join(programFiles, "RedHat", "Podman"), // Podman installer, also run by Podman Desktop
   ];

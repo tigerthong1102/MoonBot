@@ -42,6 +42,31 @@ describe("augmentedPath", () => {
     expect(parts.filter((p) => p === "/tmp/omb-extra")).toHaveLength(1);
   });
 
+  it.each(["darwin", "win32"])("finds the managed HyperFrames bin on %s without overriding the inherited PATH", (platform) => {
+    const previous = process.platform;
+    const previousExt = process.env.PATHEXT;
+    const managed = join(homedir(), ".local", "share", "startupbot", "hyperframes", "node_modules", ".bin");
+    try {
+      Object.defineProperty(process, "platform", { value: platform });
+      process.env.PATHEXT = ".CMD;.EXE";
+      mkdirSync(managed, { recursive: true });
+      const executable = join(managed, `hyperframes-fixture${platform === "win32" ? ".CMD" : ""}`);
+      writeFileSync(executable, "fixture");
+      resetPathCacheForTests();
+      const parts = augmentedPath().split(delimiter);
+      expect(parts).toContain(managed);
+      expect(findCliCandidates("hyperframes-fixture")).toContain(executable);
+      const inherited = (process.env.PATH ?? "").split(delimiter).filter(Boolean)[0];
+      if (inherited) expect(parts.indexOf(inherited)).toBeLessThan(parts.indexOf(managed));
+    } finally {
+      Object.defineProperty(process, "platform", { value: previous });
+      if (previousExt === undefined) delete process.env.PATHEXT;
+      else process.env.PATHEXT = previousExt;
+      resetPathCacheForTests();
+      rmSync(managed, { recursive: true, force: true });
+    }
+  });
+
   posixIt("includes nvm bin dirs from the home dir, newest node first", () => {
     // setup.ts points homedir at a temp dir, so this is hermetic
     const nvm = join(homedir(), ".nvm", "versions", "node");

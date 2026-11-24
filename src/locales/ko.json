@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "업무",
+  "server.workBot.standingGuidance": "이 대화에서 맡은 업무를 돕습니다. 이전 요청은 기록으로 취급하고 새 요청 없이 완료된 작업을 반복하지 않습니다.",
   "native.menu.personalInbox": "메시지",
   "settings.account.connectionFailed": "StartupBot에 연결할 수 없습니다. 다시 시도하세요.",
   "settings.account.emailAccess": "로그인 또는 계정 만들기",

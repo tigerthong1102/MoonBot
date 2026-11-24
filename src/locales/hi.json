@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "कार्य",
+  "server.workBot.standingGuidance": "इस बातचीत में सौंपे गए कार्यों में मदद करें। पुराने अनुरोधों को इतिहास मानें और नए अनुरोध के बिना पूरे किए गए कार्य न दोहराएँ।",
   "native.menu.personalInbox": "संदेश",
   "cloudBuy.signIn.email": "ईमेल",
   "settings.account.connectionFailed": "StartupBot से संपर्क नहीं हो सका। फिर कोशिश करें।",

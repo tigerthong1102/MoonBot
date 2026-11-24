@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "Lavoro",
+  "server.workBot.standingGuidance": "Aiuta con le attività assegnate in questa conversazione. Considera le richieste precedenti come cronologia e non ripetere azioni completate senza una nuova richiesta.",
   "native.menu.personalInbox": "Messaggi",
   "cloudBuy.signIn.email": "Email",
   "settings.account.connectionFailed": "Impossibile raggiungere StartupBot. Riprova.",

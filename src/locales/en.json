@@ -575,6 +575,8 @@
   "server.workBot.dataUnavailable": "Data linked to this conversation cannot yet be safely transferred. Continue this work here.",
   "server.workBot.fileUnavailable": "Files linked to this conversation cannot yet be safely transferred. Continue this work here.",
   "server.workBot.stopInAssignedBot": "Open the assigned bot to stop this work.",
+  "server.workBot.genericName": "Work",
+  "server.workBot.standingGuidance": "Help with work assigned in this conversation. Treat past requests as history; do not repeat completed actions without a new request.",
   "server.workBot.routeQuestion": "Create “{name}” and give it this work?",
   "server.workBot.routeCreate": "Create and assign",
   "server.workBot.question": "Would you like to create “{name}” to follow this work?",

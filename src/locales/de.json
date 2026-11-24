@@ -358,6 +358,8 @@
   "server.workBot.dataUnavailable": "Die mit dieser Unterhaltung verknüpften Daten können noch nicht sicher übertragen werden. Setze die Arbeit hier fort.",
   "server.workBot.fileUnavailable": "Die Dateien dieser Unterhaltung können noch nicht sicher übertragen werden. Setze die Arbeit hier fort.",
   "server.workBot.stopInAssignedBot": "Öffne den beauftragten Bot, um diese Arbeit zu stoppen.",
+  "server.workBot.genericName": "Aufgabe",
+  "server.workBot.standingGuidance": "Hilf bei Aufgaben in dieser Unterhaltung. Frühere Anfragen sind Verlauf; wiederhole abgeschlossene Aktionen nicht ohne neue Anfrage.",
   "server.workBot.routeQuestion": "„{name}“ erstellen und diese Aufgabe zuweisen?",
   "server.workBot.routeCreate": "Erstellen und zuweisen",
   "server.workBot.question": "Möchtest du den Bot „{name}“ erstellen, um diese Aufgabe zu verfolgen?",

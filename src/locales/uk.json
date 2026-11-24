@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "Завдання",
+  "server.workBot.standingGuidance": "Допомагайте із завданнями в цій розмові. Вважайте попередні запити історією та не повторюйте виконані дії без нового запиту.",
   "native.menu.personalInbox": "Повідомлення",
   "cloudBuy.signIn.email": "Електронна пошта",
   "settings.account.connectionFailed": "Не вдалося підключитися до StartupBot. Спробуйте ще раз.",

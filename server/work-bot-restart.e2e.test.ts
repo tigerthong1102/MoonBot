@@ -45,6 +45,7 @@ it("reopens a pending work-bot choice without dispatching it twice", async () =>
     await expect.poll(async () => (await rows()).find(row => row.text === text)?.workBotRouting?.state, { timeout: 20000 }).toBe("waiting_choice");
     const card = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
     expect(card?.requestId).toBeTruthy();
+    expect(card?.subtitle).toBe(text);
     const accepted = await api<{ result: { bots: Array<{ id: string }> } }>(`/api/threads/${main.threadId}/respond`, { requestId: card!.requestId, behavior: "allow" });
     const bot = (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(row => row.id === accepted.result.bots[0]?.id)!;
     await expect.poll(async () => {

@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "作業",
+  "server.workBot.standingGuidance": "この会話で依頼された作業を支援します。過去の依頼は履歴として扱い、新しい依頼がなければ完了した操作を繰り返しません。",
   "native.menu.personalInbox": "メッセージ",
   "settings.account.connectionFailed": "StartupBot に接続できません。もう一度お試しください。",
   "settings.account.emailAccess": "ログインまたはアカウント作成",

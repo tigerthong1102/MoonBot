@@ -166,8 +166,11 @@ it("hands the earlier conversation and a reply to the new bot without running th
     await expect.poll(async () => (await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId), { timeout: 20000 }).toBe(true);
     const offer = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId)?.card;
     expect(offer?.requestId).toBeTruthy();
+    expect(offer?.subtitle).toBe(work);
     const result = await api<{ result: { bots: Array<{ id: string }> } }>(`/api/threads/${main.threadId}/respond`, { requestId: offer!.requestId, behavior: "allow" });
     const worker = (await roster()).bots.find(bot => bot.id === result.result.bots[0]?.id)!;
+    expect(worker.soul).not.toContain(work);
+    expect(worker.description).not.toContain(work);
     await expect.poll(async () => {
       const target = (await api<{ messages: Message[] }>(`/api/threads/${worker.threadId}/messages`)).messages;
       const sentIndex = target.findIndex(row => row.role === "user" && row.text === work);
@@ -180,6 +183,7 @@ it("hands the earlier conversation and a reply to the new bot without running th
     expect(targetRows.find(row => row.id === sent.replyToId)?.text).toBe(previous.text);
     const providerPrompts = readFileSync(prompts, "utf8").trim().split("\n").map(line => JSON.parse(line) as unknown).filter(prompt => JSON.stringify(prompt).includes(work));
     expect(providerPrompts).toHaveLength(1);
+    expect(JSON.stringify(providerPrompts[0]).split(work)).toHaveLength(2);
     expect(JSON.stringify(providerPrompts[0])).toContain("The warehouse is in Hanoi");
     expect(JSON.stringify(providerPrompts[0])).toContain("Historical conversation context");
     expect(JSON.stringify(providerPrompts[0])).not.toContain("SYNTHETIC_PRIVATE_BEFORE_RESET");

@@ -554,6 +554,8 @@
   "server.workBot.dataUnavailable": "Ainda não é possível transferir com segurança os dados desta conversa. Continue o trabalho aqui.",
   "server.workBot.fileUnavailable": "Ainda não é possível transferir com segurança os arquivos desta conversa. Continue o trabalho aqui.",
   "server.workBot.stopInAssignedBot": "Abra o bot responsável para interromper este trabalho.",
+  "server.workBot.genericName": "Trabalho",
+  "server.workBot.standingGuidance": "Ajude com os trabalhos atribuídos nesta conversa. Trate pedidos anteriores como histórico; não repita ações concluídas sem um novo pedido.",
   "server.workBot.routeQuestion": "Criar “{name}” e atribuir esta tarefa?",
   "server.workBot.routeCreate": "Criar e atribuir",
   "server.workBot.question": "Quer criar o bot “{name}” para acompanhar este trabalho?",

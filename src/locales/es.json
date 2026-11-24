@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "Trabajo",
+  "server.workBot.standingGuidance": "Ayuda con las tareas asignadas en esta conversación. Trata las solicitudes anteriores como historial; no repitas acciones completadas sin una nueva solicitud.",
   "native.menu.personalInbox": "Mensajes",
   "settings.account.connectionFailed": "No se pudo conectar con StartupBot. Vuelve a intentarlo.",
   "settings.account.emailAccess": "Iniciar sesión o crear una cuenta",

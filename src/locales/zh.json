@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "工作",
+  "server.workBot.standingGuidance": "协助处理本对话中分配的工作。将过去的请求视为历史记录，未经新请求不要重复已完成的操作。",
   "native.menu.personalInbox": "消息",
   "settings.account.connectionFailed": "无法连接到 StartupBot。请重试。",
   "settings.account.emailAccess": "登录或创建账号",

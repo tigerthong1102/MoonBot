@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "Zadanie",
+  "server.workBot.standingGuidance": "Pomagaj w zadaniach przydzielonych w tej rozmowie. Traktuj wcześniejsze prośby jako historię; nie powtarzaj ukończonych działań bez nowej prośby.",
   "native.menu.personalInbox": "Wiadomości",
   "settings.account.connectionFailed": "Nie można połączyć się ze StartupBot. Spróbuj ponownie.",
   "settings.account.emailAccess": "Zaloguj się lub utwórz konto",

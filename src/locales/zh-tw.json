@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "工作",
+  "server.workBot.standingGuidance": "協助處理本對話中交付的工作。將過去的請求視為歷史紀錄，沒有新請求時不要重複已完成的操作。",
   "native.menu.personalInbox": "訊息",
   "settings.account.connectionFailed": "無法連線至 StartupBot。請再試一次。",
   "settings.account.emailAccess": "登入或建立帳戶",

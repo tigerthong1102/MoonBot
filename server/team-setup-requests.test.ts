@@ -102,6 +102,43 @@ describe("reviewed Chief team setup", () => {
     expect(h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer?.topic ?? [])).toEqual(["Second work"]);
   });
 
+  it("previews a short request without turning it into standing instructions or a bot name", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    const text = "Track inventory weekly";
+    h.messages.push({ id: "short", role: "user", text });
+    await h.service.offerFromChat(h.chief.id, h.chief.threadId, text, "", "short", () => ({ via: "engine", generateText: async () => JSON.stringify({ name: text, icon: "box" }) }));
+    const card = h.messages.find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
+    expect(card?.subtitle).toBe(text);
+    const fields = card!.teamSetupRequest!.operations[0]!.fields;
+    expect(fields.name).not.toBe(text);
+    expect(fields.title).not.toBe(text);
+    expect(fields.description).not.toBe(text);
+    expect(fields.soul).not.toContain(text);
+    expect(fields.soul).toBeTruthy();
+    expect(card!.teamSetupRequest!.workBotOffer?.topic).toBe(text);
+  });
+
+  it.each([false, true])("keeps distinct short topics and reserves pending names (reverse: %s)", async reverse => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    const first = "Track inventory weekly", second = "Review returns daily";
+    h.messages.push({ id: "a", role: "user", text: first }, { id: "b", role: "user", text: second }, { id: "c", role: "user", text: first });
+    const prompts: string[] = [];
+    const ask = (id: string, text: string) => h.service.offerFromChat(h.chief.id, h.chief.threadId, text, "", id, () => ({ via: "engine", generateText: async prompt => { prompts.push(prompt); return JSON.stringify({ name: text, icon: "tasks" }); } }));
+    await ask("a", first);
+    await ask("b", second);
+    await ask("c", first);
+    const offers = h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer ? [row.card.teamSetupRequest.workBotOffer] : []);
+    expect(offers).toHaveLength(2);
+    expect(offers.map(offer => offer.topic)).toEqual([first, second]);
+    const names = h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer ? [row.card.teamSetupRequest.operations[0]!.fields.name] : []);
+    expect(new Set(names).size).toBe(2);
+    expect(prompts[1]).toContain(first);
+    const cards = h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer ? [row.card] : []);
+    for (const card of reverse ? cards.reverse() : cards) expect((await h.resolve(card.requestId!))?.result.state).toBe("applied");
+  });
+
   it("does not publish an offer when eligibility changes while the provider is responding", async () => {
     const h = harness();
     h.chief.defaultBot = {};
@@ -140,6 +177,17 @@ describe("reviewed Chief team setup", () => {
     finish('{"name":"每日审核","icon":"tasks"}');
     await pending;
     expect(h.messages).toHaveLength(0);
+  });
+
+  it("redacts secrets in a work offer preview", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    const secret = "sk-test-" + "a".repeat(32), text = `Monitor inventory ${secret}`;
+    h.messages.push({ id: "source", role: "user", text });
+    await h.service.offerFromChat(h.chief.id, h.chief.threadId, text, "", "source", () => ({ via: "engine", generateText: async () => '{"name":"Inventory","icon":"box"}' }));
+    const card = h.messages.find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
+    expect(card?.subtitle).toBeTruthy();
+    expect(card?.subtitle).not.toContain(secret);
   });
 
   it.each(["allow", "deny"])("keeps a suggested work bot pending on Full access until %s", async behavior => {

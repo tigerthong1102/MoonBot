@@ -1,5 +1,5 @@
 import { defaultBotPerson } from "../shared/default-bot.ts";
-import { workBotAvatar, workBotName, workBotPrompt, readWorkBotTopic } from "./work-bot-offer.ts";
+import { workBotAvatar, workBotName, workBotPrompt, readWorkBotTopic, workBotTopicForRequest } from "./work-bot-offer.ts";
 import type { SideJobText } from "./side-jobs.ts";
 import { conversationLanguage, serverLine } from "./server-lines.ts";
 import { createHash } from "node:crypto";
@@ -26,6 +26,10 @@ const modelSelectionText = (selection: ModelSelection) =>
 const MAX_SETUP_BOTS = 40;
 const MAX_NEW_BOTS = 8;
 const WORK_OFFER_TIMEOUT_MS = 90_000;
+function workBotExcerpt(text: string): string {
+  const brief = redactSecretsInText(text).trim();
+  return brief.length > 6000 ? brief.slice(0, 4000) + "…" + brief.slice(-1900) : brief;
+}
 const fieldsSchema = z.object({
   chiefOfStaff: z.boolean().optional(),
   name: z.string().optional(), title: z.string().optional(), description: z.string().optional(), soul: z.string().optional(),
@@ -90,7 +94,7 @@ interface SetupStore {
   bot(id: string): BotRecord | null | undefined;
   projectBotForTask?(id: string, threadId: string): BotRecord | null | undefined;
   activePath(threadId: string): Array<{ id: string; role?: string; text?: string; card?: OptionCardData }>;
-  messagesFor(threadId: string): Array<{ id: string; role?: string; card?: OptionCardData; workBotRouting?: import("./store.ts").Message["workBotRouting"] }>;
+  messagesFor(threadId: string): Array<{ id: string; role?: string; text?: string; card?: OptionCardData; workBotRouting?: import("./store.ts").Message["workBotRouting"] }>;
   appendMessage(threadId: string, message: { role: "bot"; kind: "options"; card: OptionCardData; from?: { botId: string; name: string; color: string } }): { id: string };
   patchMessage(threadId: string, messageId: string, patch: { card: OptionCardData }): unknown;
   applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">): TeamSetupResult;
@@ -309,8 +313,7 @@ export class TeamSetupRequestService {
       if (!bot || !text.trim() || !eligible()) return;
       const engine = writer();
       if (!engine) return;
-      const brief = redactSecretsInText(text).trim();
-      const excerpt = brief.length > 6000 ? brief.slice(0, 4000) + "…" + brief.slice(-1900) : brief;
+      const excerpt = workBotExcerpt(text);
       const previousTopics = this.activeOfferTopics(threadId);
       const prompt = workBotPrompt(excerpt, !store.bots.some(row => !row.defaultBot && !row.hidden), previousTopics.slice(-20));
       const timeout = AbortSignal.timeout(WORK_OFFER_TIMEOUT_MS);
@@ -327,11 +330,13 @@ export class TeamSetupRequestService {
       if (reply === null) return;
       const topic = readWorkBotTopic(reply);
       if (!topic || signal.aborted || !eligible() || !writer()) return;
-      const name = workBotName(topic.name, store.bots);
+      const label = workBotTopicForRequest(topic.name, excerpt, serverLine(conversationLanguage(threadId), "server.workBot.genericName"));
+      const pendingNames = store.activePath(threadId).flatMap(({ card }) => card?.teamSetupRequest?.workBotOffer && !card.answered && !card.dismissed && !card.expired
+        ? card.teamSetupRequest.operations.flatMap(operation => operation.action === "create" && operation.fields.name ? [{ name: operation.fields.name }] : []) : []);
+      const name = workBotName(label, [...store.bots, ...pendingNames]);
       return this.proposeWorkBot({ botId, threadId, plan: {
         reason: name, operations: [{ action: "create", key: "follow_up", fields: {
-          name, title: topic.name, description: [...excerpt].slice(0, 120).join(""),
-          soul: excerpt, modelSelection: bot.modelSelection,
+          name, title: label, description: label, soul: serverLine(conversationLanguage(threadId), "server.workBot.standingGuidance"), modelSelection: bot.modelSelection,
         } }],
       } }, { icon: topic.icon, topic: topic.name, sourceMessageId: messageId });
     } catch (error) {
@@ -381,7 +386,7 @@ export class TeamSetupRequestService {
       const routed = Boolean(source?.workBotRouting);
       return {
         title: serverLine(lang, routed ? "server.workBot.routeQuestion" : "server.workBot.question", { name: fields.name ?? "" }),
-        subtitle: fields.soul ?? "", options: [serverLine(lang, routed ? "server.workBot.routeCreate" : "server.workBot.create"), "Cancel"],
+        subtitle: source?.text ? workBotExcerpt(source.text) : fields.soul ?? "", options: [serverLine(lang, routed ? "server.workBot.routeCreate" : "server.workBot.create"), "Cancel"],
         requestId: request.requestId, tool: "set_up_team", teamSetupRequest: request,
       };
     }

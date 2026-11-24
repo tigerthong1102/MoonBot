@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -208,7 +208,7 @@ try {
     const destination = path.resolve(values["create-upgrade-fixture"]);
     mkdirSync(destination);
     try {
-      cpSync(fixture, destination, { recursive: true, errorOnExist: true, force: false });
+      for (const entry of readdirSync(fixture)) cpSync(path.join(fixture, entry), path.join(destination, entry), { recursive: true, errorOnExist: true, force: false });
       writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id }));
     } catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
     report = { ...report, status: "PASS", baselineFixture: destination };
@@ -292,7 +292,8 @@ try {
   assert.equal(workPrompts().length, 1);
   const handedOffScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "work-bot-handoff.png"), Buffer.from(handedOffScreenshot.data, "base64"));
-  assert(readFileSync(path.join(data, "bots", workBot.id, "SOUL.md"), "utf8").includes(workMessage));
+  assert(!readFileSync(path.join(data, "bots", workBot.id, "SOUL.md"), "utf8").includes(workMessage));
+  assert(!workBot.description.includes(workMessage));
   assert.match(workBot.avatarUrl, /^\/api\/attachments\/[^/]+\.png$/);
   assert.deepEqual(await evaluate(`(async () => {
     const img = new Image();
@@ -406,7 +407,7 @@ try {
   await waitPortClosed(port, "the first server to stop");
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, instructionsVerified: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion, declinedCompletion },
+    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion, declinedCompletion },
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     restart, computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };

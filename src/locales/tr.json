@@ -1,4 +1,6 @@
 {
+  "server.workBot.genericName": "İş",
+  "server.workBot.standingGuidance": "Bu konuşmada verilen işlere yardımcı ol. Önceki istekleri geçmiş olarak değerlendir; yeni bir istek olmadan tamamlanmış işlemleri tekrarlama.",
   "native.menu.personalInbox": "Mesajlar",
   "cloudBuy.signIn.email": "E-posta",
   "settings.account.connectionFailed": "StartupBot ile bağlantı kurulamadı. Tekrar deneyin.",

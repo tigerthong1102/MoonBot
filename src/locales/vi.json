@@ -6295,6 +6295,8 @@
   "server.workBot.dataUnavailable": "Chưa thể chuyển an toàn dữ liệu gắn với hội thoại này. Bạn hãy tiếp tục công việc tại đây.",
   "server.workBot.fileUnavailable": "Chưa thể chuyển an toàn tệp gắn với hội thoại này. Bạn hãy tiếp tục công việc tại đây.",
   "server.workBot.stopInAssignedBot": "Hãy mở bot được giao việc để dừng công việc này.",
+  "server.workBot.genericName": "Công việc",
+  "server.workBot.standingGuidance": "Hỗ trợ các công việc được giao trong hội thoại này. Xem yêu cầu cũ là lịch sử; không lặp lại hành động đã hoàn thành khi chưa có yêu cầu mới.",
   "server.workBot.routeQuestion": "Tạo bot “{name}” và giao việc này cho bot?",
   "server.workBot.routeCreate": "Tạo bot và giao việc",
   "server.workBot.question": "Bạn có muốn tạo bot “{name}” để theo dõi việc này không?",

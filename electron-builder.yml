@@ -251,9 +251,7 @@ deb:
   packageName: startupbot
   packageCategory: utils
   priority: optional
-  # Add the narrow browser policy's parser without replacing Electron's
-  # default shared-library dependencies.
-  fpm: ["--depends", "apparmor"]
+  fpm: ["--depends", "apparmor", "--depends", "libasound2t64 | libasound2"]
   # dpkg can preserve legacy directory modes during an upgrade. This
   # idempotent hook repairs only the exact package-owned CUA path.
   afterInstall: build/linux-after-install.sh

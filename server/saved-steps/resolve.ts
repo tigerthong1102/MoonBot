@@ -148,15 +148,15 @@ export async function resolveStep(step: RecipeStep, caller: ComputerCaller, sign
     return fail("invalid saved Windows button");
   }
   const state = await caller.call("get_window_state", { pid: pid.value, window_id: windowId.value, include_screenshot: false,
-    ...(directButton ? { tree_format: "elements" } : {}) }, signal);
+    ...(directButton ? { tree_format: "elements", timeout_ms: 30000, max_elements: 5000 } : {}) }, signal);
   if (!state.ok) return state;
   const tree = state.structured;
   if (tree.pid !== pid.value || tree.window_id !== windowId.value) return fail("the computer answered for a different window");
   if (treeDegraded(tree)) return fail(`${window.title} could not be read reliably`);
   if (!wholeTree(tree)) return fail(`only part of ${window.title} could be read`);
-  if (directButton && tree.window_title !== window.title) return fail("the window title changed");
+  if (directButton && (tree.window_title !== window.title || tree.app_name !== app.name)) return fail("the app or window identity changed");
   const found = directButton
-    ? matchWindowButton(slimResponse({ result: { structuredContent: tree } }).structured?.elements ?? [], element.label)
+    ? matchWindowButton(slimResponse({ result: { structuredContent: tree } }, "win32").structured?.elements ?? [], element.label)
     : matchElement(tree.elements, element);
   const target = `"${element.label}" (${element.role}) in ${window.title}`;
   if (!found.ok) return found.reason === "none" ? missing(`no ${target}`) : fail(`more than one ${target}`);

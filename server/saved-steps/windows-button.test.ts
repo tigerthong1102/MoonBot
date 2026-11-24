@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { slimResponse } from "./driver-wire.ts";
 import { buildRecipe } from "./rules.ts";
-import { matchWindowButton } from "./resolve.ts";
+import { matchWindowButton, type ComputerCaller } from "./resolve.ts";
+import { runSteps } from "./replay.ts";
+import { recordedWindowsDestination } from "./windows-destination.ts";
 
 const address = { pid: 100, window_id: 7 };
 const button = { role: "Button", label: "Navigate", depth: 1, element_index: 1, element_token: "s00000001:1", enabled: true };
@@ -12,7 +14,7 @@ const click = { ...address, element_token: button.element_token, delivery_mode: 
 const action = { effect: "unverifiable", route: "accessibility", delivery: { mode: "background" } };
 const slim = (data: object, platform: NodeJS.Platform = "win32") => slimResponse({ result: { structuredContent: data } }, platform);
 function record(snapshot: object = tree, args: object = click, delivery: object = action, read: object = lookup, platform: NodeJS.Platform = "win32") {
-  return buildRecipe({ id: "r", now: 1, request: "Navigate the fixture", journal: { complete: true, tainted: false, calls: [
+  return buildRecipe({ id: "r", now: 1, request: 'Navigate using button "Navigate" and verify window title "Destination"', journal: { complete: true, tainted: false, calls: [
     { tool: "get_window_state", arguments: { ...read }, result: slim(snapshot, platform), generation: "g" },
     { tool: "click", arguments: { ...args }, result: slim(delivery, platform), generation: "g" },
   ] } });
@@ -44,6 +46,106 @@ describe("Windows UIA projected window buttons", () => {
     expect(record(tree, click, action, { ...lookup, pid: 99 }).ok).toBe(false);
     expect(record(tree, click, action, { ...lookup, role_filter: "Button" }).ok).toBe(false);
     expect(record(tree, click, action, lookup, "darwin").ok).toBe(false);
+  });
+
+  it("identifies a uniquely named nested button when its projected parent is present", () => {
+    const parent = { role: "ToolBar", label: "Navigation", depth: 2, element_index: 0, element_token: "s00000001:0" };
+    const child = { ...button, depth: 3, parent_index: 0 };
+    const state = { ...tree, returned_element_count: 2, total_element_count: 2, elements: [parent, child] };
+    const built = record(state);
+    expect(built.ok).toBe(true);
+    const malformed = { ...state, elements: [parent, { ...child, parent_index: 9 }] };
+    expect(record(malformed).ok).toBe(false);
+    const duplicate = { ...state, returned_element_count: 3, total_element_count: 3,
+      elements: [parent, child, { ...child, element_index: 2, element_token: "s00000001:2" }] };
+    expect(record(duplicate).ok).toBe(false);
+  });
+
+  it("learns and replays a nested navigation only when the named tab newly appears", async () => {
+    const parent = { role: "ToolBar", label: "Navigation", depth: 2, element_index: 0, element_token: "s00000001:0" };
+    const child = { ...button, depth: 3, parent_index: 0 };
+    const before = { ...tree, returned_element_count: 2, total_element_count: 2, elements: [parent, child] };
+    const tab = { role: "TabItem", label: "Reports", depth: 2, element_index: 2, element_token: "s00000002:2", selected: true };
+    const after = { ...before, returned_element_count: 3, total_element_count: 3, elements: [parent, child, tab] };
+    const built = record(before);
+    if (!built.ok) throw Error(built.reason);
+    const recipe = { ...built.recipe, request: 'Navigate using button "Navigate" and verify tab "Reports"' };
+    const journal = { complete: true, tainted: false, calls: [
+      { tool: "get_window_state", arguments: lookup, result: slim(before), generation: "g" },
+      { tool: "click", arguments: click, result: slim(action), generation: "g" },
+      { tool: "get_window_state", arguments: lookup, result: slim(after), generation: "g" },
+    ] };
+    expect(recordedWindowsDestination(recipe, journal)).toBe(true);
+    expect(recordedWindowsDestination(recipe, { ...journal, calls: [journal.calls[0]!, journal.calls[1]!,
+      { ...journal.calls[2]!, arguments: { ...lookup, query: "Reports" } }] })).toBe(false);
+    expect(recordedWindowsDestination(recipe, { ...journal, calls: [journal.calls[2]!, journal.calls[1]!, journal.calls[2]!] })).toBe(false);
+    const duplicate = { ...after, returned_element_count: 4, total_element_count: 4,
+      elements: [...after.elements, { ...tab, element_index: 3, element_token: "s00000002:3" }] };
+    expect(recordedWindowsDestination(recipe, { ...journal, calls: [journal.calls[0]!, journal.calls[1]!,
+      { ...journal.calls[2]!, result: slim(duplicate) }] })).toBe(false);
+    expect(recordedWindowsDestination(recipe, { ...journal, calls: [journal.calls[0]!, journal.calls[1]!,
+      { ...journal.calls[2]!, result: slim({ ...after, elements: [parent, child, { ...tab, selected: false }] }) }] })).toBe(false);
+    let clicks = 0, verified = 0, startingWithTab = false, reserved = 0;
+    const caller: ComputerCaller = { async call(tool) {
+      if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid: address.pid, name: tree.app_name }] } };
+      if (tool === "list_windows") return { ok: true, structured: { windows: [{ ...address, title: tree.window_title }] } };
+      if (tool === "get_window_state") return { ok: true, structured: clicks || startingWithTab ? after : before };
+      if (tool !== "click") throw Error(tool);
+      clicks++;
+      return { ok: true, structured: action };
+    } };
+    const outcome = await runSteps(recipe, { threadId: "thread", turnId: "turn", provider: "fixture", providerInstanceId: "fixture" },
+      { caller, approval: { ask: async () => true }, publish() {}, signal: new AbortController().signal,
+        windowsAttempt: { begin: () => { reserved++; return true; }, verified: () => { verified++; } } });
+    expect(outcome).toEqual({ kind: "done" });
+    expect({ clicks, verified, reserved }).toEqual({ clicks: 1, verified: 1, reserved: 1 });
+    clicks = 0;
+    startingWithTab = true;
+    const alreadyThere = await runSteps(recipe, { threadId: "thread", turnId: "turn-2", provider: "fixture", providerInstanceId: "fixture" },
+      { caller, approval: { ask: async () => true }, publish() {}, signal: new AbortController().signal,
+        windowsAttempt: { begin: () => { reserved++; return true; }, verified: () => { verified++; } } });
+    expect(alreadyThere).toMatchObject({ kind: "failed", error: expect.stringContaining("already present") });
+    expect({ clicks, verified, reserved }).toEqual({ clicks: 0, verified: 1, reserved: 1 });
+  });
+  it("allows an unfiltered full-window read with a larger native traversal budget", () => {
+    expect(record(tree, click, action, { ...lookup, timeout_ms: 30000, max_elements: 5000 }).ok).toBe(true);
+    expect(record(tree, click, action, { ...lookup, timeout_ms: 30000, max_elements: 5000, max_depth: 3 }).ok).toBe(false);
+  });
+
+  it("retains the stable app identity and the window provider's name when the driver names them differently", () => {
+    const state = { ...tree, app_name: "Fixture.exe" };
+    const journal = { complete: true, tainted: false, calls: [
+      { tool: "list_apps", arguments: {}, result: slim({ apps: [{ pid: address.pid, name: "Fixture App", bundle_id: "C:\\Fixture.exe" }] }), generation: "g" },
+      { tool: "get_window_state", arguments: lookup, result: slim(state), generation: "g" },
+      { tool: "click", arguments: click, result: slim(action), generation: "g" },
+    ] };
+    const built = buildRecipe({ id: "r", now: 1, request: 'Navigate using button "Navigate" and verify tab "Reports"', journal });
+    if (!built.ok) throw Error(built.reason);
+    expect(built.recipe.steps[0]?.app).toEqual({ bundleId: "C:\\Fixture.exe", name: "Fixture.exe" });
+  });
+
+  it("records accessibility delivery without treating it as a destination", () => {
+    expect(slim(action).structured?.background_accessibility_action).toBe(true);
+    expect(slim(action).structured).not.toHaveProperty("effect");
+    expect(slim({ ...action, effect: "confirmed", route: "global_input" }).structured?.background_accessibility_action).toBeUndefined();
+  });
+
+  it("reports an unverified click once and does not claim replay succeeded", async () => {
+    const built = record();
+    if (!built.ok) throw Error(built.reason);
+    let clicks = 0;
+    const caller: ComputerCaller = { async call(tool) {
+      if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid: address.pid, name: tree.app_name }] } };
+      if (tool === "list_windows") return { ok: true, structured: { windows: [{ ...address, title: tree.window_title }] } };
+      if (tool === "get_window_state") return { ok: true, structured: clicks === 0 ? tree : { ...tree, window_title: "Other" } };
+      if (tool !== "click") throw Error(tool);
+      clicks++;
+      return { ok: true, structured: action };
+    } };
+    const outcome = await runSteps(built.recipe, { threadId: "thread", turnId: "turn", provider: "fixture", providerInstanceId: "fixture" },
+      { caller, approval: { ask: async () => true }, publish() {}, signal: new AbortController().signal, windowsAttempt: { begin: () => true, verified: () => { throw new Error("verified unexpected title"); } } });
+    expect(outcome).toMatchObject({ kind: "failed", done: 0, error: expect.stringContaining("may already have reached") });
+    expect(clicks).toBe(1);
   });
 
   it("refuses twins at any depth, duplicate addresses and a newly disabled button", () => {

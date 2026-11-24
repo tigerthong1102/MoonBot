@@ -127,7 +127,16 @@ async function checkProxy(conn) {
       const { checkWindowsContract, qualifyNavigation } = await import("./cua-win-qualification.mjs");
       checkWindowsContract(conn, list.tools);
       const invoke = (name, args) => request(++callId, "tools/call", { name, arguments: args });
-      console.log(JSON.stringify(await qualifyNavigation(invoke)));
+      if (process.env.OMB_CUA_CHAT_SMOKE === "1") {
+        const { qualifyWindowsChat } = await import("./testing/cua-win-chat-smoke.mjs");
+        console.log(JSON.stringify(await qualifyWindowsChat(invoke, {
+          mode: "embedded", status: "ready", socketPath, mcpCommand: binary,
+          mcpArgs: ["mcp", "--embedded", "--socket", socketPath],
+          mcpEnv: { CUA_DRIVER_RS_TELEMETRY_ENABLED: "0", CUA_DRIVER_EMBEDDED: "1", CUA_DRIVER_HOST_BUNDLE_ID: "com.openmausbot.app" },
+        })));
+      } else {
+        console.log(JSON.stringify(await qualifyNavigation(invoke)));
+      }
     }
   } finally {
     lines.close();

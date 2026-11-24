@@ -10,9 +10,37 @@ import { standalonePlatformKey } from "../engine-standalone.ts";
 import { findCliCandidates, registerFallbackPathDir, registerPathDir, resetPathCache, resetPathCacheForTests } from "../env-path.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
 import { makeFakeDriver } from "../testing/fake-driver.ts";
+import { modelManifest } from "../model-manifest/manifest.ts";
 import { ENGINE_LIST_REUSE_MS, ProviderRegistry, SNAPSHOT_DEADLINE_MS, SNAPSHOT_REUSE_MS } from "./registry.ts";
 
 describe("ProviderRegistry", () => {
+  it("updates a background model catalog without invalidating the shared engine status", async () => {
+    let notify: (() => void) | undefined;
+    const watcher = vi.spyOn(modelManifest(), "onChange").mockImplementation((listener) => {
+      notify = listener;
+      return () => {};
+    });
+    try {
+      const fake = makeFakeDriver({ kind: "claudeAgent" });
+      const registry = new ProviderRegistry([fake.driver]);
+      await registry.load({ a: { driver: "claudeAgent" } });
+      const refresh = vi.fn(async () => {});
+      Object.assign(registry.get("a")!, { refreshModels: refresh });
+      await registry.describe();
+      expect(fake.probes).toEqual(["a"]);
+      expect(notify).toBeDefined();
+      notify!();
+      await vi.waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+      await registry.describe();
+      expect(fake.probes).toEqual(["a"]);
+      await registry.refreshModels("a");
+      await registry.describe();
+      expect(fake.probes).toEqual(["a", "a"]);
+    } finally {
+      watcher.mockRestore();
+    }
+  });
+
   it("creates live instances for known drivers", async () => {
     const fake = makeFakeDriver();
     const registry = new ProviderRegistry([fake.driver]);

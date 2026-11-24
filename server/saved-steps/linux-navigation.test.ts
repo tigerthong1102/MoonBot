@@ -42,7 +42,7 @@ describe("Linux multi-step navigation", () => {
     expect(recordedLinuxDestinations(result.recipe, journal())).toBe(true);
     const missing = journal(); missing.calls.pop();
     expect(recordedLinuxDestinations(result.recipe, missing)).toBe(false);
-    const changedPid = journal(); changedPid.calls[4]!.arguments.pid = 101;
+    const changedPid = journal(); Object.assign(changedPid.calls[4]!.arguments, { pid: 101 });
     expect(recordedLinuxDestinations(result.recipe, changedPid)).toBe(false);
     const wrong = { ...result.recipe, steps: [result.recipe.steps[0]!, { ...result.recipe.steps[1]!, window: { title: "Other" } }] };
     expect(expectedLinuxDestinations(wrong)).toBeUndefined();

@@ -522,6 +522,14 @@ it("resumes verified parallel file parts and publishes once after checking membe
   const rawPosts = await (await call(room, a.cookie)).json<{ posts: { seq: number }[] }>();
   const rawDownload = await call(room + "/files/" + rawPosts.posts.at(-1)!.seq, a.cookie);
   expect(new Uint8Array(await rawDownload.arrayBuffer())).toEqual(joined);
+  const four = room + "/files/" + uuid();
+  const fourParts = new Uint8Array(2_250_003).fill(65);
+  fourParts.set(parts[1], 2_250_000);
+  expect((await post(four + "/start", b.cookie, JSON.stringify({
+    size: fourParts.length, hashes: [hashes[0], hashes[0], hashes[0], hashes[1]],
+  }), "application/json")).status).toBe(200);
+  expect((await post(four + "/0", b.cookie, fourParts, "application/octet-stream", "identity", 4)).status).toBe(200);
+  expect((await call(four + "/complete", b.cookie, {})).status).toBe(200);
   const brPath = room + "/files/" + uuid();
   await begin(brPath);
   expect((await post(brPath + "/0", b.cookie, new Uint8Array(brotliCompressSync(joined)), "application/octet-stream", "br", 2)).status).toBe(200);

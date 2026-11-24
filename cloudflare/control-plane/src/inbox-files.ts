@@ -8,7 +8,7 @@ export const maxFileBytes = 50_000_000;
 const singleRequestBytes = 20_000_000;
 export const voiceFileBytes = 1_500_000;
 export const maxBatchParts = 8;
-export const maxRawBatchParts = 2;
+export const maxRawBatchParts = 4;
 const dailyBytes = 60_000_000;
 const retainedBytes = 180_000_000;
 // Base64 keeps each D1 binding below the row limit without expanding a binary binding to a JSON array.

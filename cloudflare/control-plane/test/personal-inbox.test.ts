@@ -46,11 +46,19 @@ async function call(
   from = origin,
   language = "en",
   languageSource = "app",
+  invite?: string,
 ) {
   const ctx = createExecutionContext();
   const req = new Request(origin + "/api/" + path, {
     method: data === undefined ? "GET" : "POST",
-    headers: { cookie, origin: from, "content-type": "application/json", "x-inbox-language": language, "x-inbox-language-source": languageSource },
+    headers: {
+      cookie,
+      origin: from,
+      "content-type": "application/json",
+      "x-inbox-language": language,
+      "x-inbox-language-source": languageSource,
+      ...(invite ? { "x-inbox-invite": invite } : {}),
+    },
     body: JSON.stringify(data),
   });
   const res = await worker.fetch(req, { ...testEnv, ...overrides }, ctx);
@@ -58,7 +66,7 @@ async function call(
   return res;
 }
 
-async function login(email: string) {
+async function login(email: string, invite?: string) {
   let otp = "";
   const emailBinding = {
     send: async (msg: { text: string }) => {
@@ -72,11 +80,15 @@ async function login(email: string) {
         "",
         { email, type: "sign-in" },
         { EMAIL: emailBinding },
+        origin,
+        "en",
+        "app",
+        invite,
       )
     ).status,
   ).toBe(200);
   expect(otp).toHaveLength(8);
-  const res = await call("auth/sign-in/email-otp", "", { email, otp });
+  const res = await call("auth/sign-in/email-otp", "", { email, otp }, {}, origin, "en", "app", invite);
   expect(await res.clone().json()).toEqual({ ok: true });
   const cookie = res.headers
     .getSetCookie()
@@ -701,6 +713,21 @@ it("enforces group management on the server across role changes, links, bans, me
   expect((await detail(member)).group.owner).toBe(member.id);
   expect((await call(room+"/close",owner.cookie,{})).status).toBe(404);
   expect((await call(room+"/close",member.cookie,{})).status).toBe(200);
+});
+
+it("lets a new address verify through a group link without granting membership until approval", async () => {
+  const owner = await login("owner@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  await call("rooms", owner.cookie, { id, kind: "group", title: "Guest group" });
+  const link = await call(room + "/moderate", owner.cookie, { action: "ensureLink" });
+  const { token } = await link.json<{ token: string }>();
+  const guest = await login("link-guest@example.test", token);
+
+  expect((await call(room, guest.cookie)).status).toBe(404);
+  expect(await (await call("join", guest.cookie, { token })).json()).toEqual({ id, state: "requested" });
+  expect((await call(room, guest.cookie)).status).toBe(404);
+  expect((await call(room + "/moderate", owner.cookie, { action: "approve", person: guest.id })).status).toBe(200);
+  expect((await call(room, guest.cookie)).status).toBe(200);
 });
 
 it("lets members invite only their bots and only managers remove them, even during a discussion", async () => {

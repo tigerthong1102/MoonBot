@@ -616,6 +616,10 @@ el("invite-bot-panel").onsubmit = run(async () => {
   const matches = matchingBots();
   if (matches.length === 1) await addBot(matches[0]);
 });
+el("invite-bot-native").onclick = () => {
+  closeBotInvite();
+  el("invite-bot").focus();
+};
 el("open-group-bots").onclick = () => {
   const bots = el("manage").querySelector("[data-bots]");
   if (!bots) return;

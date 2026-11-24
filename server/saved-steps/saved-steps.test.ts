@@ -34,6 +34,7 @@ describe("savedStepsEnabled", () => {
   it("requires opt-in on Windows and defaults on for macOS", () => {
     expect(savedStepsEnabled({}, "darwin")).toBe(true);
     expect(savedStepsEnabled({ features: {} }, "win32")).toBe(false);
+    expect(savedStepsEnabled({ features: {} }, "linux")).toBe(false);
     expect(savedStepsEnabled({ features: { savedSteps: true } })).toBe(true);
     expect(savedStepsEnabled({ features: { savedSteps: false } })).toBe(false);
   });
@@ -358,7 +359,7 @@ describe("SavedSteps.requestSettled", () => {
     expect(facade({ platform: "darwin" }).here()).toBe(true);
     enabled = false;
     expect(facade({ platform: "darwin" }).here()).toBe(true);
-    expect(facade({ platform: "linux" }).here()).toBe(false);
+    expect(facade({ platform: "linux" }).here()).toBe(true);
     expect(facade({ platform: "win32" }).here()).toBe(true);
   });
 
@@ -560,3 +561,4 @@ describe("SavedSteps.requestSettled", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
+

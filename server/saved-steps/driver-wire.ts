@@ -10,6 +10,7 @@ export interface WireElement {
   value_read?: true;
   /** Windows UIA projected this enabled button inside the window it omitted. */
   uia_window_child?: true;
+  linux_window_child?: true;
 }
 export interface WireApp { pid: number; name: string; bundle_id?: string; running?: boolean }
 export interface WireWindow { window_id: number; pid?: number; title: string; app_name?: string }
@@ -79,7 +80,7 @@ export function wholeTree(state: Record<string, unknown>): boolean {
 
 export const treeDegraded = (state: Record<string, unknown>) => state.degraded === true || hasText(state.degraded_reason);
 
-function markWindowButtons(raw: Rec, elements: WireElement[]): void {
+function markWindowButtons(raw: Rec, elements: WireElement[], platform: "win32" | "linux"): void {
   if (raw.tree_format !== "elements" || !Number.isSafeInteger(raw.pid) || !Number.isSafeInteger(raw.window_id)
     || !hasText(raw.window_title) || !Array.isArray(raw.elements)
     || raw.total_element_count !== elements.length || raw.returned_element_count !== elements.length
@@ -95,8 +96,11 @@ function markWindowButtons(raw: Rec, elements: WireElement[]): void {
   for (const [index, row] of elements.entries()) {
     const parent = row.parent_index === undefined ? undefined : elements.find((candidate) => candidate.element_index === row.parent_index);
     const belongsToProjection = row.depth === 1 ? row.parent_index === undefined : parent !== undefined && parent.depth === row.depth - 1;
-    if (row.role === "Button" && belongsToProjection && rows[index].enabled === true
-      && /^s[0-9a-f]{8}:\d+$/u.test(row.element_token ?? "")) row.uia_window_child = true;
+    if (row.role === (platform === "win32" ? "Button" : "push button") && belongsToProjection && rows[index].enabled === true
+      && /^s[0-9a-f]{8}:\d+$/u.test(row.element_token ?? "")) {
+      if (platform === "win32") row.uia_window_child = true;
+      else row.linux_window_child = true;
+    }
   }
 }
 
@@ -113,9 +117,9 @@ function slimStructured(raw: Rec, platform: NodeJS.Platform): SlimStructured {
   if (elements) out.elements = elements;
   if (elements && elements.length === (raw.elements as unknown[]).length && wholeTree(raw) && !treeDegraded(raw)) {
     out.elements_complete = true;
-    if (platform === "win32" && !raw.refusal) markWindowButtons(raw, elements);
+    if ((platform === "win32" || platform === "linux") && !raw.refusal) markWindowButtons(raw, elements, platform);
   }
-  if (platform === "win32" && backgroundAccessibilityAction(raw)) out.background_accessibility_action = true;
+  if ((platform === "win32" || platform === "linux") && backgroundAccessibilityAction(raw)) out.background_accessibility_action = true;
   if (apps) out.apps = apps;
   if (windows) out.windows = windows;
   if (isRec(raw.refusal)) {
@@ -148,3 +152,4 @@ export function elementPath(elements: readonly WireElement[], element: WireEleme
   }
   return node.depth > 0 ? null : chain.reverse();
 }
+

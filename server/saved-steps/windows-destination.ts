@@ -23,8 +23,9 @@ export function windowsDestination(request: string): { button: string; title: st
 export function expectedWindowsDestination(recipe: Pick<Recipe, "request" | "steps">): { title: string } | { tab: string } | undefined {
   const destination = windowsDestination(recipe.request);
   const step = recipe.steps[0];
-  if (!destination || recipe.steps.length !== 1 || !step?.element?.uiaWindowChild || step.element.label !== destination.button
+  if (!destination || recipe.steps.length !== 1 || !(step?.element?.uiaWindowChild || step?.element?.linuxWindowChild) || step.element.label !== destination.button
     || !step.app?.name || !step.window?.title) return undefined;
+  if (step.element.linuxWindowChild && "tab" in destination) return undefined;
   if ("tab" in destination) return { tab: destination.tab };
   return step.window.title === destination.title ? undefined : { title: destination.title };
 }
@@ -42,7 +43,7 @@ export function windowsSnapshotMatches(
   data: SlimStructured | undefined, step: RecipeStep, pid: unknown, windowId: unknown, title: string,
 ): boolean {
   return Number.isSafeInteger(pid) && Number.isSafeInteger(windowId) && data?.elements_complete === true && data.tree_format === "elements" && !data.refusal
-    && data.pid === pid && data.window_id === windowId && data.app_name === step.app?.name && data.window_title === title;
+    && data.pid === pid && data.window_id === windowId && (step.element?.linuxWindowChild || data.app_name === step.app?.name) && data.window_title === title;
 }
 
 export function recordedWindowsDestination(recipe: Recipe, journal: RequestJournal): boolean {
@@ -56,14 +57,16 @@ export function recordedWindowsDestination(recipe: Recipe, journal: RequestJourn
   const matchingWindow = (call: RequestJournal["calls"][number]) => call.tool === "get_window_state"
     && call.arguments.pid === pid && call.arguments.window_id === windowId && call.arguments.tree_format === "elements"
     && call.arguments.include_screenshot !== true
-    && Object.keys(call.arguments).every((key) => ["pid", "window_id", "tree_format", "include_screenshot", "timeout_ms", "max_elements"].includes(key));
+    && (call.arguments.session === undefined || typeof call.arguments.session === "string")
+    && Object.keys(call.arguments).every((key) => ["pid", "window_id", "tree_format", "include_screenshot", "timeout_ms", "max_elements", "session"].includes(key));
   const before = journal.calls.slice(0, index).findLast(matchingWindow);
   const after = journal.calls.slice(index + 1).find(matchingWindow);
   return windowsSnapshotMatches(before?.result.structured, step, pid, windowId, step.window!.title)
-    && before?.result.structured?.elements?.some((row) => row.element_token === token && row.uia_window_child === true) === true
+    && before?.result.structured?.elements?.some((row) => row.element_token === token && (step.element?.linuxWindowChild ? row.linux_window_child === true : row.uia_window_child === true)) === true
     && ("title" in destination
       ? windowsSnapshotMatches(after?.result.structured, step, pid, windowId, destination.title)
       : windowsTabCount(before?.result.structured, destination.tab) === 0
         && windowsSnapshotMatches(after?.result.structured, step, pid, windowId, step.window!.title)
         && windowsTabSelected(after?.result.structured, destination.tab));
 }
+

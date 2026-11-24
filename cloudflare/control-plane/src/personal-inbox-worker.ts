@@ -2,7 +2,7 @@ import { inboxLanguage, supportedInboxLanguage } from "./inbox-language";
 import { previewGroup } from "./inbox-group";
 import { InboxSignals, notifyRoom } from "./inbox-signals";
 export { InboxSignals };
-import { inboxFile, inboxFilePart, maxFileBytes, maxBatchParts, maxRawBatchParts, partBytes } from "./inbox-files";
+import { inboxFile, inboxFilePart, maxFileBytes, maxBatchParts, maxRawBatchParts, partBytes, voiceFileBytes } from "./inbox-files";
 import { allowPilotLogin, claimGuestInvites, suppressGuestMail } from "./inbox-guest";
 import { z } from "zod";
 import { createAuth, deleteExpiredVerifications } from "./auth";
@@ -141,7 +141,7 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   if (req.method === "GET" && url.pathname === "/api/me") {
     await claimGuestInvites(env.DB, session.user.id, session.user.email.toLowerCase());
     const locale = await env.DB.prepare("SELECT locale FROM inbox_languages WHERE person=?").bind(session.user.id).first<string>("locale");
-    return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts });
+    return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts, voiceFileBytes });
   }
   const result = await inboxRoutes(req, env, session.user.id, ctx);
   if (env.SIGNALS && result.ok && req.method === "POST") {
@@ -170,11 +170,12 @@ export default {
     headers.set("cache-control", "private, no-store");
     headers.set("referrer-policy", "no-referrer");
     headers.set("x-content-type-options", "nosniff");
+    headers.set("permissions-policy", "microphone=(self), camera=(), display-capture=()");
     headers.set(
       "content-security-policy",
       new URL(request.url).pathname === "/file-compressor.js"
         ? "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'"
-        : "default-src 'none'; style-src 'self'; img-src 'self' blob:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+        : "default-src 'none'; style-src 'self'; img-src 'self' blob:; media-src 'self' blob:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
     );
     if (new URL(request.url).pathname.startsWith("/brotli-3.0.1/") && response.ok)
       headers.set("cache-control", "public, max-age=31536000, immutable");

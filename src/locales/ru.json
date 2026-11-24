@@ -7560,5 +7560,14 @@
   "personalInbox.checkMail": "Проверьте последнее письмо, отправленное на {email}, в том числе в папке «Спам». Код действует 10 минут. За 15 минут можно запросить до трёх кодов.",
   "personalInbox.retention": "Сообщения хранятся 30 дней. Сохранённые навыки и задачи видны только вам, пока вы их не удалите.",
   "personalInbox.retry": "Проверьте подключение и попробуйте ещё раз.",
-  "personalInbox.reviewSend": "Проверить перед отправкой"
+  "personalInbox.reviewSend": "Проверить перед отправкой",
+  "personalInbox.voiceMessage": "Голосовое сообщение",
+  "personalInbox.recordVoice": "Записать голосовое сообщение",
+  "personalInbox.stopRecording": "Остановить запись",
+  "personalInbox.discardVoice": "Отменить голосовой ввод",
+  "personalInbox.recordingVoice": "Идёт запись…",
+  "personalInbox.startingVoice": "Включение микрофона…",
+  "personalInbox.dictatingVoice": "Идёт диктовка…",
+  "personalInbox.microphoneUnavailable": "Микрофон недоступен. Проверьте разрешения на доступ к микрофону.",
+  "personalInbox.recordingFailed": "Не удалось записать. Попробуйте снова."
 }

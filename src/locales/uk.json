@@ -4320,5 +4320,14 @@
   "personalInbox.removeFile": "Видалити {file}",
   "personalInbox.sendingFile": "Відправляємо {file}…",
   "personalInbox.shareAudience": "Відправити до {room}. Члени можуть зберегти копію.",
-  "personalInbox.emailIntro": "{sender} запрошує вас до чату в StartupBot."
+  "personalInbox.emailIntro": "{sender} запрошує вас до чату в StartupBot.",
+  "personalInbox.voiceMessage": "Голосове повідомлення",
+  "personalInbox.recordVoice": "Записати голосове повідомлення",
+  "personalInbox.stopRecording": "Зупинити запис",
+  "personalInbox.discardVoice": "Скасувати голосове введення",
+  "personalInbox.recordingVoice": "Триває запис…",
+  "personalInbox.startingVoice": "Увімкнення мікрофона…",
+  "personalInbox.dictatingVoice": "Триває диктування…",
+  "personalInbox.microphoneUnavailable": "Мікрофон недоступний. Перевірте дозволи на доступ до нього.",
+  "personalInbox.recordingFailed": "Не вдалося записати. Спробуйте ще раз."
 }

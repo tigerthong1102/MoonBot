@@ -8336,5 +8336,14 @@
   "personalInbox.botNone": "このコンピューターには招待できるボットがありません。",
   "personalInbox.botFailed": "ボットが返信できませんでした。",
   "personalInbox.botDone": "ディスカッション完了",
-  "personalInbox.botCancel": "ディスカッションを停止"
+  "personalInbox.botCancel": "ディスカッションを停止",
+  "personalInbox.voiceMessage": "音声メッセージ",
+  "personalInbox.recordVoice": "音声メッセージを録音",
+  "personalInbox.stopRecording": "録音を停止",
+  "personalInbox.discardVoice": "音声入力をキャンセル",
+  "personalInbox.recordingVoice": "録音中…",
+  "personalInbox.startingVoice": "マイクを起動中…",
+  "personalInbox.dictatingVoice": "音声入力中…",
+  "personalInbox.microphoneUnavailable": "マイクを使用できません。マイクのアクセス許可を確認してください。",
+  "personalInbox.recordingFailed": "録音できませんでした。もう一度お試しください。"
 }

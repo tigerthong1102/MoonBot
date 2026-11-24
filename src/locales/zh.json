@@ -10500,5 +10500,14 @@
   "personalInbox.botNone": "这台电脑上没有可邀请的机器人。",
   "personalInbox.botFailed": "机器人无法回复。",
   "personalInbox.botDone": "讨论完成",
-  "personalInbox.botCancel": "停止讨论"
+  "personalInbox.botCancel": "停止讨论",
+  "personalInbox.voiceMessage": "语音消息",
+  "personalInbox.recordVoice": "录制语音消息",
+  "personalInbox.stopRecording": "停止录制",
+  "personalInbox.discardVoice": "取消语音输入",
+  "personalInbox.recordingVoice": "正在录音…",
+  "personalInbox.startingVoice": "正在启用麦克风…",
+  "personalInbox.dictatingVoice": "正在语音输入…",
+  "personalInbox.microphoneUnavailable": "麦克风不可用。请检查麦克风权限。",
+  "personalInbox.recordingFailed": "录音失败，请重试。"
 }

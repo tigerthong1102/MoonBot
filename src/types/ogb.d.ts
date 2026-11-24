@@ -120,6 +120,10 @@ const __APP_VERSION__: string;
       softwareRendering?: boolean;
       /** This app's own version, and whether this page is this app's own: false on a server added in the Server menu,
        * whose page carries that server's version. Absent in desktop builds before it. */
+      inboxDictation?: {
+        subscribe(listener: (command: { id: string; action: "start" | "finish" | "cancel" }) => void): () => void;
+        report(id: string, result: { text: string } | { status: "done" | "failed" | "unavailable" }): Promise<void>;
+      };
       personalAccount?: {
         updatesConsent: import("../../electron/updates-consent.mjs").UpdatesConsentBridge;
         sendCode(email: string): Promise<"ok" | "invalid" | "limited" | "unavailable">;

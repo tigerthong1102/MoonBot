@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Paperclip, Send, FileText, Download, Users, Search, SquarePen, Ellipsis, X, MessageCircle, Info } from "lucide-react";
+import { AudioLines, Mic, Paperclip, Send, FileText, Download, Users, Search, SquarePen, Ellipsis, X, MessageCircle, Info } from "lucide-react";
 import { createServer } from "vite";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
@@ -30,7 +30,7 @@ for (const locale of Object.keys(languageNames)) {
     return [key, value];
   }));
   messages[locale] = Object.fromEntries(Object.entries(catalog).filter(([key]) =>
-    key.startsWith("personalInbox.") && !mailKeys.includes(key.slice("personalInbox.".length))));
+    (key.startsWith("personalInbox.") && !mailKeys.includes(key.slice("personalInbox.".length))) || key.startsWith("composer.dictation.")));
 
 }
 const mailPath = new URL("../src/inbox-mail-text.json", import.meta.url);
@@ -61,7 +61,7 @@ await writeFile(new URL("./public/inbox-messages.js", import.meta.url), [
 ].map(([name, value]) => "export const " + name + " = " + JSON.stringify(value) + ";").join("\n") + "\n");
 
 
-const icons = { clip: Paperclip, send: Send, file: FileText, down: Download, group: Users, search: Search, new: SquarePen, more: Ellipsis, close: X, chat: MessageCircle, info: Info };
+const icons = { clip: Paperclip, send: Send, file: FileText, down: Download, group: Users, search: Search, new: SquarePen, more: Ellipsis, close: X, chat: MessageCircle, info: Info, mic: Mic, "audio-lines": AudioLines };
 const symbols = Object.entries(icons).map(([name, Icon]) => {
   const svg = renderToStaticMarkup(createElement(Icon));
   return svg.replace(/^<svg[^>]*>/, '<symbol id="i-' + name + '" viewBox="0 0 24 24">').replace(/<\/svg>$/, "</symbol>");

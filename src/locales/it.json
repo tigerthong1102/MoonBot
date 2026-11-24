@@ -7369,5 +7369,14 @@
   "personalInbox.botNone": "Nessun bot disponibile su questo computer.",
   "personalInbox.botFailed": "Il bot non ha risposto.",
   "personalInbox.botDone": "Discussione completata",
-  "personalInbox.botCancel": "Fermare la discussione"
+  "personalInbox.botCancel": "Fermare la discussione",
+  "personalInbox.voiceMessage": "Messaggio vocale",
+  "personalInbox.recordVoice": "Registra un messaggio vocale",
+  "personalInbox.stopRecording": "Interrompi registrazione",
+  "personalInbox.discardVoice": "Annulla input vocale",
+  "personalInbox.recordingVoice": "Registrazione in corso…",
+  "personalInbox.startingVoice": "Attivazione del microfono…",
+  "personalInbox.dictatingVoice": "Dettatura in corso…",
+  "personalInbox.microphoneUnavailable": "Microfono non disponibile. Controlla le autorizzazioni del microfono.",
+  "personalInbox.recordingFailed": "Registrazione non riuscita. Riprova."
 }

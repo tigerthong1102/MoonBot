@@ -7506,5 +7506,14 @@
   "personalInbox.botNone": "Na tym komputerze nie ma botów, które można zaprosić.",
   "personalInbox.botFailed": "Bot nie mógł odpowiedzieć.",
   "personalInbox.botDone": "Dyskusja zakończona",
-  "personalInbox.botCancel": "Zatrzymaj dyskusję"
+  "personalInbox.botCancel": "Zatrzymaj dyskusję",
+  "personalInbox.voiceMessage": "Wiadomość głosowa",
+  "personalInbox.recordVoice": "Nagraj wiadomość głosową",
+  "personalInbox.stopRecording": "Zatrzymaj nagrywanie",
+  "personalInbox.discardVoice": "Anuluj wprowadzanie głosowe",
+  "personalInbox.recordingVoice": "Nagrywanie…",
+  "personalInbox.startingVoice": "Włączanie mikrofonu…",
+  "personalInbox.dictatingVoice": "Dyktowanie…",
+  "personalInbox.microphoneUnavailable": "Mikrofon jest niedostępny. Sprawdź uprawnienia mikrofonu.",
+  "personalInbox.recordingFailed": "Nie udało się nagrać. Spróbuj ponownie."
 }

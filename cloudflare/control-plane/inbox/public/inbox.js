@@ -2,11 +2,16 @@ import { language, languageNames, setLanguage, t } from "./inbox-i18n.js";
 import { groupBots } from "./group-bots.js";
 import { groupControls } from "./group-controls.js";
 import { installInboxSelects } from "./inbox-select.js";
+import { isVoiceMessage, voiceComposer } from "./inbox-voice.js";
 installInboxSelects();
 const el = (id) => document.getElementById(id);
 el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") !== "1";
 for (const back of document.querySelectorAll(".list-back")) {
-  back.onclick = () => { delete document.body.dataset.thread; };
+  back.onclick = () => {
+    voice.discard();
+    for (const audio of voicePlayers.values()) audio.pause();
+    delete document.body.dataset.thread;
+  };
 }
 const hostAuth = !el("desktop-back").hidden && new URLSearchParams(location.search).get("hostAuth") === "1";
 const accountOnly = !el("desktop-back").hidden && new URLSearchParams(location.search).get("account") === "1";
@@ -45,8 +50,20 @@ let posts = [],
   viewingSaved = false,
   readingOlder = false;
 
+const voicePlayers = new Map();
+const voice = voiceComposer({
+  recordButton: el("record-voice"), dictateButton: el("dictate-voice"),
+  cancelButton: el("cancel-voice"), status: el("voice-status"), draft: el("draft"), desktop: !el("desktop-back").hidden,
+  eligible: () => Boolean(current && me && !activeBatch && !el("compose").hidden && !el("conversation").hidden && el("compose").elements.kind.value === "text"),
+  maxBytes: () => me?.voiceFileBytes, stage: file => stageFiles([file]), changed: updateComposer, error: reason => fail(Error(reason)), t,
+});
+
 function fail(error) {
   const errors = {
+    voice_unavailable: t("personalInbox.microphoneUnavailable"),
+    voice_failed: t("personalInbox.recordingFailed"),
+    dictation_unavailable: t("composer.dictation.unavailable"),
+    dictation_failed: t("composer.dictation.failed"),
     upload_unavailable: t("personalInbox.uploadUnavailable"),
     invalid_filename: t("personalInbox.invalidName"),
     empty_file: t("personalInbox.emptyFile"),
@@ -106,12 +123,18 @@ function clearRoom() {
   lastDetailAt = 0;
   revision++;
   current = null;
+  voice.discard();
+  for (const audio of voicePlayers.values()) audio.pause();
+  voicePlayers.clear();
   delete document.body.dataset.thread;
   el("invite-link-field").value = "";
   el("invite-link-field").hidden = true;
   el("room-options").open = false;
   activeBatch = null;
-  for (const item of attachments) if (item.preview) URL.revokeObjectURL(item.preview);
+  for (const item of attachments) {
+    item.player?.pause();
+    if (item.preview) URL.revokeObjectURL(item.preview);
+  }
   attachments = [];
   renderAttachments();
   posts = [];
@@ -399,6 +422,8 @@ async function refreshRoom(poll) {
   const waiting = r.kind === "direct" && detail.members.length !== 2;
   const limited = group && (r.muted || (r.announcements && !manager));
   el("compose").hidden = !!(waiting || limited);
+  if (waiting || limited) voice.discard();
+  updateComposer();
   el("post-limited").hidden = !limited;
   if (limited) el("post-limited").textContent = r.muted ? t("personalInbox.readOnly") : t("personalInbox.adminPostOnly");
   if (r.kind === "group") el("room-meta").textContent = t("personalInbox.memberCount", { count: detail.members.length });
@@ -539,7 +564,7 @@ el("compose").onsubmit = run(async () => {
   const form = el("compose"),
     kind = form.elements.kind.value,
     body = form.elements.body.value.trim();
-  if (activeBatch || (!body && !attachments.length)) return;
+  if (activeBatch || voice.active || (!body && !attachments.length)) return;
   if (!body) pendingPost = null;
   else if (!pendingPost || pendingPost.room !== current || pendingPost.kind !== kind || pendingPost.body !== body)
     pendingPost = { room: current, kind, body, nonce: crypto.randomUUID() };
@@ -558,7 +583,7 @@ async function shareMarkdown(item) {
   }
   if (!body || body.includes("\0")) throw Error("skill_file_text");
   if (body.length > limit) throw Error("skill_file_length");
-  if (room !== current || activeBatch || !attachments.includes(item)) return;
+  if (room !== current || voice.active || activeBatch || !attachments.includes(item)) return;
   const batch = { room };
   activeBatch = batch;
   renderAttachments();
@@ -610,6 +635,36 @@ function attachmentCard(post) {
   link.append(row);
   return link;
 }
+function voicePlayer(src) {
+  const audio = document.createElement("audio");
+  audio.className = "voice-player";
+  audio.controls = true;
+  audio.preload = "none";
+  audio.src = src;
+  audio.setAttribute("aria-label", t("personalInbox.voiceMessage"));
+  return audio;
+}
+
+function voiceMessage(post) {
+  const src = "/api/rooms/" + current + "/files/" + post.seq;
+  const audio = voicePlayers.get(post.seq) ?? voicePlayer(src + "?play=1");
+  audio.setAttribute("aria-label", t("personalInbox.voiceMessage"));
+  voicePlayers.set(post.seq, audio);
+  const card = node("div", "");
+  card.className = "voice-message";
+  const label = node("strong", t("personalInbox.voiceMessage"));
+  const link = node("a", "");
+  link.className = "ui-icon-button round";
+  link.href = src;
+  link.download = post.body;
+  const download = t("personalInbox.downloadFile", { file: label.textContent });
+  link.title = download;
+  link.setAttribute("aria-label", download);
+  link.append(icon("down"));
+  card.append(label, audio, link);
+  return card;
+}
+
 function renderPosts() {
   const list = el("posts");
   const active = document.activeElement;
@@ -640,7 +695,9 @@ function renderPosts() {
     const meta = node("small", (p.botName ? t("personalInbox.botOwner",{bot:p.botName,owner:p.author}) : p.author === me.email ? t("personalInbox.you") : p.author.split("@")[0]) + type + " · " +
       date.toLocaleTimeString(language, {hour:"2-digit",minute:"2-digit"}));
     meta.title = p.author + " · " + date.toLocaleString(language);
-    if (p.kind === "file") bubble.append(attachmentCard(p));
+    if (p.kind === "file") {
+      bubble.append(isVoiceMessage(p.body) && p.fileSize <= me.voiceFileBytes ? voiceMessage(p) : attachmentCard(p));
+    }
     else {
       bubble.append(node("pre", p.body));
       const invitation = p.kind === "text" && URL.canParse(p.body) ? new URL(p.body) : null;
@@ -672,6 +729,10 @@ function renderPosts() {
     previous = p;
     items.push(li);
   }
+  for (const [seq, audio] of voicePlayers) if (!posts.some(post => post.seq === seq)) {
+    audio.pause();
+    voicePlayers.delete(seq);
+  }
   list.replaceChildren(...items);
   if (focusIndex >= 0) {
     const row = list.querySelector('[data-seq="' + CSS.escape(focused.dataset.seq) + '"]');
@@ -685,13 +746,16 @@ function updateComposer() {
   el("sending").hidden = !busy;
   el("sending").textContent = busy ? (attachments.length ? t("personalInbox.sendingFile", { file: attachments[0].file.name }) : t("personalInbox.sending")) : "";
   el("draft").readOnly = busy;
-  el("attach").disabled = busy || el("compose").elements.kind.value !== "text";
-  el("compose").elements.kind.disabled = busy || attachments.length > 0;
-  el("submit-post").disabled = busy || (!el("draft").value.trim() && !attachments.length);
+  el("attach").disabled = busy || voice.active || el("compose").elements.kind.value !== "text";
+  el("compose").elements.kind.disabled = busy || voice.active || attachments.length > 0;
+  for (const action of el("attachments").querySelectorAll(".share-markdown")) action.disabled = busy || voice.active;
+  el("submit-post").disabled = busy || voice.active || (!el("draft").value.trim() && !attachments.length);
   el("compose").setAttribute("aria-busy", String(busy));
+  voice.update();
 }
 function removeAttachment(item) {
   attachments = attachments.filter((entry) => entry !== item);
+  item.player?.pause();
   if (item.preview) URL.revokeObjectURL(item.preview);
   renderAttachments();
 }
@@ -705,7 +769,11 @@ function renderAttachments() {
     remove.title = remove.textContent;
     remove.replaceChildren(icon("close"));
     remove.disabled = Boolean(activeBatch);
-    chip.append(item.preview ? thumbnail(item.preview) : icon("file"), fileDetails(item.file.name, item.file.size), remove);
+    if (isVoiceMessage(item.file.name)) {
+      const player = item.player ??= voicePlayer(item.preview);
+      player.setAttribute("aria-label", t("personalInbox.voiceMessage"));
+      chip.append(player, remove);
+    } else chip.append(item.preview ? thumbnail(item.preview) : icon("file"), fileDetails(item.file.name, item.file.size), remove);
     if (isMarkdown(item.file.name)) {
       const share = button(t("personalInbox.shareAsSkill"), () => shareMarkdown(item));
       share.classList.add("share-markdown");
@@ -724,8 +792,8 @@ function stageFiles(files) {
       fail(Error(file.size ? "request_too_large" : "empty_file"));
       continue;
     }
-    attachments.push({file, nonce:crypto.randomUUID(), preview:canPreview(file.name) &&
-      /^image\/(png|jpeg|gif|webp)$/.test(file.type) ? URL.createObjectURL(file) : null});
+    attachments.push({file, nonce:crypto.randomUUID(), preview:isVoiceMessage(file.name) || (canPreview(file.name) &&
+      /^image\/(png|jpeg|gif|webp)$/.test(file.type)) ? URL.createObjectURL(file) : null});
   }
   renderAttachments();
 }

@@ -15,8 +15,11 @@ const email = z
   .max(254)
   .transform((value) => value.toLowerCase());
 const create = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("direct"), id: z.uuid(), email, guest: guestOptions.optional() }),
-  z.object({ kind: z.literal("group"), id: z.uuid(), title: z.string().trim().min(1).max(80) }),
+  z.object({ kind: z.literal("direct"), id: z.uuid(), email, guest: guestOptions.optional(), instant: z.boolean().default(false) }),
+  z.object({
+    kind: z.literal("group"), id: z.uuid(), title: z.string().trim().min(1).max(80),
+    invitees: z.array(email).max(8).default([]), guest: guestOptions.optional(),
+  }),
 ]);
 const maxPostLength = 8000;
 export const maxPostBytes = 6 * maxPostLength + 1024;
@@ -25,7 +28,7 @@ const post = z.object({
   kind: z.enum(["text", "skill", "task"]),
   body: z.string().trim().min(1).max(maxPostLength),
 });
-const invite = z.object({ email, guest: guestOptions.optional() });
+const invite = z.object({ email, guest: guestOptions.optional(), instant: z.boolean().default(false) });
 const remove = z.object({ person: z.string().min(1).max(128) });
 const pageSize = 50;
 export const inboxRetention = 30 * 86400_000;
@@ -55,17 +58,36 @@ async function limit(db: D1Database, user: string, action: string, max: number, 
 const memberAccess = "SELECT 1 FROM inbox_members WHERE room=? AND person=? AND state='active'";
 const ownerAccess = "SELECT 1 FROM inbox_rooms WHERE id=? AND owner=?";
 
-function inviteMember(db: D1Database, room: string, owner: string, address: string, kind: string) {
+function inviteGroupMember(db: D1Database, room: string, owner: string, address: string, instant: boolean) {
   return db
     .prepare(
-      `INSERT OR IGNORE INTO inbox_members(room,person,state)
-    SELECT r.id,u.id,'pending' FROM inbox_rooms r JOIN "user" u ON u.email=?
-    WHERE u.emailVerified=1 AND u.id!=? AND r.id=? AND (r.owner=?4 OR (r.kind='group' AND EXISTS (SELECT 1 FROM inbox_members a WHERE a.room=r.id AND a.person=?4 AND a.state='active' AND a.admin=1))) AND r.kind=?5
-    AND NOT EXISTS (SELECT 1 FROM inbox_blocks WHERE person=u.id AND sender IN (r.owner,?4))
+      `INSERT OR IGNORE INTO inbox_members(room,person,state,after_seq)
+    SELECT room,person,state,CASE WHEN state='active' THEN coalesce((SELECT MAX(seq) FROM inbox_posts WHERE room=eligible.room),0) ELSE 0 END
+    FROM (SELECT r.id AS room,u.id AS person,CASE WHEN ?4=1 AND r.membership_history_complete=1
+      AND NOT EXISTS(SELECT 1 FROM inbox_group_departures WHERE room=r.id AND person=u.id)
+      AND (SELECT count(*) FROM inbox_members WHERE person=u.id AND state='active')<200
+      THEN 'active' ELSE 'pending' END AS state
+    FROM inbox_rooms r JOIN "user" u ON u.email=?3
+    WHERE u.emailVerified=1 AND u.id NOT IN (?2,r.owner) AND r.id=?1 AND r.kind='group' AND EXISTS (${groupManager})
+    AND NOT EXISTS (SELECT 1 FROM inbox_blocks WHERE (person=u.id AND sender IN (r.owner,?2)) OR (sender=u.id AND person IN (r.owner,?2)))
+    AND NOT EXISTS (SELECT 1 FROM inbox_group_bans WHERE room=r.id AND person=u.id)
     AND (SELECT count(*) FROM inbox_members WHERE room=r.id)+(SELECT count(*) FROM inbox_guest_invites WHERE room=r.id AND created>=?)<20
-    AND (SELECT count(*) FROM inbox_members WHERE person=u.id AND state='pending')<50`,
+    ) eligible WHERE state='active' OR (SELECT count(*) FROM inbox_members WHERE person=eligible.person AND state='pending')<50`,
     )
-    .bind(address, owner, room, owner, kind, Date.now() - 7 * 86400_000);
+    .bind(room, owner, address, Number(instant), Date.now() - 7 * 86400_000);
+}
+
+async function inviteToGroup(env: InboxEnv, ctx: ExecutionContext, user: string, room: string, addresses: string[], instant: boolean, guest?: z.infer<typeof guestOptions>) {
+  if (!addresses.length) return;
+  if (guest && redactSecretsInText(guest.note) !== guest.note) throw new HTTPError(400, "contains_secret");
+  await env.DB.batch(addresses.map(address => inviteGroupMember(env.DB, room, user, address, instant)));
+  if (guest) {
+    for (const address of addresses) {
+      if (await recordGuestInvite(env, user, room, address, guest)) {
+        ctx.waitUntil(deliverGuestMail(env, room, address).catch(() => console.error("inbox invite delivery failed")));
+      }
+    }
+  }
 }
 
 function changed(result: D1Result) {
@@ -109,6 +131,18 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
 export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx: ExecutionContext) {
   const db = env.DB;
   const url = new URL(req.url);
+  const skillDownload = /^\/api\/saved\/([0-9]{1,16})\/download$/.exec(url.pathname);
+  if (skillDownload && req.method === "GET") {
+    const seq = Number(skillDownload[1]);
+    if (!Number.isSafeInteger(seq)) throw new HTTPError(404, "unavailable");
+    const skill = await db.prepare("SELECT body FROM inbox_saved WHERE person=? AND source_seq=? AND kind='skill'")
+      .bind(user, seq).first<string>("body");
+    if (skill === null) throw new HTTPError(404, "unavailable");
+    return new Response(skill, { headers: {
+      "content-type": "text/markdown; charset=utf-8",
+      "content-disposition": 'attachment; filename="SKILL.md"',
+    } });
+  }
   if (url.pathname === "/api/bot-turns" && req.method === "GET") return pendingBotTurns(db,user);
   const botRoom = /^\/api\/rooms\/([a-f0-9-]{36})\/bots$/.exec(url.pathname);
   if (botRoom) {
@@ -207,6 +241,8 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     }
     if (req.method !== "POST") throw new HTTPError(405, "method_not_allowed");
     const input = await body(req, create);
+    if (input.guest && redactSecretsInText(input.guest.note) !== input.guest.note)
+      throw new HTTPError(400, "contains_secret");
     await limit(db, user, "inbox_create", 20, 86400_000);
     if (
       input.kind === "direct" &&
@@ -219,18 +255,30 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
       WHERE r.kind='direct' AND m.person=?1 AND
       ((r.owner=?1 AND r.title=?2) OR (r.owner!=?1 AND owner.email=?2))
       ORDER BY (SELECT count(*) FROM inbox_members WHERE room=r.id AND state='active') DESC,r.created,r.id LIMIT 1`;
-    const [created, existing] = await db.batch<{ id: string }>([
-      db.prepare(`INSERT INTO inbox_rooms(id,kind,title,owner,created)
-        SELECT ?3,?4,?2,?1,?5 WHERE (SELECT count(*) FROM inbox_rooms WHERE owner=?1)<100
+    const insertRoom = db.prepare(`INSERT INTO inbox_rooms(id,kind,title,owner,created,membership_history_complete)
+        SELECT ?3,?4,?2,?1,?5,?4='group' WHERE (SELECT count(*) FROM inbox_rooms WHERE owner=?1)<100
         AND (?4!='direct' OR NOT EXISTS (${direct})) ON CONFLICT DO NOTHING`)
-        .bind(user, title, input.id, input.kind, Date.now()),
-      input.kind === "direct"
-        ? db.prepare(direct).bind(user, title)
-        : db.prepare("SELECT id FROM inbox_rooms WHERE id=? AND owner=? AND kind='group' AND title=?")
-            .bind(input.id, user, title),
-    ]);
+      .bind(user, title, input.id, input.kind, Date.now());
+    const findRoom = input.kind === "direct"
+      ? db.prepare(direct).bind(user, title)
+      : db.prepare("SELECT id FROM inbox_rooms WHERE id=? AND owner=? AND kind='group' AND title=?")
+          .bind(input.id, user, title);
+    const statements = [insertRoom, findRoom];
+    if (input.kind === "direct" && input.instant) {
+      statements.splice(1, 0, db.prepare(`UPDATE inbox_members AS m SET state='active'
+        WHERE changes()=1 AND m.room=?1 AND m.state='pending' AND m.person=(SELECT id FROM "user" WHERE email=?2 AND emailVerified=1)
+        AND (SELECT count(*) FROM inbox_members WHERE person=m.person AND state='active')<200
+        AND NOT EXISTS(SELECT 1 FROM inbox_blocks WHERE (person=?3 AND sender=m.person) OR (person=m.person AND sender=?3))
+        AND EXISTS(SELECT 1 FROM inbox_rooms WHERE id=?1 AND owner=?3 AND kind='direct' AND title=?2)`)
+        .bind(input.id, input.email, user));
+    }
+    const results = await db.batch<{ id: string }>(statements);
+    const created = results[0], existing = results.at(-1)!;
     const id = created.meta.changes ? input.id : existing.results[0]?.id;
     if (!id) throw new HTTPError(409, "room_limit_or_conflict");
+    if (input.kind === "group") {
+      await inviteToGroup(env, ctx, user, id, [...new Set(input.invitees)], true, input.guest);
+    }
     if (input.kind === "direct" && input.guest) {
       if (await recordGuestInvite(env, user, id, input.email, input.guest))
         ctx.waitUntil(
@@ -274,11 +322,7 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
         .first())
     )
       throw new HTTPError(404, "unavailable");
-    if (input.guest && (await recordGuestInvite(env, user, room, input.email, input.guest)))
-      ctx.waitUntil(
-        deliverGuestMail(env, room, input.email).catch(() => console.error("inbox invite delivery failed")),
-      );
-    await inviteMember(db, room, user, input.email, "group").run();
+    await inviteToGroup(env, ctx, user, room, [input.email], input.instant, input.guest);
     return json({ ok: true });
   }
   if (action === "accept")

@@ -30,7 +30,7 @@ for (const locale of Object.keys(languageNames)) {
     return [key, value];
   }));
   messages[locale] = Object.fromEntries(Object.entries(catalog).filter(([key]) =>
-    (key.startsWith("personalInbox.") && !mailKeys.includes(key.slice("personalInbox.".length))) || key.startsWith("composer.dictation.")));
+    (key.startsWith("personalInbox.") && !mailKeys.includes(key.slice("personalInbox.".length))) || key.startsWith("composer.dictation.") || key === "common.cancel"));
 
 }
 const mailPath = new URL("../src/inbox-mail-text.json", import.meta.url);

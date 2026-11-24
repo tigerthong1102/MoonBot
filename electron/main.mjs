@@ -1496,7 +1496,7 @@ function activeOrigin() {
 }
 
 const inbox = createPersonalInbox({
-  window: () => mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow(), locale: nativeText.intlTag,
+  window: () => mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow(), locale: nativeText.intlTag, languageKey: nativeText.language,
   isLocal: win => senderIsLocal({ sender: win.webContents }), showLocal: () => switchEnvironment(LOCAL_ID),
   previousChoice: () => nativeText.prefs.updatesConsent(),
 });

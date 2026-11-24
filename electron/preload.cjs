@@ -202,6 +202,16 @@ const bridge = {
       },
     },
     openPersonalInbox: () => ipcRenderer.invoke("personal-inbox:open"),
+    personalInbox: {
+      create: draft => ipcRenderer.invoke("personal-inbox:create", draft),
+      close: () => ipcRenderer.invoke("personal-inbox:close"),
+      bounds: rect => ipcRenderer.invoke("personal-inbox:bounds", rect),
+      onVisibility: callback => {
+        const receive = (_event, shown) => callback(shown);
+        ipcRenderer.on("personal-inbox:visibility", receive);
+        return () => ipcRenderer.removeListener("personal-inbox:visibility", receive);
+      },
+    },
   } : {}),
   /** Linux without a GPU (electron/linux-gpu.mjs): the page drops its backdrop blurs. */
   softwareRendering: process.argv.includes("--omb-software-rendering=1"),

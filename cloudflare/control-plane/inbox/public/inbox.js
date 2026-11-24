@@ -116,10 +116,20 @@ function button(text, action) {
   });
   return b;
 }
+function confirmClose() {
+  const dialog = el("close-conversation");
+  if (dialog.open) return false;
+  dialog.returnValue = "";
+  dialog.showModal();
+  return new Promise(resolve => {
+    dialog.addEventListener("close", () => resolve(dialog.returnValue === "confirm"), { once: true });
+  });
+}
 let lastDetailAt = 0;
 let lastActivity = 0;
 let refreshes = 0;
 function clearRoom() {
+  el("close-conversation").close("cancel");
   lastDetailAt = 0;
   revision++;
   current = null;
@@ -252,9 +262,12 @@ window.addEventListener("hashchange", run(async () => {
   invitedRoom = params.get("room");
   el("join-prompt").hidden = true;
   if (joinToken) await showGroupInvitation();
-  else if (me && invitedRoom) {
-    await refresh();
-    if (rooms.some(r => r.id === invitedRoom)) await select(invitedRoom);
+  else if (me && invitedRoom && /^[a-f0-9-]{36}$/.test(invitedRoom)) {
+    const room = invitedRoom;
+    await select(room);
+    if (invitedRoom !== room) return;
+    invitedRoom = null;
+    history.replaceState(null, "", location.pathname + location.search);
   }
 }));
 el("join-button").onclick = run(async () => {
@@ -407,7 +420,8 @@ async function refreshRoom(poll) {
     if (r.isOwner)
     el("manage").append(
       button(t("personalInbox.closeRoom"), async () => {
-        if (!window.confirm(t("personalInbox.confirmClose"))) return;
+        const account = me?.id;
+        if (!(await confirmClose()) || me?.id !== account || current !== r.id) return;
         await api("rooms/" + r.id + "/close", {});
         clearRoom();
         await refresh();
@@ -470,11 +484,14 @@ async function select(id) {
 function createLabels() {
   const form = el("create-room"),
     group = form.elements.kind.value === "group";
-  form.querySelector("details").hidden = group;
+  el("group-recipients").hidden = !group;
   form.querySelector("button").textContent = group ? t("personalInbox.createGroup") : t("personalInbox.openChat");
   el("target-label").textContent = group ? t("personalInbox.groupName") : t("personalInbox.recipientEmail");
-  form.elements.target.type = group ? "text" : "email";
+  form.elements.target.inputMode = group ? "text" : "email";
   form.elements.target.maxLength = group ? 80 : 254;
+}
+function emailList(value) {
+  return [...new Set(value.trim().toLowerCase().split(/[\s,;]+/).filter(Boolean).map(address => address.replace(/^@/, "")))];
 }
 el("create-room").elements.kind.onchange = createLabels;
 el("create-room").onsubmit = run(async () => {
@@ -482,12 +499,14 @@ el("create-room").onsubmit = run(async () => {
     kind = form.elements.kind.value,
     target = form.elements.target.value.trim();
   const guest = { locale: form.elements.locale.value, note: form.elements.note.value.trim() };
-  const key = JSON.stringify([kind, target, guest]);
+  const invitees = emailList(form.elements.invitees.value);
+  const key = JSON.stringify([kind, target, guest, invitees]);
   if (pendingCreate?.key !== key) pendingCreate = { key, id: crypto.randomUUID() };
   const { id } = await api("rooms", {
     kind,
     id: pendingCreate.id,
-    ...(kind === "group" ? { title: target } : { email: target, guest }),
+    guest,
+    ...(kind === "group" ? { title: target, invitees } : { email: target.replace(/^@/, ""), instant: true }),
   });
   pendingCreate = null;
   form.reset();
@@ -504,9 +523,11 @@ el("invite").onsubmit = run(async () => {
   const form = el("invite");
   await api("rooms/" + current + "/invite", {
     email: form.elements.email.value.trim(),
+    instant: true,
     guest: { locale: form.elements.locale.value, note: form.elements.note.value.trim() },
   });
   el("invite").reset();
+  await refresh();
   status(t("personalInbox.invited"));
 });
 function composeLabels() {
@@ -821,6 +842,15 @@ async function smallerBody(blob, markdown = false) {
   return packed.size <= blob.size * 0.95 ? packed : blob;
 }
 
+async function compressMixedRegion(blob) {
+  const width = 8192;
+  if (blob.size <= width * 3) return smallerBody(blob, true);
+  const middle = Math.floor((blob.size - width) / 2);
+  const samples = new Blob([blob.slice(0, width), blob.slice(middle, middle + width), blob.slice(-width)]);
+  const packedSample = await smallerBody(samples, true);
+  return packedSample.size <= samples.size * 0.88 ? smallerBody(blob, true) : blob;
+}
+
 function fileCompressor() {
   const worker = new Worker("/file-compressor.js", { type: "module" });
   let next = 0;
@@ -868,8 +898,8 @@ async function postFile(url, body, headers) {
   }
 }
 
-async function uploadParts(url, item, headers, partSize, batchParts, compressor, raw = false) {
-  const pack = (blob) => compressor ? compressor.compress(blob) : smallerBody(blob);
+async function uploadParts(url, item, headers, partSize, batchParts, compressor, mixed = false) {
+  const pack = compressor ? (blob) => compressor.compress(blob) : mixed ? compressMixedRegion : smallerBody;
   const encoding = compressor ? "br" : "gzip";
   const rawBatchParts = me.fileRawBatchParts ?? 0;
   const parts = [];
@@ -893,9 +923,9 @@ async function uploadParts(url, item, headers, partSize, batchParts, compressor,
   }
   async function sendPart(group) {
     const index = group[0];
-    if (raw || group.length > 1) {
+    if (mixed || group.length > 1) {
       const slice = item.file.slice(index * partSize, (group.at(-1) + 1) * partSize);
-      const packed = raw ? slice : await pack(slice);
+      const packed = await pack(slice);
       const acceptsRawBatch = group.length <= rawBatchParts;
       if (acceptsRawBatch || (packed !== slice && packed.size <= partSize)) {
         await postFile(url + "/" + index, packed, {
@@ -904,9 +934,15 @@ async function uploadParts(url, item, headers, partSize, batchParts, compressor,
         return;
       }
     }
-    for (const n of group) {
-      const body = await pack(parts[n]);
-      await postFile(url + "/" + n, body, { ...headers, "x-inbox-encoding": body === parts[n] ? "identity" : encoding });
+    const width = Math.max(rawBatchParts, 1);
+    for (let offset = 0; offset < group.length; offset += width) {
+      const first = group[offset];
+      const span = Math.min(width, group.length - offset);
+      const slice = span === 1 ? parts[first] : item.file.slice(first * partSize, (first + span) * partSize);
+      const body = await pack(slice);
+      await postFile(url + "/" + first, body, {
+        ...headers, "x-inbox-encoding": body === slice ? "identity" : encoding, "x-inbox-parts": String(span),
+      });
     }
   }
   let next = 0;
@@ -936,7 +972,7 @@ async function uploadFile(room, item) {
     const packedSample = me.fileGzip ? await smallerBody(sample) : sample;
     const compressible = packedSample !== sample;
     if (!compressible && me.fileRawBatchParts)
-      return uploadParts(url, item, headers, partSize, me.fileRawBatchParts, null, true);
+      return uploadParts(url, item, headers, partSize, me.fileRawBatchParts, null, me.fileGzip);
     if (!compressible || item.file.size > 20_000_000 || item.file.size * packedSample.size / sample.size > 2 * partSize) {
       const codec = compressible && me.fileBrotli && typeof Worker === "function" ? fileCompressor() : null;
       try {
@@ -984,16 +1020,12 @@ async function showSaved() {
         node("small", p.kind === "skill" ? t("personalInbox.skill") : p.done ? t("personalInbox.completedTask") : t("personalInbox.receivedTask")),
         node("pre", p.body),
       );
-      if (p.kind === "skill")
-        item.append(
-          button(t("personalInbox.downloadSkill"), () => {
-            const link = document.createElement("a");
-            link.download = "SKILL.md";
-            link.href = URL.createObjectURL(new Blob([p.body], { type: "text/plain;charset=utf-8" }));
-            link.click();
-            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-          }),
-        );
+      if (p.kind === "skill") {
+        const link = node("a", t("personalInbox.downloadSkill"));
+        link.download = "SKILL.md";
+        link.href = "/api/saved/" + p.seq + "/download";
+        item.append(link);
+      }
       if (p.kind === "task" && !p.done)
         item.append(
           button(t("personalInbox.complete"), async () => {

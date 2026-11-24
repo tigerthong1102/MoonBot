@@ -87,6 +87,70 @@ async function login(email: string) {
   return { cookie, ...(await me.json<{ id: string; email: string }>()) };
 }
 
+it("opens one direct conversation from New Group across both accounts", async () => {
+  const a = await login("a@example.test"), b = await login("b@example.test");
+  const results = await Promise.all([
+    call("rooms", a.cookie, { kind: "direct", id: uuid(), email: b.email, instant: true }),
+    call("rooms", b.cookie, { kind: "direct", id: uuid(), email: a.email, instant: true }),
+  ]);
+  expect(results.map(result => result.status)).toEqual([200, 200]);
+  const [{ id }, second] = await Promise.all(results.map(result => result.json<{ id: string }>()));
+  expect(second.id).toBe(id);
+  const message = { nonce: uuid(), kind: "text", body: "Hello from New Group" };
+  const room = "rooms/" + id;
+  expect((await call(room + "/posts", a.cookie, message)).status).toBe(200);
+  expect(await (await call(room, b.cookie)).json()).toMatchObject({ posts: [{ body: message.body }] });
+  expect((await call(room + "/block", b.cookie, {})).status).toBe(200);
+  await call("rooms", a.cookie, { kind: "direct", id: uuid(), email: b.email, instant: true });
+  expect(await (await call("rooms", b.cookie)).json()).toEqual({ rooms: [] });
+  await call("rooms", b.cookie, { kind: "direct", id: uuid(), email: a.email, instant: true });
+  expect((await (await call("rooms", a.cookie)).json<{ rooms: { id: string }[] }>()).rooms.map(r => r.id)).toEqual([id]);
+});
+
+it("auto-adds verified invitees, sends a guest invitation, and remembers group departures", async () => {
+  const a = await login("a@example.test"), b = await login("b@example.test"), c = await login("c@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  const guest = { locale: "vi", note: "" }, external = "new-group-guest@example.test";
+  const sent: { to: string; text: string }[] = [];
+  const EMAIL = { send: async (message: { to: string; text: string }) => { sent.push(message); } } as unknown as InboxEnv["EMAIL"];
+  const group = { kind: "group", id, title: "Test group", invitees: [b.email, b.email.toUpperCase(), external], guest };
+  expect((await call("rooms", a.cookie, group, { EMAIL })).status).toBe(200);
+  expect((await call("rooms", a.cookie, group, { EMAIL })).status).toBe(200);
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({ to: external });
+  expect(sent[0]!.text).toContain("#room=" + id);
+  expect(await (await call("rooms", b.cookie)).json()).toMatchObject({ rooms: [{ id, state: "active", admin: 0 }] });
+  const old = { nonce: uuid(), kind: "text", body: "Posted before the new member" };
+  expect((await call(room + "/posts", b.cookie, old)).status).toBe(200);
+  expect((await call(room + "/invite", b.cookie, { email: c.email, instant: true })).status).toBe(404);
+  const invite = { email: c.email, instant: true };
+  expect((await call(room + "/invite", a.cookie, invite)).status).toBe(200);
+  expect(await (await call(room, c.cookie)).json()).toMatchObject({ posts: [] });
+  const newer = { nonce: uuid(), kind: "text", body: "Posted after the new member" };
+  expect((await call(room + "/posts", a.cookie, newer)).status).toBe(200);
+  expect(await (await call(room, c.cookie)).json()).toMatchObject({ posts: [{ body: newer.body }] });
+  expect((await call(room + "/leave", c.cookie, {})).status).toBe(200);
+  expect((await call(room + "/invite", a.cookie, invite)).status).toBe(200);
+  expect(await (await call("rooms", c.cookie)).json()).toMatchObject({ rooms: [{ id, state: "pending" }] });
+  expect((await call(room, c.cookie)).status).toBe(404);
+  expect((await call(room + "/block", c.cookie, {})).status).toBe(200);
+  expect((await call(room + "/invite", a.cookie, invite)).status).toBe(200);
+  expect(await (await call("rooms", c.cookie)).json()).toEqual({ rooms: [] });
+  expect((await call(room + "/close", a.cookie, {})).status).toBe(200);
+});
+
+it("requires consent for instant invites to groups without a complete departure history", async () => {
+  const owner = await login("owner@example.test"), former = await login("member@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  await env.INBOX_DB.prepare("INSERT INTO inbox_rooms(id,kind,title,owner,created) VALUES(?,'group',?,?,?)")
+    .bind(id, "Legacy group", owner.id, Date.now()).run();
+  expect((await call(room + "/invite", owner.cookie, { email: former.email, instant: true })).status).toBe(200);
+  expect(await (await call("rooms", former.cookie)).json()).toMatchObject({ rooms: [{ id, state: "pending" }] });
+  expect((await call(room, former.cookie)).status).toBe(404);
+  expect((await call(room + "/accept", former.cookie, {})).status).toBe(200);
+  expect((await call(room, former.cookie)).status).toBe(200);
+});
+
 it("sends full-length multilingual posts while bounding unrelated JSON requests", async () => {
   const account = await login("owner@example.test");
   const id = uuid();
@@ -144,6 +208,13 @@ it("delivers private group invitations, enforces join history and revocation, an
   expect(idle).not.toHaveProperty("detail");
   expect((await call("saved", b.cookie, { action: "save", seq: seq - 1 })).status).toBe(404);
   expect((await call("saved", b.cookie, { action: "save", seq })).status).toBe(200);
+  expect((await call("saved/" + seq + "/download", b.cookie)).status).toBe(404);
+  const skillBody = "# Kỹ năng đối chiếu\n\nĐọc chứng từ.";
+  await call(room + "/posts", a.cookie, { kind: "skill", nonce: uuid(), body: skillBody });
+  const skillView = await (await call(room, b.cookie)).json<{ posts: { seq: number; body: string }[] }>();
+  const skillSeq = skillView.posts.find(p => p.body === skillBody)!.seq;
+  const skillPath = "saved/" + skillSeq + "/download";
+  expect((await call("saved", b.cookie, { action: "save", seq: skillSeq })).status).toBe(200);
   await call(room + "/remove", a.cookie, { person: b.id });
   expect(await (await call(openRoom + "&latest=" + seq, b.cookie)).json()).toMatchObject({ rooms: [], detail: null });
   expect((await call(room, b.cookie)).status).toBe(404);
@@ -154,8 +225,15 @@ it("delivers private group invitations, enforces join history and revocation, an
   expect((await call("saved", b.cookie, { action: "done", seq })).status).toBe(200);
   expect(await (await call("saved", a.cookie)).json()).toEqual({ saved: [] });
   expect(await (await call("saved", b.cookie)).json()).toMatchObject({
-    saved: [{ body: payload.body, done: 1 }],
+    saved: [{ body: skillBody }, { body: payload.body, done: 1 }],
   });
+  expect((await call(skillPath)).status).toBe(401);
+  expect((await call(skillPath, a.cookie)).status).toBe(404);
+  const skillDownload = await call(skillPath, b.cookie);
+  expect(skillDownload.headers.get("content-disposition")).toBe('attachment; filename="SKILL.md"');
+  expect(await skillDownload.text()).toBe(skillBody);
+  expect((await call("saved", b.cookie, { action: "delete", seq: skillSeq })).status).toBe(200);
+  expect((await call(skillPath, b.cookie)).status).toBe(404);
 });
 
 it("protects a direct chat against invite substitution, spam after blocking and expired sessions", async () => {
@@ -368,9 +446,17 @@ it("stores one attachment on retry, enforces size and withdraws download access 
   expect(image.headers.get("content-type")).toBe("image/png");
   expect(new Uint8Array(await image.arrayBuffer())).toEqual(png);
   expect(new Uint8Array(await crypto.subtle.digest("SHA-256", content))).toEqual(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+  const legacyNonce = uuid();
+  const legacyBytes = new Uint8Array([68, 49]);
+  const legacyDigest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", legacyBytes)),
+    byte => byte.toString(16).padStart(2, "0")).join("");
   await env.INBOX_DB.prepare(
     "INSERT INTO inbox_files(room,author,nonce,name,digest,bytes,created) VALUES (?,?,?,?,?,?,?)",
-  ).bind(id, a.id, uuid(), "legacy.txt", "fixture", new Uint8Array([68,49]).buffer, Date.now()).run();
+  ).bind(id, a.id, legacyNonce, "Đối chiếu.xlsx", legacyDigest, legacyBytes.buffer, Date.now()).run();
+  const legacyRetry = room + "/files/" + legacyNonce;
+  expect((await upload(a.cookie, legacyBytes, legacyRetry)).status).toBe(200);
+  expect((await upload(a.cookie, new Uint8Array([68, 50]), legacyRetry)).status).toBe(409);
+  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_uploads WHERE nonce=?").bind(legacyNonce).first("n")).toBe(0);
   const legacy = await env.INBOX_DB.prepare("SELECT post FROM inbox_files WHERE room=?").bind(id).first<number>("post");
   const oldFile = await call(room + "/files/" + legacy, b.cookie);
   expect(new Uint8Array(await oldFile.arrayBuffer())).toEqual(new Uint8Array([68,49]));

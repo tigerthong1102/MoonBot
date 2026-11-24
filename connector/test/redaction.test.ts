@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent, type Socket } from "../src/agent.ts";
-import { clearSecrets, errorText, redact, redactError } from "../src/log.ts";
+import { clearSecrets, errorText, redact, redactError, registerSecret } from "../src/log.ts";
 import type { JobReply } from "../src/protocol.ts";
 import { StateStore } from "../src/state.ts";
 
@@ -86,7 +86,7 @@ describe("connector secret redaction", () => {
     expect((sanitized as unknown as { config?: unknown }).config).toBeUndefined();
   });
 
-  it("redacts secrets at the Agent.reply boundary when sending error replies", () => {
+  it("redacts reply payload strings without damaging numeric wire fields or acknowledgements", () => {
     const secret = "SENTINEL_OUTPUT_SECRET_54321";
     const state = new StateStore(dir);
     state.saveHomeEnv({ OMB_CLOUD_BOOTSTRAP_SECRET: secret });
@@ -140,6 +140,14 @@ describe("connector secret redaction", () => {
     const unacked = internal.unacked.get("job-1");
     expect(unacked?.text).not.toContain(secret);
     expect(unacked?.text).toContain("[secret]");
+
+    registerSecret("12345678");
+    agent.reply({ id: "job-12345678", ok: true, result: { bytes: 12345678, sha256: `fixture-${secret}` } });
+    const exported = internal.unacked.get("job-12345678")!;
+    expect(JSON.parse(exported.text)).toEqual({
+      id: "job-12345678", ok: true, result: { bytes: 12345678, sha256: "fixture-[secret]" },
+    });
+    expect(internal.replies.get("job-12345678")).toEqual(JSON.parse(exported.text));
   });
 
   it("covers update/rollback error paths when errors carry secrets", () => {

@@ -40,6 +40,12 @@ export function redact(text: string): string {
   return out;
 }
 
+export function redactJsonValues<T extends object>(value: T): T {
+  if (secrets.size === 0) return value;
+  const json = JSON.stringify(value, (_key, item: unknown) => typeof item === "string" ? redact(item) : item);
+  return JSON.parse(json) as T;
+}
+
 export interface RedactedErrorInfo {
   name: string;
   message: string;

@@ -7,7 +7,7 @@ import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSyn
 import { dirname } from "node:path";
 
 import type { Job, JobError, JobErrorCode, JobType, ServerMode } from "./protocol.ts";
-import { redact } from "./log.ts";
+import { redactJsonValues } from "./log.ts";
 
 /** Who asked: the Admin over the connector's connection, or root on this server through `mausbot-connector job`. */
 export type AuditSource = "admin" | "local";
@@ -85,8 +85,8 @@ export class AuditLog {
       try { seq = (JSON.parse(last) as { seq?: number }).seq! + 1; } catch { seq = Number.NaN; }
       if (!Number.isInteger(seq)) seq = 1;
     }
-    const line: AuditLine = { seq, at: new Date(this.now()).toISOString(), prev: last ? lineHash(last) : GENESIS, ...event };
-    appendFileSync(this.file, `${redact(JSON.stringify(line))}\n`, { mode: 0o600 });
+    const line: AuditLine = { seq, at: new Date(this.now()).toISOString(), prev: last ? lineHash(last) : GENESIS, ...redactJsonValues(event) };
+    appendFileSync(this.file, `${JSON.stringify(line)}\n`, { mode: 0o600 });
     return line;
   }
 

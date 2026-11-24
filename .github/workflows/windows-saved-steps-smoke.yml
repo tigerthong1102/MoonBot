@@ -49,6 +49,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Could not compile private desktop launcher' }
           $entry = Join-Path $root 'scripts\testing\cua-win-interactive-entry.mjs'
           $log = Join-Path $env:RUNNER_TEMP ('startupbot-native-chat-' + [guid]::NewGuid().ToString('N') + '.log')
+          $directLog = Join-Path $env:RUNNER_TEMP ('startupbot-native-direct-' + [guid]::NewGuid().ToString('N') + '.log')
+          $env:OMB_CUA_CHAT_SMOKE = '0'
+          & $launcher (Get-Command node).Source $entry $directLog
+          $directResult = $LASTEXITCODE
+          if (Test-Path -LiteralPath $directLog) { Get-Content -LiteralPath $directLog -Encoding UTF8 }
+          if ($directResult -ne 0 -or !(Test-Path -LiteralPath $directLog) -or !(Select-String -LiteralPath $directLog -SimpleMatch '"status":"PASS"' -Quiet)) {
+            throw 'Native Windows direct navigation smoke failed'
+          }
           $env:OMB_CUA_CHAT_SMOKE = '1'
           & $launcher (Get-Command node).Source $entry $log
           $result = $LASTEXITCODE

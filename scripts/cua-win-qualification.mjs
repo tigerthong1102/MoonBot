@@ -176,7 +176,7 @@ async function replayNavigation(call, fixture, store, recording) {
   const outcome = await runSteps(recipe, { threadId: "qualification", turnId: "replay", provider: "fixture", providerInstanceId: BOT }, {
     signal: AbortSignal.timeout(10_000), publish() {},
     windowsAttempt: {
-      begin: () => store.beginWindowsAttempt(BOT, recipe.key),
+      begin: () => store.beginWindowsAttempt(BOT, recipe.key, recipe.id),
       verified: () => store.finishWindowsAttempt(BOT, recipe.key),
     },
     approval: { async ask(tool) {
@@ -199,7 +199,7 @@ async function replayNavigation(call, fixture, store, recording) {
       const result = await call(tool, args);
       if (tool === "get_window_state") {
         const before = fixtureSnapshot(result, target);
-        assert.equal(before.value, "Before navigation");
+        assert.equal(before.value, clicks === 0 ? "Before navigation" : "After navigation");
         liveToken = before.token;
       }
       if (tool === "click") checkNavigationDelivery(result);

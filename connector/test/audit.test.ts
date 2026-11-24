@@ -3,9 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { AuditLog, auditArgs, auditRequest, verifyAudit, type AuditLine } from "../src/audit.ts";
+import { AuditLog, auditArgs, auditRequest, lineHash, verifyAudit, type AuditLine } from "../src/audit.ts";
 import { jobDesk } from "../src/jobs.ts";
 import { localJobId, sendLocalJob, serveLocalJobs } from "../src/local.ts";
+import { clearSecrets, registerSecret } from "../src/log.ts";
 import { parsePolicy } from "../src/policy.ts";
 import type { Job, JobReply } from "../src/protocol.ts";
 
@@ -13,6 +14,7 @@ const HOME = `ghcr.io/milind-soni/openmausbot-cloud-home@sha256:${"a".repeat(64)
 const SECRET = "Bootstrap-secret-0123456789abcdefghijklmnopq";
 const dirs: string[] = [];
 afterEach(() => {
+  clearSecrets();
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 const folder = () => {
@@ -48,6 +50,26 @@ describe("the audit log", () => {
     expect(verifyAudit([text[0].replace('"by":"local"', '"by":"admin"'), text[1], text[2]].join("\n"))).toMatchObject({ ok: false, line: 2 });
     expect(verifyAudit(text.slice(1).join("\n"))).toMatchObject({ ok: false, line: 1 });
     expect(verifyAudit("")).toEqual({ ok: true, lines: 0 });
+  });
+
+  it("redacts nested strings while preserving numeric details and the exact previous hash", () => {
+    const file = join(folder(), "audit.jsonl");
+    const audit = new AuditLog(file);
+    audit.append({ event: "job", by: "admin", id: "first", type: "export-disk", args: {} });
+    const previous = lineHash(audit.tail(1)[0]!);
+    const numericSecret = "12345678";
+    const escapedSecret = 'fixture"with\\escapes';
+    registerSecret(numericSecret);
+    registerSecret(escapedSecret);
+    registerSecret(previous.slice(0, 12));
+
+    audit.append({ event: "result", by: "admin", id: "first", type: "export-disk", ok: true, detail: {
+      bytes: 12345678, notes: [{ message: `codes ${numericSecret} and ${escapedSecret}` }],
+    } });
+    audit.append({ event: "job", by: "admin", id: "next", type: "backup", args: {} });
+
+    expect(lines(file)[1]).toMatchObject({ prev: previous, detail: { bytes: 12345678, notes: [{ message: "codes [secret] and [secret]" }] } });
+    expect(verifyAudit(readFileSync(file, "utf8"))).toEqual({ ok: true, lines: 3 });
   });
 
   it("records what a job asked for without a value that could be a secret", () => {

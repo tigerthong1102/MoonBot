@@ -5,7 +5,7 @@
 import { randomBytes } from "node:crypto";
 
 import { checkCustomerRunJob } from "./customer-run.ts";
-import { errorText, type Log } from "./log.ts";
+import { errorText, redactJsonValues, type Log } from "./log.ts";
 import { MuxSession, type MuxStream } from "./mux.ts";
 import {
   BOX_HEADER, CHANNEL_DEAD_MS, CHANNEL_PING_MS, CHANNEL_PROTOCOL, CLOSE_KEY_COPIED, CLOSE_PROTOCOL, CLOSE_REPLACED, CLOSE_SILENT,
@@ -178,7 +178,10 @@ export class Agent {
 
   /** A reply to send now and on each new connection, until the Admin acknowledges it. */
   reply(made: JobReply): void {
-    const reply = this.options.outgoing ? this.options.outgoing(made) : made;
+    const outgoing = this.options.outgoing ? this.options.outgoing(made) : made;
+    const reply: JobReply = outgoing.ok
+      ? { ...outgoing, result: redactJsonValues(outgoing.result) }
+      : { ...outgoing, error: redactJsonValues(outgoing.error) };
     this.replies.set(reply.id, reply);
     while (this.replies.size > KEPT_REPLIES) this.replies.delete(this.replies.keys().next().value as string);
     const text = JSON.stringify(reply);

@@ -46,6 +46,8 @@ function roleMenus(t, isMac) {
       { type: "separator" },
       role(t, "resetZoom", "native.role.actualSize"),
       role(t, "zoomIn", "native.role.zoomIn"),
+      // Outside macOS, Electron maps the Zoom In role to Ctrl+Plus (Ctrl+Shift+=).
+      ...(isMac ? [] : [{ ...role(t, "zoomIn", "native.role.zoomIn"), accelerator: "CommandOrControl+=", visible: false }]),
       role(t, "zoomOut", "native.role.zoomOut"),
       { type: "separator" },
       role(t, "togglefullscreen", "native.role.toggleFullScreen"),

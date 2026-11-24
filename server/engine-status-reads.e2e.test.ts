@@ -56,7 +56,7 @@ async function boot(home: string, knobs: Record<string, string> = {}) {
     return response.json() as Promise<any>;
   };
   const stop = () => waitForExit(child, { signal: "SIGTERM" });
-  return { call, control: (...args: string[]) => runControlOmb([...args, "--url", base]) as Promise<any>, stop };
+  return { call, control: (...args: string[]) => runControlOmb([...args, "--url", base]) as Promise<any>, stop, output: () => output };
 }
 
 const probeCount = (log: string, probe: "version" | "help" | "auth") =>
@@ -73,7 +73,8 @@ it.each(["slow", "empty-once"])("detects a %s CLI across concurrent status reads
   });
   const lists = await Promise.all([server.call("GET", "/api/instances"), server.call("GET", "/api/instances"), server.call("GET", "/api/instances")]);
   for (const list of lists) expect(claudeStatus(list)).toMatchObject({ state: "available", authenticated: true, version: expect.stringContaining("Claude Code") });
-  expect(probeCount(probes, "version")).toBe(mode === "slow" ? 1 : 2);
+  const evidence = `probes:\n${existsSync(probes) ? readFileSync(probes, "utf8") : "(none)"}\nserver:\n${server.output().slice(-6_000)}`;
+  expect(probeCount(probes, "version"), evidence).toBe(mode === "slow" ? 1 : 2);
   const { bot } = await server.control("new-bot", "--name", "Detection fixture");
   const read = async () => (await server.call("GET", "/api/bots?messages=0")).bots.find((item: { id: string }) => item.id === bot.id);
   const selection = (await read()).modelSelection;

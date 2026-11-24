@@ -40,6 +40,7 @@ import { sameModelSelection } from "../shared/thread-model.ts";
 import { initialGreetingMessage } from "./initial-greeting.ts"; import { createDefaultBot, defaultBotRefusal, type DefaultBotIntro } from "./default-bot.ts";
 import { appsFromCreator } from "./inherited-apps.ts"; import { newBotOwner, sharedAsMaker, sharedUnlessRestricted, type NewBotSharingRule } from "./new-bot-sharing.ts";
 import { ThreadCache, type ThreadState } from "./thread-cache.ts";
+import { newestBranchLeaf } from "./thread-branch.ts";
 import { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts"; export { titleFromLlm } from "./thread-title.ts";
 import { buildTask, mirrorActiveTask, threadTitleFrom, UNTITLED_THREAD } from "./task-record.ts"; export { toWireTask } from "./task-record.ts";
 import { createBotFork, createGroupFork } from "./store-forks.ts";
@@ -1245,12 +1246,7 @@ export class Store {
   setActiveLeaf(threadId: string, messageId: string): string | null {
     const t = this.thread(threadId);
     if (!t.messages.some((m) => m.id === messageId)) return null;
-    let cur = messageId;
-    for (;;) {
-      const children = t.messages.filter((m) => m.parentId === cur);
-      if (!children.length) break;
-      cur = children.reduce((a, b) => (b.at >= a.at ? b : a)).id;
-    }
+    const cur = newestBranchLeaf(t.messages, messageId);
     t.activeLeafId = cur;
     mdb.setActiveLeaf(threadId, cur);
     this.emit({ type: "thread", threadId, activeLeafId: cur });

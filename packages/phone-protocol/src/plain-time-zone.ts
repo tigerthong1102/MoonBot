@@ -34,6 +34,7 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 
 /** Local weekdays (Sunday = 0) as people say them: "every day", "weekdays", "Monday, Wednesday". */
 export function plainWeekdays(weekdays: readonly number[]): string {
-  const days = [...weekdays].sort((a, b) => a - b).join(",");
-  return days === "0,1,2,3,4,5,6" ? "every day" : days === "1,2,3,4,5" ? "weekdays" : weekdays.map((day) => WEEKDAYS[day]).join(", ");
+  const days = [...new Set(weekdays)].sort((a, b) => a - b);
+  const joined = days.join(",");
+  return joined === "0,1,2,3,4,5,6" ? "every day" : joined === "1,2,3,4,5" ? "weekdays" : days.map((day) => WEEKDAYS[day]).join(", ");
 }

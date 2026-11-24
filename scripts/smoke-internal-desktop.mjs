@@ -727,6 +727,7 @@ try {
   writeFileSync(path.join(evidence, "permission-fixture.json"), JSON.stringify(permissionCounts, null, 2) + "\n");
   writeFileSync(path.join(evidence, "work-bot-permissions.json"), JSON.stringify(handoffPermissions, null, 2) + "\n");
   const cancelWork = "Theo dõi tình trạng thiết bị giả hàng tuần.";
+  const cancelFollowup = "Kiểm tra lại thiết bị giả sau khi dừng.";
   const cancelReady = path.join(fixture, "handoff-stop-ready"), cancelGate = path.join(fixture, "handoff-stop-gate"), cancelContinued = path.join(fixture, "handoff-stop-continued");
   stoppedGateToRelease = cancelGate;
   writeFileSync(textRoutes, JSON.stringify({ [cancelWork]: JSON.stringify({ name: "Thiết bị giả", icon: "calendar" }) }));
@@ -741,7 +742,10 @@ try {
   }, "the cancellation fixture offer");
   const cancelBotId = cancelOffer.card.teamSetupRequest.operations.find(operation => operation.action === "create")?.botId;
   assert(cancelBotId);
-  writeFileSync(plan, JSON.stringify({ [cancelBotId]: { script: [{ key: "handoff-stop", match: [cancelWork], readyFile: cancelReady, gateFile: cancelGate, afterGateFile: cancelContinued, reply: "Canceled handoff must not finish." }] } }));
+  writeFileSync(plan, JSON.stringify({ [cancelBotId]: { script: [
+    { key: "handoff-stop", match: [cancelWork], readyFile: cancelReady, gateFile: cancelGate, afterGateFile: cancelContinued, reply: "Canceled handoff must not finish." },
+    { key: "handoff-after-stop", match: [cancelFollowup], reply: "Synthetic handoff remains usable." },
+  ] } }));
   const cancelConsent = `[...document.querySelectorAll('[data-work-bot-offer]')].find(card => card.innerText.includes(${JSON.stringify(cancelOffer.card.title)}))?.querySelector('button')`;
   await until(() => evaluate(`Boolean((${cancelConsent})?.getClientRects().length)`), "the cancellation fixture consent");
   await evaluate(`(${cancelConsent}).click()`);
@@ -759,7 +763,7 @@ try {
   await new Promise(resolve => setTimeout(resolve, 1_000));
   assert.equal(existsSync(cancelContinued), false, "Stopped handoff must not continue after its gate opens");
   assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(cancelWork)).length, 1);
-  const canceledHandoff = { sourceId: cancelOffer.source.id, targetId: cancelBotId, threadId: cancelBot.threadId, requestId: cancelRequest.id, text: cancelWork, continued: cancelContinued };
+  const canceledHandoff = { sourceId: cancelOffer.source.id, targetId: cancelBotId, threadId: cancelBot.threadId, requestId: cancelRequest.id, text: cancelWork, followup: cancelFollowup, continued: cancelContinued };
   writeFileSync(path.join(evidence, "work-bot-stop.json"), JSON.stringify({ ...canceledHandoff, continued: false }, null, 2) + "\n");
   const unauthenticated = await fetch(new URL("/api/auth/stream-ticket", target.url), { method: "POST", signal: AbortSignal.timeout(5_000) });
   assert([401, 403].includes(unauthenticated.status), "An external process must not inherit the renderer's mutation capability");

@@ -8,6 +8,7 @@ import { CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts";
 import { openRuntimeStore } from "./runtime/store.ts";
 import type { Assignment } from "./runtime/types.ts";
 import { createWorkspaceBackupSnapshot, stagedWorkspaceData, stageWorkspaceBackup } from "./workspace-backup.ts";
+import { WORK_BOT_UPLOAD_RECEIPTS_SCHEMA } from "./work-bot-upload-receipts.ts";
 import { ensureMemoryIndex } from "./message-db-memory-index.ts";
 import { omittedAsTeamPrivate, routinesWithoutTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
 
@@ -38,7 +39,7 @@ function teamData(root: string): void {
   json(join(root, "person-inbox.json"), { items: [{ text: "Bob's inbox line" }] });
   file(join(root, "workspaces", "bobs-own", "MEMORY.md"), "Bob's own bot's notes");
   json(join(root, "config.json"), { language: "en" });
-  for (const name of ["bobs.png", "both.png", "unsent.png", "avatar.png"]) file(join(root, "attachments", name));
+  for (const name of ["bobs.png", "both.png", "unsent.png", "avatar.png", "12345678-1234-4234-8234-123456789abc.pdf", ".openmaus-upload-12345678-1234-4234-8234-123456789abc-12345678-1234-4234-8234-123456789abc.partial", ".openmaus-upload-22345678-1234-4234-8234-123456789abc-32345678-1234-4234-8234-123456789abc.partial"]) file(join(root, "attachments", name));
   file(join(root, "people", BOB, "uploads.json"), JSON.stringify(["unsent.png", "avatar.png"]));
   file(join(root, "workspaces", "bot", "MEMORY.md"), "team notes");
   file(join(root, "workspaces", `bot--member-${BOB}`, "MEMORY.md"), "Bob's notes");
@@ -51,6 +52,10 @@ function teamData(root: string): void {
     + " CREATE TABLE chat_followups(id TEXT PRIMARY KEY, kind TEXT, owner_id TEXT, thread_id TEXT, send_id TEXT, status TEXT, payload TEXT);"
     + " CREATE TABLE notification_log(id TEXT PRIMARY KEY, at INTEGER, kind TEXT, bot_id TEXT, bot_name TEXT, thread_id TEXT, group_id TEXT, title TEXT, body TEXT, avatar_url TEXT, for_person TEXT, read INTEGER);");
   db.exec("CREATE TABLE work_bot_links(source_bot_id TEXT, source_thread_id TEXT, source_message_id TEXT, target_bot_id TEXT, target_thread_id TEXT)");
+  db.exec(WORK_BOT_UPLOAD_RECEIPTS_SCHEMA);
+  db.prepare("INSERT INTO work_bot_upload_owners (upload_id, principal) VALUES (?, ?)").run("12345678-1234-4234-8234-123456789abc", "fixture-private-principal");
+  db.prepare("INSERT INTO work_bot_upload_receipts (receipt_hash, principal, stored_name, digest, bytes, thread_id, message_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run("a".repeat(64), "fixture-private-principal", "12345678-1234-4234-8234-123456789abc.pdf", "b".repeat(64), 1, "bob-chat", "bob-chat-m1");
+  db.prepare("INSERT INTO work_bot_message_upload_sets VALUES (?, ?, ?, ?, ?)").run("bob-chat", "bob-chat-m1", "fixture-private-principal", "c".repeat(64), "[]");
   const link = db.prepare("INSERT INTO work_bot_links VALUES (?, ?, ?, ?, ?)");
   link.run("bot", "main", "shared", "bot", "room-thread");
   link.run("bot", "bob-chat", "private-source", "bot", "main");
@@ -102,7 +107,7 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     expect(omittedAsTeamPrivate("workspaces/bobs-own/MEMORY.md", privacy)).toBe(true);
     expect(omittedAsTeamPrivate("person-inbox.json", privacy)).toBe(true);
     const attachments = teamPrivateAttachments(root, join(root, "messages.db"), privacy);
-    expect([...attachments].sort()).toEqual(["bobs.png", "unsent.png"]);
+    expect([...attachments].sort()).toEqual([".openmaus-upload-12345678-1234-4234-8234-123456789abc-12345678-1234-4234-8234-123456789abc.partial", "12345678-1234-4234-8234-123456789abc.pdf", "bobs.png", "unsent.png"]);
     expect(omittedAsTeamPrivate("attachments/bobs.png", { ...privacy, attachments })).toBe(true);
     expect(omittedAsTeamPrivate("attachments/both.png", { ...privacy, attachments })).toBe(false);
     expect(omittedAsTeamPrivate(`workspaces/bot--member-${BOB}/MEMORY.md`, privacy)).toBe(true);
@@ -168,10 +173,17 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     expect(existsSync(join(team.data, "person-inbox.json"))).toBe(false);
     expect(existsSync(join(team.data, "attachments", "bobs.png"))).toBe(false);
     expect(existsSync(join(team.data, "attachments", "unsent.png"))).toBe(false);
+    expect(existsSync(join(team.data, "attachments", "12345678-1234-4234-8234-123456789abc.pdf"))).toBe(false);
+    expect(existsSync(join(team.data, "attachments", ".openmaus-upload-12345678-1234-4234-8234-123456789abc-12345678-1234-4234-8234-123456789abc.partial"))).toBe(false);
+    expect(existsSync(join(team.data, "attachments", ".openmaus-upload-22345678-1234-4234-8234-123456789abc-32345678-1234-4234-8234-123456789abc.partial"))).toBe(false);
     expect(existsSync(join(team.data, "attachments", "both.png"))).toBe(true);
     expect(existsSync(join(team.data, "attachments", "avatar.png"))).toBe(true);
     expect(existsSync(join(team.data, "workspaces", "bobs-own"))).toBe(false);
     expect(table(join(team.data, "messages.db"), "SELECT thread_id AS id FROM messages").map((row) => row.id).sort()).toEqual(["main", "outside-thread", "room-thread"]);
+    for (const name of ["work_bot_upload_owners", "work_bot_upload_receipts", "work_bot_message_upload_sets"]) {
+      expect(table(join(team.data, "messages.db"), `SELECT * FROM ${name}`)).toEqual([]);
+      expect(table(join(root, "messages.db"), `SELECT * FROM ${name}`)).toHaveLength(1);
+    }
     expect(table(join(team.data, "runtime.db"), "SELECT id FROM assignments").map((row) => row.id)).toEqual(["as-team"]);
     expect(textOf(join(team.data, "messages.db")).toLowerCase()).not.toContain("secret");
 
@@ -180,7 +192,9 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     teamData(own);
     const home = await exported(own);
     expect(home.warnings).not.toContain(TEAM_PRIVATE_NOTE);
+    expect(existsSync(join(home.data, "attachments", "12345678-1234-4234-8234-123456789abc.pdf"))).toBe(true);
     expect(existsSync(join(home.data, "workspaces", `bot--member-${BOB}`, "MEMORY.md"))).toBe(true);
     expect(table(join(home.data, "messages.db"), "SELECT thread_id AS id FROM messages").map((row) => row.id).sort()).toEqual(["bob-chat", "bobs-inbox", "main", "outside-thread", "room-thread"]);
+    expect(table(join(home.data, "messages.db"), "SELECT * FROM work_bot_upload_receipts")).toHaveLength(1);
   }, 60_000);
 });

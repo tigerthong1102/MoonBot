@@ -34,7 +34,9 @@ try {
   process.exit(2);
 }
 
-const screenRelay = localComputerRelay(platform ?? process.platform);
+const nativePlatform = platform ?? process.platform;
+const journalledWindows = nativePlatform === "win32" && journal === "1";
+const screenRelay = localComputerRelay(nativePlatform, journalledWindows);
 const fileRelay = hostFiles === "1" ? hostFileRelay(homedir()) : null;
 
 runMcpBridge({
@@ -43,8 +45,8 @@ runMcpBridge({
   env: { ...childEnv, PATH: augmentedPath() },
   label: "Local Cua Driver",
   gate: { url: url!, token: token!, describe: localComputerCallQuery },
-  ...(journal === "1" ? { journal: { url: journalUrl(url!), token: token! } } : {}),
-  rewriteResponse: localComputerResultLine,
+  ...(journal === "1" ? { journal: { url: journalUrl(url!), token: token!, ...(journalledWindows ? { platform: "win32" as const } : {}) } } : {}),
+  rewriteResponse: (line) => localComputerResultLine(line, journalledWindows),
   relay: fileRelay ? (call, child) => fileRelay(call) ?? screenRelay(call, child) : screenRelay,
   ...(fileRelay ? { ownTools: HOST_FILE_TOOLS } : {}),
   respawn: { stopped: COMPUTER_HELPER_STOPPED },

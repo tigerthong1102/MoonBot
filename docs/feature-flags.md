@@ -58,7 +58,7 @@ text and extra work can increase token usage.
 | `parallelRoomJobs` | Off | Runs jobs assigned to several room members side by side, each in its own thread. | Allows concurrent engine work rather than sequential jobs. |
 | `acpPlanLines` | Off | Shows an ACP agent's plan as activity lines. | Each emitted line counts as a tool call wherever tool calls are counted; environment override below. |
 | `agentsToolBridge` | Off, except eligible local-model turns | Lists a smaller tool catalog with `find_tool` and `use_tool`. | Tool lookup can add model calls; smaller initial context is not a guaranteed saving. See [Agents tool bridge](agents-tool-bridge.md) for eligibility and measurements. |
-| `savedSteps` | On | Allows saving and repeating computer tasks from their steps on a supported host. | Currently requires a Mac server. Enabling it does not add host support. |
+| `savedSteps` | On for macOS, off for Windows | Allows saving and repeating computer tasks from their steps on a supported host. | Windows learns one background UI Automation navigation click when the named destination window title or newly selected tab is verified. Enable Saved Steps in Settings and explicitly select this computer for the chat. |
 | `usbPhoneTakeover` | Off | Shows the server's USB Android phone live in the Screen panel and lets a person take it over from the bots. | Not offered on a Cloud home or a hosted workspace. The first use downloads the scrcpy server (734 KB) from GitHub. |
 
 Bundled catalog skills appear in Settings → Skills library and start disabled and unassigned. The legacy migration of private bot skills runs only on workspaces that explicitly set `features.skillsLibrary` to true.

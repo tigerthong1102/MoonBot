@@ -1,6 +1,6 @@
 {
   "workBotOffer.continueHere": "在此继续",
-  "server.workBot.scheduleConflict": "关联机器人的计划或运行可能重复，或无法检查关联。请先查看相关计划。",
+  "server.workBot.scheduleConflict": "关联机器人的计划或运行可能重复，或无法检查关联。请求的操作未执行。请检查自动化，然后发送下一条指示。",
   "server.workBot.choiceInProgress": "正在处理机器人选择。完成后请重试。",
   "server.workBot.pendingUnavailable": "部分排队消息无法安全转交。请将其从队列移除，或选择在此继续。",
   "workBotOffer.queuedNotice": "如果你同意，等待选择时发送的消息也会转交给新机器人。选择前请移除队列中无关的消息。",

@@ -1,6 +1,6 @@
 {
   "workBotOffer.continueHere": "Hier fortfahren",
-  "server.workBot.scheduleConflict": "Ein verknüpfter Bot hat einen möglicherweise ähnlichen Zeitplan oder Lauf, oder die Verknüpfung kann nicht geprüft werden. Prüfe die Zeitpläne unter Automatisierungen. Für eine andere Aufgabe wähle Neu und richte sie dort selbst ein.",
+  "server.workBot.scheduleConflict": "Ein Zeitplan oder Lauf des verknüpften Bots könnte sich überschneiden, oder die Verknüpfung kann nicht geprüft werden. Die angeforderte Aktion wurde nicht ausgeführt. Prüfe die Automatisierungen und sende danach deine nächste Anweisung.",
   "server.workBot.choiceInProgress": "Die Bot-Auswahl wird verarbeitet. Versuche es danach erneut.",
   "server.workBot.pendingUnavailable": "Einige wartende Nachrichten können nicht sicher übertragen werden. Entferne sie aus der Warteschlange oder fahre hier fort.",
   "workBotRouting.classifying": "Das Ziel für diese Aufgabe wird geprüft…",

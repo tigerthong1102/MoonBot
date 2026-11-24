@@ -1271,9 +1271,10 @@ export class RoutineRequestService {
     } catch (error) {
       const status = error instanceof RoutineRequestError ? error.status : (error as { code?: string } | null)?.code === "work_bot_schedule_conflict" ? 409 : 400;
       const detail = error instanceof Error ? error.message : String(error);
-      const expired = error instanceof RoutineRequestError && error.terminal;
+      const conflict = (error as { code?: string } | null)?.code === "work_bot_schedule_conflict";
+      const expired = (error instanceof RoutineRequestError && error.terminal) || conflict;
       this.store.patchMessage(args.threadId, message.id, {
-        card: { ...card, ...(expired ? { expired: true, options: [] } : {}), held: redactSecretsInText(detail).slice(0, 500) },
+        card: { ...card, ...(expired ? { expired: true, options: [] } : {}), held: redactSecretsInText(detail).slice(0, 500), heldCode: conflict ? "server.workBot.scheduleConflict" : undefined },
       });
       return {
         claimed: true,
@@ -1298,7 +1299,7 @@ export class RoutineRequestService {
       resultId,
     };
     const settled = this.store.patchMessage(threadId, messageId, {
-      card: { ...card, answered: "allow", held: undefined, routineRequest: applied },
+      card: { ...card, answered: "allow", held: undefined, heldCode: undefined, routineRequest: applied },
     });
     if (!settled) throw new RoutineRequestError("This routine confirmation card is no longer available", 409);
     this.forgetSettledReceipt(payload, messageId);

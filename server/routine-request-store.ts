@@ -10,6 +10,7 @@ export interface RoutineRequestOptionCard {
   requestId?: string;
   tool?: string;
   held?: string;
+  heldCode?: string;
   autoApplied?: boolean;
   undone?: boolean;
   routineRequest?: RoutineRequestCardData;

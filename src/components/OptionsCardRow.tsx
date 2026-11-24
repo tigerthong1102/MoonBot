@@ -41,7 +41,7 @@ export function optionsCardRow({ message: m, transcript, botId, botName, botColo
     <OptionCard botId={botId} threadId={threadId} message={m} />
   );
   if (!card) return null;
-  const waiting = Boolean(m.card?.requestId && (isQuestionCard(m.card) || m.card.tool) && !m.card.answered && !m.card.dismissed && !m.inbox);
+  const waiting = Boolean(m.card?.requestId && (isQuestionCard(m.card) || m.card.tool) && !m.card.answered && !m.card.dismissed && !m.card.expired && !m.inbox);
   return (
     <MessageBoundary fallbackText={m.card?.subtitle || m.card?.title || ""}>
       {waiting && <AskingLine botId={botId} threadId={threadId} />}

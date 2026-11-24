@@ -1,6 +1,6 @@
 {
   "workBotOffer.continueHere": "Continue here",
-  "server.workBot.scheduleConflict": "A linked bot has a schedule or run that may overlap, or its link cannot be checked. Open Automations and review related schedules, then choose New → Set it up yourself if this is separate work to create it manually.",
+  "server.workBot.scheduleConflict": "A linked bot may already have an overlapping schedule or run, or its link cannot be checked. The requested action was not performed. Open Automations to check, then send your next instruction.",
   "server.workBot.choiceInProgress": "The bot choice is being processed. Try again when it finishes.",
   "server.workBot.pendingUnavailable": "Some queued messages cannot be transferred safely. Remove them from the queue or choose to continue here.",
   "workBotRouting.classifying": "Reviewing where to send this work…",

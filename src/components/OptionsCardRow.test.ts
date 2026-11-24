@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -35,5 +35,19 @@ describe("optionsCardRow", () => {
     expect(row(followup, [followup])).toBeNull();
     expect(quietRow(followup, false)).toBe(true);
     expect(bubbleGroup(followup, "atlas")).toBeNull();
+  });
+
+  it("shows a conflict as a terminal alert without a waiting line", () => {
+    const conflict: Message = { id: "conflict", role: "bot", kind: "options", at: 1, card: {
+      title: "Schedule", subtitle: "", options: [], requestId: "r1", tool: "schedule_routine", expired: true,
+      held: "A linked schedule may overlap.", heldCode: "server.workBot.scheduleConflict",
+    } };
+    const drawn = markup(conflict, [conflict]);
+    expect(drawn).toContain('role="alert"');
+    expect(drawn).toContain("text-danger");
+    const ended = row(conflict, [conflict]) as ReactElement<{ children: unknown[] }>;
+    expect(ended.props.children[0]).toBe(false);
+    const pending = { ...conflict, card: { ...conflict.card!, expired: false } };
+    expect((row(pending, [pending]) as ReactElement<{ children: unknown[] }>).props.children[0]).toBeTruthy();
   });
 });

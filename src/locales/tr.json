@@ -1,6 +1,6 @@
 {
   "workBotOffer.continueHere": "Burada devam et",
-  "server.workBot.scheduleConflict": "Bağlı botun zamanlaması veya çalışması çakışabilir ya da bağlantı kontrol edilemiyor. İlgili zamanlamaları inceleyin.",
+  "server.workBot.scheduleConflict": "Bağlı botun zamanlaması veya çalışması çakışabilir ya da bağlantı kontrol edilemiyor. İstenen işlem gerçekleştirilmedi. Otomasyonları kontrol edip sonraki talimatınızı gönderin.",
   "server.workBot.choiceInProgress": "Bot seçimi işleniyor. Tamamlandıktan sonra tekrar deneyin.",
   "server.workBot.pendingUnavailable": "Bekleyen bazı mesajlar güvenle aktarılamıyor. Bunları kuyruktan kaldırın veya burada devam edin.",
   "workBotOffer.queuedNotice": "Onaylarsanız seçim beklerken gönderdiğiniz mesajlar da yeni bota aktarılır. Seçmeden önce ilgisiz bekleyen mesajları kaldırın.",

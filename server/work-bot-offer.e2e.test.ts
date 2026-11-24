@@ -24,9 +24,14 @@ it("keeps work referring to a relative fixture file in its original conversation
     const sent = await fetch(`${base}/api/bots/${main.id}/messages`, { method: "POST", headers: { origin: base, "content-type": "application/json" }, body: JSON.stringify({ threadId: main.threadId, text, sendId: randomUUID() }) });
     expect(sent.ok).toBe(true);
     const rows = async () => (await (await fetch(`${base}/api/threads/${main.threadId}/messages`)).json() as { messages: Message[] }).messages;
+    await expect.poll(async () => (await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "files"), { timeout: 20000 }).toBe(true);
+    const offer = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "files")!.card!;
+    const decision = (behavior: string) => fetch(`${base}/api/threads/${main.threadId}/respond`, { method: "POST", headers: { origin: base, "content-type": "application/json" }, body: JSON.stringify({ requestId: offer.requestId, behavior }) });
+    expect((await decision("allow")).status).toBe(409);
+    expect((await decision("deny")).ok).toBe(true);
     await expect.poll(async () => (await rows()).find(row => row.text === text)?.workBotRouting?.state, { timeout: 20000 }).toBe("dispatched");
     await expect.poll(async () => { const messages = await rows(); const index = messages.findIndex(row => row.text === text); return index >= 0 && messages.slice(index + 1).some(row => row.role === "bot" && row.kind === "text"); }, { timeout: 20000 }).toBe(true);
-    expect((await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer)).toBe(false);
+    expect((await rows()).find(row => row.card?.requestId === offer.requestId)?.card?.answered).toBe("deny");
     expect(await bots()).toHaveLength(before.length);
   } finally {
     globalThis.fetch = originalFetch;
@@ -234,6 +239,11 @@ it("hands the earlier conversation and a reply to the new bot without running th
     await expect.poll(async () => !(await roster()).bots.find(bot => bot.id === main.id)?.busy, { timeout: 15000 }).toBe(true);
     const before = (await roster()).bots.length;
     await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: dataWork, sendId: randomUUID() });
+    await expect.poll(async () => (await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "data"), { timeout: 20000 }).toBe(true);
+    const blocked = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "data")!.card!;
+    const refused = await fetch(`${base}/api/threads/${main.threadId}/respond`, { method: "POST", headers: { origin: base, "content-type": "application/json" }, body: JSON.stringify({ requestId: blocked.requestId, behavior: "allow" }) });
+    expect(refused.status).toBe(409);
+    await api(`/api/threads/${main.threadId}/respond`, { requestId: blocked.requestId, behavior: "deny" });
     await expect.poll(async () => (await rows()).find(row => row.text === dataWork)?.workBotRouting?.state, { timeout: 20000 }).toBe("dispatched");
     await expect.poll(() => readFileSync(prompts, "utf8").trim().split("\n").map(line => JSON.parse(line) as unknown).filter(prompt => JSON.stringify(prompt).includes(dataWork)).length, { timeout: 15000 }).toBe(1);
     await expect.poll(async () => {
@@ -242,7 +252,7 @@ it("hands the earlier conversation and a reply to the new bot without running th
       return index >= 0 && messages.slice(index + 1).some(row => row.role === "bot" && row.kind === "text") && !(await roster()).bots.find(bot => bot.id === main.id)?.busy;
     }, { timeout: 15000 }).toBe(true);
     expect(readFileSync(prompts, "utf8").trim().split("\n").map(line => JSON.parse(line) as unknown).filter(prompt => JSON.stringify(prompt).includes(dataWork))).toHaveLength(1);
-    expect((await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer && row.card.subtitle === dataWork)).toBe(false);
+    expect((await rows()).find(row => row.card?.requestId === blocked.requestId)?.card?.answered).toBe("deny");
     expect((await roster()).bots).toHaveLength(before);
   } finally {
     globalThis.fetch = originalFetch;
@@ -313,12 +323,17 @@ it("keeps follow-up work with a synthetic file in the original conversation", as
     await expect.poll(async () => !(await roster()).bots.find(bot => bot.id === main.id)?.busy, { timeout: 15000 }).toBe(true);
     const before = (await roster()).bots.length;
     await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: work, sendId: randomUUID() });
+    await expect.poll(async () => (await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "files"), { timeout: 20000 }).toBe(true);
+    const blocked = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "files")!.card!;
+    const refused = await fetch(`${base}/api/threads/${main.threadId}/respond`, { method: "POST", headers: { origin: base, "content-type": "application/json" }, body: JSON.stringify({ requestId: blocked.requestId, behavior: "allow" }) });
+    expect(refused.status).toBe(409);
+    await api(`/api/threads/${main.threadId}/respond`, { requestId: blocked.requestId, behavior: "deny" });
     await expect.poll(async () => {
       const messages = await rows();
       const index = messages.findIndex(row => row.text === work);
       return index >= 0 && messages.slice(index + 1).some(row => row.role === "bot" && row.kind === "text") && !(await roster()).bots.find(bot => bot.id === main.id)?.busy;
     }, { timeout: 20000 }).toBe(true);
-    expect((await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer)).toBe(false);
+    expect((await rows()).find(row => row.card?.requestId === blocked.requestId)?.card?.answered).toBe("deny");
     expect((await roster()).bots).toHaveLength(before);
     expect(readFileSync(prompts, "utf8").trim().split("\n").map(line => JSON.parse(line) as unknown).filter(prompt => JSON.stringify(prompt).includes(work))).toHaveLength(1);
     expect(readFileSync(path, "utf8")).toBe("synthetic fixture only");

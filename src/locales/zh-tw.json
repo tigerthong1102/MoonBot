@@ -1,4 +1,6 @@
 {
+  "workBotOffer.continueHere": "在此繼續",
+  "server.workBot.scheduleConflict": "關聯機器人的排程或執行可能重複，或無法檢查關聯。請先查看相關排程。",
   "server.workBot.choiceInProgress": "正在處理機器人選擇。完成後請重試。",
   "server.workBot.pendingUnavailable": "部分佇列訊息無法安全轉交。請將其從佇列移除，或選擇在此繼續。",
   "workBotOffer.queuedNotice": "如果你同意，等待選擇時傳送的訊息也會轉交給新機器人。選擇前請移除佇列中無關的訊息。",

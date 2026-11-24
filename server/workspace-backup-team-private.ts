@@ -166,6 +166,20 @@ export function stripTeamPrivate(snapshot: { messages: string; runtime: string }
   const threads = [...privacy.threads];
   strip(snapshot.messages, (db) => {
     for (const table of ["messages", "thread_state", "chat_followups", "notification_log"]) deleteWhereIn(db, table, "thread_id", threads);
+    if (hasTable(db, "messages")) {
+      for (const [field, ids] of [["threadId", threads], ["botId", [...privacy.bots]]] as const) {
+        for (const chunk of chunks(ids)) {
+          const slots = chunk.map(() => "?").join(", ");
+          const paths = field === "threadId" ? ["$.workBotRouting.targetThreadId", "$.workBotHandoffSource.threadId"] : ["$.workBotRouting.sourceBotId", "$.workBotRouting.targetBotId", "$.workBotHandoffSource.botId"];
+          for (const path of paths) {
+            const property = path.startsWith("$.workBotRouting") ? "$.workBotRouting" : "$.workBotHandoffSource";
+            db.prepare(`UPDATE messages SET json = json_remove(json, '${property}') WHERE json_extract(json, '${path}') IN (${slots})`).run(...chunk);
+          }
+        }
+      }
+    }
+    for (const column of ["source_thread_id", "target_thread_id"]) deleteWhereIn(db, "work_bot_links", column, threads);
+    for (const column of ["source_bot_id", "target_bot_id"]) deleteWhereIn(db, "work_bot_links", column, [...privacy.bots]);
     // A tool's saved answer, kept only so a retried call repeats it: nothing says whose chat it came from.
     if (hasTable(db, "command_receipts")) db.exec("DELETE FROM command_receipts");
     if (!hasTable(db, "memory_files")) return;

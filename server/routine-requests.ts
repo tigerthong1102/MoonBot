@@ -1101,6 +1101,7 @@ export class RoutineRequestService {
           const patch = operation.action === "update"
             ? restorePatch(undo.before!, now)
             : { enabled: operation.action === "pause" };
+          if (patch.enabled) this.routines.assertHandoffRoutineSafe({ botId: owner, threadId: args.threadId, messageId: message.id });
           if (!this.routines.update(routineId, patch)) return stale;
           break;
         }
@@ -1108,6 +1109,7 @@ export class RoutineRequestService {
           routineId = operation.routineId;
           const before = undo?.before;
           if (!before) return cannot("This change can't be undone here.");
+          if (before.enabled) this.routines.assertHandoffRoutineSafe({ botId: owner, threadId: args.threadId, messageId: message.id });
           restoredId = this.routines.create({
             name: before.name,
             prompt: before.instructions,
@@ -1267,7 +1269,7 @@ export class RoutineRequestService {
       const resultId = this.apply(payload, message.id, fingerprint);
       return this.settleApplied(args.threadId, message.id, card, payload, resultId);
     } catch (error) {
-      const status = error instanceof RoutineRequestError ? error.status : 400;
+      const status = error instanceof RoutineRequestError ? error.status : (error as { code?: string } | null)?.code === "work_bot_schedule_conflict" ? 409 : 400;
       const detail = error instanceof Error ? error.message : String(error);
       const expired = error instanceof RoutineRequestError && error.terminal;
       this.store.patchMessage(args.threadId, message.id, {

@@ -1,4 +1,6 @@
 {
+  "workBotOffer.continueHere": "Hier fortfahren",
+  "server.workBot.scheduleConflict": "Ein Zeitplan oder Lauf des verknüpften Bots könnte sich überschneiden oder die Verbindung ist nicht prüfbar. Prüfe die Zeitpläne.",
   "server.workBot.choiceInProgress": "Die Bot-Auswahl wird verarbeitet. Versuche es danach erneut.",
   "server.workBot.pendingUnavailable": "Einige wartende Nachrichten können nicht sicher übertragen werden. Entferne sie aus der Warteschlange oder fahre hier fort.",
   "workBotRouting.classifying": "Das Ziel für diese Aufgabe wird geprüft…",

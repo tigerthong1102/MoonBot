@@ -58,7 +58,7 @@ try {
   const options = { executable, profile, fixture, env, helper: { id: expected.botId }, workBot: { id: expected.botId, threadId: expected.threadId }, workMessage: expected.oldText,
     workRequestId: expected.messageId, replyText: expected.oldReply, prompts: config.instances.claude.environment.FAKE_CLAUDE_PROMPTS, workspaceFile: path.join(home, "synthetic-old-file.txt"),
     fileContents: "baseline fixture file", botIds: bots.map(bot => bot.id), evidence: firstEvidence, lifecycle, routineId: expected.routineId };
-  const first = await smokeDesktopRestart(options);
+  const first = await smokeDesktopRestart({ ...options, legacyOffer: expected.legacyOffer });
   const second = await smokeDesktopRestart({ ...options, evidence: secondEvidence, followupText, followupReply });
   const result = { status: "PASS", first, second, limits: "Synthetic profile; no theme, due-time routine, companion, or live-provider test" };
   writeFileSync(path.join(evidence, "upgrade-profile.json"), JSON.stringify(result, null, 2) + "\n");

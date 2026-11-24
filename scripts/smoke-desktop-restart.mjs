@@ -32,7 +32,7 @@ export async function waitPortClosed(port, label) {
   }), label, 15_000);
 }
 
-export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId }) {
+export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer }) {
   const port = await freePort(), webhook = await freePort(), debug = await freePort();
   const args = [`--user-data-dir=${profile}`, `--remote-debugging-port=${debug}`, "--remote-debugging-address=127.0.0.1", "--no-first-run"];
   lifecycle.started = true;
@@ -78,6 +78,19 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     assert.equal(bots.find(bot => bot.id === helper.id)?.approvalMode, "full");
     assert.equal(bots.find(bot => bot.id === workBot.id)?.threadId, workBot.threadId);
     const rows = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
+    if (legacyOffer) {
+      const offer = rows.find(row => row.card?.requestId === legacyOffer.requestId);
+      assert(offer && !offer.card.answered, "The baseline offer must remain pending");
+      assert(!rows.find(row => row.id === legacyOffer.messageId)?.workBotRouting, "The baseline offer must predate routing");
+      const beforePrompts = readFileSync(prompts, "utf8").split("\n").filter(Boolean).length;
+      const decide = behavior => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(`/api/threads/${workBot.threadId}/respond`)},{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({requestId:${JSON.stringify(legacyOffer.requestId)},behavior:${JSON.stringify(behavior)}})});return {status:r.status,body:await r.json()};})()`);
+      const refused = await decide("allow");
+      assert.equal(refused.status, 409);
+      assert.match(refused.body.error, /earlier suggestion|đề xuất cũ/i);
+      assert.equal((await decide("deny")).status, 200);
+      assert.deepEqual((await request("/api/bots?messages=0")).body.bots.map(bot => bot.id).sort(), [...botIds].sort());
+      assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).length, beforePrompts);
+    }
     assert(rows.some(row => row.id === workRequestId && row.text === workMessage && row.requestPending === false));
     assert(rows.some(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === workRequestId && (replyText === undefined || row.text === replyText)));
     const botRow = `document.querySelector('[data-sidebar-bot-row="${workBot.id}"]')`;

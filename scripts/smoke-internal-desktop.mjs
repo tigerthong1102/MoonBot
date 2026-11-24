@@ -186,11 +186,19 @@ try {
   assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: "full" }, "PATCH")).status, 200);
   if (values["create-upgrade-fixture"]) {
     const oldText = "Synthetic archived inventory note 4102", oldReply = "Synthetic archived result 4102";
-    writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [{ key: "old-message", match: [oldText], reply: oldReply }] } }));
+    writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [{ key: "legacy-offer", match: [workMessage], reply: "Synthetic legacy work result." }, { key: "old-message", match: [oldText], reply: oldReply }] } }));
     await until(async () => !(await roster()).find(row => row.id === helper.id)?.busy, "the baseline helper to become idle");
     const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
     await until(() => evaluate(`Boolean(${helperRow})`), "the baseline helper row");
     await evaluate(`${helperRow}.click()`);
+    await send(workMessage);
+    const legacyOffer = await until(async () => {
+      const rows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+      const source = rows.find(row => row.role === "user" && row.text === workMessage);
+      const offer = rows.find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === source?.id && !row.card.answered);
+      return source && offer && rows.some(row => row.role === "bot" && row.text === "Synthetic legacy work result.") && { requestId: offer.card.requestId, messageId: source.id };
+    }, "the baseline pending offer and completed original work");
+    assert(!(await roster()).find(row => row.id === helper.id)?.busy);
     await send(oldText);
     const oldMessage = await until(async () => {
       const rows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
@@ -209,7 +217,7 @@ try {
     mkdirSync(destination);
     try {
       for (const entry of readdirSync(fixture)) cpSync(path.join(fixture, entry), path.join(destination, entry), { recursive: true, errorOnExist: true, force: false });
-      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id }));
+      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id, legacyOffer }));
     } catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
     report = { ...report, status: "PASS", baselineFixture: destination };
   } else {

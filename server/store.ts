@@ -1147,7 +1147,7 @@ export class Store {
     return full;
   }
 
-  appendWorkBotContext(threadId: string, rows: Array<{ sourceId: string; replySourceId?: string; message: Omit<Message, "id" | "at" | "parentId" | "replyToId"> & { at: number } }>, transfer?: { claim: Parameters<typeof mdb.transferQueuedWorkBotMessages>[2]; afterCommit(): void }): Map<string, Message> {
+  appendWorkBotContext(threadId: string, rows: Array<{ sourceId: string; replySourceId?: string; message: Omit<Message, "id" | "at" | "parentId" | "replyToId"> & { at: number } }>, transfer?: { claim: Parameters<typeof mdb.transferQueuedWorkBotMessages>[2]; afterCommit(): void }, link?: import("./work-bot-message-db.ts").WorkBotLink): Map<string, Message> {
     const thread = this.thread(threadId);
     const copied = new Map<string, Message>();
     const messages: Message[] = [];
@@ -1160,10 +1160,10 @@ export class Store {
       parentId = message.id;
     }
     if (transfer) {
-      mdb.transferQueuedWorkBotMessages(threadId, messages, transfer.claim);
+      mdb.transferQueuedWorkBotMessages(threadId, messages, transfer.claim, link);
       try { transfer.afterCommit(); }
       catch (error) { throw Object.assign(error instanceof Error ? error : new Error("Could not reconcile transferred work"), { workBotCleanupFailed: true }); }
-    } else mdb.appendMessageBatch(threadId, messages);
+    } else mdb.appendMessageBatch(threadId, messages, link);
     for (const message of messages) {
       thread.messages.push(message);
       this.threads.grew(threadId, message);

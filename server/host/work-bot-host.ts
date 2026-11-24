@@ -97,7 +97,7 @@ export function createWorkBotHost(deps: {
   drainQueuedSends(): void;
   targetUnlocked(threadId: string): void;
   assertAvailable(botId?: string, threadId?: string): void;
-  offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal, mayContinue?: () => boolean): ReturnType<TeamSetupRequestService["offerFromChat"]> | undefined;
+  offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal, mayContinue?: () => boolean, contextBlock?: () => "files" | "data" | undefined): ReturnType<TeamSetupRequestService["offerFromChat"]> | undefined;
   teamPersonFor(person: string): WorkBotMember | undefined;
   sessionFor(person: string): { email?: string } | undefined;
   cloudTeam: boolean;
@@ -109,6 +109,13 @@ export function createWorkBotHost(deps: {
   startTurn(botId: string, text: string, opts: { threadId: string; userMessage?: Message; sender?: Message["sender"]; trigger: UsageTrigger; replyTo?: ReplyTarget; dataContext?: Message["dataContext"]; sendId?: string; allowRoomTurnElsewhere: true; workBotRoutingMessageId: string; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredText?: string[]; transferredMessageIds?: string[] } }): Promise<unknown>;
 }) {
   const { store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked, assertAvailable, offerWorkBot, teamPersonFor, sessionFor, cloudTeam, sharedNonTeam, teamHost, conversationShares, threadStarters, threadBusy, startTurn } = deps;
+function annotateOfferContext(threadId: string, messageId: string, requestId: string): void {
+  const current = sinceFreshStart(store.activePath(threadId)), index = current.findIndex(row => row.id === messageId);
+  const blocked = index < 0 ? null : unsupportedWorkBotContext(current.slice(0, index + 1));
+  const offerMessage = store.messagesFor(threadId).find(row => row.card?.requestId === requestId);
+  const card = offerMessage?.card, request = card?.teamSetupRequest;
+  if (card && request?.workBotOffer && request.workBotOffer.contextBlock !== (blocked ?? undefined)) store.patchMessage(threadId, offerMessage!.id, { card: { ...card, teamSetupRequest: { ...request, workBotOffer: { ...request.workBotOffer, contextBlock: blocked ?? undefined } } } });
+}
 function reconcileWorkBotBranch(threadId: string): void {
   const ids = pendingWorkBotIds.get(threadId);
   if (!ids?.size) return;
@@ -181,11 +188,12 @@ const workBotRouter = new WorkBotRouter({
     const path = sinceFreshStart(store.activePath(threadId));
     const sourceIndex = path.findIndex(row => row.id === messageId);
     if (sourceIndex < 0) return { interrupted: true };
-    if (await scanWorkBotContext(path.slice(0, sourceIndex + 1), signal)) return null;
+    await scanWorkBotContext(path.slice(0, sourceIndex + 1), signal);
     if (signal.aborted || sharedNonTeam() || (cloudTeam && audienceMember(teamHost.audienceOf(threadId)))) return { interrupted: true };
     const previous = store.messagesFor(threadId).find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === messageId && row.card.requestId);
     if (previous?.card?.requestId) {
       if (!store.activePath(threadId).some(row => row.id === previous.id)) return { interrupted: true };
+      annotateOfferContext(threadId, messageId, previous.card.requestId);
       return { requestId: previous.card.requestId };
     }
     const mayContinue = () => {
@@ -193,11 +201,16 @@ const workBotRouter = new WorkBotRouter({
       const current = sinceFreshStart(store.activePath(threadId));
       const index = current.findIndex(row => row.id === messageId);
       const person = source.sender?.id, member = person ? teamPersonFor(person) : undefined;
-      return index >= 0 && !unsupportedWorkBotContext(current.slice(0, index + 1)) && (!cloudTeam || Boolean(member && member.leftAt === undefined));
+      return index >= 0 && (!cloudTeam || Boolean(member && member.leftAt === undefined));
     };
-    const offer = await offerWorkBot(route.sourceBotId, threadId, source.text, owner, messageId, signal, mayContinue);
+    const offer = await offerWorkBot(route.sourceBotId, threadId, source.text, owner, messageId, signal, mayContinue, () => {
+      const current = sinceFreshStart(store.activePath(threadId)), index = current.findIndex(row => row.id === messageId);
+      return index < 0 ? undefined : unsupportedWorkBotContext(current.slice(0, index + 1)) ?? undefined;
+    });
     if (!mayContinue()) return { interrupted: true };
-    return offer?.state === "pending" ? { requestId: offer.requestId } : null;
+    if (offer?.state !== "pending") return null;
+    annotateOfferContext(threadId, messageId, offer.requestId);
+    return { requestId: offer.requestId };
   },
   mainTarget: (threadId, messageId) => {
     const source = store.messagesFor(threadId).find(message => message.id === messageId);
@@ -211,7 +224,7 @@ const workBotRouter = new WorkBotRouter({
     const card = store.messagesFor(threadId).find(row => row.card?.requestId === requestId)?.card;
     const request = card?.teamSetupRequest;
     if (!route?.sourceBotId || !card || request?.workBotOffer?.sourceMessageId !== messageId) return { state: "interrupted" };
-    if (!card.answered && !card.dismissed && !card.expired) return { state: "pending" };
+    if (!card.answered && !card.dismissed && !card.expired) { annotateOfferContext(threadId, messageId, requestId); return { state: "pending" }; }
     if (card.answered === "deny" && request.result?.state === "denied") return { state: "chosen", target: { botId: route.sourceBotId, threadId } };
     if (card.answered === "allow" && request.result?.state === "applied") {
       const created = request.result.bots.find(bot => bot.action === "created");
@@ -295,10 +308,10 @@ const workBotRouter = new WorkBotRouter({
           if (followups.some(item => item.sender?.id !== source.sender?.id || item.trigger?.kind !== route.triggerKind || JSON.stringify(item.trigger ?? null) !== JSON.stringify(first?.trigger ?? null) || item.workBotOfferOwner !== first?.workBotOfferOwner || unsupportedWorkBotContext([{ id: item.messageId, role: "user", kind: "text", at: item.queuedAt, text: item.text, dataContext: item.dataContext }]))) throw new Error("Queued work cannot be transferred safely");
           const queueIds = followups.map(item => item.messageId);
           const rows: Parameters<typeof store.appendWorkBotContext>[1] = [...staged, { sourceId: messageId, ...(source.replyToId ? { replySourceId: source.replyToId } : {}), message: {
-            role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`, workBotHandoffSource: { threadId, messageId }, workBotRecoveryPending: true,
+            role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`, workBotHandoffSource: { threadId, messageId, botId: route.sourceBotId }, workBotRecoveryPending: true,
             ...(source.sender ? { sender: source.sender } : {}), ...(source.dataContext ? { dataContext: source.dataContext } : {}),
-          } }, ...followups.map(item => ({ sourceId: item.messageId, message: { role: "user" as const, kind: "text" as const, text: item.text, at: item.queuedAt, queueId: item.messageId, workBotHandoffSource: { threadId, messageId }, workBotRecoveryPending: true as const, ...(item.sendId ? { sendId: item.sendId } : {}), ...(item.sender ? { sender: item.sender } : {}) } }))];
-          const copied = store.appendWorkBotContext(target.threadId, rows, first ? { claim: { botId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, queueIds, trigger: first.trigger, offerOwner: first.workBotOfferOwner }, afterCommit: () => forgetTransferredWorkBotFollowups(route.sourceBotId!, threadId, messageId, queueIds) } : undefined);
+          } }, ...followups.map(item => ({ sourceId: item.messageId, message: { role: "user" as const, kind: "text" as const, text: item.text, at: item.queuedAt, queueId: item.messageId, workBotHandoffSource: { threadId, messageId, botId: route.sourceBotId }, workBotRecoveryPending: true as const, ...(item.sendId ? { sendId: item.sendId } : {}), ...(item.sender ? { sender: item.sender } : {}) } }))];
+          const copied = store.appendWorkBotContext(target.threadId, rows, first ? { claim: { botId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, queueIds, trigger: first.trigger, offerOwner: first.workBotOfferOwner }, afterCommit: () => forgetTransferredWorkBotFollowups(route.sourceBotId!, threadId, messageId, queueIds) } : undefined, { sourceBotId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, targetBotId: target.botId, targetThreadId: target.threadId });
           return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}), ...(followups.length ? { transferredText: followups.map(item => item.text), transferredMessageIds: queueIds.map(id => copied.get(id)!.id) } : {}) };
         } });
         admitted = true;
@@ -324,5 +337,5 @@ const workBotRouter = new WorkBotRouter({
       for (const row of group) store.patchMessage(pending.threadId, row.id, { ...(row.queueId ? {} : { requestPending: false }), workBotRecoveryPending: undefined });
     }
   }
-  return { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets, assertAvailable };
+  return { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets, annotateOfferContext, assertAvailable };
 }

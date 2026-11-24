@@ -11,6 +11,8 @@ import { closeMessageDb,
   indexedMemoryFiles,
   insertMessage,
   appendMessageBatch,
+  workBotLinksForThread,
+  recoverLegacyWorkBotLinks,
   transferQueuedWorkBotMessages,
   saveChatFollowup,
   chatFollowups,
@@ -90,6 +92,47 @@ describe("message-db", () => {
     expect(after.activeLeafId).toBe("original");
   });
 
+  it("keeps opaque handoff links across message clearing and rolls them back with failed staging", () => {
+    const link = { sourceBotId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target" };
+    insertMessage("target", msg("existing", "existing"));
+    const db = new DatabaseSync(join(DATA_DIR, "messages.db"));
+    db.exec("CREATE TRIGGER fail_linked_fixture BEFORE INSERT ON messages WHEN NEW.id = 'fail' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END");
+    expect(() => appendMessageBatch("target", [msg("fail", "private text")], link)).toThrow("fixture failure");
+    expect(workBotLinksForThread("source")).toEqual([]);
+    db.exec("DROP TRIGGER fail_linked_fixture"); db.close();
+    appendMessageBatch("target", [msg("copied", "private text")], link);
+    clearThreadMessages("source", () => {}); clearThreadMessages("target", () => {});
+    closeMessageDb();
+    expect(workBotLinksForThread("source")).toEqual([link]);
+    expect(workBotLinksForThread("target")).toEqual([link]);
+    expect(workBotLinksForThread("other")).toEqual([]);
+    expect(JSON.stringify(workBotLinksForThread("source"))).not.toContain("private text");
+  });
+
+  it("backfills verified legacy handoffs once before history is cleared", () => {
+    insertMessage("source", msg("offer", "private source", { workBotRouting: { state: "dispatched", sourceBotId: "source-bot", targetBotId: "target-bot", targetThreadId: "target" } as Message["workBotRouting"] }));
+    insertMessage("other-source", msg("other-offer", "private source", { workBotRouting: { state: "dispatched", sourceBotId: "source-bot", targetBotId: "target-bot", targetThreadId: "empty-target" } as Message["workBotRouting"] }));
+    insertMessage("target", msg("copied", "private copy", { workBotHandoffSource: { threadId: "source", messageId: "offer" } }));
+    closeMessageDb();
+    const raw = new DatabaseSync(join(DATA_DIR, "messages.db"));
+    raw.exec("DELETE FROM command_receipts WHERE kind = 'migration' AND key = 'work_bot_links_v1'; DROP TABLE work_bot_links");
+    raw.close();
+    expect(workBotLinksForThread("source")).toMatchObject([{ sourceBotId: "source-bot", sourceMessageId: "offer", targetBotId: "target-bot" }]);
+    expect(workBotLinksForThread("empty-target")).toHaveLength(1);
+    clearThreadMessages("source", () => {}); clearThreadMessages("target", () => {});
+    closeMessageDb();
+    expect(workBotLinksForThread("target")).toHaveLength(1);
+  });
+
+  it("recovers a legacy target-only handoff using existing bot ownership", () => {
+    insertMessage("target", msg("copy", "private copy", { sendId: "workbot-offer", workBotHandoffSource: { threadId: "source", messageId: "offer" } }));
+    insertMessage("target", msg("forged", "private copy", { sendId: "other", workBotHandoffSource: { threadId: "source", messageId: "forged" } }));
+    const owners: Record<string, string> = { source: "source-bot", target: "target-bot" };
+    recoverLegacyWorkBotLinks(threadId => owners[threadId]);
+    clearThreadMessages("target", () => {}); closeMessageDb();
+    expect(workBotLinksForThread("source")).toEqual([{ sourceBotId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target" }]);
+  });
+
   it("persists a complete copied context batch with its active leaf", () => {
     appendMessageBatch("target", [msg("first", "first", { parentId: null }), msg("second", "second", { parentId: "first", replyToId: "first" })]);
     closeMessageDb();
@@ -118,7 +161,9 @@ describe("message-db", () => {
     expect(readThread("target", legacy("target")).messages).toEqual([]);
     db.exec("DROP TRIGGER fail_queued_handoff");
     db.close();
-    transferQueuedWorkBotMessages("target", messages, claim);
+    const link = { sourceBotId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target" };
+    transferQueuedWorkBotMessages("target", messages, claim, link);
+    expect(workBotLinksForThread("source")).toEqual([link]);
     closeMessageDb();
     expect(chatFollowups().map(row => row.status)).toEqual(["transferred", "transferred"]);
     expect(readThread("target", legacy("target")).messages.map(row => row.text)).toEqual(["source", "q1", "q2"]);

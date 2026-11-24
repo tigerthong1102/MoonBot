@@ -30,34 +30,28 @@ it("creates one synthetic schedule only in the approved work bot", async () => {
     await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text, sendId: randomUUID() });
     await expect.poll(async () => (await rows(main.threadId)).some(row => row.card?.teamSetupRequest?.workBotOffer), { timeout: 20000 }).toBe(true);
     const card = (await rows(main.threadId)).find(row => row.card?.teamSetupRequest?.workBotOffer)!.card!;
-    const source = (await rows(main.threadId)).find(row => row.text === text)!;
-    const followUp = "Thanks, keep this note in the main chat";
-    const queued = await api<{ queued: boolean }>(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: followUp, replyToId: source.id, dataContext: { cardId: "c_42" }, sendId: randomUUID() });
+    const followUp = "Also include the synthetic warehouse note";
+    const queued = await api<{ queued: boolean }>(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: followUp, sendId: randomUUID() });
     expect(queued.queued).toBe(true);
     const targetId = card.teamSetupRequest!.operations.find(operation => operation.action === "create")!.botId;
     const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
     const weekday = weekdays[(new Date().getDay() + 3) % 7];
     const plan = join(fixture.info.dataDir, "room-plan.json");
-    writeFileSync(plan, JSON.stringify({ [targetId]: { steps: [{ tool: "create_trigger", arguments: { when: "schedule", name: "Synthetic stock fixture", instructions: "Check the synthetic fixture only.", schedule: { type: "weekly", time: "03:01", weekdays: [weekday] } } }], reply: "Synthetic schedule created." }, [main.id]: { script: [{ key: "follow-up", match: [followUp], steps: [{ tool: "session_search", arguments: { query: "synthetic stock count" } }, { tool: "session_read", arguments: { thread_id: main.threadId, message_id: source.id } }], reply: "Synthetic follow-up complete." }] } }));
+    writeFileSync(plan, JSON.stringify({ [targetId]: { steps: [{ tool: "create_trigger", arguments: { when: "schedule", name: "Synthetic stock fixture", instructions: "Check the synthetic fixture only.", schedule: { type: "weekly", time: "03:01", weekdays: [weekday] } } }], reply: "Synthetic schedule created." } }));
     const before = (await api<{ routines: unknown[] }>("/api/routines")).routines.length;
     const answer = () => api<{ result: { bots: Array<{ id: string }> } }>(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior: "allow" });
     const accepted = await answer();
     await answer();
     const worker = (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.id === accepted.result.bots[0]?.id)!;
     await expect.poll(async () => (await rows(worker.threadId)).some(row => row.role === "bot" && row.text === "Synthetic schedule created."), { timeout: 30000 }).toBe(true);
-    await expect.poll(async () => (await rows(main.threadId)).some(row => row.role === "bot" && row.text === "Synthetic follow-up complete."), { timeout: 30000 }).toBe(true);
+    expect((await rows(worker.threadId)).some(row => row.role === "user" && row.text === followUp)).toBe(true);
     const routines = (await api<{ routines: Array<{ name: string; botId: string; sourceThreadId: string }> }>("/api/routines")).routines;
     expect(routines).toHaveLength(before + 1);
     expect(routines.filter(routine => routine.name === "Synthetic stock fixture")).toMatchObject([{ botId: worker.id, sourceThreadId: worker.threadId }]);
     expect((await rows(main.threadId)).some(row => row.card?.routineRequest)).toBe(false);
     const evidence = readFileSync(plan + ".evidence.jsonl", "utf8").trim().split("\n").map(line => JSON.parse(line) as { botId: string; evidence: Array<{ step?: { tool?: string }; response?: unknown }> });
-    expect(evidence).toHaveLength(2);
-    const mainTools = evidence.find(turn => turn.botId === main.id)!.evidence;
-    for (const tool of ["session_search", "session_read"]) {
-      const response = JSON.stringify(mainTools.find(entry => entry.step?.tool === tool)?.response);
-      expect(response).toContain("assigned to another bot");
-      expect(response).not.toContain(text);
-    }
+    expect(evidence).toHaveLength(1);
+    expect(evidence[0].botId).toBe(worker.id);
     expect(readFileSync(prompts, "utf8").trim().split("\n").map(line => JSON.parse(line) as unknown).filter(prompt => JSON.stringify(prompt).includes(text))).toHaveLength(1);
   } finally {
     globalThis.fetch = originalFetch;

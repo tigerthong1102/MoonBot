@@ -8,11 +8,11 @@ import { expect, it } from "vitest";
 import { launchVerificationServer, verificationServerArgs, verificationServerEnvironment } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
 
-it("reopens a pending work-bot choice without dispatching it twice", async () => {
+it.each(["none", "files"])("reopens a pending work-bot choice without dispatching it twice (context: %s)", async context => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-restart-"));
   const routes = join(dir, "routes.json");
   const prompts = join(dir, "prompts.jsonl");
-  const text = "Monitor synthetic inventory weekly";
+  const text = context === "files" ? "Monitor synthetic inventory/report.csv weekly" : "Monitor synthetic inventory weekly";
   writeFileSync(routes, JSON.stringify({ [text]: JSON.stringify({ name: "Inventory", icon: "box" }) }));
   const token = randomBytes(32).toString("base64url");
   const env = { ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_PROMPTS: prompts, OMB_TEST_DESKTOP_OWNER_TOKEN: token };
@@ -36,6 +36,11 @@ it("reopens a pending work-bot choice without dispatching it twice", async () =>
     const originalChild = fixture.child;
     originalChild.kill("SIGTERM");
     await new Promise<void>(resolve => originalChild.once("exit", () => resolve()));
+    if (context === "files") {
+      const db = new DatabaseSync(join(fixture.info.dataDir, "messages.db"));
+      try { expect(db.prepare("UPDATE messages SET json = json_remove(json, '$.card.teamSetupRequest.workBotOffer.contextBlock') WHERE thread_id = ? AND json_extract(json, '$.card.teamSetupRequest.workBotOffer.sourceMessageId') IS NOT NULL").run(main.threadId).changes).toBe(1); }
+      finally { db.close(); }
+    }
     const port = Number(new URL(base).port);
     const childEnv = verificationServerEnvironment(env, fixture.info.dataDir, port);
     restarted = spawn(process.execPath, verificationServerArgs(childEnv), { cwd: process.cwd(), env: childEnv, stdio: "ignore" });
@@ -46,6 +51,15 @@ it("reopens a pending work-bot choice without dispatching it twice", async () =>
     const card = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
     expect(card?.requestId).toBeTruthy();
     expect(card?.subtitle).toBe(text);
+    if (context === "files") {
+      await expect.poll(async () => (await rows()).find(row => row.card?.requestId === card!.requestId)?.card?.teamSetupRequest?.workBotOffer?.contextBlock, { timeout: 20000 }).toBe("files");
+      const refused = await fetch(`${base}/api/threads/${main.threadId}/respond`, { method: "POST", headers: { origin: base, "content-type": "application/json" }, body: JSON.stringify({ requestId: card!.requestId, behavior: "allow" }) });
+      expect(refused.status).toBe(409);
+      await api(`/api/threads/${main.threadId}/respond`, { requestId: card!.requestId, behavior: "deny" });
+      await expect.poll(async () => (await rows()).find(row => row.text === text)?.workBotRouting?.state, { timeout: 20000 }).toBe("dispatched");
+      expect((await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots).toHaveLength(1);
+      return;
+    }
     const accepted = await api<{ result: { bots: Array<{ id: string }> } }>(`/api/threads/${main.threadId}/respond`, { requestId: card!.requestId, behavior: "allow" });
     const bot = (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(row => row.id === accepted.result.bots[0]?.id)!;
     await expect.poll(async () => {

@@ -66,7 +66,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     started.set(threadId, deferred()); interrupted.set(threadId, deferred());
   }
   const context = vm.createContext({
-    CLOUD_TEAM: false, handedRunTarget: () => undefined, workBotTargetLocks: new Map(),
+    CLOUD_TEAM: false, handedRunTarget: () => undefined, workBotTargetLocks: new Map(), workBotChoiceLocks: new Set(), cancelWorkBotRoutes() {}, workBotRouter: {}, indexWorkBotRouting() {},
     companyShutdown: false, providerInstancesChanging: new Set(),
     providerAuthSessions: { clearInstance() {} }, bus: { detach: (id: string) => detached.push(id) },
     liveTurnByThread: new Map(), stoppedTurnText: (_threadId: string, _turnId: string | undefined, cause: string) => cause,

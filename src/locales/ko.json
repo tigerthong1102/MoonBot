@@ -1,4 +1,6 @@
 {
+  "workBotOffer.continueHere": "여기서 계속",
+  "server.workBot.scheduleConflict": "연결된 봇의 일정이나 실행이 겹칠 수 있거나 연결을 확인할 수 없습니다. 관련 일정을 확인하세요.",
   "server.workBot.choiceInProgress": "봇 선택을 처리 중입니다. 완료된 후 다시 시도해 주세요.",
   "server.workBot.pendingUnavailable": "대기 중인 일부 메시지를 안전하게 전달할 수 없습니다. 대기열에서 삭제하거나 여기서 계속하세요.",
   "workBotOffer.queuedNotice": "동의하면 선택을 기다리는 동안 보낸 메시지도 새 봇으로 전달됩니다. 관련 없는 대기 메시지는 선택하기 전에 삭제하세요.",

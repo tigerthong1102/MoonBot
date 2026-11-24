@@ -284,12 +284,12 @@ export class TeamSetupRequestService {
   }
 
   propose(args: SetupArgs) { return this.card(this.prepare(args), args.from); }
-  async offerFromChat(botId: string, threadId: string, text: string, owner: string, messageId: string, writer: () => SideJobText | null | undefined, abort?: AbortSignal) {
+  async offerFromChat(botId: string, threadId: string, text: string, owner: string, messageId: string, writer: () => SideJobText | null | undefined, abort?: AbortSignal, contextBlock?: () => "files" | "data" | undefined) {
     const key = JSON.stringify([threadId, messageId]);
     if (this.classifying.has(key)) return;
     this.classifying.add(key);
     const previous = this.offerTails.get(threadId) ?? Promise.resolve();
-    const decision = previous.then(() => this.classifyMessage(botId, threadId, text, owner, messageId, writer, abort));
+    const decision = previous.then(() => this.classifyMessage(botId, threadId, text, owner, messageId, writer, abort, contextBlock));
     const tail = decision.then(() => {});
     this.offerTails.set(threadId, tail);
     try { return await decision; } finally {
@@ -298,7 +298,7 @@ export class TeamSetupRequestService {
     }
   }
 
-  private async classifyMessage(botId: string, threadId: string, text: string, owner: string, messageId: string, writer: () => SideJobText | null | undefined, abort?: AbortSignal) {
+  private async classifyMessage(botId: string, threadId: string, text: string, owner: string, messageId: string, writer: () => SideJobText | null | undefined, abort?: AbortSignal, contextBlock?: () => "files" | "data" | undefined) {
     const { store, maxBots } = this.options;
     const bot = store.projectBotForTask?.(botId, threadId) ?? store.bot(botId);
     const eligible = () => {
@@ -334,11 +334,12 @@ export class TeamSetupRequestService {
       const pendingNames = store.activePath(threadId).flatMap(({ card }) => card?.teamSetupRequest?.workBotOffer && !card.answered && !card.dismissed && !card.expired
         ? card.teamSetupRequest.operations.flatMap(operation => operation.action === "create" && operation.fields.name ? [{ name: operation.fields.name }] : []) : []);
       const name = workBotName(label, [...store.bots, ...pendingNames]);
+      const blocked = contextBlock?.();
       return this.proposeWorkBot({ botId, threadId, plan: {
         reason: name, operations: [{ action: "create", key: "follow_up", fields: {
           name, title: label, description: label, soul: serverLine(conversationLanguage(threadId), "server.workBot.standingGuidance"), modelSelection: bot.modelSelection,
         } }],
-      } }, { icon: topic.icon, topic: topic.name, sourceMessageId: messageId });
+      } }, { icon: topic.icon, topic: topic.name, sourceMessageId: messageId, ...(blocked ? { contextBlock: blocked } : {}) });
     } catch (error) {
       if (!(error instanceof TeamSetupError)) console.warn("Work bot suggestion could not be saved", error instanceof Error ? error.name : "unknown error");
     }

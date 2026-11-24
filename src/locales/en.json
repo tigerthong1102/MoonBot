@@ -1,4 +1,6 @@
 {
+  "workBotOffer.continueHere": "Continue here",
+  "server.workBot.scheduleConflict": "A schedule or run in the linked bot may overlap, or the link cannot be checked. Review the related schedules.",
   "server.workBot.choiceInProgress": "The bot choice is being processed. Try again when it finishes.",
   "server.workBot.pendingUnavailable": "Some queued messages cannot be transferred safely. Remove them from the queue or choose to continue here.",
   "workBotRouting.classifying": "Reviewing where to send this work…",

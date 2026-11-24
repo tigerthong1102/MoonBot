@@ -1,10 +1,11 @@
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
 import { assertWorkBotStopAllowed as assertWorkBotStop, cancelWorkBotRoutes, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
+import { assertWorkBotRoutineSafe } from "./host/work-bot-routine-guard.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
 import { createProfileModelResponder } from "./host/profile-model-responder.ts";
-import { pendingWorkBotRoutes, verifiedWorkBotFollowup } from "./message-db.ts";
+import { pendingWorkBotRoutes, verifiedWorkBotFollowup, workBotLinksForThread, recoverLegacyWorkBotLinks } from "./message-db.ts";
 import { startFailureText } from "./start-failure-text.ts";
 import { reserveGmailDrafts } from "./gmail-draft-policy.ts";
 import { createGmailDrafts } from "./host/gmail-drafts.ts";
@@ -2817,6 +2818,7 @@ const store = new Store(
   () => appLanguage() ?? Intl.DateTimeFormat().resolvedOptions().locale,
   () => sharedMembership() ? undefined : cfg.profile?.name,
 );
+if (!CLOUD_TEAM) recoverLegacyWorkBotLinks(threadId => store.botByThread(threadId)?.id);
 for (const row of pendingWorkBotRoutes()) {
   if (row.message.workBotRouting) indexWorkBotRouting(row.threadId, row.message.id, row.message.workBotRouting.state);
 }
@@ -8867,6 +8869,7 @@ const automationDestinations = createAutomationDestinations({ store, mainThread:
   cloud: CLOUD_HOME ? { owner: CLOUD_OWNER_KEY!, opener: (id, routine) => (routine && teamRoutines.opener(routine)) || routineOpener(id), reportFromOthers: cloudReportFromOthers, opened: (threadId, person) => threadStarters.set(threadId, person), outside: (threadId) => outsideLineage.mark(threadId) } : null });
 const routineModelChecks: RoutineModelChecks = { check: (raw) => checkedModelSelection(raw), bot: (botId) => store.bot(botId), engineSwitchNeedsAsk };
 routines = new RoutineManager({
+  beforeHandoffRoutineCommit: (request, existing, runs) => assertWorkBotRoutineSafe(store, threadLanguage, request, existing, runs, workBotLinksForThread),
   emit: broadcast, limitResetAt: (engine) => limitClock.resetAt(engine), checks: proactive.checks,
   limitBackup: (botId, scope) => { const bot = store.bot(botId); return quotaSwitchEnabled() ? Boolean(bot && limitTakeover.backups(botId, bot.modelSelection, scope, approvalModeFor(bot)).length) : Boolean(bot && startupBackups(bot, cfg.automaticRecovery).length); },
   launchId: DESKTOP_MANAGED && /^[\w-]{1,100}$/.test(process.env.OMB_DESKTOP_LAUNCH_ID ?? "")
@@ -9332,7 +9335,7 @@ const teamSetupRequests = new TeamSetupRequestService({
   },
 });
 
-function offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal, mayContinue?: () => boolean) {
+function offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal, mayContinue?: () => boolean, contextBlock?: () => "files" | "data" | undefined) {
   if (botMainThread(botId) !== threadId) return;
   const selection = store.projectBotForTask(botId, threadId)?.modelSelection;
   const instance = selection && registry.get(selection.instanceId);
@@ -9344,7 +9347,7 @@ function offerWorkBot(botId: string, threadId: string, text: string, owner: stri
     return botMainThread(botId) === threadId && current?.instanceId === selection.instanceId && current.model === selection.model &&
       registry.get(selection.instanceId) === instance && instance.enabled && (!hostedModels || hostedModels.allows(selection)) &&
       !usageCapGate.refusal(botId, true) ? sideJobs.text("work-bot-offer", botId, { instance, model: selection.model, threadId }) : null;
-  }, signal);
+  }, signal, contextBlock);
 }
 
 const workBotHost = createWorkBotHost({
@@ -9355,7 +9358,7 @@ const workBotHost = createWorkBotHost({
   teamHost, conversationShares, threadStarters, threadBusy, startTurn,
 });
 const { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets } = workBotHost;
-for (const pending of pendingWorkBotRoutes()) workBotRouter.recoverDispatch(pending.threadId, pending.message.id);
+for (const pending of pendingWorkBotRoutes()) { workBotRouter.recoverDispatch(pending.threadId, pending.message.id); if (pending.message.workBotRouting?.state === "waiting_choice" && pending.message.workBotRouting.requestId) workBotHost.annotateOfferContext(pending.threadId, pending.message.id, pending.message.workBotRouting.requestId); }
 recoverWorkBotTargets();
 
 const resolveAndSendTeamSetup = createTeamSetupResponder({ store,

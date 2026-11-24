@@ -4,7 +4,7 @@ import type { ModelSelection } from "./wire.ts";
 export interface WorkBotMessageFields {
   workBotExecutionUncertain?: true;
   workBotRecoveryPending?: true;
-  workBotHandoffSource?: { threadId: string; messageId: string };
+  workBotHandoffSource?: { threadId: string; messageId: string; botId?: string };
   workBotRouting?: {
     state: "classifying" | "waiting_choice" | "dispatching" | "interrupted" | "dispatched" | "cancelled";
     requestId?: string;

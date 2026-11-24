@@ -2,6 +2,41 @@ import type { DatabaseSync } from "node:sqlite";
 import type { Message } from "./store.ts";
 import { newWorkBotReceipt } from "./work-bot-receipt.ts";
 
+export const WORK_BOT_LINK_SCHEMA = `
+    CREATE TABLE IF NOT EXISTS work_bot_links (
+      source_bot_id TEXT NOT NULL, source_thread_id TEXT NOT NULL, source_message_id TEXT NOT NULL,
+      target_bot_id TEXT NOT NULL, target_thread_id TEXT NOT NULL,
+      PRIMARY KEY (source_thread_id, source_message_id), UNIQUE (target_thread_id, source_message_id)
+    );
+    CREATE INDEX IF NOT EXISTS work_bot_links_target ON work_bot_links(target_thread_id);
+    CREATE INDEX IF NOT EXISTS work_bot_links_source_bot ON work_bot_links(source_bot_id);
+    CREATE INDEX IF NOT EXISTS work_bot_links_target_bot ON work_bot_links(target_bot_id);
+`;
+
+export function migrateWorkBotLinks(db: DatabaseSync): void {
+  if (!db.prepare("SELECT 1 FROM command_receipts WHERE kind = 'migration' AND key = 'work_bot_links_v1'").get()) {
+    db.exec(`BEGIN IMMEDIATE;
+      INSERT OR IGNORE INTO work_bot_links (source_bot_id, source_thread_id, source_message_id, target_bot_id, target_thread_id)
+      SELECT json_extract(source.json, '$.workBotRouting.sourceBotId'), source.thread_id, source.id,
+             json_extract(source.json, '$.workBotRouting.targetBotId'), json_extract(source.json, '$.workBotRouting.targetThreadId')
+      FROM messages source
+      WHERE source.role = 'user'
+        AND (json_extract(source.json, '$.workBotRouting.state') = 'dispatched' OR
+          (json_extract(source.json, '$.workBotRouting.state') IN ('dispatching', 'interrupted') AND EXISTS (
+            SELECT 1 FROM messages target WHERE target.thread_id = json_extract(source.json, '$.workBotRouting.targetThreadId')
+              AND target.role = 'user' AND json_extract(target.json, '$.workBotHandoffSource.threadId') = source.thread_id
+              AND json_extract(target.json, '$.workBotHandoffSource.messageId') = source.id)))
+        AND length(json_extract(source.json, '$.workBotRouting.sourceBotId')) > 0
+        AND length(json_extract(source.json, '$.workBotRouting.targetBotId')) > 0
+        AND length(json_extract(source.json, '$.workBotRouting.targetThreadId')) > 0
+        AND source.thread_id <> json_extract(source.json, '$.workBotRouting.targetThreadId');
+      INSERT INTO command_receipts (kind, key, at, result) VALUES ('migration', 'work_bot_links_v1', 0, '{}');
+      COMMIT;`);
+  }
+}
+
+export type WorkBotLink = { sourceBotId: string; sourceThreadId: string; sourceMessageId: string; targetBotId: string; targetThreadId: string };
+
 export function createWorkBotMessageDb(deps: {
   db(): DatabaseSync;
   transaction<T>(fn: (database: DatabaseSync) => T): T;
@@ -9,7 +44,32 @@ export function createWorkBotMessageDb(deps: {
   insertMessage(threadId: string, message: Message): void;
   setActiveLeaf(threadId: string, leafId: string | null): void;
 }) {
+  function saveLink(database: DatabaseSync, threadId: string, link?: WorkBotLink): void {
+    if (!link) return;
+    if (link.targetThreadId !== threadId || Object.values(link).some(value => !value) || link.sourceThreadId === link.targetThreadId) throw new Error("Invalid work bot link");
+    database.prepare("INSERT INTO work_bot_links (source_bot_id, source_thread_id, source_message_id, target_bot_id, target_thread_id) VALUES (?, ?, ?, ?, ?)").run(link.sourceBotId, link.sourceThreadId, link.sourceMessageId, link.targetBotId, link.targetThreadId);
+  }
   return {
+    recoverLegacyWorkBotLinks(botForThread: (threadId: string) => string | undefined): void {
+      deps.durableTransaction(database => {
+        if (database.prepare("SELECT 1 FROM command_receipts WHERE kind = 'migration' AND key = 'work_bot_links_v2'").get()) return;
+        const rows = database.prepare("SELECT thread_id, json FROM messages WHERE role = 'user' AND kind = 'text' AND json_extract(json, '$.workBotHandoffSource.messageId') IS NOT NULL").all() as Array<{ thread_id: string; json: string }>;
+        const insert = database.prepare("INSERT OR IGNORE INTO work_bot_links (source_bot_id, source_thread_id, source_message_id, target_bot_id, target_thread_id) VALUES (?, ?, ?, ?, ?)");
+        for (const row of rows) {
+          const message = JSON.parse(row.json) as Message;
+          const source = message.workBotHandoffSource;
+          if (!source || !source.threadId || !source.messageId || message.sendId !== `workbot-${source.messageId}` || source.threadId === row.thread_id) continue;
+          const sourceBot = botForThread(source.threadId), targetBot = botForThread(row.thread_id);
+          if (!sourceBot || !targetBot || sourceBot === targetBot || (source.botId && source.botId !== sourceBot)) continue;
+          insert.run(sourceBot, source.threadId, source.messageId, targetBot, row.thread_id);
+        }
+        database.prepare("INSERT INTO command_receipts (kind, key, at, result) VALUES ('migration', 'work_bot_links_v2', 0, '{}')").run();
+      });
+    },
+    workBotLinksForThread(threadId: string, botId?: string): WorkBotLink[] {
+      const rows = deps.db().prepare("SELECT source_bot_id, source_thread_id, source_message_id, target_bot_id, target_thread_id FROM work_bot_links WHERE source_thread_id = ? OR target_thread_id = ? OR source_bot_id = ? OR target_bot_id = ?").all(threadId, threadId, botId ?? "", botId ?? "") as Array<{ source_bot_id: string; source_thread_id: string; source_message_id: string; target_bot_id: string; target_thread_id: string }>;
+      return rows.map(row => ({ sourceBotId: row.source_bot_id, sourceThreadId: row.source_thread_id, sourceMessageId: row.source_message_id, targetBotId: row.target_bot_id, targetThreadId: row.target_thread_id }));
+    },
     verifiedWorkBotFollowup(queueId: string, sourceThreadId: string, sourceMessageId: string, targetThreadId: string, messageId: string): boolean {
       return Boolean(deps.db().prepare("SELECT 1 FROM chat_followups WHERE id = ? AND thread_id = ? AND kind = 'bot' AND status = 'transferred' AND json_extract(payload, '$.transfer.sourceMessageId') = ? AND json_extract(payload, '$.transfer.threadId') = ? AND json_extract(payload, '$.transfer.messageId') = ?").get(queueId, sourceThreadId, sourceMessageId, targetThreadId, messageId));
     },
@@ -19,18 +79,21 @@ export function createWorkBotMessageDb(deps: {
       const transfer = (JSON.parse(row.payload) as { transfer?: { salt?: string; fingerprint?: string } }).transfer;
       return { id: row.id, salt: transfer?.salt ?? "", fingerprint: transfer?.fingerprint ?? "" };
     },
-    appendMessageBatch(threadId: string, messages: Message[]): void {
+    appendMessageBatch(threadId: string, messages: Message[], link?: WorkBotLink): void {
       if (!messages.length) return;
-      deps.transaction(() => {
+      deps.transaction(database => {
+        saveLink(database, threadId, link);
         for (const message of messages) deps.insertMessage(threadId, message);
         deps.setActiveLeaf(threadId, messages[messages.length - 1]!.id);
       });
     },
-    transferQueuedWorkBotMessages(threadId: string, messages: Message[], claim: { botId: string; sourceThreadId: string; sourceMessageId: string; queueIds: string[]; trigger?: unknown; offerOwner?: string }): void {
+    transferQueuedWorkBotMessages(threadId: string, messages: Message[], claim: { botId: string; sourceThreadId: string; sourceMessageId: string; queueIds: string[]; trigger?: unknown; offerOwner?: string }, link?: WorkBotLink): void {
       if (!messages.length || !claim.queueIds.length || new Set(claim.queueIds).size !== claim.queueIds.length) throw new Error("Invalid work bot transfer");
       if (claim.queueIds.some(id => messages.filter(message => message.queueId === id && message.role === "user" && message.kind === "text").length !== 1) || messages.some(message => message.queueId && !claim.queueIds.includes(message.queueId))) throw new Error("Incomplete work bot transfer");
       if (messages.filter(message => !message.queueId && message.workBotHandoffSource?.threadId === claim.sourceThreadId && message.workBotHandoffSource.messageId === claim.sourceMessageId && message.workBotRecoveryPending === true).length !== 1 || claim.queueIds.some(id => !messages.some(message => message.queueId === id && message.workBotHandoffSource?.threadId === claim.sourceThreadId && message.workBotHandoffSource.messageId === claim.sourceMessageId && message.workBotRecoveryPending === true))) throw new Error("Work bot recovery receipt is missing");
       deps.durableTransaction(database => {
+        if (link && (link.sourceBotId !== claim.botId || link.sourceThreadId !== claim.sourceThreadId || link.sourceMessageId !== claim.sourceMessageId)) throw new Error("Invalid work bot link");
+        saveLink(database, threadId, link);
         const leaf = database.prepare("SELECT active_leaf_id FROM thread_state WHERE thread_id = ?").get(threadId) as { active_leaf_id: string | null } | undefined;
         if ((messages[0]!.parentId ?? null) !== (leaf?.active_leaf_id ?? null) || messages.slice(1).some((message, index) => message.parentId !== messages[index]!.id)) throw new Error("Work bot destination changed during handoff");
         const existing = database.prepare("SELECT 1 FROM messages WHERE thread_id = ? AND id = ?");

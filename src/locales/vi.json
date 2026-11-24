@@ -1,4 +1,6 @@
 {
+  "workBotOffer.continueHere": "Tiếp tục tại đây",
+  "server.workBot.scheduleConflict": "Một lịch hoặc lượt chạy ở bot được liên kết có thể liên quan, hoặc chưa thể kiểm tra liên kết. Hãy xem các lịch liên quan.",
   "server.workBot.choiceInProgress": "Đang xử lý lựa chọn tạo bot. Hãy thử lại sau khi bước này hoàn tất.",
   "server.workBot.pendingUnavailable": "Một số tin nhắn đang chờ chưa thể chuyển an toàn. Hãy xóa chúng khỏi hàng chờ hoặc chọn tiếp tục tại đây.",
   "workBotRouting.classifying": "Đang xem nơi giao việc…",

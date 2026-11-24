@@ -7,6 +7,54 @@ import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
 
+it("keeps widget-dependent work in the source conversation without a duplicate run", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "work-bot-widget-context-"));
+  const gate = join(dir, "finish"), routes = join(dir, "routes.json"), prompts = join(dir, "prompts.jsonl");
+  const work = "Monitor this synthetic widget every week";
+  writeFileSync(routes, JSON.stringify({ "Show synthetic inventory": "null", [work]: JSON.stringify({ name: "Inventory", icon: "box" }) }));
+  const ownerToken = randomBytes(32).toString("base64url");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (input, init = {}) => originalFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": ownerToken } });
+  let fixture: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
+  try {
+    fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_MODE: "slow", FAKE_CLAUDE_SLOW_FINISH_GATE: gate, FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_PROMPTS: prompts, OMB_TEST_DESKTOP_OWNER_TOKEN: ownerToken });
+    const base = fixture.info.url;
+    const request = (path: string, body?: unknown, token?: string, method = body ? "POST" : "GET") => fetch(base + path, { method, headers: { origin: base, "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const bots = async () => (await (await request("/api/bots?messages=0")).json() as { bots: BotRecord[] }).bots;
+    const before = await bots(), main = before.find(bot => bot.defaultBot)!;
+    const rows = async () => (await (await request(`/api/threads/${main.threadId}/messages`)).json() as { messages: Message[] }).messages;
+    expect((await request(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: "Show synthetic inventory", sendId: randomUUID() })).ok).toBe(true);
+    let token = "";
+    await expect.poll(() => {
+      try { token = JSON.parse(readFileSync(fixture!.fixtureDumpPath, "utf8")).mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN; } catch { return false; }
+      return Boolean(token);
+    }, { timeout: 15000 }).toBe(true);
+    expect((await request("/api/internal/options-card", { tool: "show_widget", widget: { type: "Card", title: "Synthetic inventory: 42" } }, token)).status).toBe(201);
+    writeFileSync(gate, "finish");
+    await expect.poll(async () => !(await bots()).find(bot => bot.id === main.id)?.busy, { timeout: 15000 }).toBe(true);
+    expect((await rows()).some(row => row.kind === "widget" && row.text?.includes("Synthetic inventory: 42"))).toBe(true);
+    expect((await request(`/api/bots/${main.id}`, { cwd: dir }, undefined, "PATCH")).ok).toBe(true);
+    expect((await request(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: work, sendId: randomUUID() })).ok).toBe(true);
+    await expect.poll(async () => (await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "data"), { timeout: 20000 }).toBe(true);
+    const card = (await rows()).find(row => row.card?.teamSetupRequest?.workBotOffer?.contextBlock === "data")!.card!;
+    const respond = (behavior: string) => request(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior });
+    expect((await respond("allow")).status).toBe(409);
+    expect((await respond("deny")).ok).toBe(true);
+    await expect.poll(async () => (await rows()).find(row => row.text === work)?.workBotRouting?.state, { timeout: 20000 }).toBe("dispatched");
+    await expect.poll(() => existsSync(prompts) && readFileSync(prompts, "utf8").trim().split("\n").filter(line => line.includes(work)).length, { timeout: 20000 }).toBe(1);
+    expect(readFileSync(prompts, "utf8").trim().split("\n").find(line => line.includes(work))).toContain("Synthetic inventory: 42");
+    await expect.poll(async () => {
+      const messages = await rows(), source = messages.find(row => row.text === work);
+      return messages.some(row => row.requestMessageId === source?.id && row.turnTerminal && row.turnSucceeded);
+    }, { timeout: 20000 }).toBe(true);
+    expect(await bots()).toHaveLength(before.length);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fixture?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}, 60000);
+
 it("keeps work referring to a relative fixture file in its original conversation", async () => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-relative-file-"));
   const routes = join(dir, "routes.json");

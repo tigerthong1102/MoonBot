@@ -2399,7 +2399,7 @@ function markDirectTurnDispatching(botId: string, claimId: string, threadId: str
 function clearDirectTurnDispatch(threadId: string, claimId: string): void {
   if (directTurnDispatchClaims.get(threadId)?.id === claimId) {
     directTurnDispatchClaims.delete(threadId);
-      // A fast provider can settle before its dispatch ACK, so releasing the reservation must retry the final fence.
+    // A fast provider can settle before its dispatch ACK, so releasing the reservation must retry the final fence.
     settleTrackedRequest(threadId);
   }
 }
@@ -4649,10 +4649,10 @@ function guardedRequestSnapshot(botId: string, threadId: string, sendId: string)
 }
 
 /** A durable completion fence, not a replay queue: a Chief's earlier handoff must not become a final after a crash. */
-function settleTrackedRequest(threadId: string, incoming: ReadonlySet<string> = new Set()): void {
+function settleTrackedRequest(threadId: string, incoming: ReadonlySet<string> = new Set(), exceptRoutingMessageId?: string): void {
   const owner = directRequestOwners.get(threadId);
   const bot = store.botByThread(threadId);
-  if (!owner?.messageId || owner.stopped || !bot || threadBusy(bot.id, threadId) || coordinator.parkedDirect(threadId)) return;
+  if (!owner?.messageId || owner.stopped || !bot || threadBusy(bot.id, threadId, exceptRoutingMessageId) || coordinator.parkedDirect(threadId)) return;
   const newest = coordinator.newestRoot(threadId, owner.generations);
   if (newest && newest.status !== "completed") return;
   const path = store.activePath(threadId).filter(message => !incoming.has(message.id));
@@ -6803,11 +6803,9 @@ bus.subscribe((event: RuntimeEvent) => {
           }
           directTurnBots.delete(event.threadId);
           if (continueComputerSelection(event.threadId, generation, event.ok) || peerLimitResend.resend(event.threadId, generation)) return;
-          // An asynchronous screenshot finishes after the bus subscribers that normally drain have run.
-          if (resumeQueued) {
-            drainQueuedSends();
-          }
           settleTrackedRequest(event.threadId);
+          // An asynchronous screenshot finishes after the bus subscribers that normally drain have run.
+          if (resumeQueued) drainQueuedSends();
         };
         const tokens = event.usage ?? lastReported;
         const routedModel = quickFallback.routedModel(event.threadId);
@@ -7681,6 +7679,7 @@ async function beginTurn(
     computerSkipped ??= changing;
   }
   if (threadBusy(botId, threadId, opts?.workBotRoutingMessageId)) throw Object.assign(new Error("this thread is already working — interrupt it first"), { status: 409, code: "thread_busy" });
+  if (!opts?.cardContinuation && !opts?.computerSelectionContinuation && directRequestOwners.get(threadId)?.messageId !== opts?.userMessage?.id) settleTrackedRequest(threadId, new Set([...(opts?.userMessage ? [opts.userMessage.id] : []), ...(opts?.excludeMessageIds ?? [])]), opts?.workBotRoutingMessageId);
   if (roomTurnHolds(activeGroupTurnForBot(botId), threadId, opts?.allowRoomTurnElsewhere === true)) {
     throw Object.assign(new Error("the bot is already working in a channel — wait for it to finish"), { status: 409, code: "thread_busy" });
   }

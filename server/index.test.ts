@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 201341)
-Total output lines: 15002
-
 // The config pins one deliberately unknown driver, so the suite is deterministic with or without agent CLIs installed.
 import { EMAIL_TOOLS } from "./email/tools.ts";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -5758,7 +5755,3779 @@ describe("harness HTTP API", () => {
     const isolatedPort = await freePortBlock([0, 1]);
     mkdirSync(join(isolatedStatic, "assets"), { recursive: true });
     mkdirSync(isolatedData, { recursive: true });
-    writeFileSync(join…51341 tokens truncated…PATCH", `/api/bots/${bot.id}`, {
+    writeFileSync(join(isolatedStatic, "index.html"), "<!doctype html><title>Trusted mode model test</title>");
+    writeFileSync(join(isolatedStatic, "assets", "smoke.css"), "body{}");
+    writeFileSync(join(isolatedData, "config.json"), JSON.stringify({
+      instances: {
+        codex: { driver: "codex", displayName: "Fixture Codex", config: { cli: join(isolatedHome, "missing-codex") } },
+        claude: { driver: "claudeAgent", displayName: "Fixture Claude", config: { cli: FAKE_CLAUDE_CLI } },
+      },
+    }));
+    const trustedBots = (["full", "custom"] as const).map((approvalMode, index) => ({
+      id: `${approvalMode}-model-guard`,
+      threadId: `${approvalMode}-model-thread`,
+      name: `${approvalMode} model guard`,
+      title: "",
+      description: "",
+      notifications: true,
+      color: "blue",
+      unread: false,
+      modelSelection: { instanceId: "codex", model: "fixture-codex-model" },
+      resumeCursors: {},
+      createdAt: index + 1,
+      approvalMode,
+      autoApprove: false,
+    }));
+    // A third Full bot changes engine by itself: its access must ride along.
+    const carrier = { ...trustedBots[0], id: "full-carry", threadId: "full-carry-thread", name: "full carrier", createdAt: 3 };
+    // An Ask bot with one conversation still on Custom.
+    const customThread = { ...trustedBots[0], id: "custom-thread", threadId: "custom-thread-main", name: "custom thread", createdAt: 4,
+      approvalMode: "ask", tasks: [
+        { threadId: "custom-thread-main", title: "Main", createdAt: 4, resumeCursors: {} },
+        { threadId: "custom-thread-own", title: "Own Custom", createdAt: 5, resumeCursors: {}, approvalMode: "custom", autoApprove: false },
+      ] };
+    writeFileSync(join(isolatedData, "bots.json"), JSON.stringify([...trustedBots, carrier, customThread]));
+
+    let isolatedStderr = "";
+    const isolatedChild = spawn(process.execPath, [join(SERVER_DIR, "index.ts")], {
+      cwd: ROOT,
+      env: {
+        ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+        ...(process.env.PATHEXT ? { PATHEXT: process.env.PATHEXT } : {}),
+        ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+        HOME: isolatedHome,
+        USERPROFILE: isolatedHome,
+        OMB_PORT: String(isolatedPort),
+        OMB_WEBHOOK_PORT: String(isolatedPort + 1),
+        OMB_STATIC_DIR: isolatedStatic,
+        FAKE_CLAUDE_MODE: "hang",
+        FAKE_CLAUDE_DUMP: join(isolatedHome, "fake-claude-dump.json"),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    isolatedChild.stderr!.on("data", (chunk) => (isolatedStderr += chunk));
+    const isolatedApi = async (method: string, path: string, body?: unknown): Promise<{
+      status: number;
+      body: any;
+    }> => {
+      const response = await fetch(`http://127.0.0.1:${isolatedPort}${path}`, {
+        method,
+        headers: body ? { "content-type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return { status: response.status, body: await response.json() };
+    };
+
+    try {
+      await waitForIsolatedServer(isolatedChild, isolatedPort, () => isolatedStderr);
+      const instances = (await isolatedApi("GET", "/api/instances")).body.instances;
+      const claude = instances.find((instance: { instanceId: string }) => instance.instanceId === "claude");
+      const targetSelection = { instanceId: claude.instanceId, model: claude.models.default };
+
+      const carried = await isolatedApi("PATCH", `/api/bots/${carrier.id}/model`, targetSelection);
+      expect(carried.status, JSON.stringify(carried.body)).toBe(200);
+      const afterCarry = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === carrier.id,
+      );
+      expect(afterCarry).toMatchObject({ approvalMode: "full", modelSelection: targetSelection });
+      const carriedThread = afterCarry.tasks.find((task: { threadId: string }) => task.threadId === carrier.threadId);
+      expect(carriedThread.modelSelection).toEqual(targetSelection);
+      expect(carriedThread.approvalMode ?? afterCarry.approvalMode).toBe("full");
+
+      for (const seeded of trustedBots.filter((candidate) => candidate.approvalMode === "custom")) {
+        const rejected = await isolatedApi("PATCH", `/api/bots/${seeded.id}/model`, targetSelection);
+        expect(rejected.status, seeded.approvalMode).toBe(400);
+        expect(rejected.body.error).toMatch(/requires choosing Ask first/i);
+        const scoped = await isolatedApi("PATCH", `/api/bots/${seeded.id}/tasks/${seeded.threadId}`, {
+          modelSelection: targetSelection, updateBotDefault: true, approvalMode: "ask",
+        });
+        expect(scoped.status, seeded.approvalMode).toBe(403);
+        expect(scoped.body.error).toMatch(/Custom approval|resetApprovalToAsk/i);
+        const unchanged = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots.find(
+          (candidate: { id: string }) => candidate.id === seeded.id,
+        );
+        expect(unchanged).toMatchObject({
+          approvalMode: seeded.approvalMode,
+          modelSelection: seeded.modelSelection,
+        });
+        expect(unchanged.tasks.find((task: { threadId: string }) => task.threadId === seeded.threadId).modelSelection).toEqual(seeded.modelSelection);
+      }
+
+      const full = trustedBots.find(candidate => candidate.approvalMode === "full")!;
+      const sibling = (await isolatedApi("POST", `/api/bots/${full.id}/tasks`, { title: "Follows the bot" })).body.task;
+      for (const body of [
+        { resetApprovalToAsk: true },
+        { modelSelection: targetSelection, resetApprovalToAsk: "yes" },
+        { modelSelection: targetSelection, resetApprovalToAsk: true, approvalMode: "auto" },
+        { modelSelection: targetSelection, resetApprovalToAsk: true, updateBotDefault: "yes" },
+        { modelSelection: { ...targetSelection, effort: "turbo" }, resetApprovalToAsk: true },
+      ]) {
+        expect((await isolatedApi("PATCH", `/api/bots/${full.id}/tasks/${full.threadId}`, body)).status).toBe(400);
+      }
+      const sameProvider = await isolatedApi("PATCH", `/api/bots/${full.id}/tasks/${full.threadId}`, {
+        modelSelection: { ...full.modelSelection, model: "another-model" },
+      });
+      expect(sameProvider.status).toBe(200);
+      expect(sameProvider.body.task.approvalMode ?? sameProvider.body.bot.approvalMode).toBe("full");
+      const switched = await isolatedApi("PATCH", `/api/bots/${full.id}/tasks/${full.threadId}`, {
+        modelSelection: targetSelection, updateBotDefault: true, resetApprovalToAsk: true,
+      });
+      expect(switched.status).toBe(200);
+      expect(switched.body.bot).toMatchObject({ modelSelection: targetSelection, approvalMode: "ask", autoApprove: false });
+      expect(switched.body.task).toMatchObject({ modelSelection: targetSelection, approvalMode: "ask", alwaysAllow: [] });
+      expect(switched.body.bot.tasks.find((task: { threadId: string }) => task.threadId === sibling.threadId))
+        .toMatchObject({ modelSelection: targetSelection, followsBotModel: true, approvalMode: "full" });
+      const created = await isolatedApi("POST", `/api/bots/${full.id}/tasks`, { title: "New defaults" });
+      expect(created.body.task).toMatchObject({ modelSelection: targetSelection, approvalMode: "ask" });
+      const refusedCustom = trustedBots.find(candidate => candidate.approvalMode === "custom")!;
+      expect((await isolatedApi("PATCH", `/api/bots/${refusedCustom.id}/tasks/${refusedCustom.threadId}`, {
+        modelSelection: targetSelection, resetApprovalToAsk: true,
+      })).status).toBe(403);
+
+      const custom = trustedBots.find((candidate) => candidate.approvalMode === "custom")!;
+      for (const body of [
+        { approvalMode: "ask" },
+        { approvalMode: "auto" },
+        { autoApprove: false },
+        { autoApprove: true },
+      ]) {
+        const rejected = await isolatedApi("PATCH", `/api/bots/${custom.id}`, body);
+        expect(rejected.status, JSON.stringify(body)).toBe(403);
+        expect(rejected.body.error).toMatch(/packaged desktop app/i);
+      }
+      const stillCustom = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === custom.id,
+      );
+      expect(stillCustom).toMatchObject({ approvalMode: "custom", autoApprove: false });
+      for (const approvalMode of ["ask", "auto", "full"]) {
+        const rejected = await isolatedApi("PATCH", `/api/bots/${customThread.id}`, { approvalMode, applyToAllThreads: true });
+        expect(rejected.status, approvalMode).toBe(403);
+        expect(rejected.body.error).toMatch(/packaged desktop app/i);
+        expect((await isolatedApi("PATCH", `/api/bots/${custom.id}`, { approvalMode, applyToAllThreads: true })).status, approvalMode).toBe(403);
+      }
+      const keptCustom = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === customThread.id,
+      );
+      expect(keptCustom.approvalMode).toBe("ask");
+      expect(keptCustom.tasks.find((task: { threadId: string }) => task.threadId === "custom-thread-own").approvalMode).toBe("custom");
+    } finally {
+      await waitForExit(isolatedChild, { signal: "SIGTERM" });
+      await removeTempDir(isolatedHome);
+    }
+    expectStoppedTestServerCleanly(isolatedChild, isolatedStderr);
+  }, 30_000);
+
+  it("exports every visible bot and imports the team without creating a room", async () => {
+    const first = (await api("POST", "/api/bots")).body.bot;
+    const second = (await api("POST", "/api/bots")).body.bot;
+    const hidden = (await api("POST", "/api/bots")).body.bot;
+    await api("PATCH", `/api/bots/${first.id}`, {
+      name: "Mira",
+      title: "Project Lead",
+      description: "Coordinates the crew",
+      color: "purple",
+      mascotExpression: "focused",
+      autoApprove: true,
+      alwaysAllow: ["Bash:git"],
+    });
+    await api("PATCH", `/api/bots/${second.id}`, {
+      name: "Scout",
+      title: "Researcher",
+      description: "Finds evidence",
+      color: "cyan",
+    });
+    await api("PATCH", `/api/bots/${hidden.id}`, { name: "Archived", hidden: true });
+
+    const stateBefore = (await api("GET", "/api/bots")).body;
+    const roomsBefore = stateBefore.groups.length;
+    const visibleNames = stateBefore.bots
+      .filter((bot: { hidden?: boolean }) => !bot.hidden)
+      .map((bot: { name: string }) => bot.name);
+    const exported = await api("POST", "/api/teams/export", { name: "Field Team" });
+    expect(exported.status).toBe(200);
+    expect(exported.body).toMatchObject({ format: "openmaus.team", version: 2, team: { name: "Field Team" } });
+    expect(exported.body.team.members.map((member: { name: string }) => member.name)).toEqual(visibleNames);
+    expect(exported.body.team.members).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "mira", name: "Mira", title: "Project Lead", appearance: { color: "purple", mascotExpression: "focused", mascotBody: first.mascotBody } }),
+      expect.objectContaining({ key: "scout", name: "Scout", title: "Researcher", appearance: { color: "cyan", mascotBody: second.mascotBody } }),
+    ]));
+    expect(exported.body.team).not.toHaveProperty("room");
+    expect(JSON.stringify(exported.body)).not.toMatch(/Archived|autoApprove|alwaysAllow|modelSelection|threadId/);
+    const markdownExport = await api("POST", "/api/teams/export", { name: "Field Team", format: "package" });
+    expect(markdownExport.status).toBe(200);
+    expect(markdownExport.body).toMatchObject({ name: "Field Team", members: visibleNames.length });
+    expect(markdownExport.body.markdown).toContain("## Activation");
+    expect(markdownExport.body.markdown).toContain("Give this file to your Chief of Staff");
+    expect(markdownExport.body.markdown).not.toMatch(/Archived|autoApprove|alwaysAllow|modelSelection|threadId/);
+    expect((await api("GET", "/api/bots")).body.groups).toHaveLength(roomsBefore);
+    expect((await api("POST", "/api/teams/export", {})).body.team.name).toBe("My OpenMaus Team");
+
+    const stream = await openSse(`${BASE}/api/events`);
+    try {
+      await stream.until((frame) => frame.kind === "hello");
+      const imported = await api("POST", "/api/teams/import", exported.body);
+      expect(imported.status).toBe(201);
+      // The starter name is random, so it can duplicate a member name and push that member to the next suffix.
+      const importedNames = imported.body.bots.map((bot: { name: string }) => bot.name);
+      const namesBefore = new Set(stateBefore.bots.map((bot: { name: string }) => bot.name.toLowerCase()));
+      expect(importedNames).toHaveLength(visibleNames.length);
+      expect(new Set(importedNames.map((name: string) => name.toLowerCase())).size).toBe(importedNames.length);
+      for (const [index, name] of importedNames.entries()) {
+        const base = visibleNames[index]!;
+        expect(name.startsWith(`${base} `)).toBe(true);
+        expect(Number(name.slice(base.length + 1))).toBeGreaterThanOrEqual(2);
+        expect(namesBefore.has(name.toLowerCase())).toBe(false);
+      }
+      expect(imported.body.bots.every((bot: { id: string }) => ![first.id, second.id].includes(bot.id))).toBe(true);
+      expect(imported.body.bots[0]).not.toHaveProperty("alwaysAllow");
+      expect(imported.body.bots.every((bot: { messages: unknown[] }) => bot.messages.length === 0)).toBe(true);
+      expect(imported.body.bots.every((bot: { composio?: boolean }) => bot.composio === false)).toBe(true);
+      expect(imported.body).not.toHaveProperty("group");
+
+      const lastImported = imported.body.bots.at(-1)!;
+      await stream.until((frame) => frame.kind === "bot" && frame.bot?.id === lastImported.id);
+      const importedBotIds = new Set(imported.body.bots.map((bot: { id: string }) => bot.id));
+      const importFrames = stream.frames.filter(
+        (frame) => frame.kind === "bot" && importedBotIds.has(frame.bot?.id),
+      );
+      // The store emits on every write, so a bot may produce several frames: the invariant is coverage.
+      for (const id of importedBotIds) expect(importFrames.some((frame) => frame.bot?.id === id)).toBe(true);
+      expect(importFrames.every((frame) => frame.kind === "bot")).toBe(true);
+      expect((await api("GET", "/api/bots")).body.groups).toHaveLength(roomsBefore);
+
+      const invalid = await api("POST", "/api/teams/import", { ...exported.body, version: 3 });
+      expect(invalid.status).toBe(400);
+      expect((await api("POST", "/api/teams/import?mode=erase", exported.body)).status).toBe(400);
+
+      const beforeReplace = (await api("GET", "/api/bots")).body;
+      const replaced = await api("POST", "/api/teams/import?mode=replace", exported.body);
+      expect(replaced.status).toBe(400);
+      expect(replaced.body.error).toContain("Replacing your team is no longer supported");
+      expect((await api("GET", "/api/bots")).body).toEqual(beforeReplace);
+      expect((await api("GET", "/api/bots")).body.groups).toHaveLength(roomsBefore);
+
+      for (const bot of [first, second, hidden, ...imported.body.bots]) {
+        expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
+      }
+    } finally {
+      stream.close();
+    }
+  });
+
+
+  it("imports a team as a project: one room, on a folder", async () => {
+    const seed = await api("POST", "/api/bots", { name: "Planner", title: "Lead", description: "Plans", color: "purple" });
+    const exported = await api("POST", "/api/teams/export", { name: "Client XY" });
+    expect(exported.body.team).not.toHaveProperty("room");
+
+    const roomsBefore = (await api("GET", "/api/bots")).body.groups.length;
+    const folder = mkdtempSync(join(tmpdir(), "omb-project-"));
+
+    const stream = await openSse(`${BASE}/api/events`);
+    try {
+      await stream.until((frame) => frame.kind === "hello");
+
+      const bogus = await api("POST", `/api/teams/import?mode=project&cwd=${encodeURIComponent(join(folder, "nope"))}`, exported.body);
+      expect(bogus.status).toBe(400);
+      expect((await api("GET", "/api/bots")).body.groups).toHaveLength(roomsBefore);
+
+      const created = await api("POST", `/api/teams/import?mode=project&cwd=${encodeURIComponent(folder)}`, exported.body);
+      expect(created.status).toBe(201);
+      expect(created.body.group).toMatchObject({ name: "Client XY", cwd: folder, section: "Client XY" });
+      expect(created.body.bots.every((bot: { section?: string }) => bot.section === "Client XY")).toBe(true);
+      expect(created.body.group.memberIds.sort()).toEqual(created.body.bots.map((bot: { id: string }) => bot.id).sort());
+      expect(created.body.group).not.toHaveProperty("pinnedCwd");
+      expect((await api("GET", "/api/bots")).body.groups).toHaveLength(roomsBefore + 1);
+      await stream.until((frame) => frame.kind === "group" && frame.group?.id === created.body.group.id);
+
+      const named = await api("POST", "/api/teams/import?mode=project&room=Client%20XY%20-%20Ads", exported.body);
+      expect(named.body.group).toMatchObject({ name: "Client XY - Ads", section: "Client XY 2" });
+      expect(named.body.bots.every((bot: { section?: string }) => bot.section === "Client XY 2")).toBe(true);
+      expect(named.body.group.cwd).toBeUndefined();
+
+      for (const room of [created.body.group, named.body.group]) {
+        expect((await api("DELETE", `/api/groups/${room.id}`)).status).toBe(200);
+      }
+      for (const bot of [seed.body, ...created.body.bots, ...named.body.bots]) {
+        await api("DELETE", `/api/bots/${bot.id}`);
+      }
+    } finally {
+      stream.close();
+    }
+  });
+
+  it("allocates editable template sections without colliding with rooms or archived bots", async () => {
+    const stem = "X".repeat(60);
+    const seed = await api("POST", "/api/bots", { name: "Existing section owner", color: "blue", section: `${stem.slice(0, 58)} 2` });
+    expect(seed.status).toBe(201);
+    const original = seed.body.bot;
+    const createdRoom = await api("POST", "/api/groups", { name: "Existing section room", memberIds: [original.id], section: stem.toLowerCase() });
+    expect(createdRoom.status).toBe(201);
+    const room = createdRoom.body.group;
+    expect((await api("PATCH", `/api/bots/${original.id}`, { hidden: true })).status).toBe(200);
+    const before = (await api("GET", "/api/bots")).body;
+    const copies: string[] = [];
+    try {
+      for (const suffix of [3, 4]) {
+        const imported = await api("POST", "/api/teams/import", {
+          format: "openmaus.team", version: 2,
+          team: { name: `${stem} long template name`, members: [{ key: "helper", name: "Template helper", section: "Must not choose destination", appearance: { color: "blue" } }] },
+        });
+        expect(imported.status).toBe(201);
+        copies.push(...imported.body.bots.map((bot: { id: string }) => bot.id));
+        expect(imported.body.bots[0].section).toBe(`${stem.slice(0, 58)} ${suffix}`);
+        expect((await api("PATCH", `/api/bots/${copies.at(-1)}`, { section: imported.body.bots[0].section })).status).toBe(200);
+      }
+      const after = (await api("GET", "/api/bots")).body;
+      for (const bot of before.bots) expect(after.bots.find((value: { id: string }) => value.id === bot.id)).toEqual(bot);
+      expect(after.groups).toEqual(before.groups);
+    } finally {
+      await api("DELETE", `/api/groups/${room.id}`);
+      for (const id of [original.id, ...copies]) await api("DELETE", `/api/bots/${id}`);
+    }
+  });
+
+  it("installs a complete bot package with a Chief, room, playbook, connector intent, and paused routine", async () => {
+    const packageFile = {
+      format: "openmaus.package",
+      version: 1,
+      package: {
+        id: "signal-desk",
+        release: "1.0.0",
+        name: "Signal Desk",
+        tagline: "Find and explain the signal.",
+        summary: "A complete two-bot signal workflow.",
+        category: "Research",
+        author: { name: "StartupBot" },
+        license: "MIT",
+        outcomes: ["Produce a concise signal brief."],
+        setupMinutes: 4,
+        requirements: {
+          apps: [{ slug: "reddit", label: "Reddit", reason: "Read approved communities." }],
+          capabilities: ["computer"],
+        },
+        agents: [
+          {
+            key: "scout",
+            name: "Package Scout",
+            title: "Researcher",
+            description: "Find evidence.",
+            appearance: { color: "cyan" },
+            playbooks: ["signal-check"],
+            skills: ["source-check"],
+            autoApprove: true,
+          },
+          {
+            key: "editor",
+            name: "Package Editor",
+            title: "Editor",
+            description: "Explain the result.",
+            appearance: { color: "green" },
+          },
+        ],
+        chiefOfStaff: "scout",
+        rooms: [{
+          key: "signals",
+          name: "Signal Room",
+          members: ["scout", "editor"],
+          bulletin: "Separate direct evidence from inference.",
+          defaultResponder: { kind: "agent", agent: "scout" },
+        }],
+        routines: [{
+          key: "morning-signals",
+          name: "Morning signals",
+          agent: "scout",
+          prompt: "Prepare the approved morning signal brief.",
+          runOn: "maus",
+          schedule: { type: "daily", time: "09:00", weekdays: [1, 2, 3, 4, 5] },
+          durationMinutes: 30,
+          enabledAfterInstall: false,
+        }],
+        playbooks: [{
+          key: "signal-check",
+          name: "Signal Check",
+          summary: "Verify a public signal.",
+          triggers: ["signal brief"],
+          instructions: "Keep the source URL and confidence.",
+        }],
+        skills: {
+          version: 1,
+          entries: [{
+            name: "source-check",
+            description: "Check sources before writing.",
+            source: "package:signal-desk",
+            instructions: "---\nname: source-check\ndescription: Check sources before writing.\n---\n\n# Source check\n",
+          }],
+        },
+      },
+    };
+
+    const installed = await api("POST", "/api/teams/import", packageFile);
+    expect(installed.status).toBe(201);
+    expect(installed.body.bots).toHaveLength(2);
+    expect(installed.body.groups).toHaveLength(1);
+    expect(installed.body.routines).toHaveLength(1);
+    expect(installed.body.bots.every((bot: { section?: string }) => bot.section === packageFile.package.name)).toBe(true);
+    expect(installed.body.groups[0].section).toBe(packageFile.package.name);
+
+    const scout = installed.body.bots.find((bot: { name: string }) => bot.name.startsWith("Package Scout"));
+    const editor = installed.body.bots.find((bot: { name: string }) => bot.name.startsWith("Package Editor"));
+    expect(scout).toMatchObject({
+      chiefOfStaff: true,
+      composio: false,
+      connectorTools: {},
+      playbooks: [{ key: "signal-check", instructions: "Keep the source URL and confidence." }],
+      installedPackage: {
+        id: "signal-desk",
+        release: "1.0.0",
+        requiredApps: [{ slug: "reddit", label: "Reddit" }],
+      },
+    });
+    expect(scout).not.toHaveProperty("autoApprove");
+    const importedSkills = await api("GET", `/api/bots/${scout.id}/skills`);
+    expect(importedSkills.body.skills).toMatchObject([{
+      name: "source-check",
+      enabled: false,
+      source: "package:signal-desk",
+    }]);
+    expect(await api("GET", `/api/bots/${scout.id}/skills/source-check`)).toMatchObject({
+      status: 200,
+      body: { text: expect.stringContaining("name: source-check") },
+    });
+    const exportedWithSkill = await api("POST", "/api/teams/export", {
+      format: "package",
+      name: "Signal Skill Package",
+      skillIds: ["source-check"],
+    });
+    expect(exportedWithSkill.status).toBe(200);
+    expect(exportedWithSkill.body.markdown).toContain("name: source-check");
+    const exportedWithoutSkills = await api("POST", "/api/teams/export", { format: "package" });
+    expect(exportedWithoutSkills.status).toBe(200);
+    expect(exportedWithoutSkills.body.markdown).not.toContain("name: source-check");
+    expect(editor.playbooks).toBeUndefined();
+    expect(scout.section).toBe(editor.section);
+    expect(installed.body.groups[0]).toMatchObject({
+      name: "Signal Room",
+      memberIds: expect.arrayContaining([scout.id, editor.id]),
+      defaultResponder: { kind: "member", botId: scout.id },
+      bulletin: "Separate direct evidence from inference.",
+      setupCompletedAt: expect.any(Number),
+    });
+    expect(installed.body.routines[0]).toMatchObject({
+      name: "Morning signals",
+      botId: scout.id,
+      enabled: false,
+      nextRunAt: null,
+    });
+
+    await api("DELETE", `/api/routines/${installed.body.routines[0].id}`);
+    await api("DELETE", `/api/groups/${installed.body.groups[0].id}`);
+    for (const bot of installed.body.bots) await api("DELETE", `/api/bots/${bot.id}`);
+  });
+
+  it("the scout reads a folder, proposes an importable team, and creates nothing until the human imports", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "omb-scout-"));
+    writeFileSync(join(folder, "README.md"), "# Demo Shop\n\nA storefront demo.\n");
+    writeFileSync(
+      join(folder, "package.json"),
+      JSON.stringify({ dependencies: { react: "^19" }, devDependencies: { vitest: "^3" } }),
+    );
+
+    const before = (await api("GET", "/api/bots")).body;
+
+    expect((await api("GET", "/api/teams/scout")).status).toBe(400);
+    expect((await api("GET", `/api/teams/scout?cwd=${encodeURIComponent(join(folder, "nope"))}`)).status).toBe(400);
+
+    const scouted = await api("GET", `/api/teams/scout?cwd=${encodeURIComponent(folder)}`);
+    expect(scouted.status).toBe(200);
+    expect(scouted.body.profile).toMatchObject({ name: "Demo Shop", summary: "A storefront demo." });
+    expect(scouted.body.profile.stacks).toContain("React");
+    expect(scouted.body.suggestion.roomName).toBe("Demo Shop");
+    const keys = scouted.body.suggestion.manifest.team.members.map((member: { key: string }) => member.key);
+    expect(keys).toEqual(["lead", "frontend", "testing"]);
+    expect(Object.keys(scouted.body.suggestion.reasons).sort()).toEqual(keys.slice().sort());
+
+    const after = (await api("GET", "/api/bots")).body;
+    expect(after.bots).toHaveLength(before.bots.length);
+    expect(after.groups).toHaveLength(before.groups.length);
+
+    const imported = await api(
+      "POST",
+      `/api/teams/import?mode=project&cwd=${encodeURIComponent(folder)}&room=${encodeURIComponent(scouted.body.suggestion.roomName)}`,
+      scouted.body.suggestion.manifest,
+    );
+    expect(imported.status).toBe(201);
+    expect(imported.body.group).toMatchObject({ name: "Demo Shop", cwd: folder });
+    expect(imported.body.bots).toHaveLength(3);
+
+    expect((await api("DELETE", `/api/groups/${imported.body.group.id}`)).status).toBe(200);
+    for (const bot of imported.body.bots) await api("DELETE", `/api/bots/${bot.id}`);
+    rmSync(folder, { recursive: true, force: true });
+  });
+
+  it("team import is additive-only: smuggled grants, claimed ids, and re-imports never touch existing records", async () => {
+    // Every privilege a malicious manifest could try to capture is switched on, so any write-through shows as a diff.
+    const trusted = (await api("POST", "/api/bots")).body.bot;
+    await api("PATCH", `/api/bots/${trusted.id}`, {
+      name: "Mira",
+      title: "Project Lead",
+      autoApprove: true,
+      alwaysAllow: ["Bash:git"],
+      chiefOfStaff: true,
+      composio: true,
+      computer: "off",
+    });
+    const beforeImport = (await api("GET", "/api/bots")).body;
+    const groupsBefore = beforeImport.groups.length;
+    const chiefsBefore = beforeImport.bots.filter((bot: { chiefOfStaff?: boolean }) => bot.chiefOfStaff).map((bot: { id: string }) => bot.id).sort();
+    const room = (await api("POST", "/api/groups", { memberIds: [trusted.id], name: "War Room" })).body.group;
+
+    const smuggled = {
+      format: "openmaus.team",
+      version: 2,
+      team: {
+        name: "Trap Team",
+        members: [
+          {
+            key: "mira",
+            name: "Mira",
+            title: "Impostor",
+            description: "claims to be the lead",
+            appearance: { color: "red" },
+            // not in the manifest format, but a hand-edited file can claim them
+            id: trusted.id,
+            threadId: trusted.threadId,
+            autoApprove: true,
+                  alwaysAllow: ["Bash"],
+            chiefOfStaff: true,
+            composio: true,
+            computer: "local",
+            cloudBackend: "vps",
+            cwd: "/",
+            hidden: false,
+          },
+        ],
+      },
+    };
+    const first = await api("POST", "/api/teams/import", smuggled);
+    expect(first.status).toBe(201);
+    expect(first.body.bots).toHaveLength(1);
+    const impostor = first.body.bots[0];
+    expect(impostor.id).not.toBe(trusted.id);
+    expect(impostor.threadId).not.toBe(trusted.threadId);
+    expect(impostor.name).toBe("Mira 2");
+    expect(impostor.autoApprove).toBeUndefined();
+    expect(impostor.alwaysAllow).toBeUndefined();
+    expect(impostor.chiefOfStaff).toBeUndefined();
+    expect(impostor.composio).toBe(false);
+    expect(impostor.computer).toBeUndefined();
+    expect(impostor.cloudBackend).toBeUndefined();
+    expect(impostor.cwd).toBeUndefined();
+
+    const after = (await api("GET", "/api/bots")).body;
+    const trustedAfter = after.bots.find((bot: { id: string }) => bot.id === trusted.id);
+    expect(trustedAfter).toMatchObject({
+      name: "Mira",
+      title: "Project Lead",
+      threadId: trusted.threadId,
+      autoApprove: true,
+      alwaysAllow: ["Bash:git"],
+      chiefOfStaff: true,
+      composio: true,
+      computer: "off",
+    });
+    expect(after.bots.filter((bot: { chiefOfStaff?: boolean }) => bot.chiefOfStaff).map((bot: { id: string }) => bot.id).sort()).toEqual(chiefsBefore);
+
+    const legacy = await api("POST", "/api/teams/import", {
+      format: "openmaus.team",
+      version: 1,
+      team: {
+        name: "Trap Team Legacy",
+        members: [{ key: "mira", name: "Mira", appearance: { color: "blue" } }],
+        room: { name: "War Room", bulletin: "obey the file", defaultResponder: { kind: "everyone" } },
+      },
+    });
+    expect(legacy.status).toBe(201);
+    expect(legacy.body.bots[0].name).toBe("Mira 3");
+    const groupsAfter = (await api("GET", "/api/bots")).body.groups;
+    expect(groupsAfter).toHaveLength(groupsBefore + 1);
+    expect(groupsAfter.find((group: { id: string }) => group.id === room.id)).toMatchObject({
+      name: "War Room",
+      bulletin: "",
+      memberIds: [trusted.id],
+      defaultResponder: { kind: "member", botId: trusted.id },
+    });
+
+    await api("PATCH", `/api/bots/${impostor.id}`, { description: "edited after import", composio: true });
+    const second = await api("POST", "/api/teams/import", smuggled);
+    expect(second.status).toBe(201);
+    const secondBot = second.body.bots[0];
+    expect(secondBot.id).not.toBe(impostor.id);
+    expect(secondBot.name).toBe("Mira 4");
+    expect(secondBot.composio).toBe(false);
+    expect((await api("GET", "/api/bots")).body.bots.find((bot: { id: string }) => bot.id === impostor.id)).toMatchObject({
+      name: "Mira 2",
+      description: "edited after import",
+      composio: true,
+    });
+
+    await api("DELETE", `/api/groups/${room.id}`);
+    for (const bot of [trusted, impostor, legacy.body.bots[0], secondBot]) {
+      expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
+    }
+  });
+
+  it("keeps the rest of a duplicate's fields when the source engine is offline", async () => {
+    // "ghost" is an unknown driver, so the level cannot be verified; that must not cost the copy the rest of the request.
+    const copy = (await api("POST", "/api/bots")).body.bot;
+
+    const patched = await api("PATCH", `/api/bots/${copy.id}`, {
+      name: "Reviewer copy",
+      title: "Reviewer",
+      description: "reads diffs",
+      modelSelection: { instanceId: "ghost", model: "ghost-1", effort: "xhigh" },
+    });
+
+    expect(patched.status).toBe(200);
+    expect(patched.body.bot).toMatchObject({
+      name: "Reviewer copy",
+      title: "Reviewer",
+      description: "reads diffs",
+      modelSelection: { instanceId: "ghost", model: "ghost-1", effort: "xhigh" },
+    });
+  });
+
+  it("rejects an unknown effort value even while the engine is offline", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    const patched = await api("PATCH", `/api/bots/${bot.id}`, {
+      modelSelection: { instanceId: "ghost", model: "ghost-1", effort: "turbo" },
+    });
+
+    expect(patched.status).toBe(400);
+    expect(patched.body.error).toContain("not recognized");
+  });
+
+  it("buzzes when a turn dies before it can start", async () => {
+    // The cloud destination with no Boat configured fails inside dispatch without touching the network.
+    let botId: string | undefined;
+    let stream: Awaited<ReturnType<typeof openSse>> | undefined;
+    try {
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud" })).status).toBe(200);
+      stream = await openSse(`${BASE}/api/events`);
+      await stream.until((frame) => frame.kind === "hello");
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "go" })).status).toBe(202);
+      const buzz = await stream.until(
+        (frame) => frame.kind === "notify" && frame.notification?.kind === "turn-failed",
+        5_000,
+      );
+      expect(buzz.notification).toMatchObject({
+        botId: bot.id,
+        threadId: bot.threadId,
+        title: `${bot.name} couldn't start`,
+      });
+      expect(String(buzz.notification.body)).toMatch(/box|cloud/i);
+
+      await expect.poll(async () => {
+        const current = (await api("GET", "/api/bots?messages=20")).body.bots
+          .find((candidate: { id: string }) => candidate.id === bot.id);
+        return Boolean(current?.messages.at(-1)?.tool?.name?.startsWith("error: "));
+      }).toBe(true);
+    } finally {
+      stream?.close();
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+      // The token is write-only: leave the boat unconfigured rather than half-set for whatever runs next.
+      await api("PUT", "/api/config", { box: { token: "" } });
+    }
+  });
+
+  it("shows a card continuation that cannot start as the root's failed turn, without buzzing twice", async () => {
+    let botId: string | undefined;
+    let stream: Awaited<ReturnType<typeof openSse>> | undefined;
+    try {
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
+      stream = await openSse(`${BASE}/api/events`);
+      await stream.until((frame) => frame.kind === "hello");
+
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "stay active" })).status).toBe(202);
+      const dump = await readJsonFileWhenReady<{
+        mcpConfig: { mcpServers: { agents: { env: { OMB_COMMS_TOKEN: string } } } };
+      }>(fakeClaudeDump);
+      const token = dump.mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN;
+      const requested = await fetch(`${BASE}/api/internal/request-credential`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          fromBotId: bot.id,
+          fromThreadId: bot.threadId,
+          credentialId: "openaiImageApiKey",
+          reason: "needed for the task",
+        }),
+      });
+      expect(requested.status).toBe(201);
+      const { messageId } = (await requested.json()) as { messageId: string };
+      const directState = (await api("GET", "/api/bots?messages=20")).body.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id);
+      const directCard = directState?.messages
+        .find((message: { id: string }) => message.id === messageId);
+      expect(directCard).toMatchObject({
+        kind: "secret",
+        text: "Securely provide the OpenAI API key from StartupBot on your phone or computer. It is never added to chat.",
+      });
+      expect(directCard.secret.description).toContain(
+        `${bot.name} can use it but never read it back.`,
+      );
+      expect(directCard).not.toHaveProperty("from");
+
+      const encryptedEnvelope = {
+        version: 1,
+        threadId: bot.threadId,
+        keyId: "A".repeat(22),
+        deviceId: "phone-1",
+        target: "openaiImageApiKey",
+        requestKey: directCard.secret.requestKey,
+        encapsulatedKey: "A".repeat(87),
+        ciphertext: "A".repeat(23),
+      };
+      const directProvision = await fetch(
+        `${BASE}/api/bots/${bot.id}/secret-cards/${messageId}/provide`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(encryptedEnvelope),
+        },
+      );
+      expect(directProvision.status).toBe(403);
+
+      const developmentProvision = await fetch(
+        `${BASE}/api/bots/${bot.id}/secret-cards/${messageId}/provide`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-openmausbot-companion": "1",
+            "x-openmausbot-companion-device": "phone-1",
+          },
+          body: JSON.stringify(encryptedEnvelope),
+        },
+      );
+      expect(developmentProvision.status).toBe(503);
+
+      await releaseTurn(bot.id);
+      const originalUserMessage = directState?.messages.find(
+        (message: { role?: string; kind?: string; text?: string }) =>
+          message.role === "user" && message.kind === "text" && message.text === "stay active",
+      );
+      expect(originalUserMessage?.id).toEqual(expect.any(String));
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages/${originalUserMessage.id}/edit`, {
+        text: "take another branch",
+      })).status).toBe(202);
+      await readJsonFileWhenReady(fakeClaudeDump);
+      expect((await api("POST", `/api/bots/${bot.id}/secret-cards/${messageId}/dismiss`, {
+        threadId: bot.threadId,
+      })).status).toBe(404);
+      await releaseTurn(bot.id);
+      expect((await api("POST", `/api/bots/${bot.id}/active-branch`, {
+        messageId,
+      })).status).toBe(200);
+
+      // The bot now works on a cloud computer with no Box account connected, so the execution cannot start.
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud" })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/secret-cards/${messageId}/dismiss`, {
+        threadId: bot.threadId,
+      })).status).toBe(200);
+      const thread = async () => (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages as Array<{
+        id: string; tool?: { name?: string; ok?: boolean }; secret?: { dismissed?: boolean; resumed?: boolean };
+      }>;
+      await expect.poll(async () => (await thread()).filter((message) => message.tool?.ok === false)
+        .map((message) => message.tool!.name).join("\n"), { timeout: 10_000 }).toMatch(/box|cloud/i);
+      expect((await thread()).find((message) => message.id === messageId)?.secret).toMatchObject({ dismissed: true, resumed: true });
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id)?.busy).toBe(false);
+      expect(existsSync(fakeClaudeDump)).toBe(false);
+      expect(stream.frames.some(
+        (frame) => frame.kind === "notify" && frame.notification?.kind === "turn-failed",
+      )).toBe(false);
+    } finally {
+      if (botId) await api("POST", `/api/bots/${botId}/interrupt`, {}).catch(() => undefined);
+      stream?.close();
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+      await api("PUT", "/api/config", { box: { token: "" } });
+      rmSync(fakeClaudeDump, { force: true });
+    }
+  });
+
+  it("asks the person to sign in with one card and one notification, supersedes the older card, and resumes the bot on Done or Cancel", async () => {
+    let botId: string | undefined;
+    let stream: Awaited<ReturnType<typeof openSse>> | undefined;
+    try {
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        computer: "browser",
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
+      stream = await openSse(`${BASE}/api/events`);
+      await stream.until((frame) => frame.kind === "hello");
+      const turn = async (text: string) => {
+        rmSync(fakeClaudeDump, { force: true });
+        expect((await api("POST", `/api/bots/${bot.id}/messages`, { text })).status).toBe(202);
+        await readJsonFileWhenReady(fakeClaudeDump);
+        rmSync(fakeClaudeDump, { force: true });
+        return mintTestCapability(BASE, bot.id, bot.threadId);
+      };
+      let token = await turn("get the monthly report");
+      const request = (site: unknown, reason?: string) => fetch(`${BASE}/api/internal/request-sign-in`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, site, ...(reason ? { reason } : {}) }),
+      });
+      const notices = () => stream!.frames.filter((frame) => frame.kind === "notify" && frame.notification?.kind === "sign-in");
+      for (const site of ["javascript:alert(1)", "file:///etc/passwd", "https://user:pw@example.com/", "example", ""]) {
+        expect((await request(site)).status, site).toBe(400);
+      }
+      expect(notices()).toHaveLength(0);
+
+      const first = await request("https://example.com/login", "The monthly report is behind a login.");
+      expect(first.status).toBe(201);
+      const firstCard = await first.json() as { messageId: string; site: string; place: string };
+      expect(firstCard).toMatchObject({ site: "example.com", place: "browser" });
+      const notice = await stream.until((frame) => frame.kind === "notify" && frame.notification?.kind === "sign-in");
+      expect(notice.notification).toMatchObject({
+        botId: bot.id, threadId: bot.threadId,
+        title: `${bot.name} needs you to sign in to example.com`,
+        body: "The monthly report is behind a login.",
+      });
+      await stream.until((frame) => frame.kind === "computer-control" && frame.botId === bot.id && frame.help?.messageId === firstCard.messageId);
+      expect(notices()).toHaveLength(1);
+
+      const second = await request("www.example.com", "Still behind a login.");
+      expect(second.status).toBe(201);
+      const secondCard = await second.json() as { messageId: string };
+      await stream.until((frame) => frame.kind === "computer-control" && frame.help?.messageId === secondCard.messageId);
+      await expect.poll(() => notices().length).toBe(2);
+      const card = async (id: string) => (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages
+        .find((message: { id: string }) => message.id === id);
+      expect((await card(firstCard.messageId)).signIn).toMatchObject({ site: "example.com", superseded: true });
+      expect(await card(secondCard.messageId)).toMatchObject({
+        kind: "signin",
+        text: `${bot.name} needs you to sign in to example.com. Open this conversation in StartupBot to sign in, then press Done.`,
+        signIn: { url: "https://www.example.com/", site: "example.com", place: "browser", reason: "Still behind a login." },
+      });
+      expect((await card(secondCard.messageId)).signIn.superseded).toBeUndefined();
+      const answer = (id: string, choice: "done" | "cancel") => api("POST", `/api/bots/${bot.id}/sign-in-cards/${id}/${choice}`, { threadId: bot.threadId });
+      expect((await answer(firstCard.messageId, "done")).status).toBe(409);
+
+      await releaseTurn(bot.id);
+      expect(await answer(secondCard.messageId, "done")).toMatchObject({ status: 200, body: { done: true, resumed: true } });
+      const resumed = await readJsonFileWhenReady<{ prompt: unknown }>(fakeClaudeDump, 10_000);
+      expect(JSON.stringify(resumed.prompt)).toContain("the person finished signing in to example.com. Check you are signed in, then continue");
+      expect((await card(secondCard.messageId)).signIn).toMatchObject({ done: true, resumed: true });
+      await stream.until((frame) => frame.kind === "computer-control" && frame.botId === bot.id && frame.helpReason === null && !frame.help);
+      expect(await answer(secondCard.messageId, "done")).toMatchObject({ status: 200, body: { done: true, resumed: true } });
+      expect((await answer(secondCard.messageId, "cancel")).status).toBe(409);
+      // This suite's engine hangs every turn; stop the resumed one.
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id)?.busy, { timeout: 10_000 }).toBe(false);
+
+      token = await turn("check the mail archive");
+      const thirdResponse = await request("mail.example.org");
+      const third = await thirdResponse.json() as { messageId: string };
+      expect(thirdResponse.status, JSON.stringify(third)).toBe(201);
+      await releaseTurn(bot.id);
+      expect(await answer(third.messageId, "cancel")).toMatchObject({ status: 200, body: { cancelled: true, resumed: true } });
+      const declined = await readJsonFileWhenReady<{ prompt: unknown }>(fakeClaudeDump, 10_000);
+      expect(JSON.stringify(declined.prompt)).toContain("the person declined to sign in to mail.example.org");
+      expect((await card(third.messageId)).signIn).toMatchObject({ cancelled: true, resumed: true });
+      await expect.poll(() => notices().length).toBe(3);
+    } finally {
+      if (botId) await api("POST", `/api/bots/${botId}/interrupt`, {}).catch(() => undefined);
+      stream?.close();
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+      rmSync(fakeClaudeDump, { force: true });
+    }
+  }, 60_000);
+
+  it("answers a sign-in finished while its turn still runs once that turn ends, and never after a Stop", async () => {
+    let botId: string | undefined;
+    try {
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        computer: "browser",
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
+      const busy = () => api("GET", "/api/bots?messages=0").then(({ body }) => body.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id)?.busy);
+      const card = async (id: string) => (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages
+        .find((message: { id: string }) => message.id === id)?.signIn;
+      const turn = async (text: string) => {
+        rmSync(fakeClaudeDump, { force: true });
+        expect((await api("POST", `/api/bots/${bot.id}/messages`, { text })).status).toBe(202);
+        await readJsonFileWhenReady(fakeClaudeDump);
+        rmSync(fakeClaudeDump, { force: true });
+        const token = await mintTestCapability(BASE, bot.id, bot.threadId);
+        const requested = await fetch(`${BASE}/api/internal/request-sign-in`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+          body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, site: "example.com" }),
+        });
+        expect(requested.status).toBe(201);
+        return ((await requested.json()) as { messageId: string }).messageId;
+      };
+      const done = (id: string) => api("POST", `/api/bots/${bot.id}/sign-in-cards/${id}/done`, { threadId: bot.threadId });
+
+      const messageId = await turn("keep working on the dashboard");
+      expect(await done(messageId)).toMatchObject({ status: 200, body: { done: true, resumed: false } });
+      await new Promise((resolve) => setTimeout(resolve, 750));
+      expect(existsSync(fakeClaudeDump)).toBe(false);
+      expect(await card(messageId)).toMatchObject({ done: true });
+      expect((await card(messageId)).resumed).toBeUndefined();
+      await releaseTurn(bot.id);
+      const resumed = await readJsonFileWhenReady<{ prompt: unknown }>(fakeClaudeDump, 10_000);
+      expect(JSON.stringify(resumed.prompt)).toContain("the person finished signing in to example.com");
+      await expect.poll(async () => (await card(messageId)).resumed).toBe(true);
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
+      await expect.poll(busy, { timeout: 10_000 }).toBe(false);
+
+      const stoppedId = await turn("keep working on the dashboard again");
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
+      await expect.poll(busy, { timeout: 10_000 }).toBe(false);
+      expect(await done(stoppedId)).toMatchObject({ status: 200, body: { done: true, resumed: false } });
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+      expect(existsSync(fakeClaudeDump)).toBe(false);
+      expect(await busy()).toBe(false);
+      expect(await card(stoppedId)).toMatchObject({ done: true });
+      expect((await card(stoppedId)).resumed).toBeUndefined();
+    } finally {
+      if (botId) await api("POST", `/api/bots/${botId}/interrupt`, {}).catch(() => undefined);
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+      rmSync(fakeClaudeDump, { force: true });
+    }
+  }, 60_000);
+
+  it("saves a login from the sign-in card for its site, resumes the bot to fill it, and never hands the password back", async () => {
+    // Obvious fakes only.
+    const password = "fake-card-Passw0rd!";
+    const twoFactorKey = "JBSWY3DPEHPK3PXP";
+    let botId: string | undefined;
+    let loginId: string | undefined;
+    const answers: string[] = [];
+    try {
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        computer: "browser",
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "fetch the invoices" })).status).toBe(202);
+      await readJsonFileWhenReady(fakeClaudeDump);
+      rmSync(fakeClaudeDump, { force: true });
+      const token = await mintTestCapability(BASE, bot.id, bot.threadId);
+      const requested = await fetch(`${BASE}/api/internal/request-sign-in`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, site: "https://accounts.example.com/login", reason: "The invoices are behind a login." }),
+      });
+      expect(requested.status).toBe(201);
+      const { messageId } = await requested.json() as { messageId: string };
+      await releaseTurn(bot.id);
+      const save = async (body: unknown) => {
+        const response = await api("POST", `/api/bots/${bot.id}/sign-in-cards/${messageId}/save-login`, body);
+        answers.push(JSON.stringify(response.body));
+        return response;
+      };
+      const card = async () => (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages
+        .find((message: { id: string }) => message.id === messageId);
+
+      expect(await save({ threadId: bot.threadId, username: "alice@example.com", password, totp: "not a key" }))
+        .toMatchObject({ status: 400, body: { error: expect.stringContaining("2FA key is not valid") } });
+      expect(await save({ threadId: bot.threadId, username: "alice@example.com", password: "" })).toMatchObject({ status: 400 });
+      expect((await card()).signIn.done).toBeUndefined();
+      expect((await api("GET", "/api/logins")).body.logins).toEqual([]);
+
+      rmSync(fakeClaudeDump, { force: true });
+      expect(await save({ threadId: bot.threadId, username: "alice@example.com", password, totp: twoFactorKey }))
+        .toMatchObject({ status: 200, body: { done: true, resumed: true, saved: true, site: "example.com" } });
+      const resumed = await readJsonFileWhenReady<{ prompt: unknown }>(fakeClaudeDump);
+      expect(JSON.stringify(resumed.prompt)).toContain("the person saved a login for example.com. Open its login page in your browser and call fill_login there");
+      expect((await card()).signIn).toMatchObject({ done: true, savedLogin: "example.com", resumed: true });
+      expect((await save({ threadId: bot.threadId, username: "bob", password: "fake-other-pass" })).status).toBe(409);
+
+      const listed = await api("GET", "/api/logins");
+      answers.push(JSON.stringify(listed.body));
+      expect(listed.body.logins).toEqual([expect.objectContaining({
+        site: "example.com", hosts: ["accounts.example.com"], exactHost: false, username: "alice@example.com", hasTotp: true, source: "card", bots: [bot.id],
+      })]);
+      loginId = listed.body.logins[0].id;
+      expect(listed.body.onePassword).toEqual({ connected: false });
+
+      const transcript = JSON.stringify((await api("GET", `/api/threads/${bot.threadId}/messages`)).body);
+      const sealed = readFileSync(join(home, ".startupbot", "logins.json.enc"));
+      for (const secret of [password, twoFactorKey]) {
+        for (const answer of answers) expect(answer).not.toContain(secret);
+        expect(transcript).not.toContain(secret);
+        expect(JSON.stringify(resumed.prompt)).not.toContain(secret);
+        expect(sealed.includes(Buffer.from(secret))).toBe(false);
+      }
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
+    } finally {
+      if (loginId) await api("DELETE", `/api/logins/${loginId}`);
+      if (botId) await api("POST", `/api/bots/${botId}/interrupt`, {}).catch(() => undefined);
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+      rmSync(fakeClaudeDump, { force: true });
+    }
+  }, 60_000);
+
+  it("fill_login answers where it cannot reach with a status that sends the bot to request_sign_in", async () => {
+    let botId: string | undefined;
+    try {
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      const fill = async () => {
+        const token = await mintTestCapability(BASE, bot.id, bot.threadId);
+        const response = await fetch(`${BASE}/api/internal/fill-login`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+          body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId }),
+        });
+        expect(response.status).toBe(200);
+        return await response.json() as { ok: boolean; text: string };
+      };
+      expect(await fill()).toEqual({ ok: false, text: "fill_login works in the built-in browser, and this conversation has none. Call request_sign_in instead." });
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "local" })).status).toBe(200);
+      const onScreen = await fill();
+      expect(onScreen.ok).toBe(false);
+      expect(onScreen.text).toContain("On the screen of this computer it cannot prove which site a box belongs to, so it never types one there");
+      expect(onScreen.text).toContain("Call request_sign_in so the person signs in on this computer.");
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "browser" })).status).toBe(200);
+      const inBrowser = await fill();
+      expect(inBrowser.ok).toBe(false);
+      expect(inBrowser.text).toContain("request_sign_in");
+    } finally {
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+    }
+  });
+
+  it("refuses a sign-in request where nothing names a place to sign in", async () => {
+    let botId: string | undefined;
+    try {
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      const token = await mintTestCapability(BASE, bot.id, bot.threadId);
+      const response = await fetch(`${BASE}/api/internal/request-sign-in`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, site: "example.com" }),
+      });
+      expect(response.status).toBe(409);
+      expect((await response.json() as { error: string }).error).toMatch(/no browser or computer/);
+      const messages = (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages;
+      expect(messages.some((message: { kind: string }) => message.kind === "signin")).toBe(false);
+    } finally {
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+    }
+  });
+
+  it("supersedes an earlier pending credential card when the same key is asked for again", async () => {
+    let botId: string | undefined;
+    try {
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      const token = await mintTestCapability(BASE, bot.id, bot.threadId);
+      const request = (reason: string) => fetch(`${BASE}/api/internal/request-credential`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          fromBotId: bot.id,
+          fromThreadId: bot.threadId,
+          credentialId: "openaiImageApiKey",
+          reason,
+        }),
+      });
+
+      const first = await request("needed for the first task");
+      expect(first.status).toBe(201);
+      const firstCard = (await first.json()) as { messageId: string };
+      const second = await request("needed for the second task");
+      expect(second.status).toBe(201);
+      const secondCard = (await second.json()) as { messageId: string };
+      expect(secondCard.messageId).not.toBe(firstCard.messageId);
+
+      const state = (await api("GET", "/api/bots?messages=20")).body.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id);
+      const card = (id: string) => state?.messages
+        .find((message: { id: string }) => message.id === id);
+      expect(card(firstCard.messageId)?.secret).toMatchObject({ superseded: true });
+      expect(card(secondCard.messageId)?.secret?.superseded).toBeUndefined();
+
+      const stale = await api("POST", `/api/bots/${bot.id}/secret-cards/${firstCard.messageId}/dismiss`, {
+        threadId: bot.threadId,
+      });
+      expect(stale.status).toBe(409);
+      expect(stale.body.error).toMatch(/superseded by a newer one/i);
+      const fresh = await api("POST", `/api/bots/${bot.id}/secret-cards/${secondCard.messageId}/dismiss`, {
+        threadId: bot.threadId,
+      });
+      expect(fresh).toMatchObject({ status: 200, body: { dismissed: true } });
+    } finally {
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+      await api("PUT", "/api/config", { box: { token: "" } });
+    }
+  });
+
+  it("leaves the earlier pending credential card actionable when the fresh card append fails", async () => {
+    let botId: string | undefined;
+    try {
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      const token = await mintTestCapability(BASE, bot.id, bot.threadId);
+      const request = (reason: string) => fetch(`${BASE}/api/internal/request-credential`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          fromBotId: bot.id,
+          fromThreadId: bot.threadId,
+          credentialId: "openaiImageApiKey",
+          reason,
+        }),
+      });
+
+      const first = await request("needed for the first task");
+      expect(first.status).toBe(201);
+      const firstCard = (await first.json()) as { messageId: string };
+
+      // A second connection holds the database write lock, so the fresh card's append fails mid-request. It waits for
+      // a write the harness may still be finishing from the first card instead of failing at once.
+      const lockDb = new DatabaseSync(join(home, ".startupbot", "messages.db"), { timeout: 5_000 });
+      lockDb.exec("BEGIN IMMEDIATE");
+      try {
+        const failed = await request("needed for the second task");
+        expect(failed.status).toBeGreaterThanOrEqual(500);
+      } finally {
+        lockDb.exec("COMMIT");
+        lockDb.close();
+      }
+
+      const card = async (id: string) => (await api("GET", "/api/bots?messages=20")).body.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id)?.messages
+        .find((message: { id: string }) => message.id === id);
+      expect((await card(firstCard.messageId))?.secret?.superseded).toBeUndefined();
+
+      const third = await request("needed for the third task");
+      expect(third.status).toBe(201);
+      const thirdCard = (await third.json()) as { messageId: string };
+      expect((await card(firstCard.messageId))?.secret).toMatchObject({ superseded: true });
+      expect((await card(thirdCard.messageId))?.secret?.superseded).toBeUndefined();
+    } finally {
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+      await api("PUT", "/api/config", { box: { token: "" } });
+    }
+  });
+
+  it("keeps credential-card ownership stable while an encrypted phone save is in flight", async () => {
+    const isolatedHome = mkdtempSync(join(tmpdir(), "omb-phone-secret-races-"));
+    const isolatedData = join(isolatedHome, ".startupbot");
+    const isolatedStatic = join(isolatedHome, "static");
+    const isolatedGate = join(isolatedHome, "credential-gate");
+    const isolatedPort = await freePortBlock([0, 1]);
+    const isolatedDump = join(isolatedHome, "fake-claude-dump.json");
+    const releaseFile = join(isolatedGate, "release");
+    mkdirSync(join(isolatedStatic, "assets"), { recursive: true });
+    mkdirSync(isolatedData, { recursive: true });
+    mkdirSync(isolatedGate, { recursive: true });
+    writeFileSync(join(isolatedStatic, "index.html"), "<!doctype html><title>Phone secret race test</title>");
+    writeFileSync(join(isolatedStatic, "assets", "smoke.css"), "body{}");
+    writeFileSync(join(isolatedData, "config.json"), JSON.stringify({
+      instances: {
+        claude: { driver: "claudeAgent", displayName: "Fixture Claude", config: { cli: FAKE_CLAUDE_CLI } },
+      },
+    }));
+
+    // Models Electron's private utility-process bridge: both saves pause after decryption, before the config commit.
+    const desktopPrelude = `data:text/javascript,${encodeURIComponent(`
+      const { existsSync, writeFileSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      const identity = ${JSON.stringify(PHONE_SECRET_TEST_IDENTITY)};
+      const gate = ${JSON.stringify(isolatedGate)};
+      const release = ${JSON.stringify(releaseFile)};
+      const { EventEmitter } = await import("node:events");
+      const messages = new EventEmitter();
+      let saves = Promise.resolve();
+      const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      Object.defineProperty(process, "parentPort", {
+        value: {
+          on(event, callback) {
+            if (event !== "message") return;
+            messages.on(event, callback);
+            queueMicrotask(() => callback({ data: identity }));
+          },
+          postMessage(message) {
+            if (message?.type !== "openmausbot:phone-secret-save") return;
+            writeFileSync(join(gate, message.requestId + ".started"), message.target);
+            saves = saves.then(async () => {
+              while (!existsSync(release)) await delay(10);
+              try {
+                const patch = message.target === "openaiImageApiKey"
+                  ? { imageGen: { key: message.value } }
+                  : null;
+                if (!patch) throw new Error("unsupported test credential target");
+                const response = await fetch(
+                  "http://127.0.0.1:" + process.env.OMB_PORT + "/api/config?secretStorage=external",
+                  {
+                    method: "PUT",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify(patch),
+                  },
+                );
+                const body = await response.json().catch(() => null);
+                if (!response.ok) throw new Error(body?.error || "credential config failed");
+                messages.emit("message", { data: {
+                  type: "openmausbot:phone-secret-save-result",
+                  requestId: message.requestId,
+                  ok: true,
+                } });
+              } catch (error) {
+                messages.emit("message", { data: {
+                  type: "openmausbot:phone-secret-save-result",
+                  requestId: message.requestId,
+                  ok: false,
+                  error: error instanceof Error ? error.message : String(error),
+                } });
+              }
+            });
+          },
+        },
+      });
+    `)}`;
+    let isolatedStderr = "";
+    const isolatedChild = spawn(
+      process.execPath,
+      ["--import", desktopPrelude, join(SERVER_DIR, "index.ts")],
+      {
+        cwd: ROOT,
+        env: {
+          ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+          ...(process.env.PATHEXT ? { PATHEXT: process.env.PATHEXT } : {}),
+          ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+          HOME: isolatedHome,
+          USERPROFILE: isolatedHome,
+          OMB_PORT: String(isolatedPort),
+          OMB_WEBHOOK_PORT: String(isolatedPort + 1),
+          OMB_STATIC_DIR: isolatedStatic,
+          FAKE_CLAUDE_MODE: "hang",
+          FAKE_CLAUDE_DUMP: isolatedDump,
+          OMB_TEST_INTERNAL_CAPABILITY_KEY: TEST_CAPABILITY_KEY,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    isolatedChild.stderr!.on("data", (chunk) => (isolatedStderr += chunk));
+    const isolatedApi = async (method: string, path: string, body?: unknown): Promise<{
+      status: number;
+      body: any;
+    }> => {
+      const response = await fetch(`http://127.0.0.1:${isolatedPort}${path}`, {
+        method,
+        headers: body ? { "content-type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return { status: response.status, body: await response.json() };
+    };
+    const requestCredential = async (
+      botId: string,
+      threadId: string,
+    ): Promise<{ messageId: string }> => {
+      const token = await mintTestCapability(`http://127.0.0.1:${isolatedPort}`, botId, threadId);
+      const response = await fetch(`http://127.0.0.1:${isolatedPort}/api/internal/request-credential`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          fromBotId: botId,
+          fromThreadId: threadId,
+          credentialId: "openaiImageApiKey",
+          reason: "needed for this task",
+        }),
+      });
+      expect(response.status).toBe(201);
+      return response.json() as Promise<{ messageId: string }>;
+    };
+    const provideRequests: Array<Promise<Response>> = [];
+    const earlyProvisionStatuses: number[] = [];
+
+    try {
+      await waitForIsolatedServer(isolatedChild, isolatedPort, () => isolatedStderr);
+      const createBot = async () => (await isolatedApi("POST", "/api/bots", {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+        requireAvailableModel: true,
+      })).body.bot;
+      const direct = await createBot();
+      const channelOwner = await createBot();
+      const channelPeer = await createBot();
+      expect((await isolatedApi("PATCH", `/api/bots/${channelPeer.id}`, { chiefOfStaff: true })).status).toBe(200);
+      const roomChiefToken = await mintTestCapability(`http://127.0.0.1:${isolatedPort}`, channelPeer.id, channelPeer.threadId);
+
+      const directOriginalThread = direct.threadId as string;
+      const directAlternate = await isolatedApi("POST", `/api/bots/${direct.id}/tasks`, { title: "Alternate" });
+      expect(directAlternate.status).toBe(201);
+      expect((await isolatedApi(
+        "POST",
+        `/api/bots/${direct.id}/tasks/${directOriginalThread}`,
+      )).status).toBe(200);
+
+      const group = (await isolatedApi("POST", "/api/groups", {
+        name: "Credential ownership",
+        memberIds: [channelOwner.id, channelPeer.id],
+        setup: { bulletin: "", defaultResponder: { kind: "member", botId: channelOwner.id } },
+      })).body.group;
+      const groupOriginalThread = group.threadId as string;
+      const groupAlternate = await isolatedApi("POST", `/api/groups/${group.id}/tasks`, { title: "Alternate" });
+      expect(groupAlternate.status).toBe(201);
+      expect((await isolatedApi(
+        "POST",
+        `/api/groups/${group.id}/tasks/${groupOriginalThread}`,
+      )).status).toBe(200);
+
+      expect((await isolatedApi(
+        "POST",
+        `/api/bots/${direct.id}/messages`,
+        { text: "request a private key" },
+      )).status).toBe(202);
+      try {
+        await readJsonFileWhenReady(isolatedDump, 15_000);
+      } catch (error) {
+        const snapshot = (await isolatedApi("GET", "/api/bots?messages=10")).body;
+        const pending = snapshot.bots.find((candidate: { id: string }) => candidate.id === direct.id);
+        throw new Error(`Credential fixture driver did not accept its prompt: ${JSON.stringify({
+          exitCode: isolatedChild.exitCode, signal: isolatedChild.signalCode,
+          busy: pending?.busy, messages: pending?.messages, stderr: isolatedStderr.slice(-4_000),
+        })}`, { cause: error });
+      }
+      const directRequest = await requestCredential(direct.id, directOriginalThread);
+      expect((await isolatedApi("POST", `/api/bots/${direct.id}/interrupt`, {})).status).toBe(200);
+      await expect.poll(async () => {
+        const state = (await isolatedApi("GET", "/api/bots?messages=0")).body;
+        return state.bots.find((bot: { id: string }) => bot.id === direct.id)?.busy;
+      }).toBe(false);
+      expect((await isolatedApi("POST", `/api/groups/${group.id}/messages`, { text: "request a private key in the room" })).status).toBe(202);
+      await expect.poll(async () => (await isolatedApi("GET", "/api/bots?messages=0")).body.groups
+        .find((candidate: { id: string }) => candidate.id === group.id)?.busyBotId, { timeout: 10_000 }).toBe(channelOwner.id);
+      const groupRequest = await requestCredential(channelOwner.id, groupOriginalThread);
+      expect((await isolatedApi("POST", `/api/groups/${group.id}/interrupt`, {})).status).toBe(200);
+      await expect.poll(async () => {
+        const state = (await isolatedApi("GET", "/api/bots?messages=0")).body;
+        return {
+          working: state.groups.find((candidate: { id: string }) => candidate.id === group.id)?.working,
+          busy: state.bots.find((bot: { id: string }) => bot.id === channelOwner.id)?.busy,
+        };
+      }, { timeout: 10_000 }).toEqual({ working: false, busy: false });
+
+      const state = (await isolatedApi("GET", "/api/bots?messages=20")).body;
+      const directState = state.bots.find((bot: { id: string }) => bot.id === direct.id);
+      const directCard = directState.messages.find(
+        (message: { id: string }) => message.id === directRequest.messageId,
+      );
+      const directUser = directState.messages.find(
+        (message: { role: string; text?: string }) => message.role === "user" && message.text === "request a private key",
+      );
+      const groupCard = state.groups
+        .find((candidate: { id: string }) => candidate.id === group.id).messages
+        .find((message: { id: string }) => message.id === groupRequest.messageId);
+      expect(directCard?.secret?.requestKey).toEqual(expect.any(String));
+      expect(directUser?.id).toEqual(expect.any(String));
+      expect(groupCard).toMatchObject({ from: { botId: channelOwner.id } });
+
+      const deviceId = "paired-phone";
+      const directEnvelope = await sealPhoneSecretForTest({
+        version: 1,
+        keyId: PHONE_SECRET_TEST_IDENTITY.keyId,
+        deviceId,
+        botId: direct.id,
+        threadId: directOriginalThread,
+        messageId: directRequest.messageId,
+        target: "openaiImageApiKey",
+        requestKey: directCard.secret.requestKey,
+      }, "sk-test-direct");
+      const groupEnvelope = await sealPhoneSecretForTest({
+        version: 1,
+        keyId: PHONE_SECRET_TEST_IDENTITY.keyId,
+        deviceId,
+        botId: channelOwner.id,
+        threadId: groupOriginalThread,
+        messageId: groupRequest.messageId,
+        target: "openaiImageApiKey",
+        requestKey: groupCard.secret.requestKey,
+      }, "sk-test-channel");
+      const provide = (botId: string, messageId: string, envelope: PhoneSecretContext) => fetch(
+        `http://127.0.0.1:${isolatedPort}/api/bots/${botId}/secret-cards/${messageId}/provide`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-openmausbot-companion": "1",
+            "x-openmausbot-companion-device": deviceId,
+          },
+          body: JSON.stringify(Object.fromEntries(
+            Object.entries(envelope).filter(([key]) => key !== "botId" && key !== "messageId"),
+          )),
+        },
+      );
+      // On a third bot, before any credential is configured, so the ownership fixtures below keep their cards.
+      const raceBot = await createBot();
+      const raceThread = raceBot.threadId as string;
+      const supersededRequest = await requestCredential(raceBot.id, raceThread);
+      const raceCard = async (messageId: string) => (await isolatedApi("GET", "/api/bots?messages=20")).body.bots
+        .find((bot: { id: string }) => bot.id === raceBot.id).messages
+        .find((message: { id: string }) => message.id === messageId);
+      const supersededEnvelope = await sealPhoneSecretForTest({
+        version: 1,
+        keyId: PHONE_SECRET_TEST_IDENTITY.keyId,
+        deviceId,
+        botId: raceBot.id,
+        threadId: raceThread,
+        messageId: supersededRequest.messageId,
+        target: "openaiImageApiKey",
+        requestKey: (await raceCard(supersededRequest.messageId)).secret.requestKey,
+      }, "sk-test-superseded");
+      const supersededProvide = provide(raceBot.id, supersededRequest.messageId, supersededEnvelope);
+      await expect.poll(() => readdirSync(isolatedGate).filter((name) => name.endsWith(".started")).length).toBe(1);
+      const freshRequest = await requestCredential(raceBot.id, raceThread);
+      writeFileSync(releaseFile, "release");
+      const rejected = await supersededProvide;
+      expect(rejected.status).toBe(409);
+      expect(await rejected.json()).toMatchObject({ error: expect.stringMatching(/superseded by a newer one/i) });
+      expect((await raceCard(supersededRequest.messageId)).secret).toMatchObject({ superseded: true });
+      expect((await raceCard(supersededRequest.messageId)).secret.provided).not.toBe(true);
+      const freshEnvelope = await sealPhoneSecretForTest({
+        version: 1,
+        keyId: PHONE_SECRET_TEST_IDENTITY.keyId,
+        deviceId,
+        botId: raceBot.id,
+        threadId: raceThread,
+        messageId: freshRequest.messageId,
+        target: "openaiImageApiKey",
+        requestKey: (await raceCard(freshRequest.messageId)).secret.requestKey,
+      }, "sk-test-fresh-card");
+      const freshProvide = await provide(raceBot.id, freshRequest.messageId, freshEnvelope);
+      expect(freshProvide.status).toBe(200);
+      expect(await freshProvide.json()).toEqual({ provided: true, resumed: false });
+      // Hand the gate back: the ownership fixtures' saves must start held, with no started markers.
+      for (const name of readdirSync(isolatedGate)) rmSync(join(isolatedGate, name));
+      provideRequests.push(...[
+        provide(direct.id, directRequest.messageId, directEnvelope),
+        provide(channelOwner.id, groupRequest.messageId, groupEnvelope),
+      ].map((request) => request.then((response) => {
+        earlyProvisionStatuses.push(response.status);
+        return response;
+      })));
+      await expect.poll(
+        () => ({
+          started: readdirSync(isolatedGate).filter((name) => name.endsWith(".started")).length,
+          earlyProvisionStatuses,
+        }),
+        { timeout: 20_000 },
+      ).toEqual({ started: 2, earlyProvisionStatuses: [] });
+
+      const expectLocked = async (result: Promise<{ status: number; body: any }>) => {
+        const response = await result;
+        expect(response.status).toBe(409);
+        expect(response.body.error).toMatch(/securely saving a credential/i);
+      };
+      await expectLocked(isolatedApi("POST", `/api/bots/${direct.id}/messages/${directUser.id}/edit`, {
+        text: "rewind under the save",
+      }));
+      await expectLocked(isolatedApi("POST", `/api/bots/${direct.id}/active-branch`, {
+        messageId: directRequest.messageId,
+      }));
+      await expectLocked(isolatedApi("POST", `/api/bots/${direct.id}/tasks`, { title: "Race" }));
+      await expectLocked(isolatedApi(
+        "POST",
+        `/api/bots/${direct.id}/tasks/${directAlternate.body.task.threadId}`,
+      ));
+      await expectLocked(isolatedApi("DELETE", `/api/bots/${direct.id}/tasks/${directOriginalThread}`));
+      await expectLocked(isolatedApi("DELETE", `/api/bots/${direct.id}`));
+
+      await expectLocked(isolatedApi("POST", `/api/groups/${group.id}/tasks`, { title: "Race" }));
+      await expectLocked(isolatedApi(
+        "POST",
+        `/api/groups/${group.id}/tasks/${groupAlternate.body.task.threadId}`,
+      ));
+      await expectLocked(isolatedApi("DELETE", `/api/groups/${group.id}/tasks/${groupOriginalThread}`));
+      await expectLocked(isolatedApi("PATCH", `/api/groups/${group.id}`, {
+        memberIds: [channelPeer.id],
+      }));
+      const chiefRosterChange = await chiefRoomRequest(`http://127.0.0.1:${isolatedPort}`, roomChiefToken, "manage-room", {
+        roomId: group.id, action: "set_members", memberIds: [channelOwner.id, channelPeer.id],
+      });
+      expect(chiefRosterChange.status).toBe(409);
+      expect(chiefRosterChange.body.error).toMatch(/securely saving a credential/i);
+      await expectLocked(isolatedApi("DELETE", `/api/groups/${group.id}`));
+      await expectLocked(isolatedApi("DELETE", `/api/bots/${channelOwner.id}`));
+      await expectLocked(isolatedApi("DELETE", `/api/bots/${channelPeer.id}`));
+
+      writeFileSync(releaseFile, "release");
+      const completed = await Promise.all(provideRequests);
+      for (const response of completed) expect(response.status).toBe(200);
+      expect(await completed[0]!.json()).toEqual({ provided: true, resumed: false });
+      expect(await completed[1]!.json()).toEqual({ provided: true, resumed: false });
+
+      const exactRetry = await provide(direct.id, directRequest.messageId, directEnvelope);
+      expect(exactRetry.status).toBe(200);
+      expect(await exactRetry.json()).toEqual({ provided: true, resumed: false });
+      const replacementEnvelope = await sealPhoneSecretForTest({
+        version: 1,
+        keyId: PHONE_SECRET_TEST_IDENTITY.keyId,
+        deviceId,
+        botId: direct.id,
+        threadId: directOriginalThread,
+        messageId: directRequest.messageId,
+        target: "openaiImageApiKey",
+        requestKey: directCard.secret.requestKey,
+      }, `sk-${"dummy".repeat(6)}`);
+      const replacement = await provide(direct.id, directRequest.messageId, replacementEnvelope);
+      expect(replacement.status).toBe(409);
+      expect(await replacement.json()).toMatchObject({ error: expect.stringMatching(/already completed/i) });
+    } finally {
+      writeFileSync(releaseFile, "release");
+      await Promise.allSettled(provideRequests);
+      await waitForExit(isolatedChild, { signal: "SIGTERM" });
+      await removeTempDir(isolatedHome);
+    }
+    expectStoppedTestServerCleanly(isolatedChild, isolatedStderr);
+  }, 45_000);
+
+  it("reports a failed routine once, not twice", async () => {
+    // A routine reports through onDispatchError too, so this pins the count, not merely the presence.
+    let botId: string | undefined;
+    let routineId: string | undefined;
+    let stream: Awaited<ReturnType<typeof openSse>> | undefined;
+    try {
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud" })).status).toBe(200);
+      const created = await api("POST", "/api/routines", {
+        name: "Cloud check",
+        prompt: "look at the cloud desktop",
+        target: "bot",
+        botId: bot.id,
+        runOn: "maus",
+        enabled: true,
+        schedule: { type: "daily", time: "10:00", weekdays: [1, 2, 3, 4, 5] },
+      });
+      expect(created.status).toBe(201);
+      routineId = created.body.routine.id;
+      stream = await openSse(`${BASE}/api/events`);
+      await stream.until((frame) => frame.kind === "hello");
+      expect((await api("POST", `/api/routines/${created.body.routine.id}/run`)).status).toBe(201);
+      await stream.until(
+        (frame) =>
+          frame.kind === "notify" &&
+          frame.notification?.kind === "routine-failed" &&
+          frame.notification?.botId === bot.id,
+        5_000,
+      );
+      const buzzes = stream.frames.filter(
+        (frame: { kind?: string; notification?: { kind?: string; botId?: string } }) =>
+          frame.kind === "notify" && frame.notification?.botId === bot.id,
+      );
+      expect(buzzes.map((frame: { notification: { kind: string } }) => frame.notification.kind)).toEqual([
+        "routine-failed",
+      ]);
+    } finally {
+      stream?.close();
+      if (routineId) await api("DELETE", `/api/routines/${routineId}`);
+      if (botId) await api("DELETE", `/api/bots/${botId}`);
+      await api("PUT", "/api/config", { box: { token: "" } });
+    }
+  });
+
+  it("creates a fully configured bot in one request and greets with its final name", async () => {
+    const created = await api("POST", "/api/bots", {
+      name: "  Pathfinder  ",
+      title: "Researcher",
+      description: "Maps the problem before acting.",
+      section: "  Work  ",
+      modelSelection: { instanceId: "  ghost  ", model: "  ghost-1  ", effort: "high" },
+    });
+    expect(created.status).toBe(201);
+    const bot = created.body.bot;
+    try {
+      expect(bot).toMatchObject({
+        name: "Pathfinder",
+        title: "Researcher",
+        description: "Maps the problem before acting.",
+        section: "Work",
+        modelSelection: { instanceId: "ghost", model: "ghost-1", effort: "high" },
+      });
+      expect(bot.messages[0].text).toContain("Pathfinder");
+      expect(bot.messages[0].text).not.toContain("Maus");
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("opts MCP-style model writes into the current live catalog without narrowing general writes", async () => {
+    const instances = (await api("GET", "/api/instances")).body.instances;
+    const claude = instances.find((instance: { instanceId: string }) => instance.instanceId === "claude");
+    expect(claude.snapshot.state).toBe("available");
+    const customModel = `${claude.models.default}-custom`;
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    try {
+      const general = await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: customModel },
+      });
+      expect(general.status).toBe(200);
+      expect(general.body.bot.modelSelection.model).toBe(customModel);
+
+      const strictPatch = await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: customModel },
+        requireAvailableModel: true,
+      });
+      expect(strictPatch.status).toBe(400);
+      expect(strictPatch.body.error).toMatch(/not offered/i);
+
+      const beforeIds = (await api("GET", "/api/bots?messages=0")).body.bots.map(
+        (candidate: { id: string }) => candidate.id,
+      );
+      const strictCreate = await api("POST", "/api/bots", {
+        name: "Should not exist",
+        modelSelection: { instanceId: "claude", model: customModel },
+        requireAvailableModel: true,
+      });
+      expect(strictCreate.status).toBe(400);
+      const afterIds = (await api("GET", "/api/bots?messages=0")).body.bots.map(
+        (candidate: { id: string }) => candidate.id,
+      );
+      expect(afterIds).toEqual(beforeIds);
+
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        requireAvailableModel: "yes",
+      })).status).toBe(400);
+      expect((await api("POST", "/api/bots", {
+        name: "Missing selection",
+        requireAvailableModel: true,
+      })).status).toBe(400);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("rejects incomplete model selections instead of persisting a broken bot", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    try {
+      const missingModel = await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "ghost" },
+      });
+      expect(missingModel.status).toBe(400);
+      expect(missingModel.body.error).toContain("modelSelection.model");
+
+      const missingInstance = await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { model: "ghost-1" },
+      });
+      expect(missingInstance.status).toBe(400);
+      expect(missingInstance.body.error).toContain("modelSelection.instanceId");
+
+      const reread = (await api("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === bot.id,
+      );
+      expect(reread.modelSelection).toEqual(bot.modelSelection);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("switches a bot's selected task without stopping its running task", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    let runningTask = bot.threadId;
+    try {
+      const instances = (await api("GET", "/api/instances")).body.instances;
+      const claude = instances.find((instance: { instanceId: string }) => instance.instanceId === "claude");
+      expect(claude.snapshot.state).toBe("available");
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: claude.models.default },
+      })).status).toBe(200);
+
+      const originalTask = bot.threadId;
+      const created = await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Running task" });
+      expect(created.status).toBe(201);
+      runningTask = created.body.task.threadId;
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "keep running" })).status).toBe(202);
+
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots?messages=0")).body.bots.find(
+          (candidate: { id: string }) => candidate.id === bot.id,
+        );
+        return state?.busy;
+      }).toBe(true);
+
+      const switched = await api("POST", `/api/bots/${bot.id}/tasks/${originalTask}`);
+      expect(switched.status).toBe(200);
+      const current = (await api("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === bot.id,
+      );
+      expect(current.threadId).toBe(originalTask);
+      expect(current.tasks.find((task: { threadId: string }) => task.threadId === runningTask)?.busy).toBe(true);
+      expect(current.tasks.find((task: { threadId: string }) => task.threadId === originalTask)?.busy).toBe(false);
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`, { threadId: runningTask })).status).toBe(200);
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === bot.id,
+      )?.tasks.find((task: { threadId: string }) => task.threadId === runningTask)?.busy).toBe(false);
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`, { threadId: runningTask });
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it.each(["tasks", "active-branch"])("rechecks bot state after a delayed body for %s", async (operation) => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    const claude = (await api("GET", "/api/instances")).body.instances.find(
+      (instance: { instanceId: string }) => instance.instanceId === "claude",
+    );
+    expect((await api("PATCH", `/api/bots/${bot.id}`, {
+      modelSelection: { instanceId: "claude", model: claude.models.default },
+    })).status).toBe(200);
+    const before = (await api("GET", "/api/bots")).body.bots.find(
+      (candidate: { id: string }) => candidate.id === bot.id,
+    );
+    const held = await delayedJsonBody("POST", `/api/bots/${bot.id}/${operation}`,
+      operation === "tasks" ? { title: "Delayed task" } : { messageId: before.messages[0].id });
+    try {
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "keep running" })).status).toBe(202);
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === bot.id,
+      )?.busy).toBe(true);
+      const completed = await held.finish();
+      const current = (await api("GET", "/api/bots")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === bot.id,
+      );
+      if (operation === "tasks") {
+        expect(completed.status).toBe(201);
+        expect(current.threadId).toBe(completed.body.task.threadId);
+        expect(current.tasks).toHaveLength(before.tasks.length + 1);
+        expect(completed.body.bot.modelSelection).toEqual(before.modelSelection);
+        expect(completed.body.task.modelSelection).toEqual(before.modelSelection);
+        expect(completed.body.task.busy).toBe(false);
+      } else {
+        expect(completed.status).toBe(409);
+        expect(completed.body.error).toMatch(/working/i);
+        expect(current.threadId).toBe(before.threadId);
+        expect(current.tasks).toHaveLength(before.tasks.length);
+      }
+      expect(current.tasks.find((task: { threadId: string }) => task.threadId === before.threadId)?.busy).toBe(true);
+      const running = (await api("GET", `/api/threads/${before.threadId}/messages`)).body;
+      expect(running.activeLeafId).not.toBe(before.messages[0].id);
+      expect(running.messages.some((message: { text?: string }) => message.text === "keep running")).toBe(true);
+    } finally {
+      held.close();
+      await api("POST", `/api/bots/${bot.id}/interrupt`, { threadId: before.threadId });
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it.each(["POST", "PATCH"])("rechecks channel state after a delayed body for %s tasks", async (method) => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    const claude = (await api("GET", "/api/instances")).body.instances.find(
+      (instance: { instanceId: string }) => instance.instanceId === "claude",
+    );
+    expect((await api("PATCH", `/api/bots/${bot.id}`, {
+      modelSelection: { instanceId: "claude", model: claude.models.default },
+    })).status).toBe(200);
+    const room = (await api("POST", "/api/groups", {
+      name: "Delayed task changes",
+      memberIds: [bot.id],
+      setup: { bulletin: "", defaultResponder: { kind: "member", botId: bot.id } },
+    })).body.group;
+    const held = await delayedJsonBody(method,
+      `/api/groups/${room.id}/tasks${method === "PATCH" ? `/${room.threadId}` : ""}`,
+      { title: "Delayed task" });
+    try {
+      expect((await api("POST", `/api/groups/${room.id}/messages`, { text: "keep running" })).status).toBe(202);
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.groups.find(
+        (candidate: { id: string }) => candidate.id === room.id,
+      )?.working).toBe(true);
+      const finished = await held.finish();
+      const current = (await api("GET", "/api/bots?messages=0")).body.groups.find(
+        (candidate: { id: string }) => candidate.id === room.id,
+      );
+      const running = current.tasks.find((task: { threadId: string }) => task.threadId === room.threadId);
+      expect(running.working).toBe(true);
+      if (method === "POST") {
+        expect(finished.status).toBe(201);
+        expect(current.tasks).toHaveLength(2);
+      } else {
+        expect(finished.status).toBe(409);
+        expect(finished.body.error).toMatch(/running/i);
+        expect(current.tasks).toHaveLength(1);
+        expect(running.title).not.toBe("Delayed task");
+      }
+    } finally {
+      held.close();
+      await api("POST", `/api/groups/${room.id}/interrupt`, {});
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.groups.find(
+        (candidate: { id: string }) => candidate.id === room.id,
+      )?.working, { timeout: 5_000 }).toBe(false);
+      await api("DELETE", `/api/groups/${room.id}`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("refuses to interrupt a conversation after its active task changed", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    const room = (await api("POST", "/api/groups", { name: "Exact stop", memberIds: [bot.id] })).body.group;
+    try {
+      const wrongBot = await api("POST", `/api/bots/${bot.id}/interrupt`, { threadId: "old-task" });
+      expect(wrongBot.status).toBe(409);
+      const wrongRoom = await api("POST", `/api/groups/${room.id}/interrupt`, { threadId: "old-task" });
+      expect(wrongRoom.status).toBe(409);
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`, { threadId: bot.threadId })).status).toBe(200);
+      expect((await api("POST", `/api/groups/${room.id}/interrupt`, { threadId: room.threadId })).status).toBe(200);
+      for (const route of [`/api/bots/${bot.id}/interrupt`, `/api/groups/${room.id}/interrupt`]) {
+        const compatibleNull = await fetch(`${BASE}${route}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "null",
+        });
+        expect(compatibleNull.status).toBe(200);
+        const rejectedArray = await fetch(`${BASE}${route}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "[]",
+        });
+        expect(rejectedArray.status).toBe(400);
+      }
+    } finally {
+      await api("DELETE", `/api/groups/${room.id}`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("pins sends to the expected task and offers compact switch responses", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    const room = (await api("POST", "/api/groups", { name: "Pinned sends", memberIds: [bot.id] })).body.group;
+    try {
+      const wrongBot = await api("POST", `/api/bots/${bot.id}/messages`, {
+        text: "Do not reroute me",
+        threadId: "old-task",
+      });
+      expect(wrongBot.status).toBe(409);
+      expect(wrongBot.body.error).toMatch(/switched tasks/i);
+
+      const wrongRoom = await api("POST", `/api/groups/${room.id}/messages`, {
+        text: "Do not reroute me",
+        threadId: "old-task",
+      });
+      expect(wrongRoom.status).toBe(409);
+      expect(wrongRoom.body.error).toMatch(/switched tasks/i);
+
+      const botOriginal = bot.threadId;
+      const botTask = await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Second" });
+      expect(botTask.status).toBe(201);
+      const compactBot = await api("POST", `/api/bots/${bot.id}/tasks/${botOriginal}?messages=0`, {});
+      expect(compactBot.status).toBe(200);
+      expect(compactBot.body.bot.threadId).toBe(botOriginal);
+      expect(compactBot.body.bot.tasks).toHaveLength(2);
+      expect(compactBot.body.bot).not.toHaveProperty("messages");
+      expect(compactBot.body.bot).not.toHaveProperty("activeLeafId");
+
+      const roomOriginal = room.threadId;
+      const roomTask = await api("POST", `/api/groups/${room.id}/tasks`, { title: "Second" });
+      expect(roomTask.status).toBe(201);
+      const compactRoom = await api("POST", `/api/groups/${room.id}/tasks/${roomOriginal}?messages=0`, {});
+      expect(compactRoom.status).toBe(200);
+      expect(compactRoom.body.group.threadId).toBe(roomOriginal);
+      expect(compactRoom.body.group.tasks).toHaveLength(2);
+      expect(compactRoom.body.group).not.toHaveProperty("messages");
+      expect(compactRoom.body.group).not.toHaveProperty("activeLeafId");
+    } finally {
+      await api("POST", `/api/groups/${room.id}/interrupt`, {});
+      await api("DELETE", `/api/groups/${room.id}`);
+      await api("POST", `/api/bots/${bot.id}/interrupt`, {});
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("leaves a bot with no effort level untouched", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    expect(bot.modelSelection.effort).toBeUndefined();
+
+    const renamed = await api("PATCH", `/api/bots/${bot.id}`, { name: "Plain" });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.bot.modelSelection.effort).toBeUndefined();
+  });
+
+  // This fixture's one unknown driver never resolves: these cover pass-through and replace semantics, not a live engine's list.
+  it("round-trips an effort level and clears it when the key is dropped", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    const selection = { instanceId: "ghost", model: "ghost-1" };
+
+    const set = await api("PATCH", `/api/bots/${bot.id}`, {
+      modelSelection: { ...selection, effort: "high" },
+    });
+    expect(set.status).toBe(200);
+    expect(set.body.bot.modelSelection.effort).toBe("high");
+
+    const reread = (await api("GET", "/api/bots")).body.bots.find((b: { id: string }) => b.id === bot.id);
+    expect(reread.modelSelection.effort).toBe("high");
+
+    // The panel's Default button spreads effort: undefined, which JSON.stringify drops from the request.
+    const cleared = await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: selection });
+    expect(cleared.status).toBe(200);
+
+    const after = (await api("GET", "/api/bots")).body.bots.find((b: { id: string }) => b.id === bot.id);
+    expect(after.modelSelection).toEqual(selection);
+    expect(after.modelSelection.effort).toBeUndefined();
+  });
+
+  it("preserves an opaque variant separately from effort and rejects ambiguous or malformed selections", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    const selection = { instanceId: "ghost", model: "ghost-1" };
+    for (const variant of ["minimal", "none", "default", "custom-variant"]) {
+      const set = await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: { ...selection, variant } });
+      expect(set.status).toBe(200);
+      expect(set.body.bot.modelSelection).toEqual({ ...selection, variant });
+    }
+    for (const variant of ["", " low", "a\nb", 42, null]) {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: { ...selection, variant } })).status).toBe(400);
+    }
+    expect((await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: { ...selection, variant: "low", effort: "high" } })).status).toBe(400);
+    const cleared = await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: selection });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.bot.modelSelection).toEqual(selection);
+  });
+
+  it("grants Auto on this computer only through the warning acknowledgement", async () => {
+    const created = await api("POST", "/api/bots");
+    const bot = created.body.bot;
+    expect((await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: true })).body.bot.autoApprove).toBe(
+      true,
+    );
+
+    const blind = await api("PATCH", `/api/bots/${bot.id}`, { computer: "local" });
+    expect(blind.status).toBe(400);
+    const oneShot = await api("PATCH", `/api/bots/${bot.id}`, { computer: "local", autoApprove: true });
+    expect(oneShot.status).toBe(400);
+    const after = (await api("GET", "/api/bots")).body.bots.find((b: { id: string }) => b.id === bot.id);
+    expect(after.computer).not.toBe("local");
+
+    const local = await api("PATCH", `/api/bots/${bot.id}`, { computer: "local", acknowledgeLocalAuto: true });
+    expect(local.status).toBe(200);
+    expect(local.body.bot).toMatchObject({ computer: "local", autoApprove: true });
+    expect(local.body.bot.acknowledgeLocalAuto).toBeUndefined();
+
+    const enabled = await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: true });
+    expect(enabled.status).toBe(200);
+    expect(enabled.body.bot.autoApprove).toBe(true);
+
+    await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: false });
+    const autoBlind = await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: true });
+    expect(autoBlind.status).toBe(400);
+    const autoAcked = await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: true, acknowledgeLocalAuto: true });
+    expect(autoAcked.status).toBe(200);
+
+    await api("PATCH", `/api/bots/${bot.id}`, { computer: "off" });
+    const back = await api("PATCH", `/api/bots/${bot.id}`, { computer: "local" });
+    expect(back.status).toBe(400);
+    await api("DELETE", `/api/bots/${bot.id}`);
+  });
+
+  it("stores safe approval levels and Full over HTTP, and keeps Custom on the desktop", async () => {
+    const bot = (await api("POST", "/api/bots", {
+      modelSelection: { instanceId: "codex", model: "fixture-codex-model" },
+    })).body.bot;
+    try {
+      for (const approvalMode of ["automatic", "unsafe", true, null]) {
+        const invalid = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode });
+        expect(invalid.status, String(approvalMode)).toBe(400);
+      }
+
+      const auto = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto" });
+      expect(auto.status).toBe(200);
+      expect(auto.body.bot).toMatchObject({ approvalMode: "auto", autoApprove: true });
+      const ask = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask" });
+      expect(ask.status).toBe(200);
+      expect(ask.body.bot).toMatchObject({ approvalMode: "ask", autoApprove: false });
+
+      const full = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "full" });
+      expect(full.status).toBe(200);
+      expect(full.body.bot).toMatchObject({ approvalMode: "full", autoApprove: false });
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask" })).status).toBe(200);
+
+      for (const body of [{ approvalMode: "custom" }, { approvalMode: "custom", acknowledgeFullAccess: true }]) {
+        const rejected = await api("PATCH", `/api/bots/${bot.id}`, body);
+        expect(rejected.status, JSON.stringify(body)).toBe(403);
+        expect(rejected.body.error).toMatch(/desktop app/i);
+      }
+      const thread = await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { approvalMode: "custom" });
+      expect(thread.status).toBe(403);
+      expect(thread.body.error).toMatch(/Custom access requires trusted desktop confirmation/);
+
+      const stored = (await api("GET", "/api/bots")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === bot.id,
+      );
+      expect(stored).toMatchObject({ approvalMode: "ask", autoApprove: false });
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("applies Full access over HTTP at once, and the bot's next turns run at Full", async () => {
+    const created: string[] = [];
+    const permissionModeOf = async (botId: string, threadId: string) => {
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${botId}/messages`, { text: "check the level", threadId })).status).toBe(202);
+      // The first turn on a fresh engine waits on its CLI probes.
+      const { argv } = await readJsonFileWhenReady<{ argv: string[] }>(fakeClaudeDump, 15_000);
+      expect((await api("POST", `/api/bots/${botId}/interrupt`, { threadId })).status).toBe(200);
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.bots
+        .find((entry: { id: string }) => entry.id === botId)?.tasks
+        .find((task: { threadId: string }) => task.threadId === threadId)?.busy, { timeout: 5_000 }).toBe(false);
+      return argv[argv.indexOf("--permission-mode") + 1];
+    };
+    const threadMode = (bot: { tasks: Array<{ threadId: string; approvalMode?: string }> }, threadId: string) =>
+      bot.tasks.find((task) => task.threadId === threadId)?.approvalMode;
+    try {
+      const bot = (await api("POST", "/api/bots", {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).body.bot;
+      created.push(bot.id);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask" })).status).toBe(200);
+      const older = (await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Older Ask thread" })).body.task;
+      expect(older.approvalMode).toBe("ask");
+
+      const full = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "full" });
+      expect(full.status).toBe(200);
+      expect(full.body.bot).toMatchObject({ approvalMode: "full", autoApprove: false });
+      expect(threadMode(full.body.bot, bot.threadId) ?? full.body.bot.approvalMode).toBe("full");
+      expect(threadMode(full.body.bot, older.threadId)).toBe("ask");
+      expect(await permissionModeOf(bot.id, bot.threadId)).toBe("bypassPermissions");
+      expect(await permissionModeOf(bot.id, older.threadId)).toBe("default");
+
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "full", applyToAllThreads: "yes" })).status).toBe(400);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { applyToAllThreads: true })).status).toBe(400);
+      const everywhere = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "full", applyToAllThreads: true });
+      expect(everywhere.status).toBe(200);
+      expect(everywhere.body.bot.tasks.map((task: { approvalMode?: string }) => task.approvalMode)).toEqual(["full", "full"]);
+      expect(await permissionModeOf(bot.id, older.threadId)).toBe("bypassPermissions");
+
+      expect((await api("PATCH", `/api/bots/${bot.id}/tasks/${older.threadId}`, { approvalMode: "ask" })).status).toBe(200);
+      const thread = await api("PATCH", `/api/bots/${bot.id}/tasks/${older.threadId}`, { approvalMode: "full" });
+      expect(thread.status).toBe(200);
+      expect(thread.body.task).toMatchObject({ approvalMode: "full", autoApprove: false });
+      expect((await api("PATCH", `/api/bots/${bot.id}/tasks/${older.threadId}`, { approvalMode: "ask" })).status).toBe(200);
+      const refreshed = await api("PATCH", `/api/bots/${bot.id}/tasks/${older.threadId}`, { refreshPermissions: true });
+      expect(refreshed.status).toBe(200);
+      expect(refreshed.body.task).toMatchObject({ approvalMode: "full" });
+
+      const custom = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "custom" });
+      expect(custom.status).toBe(400);
+      expect(custom.body.error).toMatch(/does not support/i);
+
+      const born = await api("POST", "/api/bots", {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, settings: { approvalMode: "full" },
+      });
+      expect(born.status).toBe(201);
+      created.push(born.body.bot.id);
+      expect(born.body.bot).toMatchObject({ approvalMode: "full", autoApprove: false });
+      expect(await permissionModeOf(born.body.bot.id, born.body.bot.threadId)).toBe("bypassPermissions");
+      const customBirth = await api("POST", "/api/bots", {
+        modelSelection: { instanceId: "codex", model: "fixture-codex-model" }, settings: { approvalMode: "custom" },
+      });
+      expect(customBirth.status).toBe(403);
+    } finally {
+      for (const id of created) await api("DELETE", `/api/bots/${id}`);
+    }
+  }, 60_000);
+
+  it("sets a team-wide level on every thread, New-thread threads included, the same way for every level", async () => {
+    const permissionModeOf = async (botId: string, threadId: string) => {
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${botId}/messages`, { text: "check the level", threadId })).status).toBe(202);
+      const { argv } = await readJsonFileWhenReady<{ argv: string[] }>(fakeClaudeDump, 15_000);
+      expect((await api("POST", `/api/bots/${botId}/interrupt`, { threadId })).status).toBe(200);
+      await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.bots
+        .find((entry: { id: string }) => entry.id === botId)?.tasks
+        .find((task: { threadId: string }) => task.threadId === threadId)?.busy, { timeout: 5_000 }).toBe(false);
+      return argv[argv.indexOf("--permission-mode") + 1];
+    };
+    type WireBot = { approvalMode?: string; tasks: Array<{ threadId: string; approvalMode?: string }> };
+    const bot = (await api("POST", "/api/bots", { modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } })).body.bot;
+    const opened: string[] = [];
+    const levels = (saved: WireBot) => [bot.threadId, ...opened].map((threadId) =>
+      saved.tasks.find((task) => task.threadId === threadId)?.approvalMode ?? saved.approvalMode);
+    try {
+      for (const title of ["New thread one", "New thread two"]) {
+        const task = (await api("POST", `/api/bots/${bot.id}/tasks`, { title })).body.task;
+        expect(task.approvalMode).toBe("full");
+        opened.push(task.threadId);
+      }
+      const panel = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto" });
+      expect(panel.status).toBe(200);
+      expect(levels(panel.body.bot)).toEqual(["auto", "full", "full"]);
+
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { applyToAllThreads: true })).status).toBe(400);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto", applyToAllThreads: "yes" })).status).toBe(400);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { alwaysAllow: ["Read"] })).status).toBe(200);
+      for (const mode of ["auto", "edits", "ask", "full"] as const) {
+        const team = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: mode, applyToAllThreads: true });
+        expect(team.status, mode).toBe(200);
+        expect(team.body.bot, mode).toMatchObject({ approvalMode: mode, autoApprove: mode === "auto" });
+        expect(levels(team.body.bot), mode).toEqual([mode, mode, mode]);
+        expect(team.body.bot.alwaysAllow, `${mode}: saved grants stay at every level, unused at Full access`).toEqual(["Read"]);
+        const saved = (await api("GET", "/api/bots?messages=0")).body.bots.find((entry: { id: string }) => entry.id === bot.id);
+        expect(levels(saved), mode).toEqual([mode, mode, mode]);
+        if (mode === "auto") expect(await permissionModeOf(bot.id, opened[0]!)).toBe("auto");
+      }
+      expect(await permissionModeOf(bot.id, opened[1]!)).toBe("bypassPermissions");
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  }, 60_000);
+
+  it("asks for the local-computer warning when a team-wide Auto reaches a thread not on Auto yet", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    try {
+      const opened = (await api("POST", `/api/bots/${bot.id}/tasks`, { title: "New thread" })).body.task;
+      expect(opened.approvalMode).toBe("full");
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "local", approvalMode: "auto", acknowledgeLocalAuto: true })).status).toBe(200);
+      const blind = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto", applyToAllThreads: true });
+      expect(blind.status).toBe(400);
+      expect(blind.body.error).toMatch(/acknowledgeLocalAuto/);
+      const confirmed = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto", applyToAllThreads: true, acknowledgeLocalAuto: true });
+      expect(confirmed.status).toBe(200);
+      expect(confirmed.body.bot.tasks.every((task: { approvalMode?: string }) => (task.approvalMode ?? "auto") === "auto")).toBe(true);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto", applyToAllThreads: true })).status).toBe(200);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("moves a team's following threads to a new bot model and leaves each thread's own model, on screen or not", async () => {
+    const claude = (model: string) => ({ instanceId: "claude", model });
+    type WireBot = { modelSelection: { model: string }; tasks: Array<{ threadId: string; modelSelection: { model: string }; followsBotModel: boolean }> };
+    const thread = (bot: WireBot, threadId: string) => {
+      const task = bot.tasks.find((candidate) => candidate.threadId === threadId)!;
+      return { model: task.modelSelection.model, follows: task.followsBotModel };
+    };
+    const bot = (await api("POST", "/api/bots", { modelSelection: claude("team-start") })).body.bot;
+    try {
+      const own = (await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Own model, not on screen" })).body.task;
+      const onScreen = (await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Own model, on screen" })).body.task;
+      const follower = (await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Follows the bot" })).body.task;
+      for (const picked of [own, onScreen]) {
+        expect((await api("PATCH", `/api/bots/${bot.id}/tasks/${picked.threadId}`, { modelSelection: claude("thread-pick") })).status).toBe(200);
+      }
+      expect((await api("POST", `/api/bots/${bot.id}/tasks/${onScreen.threadId}?messages=0`)).body.bot.threadId).toBe(onScreen.threadId);
+
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { keepThreadModels: true })).status).toBe(400);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: claude("team-pick"), keepThreadModels: "yes" })).status).toBe(400);
+      for (const model of ["team-pick", "team-start"]) {
+        const team = await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: claude(model), keepThreadModels: true });
+        expect(team.status, model).toBe(200);
+        expect(team.body.bot.modelSelection.model).toBe(model);
+        expect(thread(team.body.bot, onScreen.threadId), model).toEqual({ model: "thread-pick", follows: false });
+        expect(thread(team.body.bot, own.threadId), model).toEqual({ model: "thread-pick", follows: false });
+        expect(thread(team.body.bot, follower.threadId), model).toEqual({ model, follows: true });
+        expect(thread(team.body.bot, bot.threadId), model).toEqual({ model, follows: true });
+      }
+      const panel = await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: claude("panel-pick") });
+      expect(panel.status).toBe(200);
+      expect(thread(panel.body.bot, onScreen.threadId)).toEqual({ model: "panel-pick", follows: true });
+      expect(thread(panel.body.bot, own.threadId)).toEqual({ model: "thread-pick", follows: false });
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("pins provider approval support at the thread settings gate", async () => {
+    const codex = (await api("POST", "/api/bots", {
+      modelSelection: { instanceId: "codex", model: "fixture-codex-model" },
+    })).body.bot;
+    try {
+      // Codex has no auto-accept-edits mode, so the thread-level PATCH must refuse Edits before any store write.
+      const refused = await api("PATCH", `/api/bots/${codex.id}/tasks/${codex.threadId}`, { approvalMode: "edits" });
+      expect(refused.status).toBe(400);
+      expect(refused.body.error).toMatch(/This provider does not support the selected approval level/);
+    } finally {
+      await api("DELETE", `/api/bots/${codex.id}`);
+    }
+    const claude = (await api("POST", "/api/bots", {
+      modelSelection: { instanceId: "claude", model: "fixture-claude-model" },
+    })).body.bot;
+    try {
+      // Claude's engine implements acceptEdits, so the same PATCH applies.
+      const applied = await api("PATCH", `/api/bots/${claude.id}/tasks/${claude.threadId}`, { approvalMode: "edits" });
+      expect(applied.status).toBe(200);
+      expect(applied.body.task).toMatchObject({ approvalMode: "edits", autoApprove: false });
+    } finally {
+      await api("DELETE", `/api/bots/${claude.id}`);
+    }
+  });
+
+  it("maps legacy autoApprove PATCHes to safe Auto or Ask", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    const auto = await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: true });
+    expect(auto.status).toBe(200);
+    expect(auto.body.bot).toMatchObject({ approvalMode: "auto", autoApprove: true });
+
+    const ask = await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: false });
+    expect(ask.status).toBe(200);
+    expect(ask.body.bot).toMatchObject({ approvalMode: "ask", autoApprove: false });
+    await api("DELETE", `/api/bots/${bot.id}`);
+  });
+
+  it("saves an approval-level change while a bot is working", async () => {
+    const instances = (await api("GET", "/api/instances")).body.instances;
+    const claude = instances.find((instance: { instanceId: string }) => instance.instanceId === "claude");
+    const bot = (await api("POST", "/api/bots", {
+      modelSelection: { instanceId: claude.instanceId, model: claude.models.default },
+      approvalMode: "ask",
+    })).body.bot;
+    try {
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "keep working" })).status).toBe(202);
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots?messages=0")).body;
+        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
+      }, { timeout: 5_000 }).toBe(true);
+
+      const changed = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto" });
+      expect(changed.status, JSON.stringify(changed.body)).toBe(200);
+      const stored = (await api("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === bot.id,
+      );
+      expect(stored.busy).toBe(true);
+      expect(stored.approvalMode).toBe("auto");
+      expect(stored.autoApprove).toBe(true);
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`, {}).catch(() => undefined);
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots?messages=0")).body;
+        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
+      }, { timeout: 5_000 }).toBeFalsy();
+      await api("DELETE", `/api/bots/${bot.id}`).catch(() => undefined);
+    }
+  });
+
+  it("offers an idempotent stop boundary for active local turns", async () => {
+    const unsupported = await api("POST", "/api/local-computer/interrupt");
+    expect(unsupported).toEqual({
+      status: 415,
+      body: { error: "content-type must be application/json" },
+    });
+    const stopped = await api("POST", "/api/local-computer/interrupt", {});
+    expect(stopped).toEqual({ status: 200, body: { ok: true } });
+  });
+
+  it("a new bot opens with one greeting and no quiz card", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Fresh" })).body.bot;
+    try {
+      expect(bot.messages).toHaveLength(1);
+      expect(bot.messages[0]).toMatchObject({ role: "bot", kind: "text" });
+      expect(bot.messages[0].text).toBe("Hi, I'm Fresh. What would you like me to do?");
+      expect(bot.messages.some((m: { kind: string }) => m.kind === "options")).toBe(false);
+    } finally {
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("a new bot greets its person by first name and is announced in its chosen look, or a fresh one, from the first frame", async () => {
+    const before = (await api("GET", "/api/config")).body.profile?.name ?? "";
+    expect((await api("PUT", "/api/config", { profile: { name: "Minh Son" } })).status).toBe(200);
+    const stream = await openSse(`${BASE}/api/events`);
+    let id = "";
+    try {
+      await stream.until((frame) => frame.kind === "hello");
+      const bot = (await api("POST", "/api/bots", { name: "Scout", useDefaults: false, settings: { color: "purple", mascotBody: "star" } })).body.bot;
+      id = bot.id;
+      expect(bot.messages[0].text).toBe("Hi Minh, I'm Scout. What would you like me to do?");
+      const announced = await stream.until((frame) => frame.kind === "bot" && frame.bot?.id === id);
+      expect(announced.bot).toMatchObject({ color: "purple", mascotBody: "star" });
+      const plain = (await api("POST", "/api/bots", { name: "Wren", useDefaults: false })).body.bot;
+      await api("DELETE", `/api/bots/${plain.id}`);
+      const fresh = (await stream.until((frame) => frame.kind === "bot" && frame.bot?.id === plain.id)).bot;
+      expect(fresh.mascotBody).toBe(DEFAULT_MASCOT_BODY);
+      expect(STARTER_COLORS).toContain(fresh.color);
+    } finally {
+      stream.close();
+      if (id) await api("DELETE", `/api/bots/${id}`);
+      await api("PUT", "/api/config", { profile: { name: before } });
+    }
+  });
+
+  it("writes a new bot's setup answers with its own engine on Haiku 5.5 without thinking, and keeps the fixed ones when that fails", async () => {
+    const before = (await api("GET", "/api/config")).body.profile?.name ?? "";
+    const answers = ["Sort my receipts", "Check my unpaid invoices", "Draft a payment reminder", "Find a missing expense", "Remind me of tax deadlines"];
+    const ids: string[] = [];
+    const greeting = async (threadId: string) => (await api("GET", `/api/threads/${threadId}/messages?limit=50`)).body.messages[0];
+    const create = async (name: string) => {
+      const created = await api("POST", "/api/bots", { name, modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, requireAvailableModel: true });
+      expect(created.status).toBe(201);
+      ids.push(created.body.bot.id);
+      return created.body.bot;
+    };
+    expect((await api("PUT", "/api/config", { profile: { name: "Minh Son" }, features: { smartSetupChoices: true } })).status).toBe(200);
+    try {
+      writeFileSync(setupAnswersFile, `${JSON.stringify(answers)}\n`);
+      rmSync(setupAnswersDump, { force: true });
+      const bot = await create("Bookkeeper");
+      expect(bot.messages[0]).toMatchObject({ setupOffer: true, setupChoicesPending: true });
+      await expect.poll(async () => (await greeting(bot.threadId)).setupChoicesPending ?? null, { timeout: 10_000 }).toBeNull();
+      expect((await greeting(bot.threadId)).setupChoices).toEqual(answers);
+      const seen = await readJsonFileWhenReady<{ argv: string[]; env: Record<string, string | undefined>; prompt: string }>(setupAnswersDump);
+      expect(seen.argv[seen.argv.indexOf("--model") + 1]).toBe("claude-haiku-5-5");
+      expect(JSON.parse(seen.argv[seen.argv.indexOf("--settings") + 1]!)).toEqual({ alwaysThinkingEnabled: false, disableAllHooks: true });
+      expect(seen.argv).not.toContain("--effort");
+      expect(seen.env.MAX_THINKING_TOKENS).toBeUndefined();
+      expect(seen.prompt).toContain("Bot name: Bookkeeper");
+      expect(seen.prompt).not.toContain("Minh");
+      const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+      const usage = await (await fetch(`${BASE}/api/usage.csv?from=${day(-1)}&to=${day(1)}`)).text();
+      expect(usage.split("\n").some((line) => line.includes("Bookkeeper") && line.includes(",setup-suggestions-"))).toBe(true);
+
+      rmSync(setupAnswersFile, { force: true });
+      const other = await create("Gardener");
+      expect(other.messages[0].setupChoicesPending).toBe(true);
+      await expect.poll(async () => (await greeting(other.threadId)).setupChoicesPending ?? null, { timeout: 10_000 }).toBeNull();
+      expect((await greeting(other.threadId)).setupChoices).toEqual(other.messages[0].setupChoices);
+    } finally {
+      rmSync(setupAnswersFile, { force: true });
+      for (const id of ids) await api("DELETE", `/api/bots/${id}`);
+      await api("PUT", "/api/config", { profile: { name: before }, features: { smartSetupChoices: false } });
+    }
+  });
+
+  it("writes a new bot's setup answers again when it is renamed before anyone answers, and without the name for a picked one", async () => {
+    const hiring = ["Screen my new candidates", "Draft a job post", "Schedule my interviews", "Find candidates on job sites", "Remind me to follow up"];
+    const everyday = ["Find cheap flights", "Sort my inbox", "Check my calendar", "Draft a cover letter", "Remind me to pay bills"];
+    const greeting = async (threadId: string) => (await api("GET", `/api/threads/${threadId}/messages?limit=50`)).body.messages[0];
+    const settled = async (threadId: string) => {
+      await expect.poll(async () => { const line = await greeting(threadId); return line.setupChoicesPending ?? line.setupChoicesUpdating ?? null; }, { timeout: 10_000 }).toBeNull();
+      return greeting(threadId);
+    };
+    const answer = (choices: string[]) => { writeFileSync(setupAnswersFile, `${JSON.stringify(choices)}\n`); rmSync(setupAnswersDump, { force: true }); };
+    let id = "";
+    expect((await api("PUT", "/api/config", { features: { smartSetupChoices: true } })).status).toBe(200);
+    try {
+      rmSync(setupAnswersFile, { force: true });
+      const created = await api("POST", "/api/bots", { name: "Pepper", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, requireAvailableModel: true });
+      expect(created.status).toBe(201);
+      id = created.body.bot.id;
+      const { threadId } = created.body.bot;
+      const fixed = created.body.bot.messages[0].setupChoices;
+      expect((await settled(threadId)).setupChoices).toEqual(fixed);
+
+      answer(hiring);
+      expect((await api("PATCH", `/api/bots/${id}`, { name: "Recruiter" })).status).toBe(200);
+      expect((await greeting(threadId)).setupChoicesUpdating).toEqual(expect.any(Number));
+      expect((await settled(threadId)).setupChoices).toEqual(hiring);
+      expect((await readJsonFileWhenReady<{ prompt: string }>(setupAnswersDump)).prompt).toContain("Bot name: Recruiter");
+
+      answer(everyday);
+      expect((await api("PATCH", `/api/bots/${id}`, { name: "Pesto" })).status).toBe(200);
+      const unnamed = await settled(threadId);
+      const rewritten = existsSync(setupAnswersDump) ? await readJsonFileWhenReady<{ prompt: string }>(setupAnswersDump) : null;
+      expect(unnamed.setupChoices).toEqual(rewritten ? everyday : fixed);
+      expect(rewritten?.prompt ?? "").not.toContain("Bot name:");
+    } finally {
+      rmSync(setupAnswersFile, { force: true });
+      if (id) await api("DELETE", `/api/bots/${id}`);
+      await api("PUT", "/api/config", { features: { smartSetupChoices: false } });
+    }
+  });
+
+  it("validates approval decisions and reports a request that is no longer open", async () => {
+    const { body } = await api("GET", "/api/bots");
+    const bot = body.bots[0];
+
+    const invalid = await api("POST", `/api/bots/${bot.id}/respond`, {
+      requestId: "gone",
+      behavior: "approve-everything",
+    });
+    expect(invalid.status).toBe(400);
+
+    const unavailable = await api("POST", `/api/bots/${bot.id}/respond`, {
+      requestId: "gone",
+      behavior: "allow",
+    });
+    expect(unavailable.status).toBe(200);
+    expect(unavailable.body).toEqual({ ok: true, outcome: "unavailable" });
+
+    const reread = (await api("GET", "/api/bots")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id);
+    expect(reread.messages.at(-1).tool).toMatchObject({ ok: false });
+    expect(reread.messages.at(-1).tool.name).toContain("request is no longer open");
+  });
+
+  it("answers a room approval whose turn is already over instead of stranding the room", async () => {
+    // busyBotId lives in memory only, so a card that outlives its turn has no speaker; the room must stay answerable.
+    const answered = await api("POST", "/api/threads/test-stranded-room-thread/respond", {
+      requestId: "stranded-request",
+      behavior: "allow",
+    });
+    expect(answered.status).toBe(200);
+    expect(answered.body).toEqual({ ok: true, outcome: "unavailable" });
+
+    const room = (await api("GET", "/api/bots")).body.groups.find(
+      (group: { id: string }) => group.id === "test-stranded-room",
+    );
+    const card = room.messages.find((message: { id: string }) => message.id === "stranded-card").card;
+    expect(card.dismissed).toBe(true);
+    expect(card.answered).toBe("unavailable");
+
+    const nothing = await api("POST", "/api/threads/test-pinned-room-thread/respond", {
+      requestId: "never-existed",
+      behavior: "allow",
+    });
+    expect(nothing.status).toBe(404);
+  });
+
+  it("closes cancelled approvals but preserves unanswered questions", async () => {
+    const stopped = await api("POST", "/api/groups/test-cancel-room/interrupt");
+    expect(stopped.status).toBe(200);
+
+    const room = (await api("GET", "/api/bots")).body.groups.find(
+      (group: { id: string }) => group.id === "test-cancel-room",
+    );
+    const card = room.messages.find((message: { id: string }) => message.id === "cancel-card").card;
+    expect(card.dismissed).toBe(true);
+    expect(card.answered).toBe("unavailable");
+
+    const question = room.messages.find((message: { id: string }) => message.id === "cancel-question-card").card;
+    expect(question).toMatchObject({ requestType: "question", requestId: "cancel-question-request" });
+    expect(question.answered).toBeUndefined();
+    expect(question.dismissed).toBeUndefined();
+
+    const dismissed = await api("POST", "/api/threads/test-cancel-room-thread/respond", {
+      requestId: "cancel-question-request",
+      behavior: "answer",
+      message: "The user closed this question without answering. Use your best judgment and continue.",
+      dismiss: true,
+    });
+    expect(dismissed.status).toBe(409);
+
+    const reread = (await api("GET", "/api/bots")).body.groups.find(
+      (group: { id: string }) => group.id === "test-cancel-room",
+    );
+    const stillOpen = reread.messages.find((message: { id: string }) => message.id === "cancel-question-card").card;
+    expect(stillOpen.answered).toBeUndefined();
+    expect(stillOpen.dismissed).toBeUndefined();
+
+    try {
+      const answered = await api("POST", "/api/threads/test-cancel-room-thread/respond", {
+        requestId: "cancel-question-request",
+        behavior: "answer",
+        message: "README",
+      });
+      expect(answered.status, JSON.stringify(answered.body)).toBe(200);
+      expect(answered.body).toMatchObject({ ok: true, outcome: "answered", late: true });
+      await expect.poll(async () => {
+        const groups = (await api("GET", "/api/bots")).body.groups;
+        return groups.find((group: { id: string }) => group.id === "test-cancel-room")?.working;
+      }, { timeout: 5_000 }).toBe(true);
+      const afterAnswer = (await api("GET", "/api/bots")).body.groups.find(
+        (group: { id: string }) => group.id === "test-cancel-room",
+      );
+      const settled = afterAnswer.messages.find((message: { id: string }) => message.id === "cancel-question-card");
+      expect(settled.card).toMatchObject({ answered: "answer", answeredText: "README", dismissed: false });
+      expect(afterAnswer.messages).toContainEqual(expect.objectContaining({
+        role: "user",
+        kind: "text",
+        text: "@Test bot A: README",
+        replyToId: "cancel-question-card",
+      }));
+    } finally {
+      expect((await api("POST", "/api/groups/test-cancel-room/interrupt")).status).toBe(200);
+      await expect.poll(async () => {
+        const groups = (await api("GET", "/api/bots")).body.groups;
+        return groups.find((group: { id: string }) => group.id === "test-cancel-room")?.working;
+      }, { timeout: 5_000 }).toBe(false);
+    }
+  });
+
+  it("rejects an empty message and explains an unavailable provider", async () => {
+    const { body } = await api("GET", "/api/bots");
+    const bot = body.bots[0];
+
+    const empty = await api("POST", `/api/bots/${bot.id}/messages`, { text: "   " });
+    expect(empty.status).toBe(400);
+
+    const send = await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello?" });
+    expect(send.status).toBe(409);
+    expect(send.body.error).toContain("unavailable");
+    const afterFail = (await api("GET", "/api/bots")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id);
+    expect(afterFail.messages.some((m: { role: string }) => m.role === "user")).toBe(false);
+  });
+
+  it("refuses to fork a message when the provider is unavailable, without mutating", async () => {
+    const { body } = await api("GET", "/api/bots");
+    const bot = body.bots[0];
+    const before = bot.messages.length;
+
+    const greeting = bot.messages.find((m: { role: string }) => m.role === "bot");
+    const notUser = await api("POST", `/api/bots/${bot.id}/messages/${greeting.id}/edit`, { text: "x" });
+    expect(notUser.status).toBe(404);
+
+    const empty = await api("POST", `/api/bots/${bot.id}/messages/${greeting.id}/edit`, { text: "  " });
+    expect(empty.status).toBe(400);
+
+    const after = await api("GET", "/api/bots");
+    expect(after.body.bots[0].messages.length).toBe(before);
+  });
+
+  it("switches the active branch and reports the new leaf", async () => {
+    const { body } = await api("GET", "/api/bots");
+    const bot = body.bots[0];
+    expect(bot.activeLeafId).toBe(bot.messages.at(-1).id);
+
+    const res = await api("POST", `/api/bots/${bot.id}/active-branch`, { messageId: bot.messages[0].id });
+    expect(res.status).toBe(200);
+    expect(res.body.activeLeafId).toBe(bot.messages.at(-1).id);
+
+    const missing = await api("POST", `/api/bots/${bot.id}/active-branch`, { messageId: "nope" });
+    expect(missing.status).toBe(404);
+  });
+
+  it("answers the daily snapshot's computer counts from the real server, without and with a Boat account", async () => {
+    let botId = "";
+    try {
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+      const teams = (await api("GET", "/api/team-computers")).body.computers.length;
+      boatRouteCalls.length = 0;
+      const none = await fetch(`${BASE}/api/computers/usage`);
+      expect(none.status).toBe(200);
+      expect(none.headers.get("cache-control")).toBe("private, no-store");
+      expect(await none.json()).toEqual({ cloudComputers: 0, teamComputers: teams });
+
+      expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
+      botId = (await api("POST", "/api/bots")).body.bot.id;
+      managedBoatRows = [
+        { id: "bx_23456789", name: managedBoatNameForFixture(botId), state: "idle" },
+        { id: "bx_jkmnpqrs", name: "someone-elses-box", state: "idle" },
+      ];
+      boatRouteCalls.length = 0;
+      const counted = await fetch(`${BASE}/api/computers/usage`);
+      expect(counted.status).toBe(200);
+      expect(counted.headers.get("cache-control")).toBe("private, no-store");
+      expect(await counted.json()).toEqual({ cloudComputers: 1, teamComputers: teams });
+      expect(boatRouteCalls).toEqual([{ method: "GET", path: "/sandboxes?limit=200" }]);
+    } finally {
+      managedBoatRows = [];
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { box: { token: "" } });
+      boatRouteCalls.length = 0;
+    }
+  });
+
+  it("refuses a box token the provider rejects, at the point of pasting", async () => {
+    // the stub answers 401 for anything but the good token
+    const bad = await api("PUT", "/api/config", { box: { token: "box_wrong" } });
+    expect(bad.status).toBe(400);
+    expect(String(bad.body.error)).toMatch(/rejected/i);
+    expect(bad.body.code).toBe("key_rejected");
+    const unchecked = await api("PUT", "/api/config", { box: { token: "box_unavailable" } });
+    expect(unchecked.status).toBe(400);
+    expect(unchecked.body).toEqual({ error: "boat.dev returned 500 for that token — try again in a moment." });
+    const after = await api("GET", "/api/config");
+    expect(after.body.box).toEqual({ configured: false });
+  });
+
+  it("saves config keys write-only and reports booleans", async () => {
+    const before = await api("GET", "/api/config");
+    expect(before.body.box).toEqual({ configured: false });
+
+    const put = await api("PUT", "/api/config", { box: { token: "box_good" } });
+    expect(put.status).toBe(200);
+    expect(put.body.box).toEqual({ configured: true });
+    expect(JSON.stringify(put.body)).not.toContain("box_good");
+
+    const after = await api("GET", "/api/config");
+    expect(after.body.box).toEqual({ configured: true });
+    expect(JSON.stringify(after.body)).not.toContain("box_good");
+
+    const nothing = await api("PUT", "/api/config", {});
+    expect(nothing.status).toBe(400);
+  });
+
+  it.each(["fish", "xai"])("clears incompatible default and per-agent voices when switching to %s", async (provider) => {
+    let botId = "";
+    try {
+      expect((await api("PUT", "/api/config", {
+        tts: { provider: "elevenlabs", voice: "eleven-default" },
+      })).status).toBe(200);
+      const created = await api("POST", "/api/bots");
+      botId = created.body.bot.id;
+      expect((await api("PATCH", `/api/bots/${botId}/profile`, {
+        voice: "eleven-agent",
+      })).status).toBe(200);
+
+      const changed = await api("PUT", "/api/config", { tts: { provider } });
+      expect(changed.status).toBe(200);
+      expect(changed.body.tts).toMatchObject({ provider, voice: "", ready: false });
+      const bot = (await api("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === botId,
+      );
+      expect(bot).not.toHaveProperty("voice");
+      const disk = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
+      expect(disk.tts).toMatchObject({ provider, voice: "" });
+    } finally {
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { tts: { provider: "elevenlabs", voice: "" } }).catch(() => undefined);
+    }
+  });
+
+  it("saves the Fish Audio model and keeps it across provider switches", async () => {
+    try {
+      const fish = await api("PUT", "/api/config", { tts: { provider: "fish" } });
+      expect(fish.status).toBe(200);
+      expect(fish.body.tts).toMatchObject({ provider: "fish", fishModel: "s2.1-pro" });
+
+      const free = await api("PUT", "/api/config", { tts: { fishModel: "s2.1-pro-free" } });
+      expect(free.status).toBe(200);
+      expect(free.body.tts).toMatchObject({ provider: "fish", fishModel: "s2.1-pro-free" });
+      expect((await api("PUT", "/api/config", { tts: { fishModel: "s1" } })).status).toBe(400);
+
+      const away = await api("PUT", "/api/config", { tts: { provider: "elevenlabs" } });
+      expect(away.body.tts).not.toHaveProperty("fishModel");
+      const back = await api("PUT", "/api/config", { tts: { provider: "fish" } });
+      expect(back.body.tts).toMatchObject({ provider: "fish", fishModel: "s2.1-pro-free" });
+      const disk = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
+      expect(disk.tts).toMatchObject({ provider: "fish", fishModel: "s2.1-pro-free" });
+    } finally {
+      await api("PUT", "/api/config", { tts: { provider: "elevenlabs", voice: "", fishModel: "s2.1-pro" } }).catch(() => undefined);
+    }
+  });
+
+  it("does not switch voice providers when per-agent voices cannot be cleared", async () => {
+    let botId = "";
+    const botsPath = join(home, ".startupbot", "bots.json");
+    const backupPath = `${botsPath}.voice-switch-test`;
+    let blocked = false;
+    try {
+      expect((await api("PUT", "/api/config", {
+        tts: { provider: "elevenlabs", voice: "eleven-default" },
+      })).status).toBe(200);
+      const created = await api("POST", "/api/bots");
+      botId = created.body.bot.id;
+      expect((await api("PATCH", `/api/bots/${botId}/profile`, {
+        voice: "eleven-agent",
+      })).status).toBe(200);
+
+      renameSync(botsPath, backupPath);
+      mkdirSync(botsPath);
+      blocked = true;
+      const changed = await api("PUT", "/api/config", { tts: { provider: "fish" } });
+      expect(changed.status).toBe(500);
+      const config = await api("GET", "/api/config");
+      expect(config.body.tts).toMatchObject({ provider: "elevenlabs", voice: "eleven-default" });
+      const bot = (await api("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === botId,
+      );
+      expect(bot).toMatchObject({ voice: "eleven-agent" });
+    } finally {
+      if (blocked) {
+        rmSync(botsPath, { recursive: true, force: true });
+        renameSync(backupPath, botsPath);
+      }
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { tts: { provider: "elevenlabs", voice: "" } }).catch(() => undefined);
+    }
+  });
+
+  it("keeps Boat resources attached while allowing a proven same-account token rotation", async () => {
+    let botId = "";
+    try {
+      managedBoatRows = [];
+      expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      const name = managedBoatNameForFixture(bot.id);
+      managedBoatRows = [{ id: "bx_23456789", name, state: "idle" }];
+
+      const cleared = await api("PUT", "/api/config", { box: { token: "" } });
+      expect(cleared.status).toBe(409);
+      expect(cleared.body.error).toMatch(/remove.*cloud computers/i);
+      const otherAccount = await api("PUT", "/api/config", { box: { token: "box_good" } });
+      expect(otherAccount.status).toBe(409);
+      expect(otherAccount.body.error).toMatch(/remove.*cloud computers/i);
+
+      const rotated = await api("PUT", "/api/config", { box: { token: " box_route_rotated " } });
+      expect(rotated.status).toBe(200);
+      expect(rotated.body.box).toEqual({ configured: true, last4: "ated" });
+      expect(JSON.stringify(rotated.body)).not.toContain("box_route_rotated");
+
+      expect((await api("POST", "/api/computers/boxes/bx_23456789/delete", { confirmName: name })).status).toBe(202);
+      expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
+      botId = "";
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+    } finally {
+      managedBoatRows = [];
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { box: { token: "" } }).catch(() => undefined);
+    }
+  });
+
+  it.each([false, true])("replaces a rejected Boat key without losing remembered computers (provisioned=%s)", async (provisioned) => {
+    let botId = "";
+    try {
+      managedBoatRows = [];
+      expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      if (provisioned) {
+        await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud", cloudBackend: "box" });
+        managedBoatCreateMode = "success";
+        managedBoatCreateId = "bx_hjkmnpqr";
+        managedBoatCreateName = managedBoatNameForFixture(bot.id);
+        expect((await api("POST", `/api/bots/${bot.id}/computer/provision`, {})).status).toBe(200);
+      }
+      managedBoatRejectedTokens.add("Bearer box_route");
+      if (provisioned) {
+        expect((await api("PUT", "/api/config", { box: { token: "box_good" } })).status).toBe(409);
+      }
+      managedBoatRejectedTokens.add("Bearer box_route_rotated");
+      expect((await api("PUT", "/api/config", { box: { token: "box_route_rotated" } })).status).toBe(400);
+      managedBoatRejectedTokens.delete("Bearer box_route_rotated");
+      const rotated = await api("PUT", "/api/config", { box: { token: "box_route_rotated" } });
+      expect(rotated.status).toBe(200);
+      expect(rotated.body.box).toEqual({ configured: true, last4: "ated" });
+      if (provisioned) {
+        const journal = readFileSync(join(home, ".startupbot", "box-create-requests.json"), "utf8");
+        expect(journal).toContain(managedBoatCreateId);
+      }
+    } finally {
+      managedBoatRejectedTokens.clear();
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      managedBoatCreateMode = "refuse";
+      managedBoatCreateId = "bx_cdefghjk";
+      managedBoatCreateName = "";
+      managedBoatRows = [];
+      managedBoatCreatedIds.clear();
+      await api("PUT", "/api/config", { box: { token: "" } }).catch(() => undefined);
+    }
+  });
+
+  it("retires a journaled Boat proven gone before clearing and later restoring credentials", async () => {
+    let botId = "";
+    try {
+      managedBoatRows = [];
+      expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud", cloudBackend: "box" })).status).toBe(200);
+      managedBoatCreateMode = "success";
+      managedBoatCreateId = "bx_hjkmnpqr";
+      managedBoatCreateName = managedBoatNameForFixture(bot.id);
+      expect((await api("POST", `/api/bots/${bot.id}/computer/provision`, {})).status).toBe(200);
+
+      // The person removed it in boat.dev: LIST and direct GET both prove absence while the credential is active.
+      managedBoatRows = [];
+      managedBoatCreatedIds.delete(managedBoatCreateId);
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+      const journal = JSON.parse(readFileSync(join(home, ".startupbot", "box-create-requests.json"), "utf8"));
+      expect(journal.requests.some((entry: { botId?: string }) => entry.botId === bot.id)).toBe(false);
+
+      expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
+      expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
+      botId = "";
+    } finally {
+      managedBoatCreateMode = "refuse";
+      managedBoatCreateId = "bx_cdefghjk";
+      managedBoatCreateName = "";
+      managedBoatRows = [];
+      managedBoatCreatedIds.clear();
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { box: { token: "" } }).catch(() => undefined);
+      boatRouteCalls.length = 0;
+    }
+  });
+
+  it("pins where a conversation works from the composer, validates the place, and lets it follow the bot again", async () => {
+    const created = await api("POST", "/api/bots", {
+      modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      requireAvailableModel: true,
+    });
+    expect(created.status).toBe(201);
+    const bot = created.body.bot;
+    const pinned = await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { surface: "browser" });
+    expect(pinned.status).toBe(200);
+    expect(pinned.body.task.surface).toBe("browser");
+    const listed = (await api("GET", "/api/bots?messages=0")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id);
+    expect(listed.tasks.find((task: { threadId: string }) => task.threadId === bot.threadId).surface).toBe("browser");
+    for (const surface of ["box", "desktop", 42, true]) {
+      const rejected = await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { surface });
+      expect(rejected.status, String(surface)).toBe(400);
+      expect(rejected.body.error).toMatch(/surface must be cloud, vm, local, browser, or null/);
+    }
+    const cleared = await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { surface: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.task.surface).toBeUndefined();
+  });
+
+  it("dispatches the conversation's pinned computer on the bot's own engine, and previews that same surface", async () => {
+    const bot = (await api("POST", "/api/bots", {
+      name: "Surface routing fixture", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+    })).body.bot;
+    const idle = () => expect.poll(async () =>
+      (await api("GET", "/api/bots?messages=0")).body.bots.find((b: { id: string }) => b.id === bot.id)?.busy,
+    { timeout: 10_000 }).toBe(false);
+    try {
+      expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
+      await api("PATCH", `/api/bots/${bot.id}`, { browser: false, computer: null, cloudBackend: "box" });
+      managedBoatRows = [{ id: "bx_3456789a", name: managedBoatNameForFixture(bot.id), state: "idle" }];
+      boatRouteCalls.length = 0;
+      boatPromptBodies.length = 0;
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "Describe your available computer tools" })).status).toBe(202);
+      type Dump = { argv: string[]; mcpConfig: { mcpServers: Record<string, { args?: string[] }> }; systemPrompt: string };
+      const local = await readJsonFileWhenReady<Dump>(fakeClaudeDump);
+      expect(local.mcpConfig.mcpServers.computer).toBeUndefined();
+      expect(boatPromptBodies).toHaveLength(0);
+      expect(boatRouteCalls).toEqual([]);
+      await api("POST", `/api/bots/${bot.id}/interrupt`, {}); await idle();
+
+      // The fixture has no ready Local VM: fail there, never click the host or Box.
+      await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud" });
+      await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { surface: "vm" });
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "Open Chrome on the Local VM" })).status).toBe(202);
+      await idle();
+      expect(existsSync(fakeClaudeDump)).toBe(false);
+      expect(boatPromptBodies).toHaveLength(0);
+      const saved = (await api("GET", "/api/bots?messages=0")).body.bots.find((b: { id: string }) => b.id === bot.id);
+      expect(saved.tasks.find((task: { threadId: string }) => task.threadId === bot.threadId).surface).toBe("vm");
+      expect((await api("GET", `/api/bots/${bot.id}/computer?threadId=${bot.threadId}`)).body.surface).toBe("vm");
+      expect((await api("POST", `/api/bots/${bot.id}/computer/join?threadId=${bot.threadId}`, {})).status).toBe(409);
+
+      await api("PATCH", `/api/bots/${bot.id}`, { computer: "vm" });
+      await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { surface: "cloud" });
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "Open Chrome on the cloud VM" })).status).toBe(202);
+      const pinnedCloud = await readJsonFileWhenReady<Dump>(fakeClaudeDump, 10_000);
+      expect(pinnedCloud.argv[pinnedCloud.argv.indexOf("--model") + 1]).toBe("claude-sonnet-5");
+      expect(pinnedCloud.mcpConfig.mcpServers.computer?.args).toEqual([expect.stringMatching(/harness-mcp-proxy\.(?:ts|js)$/), "computer"]);
+      expect(pinnedCloud.systemPrompt).toContain("assigned cloud computer");
+      expect(boatPromptBodies).toHaveLength(0);
+      expect((await api("GET", `/api/bots/${bot.id}/computer?threadId=${bot.threadId}`)).body.surface).toBe("cloud");
+      const joined = await api("POST", `/api/bots/${bot.id}/computer/join?threadId=${bot.threadId}`, {});
+      expect(joined).toMatchObject({ status: 200, body: { joinUrl: "https://desktop.invalid/bx_3456789a" } });
+      await api("POST", `/api/bots/${bot.id}/interrupt`, {}); await idle();
+      const before = boatRouteCalls.length;
+      expect((await api("POST", `/api/bots/${bot.id}/computer/provision?threadId=${bot.threadId}`, {})).status).toBe(409);
+      expect((await api("GET", `/api/bots/${bot.id}/computer?threadId=not-owned`)).status).toBe(404);
+      expect(boatRouteCalls).toHaveLength(before);
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`, {}).catch(() => {});
+      await idle();
+      managedBoatRows = [];
+      await api("DELETE", `/api/bots/${bot.id}`).catch(() => {});
+      await api("PUT", "/api/config", { box: { token: "" } }).catch(() => {});
+      rmSync(fakeClaudeDump, { force: true });
+      boatPromptBodies.length = 0;
+    }
+  }, 45_000);
+
+  it("excludes new Boat turns, lifecycle actions, and bot deletion while a token change validates", async () => {
+    let botId = "";
+    // The check stays open until every refusal below is seen: a save that reloads no engine is over in moments.
+    let release = () => {};
+    boatSlowHold = new Promise<void>((resolve) => { release = resolve; });
+    try {
+      expect((await api("PUT", "/api/config", { box: { token: "" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud", cloudBackend: "box" })).status).toBe(200);
+
+      const beforeSlow = boatSlowRequestCount;
+      const changing = api("PUT", "/api/config", { box: { token: "box_slow" } });
+      await expect.poll(() => boatSlowRequestCount).toBeGreaterThan(beforeSlow);
+      const lifecycle = await api("POST", `/api/bots/${bot.id}/computer/provision`, {});
+      expect(lifecycle.status).toBe(409);
+      expect(lifecycle.body.error).toMatch(/Boat account settings are being updated/i);
+      const turn = await api("POST", `/api/bots/${bot.id}/messages`, { text: "do not cross the account change" });
+      expect(turn.status).toBe(409);
+      expect(turn.body.error).toMatch(/Boat account settings are being updated/i);
+      expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(409);
+      release();
+      expect((await changing).status).toBe(200);
+
+      expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
+      botId = "";
+    } finally {
+      release();
+      boatSlowHold = null;
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { box: { token: "" } }).catch(() => undefined);
+    }
+  });
+
+  it("rejects a Boat token change while create and rename own the lifecycle lane", async () => {
+    let botId = "";
+    try {
+      managedBoatRows = [];
+      expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
+      const bot = (await api("POST", "/api/bots")).body.bot;
+      botId = bot.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud", cloudBackend: "box" })).status).toBe(200);
+      managedBoatCreateMode = "success";
+      managedBoatCreateId = "bx_fghjkmnp";
+      managedBoatCreateName = managedBoatNameForFixture(bot.id);
+      managedBoatRenameDelayMs = 1_000;
+      boatRouteCalls.length = 0;
+
+      const provisioning = api("POST", `/api/bots/${bot.id}/computer/provision`, {});
+      await expect.poll(() => boatRouteCalls.some(
+        (call) => call.method === "PATCH" && call.path === `/sandboxes/${managedBoatCreateId}`,
+      )).toBe(true);
+      const racedChange = await api("PUT", "/api/config", { box: { token: "box_good" } });
+      expect(racedChange.status).toBe(409);
+      expect(racedChange.body.error).toMatch(/cloud computer actions/i);
+      expect((await provisioning).status).toBe(200);
+      managedBoatRenameDelayMs = 0;
+
+      expect((await api("POST", `/api/computers/boxes/${managedBoatCreateId}/delete`, {
+        confirmName: managedBoatCreateName,
+      })).status).toBe(202);
+      expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
+      botId = "";
+    } finally {
+      managedBoatRenameDelayMs = 0;
+      managedBoatCreateMode = "refuse";
+      managedBoatCreateId = "bx_cdefghjk";
+      managedBoatCreateName = "";
+      managedBoatRows = [];
+      managedBoatCreatedIds.clear();
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { box: { token: "" } }).catch(() => undefined);
+      boatRouteCalls.length = 0;
+    }
+  });
+
+  it("manages and probes custom MCP servers without returning secret values", async () => {
+    const secret = "mcp-secret-that-must-never-render";
+    const created = await api("POST", "/api/mcp/servers", {
+      name: "fixture",
+      command: process.execPath,
+      args: ["--experimental-strip-types", FAKE_MCP_SERVER],
+      env: { FIXTURE_TOKEN: secret, REMOVE_ME: "old" },
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.servers).toEqual([expect.objectContaining({
+      name: "fixture",
+      enabled: false,
+      envKeys: ["FIXTURE_TOKEN", "REMOVE_ME"],
+    })]);
+    expect(JSON.stringify(created.body)).not.toContain(secret);
+
+    const tested = await api("POST", "/api/mcp/servers/fixture/test");
+    expect(tested).toEqual({
+      status: 200,
+      body: { ok: true, tools: [{ name: "read_notes", description: "Read saved notes" }] },
+    });
+
+    const updated = await api("PUT", "/api/mcp/servers/fixture", {
+      command: process.execPath,
+      args: ["--experimental-strip-types", FAKE_MCP_SERVER],
+      env: { FIXTURE_TOKEN: true, NEXT: "fresh" },
+      enabled: false,
+    });
+    expect(updated.status).toBe(200);
+    expect(updated.body.servers[0].envKeys).toEqual(["FIXTURE_TOKEN", "NEXT"]);
+    expect(JSON.stringify(updated.body)).not.toContain(secret);
+
+    const enabled = await api("PATCH", "/api/mcp/servers/fixture", { enabled: true });
+    expect(enabled.body.servers[0].enabled).toBe(true);
+    const disk = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
+    expect(disk.mcpServers.fixture.env).toEqual({ FIXTURE_TOKEN: secret, NEXT: "fresh" });
+
+    const reserved = await api("POST", "/api/mcp/servers", { name: "computer", command: "evil" });
+    expect(reserved.status).toBe(400);
+
+    const removed = await api("DELETE", "/api/mcp/servers/fixture");
+    expect(removed).toEqual({ status: 200, body: { servers: [] } });
+    const after = await api("GET", "/api/mcp/servers");
+    expect(after).toEqual({ status: 200, body: { servers: [] } });
+  });
+
+  it("lets a bot below Full access file a command server or a URL on the person's network only as a disabled row", async () => {
+    const bot = (await api("POST", "/api/bots")).body.bot;
+    expect((await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask" })).status).toBe(200);
+    const token = await mintTestCapability(BASE, bot.id, bot.threadId);
+    const secret = "bot-filed-secret-that-must-never-render";
+    const headerSecret = "bot-header-secret-that-must-never-render";
+    const oauthSecret = "bot-oauth-secret-that-must-never-render";
+    const configFile = join(home, ".startupbot", "config.json");
+    const fileServer = (body: unknown) => fetch(`${BASE}/api/internal/mcp-servers`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ action: "add", ...(body as object) }),
+    });
+    try {
+      const filed = await fileServer({ name: "botnotes", command: "npx", args: ["-y", "notes-mcp"], env: { NOTES_TOKEN: secret } });
+      const filedBody = await filed.json() as { text: string };
+      expect(filed.status).toBe(201);
+      expect(filedBody.text).toMatch(/^Saved MCP server botnotes switched off\./);
+      expect(JSON.stringify(filedBody)).not.toContain(secret);
+      const disk = JSON.parse(readFileSync(configFile, "utf8"));
+      expect(disk.mcpServers.botnotes).toEqual({
+        command: "npx", args: ["-y", "notes-mcp"], env: { NOTES_TOKEN: secret }, enabled: false,
+      });
+
+      const switched = await fileServer({ name: "botother", command: "npx", enabled: true });
+      expect(switched.status).toBe(201);
+      expect(JSON.parse(readFileSync(configFile, "utf8")).mcpServers.botother).toMatchObject({ command: "npx", enabled: false });
+      expect(JSON.parse(readFileSync(configFile, "utf8")).mcpServers.botnotes.env.NOTES_TOKEN).toBe(secret);
+
+      const again = await fileServer({ name: "botnotes", command: "other-command" });
+      expect(again.status).toBe(409);
+      expect(JSON.parse(readFileSync(configFile, "utf8")).mcpServers.botnotes.command).toBe("npx");
+
+      const remote = await fileServer({
+        name: "botdocs",
+        url: "https://docs.internal/mcp",
+        type: "sse",
+        headers: { Authorization: headerSecret },
+        oauth: { clientId: "corp-app", clientSecret: oauthSecret },
+      });
+      const remoteBody = await remote.json() as { text: string };
+      expect(remote.status).toBe(201);
+      expect(remoteBody.text).toMatch(/^Saved MCP server botdocs switched off\./);
+      const remoteText = JSON.stringify(remoteBody);
+      expect(remoteText).not.toContain(headerSecret);
+      expect(remoteText).not.toContain(oauthSecret);
+      const savedRemote = JSON.parse(readFileSync(configFile, "utf8")).mcpServers.botdocs;
+      expect(savedRemote).toEqual({
+        type: "sse", url: "https://docs.internal/mcp", headers: { Authorization: headerSecret },
+        oauth: { clientId: "corp-app", clientSecret: oauthSecret }, enabled: false,
+      });
+
+      const listed = await api("GET", "/api/mcp/servers");
+      expect(listed.body.servers).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "botnotes", enabled: false, envKeys: ["NOTES_TOKEN"] }),
+        expect.objectContaining({ name: "botdocs", enabled: false, headerKeys: ["Authorization"] }),
+      ]));
+      expect(JSON.stringify(listed.body)).not.toContain(secret);
+      expect(JSON.stringify(listed.body)).not.toContain(headerSecret);
+      expect(JSON.stringify(listed.body)).not.toContain(oauthSecret);
+    } finally {
+      await api("DELETE", "/api/mcp/servers/botnotes").catch(() => undefined);
+      await api("DELETE", "/api/mcp/servers/botother").catch(() => undefined);
+      await api("DELETE", "/api/mcp/servers/botdocs").catch(() => undefined);
+      await api("DELETE", `/api/bots/${bot.id}`).catch(() => undefined);
+    }
+  });
+
+  it("manages and probes a url MCP server, and the Claude Code servers switch", async () => {
+    const secret = "Bearer mcp-header-that-must-never-render";
+    const fake = await startFakeHttpMcp({ requireHeader: { name: "Authorization", value: secret } });
+    try {
+      const created = await api("POST", "/api/mcp/servers", { name: "docs", url: fake.url, headers: { Authorization: secret } });
+      expect(created.status).toBe(201);
+      expect(created.body.servers).toEqual([{ name: "docs", type: "http", url: fake.url, headerKeys: ["Authorization"], enabled: false, apps: true, scope: "team" }]);
+      expect(JSON.stringify(created.body)).not.toContain(secret);
+
+      const tested = await api("POST", "/api/mcp/servers/docs/test");
+      expect(tested).toEqual({
+        status: 200,
+        body: { ok: true, tools: [{ name: "read_notes", description: "Read saved notes" }] },
+      });
+
+      const updated = await api("PUT", "/api/mcp/servers/docs", {
+        type: "sse",
+        url: fake.url,
+        headers: { Authorization: true, "X-Org": "acme" },
+        enabled: true,
+      });
+      expect(updated.status).toBe(200);
+      expect(updated.body.servers[0]).toMatchObject({ type: "sse", headerKeys: ["Authorization", "X-Org"], enabled: true, apps: true });
+      expect(JSON.stringify(updated.body)).not.toContain(secret);
+      const disk = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
+      expect(disk.mcpServers.docs).toEqual({ type: "sse", url: fake.url, headers: { Authorization: secret, "X-Org": "acme" }, enabled: true });
+
+      const bad = await api("POST", "/api/mcp/servers", { name: "nowhere", url: "docs.example/mcp" });
+      expect(bad.status).toBe(400);
+      expect(bad.body.error).toMatch(/full address/);
+
+      const on = await api("PUT", "/api/config", { features: { claudeUserMcp: true } });
+      expect(on.status).toBe(200);
+      expect(on.body.features.claudeUserMcp).toBe(true);
+      const off = await api("PUT", "/api/config", { features: { claudeUserMcp: false } });
+      expect(off.body.features.claudeUserMcp).toBe(false);
+      const skills = await api("PUT", "/api/config", { features: { claudeUserSkills: true } });
+      expect(skills.body.features).toMatchObject({ claudeUserSkills: true, claudeUserMcp: false });
+      expect((await api("PUT", "/api/config", { features: { claudeUserSkills: false } })).body.features.claudeUserSkills).toBe(false);
+    } finally {
+      await fake.close();
+      await api("DELETE", "/api/mcp/servers/docs").catch(() => undefined);
+    }
+  });
+
+  it("signs in to an OAuth URL MCP server, and keeps its token out of every response", async () => {
+    const oauth = await startFakeOAuth();
+    const fake = await startFakeHttpMcp({ acceptBearer: oauth.isValid, wwwAuthenticate: oauth.challenge });
+    try {
+      expect((await api("POST", "/api/mcp/servers", { name: "hf", url: fake.url })).status).toBe(201);
+      const first = await api("POST", "/api/mcp/servers/hf/test");
+      expect(first.body).toEqual({ ok: false, auth: "required", error: "This server needs you to sign in." });
+      expect((await api("GET", "/api/mcp/servers")).body.servers).toEqual([
+        { name: "hf", type: "http", url: fake.url, headerKeys: [], enabled: false, apps: true, auth: "needs-sign-in", scope: "team" },
+      ]);
+
+      const started = await api("POST", "/api/mcp/servers/hf/sign-in");
+      expect(started.status).toBe(200);
+      expect(started.body.auth.phase).toBe("waiting");
+      await fetch(started.body.auth.authorizationUrl, { redirect: "follow" });
+      let auth = started.body.auth;
+      for (let i = 0; i < 50 && auth.phase === "waiting"; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        auth = (await api("GET", `/api/mcp/servers/hf/sign-in/${auth.flowId}`)).body.auth;
+      }
+      expect(auth.phase).toBe("succeeded");
+
+      const listed = await api("GET", "/api/mcp/servers");
+      expect(listed.body.servers[0]).toMatchObject({ name: "hf", auth: "signed-in", headerKeys: [] });
+      const tested = await api("POST", "/api/mcp/servers/hf/test");
+      expect(tested.body).toEqual({ ok: true, tools: [{ name: "read_notes", description: "Read saved notes" }] });
+
+      const file = join(home, ".startupbot", "mcp-oauth.json");
+      // Windows has no POSIX permission bits; stat reports 0o666 there.
+      if (process.platform !== "win32") expect(statSync(file).mode & 0o777).toBe(0o600);
+      const stored = JSON.parse(readFileSync(file, "utf8")).servers.hf.tokens.access as string;
+      expect(oauth.isValid(`Bearer ${stored}`)).toBe(true);
+      for (const response of [started, listed, tested]) expect(JSON.stringify(response.body)).not.toContain(stored);
+      const disk = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
+      expect(JSON.stringify(disk)).not.toContain(stored);
+
+      const out = await api("POST", "/api/mcp/servers/hf/sign-out");
+      expect(out.status).toBe(200);
+      expect(out.body.servers[0].auth).toBeUndefined();
+      expect(oauth.counts.revoke).toBe(1);
+
+      await api("POST", "/api/mcp/servers/hf/test");
+      expect((await api("GET", "/api/mcp/servers")).body.servers[0].auth).toBe("needs-sign-in");
+      const moved = await api("PUT", "/api/mcp/servers/hf", { type: "http", url: `${fake.url}?v=2`, headers: {} });
+      expect(moved.status).toBe(200);
+      expect(moved.body.servers[0].auth).toBeUndefined();
+
+      await api("POST", "/api/mcp/servers/hf/test");
+      expect((await api("GET", "/api/mcp/servers")).body.servers[0].auth).toBe("needs-sign-in");
+      const pasted = await api("PUT", "/api/mcp/servers/hf", { type: "http", url: `${fake.url}?v=2`, headers: { Authorization: `Bearer ${oauth.mint()}` } });
+      expect(pasted.body.servers[0].auth).toBeUndefined();
+      expect((await api("POST", "/api/mcp/servers/hf/test")).body.ok).toBe(true);
+
+      const local = await api("POST", "/api/mcp/servers/nope/sign-in");
+      expect(local.status).toBe(404);
+    } finally {
+      await api("DELETE", "/api/mcp/servers/hf").catch(() => undefined);
+      await fake.close();
+      await oauth.close();
+    }
+  });
+
+  async function signInThroughBrowser(name: string) {
+    const started = await api("POST", `/api/mcp/servers/${name}/sign-in`);
+    expect(started.status).toBe(200);
+    await fetch(started.body.auth.authorizationUrl, { redirect: "follow" });
+    let auth = started.body.auth;
+    for (let i = 0; i < 50 && auth.phase === "waiting"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      auth = (await api("GET", `/api/mcp/servers/${name}/sign-in/${auth.flowId}`)).body.auth;
+    }
+    expect(auth.phase).toBe("succeeded");
+  }
+  /** Where mcp.agentcard.sh serves its RFC 9728 document: on its own origin, which is how sign-in finds it when initialize is not refused. */
+  const protectedResourceOf = (oauth: { issuer: string }) =>
+    ({ "/.well-known/oauth-protected-resource/mcp": (origin: string) => ({ resource: `${origin}/mcp`, authorization_servers: [oauth.issuer] }) });
+  const serverListing = async (name: string) => ((await api("GET", "/api/mcp/servers")).body.servers as Array<{ name: string }>).find((server) => server.name === name);
+
+  it("asks for a sign-in when a server lists its tools to anyone and refuses to run one", async () => {
+    const oauth = await startFakeOAuth();
+    const fake = await startFakeHttpMcp({ guard: "tools/call", acceptBearer: oauth.isValid, wwwAuthenticate: oauth.challenge, wellKnown: protectedResourceOf(oauth), tools: [{ name: "buy", description: "Buy something" }] });
+    try {
+      expect((await api("POST", "/api/mcp/servers", { name: "shop", url: fake.url })).status).toBe(201);
+      const first = await api("POST", "/api/mcp/servers/shop/test");
+      expect(first.body).toEqual({ ok: false, auth: "required", error: "This server needs you to sign in." });
+      expect(await serverListing("shop")).toMatchObject({ auth: "needs-sign-in", enabled: false });
+      expect(fake.refusedCalls).toHaveLength(1);
+      expect(fake.calls).toEqual([]);
+
+      await signInThroughBrowser("shop");
+      const tested = await api("POST", "/api/mcp/servers/shop/test");
+      expect(tested.body).toEqual({ ok: true, tools: [{ name: "buy", description: "Buy something" }] });
+      expect(fake.refusedCalls).toHaveLength(1);
+      expect(fake.seenHeaders.at(-1)?.authorization).toMatch(/^Bearer /);
+
+      expect((await api("PATCH", "/api/mcp/servers/shop", { enabled: true })).status).toBe(200);
+      expect(await serverListing("shop")).toMatchObject({ auth: "signed-in", enabled: true });
+    } finally {
+      await api("DELETE", "/api/mcp/servers/shop").catch(() => undefined);
+      await fake.close();
+      await oauth.close();
+    }
+  });
+
+  it("keeps a sign-in whose refresh failed on the network, and drops one whose token the server refuses", async () => {
+    const oauth = await startFakeOAuth({ refreshStatus: 503 });
+    const flaky = await startFakeHttpMcp({ guard: "tools/call", acceptBearer: oauth.isValid, wwwAuthenticate: oauth.challenge, wellKnown: protectedResourceOf(oauth), tools: [{ name: "buy" }] });
+    const refusing = await startFakeHttpMcp({ guard: "every-request", acceptBearer: () => false, wwwAuthenticate: oauth.challenge });
+    const oauthFile = join(home, ".startupbot", "mcp-oauth.json");
+    const tokensOf = (name: string) => JSON.parse(readFileSync(oauthFile, "utf8")).servers[name]?.tokens;
+    const expire = (name: string) => {
+      const saved = JSON.parse(readFileSync(oauthFile, "utf8"));
+      saved.servers[name].tokens.expiresAt = Date.now() - 1_000;
+      writeFileSync(oauthFile, JSON.stringify(saved));
+    };
+    try {
+      expect((await api("POST", "/api/mcp/servers", { name: "flaky", url: flaky.url })).status).toBe(201);
+      expect((await api("POST", "/api/mcp/servers", { name: "refusing", url: refusing.url })).status).toBe(201);
+      await signInThroughBrowser("flaky");
+      await signInThroughBrowser("refusing");
+      expect(tokensOf("flaky").refresh).toEqual(expect.any(String));
+      expire("flaky");
+
+      expect((await api("POST", "/api/mcp/servers/flaky/test")).body).toMatchObject({ ok: false, auth: "required" });
+      expect(oauth.counts.refresh).toBeGreaterThan(0);
+      expect(await serverListing("flaky")).toMatchObject({ auth: "signed-in" });
+      expect(tokensOf("flaky").refresh).toEqual(expect.any(String));
+
+      expect((await api("POST", "/api/mcp/servers/refusing/test")).body).toMatchObject({ ok: false, auth: "required" });
+      expect(await serverListing("refusing")).toMatchObject({ auth: "needs-sign-in" });
+      expect(tokensOf("refusing")).toBeUndefined();
+    } finally {
+      await api("DELETE", "/api/mcp/servers/flaky").catch(() => undefined);
+      await api("DELETE", "/api/mcp/servers/refusing").catch(() => undefined);
+      await flaky.close();
+      await refusing.close();
+      await oauth.close();
+    }
+  });
+
+  it("signs in as a pre-registered app where self-registration is off, keeping its secret write-only", async () => {
+    const secret = "corp-app-secret-that-must-never-render";
+    const oauth = await startFakeOAuth({ noRegistration: true, preRegistered: { "corp-app": secret } });
+    const fake = await startFakeHttpMcp({ acceptBearer: oauth.isValid, wwwAuthenticate: oauth.challenge });
+    // the app returns to the port derived from this URL: make it a free one
+    const url = await withFreeSignInPort(fake.url);
+    const configFile = join(home, ".startupbot", "config.json");
+    try {
+      const created = await api("POST", "/api/mcp/servers", { name: "corp", url, oauth: { clientId: "corp-app", clientSecret: secret, scopes: ["mcp", "offline_access"] } });
+      expect(created.status).toBe(201);
+      expect(created.body.servers).toEqual([{
+        name: "corp", type: "http", url, headerKeys: [], enabled: false, apps: true, scope: "team",
+        oauth: { clientId: "corp-app", scopes: ["mcp", "offline_access"], clientSecretConfigured: true, redirectUri: expect.stringMatching(/^http:\/\/127\.0\.0\.1:\d+\/mcp-oauth\/callback$/) },
+      }]);
+
+      expect((await api("POST", "/api/mcp/servers/corp/test")).body.auth).toBe("required");
+      const started = await api("POST", "/api/mcp/servers/corp/sign-in");
+      expect(started.status).toBe(200);
+      expect(new URL(started.body.auth.authorizationUrl).searchParams.get("redirect_uri")).toBe(created.body.servers[0].oauth.redirectUri);
+      await fetch(started.body.auth.authorizationUrl, { redirect: "follow" });
+      let auth = started.body.auth;
+      for (let i = 0; i < 50 && auth.phase === "waiting"; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        auth = (await api("GET", `/api/mcp/servers/corp/sign-in/${auth.flowId}`)).body.auth;
+      }
+      expect(auth.phase).toBe("succeeded");
+      expect(oauth.counts.register).toBe(0);
+      const tested = await api("POST", "/api/mcp/servers/corp/test");
+      expect(tested.body.ok).toBe(true);
+
+      const kept = await api("PUT", "/api/mcp/servers/corp", { type: "http", url, headers: {}, oauth: { clientId: "corp-app", clientSecret: true, scopes: ["mcp", "offline_access"] } });
+      expect(kept.status).toBe(200);
+      expect(kept.body.servers[0]).toMatchObject({ auth: "signed-in", oauth: { clientSecretConfigured: true } });
+      expect(JSON.parse(readFileSync(configFile, "utf8")).mcpServers.corp.oauth.clientSecret).toBe(secret);
+
+      for (const response of [created, started, tested, kept]) expect(JSON.stringify(response.body)).not.toContain(secret);
+      expect(readFileSync(join(home, ".startupbot", "mcp-oauth.json"), "utf8")).not.toContain(secret);
+
+      const other = await api("PUT", "/api/mcp/servers/corp", { type: "http", url, headers: {}, oauth: { clientId: "other-app", clientSecret: true } });
+      expect(other.status).toBe(400);
+      const moved = await api("PUT", "/api/mcp/servers/corp", { type: "http", url, headers: {}, oauth: { clientId: "other-app" } });
+      expect(moved.body.servers[0].auth).toBeUndefined();
+      expect(moved.body.servers[0].oauth.clientSecretConfigured).toBe(false);
+      expect(readFileSync(configFile, "utf8")).not.toContain(secret);
+    } finally {
+      await api("DELETE", "/api/mcp/servers/corp").catch(() => undefined);
+      await fake.close();
+      await oauth.close();
+    }
+  });
+
+  it.each([false, true])("completes remote MCP OAuth only in its initiating admin session (pre-registered: %s)", async (registered) => {
+    const client = { clientId: "headless-corp", clientSecret: "headless-private-secret", scopes: ["mcp", "offline_access"] };
+    const oauth = await startFakeOAuth(registered ? { noRegistration: true, preRegistered: { [client.clientId]: client.clientSecret } } : {});
+    const fake = await startFakeHttpMcp({ acceptBearer: oauth.isValid, wwwAuthenticate: oauth.challenge });
+    // a pre-registered app returns to the port derived from this URL: make it a free one
+    const url = await withFreeSignInPort(fake.url);
+    const pair = async (scopes: string[]) => {
+      const opened = await api("POST", "/api/auth/pairing", { scopes });
+      const paired = await api("POST", "/api/auth/pair", { code: opened.body.code });
+      expect(paired.status).toBe(200);
+      return paired.body.token as string;
+    };
+    const alice = await pair(["admin", "client"]);
+    const bob = await pair(["admin", "client"]);
+    const member = await pair(["client"]);
+    const remote = async (token: string, method: string, path: string, body?: unknown) => {
+      const response = await fetch(`${BASE}${path}`, {
+        method,
+        headers: { authorization: `Bearer ${token}`, "x-forwarded-for": "192.0.2.10", "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      return { status: response.status, body: await response.json() as any, cache: response.headers.get("cache-control") };
+    };
+    const base = "/api/mcp/servers/headless/sign-in";
+    try {
+      expect((await api("POST", "/api/mcp/servers", { name: "headless", url, ...(registered ? { oauth: client } : {}) })).status).toBe(201);
+      expect((await remote(member, "POST", base)).status).toBe(403);
+      const unauthenticated = await fetch(`${BASE}${base}`, { method: "POST", headers: { "x-forwarded-for": "192.0.2.11" } });
+      expect([401, 403]).toContain(unauthenticated.status);
+      const started = await remote(alice, "POST", base);
+      expect(started.status).toBe(200);
+      expect(started.cache).toBe("no-store");
+      expect(started.body.auth.pasteBack).toBe(true);
+      const path = `${base}/${started.body.auth.flowId}`;
+      const approval = await fetch(started.body.auth.authorizationUrl, { redirect: "manual" });
+      const callbackUrl = approval.headers.get("location")!;
+      expect((await remote(bob, "POST", base)).status).toBe(409);
+      expect((await remote(bob, "GET", path)).status).toBe(404);
+      expect((await remote(bob, "DELETE", path)).status).toBe(404);
+      expect((await remote(bob, "POST", path, { callbackUrl })).status).toBe(404);
+      expect((await remote(alice, "POST", path, { callbackUrl: callbackUrl + "&state=duplicate" })).status).toBe(400);
+      expect((await remote(alice, "GET", path)).body.auth.phase).toBe("waiting");
+      const wrongContentType = await fetch(`${BASE}${path}`, {
+        method: "POST", headers: { authorization: `Bearer ${alice}`, "content-type": "text/plain" }, body: JSON.stringify({ callbackUrl }),
+      });
+      expect(wrongContentType.status).toBe(415);
+      const completed = await remote(alice, "POST", path, { callbackUrl });
+      expect(completed.status).toBe(200);
+      expect(completed.body.auth.phase).toBe("succeeded");
+      expect(JSON.stringify(completed.body)).not.toContain(new URL(callbackUrl).searchParams.get("code"));
+      expect((await remote(alice, "POST", path, { callbackUrl })).status).toBe(409);
+      expect(oauth.counts.token).toBe(1);
+      expect((await remote(alice, "POST", "/api/mcp/servers/headless/test")).body.ok).toBe(true);
+      await remote(alice, "POST", "/api/mcp/servers/headless/sign-out");
+      const second = await remote(alice, "POST", base);
+      const pending = await fetch(second.body.auth.authorizationUrl, { redirect: "manual" });
+      const pendingCallback = pending.headers.get("location")!;
+      expect((await remote(alice, "POST", "/api/auth/logout")).status).toBe(200);
+      expect((await remote(alice, "POST", `${base}/${second.body.auth.flowId}`, { callbackUrl: pendingCallback })).status).toBe(401);
+      await expect(fetch(pendingCallback)).rejects.toThrow();
+      expect(oauth.counts.token).toBe(1);
+    } finally {
+      await api("DELETE", "/api/mcp/servers/headless");
+      for (const token of [alice, bob, member]) await remote(token, "POST", "/api/auth/logout");
+      await fake.close();
+      await oauth.close();
+    }
+  });
+
+  it("brings a sign-in started in a browser on another computer back to this server's https address", async () => {
+    const oauth = await startFakeOAuth();
+    const fake = await startFakeHttpMcp({ acceptBearer: oauth.isValid, wwwAuthenticate: oauth.challenge });
+    const opened = await api("POST", "/api/auth/pairing", { scopes: ["admin", "client"] });
+    const token = (await api("POST", "/api/auth/pair", { code: opened.body.code })).body.token as string;
+    // What the edge proxy in front of My Cloud hands the server; node's fetch drops a custom Host header.
+    const viaProxy = (method: string, path: string, headers: Record<string, string> = {}, body?: unknown) =>
+      new Promise<{ status: number; text: string; headers: Record<string, unknown> }>((resolve, reject) => {
+        const req = request({
+          hostname: "127.0.0.1", port: PORT, path, method,
+          headers: { host: "cloud.example", "x-forwarded-proto": "https", "x-forwarded-for": "192.0.2.20", ...headers },
+        }, (res) => {
+          let raw = "";
+          res.on("data", (chunk) => (raw += chunk));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, text: raw, headers: res.headers }));
+        });
+        req.on("error", reject);
+        req.end(body === undefined ? undefined : JSON.stringify(body));
+      });
+    const signedIn = { authorization: `Bearer ${token}`, origin: "https://cloud.example", "content-type": "application/json" };
+    const base = "/api/mcp/servers/whop/sign-in";
+    try {
+      expect((await api("POST", "/api/mcp/servers", { name: "whop", url: fake.url })).status).toBe(201);
+      const started = await viaProxy("POST", base, signedIn);
+      expect(started.status).toBe(200);
+      const auth = JSON.parse(started.text).auth;
+      expect(auth.pasteBack).toBeUndefined();
+      expect(new URL(auth.authorizationUrl).searchParams.get("redirect_uri")).toBe("https://cloud.example/mcp-oauth/callback");
+      const callback = new URL((await fetch(auth.authorizationUrl, { redirect: "manual" })).headers.get("location")!);
+      expect(callback.origin + callback.pathname).toBe("https://cloud.example/mcp-oauth/callback");
+
+      const forged = new URL(callback);
+      forged.searchParams.set("state", "forged");
+      expect((await viaProxy("GET", forged.pathname + forged.search)).status).toBe(400);
+      expect(JSON.parse((await viaProxy("GET", `${base}/${auth.flowId}`, signedIn)).text).auth.phase).toBe("waiting");
+
+      const page = await viaProxy("GET", callback.pathname + callback.search);
+      expect(page.status).toBe(200);
+      expect(page.text).toBe("Signed in. You can close this tab and return to StartupBot.");
+      expect(page.headers).toMatchObject({ "cache-control": "no-store", "referrer-policy": "no-referrer", "content-type": "text/plain; charset=utf-8" });
+      expect(page.text).not.toContain(callback.searchParams.get("code"));
+      expect(JSON.parse((await viaProxy("GET", `${base}/${auth.flowId}`, signedIn)).text).auth.phase).toBe("succeeded");
+      expect((await viaProxy("GET", callback.pathname + callback.search)).status).toBe(409);
+      expect(oauth.counts.token).toBe(1);
+      expect((await api("POST", "/api/mcp/servers/whop/test")).body.ok).toBe(true);
+    } finally {
+      await api("DELETE", "/api/mcp/servers/whop").catch(() => undefined);
+      await viaProxy("POST", "/api/auth/logout", signedIn).catch(() => undefined);
+      await fake.close();
+      await oauth.close();
+    }
+  });
+
+  it("round-trips the UI language and clears it back to system", async () => {
+    const set = await api("PUT", "/api/config", { language: "de" });
+    expect(set.status).toBe(200);
+    expect(set.body.language).toBe("de");
+    const after = await api("GET", "/api/config");
+    expect(after.body.language).toBe("de");
+
+    const cleared = await api("PUT", "/api/config", { language: "" });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.language).toBe("");
+  });
+
+  it("keeps an active turn alive when the UI language changes", async () => {
+    const bot = (await api("POST", "/api/bots", {
+      modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      requireAvailableModel: true,
+    })).body.bot;
+    try {
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "stay active" })).status).toBe(202);
+      await expect.poll(() => existsSync(fakeClaudeDump), { timeout: 5_000 }).toBe(true);
+
+      const saved = await api("PATCH", "/api/config", { language: "de" });
+      expect(saved.status).toBe(200);
+      expect(saved.body.language).toBe("de");
+
+      const active = (await api("GET", "/api/bots?messages=50")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === bot.id,
+      );
+      expect(active?.busy).toBe(true);
+      expect(active?.messages.some((message: { tool?: { name?: string } }) =>
+        message.tool?.name?.includes("provider settings changed"),
+      )).toBe(false);
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`, {}).catch(() => undefined);
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots?messages=0")).body;
+        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
+      }, { timeout: 5_000 }).toBeFalsy();
+      await api("DELETE", `/api/bots/${bot.id}`).catch(() => undefined);
+      await api("PATCH", "/api/config", { language: "" }).catch(() => undefined);
+    }
+  });
+
+  it("validates and persists the global room turn timeout", async () => {
+    const before = await api("GET", "/api/config");
+    expect(before.status).toBe(200);
+    expect(before.body.rooms).toEqual({ turnTimeoutMinutes: 5 });
+
+    for (const turnTimeoutMinutes of [0, 1.5, 1441, "20", null]) {
+      const invalid = await api("PUT", "/api/config", { rooms: { turnTimeoutMinutes } });
+      expect(invalid.status).toBe(400);
+      expect(invalid.body.error).toContain("rooms.turnTimeoutMinutes");
+    }
+
+    const saved = await api("PUT", "/api/config", { rooms: { turnTimeoutMinutes: 20 } });
+    expect(saved.status).toBe(200);
+    expect(saved.body.rooms).toEqual({ turnTimeoutMinutes: 20 });
+
+    const after = await api("GET", "/api/config");
+    expect(after.body.rooms).toEqual({ turnTimeoutMinutes: 20 });
+
+    const disk = JSON.parse(readFileSync(join(home, ".startupbot", "config.json"), "utf8"));
+    expect(disk.rooms).toEqual({ turnTimeoutMinutes: 20 });
+
+    await api("PUT", "/api/config", { rooms: { turnTimeoutMinutes: 5 } });
+  });
+
+  it("cards asks when Claude's reviewer never started and remembers an exact configured MCP read", async () => {
+    // Haiku 4.5: the CLI takes `auto` but runs Manual and asks about everything.
+    const bot = (await api("POST", "/api/bots", { name: "Quill" })).body.bot;
+    const conns: Socket[] = [];
+    try {
+      expect((await api("POST", "/api/mcp/servers", {
+        name: "linear",
+        command: process.execPath,
+        args: ["--experimental-strip-types", FAKE_MCP_SERVER],
+      })).status).toBe(201);
+      expect((await api("PATCH", "/api/mcp/servers/linear", { enabled: true })).status).toBe(200);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-haiku-4-5" },
+        approvalMode: "auto",
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "count my notes" })).status).toBe(202);
+      const dump = z.object({
+        mcpConfig: z.object({ mcpServers: z.object({ ogb: z.object({ args: z.array(z.string()) }) }) }),
+      }).parse(await readJsonFileWhenReady(fakeClaudeDump));
+      const socketPath = dump.mcpConfig.mcpServers.ogb.args[1];
+      const raise = async (
+        id: string,
+        command: string,
+        extra: Record<string, unknown> = {},
+        tool = "Bash",
+      ) => {
+        const conn = connect(socketPath);
+        conns.push(conn);
+        const answered = new Promise<{ behavior: string; always?: boolean }>((resolve) => {
+          let buf = "";
+          conn.on("data", (chunk) => {
+            buf += chunk;
+            const nl = buf.indexOf("\n");
+            if (nl !== -1) resolve(JSON.parse(buf.slice(0, nl)));
+          });
+        });
+        await new Promise<void>((resolve, reject) => {
+          conn.on("connect", resolve);
+          conn.on("error", reject);
+        });
+        conn.write(JSON.stringify({ t: "ask", id, tool, input: { command, ...extra } }) + "\n");
+        return answered;
+      };
+      type Msg = { kind: string; tool?: { name: string }; card?: { title: string; subtitle: string; requestId?: string; held?: string; heldCode?: string; allowKey?: string; allowSession?: boolean; answered?: string } };
+      const messages = async (): Promise<Msg[]> =>
+        (await api("GET", "/api/bots?messages=40")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id).messages;
+
+      const first = raise("ask-wc", "wc -l notes.md");
+      const card = await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "wc -l notes.md")?.card).toBeTruthy()
+        .then(async () => (await messages()).find((m) => m.card?.subtitle === "wc -l notes.md")!.card!);
+      expect(card.title).toBe("Approval needed");
+      expect(card.heldCode).toBe("approval.held.native");
+      expect(card.allowKey).toBeUndefined();
+      expect(card.allowSession).toBe(true);
+      expect((await messages()).some((m) => m.tool?.name.startsWith("auto-approved"))).toBe(false);
+      await expect.poll(async () => (await messages()).filter((m) => m.tool?.name.startsWith("Approve for me: Claude's automatic reviewer is not available")).length).toBe(1);
+      const notices = (await messages()).filter((m) => m.tool?.name.startsWith("Approve for me: Claude's automatic reviewer is not available"));
+      expect(notices).toHaveLength(1);
+      expect(notices[0].tool!.name).toContain("claude-haiku-4-5");
+      expect(notices[0].tool!.name).toContain("asks before each action");
+
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: card.requestId, behavior: "allow", always: true })).status).toBe(200);
+      await expect(first).resolves.toMatchObject({ behavior: "allow", always: true });
+
+      const second = raise("ask-ls", "ls memory");
+      await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "ls memory")?.card?.title).toBe("Approval needed");
+      expect((await messages()).filter((m) => m.tool?.name.startsWith("Approve for me: Claude's automatic reviewer"))).toHaveLength(1);
+      const secondCard = (await messages()).find((m) => m.card?.subtitle === "ls memory")!.card!;
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: secondCard.requestId, behavior: "allow" })).status).toBe(200);
+      const plain = await second;
+      expect(plain).toMatchObject({ behavior: "allow" });
+      expect(plain).not.toHaveProperty("always");
+
+      const firstLinear = raise("ask-linear-list-1", "list KAT issues", { team: "KAT" }, "mcp__linear__list_issues");
+      const linearCard = await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "list KAT issues")?.card).toBeTruthy()
+        .then(async () => (await messages()).find((m) => m.card?.subtitle === "list KAT issues")!.card!);
+      expect(linearCard.allowKey).toMatch(/^provider-tool:claude:linear:list_issues:/);
+      expect((await api("POST", `/api/bots/${bot.id}/always-allow`, {
+        threadId: bot.threadId,
+        allowKey: linearCard.allowKey,
+      })).status).toBe(200);
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, {
+        requestId: linearCard.requestId,
+        behavior: "allow",
+      })).status).toBe(200);
+      await expect(firstLinear).resolves.toMatchObject({ behavior: "allow" });
+
+      const repeatedLinear = raise("ask-linear-list-2", "list KAT issues again", { team: "KAT" }, "mcp__linear__list_issues");
+      await expect(repeatedLinear).resolves.toMatchObject({ behavior: "allow" });
+      expect((await messages()).find((m) => m.card?.subtitle === "list KAT issues again")).toBeUndefined();
+
+      const linearWrite = raise("ask-linear-create", "create KAT issue", { team: "KAT" }, "mcp__linear__create_issue");
+      await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "create KAT issue")?.card?.title).toBe("Approval needed");
+      const writeCard = (await messages()).find((m) => m.card?.subtitle === "create KAT issue")!.card!;
+      expect(writeCard.allowKey).toBeUndefined();
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: writeCard.requestId, behavior: "deny" })).status).toBe(200);
+      await expect(linearWrite).resolves.toMatchObject({ behavior: "deny" });
+
+      const widen = raise("ask-widen", "ls /", { dangerouslyDisableSandbox: true });
+      await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "ls /")?.card?.title).toBe("Approval needed");
+      const widenCard = (await messages()).find((m) => m.card?.subtitle === "ls /")!.card!;
+      expect(widenCard.allowSession).toBeUndefined();
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: widenCard.requestId, behavior: "allow", always: true })).status).toBe(200);
+      const once = await widen;
+      expect(once).toMatchObject({ behavior: "allow" });
+      expect(once).not.toHaveProperty("always");
+
+      const nextTask = await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Later work" });
+      expect(nextTask.status).toBe(201);
+      expect(nextTask.body.task.alwaysAllow).toContain(linearCard.allowKey);
+    } finally {
+      for (const conn of conns) conn.destroy();
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+      await api("DELETE", "/api/mcp/servers/linear").catch(() => undefined);
+    }
+  });
+
+  it("mounts the verification skill into a real turn when its trigger appears", async () => {
+    const bot = (await api("POST", "/api/bots", {})).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, {
+        text: "/create-verification-skill for my notes app",
+      })).status).toBe(202);
+      const seen = await readJsonFileWhenReady<{ systemPrompt?: string }>(fakeClaudeDump, 15_000);
+      const system = seen.systemPrompt ?? "";
+      expect(system).toContain('<openmaus-skill id="create-verification-skill"');
+      expect(system).toContain("skill_manage");
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("keeps an always-allowed MCP read after its server is restarted, for that tool on that server only, until it is removed in Settings", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Wren" })).body.bot;
+    const conns: Socket[] = [];
+    try {
+      expect((await api("POST", "/api/mcp/servers", { name: "ledger", command: process.execPath, args: ["--experimental-strip-types", FAKE_MCP_SERVER] })).status).toBe(201);
+      expect((await api("PATCH", "/api/mcp/servers/ledger", { enabled: true })).status).toBe(200);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { modelSelection: { instanceId: "claude", model: "claude-haiku-4-5" }, approvalMode: "auto" })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "read my ledger" })).status).toBe(202);
+      const dump = z.object({ mcpConfig: z.object({ mcpServers: z.object({ ogb: z.object({ args: z.array(z.string()) }) }) }) }).parse(await readJsonFileWhenReady(fakeClaudeDump));
+      const raise = async (id: string, summary: string, tool: string) => {
+        const conn = connect(dump.mcpConfig.mcpServers.ogb.args[1]);
+        conns.push(conn);
+        const answered = new Promise<{ behavior: string }>((resolve) => {
+          let buf = "";
+          conn.on("data", (chunk) => {
+            buf += chunk;
+            const nl = buf.indexOf("\n");
+            if (nl !== -1) resolve(JSON.parse(buf.slice(0, nl)));
+          });
+        });
+        await new Promise<void>((resolve, reject) => { conn.on("connect", resolve); conn.on("error", reject); });
+        conn.write(JSON.stringify({ t: "ask", id, tool, input: { command: summary } }) + "\n");
+        return answered;
+      };
+      type Card = { subtitle: string; requestId?: string; allowKey?: string };
+      const cards = async (): Promise<Card[]> => (await api("GET", "/api/bots?messages=40")).body.bots
+        .find((candidate: { id: string }) => candidate.id === bot.id).messages.flatMap((m: { card?: Card }) => (m.card ? [m.card] : []));
+      const card = async (summary: string): Promise<Card> => {
+        await expect.poll(async () => (await cards()).find((shown) => shown.subtitle === summary)).toBeTruthy();
+        return (await cards()).find((shown) => shown.subtitle === summary)!;
+      };
+
+      const first = raise("ask-entries-1", "list entries", "mcp__ledger__list_entries");
+      const asked = await card("list entries");
+      expect(asked.allowKey).toMatch(/^provider-tool:claude:ledger:list_entries:[a-f0-9]{16}$/);
+      expect((await api("POST", `/api/bots/${bot.id}/always-allow`, { threadId: bot.threadId, allowKey: asked.allowKey })).status).toBe(200);
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: asked.requestId, behavior: "allow" })).status).toBe(200);
+      await expect(first).resolves.toMatchObject({ behavior: "allow" });
+
+      // Saving it as on again starts it anew, as a bot's restart of it, an edit or a changed Vault key do.
+      expect((await api("PATCH", "/api/mcp/servers/ledger", { enabled: true })).status).toBe(200);
+      await expect(raise("ask-entries-2", "list entries after a restart", "mcp__ledger__list_entries")).resolves.toMatchObject({ behavior: "allow" });
+      expect((await cards()).some((shown) => shown.subtitle === "list entries after a restart")).toBe(false);
+
+      // The grant is for that tool alone: another read on the same server still asks, under that server's same fingerprint.
+      const other = raise("ask-accounts", "list accounts", "mcp__ledger__list_accounts");
+      const otherCard = await card("list accounts");
+      expect(otherCard.allowKey).toBe(asked.allowKey!.replace(":list_entries:", ":list_accounts:"));
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: otherCard.requestId, behavior: "deny" })).status).toBe(200);
+      await expect(other).resolves.toMatchObject({ behavior: "deny" });
+      // A tool that sends has no saved grant to offer at all, restart or not.
+      const send = raise("ask-send", "send the ledger", "mcp__ledger__send_email");
+      const sendCard = await card("send the ledger");
+      expect(sendCard.allowKey).toBeUndefined();
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: sendCard.requestId, behavior: "deny" })).status).toBe(200);
+      await expect(send).resolves.toMatchObject({ behavior: "deny" });
+      expect((await api("GET", "/api/bots")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id).alwaysAllow).toEqual([asked.allowKey]);
+
+      // Removed in Settings → Access: the thread it was given in and the turn now running stop allowing it too.
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { alwaysAllow: [] })).status).toBe(200);
+      const saved = (await api("GET", "/api/bots")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id);
+      expect([saved.alwaysAllow, ...saved.tasks.map((task: { alwaysAllow?: string[] }) => task.alwaysAllow ?? [])].flat()).toEqual([]);
+      const afterRemoval = raise("ask-entries-3", "list entries once removed", "mcp__ledger__list_entries");
+      const askedAgain = await card("list entries once removed");
+      expect(askedAgain.allowKey).toBe(asked.allowKey);
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: askedAgain.requestId, behavior: "deny" })).status).toBe(200);
+      await expect(afterRemoval).resolves.toMatchObject({ behavior: "deny" });
+    } finally {
+      for (const conn of conns) conn.destroy();
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+      await api("DELETE", "/api/mcp/servers/ledger").catch(() => undefined);
+    }
+  });
+
+  it.each([
+    ["data-dashboards", "Build me a sales dashboard from orders.csv", "dashboard.html", "publish_page"],
+    ["kiem-toan", "Kiểm toán doanh thu tháng 8 từ MISA và Excel", "scripts/audit.ps1", "references/thu-tuc.md"],
+  ])("mounts the %s skill and its resources in a real turn", async (id, text, resource, instruction) => {
+    const bot = (await api("POST", "/api/bots", {})).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, {
+        text,
+      })).status).toBe(202);
+      const seen = await readJsonFileWhenReady<{ systemPrompt?: string }>(fakeClaudeDump, 15_000);
+      const system = seen.systemPrompt ?? "";
+      const root = new RegExp(`<openmaus-skill id="${id}" version="[^"]+" root="([^"]+)">`).exec(system)?.[1];
+      expect(root).toBeTruthy();
+      expect(existsSync(join(root!, resource))).toBe(true);
+      expect(system).toContain(instruction);
+      expect(system).not.toContain('<openmaus-skill id="create-verification-skill"');
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("injects the bot's standing instructions (soul) into a real turn, directly after the persona", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Kiwi", title: "Tracker" })).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+        soul: "File bugs. Never file noise.",
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello" })).status).toBe(202);
+      const seen = await readJsonFileWhenReady<{ systemPrompt?: string }>(fakeClaudeDump, 15_000);
+      const system: string = seen.systemPrompt ?? "";
+      expect(system.startsWith("You are Kiwi, a personal bot in StartupBot. The product is StartupBot, regardless of older history. Preserve user-chosen agent names. Role: Tracker.")).toBe(true);
+      const persona = "You are Kiwi, a personal bot in StartupBot. The product is StartupBot, regardless of older history. Preserve user-chosen agent names. Role: Tracker.";
+      const afterPersona = system.slice(persona.length);
+      expect(afterPersona.startsWith("\n\nYour standing instructions follow.")).toBe(true);
+      expect(system).toContain("--- BEGIN STANDING INSTRUCTIONS (SOUL.md, 28 bytes) ---\nFile bugs. Never file noise.\n--- END STANDING INSTRUCTIONS ---");
+    } finally {
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
+    }
+  });
+
+  it("ends a Chief of Staff's team section at the roster, in the preview and in a real turn", async () => {
+    const bot = (await api("POST", "/api/bots", { name: "Atlas", section: "Roster end" })).body.bot;
+    try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
         chiefOfStaff: true,
         modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
       })).status).toBe(200);
@@ -11230,4 +14999,3 @@ describe("computer control API (who is driving)", () => {
     expect(res.status).toBe(401);
   });
 });
-

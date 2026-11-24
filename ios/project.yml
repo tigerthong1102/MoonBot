@@ -59,6 +59,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: StartupBot
+        StartupBotInboxOrigin: $(STARTUPBOT_INBOX_ORIGIN)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.productivity

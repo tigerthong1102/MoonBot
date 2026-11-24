@@ -57,10 +57,13 @@ export async function signOutPersonalAccount(origin) {
   if (!response.ok) throw new Error("StartupBot sign-out failed");
 }
 
-export async function showPersonalInbox(window, origin, language, requestSignIn, { localWorkspace }) {
+export async function showPersonalInbox(window, origin, language, requestSignIn, { localWorkspace, room }) {
   if (!window || window.isDestroyed() || !origin) return;
-  const existing = panels.get(window);
+  const existing = panels.get(window)?.view;
   if (existing) {
+    if (room) await existing.webContents.executeJavaScript(
+      "if (location.origin === " + JSON.stringify(origin) + ") location.hash = " + JSON.stringify("room=" + room),
+    );
     existing.webContents.focus();
     return;
   }
@@ -79,11 +82,12 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
     return { action: "deny" };
   });
   const fit = () => {
+    if (localWorkspace()) return;
     const [width, height] = window.getContentSize();
     view.setBounds({ x: 0, y: 40, width, height: Math.max(1, height - 40) });
   };
   const close = () => {
-    if (panels.get(window) !== view) return;
+    if (panels.get(window)?.view !== view) return;
     panels.delete(window);
     disposeVoice.close();
     window.off("resize", fit);
@@ -92,6 +96,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
     if (!window.isDestroyed()) {
       window.contentView.removeChildView(view);
       workspace.focus();
+      workspace.send("personal-inbox:visibility", false);
       workspace.send("personal-account:changed");
     }
     if (!page.isDestroyed()) page.close();
@@ -121,26 +126,28 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
   });
   page.once("render-process-gone", close);
   page.on("did-navigate", disposeVoice.reset);
-  panels.set(window, view);
+  panels.set(window, { view, close });
+  view.setVisible(!localWorkspace());
   window.contentView.addChildView(view);
   window.on("resize", fit);
   window.once("closed", close);
   workspace.once("did-navigate", close);
   fit();
+  if (localWorkspace()) workspace.send("personal-inbox:visibility", true);
   try {
     const params = new URLSearchParams({ desktop: "1", hostAuth: "1", lang: language });
     if (skins.has(window)) params.set("skin", skins.get(window));
     if (bots) params.set("bots", "1");
-    await page.loadURL(origin + "/?" + params);
+    await page.loadURL(origin + "/?" + params + (room ? "#room=" + room : ""));
     if (!page.isDestroyed()) page.focus();
   } catch (error) {
-    if (panels.get(window) !== view) return;
+    if (panels.get(window)?.view !== view) return;
     close();
     throw error;
   }
 }
 
-export function createPersonalInbox({ window, locale, isLocal, showLocal, previousChoice }) {
+export function createPersonalInbox({ window, locale, languageKey, isLocal, showLocal, previousChoice }) {
   const metadata = createRequire(import.meta.url)("../package.json");
   function origin() {
     return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
@@ -156,19 +163,19 @@ export function createPersonalInbox({ window, locale, isLocal, showLocal, previo
     if (!isLocal(win)) throw Error("Open StartupBot on this computer.");
     win.webContents.send("personal-account:prompt", inbox);
   }
-  async function open(accountOnly = false) {
+  async function open(accountOnly = false, room) {
     const win = window();
     win.show();
     if (accountOnly) return requestSignIn(win, false);
-    const existing = panels.get(win);
-    if (existing) { existing.webContents.focus(); return; }
+    const existing = panels.get(win)?.view;
+    if (existing && !room) { existing.webContents.focus(); return; }
     const base = origin();
     const email = await personalAccountEmail(base);
     if (win.isDestroyed()) return;
     if (!email) return requestSignIn(win, true);
     await waitForWorkspace(win);
     return showPersonalInbox(win, base, locale(), () => requestSignIn(win, true), {
-      localWorkspace: () => !win.isDestroyed() && isLocal(win),
+      localWorkspace: () => !win.isDestroyed() && isLocal(win), room,
     });
   }
   function install(ipcMain, localOnly, requireMainWindowSender) {
@@ -180,6 +187,47 @@ export function createPersonalInbox({ window, locale, isLocal, showLocal, previo
       }));
     }
     handle("personal-inbox:open", () => open());
+    handle("personal-inbox:close", () => panels.get(window())?.close());
+    handle("personal-inbox:bounds", (event, bounds) => {
+      const win = window();
+      const view = panels.get(win)?.view;
+      if (!view) return;
+      if (bounds === null) { view.setVisible(false); return; }
+      if (!bounds || !["x", "y", "width", "height"].every(key => Number.isFinite(bounds[key]))) return;
+      const zoom = event.sender.getZoomFactor();
+      const [width, height] = win.getContentSize();
+      const x = Math.max(0, Math.min(width, Math.round(bounds.x * zoom)));
+      const y = Math.max(0, Math.min(height, Math.round(bounds.y * zoom)));
+      const w = Math.max(0, Math.min(width - x, Math.floor(bounds.width * zoom)));
+      const h = Math.max(0, Math.min(height - y, Math.floor(bounds.height * zoom)));
+      if (w && h) view.setBounds({ x, y, width: w, height: h });
+      view.setVisible(!!(w && h));
+    });
+    handle("personal-inbox:create", async (_event, draft) => {
+      const base = origin();
+      if (!base) return "unavailable";
+      if (!draft || !/^[a-f0-9-]{36}$/.test(draft.id) || typeof draft.title !== "string" || draft.title.length > 80
+        || !Array.isArray(draft.emails) || draft.emails.length < 1 || draft.emails.length > 8) return "invalid_request";
+      const emails = [...new Set(draft.emails.map(cleanEmail))];
+      if (emails.some(email => !email) || (!draft.title && emails.length !== 1)) return "invalid_request";
+      const guest = { locale: languageKey(), note: "" };
+      const input = draft.title
+        ? { kind: "group", id: draft.id, title: draft.title, invitees: emails, guest }
+        : { kind: "direct", id: draft.id, email: emails[0], instant: true, guest };
+      const response = await session.fromPartition(partition).fetch(base + "/api/rooms", {
+        method: "POST", credentials: "include", redirect: "error", signal: AbortSignal.timeout(20000),
+        headers: { Origin: base, "Content-Type": "application/json", "x-inbox-language": locale(), "x-inbox-language-source": "app" },
+        body: JSON.stringify(input),
+      });
+      if (response.status === 401) return "unauthorized";
+      if (response.status === 429) return "rate_limited";
+      if (response.status === 409) return "room_limit_or_conflict";
+      if (!response.ok) return response.status === 400 ? "invalid_request" : "unavailable";
+      const { id } = await response.json();
+      if (typeof id !== "string" || !/^[a-f0-9-]{36}$/.test(id)) return "unavailable";
+      await open(false, id);
+      return "ok";
+    });
     const updates = personalAccountUpdates({ account: () => session.fromPartition(partition), origin, previousChoice,
       deviceChoice: () => jsonFile(path.join(app.getPath("userData"), "personal-email-updates.json")) });
     handle("personal-account:updates", () => updates());
@@ -214,18 +262,19 @@ export function createPersonalInbox({ window, locale, isLocal, showLocal, previo
     });
     handle("personal-account:sign-out", async event => {
       await signOutPersonalAccount(origin());
+      panels.get(window())?.close();
       if (!event.sender.isDestroyed()) event.sender.send("personal-account:changed");
     });
   }
   function applySkin(win, skin) {
     skins.set(win, skin);
-    const page = panels.get(win)?.webContents;
+    const page = panels.get(win)?.view.webContents;
     if (page && !page.isDestroyed()) {
       void page.executeJavaScript("document.documentElement.dataset.skin = " + JSON.stringify(skin)).catch(() => {});
     }
   }
   function applyLanguage(win) {
-    const page = panels.get(win)?.webContents;
+    const page = panels.get(win)?.view.webContents;
     if (page && !page.isDestroyed()) {
       const tag = JSON.stringify(locale());
       void page.executeJavaScript('window.dispatchEvent(new CustomEvent("inbox-language", { detail: ' + tag + ' }))').catch(() => {});

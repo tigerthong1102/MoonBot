@@ -4,6 +4,7 @@ import { backgroundAccessibilityAction, slimResponse } from "./driver-wire.ts";
 import { resolveStep, resolveStepSoon, type CallOutcome, type ComputerCaller, type Patience } from "./resolve.ts";
 import { stepLabel, type Recipe, type RecipeStep } from "./rules.ts";
 import { expectedWindowsDestination, windowsSnapshotMatches, windowsTabCount, windowsTabSelected } from "./windows-destination.ts";
+import { expectedLinuxDestinations } from "./linux-navigation.ts";
 
 export interface ReplayTurn { threadId: string; turnId: string; provider: string; providerInstanceId: string }
 export interface StepApproval { ask(tool: string, summary: string): Promise<boolean> }
@@ -61,6 +62,9 @@ export async function runSteps(
 ): Promise<ReplayOutcome> {
   const { caller, approval, publish, signal, patience } = deps;
   const total = recipe.steps.length;
+  let reserved = false;
+  let firstTarget: { pid: unknown; windowId: unknown } | undefined;
+  const linuxDestinations = expectedLinuxDestinations(recipe);
   const base = (itemId: string) => ({
     eventId: newId(), createdAt: new Date().toISOString(), itemId,
     threadId: turn.threadId, turnId: turn.turnId, provider: turn.provider, providerInstanceId: turn.providerInstanceId,
@@ -69,9 +73,9 @@ export async function runSteps(
     if (signal.aborted) return STOPPED;
     const label = stepLabel(step);
     const failed = ({ error, gate }: Extract<CallOutcome, { ok: false }>): ReplayOutcome =>
-      (signal.aborted ? STOPPED : { kind: "failed", done, total, tool: step.tool, label, error, ...(gate ? { gate } : {}) });
+      (signal.aborted ? STOPPED : { kind: "failed", done, total, tool: step.tool, label, error: reserved && step.element?.linuxWindowChild ? WINDOWS_UNCERTAIN : error, ...(gate && !reserved ? { gate } : {}) });
     const windows = step.element?.uiaWindowChild === true || step.element?.linuxWindowChild === true;
-    const destination = windows ? expectedWindowsDestination(recipe) : undefined;
+    const destination = step.element?.linuxWindowChild ? linuxDestinations?.[done] : windows ? expectedWindowsDestination(recipe) : undefined;
     if (windows && (!destination || !deps.windowsAttempt)) return failed({ ok: false, error: "This Windows recipe does not name a verifiable navigation destination." });
     let target = await resolveStepSoon(step, caller, signal, patience);
     if (!target.ok) return failed(target);
@@ -79,7 +83,7 @@ export async function runSteps(
     const summary = stepSummary(step.tool, label);
     const allowed = await approval.ask(tool, approvalSummary(step, label));
     if (signal.aborted) return STOPPED;
-    if (!allowed) return { kind: "declined", tool: step.tool, label };
+    if (!allowed) return reserved ? failed({ ok: false, error: WINDOWS_UNCERTAIN }) : { kind: "declined", tool: step.tool, label };
     if (windows) {
       if (destination && "tab" in destination) {
         const { pid, window_id } = target.args;
@@ -96,9 +100,16 @@ export async function runSteps(
       if (current.args.pid !== target.args.pid || current.args.window_id !== target.args.window_id) {
         return failed({ ok: false, error: "the approved window changed" });
       }
+      if (step.element?.linuxWindowChild && firstTarget && (firstTarget.pid !== current.args.pid || firstTarget.windowId !== current.args.window_id)) {
+        return failed({ ok: false, error: "the target app or window changed" });
+      }
       target = current;
     }
-    if (windows && !deps.windowsAttempt!.begin()) return failed({ ok: false, error: WINDOWS_UNCERTAIN });
+    if (windows && !reserved) {
+      if (!deps.windowsAttempt!.begin()) return failed({ ok: false, error: WINDOWS_UNCERTAIN });
+      reserved = true;
+      firstTarget = { pid: target.args.pid, windowId: target.args.window_id };
+    }
     const itemId = newId();
     publish({ ...base(itemId), type: "item.started", itemType: "tool", title: tool, input: summary });
     const delivery = await caller.call(step.tool, target.args, signal);
@@ -108,7 +119,7 @@ export async function runSteps(
       // might follow delivery, so only the exact observed destination can clear the reservation.
       if (delivery.ok && backgroundAccessibilityAction(delivery.structured)
           && await reachedWindowsDestination(caller, step, target.args, destination!, signal)) {
-        deps.windowsAttempt!.verified();
+        if (done === total - 1) deps.windowsAttempt!.verified();
       } else {
         result = { ok: false, error: WINDOWS_UNCERTAIN };
       }
@@ -158,4 +169,5 @@ export function fallbackNote(outcome: Extract<ReplayOutcome, { kind: "failed" }>
 export function declinedReply(outcome: Extract<ReplayOutcome, { kind: "declined" }>): string {
   return `I stopped the saved steps because a step on ${outcome.label} was declined. Nothing after it ran.`;
 }
+
 

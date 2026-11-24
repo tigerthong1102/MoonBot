@@ -1,7 +1,7 @@
 name: Linux Saved Steps
 on:
   push:
-    branches: [main, codex/linux-saved-steps-20261124]
+    branches: [main, codex/linux-saved-steps-multistep]
     paths:
       - 'server/saved-steps/**'
       - 'server/testing/fake-claude-cli.ts'
@@ -39,4 +39,5 @@ jobs:
       - run: pnpm exec tsc -p tsconfig.server.json
       - name: Record, save and replay on real GTK
         run: dbus-run-session -- xvfb-run -a node --experimental-strip-types scripts/smoke-linux-saved-steps-probe.mjs
+
 

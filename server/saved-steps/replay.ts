@@ -3,7 +3,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { backgroundAccessibilityAction, slimResponse } from "./driver-wire.ts";
 import { resolveStep, resolveStepSoon, type CallOutcome, type ComputerCaller, type Patience } from "./resolve.ts";
 import { stepLabel, type Recipe, type RecipeStep } from "./rules.ts";
-import { expectedWindowsTitle, windowsSnapshotMatches } from "./windows-destination.ts";
+import { expectedWindowsDestination, windowsSnapshotMatches, windowsTabCount } from "./windows-destination.ts";
 
 export interface ReplayTurn { threadId: string; turnId: string; provider: string; providerInstanceId: string }
 export interface StepApproval { ask(tool: string, summary: string): Promise<boolean> }
@@ -38,7 +38,7 @@ export const WINDOWS_UNCERTAIN = "A saved click may already have reached the app
 const WINDOWS_VERIFY_MS = 45_000;
 const WINDOWS_POLL_MS = 75;
 
-async function reachedWindowsTitle(caller: ComputerCaller, step: RecipeStep, address: Record<string, unknown>, title: string, signal: AbortSignal): Promise<boolean> {
+async function reachedWindowsDestination(caller: ComputerCaller, step: RecipeStep, address: Record<string, unknown>, destination: { title: string } | { tab: string }, signal: AbortSignal): Promise<boolean> {
   const { pid, window_id } = address;
   const bounded = AbortSignal.any([signal, AbortSignal.timeout(WINDOWS_VERIFY_MS)]);
   for (;;) {
@@ -46,7 +46,9 @@ async function reachedWindowsTitle(caller: ComputerCaller, step: RecipeStep, add
     const response = await caller.call("get_window_state", { pid, window_id, tree_format: "elements", include_screenshot: false, timeout_ms: 30000, max_elements: 5000 }, bounded);
     if (!response.ok || bounded.aborted || response.structured.tree_format !== "elements") return false;
     const state = slimResponse({ result: { structuredContent: response.structured } }, "win32").structured;
-    if (windowsSnapshotMatches(state, step, pid, window_id, title)) return true;
+    if ("title" in destination && windowsSnapshotMatches(state, step, pid, window_id, destination.title)) return true;
+    if ("tab" in destination && windowsSnapshotMatches(state, step, pid, window_id, step.window!.title)
+      && windowsTabCount(state, destination.tab) === 1) return true;
     if (!windowsSnapshotMatches(state, step, pid, window_id, step.window!.title)) return false;
     await delay(WINDOWS_POLL_MS, undefined, { signal: bounded }).catch(() => {});
   }
@@ -69,8 +71,8 @@ export async function runSteps(
     const failed = ({ error, gate }: Extract<CallOutcome, { ok: false }>): ReplayOutcome =>
       (signal.aborted ? STOPPED : { kind: "failed", done, total, tool: step.tool, label, error, ...(gate ? { gate } : {}) });
     const windows = step.element?.uiaWindowChild === true;
-    const title = windows ? expectedWindowsTitle(recipe) : undefined;
-    if (windows && (!title || !deps.windowsAttempt)) return failed({ ok: false, error: "This Windows recipe does not name a verifiable navigation destination." });
+    const destination = windows ? expectedWindowsDestination(recipe) : undefined;
+    if (windows && (!destination || !deps.windowsAttempt)) return failed({ ok: false, error: "This Windows recipe does not name a verifiable navigation destination." });
     let target = await resolveStepSoon(step, caller, signal, patience);
     if (!target.ok) return failed(target);
     const tool = engineToolName(step.tool);
@@ -79,6 +81,15 @@ export async function runSteps(
     if (signal.aborted) return STOPPED;
     if (!allowed) return { kind: "declined", tool: step.tool, label };
     if (windows) {
+      if (destination && "tab" in destination) {
+        const { pid, window_id } = target.args;
+        const before = await caller.call("get_window_state", { pid, window_id, tree_format: "elements", include_screenshot: false, timeout_ms: 30000, max_elements: 5000 }, signal);
+        if (!before.ok) return failed(before);
+        const state = slimResponse({ result: { structuredContent: before.structured } }, "win32").structured;
+        if (!windowsSnapshotMatches(state, step, pid, window_id, step.window!.title) || windowsTabCount(state, destination.tab) !== 0) {
+          return failed({ ok: false, error: "The navigation destination is already present or the window could not be read reliably." });
+        }
+      }
       const current = await resolveStep(step, caller, signal);
       if (signal.aborted) return STOPPED;
       if (!current.ok) return failed(current);
@@ -96,7 +107,7 @@ export async function runSteps(
       // The caller has no typed pre-dispatch receipt. Even an error that looks like a gate refusal
       // might follow delivery, so only the exact observed destination can clear the reservation.
       if (delivery.ok && backgroundAccessibilityAction(delivery.structured)
-          && await reachedWindowsTitle(caller, step, target.args, title!, signal)) {
+          && await reachedWindowsDestination(caller, step, target.args, destination!, signal)) {
         deps.windowsAttempt!.verified();
       } else {
         result = { ok: false, error: WINDOWS_UNCERTAIN };

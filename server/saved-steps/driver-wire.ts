@@ -7,7 +7,7 @@ export interface WireElement {
   depth: number;
   /** The driver reported what the element holds; what it holds never leaves the bridge. */
   value_read?: true;
-  /** Windows UIA projected this enabled button directly under the window it omitted. */
+  /** Windows UIA projected this enabled button inside the window it omitted. */
   uia_window_child?: true;
 }
 export interface WireApp { pid: number; name: string; bundle_id?: string; running?: boolean }
@@ -92,7 +92,9 @@ function markWindowButtons(raw: Rec, elements: WireElement[]): void {
   const tokens = elements.flatMap((row) => row.element_token === undefined ? [] : [row.element_token]);
   if (new Set(tokens).size !== tokens.length) return;
   for (const [index, row] of elements.entries()) {
-    if (row.role === "Button" && row.depth === 1 && row.parent_index === undefined && rows[index].enabled === true
+    const parent = row.parent_index === undefined ? undefined : elements.find((candidate) => candidate.element_index === row.parent_index);
+    const belongsToProjection = row.depth === 1 ? row.parent_index === undefined : parent !== undefined && parent.depth === row.depth - 1;
+    if (row.role === "Button" && belongsToProjection && rows[index].enabled === true
       && /^s[0-9a-f]{8}:\d+$/u.test(row.element_token ?? "")) row.uia_window_child = true;
   }
 }

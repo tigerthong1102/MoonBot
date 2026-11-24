@@ -9,7 +9,7 @@ import { declinedReply, fallbackNote, replayedReply, runSteps, WINDOWS_UNCERTAIN
 import type { ComputerCaller } from "./resolve.ts";
 import { personTextRequest, recipeFitsRequest, stepLabel, windowButtonClick, type Recipe } from "./rules.ts";
 import type { RecipeStore } from "./store.ts";
-import { expectedWindowsTitle } from "./windows-destination.ts";
+import { expectedWindowsDestination } from "./windows-destination.ts";
 
 export interface EngineSlots { get(threadId: string): ProviderInstance | undefined; set(threadId: string, engine: ProviderInstance): void }
 export interface ReplayRequest {
@@ -181,7 +181,7 @@ export class SavedStepsDispatch {
     const supported = recipe.steps.every((step) => windows
       ? step.element?.uiaWindowChild === true && windowButtonClick(step.tool, step.args)
       : !step.element?.uiaWindowChild);
-    return supported && (!windows || expectedWindowsTitle(recipe) !== undefined) && toolsAllowed(recipe, toolScope);
+    return supported && (!windows || expectedWindowsDestination(recipe) !== undefined) && toolsAllowed(recipe, toolScope);
   }
 
   private replayHolds(request: ReplayRequest, input: SendTurnInput): boolean {

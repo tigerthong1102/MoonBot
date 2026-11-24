@@ -11,3 +11,11 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 # Research product listings and reviews using approved Apify sources
 
 Use a configured read-only connection and public or authorized sources. Collect the requested fields only. Record listing URL, currency, displayed price and date. Separate shipping, VAT and promotions. Summarize review patterns without customer identifiers.
+
+## Research workflow
+
+Identify the marketplace, search term or public product URL, desired fields, country and result limit. Discover available Apify Actors with the configured Apify connection and inspect their input schema, pricing and documented coverage before choosing one. The public discovery tools can list Actors and documentation without account access. Running an Actor needs an authorized Apify account and may consume its credits or incur charges. Confirm the intended budget before a paid run and apply a maximum charge if the service supports it.
+
+Begin with a small sample. Request product names, source URLs, observed prices, currency, availability and timestamps when available. Wait for the run to complete and inspect the resulting dataset; a successful run can still return no products or incomplete fields. Distinguish missing values from zero, preserve marketplace and seller context, and state the observation time and limitations. For comparisons, normalize currency only when a conversion rate and its date are available, and keep shipping, promotions and taxes separate when the source permits.
+
+The official remote Apify MCP server supports public discovery and OAuth for authenticated account access. Use an existing configured connection; if it is absent, explain what connection is needed. Never put an API token into a chat message or a URL. The user should authorize access through the app's connection flow.

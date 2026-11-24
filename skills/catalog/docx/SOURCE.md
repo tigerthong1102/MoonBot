@@ -71,3 +71,5 @@ Included upstream notices: THIRD_PARTY_NOTICES.md.
 - scripts/templates/commentsExtensible.xml
 - scripts/templates/commentsIds.xml
 - scripts/templates/people.xml
+
+Included the upstream SKILL.md as references/upstream.md and expanded the local document workflow.

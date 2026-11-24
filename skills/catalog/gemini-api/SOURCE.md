@@ -6,7 +6,7 @@ Upstream license https://github.com/google/skills/blob/06fff9e3edb7fc3c115a17694
 
 StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. Other included upstream files retain their original contents.
 
-Focuses on the Veo workflow. Excluded upstream install, key setup and other API examples.
+StartupBot guidance covers common Gemini tasks and capability checks using configured services. The original enterprise setup scripts and examples are excluded; current model availability should be checked against https://ai.google.dev/gemini-api/docs/video and the configured service.
 
 ## Excluded upstream files
 

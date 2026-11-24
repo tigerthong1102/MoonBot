@@ -97,11 +97,10 @@ function fileName(req: Request) {
   return name;
 }
 
-async function reserveUpload(db: D1Database, room: string, user: string, key: string, name: string, digest: string, size: number) {
+function reserveUploadInsert(db: D1Database, room: string, user: string, key: string, name: string, digest: string, size: number) {
   const now = Date.now();
   const since = now - 86400_000;
-  const [insert, result] = await db.batch<{id: string; post: number | null}>([
-    db.prepare(`INSERT INTO inbox_uploads(id,room,author,nonce,name,digest,size,created)
+  return db.prepare(`INSERT INTO inbox_uploads(id,room,author,nonce,name,digest,size,created)
       SELECT ?8,?1,?2,?3,?4,?5,?6,?7
       FROM (SELECT max(?9, coalesce((SELECT reset_at FROM inbox_upload_allowance WHERE person=?2), 0)) AS since)
       WHERE EXISTS (${canPost})
@@ -113,13 +112,37 @@ async function reserveUpload(db: D1Database, room: string, user: string, key: st
       AND (SELECT coalesce(sum(length(bytes)),0) FROM inbox_files) +
           (SELECT coalesce(sum(size),0) FROM inbox_uploads) + ?6 <= ?11
       ON CONFLICT(room,author,nonce) DO NOTHING`)
-      .bind(room, user, key, name, digest, size, now, crypto.randomUUID(), since, dailyBytes, retainedBytes),
+      .bind(room, user, key, name, digest, size, now, crypto.randomUUID(), since, dailyBytes, retainedBytes);
+}
+
+async function reserveUpload(db: D1Database, room: string, user: string, key: string, name: string, digest: string, size: number) {
+  const [insert, result] = await db.batch<{id: string; post: number | null}>([
+    reserveUploadInsert(db, room, user, key, name, digest, size),
     db.prepare(`SELECT id,post FROM inbox_uploads WHERE room=?1 AND author=?2 AND nonce=?3 AND name=?4 AND digest=?5 AND size=?6
       AND EXISTS (${canPost})`).bind(room, user, key, name, digest, size),
   ]);
   const entry = result.results[0];
   if (!entry) throw new HTTPError(409, "upload_unavailable");
   return { id: entry.id, published: Boolean(entry.post), created: Boolean(insert.meta.changes) };
+}
+
+async function publishSmallUpload(
+  db: D1Database, room: string, user: string, key: string, name: string, digest: string, size: number, parts: string[],
+) {
+  const match = "room=?1 AND author=?2 AND nonce=?3 AND name=?4 AND digest=?5";
+  const inputs = [room, user, key, name, digest, size] as const;
+  const [reserve, ...stored] = await db.batch([
+    reserveUploadInsert(db, ...inputs),
+    ...parts.map((data, part) => db.prepare(`INSERT INTO inbox_upload_parts(upload,part,data) SELECT id,?7,?8 FROM inbox_uploads
+      WHERE ${match} AND size=?6 AND ready=0 AND EXISTS (${canPost})
+      ON CONFLICT(upload,part) DO NOTHING`).bind(...inputs, part, data)),
+    db.prepare(`UPDATE inbox_uploads SET ready=1 WHERE ${match} AND size=?6 AND ready=0
+      AND EXISTS (${canPost}) AND (SELECT count(*) FROM inbox_upload_parts WHERE upload=inbox_uploads.id)=?7`).bind(...inputs, parts.length),
+    db.prepare(`SELECT 1 FROM inbox_uploads WHERE ${match} AND size=?6 AND post IS NOT NULL AND EXISTS (${canPost})
+      UNION ALL SELECT 1 FROM inbox_files WHERE ${match} AND length(bytes)=?6 AND EXISTS (${canPost})`).bind(...inputs),
+  ]);
+  if (!stored.at(-1)?.results.length) throw new HTTPError(409, "upload_unavailable");
+  return reserve.meta.changes ? 201 : 200;
 }
 
 async function publishUpload(db: D1Database, room: string, user: string, key: string, upload: string, count: number) {
@@ -267,6 +290,19 @@ export async function inboxFile(
   const bytes = compressed ? unpackUpload(wire) : wire;
   if (!bytes.length) throw new HTTPError(400, "empty_file");
   const digest = await sha256(bytes);
+  if (bytes.length <= partBytes * 2) {
+    const parts = [];
+    for (let offset = 0; offset < bytes.length; offset += partBytes) {
+      const raw = bytes.subarray(offset, offset + partBytes);
+      const packed = compressed ? (bytes.length <= partBytes ? wire : gzipSync(raw, { level: 1 })) : null;
+      parts.push(packed && packed.length < raw.length * 0.95
+        ? "gz:" + Buffer.from(packed).toString("base64") : Buffer.from(raw).toString("base64"));
+    }
+    const status = await publishSmallUpload(db, room, user, key, name, digest, bytes.length, parts);
+    const response = json({ ok: true }, status);
+    response.headers.set("server-timing", "store;dur=" + (Date.now() - receivedAt));
+    return response;
+  }
   const old = await db.prepare("SELECT digest,name FROM inbox_files WHERE room=? AND author=? AND nonce=?")
     .bind(room, user, key).first<{digest: string; name: string}>();
   if (old) {

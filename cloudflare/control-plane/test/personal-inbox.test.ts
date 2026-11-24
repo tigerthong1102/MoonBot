@@ -390,6 +390,34 @@ it("stores one attachment on retry, enforces size and withdraws download access 
     expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM " + table).first("n")).toBe(0);
 });
 
+it("publishes small compressed Markdown once and preserves its original bytes", async () => {
+  const owner = await login("owner@example.test"), member = await login("member@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  await call("rooms", owner.cookie, { kind: "group", id, title: "Markdown" });
+  await call(room + "/invite", owner.cookie, { email: member.email });
+  await call(room + "/accept", member.cookie, {});
+  const bytes = new TextEncoder().encode("# Checklist\n- Đối chiếu số liệu.\n".repeat(31_000));
+  expect(bytes.length).toBeGreaterThan(750_000);
+  expect(bytes.length).toBeLessThan(1_500_000);
+  const path = room + "/files/" + uuid() + "/gzip";
+  const send = async (source: Uint8Array<ArrayBuffer>) => {
+    const ctx = createExecutionContext();
+    const response = await worker.fetch(new Request(origin + "/api/" + path, {
+      method: "POST", headers: { origin, cookie: owner.cookie, "x-inbox-name": "SKILL.md" },
+      body: new Uint8Array(gzipSync(source)),
+    }), testEnv, ctx);
+    await waitOnExecutionContext(ctx);
+    return response.status;
+  };
+  expect((await Promise.all([send(bytes), send(bytes)])).sort()).toEqual([200, 201]);
+  expect(await send(new TextEncoder().encode("# changed"))).toBe(409);
+  const { posts } = await (await call(room, member.cookie)).json<{ posts: { seq: number; fileSize: number }[] }>();
+  expect(posts).toHaveLength(1);
+  expect(posts[0].fileSize).toBe(bytes.length);
+  const copy = await call(room + "/files/" + posts[0].seq, member.cookie);
+  expect(await copy.arrayBuffer()).toEqual(bytes.buffer);
+});
+
 it("streams a bounded voice attachment only to members, with byte ranges and a download", async () => {
   const owner = await login("owner@example.test");
   const member = await login("member@example.test");

@@ -7984,5 +7984,14 @@
   "personalInbox.botNone": "이 컴퓨터에는 초대할 수 있는 봇이 없습니다.",
   "personalInbox.botFailed": "봇이 대답할 수 없습니다.",
   "personalInbox.botDone": "토론 완료",
-  "personalInbox.botCancel": "토론 중지"
+  "personalInbox.botCancel": "토론 중지",
+  "personalInbox.voiceMessage": "음성 메시지",
+  "personalInbox.recordVoice": "음성 메시지 녹음",
+  "personalInbox.stopRecording": "녹음 중지",
+  "personalInbox.discardVoice": "음성 입력 취소",
+  "personalInbox.recordingVoice": "녹음 중…",
+  "personalInbox.startingVoice": "마이크 켜는 중…",
+  "personalInbox.dictatingVoice": "받아쓰는 중…",
+  "personalInbox.microphoneUnavailable": "마이크를 사용할 수 없습니다. 마이크 권한을 확인하세요.",
+  "personalInbox.recordingFailed": "녹음에 실패했습니다. 다시 시도하세요."
 }

@@ -4002,5 +4002,14 @@
   "personalInbox.botNone": "Aucun bot disponible sur cet ordinateur.",
   "personalInbox.botFailed": "Le bot n'a pas pu répondre.",
   "personalInbox.botDone": "Discussion terminée",
-  "personalInbox.botCancel": "Arrêter la discussion"
+  "personalInbox.botCancel": "Arrêter la discussion",
+  "personalInbox.voiceMessage": "Message vocal",
+  "personalInbox.recordVoice": "Enregistrer un message vocal",
+  "personalInbox.stopRecording": "Arrêter l’enregistrement",
+  "personalInbox.discardVoice": "Annuler la saisie vocale",
+  "personalInbox.recordingVoice": "Enregistrement…",
+  "personalInbox.startingVoice": "Activation du microphone…",
+  "personalInbox.dictatingVoice": "Dictée en cours…",
+  "personalInbox.microphoneUnavailable": "Microphone indisponible. Vérifiez ses autorisations.",
+  "personalInbox.recordingFailed": "L’enregistrement a échoué. Réessayez."
 }

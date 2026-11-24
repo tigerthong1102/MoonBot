@@ -1,10 +1,12 @@
 import { Buffer } from "node:buffer";
 import { brotliDecompressSync, gzipSync, gunzipSync } from "node:zlib";
 import { z } from "zod";
+import { parseAudioRange } from "../../../shared/audio-range";
 import { HTTPError, json, readBoundedBody, readBoundedJSON } from "./http";
 
 export const maxFileBytes = 50_000_000;
 const singleRequestBytes = 20_000_000;
+export const voiceFileBytes = 1_500_000;
 export const maxBatchParts = 8;
 export const maxRawBatchParts = 2;
 const dailyBytes = 60_000_000;
@@ -23,6 +25,26 @@ function rasterType(bytes: Uint8Array) {
   if (magic.startsWith("474946383761") || magic.startsWith("474946383961")) return "image/gif";
   if (/^52494646.{8}57454250$/.test(magic)) return "image/webp";
   return null;
+}
+
+function voiceType(name: string, bytes: Uint8Array) {
+  if (name === "startupbot-voice.webm" && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) return "audio/webm";
+  if (name === "startupbot-voice.m4a" && Buffer.from(bytes.subarray(4, 8)).toString("ascii") === "ftyp") return "audio/mp4";
+  return null;
+}
+
+function playVoice(request: Request, headers: Headers, type: string, bytes: Uint8Array<ArrayBuffer>) {
+  headers.set("content-type", type);
+  headers.set("accept-ranges", "bytes");
+  const size = bytes.length;
+  const range = parseAudioRange(request.headers.get("range") ?? undefined, size);
+  if (range.kind === "none") return new Response(bytes, { headers });
+  if (range.kind === "unsatisfiable") {
+    headers.set("content-range", "bytes */" + size);
+    return new Response(null, { headers, status: 416 });
+  }
+  headers.set("content-range", `bytes ${range.start}-${range.end}/${size}`);
+  return new Response(bytes.subarray(range.start, range.end + 1), { headers, status: 206 });
 }
 
 const downloadPage = 3;
@@ -191,12 +213,21 @@ export async function inboxFile(
        UNION ALL SELECT NULL,length(f.bytes),f.name,f.bytes FROM inbox_files f ${access}`,
     ).bind(...params, ...params).first<{id: string | null; size: number; name: string; bytes: number[]}>();
     if (!row) throw new HTTPError(404, "unavailable");
+    const query = new URL(req.url).searchParams;
+    const isVoice = query.get("play") === "1";
+    if (isVoice && row.size > voiceFileBytes) throw new HTTPError(415, "unavailable");
     const upload = row.id;
     const count = Math.ceil(row.size / partBytes);
     const firstPage = upload ? await readParts(db, upload, 0, Math.min(count, downloadPage)) : [];
     const first = upload ? decodePart(firstPage[0]!.data) : new Uint8Array(row.bytes);
     const headers = new Headers({ "content-type": "application/octet-stream" });
-    if (new URL(req.url).searchParams.get("preview") === "1") {
+    if (isVoice) {
+      const type = voiceType(row.name, first);
+      if (!type) throw new HTTPError(415, "unavailable");
+      const bytes = firstPage.length <= 1 ? first : Buffer.concat([first, ...firstPage.slice(1).map(part => decodePart(part.data))]);
+      return playVoice(req, headers, type, bytes);
+    }
+    if (query.get("preview") === "1") {
       const type = rasterType(first);
       if (!type) throw new HTTPError(415, "unavailable");
       headers.set("content-type", type);

@@ -140,3 +140,15 @@ header strong { display: none; }
 [data-inbox-select] > svg { position: absolute; inset-inline-end: .5rem; top: 50%; transform: translateY(-50%); color: var(--color-ink-secondary); pointer-events: none; }
 .kind [data-inbox-select] { position: absolute; inset: 0; }
 .kind [data-inbox-select] > svg { display: none; }
+#voice-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#voice-controls:not(:has(#voice-status:not([hidden]))) { display: none; }
+#voice-status { color: var(--color-ink-secondary); }
+.compose-row > button, .compose-row > .kind { flex: none; }
+.compose-row [aria-pressed="true"] { background: var(--color-accent); color: var(--color-accent-ink); }
+.voice-message { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 8px 10px; }
+.voice-message strong { grid-column: 1 / -1; font-size: 13px; }
+.voice-player { width: 230px; max-width: 100%; min-width: 0; height: 34px; color-scheme: var(--code-color-scheme); }
+.file-chip:has(.voice-player) { max-width: min(295px, 100%); }
+@media (max-width: 360px) {
+  .compose-row > .round, .compose-row > .kind { width: 32px; }
+}

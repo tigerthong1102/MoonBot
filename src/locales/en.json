@@ -11355,5 +11355,14 @@
   "personalInbox.botNone": "No bots are available on this computer.",
   "personalInbox.botFailed": "The bot could not reply.",
   "personalInbox.botDone": "Discussion complete",
-  "personalInbox.botCancel": "Stop discussion"
+  "personalInbox.botCancel": "Stop discussion",
+  "personalInbox.voiceMessage": "Voice message",
+  "personalInbox.recordVoice": "Record voice message",
+  "personalInbox.stopRecording": "Stop recording",
+  "personalInbox.discardVoice": "Cancel voice input",
+  "personalInbox.recordingVoice": "Recording…",
+  "personalInbox.startingVoice": "Opening microphone…",
+  "personalInbox.dictatingVoice": "Dictating…",
+  "personalInbox.microphoneUnavailable": "Microphone unavailable. Check microphone permissions.",
+  "personalInbox.recordingFailed": "Recording failed. Try again."
 }

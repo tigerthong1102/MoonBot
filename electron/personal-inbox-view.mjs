@@ -5,11 +5,15 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { configuredInboxOrigin } from "./startupbot-identity.mjs";
 import { jsonFile } from "./desktop-prefs.mjs";
-import { app, session, WebContentsView } from "electron";
+import { app, session, systemPreferences, WebContentsView } from "electron";
+import { fileURLToPath } from "node:url";
+import { installInboxVoice, registerInboxVoice } from "./personal-inbox-voice.mjs";
+import { askForMicrophone } from "./privacy-settings.mjs";
 
 const panels = new WeakMap();
 const skins = new WeakMap();
 const partition = "persist:startupbot-personal-inbox";
+const requestMicrophone = () => process.platform !== "darwin" || askForMicrophone({ available: true, systemPreferences });
 
 async function waitForWorkspace(win) {
   const page = win.webContents;
@@ -52,7 +56,7 @@ export async function signOutPersonalAccount(origin) {
   if (!response.ok) throw new Error("StartupBot sign-out failed");
 }
 
-export async function showPersonalInbox(window, origin, language, requestSignIn) {
+export async function showPersonalInbox(window, origin, language, requestSignIn, { localWorkspace }) {
   if (!window || window.isDestroyed() || !origin) return;
   const existing = panels.get(window);
   if (existing) {
@@ -60,14 +64,14 @@ export async function showPersonalInbox(window, origin, language, requestSignIn)
     return;
   }
   const view = new WebContentsView({ webPreferences: {
-    partition,
+    partition, preload: fileURLToPath(new URL("./personal-inbox-preload.cjs", import.meta.url)),
+    additionalArguments: ["--startupbot-inbox-origin=" + origin],
     nodeIntegration: false, contextIsolation: true, sandbox: true, webviewTag: false,
   } });
   const page = view.webContents;
   const workspace = window.webContents;
   const bots = personalInboxBots(window, page, origin);
-  page.session.setPermissionCheckHandler(() => false);
-  page.session.setPermissionRequestHandler((_contents, _permission, reply) => reply(false));
+  const disposeVoice = registerInboxVoice({ page, workspace, origin, localWorkspace, requestMicrophone });
   const invitePath = origin + "/desktop/invite-bot/";
   page.setWindowOpenHandler(({ url }) => {
     if (bots && url.startsWith(invitePath)) bots.invite(url.slice(invitePath.length));
@@ -80,6 +84,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn)
   const close = () => {
     if (panels.get(window) !== view) return;
     panels.delete(window);
+    disposeVoice.close();
     window.off("resize", fit);
     window.off("closed", close);
     workspace.off("did-navigate", close);
@@ -114,6 +119,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn)
     }
   });
   page.once("render-process-gone", close);
+  page.on("did-navigate", disposeVoice.reset);
   panels.set(window, view);
   window.contentView.addChildView(view);
   window.on("resize", fit);
@@ -160,9 +166,12 @@ export function createPersonalInbox({ window, locale, isLocal, showLocal, previo
     if (win.isDestroyed()) return;
     if (!email) return requestSignIn(win, true);
     await waitForWorkspace(win);
-    return showPersonalInbox(win, base, locale(), () => requestSignIn(win, true));
+    return showPersonalInbox(win, base, locale(), () => requestSignIn(win, true), {
+      localWorkspace: () => !win.isDestroyed() && isLocal(win),
+    });
   }
   function install(ipcMain, localOnly, requireMainWindowSender) {
+    installInboxVoice(ipcMain, localOnly, requireMainWindowSender);
     function handle(channel, action) {
       ipcMain.handle(channel, localOnly(channel, (event, ...args) => {
         requireMainWindowSender(event);

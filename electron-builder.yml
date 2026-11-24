@@ -142,7 +142,7 @@ mac:
     - from: dist-native/duckdb/darwin-${arch}/node_modules
       to: duckdb/node_modules
   extendInfo:
-    NSMicrophoneUsageDescription: StartupBot uses the microphone for voice dictation into the composer.
+    NSMicrophoneUsageDescription: StartupBot uses the microphone to dictate text and record voice messages.
     NSSpeechRecognitionUsageDescription: StartupBot transcribes your voice on-device to type messages for you.
     NSAccessibilityUsageDescription: StartupBot uses Accessibility when you let a bot control this Mac.
     NSLocalNetworkUsageDescription: StartupBot connects to your phones and your other computers on this network and on Tailscale.

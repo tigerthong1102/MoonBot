@@ -18,6 +18,7 @@ import { parseComputerHelp } from "@/lib/computer-control";
 import { viewerClosedRelease } from "@/components/computer-takeover";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
+import { InboxDictation } from "@/components/InboxDictation";
 import { PersonalAccountSignIn } from "@/components/PersonalAccountSignIn";
 import { GroupView } from "@/components/GroupView";
 import { ForkPanel } from "@/components/ForkPanel";
@@ -449,6 +450,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
       </div>
       {state.appSettingsOpen && <SettingsModal />}
       <PersonalAccountSignIn />
+      <InboxDictation />
       {cloudAddOpened.current && <CloudAddDialog />}
       <CloudHowTo />
       <CloudSetup viewer={viewer} welcomeShown={welcomeOnScreen} />

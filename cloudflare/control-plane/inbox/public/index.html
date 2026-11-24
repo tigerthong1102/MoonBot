@@ -6,7 +6,7 @@
     <title data-i18n="personalInbox.pageTitle">Messages · StartupBot</title>
     <link rel="stylesheet" href="/inbox-skins.css" />
     <link rel="stylesheet" href="/inbox.css?v=4" />
-    <script type="module" src="/inbox.js?v=12"></script>
+    <script type="module" src="/inbox.js?v=13"></script>
   </head>
   <body>
     <header>
@@ -121,10 +121,16 @@
             <p id="post-limited" hidden></p>
             <form id="compose">
               <small id="sending" role="status" hidden></small>
+              <div id="voice-controls">
+                <small id="voice-status" role="status" hidden></small>
+                <button id="cancel-voice" type="button" class="ui-icon-button round" aria-label="Cancel" hidden><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-close"></use></svg></button>
+              </div>
               <div id="attachments" aria-label="Files ready to send" data-i18n-aria-label="personalInbox.staged" hidden></div>
               <div class="compose-row">
                 <button id="attach" type="button" class="ui-icon-button round" aria-label="Attach file" data-i18n-aria-label="personalInbox.attach" title="Attach file" data-i18n-title="personalInbox.attach"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-clip"></use></svg></button>
                 <input dir="auto" id="files" type="file" multiple hidden />
+                <button id="record-voice" type="button" class="ui-icon-button round" aria-label="Record voice message" hidden><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-mic"></use></svg></button>
+                <button id="dictate-voice" type="button" class="ui-icon-button round" aria-label="Start dictation" hidden><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-audio-lines"></use></svg></button>
                 <label class="kind round" title="Share a skill or task" data-i18n-title="personalInbox.shareWork"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-more"></use></svg>
                   <inbox-select name="kind" aria-label="Message type" data-i18n-aria-label="personalInbox.messageKind">
                     <option value="text" data-i18n="personalInbox.messages">Messages</option>

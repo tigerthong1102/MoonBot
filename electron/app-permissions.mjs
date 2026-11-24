@@ -43,7 +43,7 @@ export function appPermissionAllowed(permission, requestingUrlOrOrigin, renderer
   return ALLOWED_APP_PERMISSIONS.has(permission);
 }
 
-function mainFrameMicrophoneAllowed(permission, requestingUrlOrOrigin, trustedOrigin, details) {
+export function mainFrameMicrophoneAllowed(permission, requestingUrlOrOrigin, trustedOrigin, details) {
   if (permission !== "media" || details?.isMainFrame !== true || details.mediaTypes?.length === 0) return false;
   return appPermissionAllowed("media", requestingUrlOrOrigin, trustedOrigin ?? null, details);
 }

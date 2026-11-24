@@ -4020,7 +4020,16 @@
       "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
       "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
       "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd",
-      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c"
+      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "es": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -10525,7 +10534,16 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "fr": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -14331,7 +14349,16 @@
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
       "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
-      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0"
+      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "hi": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -17991,7 +18018,16 @@
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
       "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
-      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0"
+      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "ja": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -26091,7 +26127,16 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "pt-br": {
       "chat.clearMessages.question": "81d6c4e9d967df9cc372836338ffcab352f9d8bc7c14d4991bd925ec6adef712",
@@ -37209,7 +37254,16 @@
       "reconcile.fileType": "694ef553fd6674684845a9c1f1dc6b47228dfaf2d8f15f4cb39920b42d899f98",
       "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
       "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd",
-      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c"
+      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "zh": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -47458,7 +47512,16 @@
       "server.rooms.linkedEnded": "bbeb2baa902dec0cdc4a381486fb238d8085d6a1fb7d1ad7a7b74fe982b3b20c",
       "room.members.far.place": "312a77edd15104f65401f8127c68968eb1586a75e13c44bc3bc5d28ea4f5125d",
       "room.members.far.off": "5c7291cc0bc0f48f169607324939b4b2bb308c5246d10cda4ad7501ba4883beb",
-      "room.members.far.missing": "4bc7f76d36ade5ee27902c91e3d7918641737b2387f846623c3f986a574177fa"
+      "room.members.far.missing": "4bc7f76d36ade5ee27902c91e3d7918641737b2387f846623c3f986a574177fa",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "zh-tw": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -57814,7 +57877,16 @@
       "server.routines.card.onceContinues": "47f36e2af395ab1cc4c1fa758a4e169404e1e0164fb07d2ad82914228cf99297",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "uk": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -61895,7 +61967,16 @@
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
       "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
-      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0"
+      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "vi": {
       "chat.clearMessages.question": "81d6c4e9d967df9cc372836338ffcab352f9d8bc7c14d4991bd925ec6adef712",
@@ -73037,7 +73118,16 @@
       "sidebar.newBotOn.needsUpdate": "2fe10ee88189ee8ef942992b455e968fed8af782c1e7353b5a1ac4c54365c1b0",
       "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
       "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd",
-      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c"
+      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -79042,7 +79132,16 @@
       "engineSetup.cloudPasteHint": "e6e7b723c8ec76caec36a54986610db04f079430fd3a7a1986c627e18480a7ea",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "pl": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -86312,7 +86411,16 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "ru": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -93635,7 +93743,16 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "it": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -100764,7 +100881,16 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     },
     "ko": {
       "connectedWorkspaces.localTitle": "7d6deafeab011d734c3fdd1bfd6f69544fbb746a004019269bdb48544b01164b",
@@ -108554,7 +108680,16 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "personalInbox.voiceMessage": "f6933dae4ef88c16276f078d4c799776e085e125d684ceb71b9cb58d9721c984",
+      "personalInbox.recordVoice": "dbb8dce1e037ab409a0b3d5f99ac50cae395c6ec0657cefe243385a92759ba0b",
+      "personalInbox.stopRecording": "3d591e826d5459191fd5be2539bd138b17318f021ed3c687c6975e4089a0bcec",
+      "personalInbox.discardVoice": "a25b089adac0d167de7eb96d47a03868260cf7110a61a2d5eebd1f9e072e4c91",
+      "personalInbox.recordingVoice": "7ea93caac0f5c1c962460012ca3ebf778145c4c4fcda1a64ba95f10745bfec9c",
+      "personalInbox.startingVoice": "4551c98b50834f524339835fadf42faca4bcc427e903b573e184a94beadb7ff9",
+      "personalInbox.dictatingVoice": "855d5fbc275ba0b6f257260fd7978a40e7638e2f7565fdec3650ac35f0f8ba89",
+      "personalInbox.microphoneUnavailable": "6cdd81d9f0e37a2cc5fd15dc0bb3e42f936682472adabe702b7a0500c6ce5f5b",
+      "personalInbox.recordingFailed": "8b0b43d5025b69607d6ebfdd32c426cf45263fbb91544ad66d1eba44c2eafdeb"
     }
   }
 }

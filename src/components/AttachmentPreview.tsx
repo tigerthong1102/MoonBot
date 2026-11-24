@@ -942,10 +942,8 @@ export function AttachedFileChip({ file, message, linked = false, compact = fals
       {save.state !== "idle" && (
         <div
           role={failed ? "alert" : "status"}
-          className={cn(
-            "border-t border-hairline/30 px-2.5 py-1.5 text-[11px]",
-            failed ? "text-danger" : save.state === "saved" ? "text-success" : "text-ink-secondary",
-          )}
+          className={cn("border-t border-hairline/30 px-2.5 py-1.5 text-[11px]",
+            failed ? "text-danger" : save.state === "saved" ? "text-success" : "text-ink-secondary")}
         >
           {save.state === "saving"
             ? t("attach.downloading")

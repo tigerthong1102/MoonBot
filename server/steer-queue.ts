@@ -8,6 +8,8 @@ import { workOriginSchema, type WorkOrigin } from "./peer-provenance.ts";
 import type { BotQueuedMessages, ResolvedSender, SteerQueueReason } from "../shared/wire.ts";
 import type { BotRecord, Message } from "./store.ts";
 import type { UsageTrigger } from "./usage-ledger.ts";
+import { unsupportedWorkBotContext } from "./work-bot-context.ts";
+import type { FollowUp } from "../shared/follow-up.ts";
 
 export interface SteerStore {
   bot(id: string): BotRecord | null;
@@ -45,6 +47,8 @@ interface QueueEntry {
     /** Bot ids picked from the @ list. */
     mentions?: string[];
     workBotOfferOwner?: string;
+    workBotOfferSource?: string;
+    workBotFollowUp?: FollowUp;
   }>;
 }
 
@@ -110,7 +114,7 @@ export function queueSteeredMessage(
   botId: string,
   threadId: string,
   text: string,
-  options: { workBotOfferOwner?: string; prompt?: string; replyToId?: string; sendId?: string; dataContext?: Message["dataContext"]; reason?: SteerQueueReason; unattended?: boolean; peerAsk?: Message["peerAsk"]; origin?: WorkOrigin; sender?: ResolvedSender; trigger?: UsageTrigger; callId?: string; via?: "call"; reaction?: string; fromApp?: Message["fromApp"]; relay?: Message["relay"]; rowId?: string; first?: boolean; queuedAt?: number; mentions?: string[]; aheadOfOthers?: string } = {},
+  options: { workBotOfferOwner?: string; workBotOfferSource?: string; workBotFollowUp?: FollowUp; prompt?: string; replyToId?: string; sendId?: string; dataContext?: Message["dataContext"]; reason?: SteerQueueReason; unattended?: boolean; peerAsk?: Message["peerAsk"]; origin?: WorkOrigin; sender?: ResolvedSender; trigger?: UsageTrigger; callId?: string; via?: "call"; reaction?: string; fromApp?: Message["fromApp"]; relay?: Message["relay"]; rowId?: string; first?: boolean; queuedAt?: number; mentions?: string[]; aheadOfOthers?: string } = {},
 ): QueuedSteer {
   const id = newId();
   const entry = queues.get(threadId) ?? { botId, items: [] };
@@ -118,6 +122,8 @@ export function queueSteeredMessage(
   const item = {
     messageId: id,
     ...(options.workBotOfferOwner !== undefined ? { workBotOfferOwner: options.workBotOfferOwner } : {}),
+    ...(options.workBotOfferSource !== undefined ? { workBotOfferSource: options.workBotOfferSource } : {}),
+    ...(options.workBotFollowUp !== undefined ? { workBotFollowUp: options.workBotFollowUp } : {}),
     text,
     prompt: options.prompt ?? text,
     replyToId: options.replyToId,
@@ -175,6 +181,28 @@ export function isSteeredMessageQueued(botId: string, threadId: string, queueId:
   return entry?.botId === botId && entry.items.some((item) => item.messageId === queueId);
 }
 
+export function workBotQueuedFollowups(botId: string, threadId: string, sourceMessageId: string): ReadonlyArray<QueueEntry["items"][number]> {
+  const entry = queues.get(threadId);
+  return entry?.botId === botId ? entry.items.filter(item => item.workBotOfferSource === sourceMessageId) : [];
+}
+
+export function safeWorkBotFollowups(botId: string, threadId: string, source: Message): boolean {
+  const items = workBotQueuedFollowups(botId, threadId, source.id), first = items[0];
+  return items.every(item => item.sender?.id === source.sender?.id && item.trigger?.kind === source.workBotRouting?.triggerKind && JSON.stringify(item.trigger ?? null) === JSON.stringify(first?.trigger ?? null) && item.workBotOfferOwner === first?.workBotOfferOwner && (!item.workBotFollowUp || item.workBotFollowUp === "queue") && !item.replyToId && !item.dataContext && !item.reason && !item.unattended && !item.peerAsk && !item.origin && !item.via && !item.callId && !item.fromApp && !item.reaction && !item.relay && !item.rowId && !item.mentions?.length && item.prompt === item.text && !unsupportedWorkBotContext([{ id: item.messageId, role: "user", kind: "text", at: item.queuedAt, text: item.text }]));
+}
+
+export function forgetTransferredWorkBotFollowups(botId: string, threadId: string, sourceMessageId: string, ids: readonly string[]): void {
+  const entry = queues.get(threadId);
+  if (!entry || entry.botId !== botId || ids.some(id => !entry.items.some(item => item.messageId === id && item.workBotOfferSource === sourceMessageId))) throw new Error("Queued work changed during handoff");
+  const committed = new Set(chatFollowups("bot").filter(row => row.ownerId === botId && row.threadId === threadId && row.status === "transferred").map(row => row.id));
+  if (ids.some(id => !committed.has(id))) throw new Error("Queued work has not been committed to the destination");
+  const transferred = new Set(ids);
+  const remaining = entry.items.filter(item => !transferred.has(item.messageId));
+  if (remaining.length) queues.set(threadId, { botId, items: remaining });
+  else queues.delete(threadId);
+  changed();
+}
+
 /** Entries leave the map before running, so racing settles never fire one queue twice; one coalesced group drains per settle. */
 export function drainSteeredMessages(
   store: SteerStore,
@@ -189,6 +217,8 @@ export function drainSteeredMessages(
   ) => void | Promise<void>,
   isBlocked?: (botId: string, threadId: string, head: SteerQueueHead) => boolean,
   offerWorkBot?: (botId: string, threadId: string, text: string, owner: string, messageId: string) => void,
+  routeWorkBot?: (botId: string, threadId: string, item: QueueEntry["items"][number], message: Message) => boolean,
+  refreshPrompt?: (threadId: string, item: QueueEntry["items"][number]) => string,
 ): void {
   // deleting only the entry being visited is safe under Map iteration
   for (const [threadId, entry] of queues) {
@@ -204,7 +234,10 @@ export function drainSteeredMessages(
     if (bot.busy || isBlocked?.(entry.botId, threadId, entry.items[0])) continue;
     // isBlocked can re-enter this drain; if a nested drain took this entry, it is stale.
     if (queues.get(threadId) !== entry) continue;
-    const group = drainCoalesceHead(entry.items, coalesceIdentity, (item) => item.queuedAt);
+    const first = entry.items[0];
+    const canRoute = (item: QueueEntry["items"][number]) => Boolean(routeWorkBot && typeof item.workBotOfferOwner === "string" && !item.rowId && !item.dataContext && !item.mentions?.length && (item.trigger?.kind === "user" || item.trigger?.kind === "owner") && (!item.replyToId || store.messagesFor?.(threadId).some(row => row.id === item.replyToId && row.kind === "text")));
+    const separatelyRouted = canRoute(first);
+    const group = separatelyRouted ? [first] : drainCoalesceHead(entry.items, item => `${coalesceIdentity(item)}:${canRoute(item)}`, (item) => item.queuedAt);
     const ids = group.map((item) => item.messageId);
     settleChatFollowups(ids, "dispatching");
     const rest = entry.items.slice(group.length);
@@ -234,9 +267,13 @@ export function drainSteeredMessages(
     }
     const last = appended.at(-1);
     if (!last) continue;
+    if (separatelyRouted && routeWorkBot?.(entry.botId, threadId, first, last)) {
+      settleChatFollowups(ids, null);
+      continue;
+    }
     for (const [index, item] of group.entries()) if (typeof item.workBotOfferOwner === "string") offerWorkBot?.(entry.botId, threadId, item.text, item.workBotOfferOwner, appended[index]!.id);
     // A blank line keeps each message its own Markdown block; otherwise a trailing attachment tag merges into the next and stops being an image.
-    const prompt = group.map((item) => item.prompt).join("\n\n");
+    const prompt = group.map((item) => refreshPrompt?.(threadId, item) ?? item.prompt).join("\n\n");
     const mentions = group.flatMap((item) => item.mentions ?? []);
     let running: void | Promise<void>;
     try {

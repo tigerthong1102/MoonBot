@@ -15,7 +15,7 @@ const RECHECK_MS = 2_000;
 const SETTLE_MS = 150;
 
 export interface JobRouteDeps {
-  store: Pick<Store, "bot" | "botByThread" | "groupByThread" | "taskByThread" | "groupTaskByThread" | "onChange">;
+  store: Pick<Store, "activePath" | "bot" | "botByThread" | "groupByThread" | "taskByThread" | "groupTaskByThread" | "onChange">;
   coordinator: Pick<Coordinator, "job">;
   groupThreadIsWorking(groupId: string, threadId: string): boolean;
   viewerFor(auth: RequestAuth): Viewer;
@@ -34,9 +34,11 @@ export function createJobRoutes(deps: JobRouteDeps): RouteHandler {
     const bot = store.botByThread(threadId);
     if (bot) {
       const task = store.taskByThread(bot.id, threadId);
+      const routing = store.activePath(threadId).findLast(row => row.workBotRouting && ["classifying", "waiting_choice", "dispatching"].includes(row.workBotRouting.state))?.workBotRouting;
+      const needsChoice = routing?.state === "waiting_choice" || routing?.recoveryBlocked === true;
       return {
-        kind: "bot", busy: task?.busy === true || task?.activity === "working" || task?.activity === "parked.computer",
-        ...(task?.activity ? { activity: task.activity } : {}), queued: hasQueuedSteeredMessages(bot.id, threadId) ? 1 : 0,
+        kind: "bot", busy: Boolean(routing) || task?.busy === true || task?.activity === "working" || task?.activity === "parked.computer",
+        ...(needsChoice ? { activity: "waiting-on-you" } : task?.activity ? { activity: task.activity } : {}), queued: hasQueuedSteeredMessages(bot.id, threadId) ? 1 : 0,
       };
     }
     const group = store.groupByThread(threadId);

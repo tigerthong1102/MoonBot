@@ -234,6 +234,7 @@ export interface RoutineChecks {
 }
 
 export interface RoutineManagerOptions {
+  beforeHandoffRoutineCommit?: (request: Pick<RoutineRequestCommit, "botId" | "threadId" | "messageId">, routines: readonly Routine[], runs: readonly RoutineRun[]) => void;
   file?: string;
   now?: () => number;
   /** Every payload must be `{ kind, … }`: the server numbers and replays frames by it. */
@@ -535,6 +536,10 @@ export class RoutineManager {
     return cloneRun(run);
   }
 
+  assertHandoffRoutineSafe(request: Pick<RoutineRequestCommit, "botId" | "threadId" | "messageId">): void {
+    this.options.beforeHandoffRoutineCommit?.(request, [...this.routines, ...this.unloadedRoutines], this.runs);
+  }
+
   create(input: RoutineInput, request?: RoutineRequestCommitFor<"create">): Routine {
     this.assertWritable();
     if (request) {
@@ -547,6 +552,7 @@ export class RoutineManager {
     }
     const at = this.now();
     const clean = sanitizeInput(input, at);
+    if (request && clean.enabled) this.assertHandoffRoutineSafe({ ...request, botId: clean.botId });
     clean.schedule = this.timedSchedule(clean.schedule);
     if (this.targetState(clean) === "missing") throw new Error(this.missingTargetMessage(clean.target));
     const nextRunAt = clean.enabled ? this.initialOccurrence(clean.schedule, at) : null;
@@ -610,6 +616,7 @@ export class RoutineManager {
       access: Object.hasOwn(patch, "access") ? patch.access : routine.access,
       deliver: Object.hasOwn(patch, "deliver") ? patch.deliver : routine.deliver,
     }, now);
+    if (request && clean.enabled) this.assertHandoffRoutineSafe({ ...request, botId: clean.botId });
     clean.schedule = this.timedSchedule(clean.schedule, routine.id);
     if (this.targetState(clean) === "missing") throw new Error(this.missingTargetMessage(clean.target));
     const scheduleChanged = JSON.stringify(clean.schedule) !== JSON.stringify(routine.schedule);
@@ -729,6 +736,7 @@ export class RoutineManager {
     }
     const routine = this.routines.find((r) => r.id === id);
     if (!routine) return null;
+    if (request) this.assertHandoffRoutineSafe({ ...request, botId: routine.botId });
     let run!: RoutineRun;
     const allocations: ResultsThreadAllocation[] = [];
     const previousDestination = routine.resultsThreadId;

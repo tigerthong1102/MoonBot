@@ -62,44 +62,8 @@ const ACTION_COPY = {
 const ROUTINE_REQUEST_FINGERPRINT_VERSION = 1 as const;
 
 export type { RoutineProposalInput, RoutineToolChangesInput, RoutineToolDefinitionInput, RoutineToolScheduleInput } from "./routine-request-schemas.ts";
-
-export interface RoutineRequestOptionCard {
-  title: string;
-  subtitle: string;
-  options: string[];
-  answered?: string;
-  dismissed?: boolean;
-  expired?: boolean;
-  requestId?: string;
-  tool?: string;
-  held?: string;
-  autoApplied?: boolean;
-  undone?: boolean;
-  routineRequest?: RoutineRequestCardData;
-}
-
-export interface RoutineRequestMessage {
-  id: string;
-  card?: RoutineRequestOptionCard;
-}
-
-export interface RoutineRequestStore {
-  messagesFor(threadId: string): RoutineRequestMessage[];
-  appendMessage(
-    threadId: string,
-    message: {
-      role: "bot";
-      kind: "options";
-      card: RoutineRequestOptionCard;
-      from?: { botId: string; name: string; color: string };
-    },
-  ): RoutineRequestMessage;
-  patchMessage(
-    threadId: string,
-    messageId: string,
-    patch: { card: RoutineRequestOptionCard },
-  ): RoutineRequestMessage | null;
-}
+import type { RoutineRequestOptionCard, RoutineRequestStore } from "./routine-request-store.ts";
+export type { RoutineRequestMessage, RoutineRequestOptionCard, RoutineRequestStore } from "./routine-request-store.ts";
 
 export interface RoutineRequestServiceOptions {
   store: RoutineRequestStore;
@@ -125,6 +89,7 @@ export interface ProposeRoutineRequestArgs {
   threadId: string;
   /** Untrusted model output; normalized by routineProposalSchema in propose(). */
   proposal: unknown;
+  requestMessageId?: () => string | undefined;
   from?: { botId: string; name: string; color: string };
   /** Caller/turn lease, checked synchronously right before the durable card append. */
   canCommit?: () => boolean;
@@ -1023,6 +988,8 @@ export class RoutineRequestService {
       messageInput.card.options = [];
       messageInput.card.dismissed = true;
     }
+    const requestMessageId = args.requestMessageId?.();
+    if (requestMessageId) messageInput.requestMessageId = requestMessageId;
     const message = this.store.appendMessage(threadId, messageInput);
     const proposal = {
       requestId,
@@ -1134,6 +1101,7 @@ export class RoutineRequestService {
           const patch = operation.action === "update"
             ? restorePatch(undo.before!, now)
             : { enabled: operation.action === "pause" };
+          if (patch.enabled) this.routines.assertHandoffRoutineSafe({ botId: owner, threadId: args.threadId, messageId: message.id });
           if (!this.routines.update(routineId, patch)) return stale;
           break;
         }
@@ -1141,6 +1109,7 @@ export class RoutineRequestService {
           routineId = operation.routineId;
           const before = undo?.before;
           if (!before) return cannot("This change can't be undone here.");
+          if (before.enabled) this.routines.assertHandoffRoutineSafe({ botId: owner, threadId: args.threadId, messageId: message.id });
           restoredId = this.routines.create({
             name: before.name,
             prompt: before.instructions,
@@ -1300,7 +1269,7 @@ export class RoutineRequestService {
       const resultId = this.apply(payload, message.id, fingerprint);
       return this.settleApplied(args.threadId, message.id, card, payload, resultId);
     } catch (error) {
-      const status = error instanceof RoutineRequestError ? error.status : 400;
+      const status = error instanceof RoutineRequestError ? error.status : (error as { code?: string } | null)?.code === "work_bot_schedule_conflict" ? 409 : 400;
       const detail = error instanceof Error ? error.message : String(error);
       const expired = error instanceof RoutineRequestError && error.terminal;
       this.store.patchMessage(args.threadId, message.id, {

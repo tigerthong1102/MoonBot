@@ -61,7 +61,6 @@ export interface BotMessageRouteDeps {
   registry: Pick<ProviderRegistry, "get">;
   /** On a team: the words for a turn with no AI to answer with, having told who can connect one. */
   noAiRefusal?(threadId: string, sender: ResolvedSender | undefined, instanceId?: string): Error | null;
-  offerWorkBot?(botId: string, threadId: string, text: string, owner: string, messageId: string): void;
   routines(): RoutineManager | null;
   handoffs: Pick<Handoffs, "current" | "steered">;
   /** The turn running in a thread now, as its runtime events name it. */
@@ -74,6 +73,7 @@ export interface BotMessageRouteDeps {
   DirectSendRefused: abstract new (...args: never[]) => { readonly status: number; readonly body: Record<string, unknown> };
   acceptDirectSend(input: DirectSendInput, guardedStart?: (currentAtStart: BotRecord) => Promise<DirectSendReceipt>): Promise<DirectSendReceipt>;
   directSendRefusal(botId: string, threadId: string): { status: number; body: Record<string, unknown> } | null;
+  transferredSend?(botId: string, threadId: string, sendId: string): boolean;
   startTurn(botId: string, text: string, opts?: {
     threadId?: string; replyTo?: Message; sendId?: string; sender?: ResolvedSender; trigger?: UsageTrigger; relayed?: boolean;
     dataContext?: DataContext; compactOnly?: boolean; cardContinuation?: boolean; editedMessageId?: string;
@@ -88,6 +88,7 @@ export interface BotMessageRouteDeps {
   requestedTaskBot(botId: string, rawThreadId: unknown): BotRecord;
   botForThread(botId: string, threadId: string): BotRecord | null;
   threadBusy(botId: string, threadId: string): boolean;
+  handoffStopRefusal?(botId: string, threadId: string): string | null;
   botAtThreadCapacity(botId: string): boolean;
   parksBehindCoordination(botId: string, threadId: string): boolean;
   activeGroupTurnForBot(botId: string): { group: GroupRecord; threadId: string } | null;
@@ -240,6 +241,12 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
       const notYours = cloudGuestSendRefusal(auth, threadId);
       if (notYours) return json(res, 403, { error: notYours });
       if (body.mode !== undefined && body.mode !== "chat" && body.mode !== "goal") return json(res, 400, { error: "mode must be chat or goal" });
+      const explicitSendId = parseSendId(body.sendId);
+      if (explicitSendId && deps.transferredSend?.(bot.id, threadId, explicitSendId)) {
+        if (guarded || pressed || fromAnApp || pointing || pageOpen || body.mode === "goal" || body.replyToId || body.dataContext || mentions?.length) return json(res, 409, { error: "sendId already belongs to another message" });
+        const receipt = await acceptDirectSend({ botId: bot.id, threadId, text: typed, sendId: explicitSendId, sender: messageSender(auth), trigger: usageTriggerFor(auth), personPresent: true, ...(followUp ? { followUp } : {}) });
+        return json(res, 202, receipt);
+      }
       if (body.mode === "goal") {
         if (guarded || pressed || fromAnApp || pointing) return json(res, 400, { error: "a goal is a plain typed message" });
         if (!store.taskByThread(bot.id, threadId)) return json(res, 404, userError("serverError.chat.missingConversation"));
@@ -262,7 +269,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
       if (pressed && !store.taskByThread(bot.id, threadId)) return json(res, 409, { error: "the bot switched tasks before it could receive the message" });
       const phone = fromPhone(auth);
       // A phone's send without an id gets one, so the turn it starts can be known as the phone's.
-      const sendId = parseSendId(body.sendId) ?? (phone ? randomUUID() : undefined);
+      const sendId = explicitSendId ?? (phone ? randomUUID() : undefined);
       const press = pressed ? prepareWidgetPress(store, threadId, body.widgetAction, sendId) : null;
       if (press && !press.ok) return json(res, press.status, { error: press.error });
       const answered = press ? serverPress(bot, threadId, press.messageId, press.action, auth) : null;
@@ -348,7 +355,6 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
           personPresent, workBotOfferOwner, admin: owners.admin(auth), ...(followUp ? { followUp } : {}),
           ...(mentions?.length && !press && !appSent ? { mentions } : {}),
         }, guardedStart);
-        if ("message" in receipt && workBotOfferOwner !== undefined) deps.offerWorkBot?.(bot.id, threadId, typed, workBotOfferOwner, receipt.message.id);
         press?.settle("queueId" in receipt ? receipt.queueId : undefined);
         appContext?.deliver();
         if (relayed && target && onBehalfOf) relayedReaction(threadId, target.id, onBehalfOf, relayed);
@@ -443,7 +449,6 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         for (const message of messages) handoffs.steered(bot.threadId, steerTarget, instance?.instanceId, message.id);
         const queueIds = held.items.map((item) => item.messageId);
         settleHeldSteeredQueue(held);
-        for (const [index, item] of held.items.entries()) if (typeof item.workBotOfferOwner === "string") deps.offerWorkBot?.(bot.id, bot.threadId, item.text, item.workBotOfferOwner, messages[index]!.id);
         return json(res, 200, { ok: true, steered: true, threadId: bot.threadId, messages, queueIds });
       }
       if (steered === "indeterminate") {
@@ -794,7 +799,10 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
       const stopRefused = (threadId: string): boolean => {
         const refusal = owners.stopRefusal(auth, threadId);
         if (refusal) json(res, 403, { error: refusal, code: "stop_not_yours" });
-        return refusal !== null;
+        if (refusal) return true;
+        const handoff = deps.handoffStopRefusal?.(bot.id, threadId);
+        if (handoff) json(res, 409, { error: handoff, code: "stop_in_assigned_bot" });
+        return Boolean(handoff);
       };
       if (typeof expectedThreadId === "string" && store.taskByThread(bot.id, expectedThreadId)) {
         if (!stopReachesLiveTurn(turnId, liveTurn(expectedThreadId))) return json(res, 200, { ok: true, outcome: "already-stopped" });

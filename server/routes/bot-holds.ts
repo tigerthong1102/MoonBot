@@ -15,6 +15,7 @@ export interface BotHoldRouteDeps {
   stop(botIds: readonly string[]): Promise<number>;
   /** Records the change in the admin activity log. */
   audit(entry: { kind: PauseKind; id: string; name: string; paused: boolean }, auth: RequestAuth, req: IncomingMessage): void;
+  busyMessage?(): string;
 }
 
 const body = z.union([
@@ -25,6 +26,7 @@ const body = z.union([
 const ALL = { id: "all", name: "Every bot" };
 
 export function createBotHoldRoutes(deps: BotHoldRouteDeps): RouteHandler {
+  let mutationBusy = false;
   return async ({ req, res, path, method, auth, json, readBody }) => {
     if (path !== "/api/paused") return PASS;
     if (method === "GET") return void json(res, 200, { ...deps.holds.state(), heldBots: deps.holds.heldBots() });
@@ -35,9 +37,17 @@ export function createBotHoldRoutes(deps: BotHoldRouteDeps): RouteHandler {
     const id = parsed.data.kind === "all" ? ALL.id : parsed.data.id;
     const name = parsed.data.kind === "all" ? ALL.name : deps.named(parsed.data.kind, id);
     if (name === null) return void json(res, 404, { error: kind === "bot" ? "No such bot." : "No such department." });
-    const { state, newlyHeld } = deps.holds.set(kind, id, paused);
-    const stopped = paused && newlyHeld.length ? await deps.stop(newlyHeld) : 0;
-    deps.audit({ kind, id, name, paused }, auth, req);
+    if (mutationBusy) return void json(res, 409, { error: deps.busyMessage?.() ?? "A pause change is still being processed. Try again when it finishes." });
+    mutationBusy = true;
+    try {
+    const { state } = deps.holds.set(kind, id, paused);
+    const toStop = paused ? deps.holds.heldInScope(kind, id) : [];
+    let stopped: number;
+    try {
+      stopped = toStop.length ? await deps.stop(toStop) : 0;
+    }
+    finally { deps.audit({ kind, id, name, paused }, auth, req); }
     json(res, 200, { ...state, heldBots: deps.holds.heldBots(), stopped });
+    } finally { mutationBusy = false; }
   };
 }

@@ -436,7 +436,7 @@ export async function launchVerificationServer(
     const renameTimeout = AbortSignal.timeout(Math.max(1, deadline - Date.now()));
     const rename = await fetch(`${url}/api/bots/${seeded[0].id}/profile`, {
       method: "PATCH",
-      headers: { "content-type": "application/json", origin: url },
+      headers: { "content-type": "application/json", origin: url, ...(parentEnv.OMB_TEST_DESKTOP_OWNER_TOKEN ? { "x-openmausbot-desktop-owner": parentEnv.OMB_TEST_DESKTOP_OWNER_TOKEN } : {}) },
       body: JSON.stringify({ name: FIXTURE_STARTER_BOT_NAME }),
       signal: signal ? AbortSignal.any([signal, renameTimeout]) : renameTimeout,
     });

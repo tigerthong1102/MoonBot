@@ -23,15 +23,34 @@ export function voiceNoteTexts(m: Pick<Message, "attachments">): string[] {
  * turn fold used to store as the message text, so moving the words onto the attachment changed no replay.
  * A room post (`peerPost`, stamped on every post_to_room append) or a webhook post (`webhookPost`) never had
  * its note folded in — the note is usually the caption itself — so those keep their post text alone. */
-export function contextText(m: Pick<Message, "text" | "attachments" | "peerPost" | "webhookPost">): string {
+export function routedWorkMarker(m: Pick<Message, "workBotRouting" | "workBotExecutionUncertain" | "workBotRecoveryPending" | "workBotHandoffSource" | "requestCancelled" | "requestPending" | "workBotCopy">): string | undefined {
+  if (m.workBotRouting?.state === "cancelled" || m.workBotCopy?.status === "cancelled" || (m.requestCancelled && (m.workBotRouting || m.workBotHandoffSource))) return "[This earlier request was stopped. Its execution status may be uncertain. Do not execute or repeat it automatically; check its results and ask before retrying.]";
+  if (m.workBotExecutionUncertain || m.workBotRecoveryPending || m.workBotCopy?.status === "unsettled" || (m.requestPending && (m.workBotRouting || m.workBotHandoffSource))) return "[This earlier request may already have started. Do not repeat it automatically; check its results and ask before retrying.]";
+  const route = m.workBotRouting;
+  if (!route?.sourceBotId || !route.targetBotId || route.sourceBotId === route.targetBotId || !["dispatching", "dispatched", "interrupted"].includes(route.state)) return undefined;
+  return route.state === "interrupted"
+    ? "[This request was handed to another bot, but its execution status is uncertain. Do not repeat it here; check the assigned bot before any retry.]"
+    : "[This request was assigned to another bot. Do not execute or repeat it here; continue the work in the assigned bot.]";
+}
+
+export function contextText(m: Pick<Message, "text" | "attachments" | "peerPost" | "webhookPost" | "workBotRouting" | "workBotExecutionUncertain" | "workBotRecoveryPending" | "workBotHandoffSource" | "requestCancelled" | "requestPending" | "workBotCopy">): string {
+  const routed = routedWorkMarker(m);
+  if (routed) return routed;
   const spoken = m.peerPost !== undefined || m.webhookPost ? [] : voiceNoteTexts(m);
   return spoken.length ? [m.text?.trim(), ...spoken].filter(Boolean).join("\n\n") : m.text ?? "";
 }
 
 /** A Live call's row (kind "call") and an engine's own compaction marker (kind "compaction", engineCompaction) are
  * records for people, never context. */
-export function isContextMessage(m: Pick<Message, "kind" | "text" | "digest" | "engineCompaction" | "roomRequest" | "attachments" | "peerPost" | "webhookPost">): boolean {
+export function isContextMessage(m: Pick<Message, "kind" | "text" | "digest" | "engineCompaction" | "roomRequest" | "attachments" | "peerPost" | "webhookPost" | "workBotRouting" | "workBotExecutionUncertain" | "workBotRecoveryPending" | "workBotHandoffSource" | "requestCancelled" | "requestPending" | "workBotCopy">): boolean {
   return Boolean(((m.kind === "text" || m.kind === "widget" || m.kind === "app") && contextText(m)) || (m.kind === "digest" && m.digest) || (m.kind === "compaction" && !m.engineCompaction) || m.roomRequest?.phase === "result");
+}
+
+export function stoppedWorkNeedsFreshSession(messages: readonly Message[]): boolean {
+  const stopped = messages.findLastIndex(message => message.workBotRouting?.state === "cancelled" || ((message.requestCancelled || message.requestPending) && (message.workBotRouting || message.workBotHandoffSource)));
+  if (stopped < 0) return false;
+  const laterRequests = new Set(messages.slice(stopped + 1).filter(message => message.role === "user").map(message => message.id));
+  return !messages.slice(stopped + 1).some(message => message.turnTerminal && message.turnSucceeded && message.requestMessageId && laterRequests.has(message.requestMessageId));
 }
 
 export interface HandedState {

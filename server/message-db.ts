@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
+import { createWorkBotMessageDb, migrateWorkBotLinks, WORK_BOT_LINK_SCHEMA } from "./work-bot-message-db.ts";
+import { CARD_KINDS, FAILED_CALL, ORDERING_AT, ORDERING_ROW, WORK_KINDS } from "./message-db-ordering.ts";
 
 import { DATA_DIR } from "./config.ts";
 import { peerProvenanceAuthor, type WorkOrigin } from "./peer-provenance.ts";
@@ -19,16 +21,6 @@ import type { Notification, NotificationLogEntry } from "../shared/notification.
 export type { SearchHit } from "./message-search-query.ts";
 
 const DB_FILE = () => join(DATA_DIR, "messages.db");
-/** The rows the Today page reads, and among them the failed tool calls. JSON.stringify escapes every quote inside a
- * string value, so a stored row holds the bare text "ok":false only as a real key. */
-const WORK_KINDS = "kind IN ('activity', 'digest', 'options')";
-const CARD_KINDS = "kind IN ('secret', 'signin', 'connector')";
-const FAILED_CALL = "kind = 'activity' AND instr(json, '\"ok\":false') > 0";
-/** The rows that order the thread list and the time each one counts at. SQLite uses messages_thread_order only for a
- * statement whose WHERE and MAX repeat these texts exactly. */
-const ORDERING_ROW = "((role = 'user' AND json_extract(json, '$.peerAsk') IS NULL) OR (role = 'bot' AND kind = 'text' AND (json_extract(json, '$.turnTerminal') = 1 OR json_extract(json, '$.turnId') IS NULL)))";
-const ORDERING_AT = "COALESCE(json_extract(json, '$.turnCompletedAt'), at)";
-
 let handle: DatabaseSync | null = null;
 let handlePath: string | null = null;
 let handleCheckedAt = 0;
@@ -88,6 +80,7 @@ function open(): DatabaseSync {
       payload TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS chat_followups_receipt ON chat_followups(kind, owner_id, thread_id, send_id);
+    ${WORK_BOT_LINK_SCHEMA}
     CREATE TABLE IF NOT EXISTS command_receipts (
       kind TEXT NOT NULL,
       key TEXT NOT NULL,
@@ -112,6 +105,7 @@ function open(): DatabaseSync {
   `);
   const notificationColumns = db.prepare("PRAGMA table_info(notification_log)").all() as Array<{ name: string }>;
   for (const added of ["for_person", "read_by"]) if (!notificationColumns.some((column) => column.name === added)) db.exec(`ALTER TABLE notification_log ADD COLUMN ${added} TEXT`);
+  migrateWorkBotLinks(db);
   ensureRecallIndex(db);
   ensureMemoryIndex(db);
   return db;
@@ -216,9 +210,9 @@ export interface FollowupPayload {
   trigger?: UsageTrigger;
   origin?: WorkOrigin;
   queuedAt?: number;
-  rowId?: string; mentions?: string[]; workBotOfferOwner?: string;
+  rowId?: string; mentions?: string[]; workBotOfferOwner?: string; workBotOfferSource?: string; workBotFollowUp?: import("../shared/follow-up.ts").FollowUp;
 }
-export type FollowupStatus = "pending" | "dispatching" | "interrupted" | "cancelled";
+export type FollowupStatus = "pending" | "dispatching" | "interrupted" | "cancelled" | "transferred";
 export interface ChatFollowup {
   id: string;
   kind: "bot" | "channel" | "aside";
@@ -464,6 +458,8 @@ export function appendMessage(threadId: string, message: Message): void {
     setActiveLeaf(threadId, message.id);
   });
 }
+
+export const { recoverLegacyWorkBotLinks, workBotLinksForThread, appendMessageBatch, transferQueuedWorkBotMessages, transferredChatFollowup, verifiedWorkBotFollowup, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, durableTransaction: writeFollowups, insertMessage, setActiveLeaf });
 
 export function updateMessage(threadId: string, message: Message): void {
   prepared("UPDATE messages SET at = ?, role = ?, kind = ?, text = ?, json = ?, search_text = ? WHERE thread_id = ? AND id = ?").run(message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), cjkSearchText(message.text), threadId, message.id);

@@ -29,6 +29,8 @@ const bot: BotAnnouncement = {
 };
 
 let saveGrant: () => Promise<Response>;
+let decision: () => Promise<Response> = () => json({ ok: true });
+let botRead: () => Promise<Response> = () => json({});
 const writes: string[] = [];
 const json = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status }));
 
@@ -49,7 +51,8 @@ beforeAll(async () => {
     if (options?.method && options.method !== "GET") writes.push(path);
     if (path.startsWith("/api/bots?")) return json({ bots: [bot], groups: [] });
     if (path === "/api/bots/bot/always-allow") return saveGrant();
-    if (path.endsWith("/respond")) return json({ ok: true });
+    if (path.endsWith("/respond")) return decision();
+    if (path.startsWith("/api/bots/new-bot?")) return botRead();
     return json({});
   });
   const container = document.createElement("div");
@@ -62,6 +65,8 @@ beforeAll(async () => {
 });
 beforeEach(() => {
   writes.length = 0;
+  decision = () => json({ ok: true });
+  botRead = () => json({});
   flushSync(() => dispatch({ type: "error", message: null }));
 });
 afterAll(() => {
@@ -95,5 +100,46 @@ describe("Always allow on an approval card", () => {
     expect(writes).toEqual(["/api/bots/bot/always-allow"]);
     expect(seen.error).toContain("200 tools");
     expect(onError).toHaveBeenCalledOnce();
+  });
+});
+
+
+describe("opening a newly created work bot", () => {
+  it("does not open a bot when its transcript snapshot is missing", async () => {
+    decision = () => json({ routingState: "dispatched", result: { state: "applied", bots: [{ id: "new-bot", action: "created" }] } });
+    botRead = () => json({ bot: { ...bot, id: "new-bot", threadId: "new-thread", messages: undefined } });
+    const onError = vi.fn();
+    flushSync(() => dispatch({ type: "select", id: "bot" }));
+    flushSync(() => dispatch({ type: "decideRequest", threadId: "thread", requestId: "work-request", behavior: "allow", openCreatedBot: true, onError }));
+    await settle();
+    expect(seen.selectedId).toBe("bot");
+    expect(onError).toHaveBeenCalledOnce();
+  });
+
+  it("does not change conversations after the user navigates while the bot loads", async () => {
+    let release!: (response: Response) => void;
+    decision = () => json({ routingState: "dispatched", result: { state: "applied", bots: [{ id: "new-bot", action: "created" }] } });
+    botRead = () => new Promise(resolve => { release = resolve; });
+    flushSync(() => dispatch({ type: "decideRequest", threadId: "thread", requestId: "work-request", behavior: "allow", openCreatedBot: true }));
+    await settle();
+    flushSync(() => dispatch({ type: "select", id: "bot" }));
+    const created = { ...bot, id: "new-bot", threadId: "new-thread", tasks: [{ threadId: "new-thread", title: "Thread", createdAt: 1 }], messages: [] };
+    release(new Response(JSON.stringify({ bot: created }), { status: 200 }));
+    await settle();
+    expect(seen.selectedId).toBe("bot");
+  });
+
+  it("waits for the bot to be readable before selecting it", async () => {
+    let release!: (response: Response) => void;
+    decision = () => json({ routingState: "dispatched", result: { state: "applied", bots: [{ id: "new-bot", action: "created" }] } });
+    botRead = () => new Promise(resolve => { release = resolve; });
+    flushSync(() => dispatch({ type: "decideRequest", threadId: "thread", requestId: "work-request", behavior: "allow", openCreatedBot: true }));
+    await settle();
+    expect(seen.selectedId).not.toBe("new-bot");
+    const created = { ...bot, id: "new-bot", threadId: "new-thread", tasks: [{ threadId: "new-thread", title: "Thread", createdAt: 1 }], messages: [] };
+    release(new Response(JSON.stringify({ bot: created }), { status: 200 }));
+    await settle();
+    expect(seen.selectedId).toBe("new-bot");
+    expect(seen.bots.some(candidate => candidate.id === "new-bot")).toBe(true);
   });
 });

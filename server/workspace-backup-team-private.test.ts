@@ -50,6 +50,13 @@ function teamData(root: string): void {
   db.exec("CREATE TABLE messages(thread_id TEXT, id TEXT, at INTEGER, role TEXT, kind TEXT, text TEXT, json TEXT, PRIMARY KEY(thread_id,id)); CREATE TABLE thread_state(thread_id TEXT PRIMARY KEY, active_leaf_id TEXT);"
     + " CREATE TABLE chat_followups(id TEXT PRIMARY KEY, kind TEXT, owner_id TEXT, thread_id TEXT, send_id TEXT, status TEXT, payload TEXT);"
     + " CREATE TABLE notification_log(id TEXT PRIMARY KEY, at INTEGER, kind TEXT, bot_id TEXT, bot_name TEXT, thread_id TEXT, group_id TEXT, title TEXT, body TEXT, avatar_url TEXT, for_person TEXT, read INTEGER);");
+  db.exec("CREATE TABLE work_bot_links(source_bot_id TEXT, source_thread_id TEXT, source_message_id TEXT, target_bot_id TEXT, target_thread_id TEXT)");
+  const link = db.prepare("INSERT INTO work_bot_links VALUES (?, ?, ?, ?, ?)");
+  link.run("bot", "main", "shared", "bot", "room-thread");
+  link.run("bot", "bob-chat", "private-source", "bot", "main");
+  link.run("bot", "main", "private-target", "bot", "bobs-inbox");
+  link.run("bobs-own", "main", "private-bot", "bot", "room-thread");
+  link.run("bot", "main", "private-target-bot", "bobs-own", "room-thread");
   ensureMemoryIndex(db);
   db.exec("CREATE TABLE command_receipts(kind TEXT, key TEXT, at INTEGER, result TEXT, PRIMARY KEY (kind, key))");
   db.prepare("INSERT INTO command_receipts VALUES ('memory', 'k', 1, ?)").run("Bob's receipted secret");
@@ -63,6 +70,7 @@ function teamData(root: string): void {
     db.prepare("INSERT INTO chat_followups VALUES (?, 'bot', 'bot', ?, 's', 'pending', ?)").run(`${thread}-f`, thread, JSON.stringify({ text }));
     db.prepare("INSERT INTO notification_log VALUES (?, 1, 'mention', 'bot', 'Scout', ?, NULL, ?, ?, NULL, ?, 0)").run(`${thread}-n`, thread, text, text, BOB);
   }
+  db.prepare("UPDATE messages SET json = ? WHERE thread_id = 'main'").run(JSON.stringify({ id: "main-m1", text: "team question", attachments: [{ path: "attachments/both.png" }], workBotRouting: { state: "dispatched", sourceBotId: "bot", targetBotId: "bobs-own", targetThreadId: "bobs-inbox" } }));
   db.prepare("VACUUM INTO ?").run(join(root, "messages.db"));
   db.close();
   const runtime = openRuntimeStore(join(root, "runtime.db"));
@@ -133,6 +141,8 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     for (const sql of ["SELECT thread_id AS id FROM messages", "SELECT thread_id AS id FROM thread_state", "SELECT thread_id AS id FROM chat_followups", "SELECT thread_id AS id FROM notification_log"]) {
       expect(table(messages, sql).map((row) => row.id).sort()).toEqual(["main", "outside-thread", "room-thread"]);
     }
+    expect(table(messages, "SELECT source_message_id AS id FROM work_bot_links").map(row => row.id)).toEqual(["shared"]);
+    expect(JSON.stringify(table(messages, "SELECT json FROM messages WHERE thread_id = 'main'"))).not.toContain("bobs-inbox");
     expect(table(runtime, "SELECT id FROM assignments").map((row) => row.id)).toEqual(["as-team"]);
     expect(table(runtime, "SELECT assignment_id AS id FROM assignment_events").map((row) => row.id)).toEqual(["as-team"]);
     expect(table(messages, "SELECT bot_id AS id FROM memory_files").map((row) => row.id)).toEqual(["bot"]);

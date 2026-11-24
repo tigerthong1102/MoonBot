@@ -41,7 +41,7 @@ export interface TeamSetupRequest {
   operations: TeamSetupOperation[];
   newTeams: string[];
   /** A specialist suggested by the main helper; creation requires a user decision even on Full access. */
-  workBotOffer?: { icon: WorkBotIcon; topic: string; sourceMessageId?: string };
+  workBotOffer?: { icon: WorkBotIcon; topic: string; sourceMessageId?: string; contextBlock?: "files" | "data" };
   deletion?: { botId: string; name: string; expectedRevision: string };
   result?: TeamSetupResult;
   resumed?: boolean;

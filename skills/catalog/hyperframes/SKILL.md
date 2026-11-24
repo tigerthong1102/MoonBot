@@ -9,6 +9,10 @@ license: Apache-2.0
 
 
 
+**Offline fonts.** When the user asks for offline work, defining a font by an installed family name alone is not sufficient: HyperFrames may fetch a font alias during `check`, `snapshot`, or render. Use font files that are already available and licensed for this use, copy them into the task project and explicitly declare each family with local `@font-face` URLs; use generic fallback families. Avoid remote stylesheet and media URLs. Where supported, restrict outbound network access for the entire rendering process and verify it; if that cannot be established, say so rather than claiming the work was offline. Do not package system fonts for distribution without permission.
+
+**HTML document structure.** Preserve the scaffolded `<!doctype html>`, `<html>`, `<head>`, and `<body>` tags, including their closing tags, when authoring the root composition. HyperFrames CLI 0.9.88 can fail to initialize its player when the source omits these tags even if a browser repairs the HTML; a visible GSAP timeline is not proof that the HyperFrames player initialized. If `check` or `snapshot` reports that `window.__player` was never set, inspect the document structure, fix it, and retry the real CLI before considering an alternative renderer.
+
 # HyperFrames
 
 **Design for the requested motion.** For character animation or a story, read `references/types/character.md` and `references/story.md` before planning shots. Treat camera moves over a still illustration as a storyboard, not character animation: give characters independent, timed poses and actions using a rig, suitably licensed animated footage, or an available authorized generation service. Keep their appearance consistent, make actions readable and sync speech, mouth movement and sound when requested. If the necessary source or capability is unavailable, say what is missing and identify any still-image version as a draft; do not silently deliver it as the requested animation.

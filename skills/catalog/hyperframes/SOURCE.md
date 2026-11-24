@@ -6,7 +6,7 @@ Upstream license https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347
 
 StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. The placeholder example in references/types/launch.md was changed to avoid implying an application-specific Settings path. The map and image-location instructions in references/film.md and preset instructions in references/look.md were adapted to omit excluded files. Other included upstream files retain their original contents.
 
-Included upstream references. Excluded upstream fonts, presets and helper scripts. Modified SKILL.md to use configured local tools and omit the usage beacon.
+Included upstream references. Excluded upstream fonts, presets and helper scripts. Modified SKILL.md to use configured local tools and omit the usage beacon. Added HTML document structure and offline font guidance after testing HyperFrames CLI 0.9.88.
 
 ## Excluded upstream files
 

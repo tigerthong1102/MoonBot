@@ -8,6 +8,7 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["07b62f68d600a9e3561f91133969587be1d2a8493dc11b7902454432dc6d4fca", "hyperframes"],
   ["b79c22ecb6679835c84e70cc8813fabf3df957bdb1dc09ad9a66b8373ec7fc3e", "comps-analysis"],
   ["29b7d808e8e049759e82ccbedb10999ec9149669716bda064fab55cc25cbad4c", "byted-text-to-speech"],
   ["0afa47ef879ebebe3f571aa8ac7f9b1775583ff273dcb52c1168996724ae417d", "gemini-api"],
@@ -66,6 +67,7 @@ const additionalOlderInstructions = new Map([
   ["pptx", new Set(["fe5e12c18ff824da4ec41527e0a0035e4b6825c6dfeba0219b3e9543bb4106ef"])],
   ["byted-seedream-image-generate", new Set(["6197608c6cca5877c44cafee20f0aca138d3c0ab56acb754809c149a773e35a1"])],
   ["hyperframes", new Set([
+    "37fe24371f4a1ef2be2c2e6feeb3c7d1d45c177db5a508a83177080d26226dcd",
     "5b3f2384088aae01eaf835ec1588128387432f7ddc112321f80dfa22b3ab7880",
     "11a2302d7b7d522d9878047c13e49ab92bec990dd8094136b51b9c7cbda44c4c",
     "6c35bb338eb62f222c950d878f8702de8baceff21a0b1c2b1c6462a44e118bf5",

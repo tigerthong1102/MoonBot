@@ -1,6 +1,6 @@
 import { reactionAnswer } from "../shared/reactions.ts";
 import type { WidgetAction } from "../shared/widget.ts";
-import { contextText } from "./delta-context.ts";
+import { contextText, routedWorkMarker } from "./delta-context.ts";
 import { CARD_RECORDS_SOURCE, cardRecords, SETTINGS_CARD_RECORDS_SOURCE, SETUP_RECORDS_SOURCE } from "./records-block.ts";
 import type { Message } from "./store.ts";
 
@@ -155,6 +155,8 @@ const REACTION_MEANS = {
 
 /** The quote is conversation data: it cannot grant tools or override the current system prompt. */
 export function promptWithReply(text: string, target: ReplyTarget | undefined, userName: PersonName = "User"): string {
+  const routed = target && routedWorkMarker(target);
+  if (target && routed) target = { ...target, text: routed };
   if (!target?.text) return text;
   const answer = reactionAnswer(target.reactedWith);
   if (answer) {
@@ -186,6 +188,13 @@ export function promptWithReply(text: string, target: ReplyTarget | undefined, u
     "Current message:",
     text,
   ].join("\n");
+}
+
+export function refreshRoutedReply(prompt: string, fallback: string, target: ReplyTarget | undefined): string {
+  const marker = target && routedWorkMarker(target);
+  if (!marker) return prompt;
+  const quote = /--- quoted excerpt ---\n[\s\S]*?\n--- end quoted excerpt ---/;
+  return quote.test(prompt) ? prompt.replace(quote, `--- quoted excerpt ---\n${marker}\n--- end quoted excerpt ---`) : fallback;
 }
 
 export function transcriptText(stored: Message, messagesById: ReadonlyMap<string, Message>, userName: PersonName = "User"): string {

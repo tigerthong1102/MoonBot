@@ -209,7 +209,7 @@ try {
   await until(() => evaluate(`Boolean(${composer})`), "the composer to stay usable while the suggestion is open");
   const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
   await send(extra);
-  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text === extra), "a second message to be accepted with the offer pending");
+  await until(async () => ((await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? []).some(row => row.text === extra), "a second message to be queued with the offer pending");
   assert.equal((await roster()).length, initialBots.length);
   await evaluate(`(${consent}).click()`);
   const accepted = await until(async () => {
@@ -232,6 +232,8 @@ try {
     const userIndex = rows.findIndex(row => row.role === "user" && row.text === workMessage);
     return userIndex >= 0 && rows.slice(userIndex + 1).some(row => row.role === "bot" && row.kind === "text") && bot && !bot.busy;
   }, "the handed-off work to finish");
+  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text === extra), "the queued message to reach the original conversation");
+  writeFileSync(path.join(evidence, "work-bot-prompt-fixture.json"), JSON.stringify(workPrompts(), null, 2) + "\n");
   assert.equal(workPrompts().length, 1);
   const handedOffScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "work-bot-handoff.png"), Buffer.from(handedOffScreenshot.data, "base64"));

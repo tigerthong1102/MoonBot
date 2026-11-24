@@ -248,7 +248,7 @@ import { createChiefNotices } from "./host/chief-notices.ts"; import { sessionHo
 import { createHandoffTicks } from "./handoff-ticks.ts"; import { IDLE_HTTP_SERVER } from "./due-timer.ts";
 
 const SESSION_READ_MAX_CHARS = 8_000;
-import { personOf, promptWithReply, replyTargetIn, speakerOf, transcriptText, type PersonName, type ReplyTarget } from "./replies.ts";
+import { personOf, promptWithReply, refreshRoutedReply, replyTargetIn, speakerOf, transcriptText, type PersonName, type ReplyTarget } from "./replies.ts";
 import type { DataContext } from "./data-context.ts";
 import { promptWithDataContext } from "../shared/data-context.ts";
 import { admit, roomTurnHolds } from "./admission.ts";
@@ -335,7 +335,7 @@ import { createTtsRoutes } from "./routes/tts.ts";
 import { turnStartLogLine } from "./turn-log.ts";
 import { TurnStops, outwardActions, stoppedTurnOutcome, turnEvidence } from "./turn-outcome.ts";
 import { buildRecoveryText, buildTurnContext, engineIsFresh, replaysNatively } from "./turn-context.ts";
-import { Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, sessionStart, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
+import { Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionStart, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
 import { extractReplayImages, extractTurnImages, videoFramesWithin } from "./turn-images.ts";
 import { callTitleExcerpt } from "./thread-title.ts";
 import { createThreadTitleGate, generateThreadTitle, llmThreadTitlesEnabled } from "./thread-title-generate.ts";
@@ -1175,6 +1175,7 @@ function autoRecallPrompt(bot: BotRecord, threadId: string, message: string, opt
       botId: bot.id, memoryIds: teamHost.memoryIds(bot.id, threadId),
       message,
       threadIds,
+      includeConversation: hit => !routedWorkMarker(store.messagesFor(hit.threadId).find(line => line.id === hit.messageId) ?? {}),
       label: (id) => {
         const room = roomByThread.get(id);
         if (room) return `room ${JSON.stringify(room.name)}`;
@@ -7226,6 +7227,7 @@ function drainQueuedSendsNow() {
       void workBotRouter.classify(threadId, message.id).catch(error => console.warn("Work bot routing failed", error instanceof Error ? error.name : "unknown error"));
       return true;
     },
+    (threadId, item) => refreshRoutedReply(item.prompt, item.text, item.replyToId ? store.messagesFor(threadId).find(message => message.id === item.replyToId) : undefined),
   );
 }
 

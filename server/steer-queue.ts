@@ -190,6 +190,7 @@ export function drainSteeredMessages(
   isBlocked?: (botId: string, threadId: string, head: SteerQueueHead) => boolean,
   offerWorkBot?: (botId: string, threadId: string, text: string, owner: string, messageId: string) => void,
   routeWorkBot?: (botId: string, threadId: string, item: QueueEntry["items"][number], message: Message) => boolean,
+  refreshPrompt?: (threadId: string, item: QueueEntry["items"][number]) => string,
 ): void {
   // deleting only the entry being visited is safe under Map iteration
   for (const [threadId, entry] of queues) {
@@ -244,7 +245,7 @@ export function drainSteeredMessages(
     }
     for (const [index, item] of group.entries()) if (typeof item.workBotOfferOwner === "string") offerWorkBot?.(entry.botId, threadId, item.text, item.workBotOfferOwner, appended[index]!.id);
     // A blank line keeps each message its own Markdown block; otherwise a trailing attachment tag merges into the next and stops being an image.
-    const prompt = group.map((item) => item.prompt).join("\n\n");
+    const prompt = group.map((item) => refreshPrompt?.(threadId, item) ?? item.prompt).join("\n\n");
     const mentions = group.flatMap((item) => item.mentions ?? []);
     let running: void | Promise<void>;
     try {

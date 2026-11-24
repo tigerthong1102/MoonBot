@@ -23,14 +23,24 @@ export function voiceNoteTexts(m: Pick<Message, "attachments">): string[] {
  * turn fold used to store as the message text, so moving the words onto the attachment changed no replay.
  * A room post (`peerPost`, stamped on every post_to_room append) or a webhook post (`webhookPost`) never had
  * its note folded in — the note is usually the caption itself — so those keep their post text alone. */
-export function contextText(m: Pick<Message, "text" | "attachments" | "peerPost" | "webhookPost">): string {
+export function routedWorkMarker(m: Pick<Message, "workBotRouting">): string | undefined {
+  const route = m.workBotRouting;
+  if (!route?.sourceBotId || !route.targetBotId || route.sourceBotId === route.targetBotId || !["dispatching", "dispatched", "interrupted"].includes(route.state)) return undefined;
+  return route.state === "interrupted"
+    ? "[This request was handed to another bot, but its execution status is uncertain. Do not repeat it here; check the assigned bot before any retry.]"
+    : "[This request was assigned to another bot. Do not execute or repeat it here; continue the work in the assigned bot.]";
+}
+
+export function contextText(m: Pick<Message, "text" | "attachments" | "peerPost" | "webhookPost" | "workBotRouting">): string {
+  const routed = routedWorkMarker(m);
+  if (routed) return routed;
   const spoken = m.peerPost !== undefined || m.webhookPost ? [] : voiceNoteTexts(m);
   return spoken.length ? [m.text?.trim(), ...spoken].filter(Boolean).join("\n\n") : m.text ?? "";
 }
 
 /** A Live call's row (kind "call") and an engine's own compaction marker (kind "compaction", engineCompaction) are
  * records for people, never context. */
-export function isContextMessage(m: Pick<Message, "kind" | "text" | "digest" | "engineCompaction" | "roomRequest" | "attachments" | "peerPost" | "webhookPost">): boolean {
+export function isContextMessage(m: Pick<Message, "kind" | "text" | "digest" | "engineCompaction" | "roomRequest" | "attachments" | "peerPost" | "webhookPost" | "workBotRouting">): boolean {
   return Boolean(((m.kind === "text" || m.kind === "widget" || m.kind === "app") && contextText(m)) || (m.kind === "digest" && m.digest) || (m.kind === "compaction" && !m.engineCompaction) || m.roomRequest?.phase === "result");
 }
 

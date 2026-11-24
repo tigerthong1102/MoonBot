@@ -127,6 +127,34 @@ describe("localComputerRelay", () => {
     expect(localComputerRelay("win32")({ name: "type_text", arguments: { pid: 4242, window_id: 7, text: "hi" } }, relayed)).toBeNull();
   });
 
+  it("preserves the raw native response only for a strictly addressed background click in a journalling Windows turn", async () => {
+    const { calls, relayed } = child(() => ({ content: [{ type: "text", text: after }], isError: true }));
+    const args = { pid: 4242, window_id: 7, element_token: "s00000001:1", delivery_mode: "background" };
+    expect(localComputerRelay("win32", true)({ name: "click", arguments: args }, relayed)).toBeNull();
+    expect(calls).toHaveLength(0);
+    for (const [name, input] of [
+      ["click", { ...args, count: 2 }],
+      ["click", { ...args, delivery_mode: "foreground" }],
+      ["click", { ...args, window_id: 0 }],
+      ["click", { ...args, element_token: "stale-format" }],
+      ["right_click", args],
+    ] as const) {
+      expect(await localComputerRelay("win32", true)({ name, arguments: input }, relayed))
+        .toMatchObject({ content: [{ type: "text", text: CLICK_SENT_UNCONFIRMED }] });
+    }
+    expect(await localComputerRelay("win32")({ name: "click", arguments: args }, relayed))
+      .toMatchObject({ content: [{ type: "text", text: CLICK_SENT_UNCONFIRMED }] });
+
+    // The client still hears the established warning for the exact legacy post-click failure;
+    // the journal receives the untouched reply through the bridge's separate raw path.
+    const raw = JSON.stringify({ id: 8, result: { content: [{ type: "text", text: after }], isError: true } });
+    expect(localComputerResultLine(raw)).toBe(raw);
+    expect(JSON.parse(localComputerResultLine(raw, true)).result).toMatchObject({
+      content: [{ type: "text", text: CLICK_SENT_UNCONFIRMED }],
+      structuredContent: { effect: "unverifiable", route: "global_input" },
+    });
+  });
+
   it("on Windows answers a sent click whose after-check failed as the click it was, and every other answer as it is", async () => {
     for (const name of ["click", "double_click", "right_click"]) {
       const { calls, relayed } = child(() => ({ content: [{ type: "text", text: after }], isError: true }));

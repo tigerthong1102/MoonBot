@@ -11,6 +11,7 @@ import { SavedStepsDispatch, type DispatchDeps, type EngineSlots } from "./dispa
 import { ComputerJournal, hostScope, type JournalCapability, type RequestJournal } from "./journal.ts";
 import { buildRecipe, otherToolsHarmless, personTextRequest } from "./rules.ts";
 import { RecipeStore } from "./store.ts";
+import { recordedWindowsDestination } from "./windows-destination.ts";
 
 export { COMPUTER_JOURNAL_PATH } from "./journal-tap.ts";
 
@@ -27,6 +28,7 @@ export interface SavedStepsDeps {
   folder?: (botId: string) => string;
   now?: () => number;
   platform?: NodeJS.Platform;
+  openCaller?: DispatchDeps["openCaller"];
 }
 
 export interface SettledRequest {
@@ -50,7 +52,7 @@ export interface SavedSteps {
   dispatch: SavedStepsDispatch;
   gateChecked(capability: JournalCapability): void;
   journals(owner: RequestOwner | undefined): boolean;
-  /** Saved steps can run on this server (macOS only in v1), whatever the setting says; clients show the switch only then. */
+  /** Whether the host supports saved steps regardless of the current setting; clients show the switch only then. */
   here(): boolean;
   routes: RouteHandler;
   journalRoutes(internal: { capability: JournalCapability; readBody(): Promise<unknown> }): RouteHandler;
@@ -59,8 +61,8 @@ export interface SavedSteps {
   observe(event: RuntimeEvent): void;
 }
 
-export function savedStepsEnabled(cfg: Pick<AppConfig, "features">): boolean {
-  return cfg.features?.savedSteps !== false;
+export function savedStepsEnabled(cfg: Pick<AppConfig, "features">, platform: NodeJS.Platform = process.platform): boolean {
+  return cfg.features?.savedSteps ?? (platform !== "win32");
 }
 
 const keepsFromSaving = (event: RuntimeEvent): boolean =>
@@ -68,8 +70,8 @@ const keepsFromSaving = (event: RuntimeEvent): boolean =>
 
 export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
   const platform = deps.platform ?? process.platform;
-  // Linux and Windows ship the cua-driver 0.41.3 Rust build; neither has been shown to answer list_windows and elements_complete as replay needs.
-  const enabled = () => platform === "darwin" && deps.enabled();
+  const supported = platform === "darwin" || platform === "win32";
+  const enabled = () => supported && deps.enabled();
   const journal = new ComputerJournal();
   const now = deps.now ?? Date.now;
   const recipes = new RecipeStore({ folder: deps.folder ?? botFolder, now: deps.now });
@@ -81,11 +83,12 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
   };
   const dispatch = new SavedStepsDispatch({
     recipes,
+    platform,
     enabled,
     publish: deps.publish,
     engines: deps.engines,
     stopped: deps.stopped,
-    openCaller: openComputerCaller,
+    openCaller: deps.openCaller ?? openComputerCaller,
     taint,
     withholdHandoff: deps.withholdHandoff,
     contextChanged: deps.contextChanged,
@@ -102,7 +105,8 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
     if (!enabled() || automated || !taken?.calls.length || !personTextRequest(request) || after.some((line) => line.role === "user") || !otherToolsHarmless(after)) return;
     const built = buildRecipe({ request: request.text ?? "", journal: taken, id: randomUUID(), now: now() });
     if (!built.ok || !dispatch.wouldReplay(threadId, built.recipe)) return;
-    recipes.save(botId, built.recipe);
+    if (platform === "win32" && !recordedWindowsDestination(built.recipe, taken)) return;
+    if (!recipes.save(botId, built.recipe)) return;
     deps.patchMessage(threadId, reply.id, { savedSteps: { recipeId: built.recipe.id, learned: true } });
   };
 
@@ -110,14 +114,15 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
     journal,
     recipes,
     dispatch,
-    routes: createSavedStepsRoutes({ bot: deps.bot, forget: (botId, id) => recipes.forget(botId, id) }),
+    routes: createSavedStepsRoutes({ bot: deps.bot, forget: (botId, id) => platform === "win32"
+      ? !dispatch.isReplaying(botId, id) && recipes.forgetAfterReview(botId, id) : recipes.forget(botId, id) }),
     gateChecked(capability) {
       const scope = hostScope(capability);
       if (scope) journal.gateChecked(scope);
       else if (capability.kind === "computer") journal.taint({ threadId: capability.threadId, generation: capability.generation });
     },
     journals: (owner) => owner?.personLine === true && personRequest(owner) && enabled(),
-    here: () => platform === "darwin",
+    here: () => supported,
     journalRoutes: (internal) => createComputerJournalRoutes({ ...internal, enabled, record: (scope, entry) => journal.record(scope, entry) }),
     requestSettled(settled) {
       const taken = journal.take(settled.threadId, settled.generations);

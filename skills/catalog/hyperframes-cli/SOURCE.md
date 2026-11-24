@@ -9,16 +9,3 @@ StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. O
 Excluded telemetry, feedback, cloud operations and upstream install instructions.
 
 ## Excluded upstream files
-
-- references/beats.md
-- references/cloud.md
-- references/cloudrun.md
-- references/compare-and-batch.md
-- references/conventions.md
-- references/doctor-browser.md
-- references/feedback.md
-- references/init-and-scaffold.md
-- references/lambda.md
-- references/lint-validate-inspect.md
-- references/preview-render.md
-- references/upgrade-info-misc.md

@@ -135,6 +135,12 @@ const __APP_VERSION__: string;
         onChange(callback: () => void): () => void;
       };
       openPersonalInbox?: () => Promise<void>;
+      personalInbox?: {
+        create(draft: { id: string; title: string; emails: string[] }): Promise<"ok" | "unauthorized" | "rate_limited" | "room_limit_or_conflict" | "invalid_request" | "unavailable">;
+        close(): Promise<void>;
+        bounds(rect: { x: number; y: number; width: number; height: number } | null): Promise<void>;
+        onVisibility(callback: (shown: boolean) => void): () => void;
+      };
       app?: { version: string; ownPage: boolean };
       organization?: import("../../electron/managed-desktop.mjs").ManagedDesktopBridge;
       cloudAccount?: import("../../electron/cloud-account.mjs").CloudAccountBridge;

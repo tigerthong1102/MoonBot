@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title data-i18n="personalInbox.pageTitle">Messages · StartupBot</title>
     <link rel="stylesheet" href="/inbox-skins.css" />
-    <link rel="stylesheet" href="/inbox.css?v=4" />
-    <script type="module" src="/inbox.js?v=13"></script>
+    <link rel="stylesheet" href="/inbox.css?v=5" />
+    <script type="module" src="/inbox.js?v=18"></script>
   </head>
   <body>
     <header>
@@ -52,8 +52,9 @@
                 </inbox-select></label
               >
               <label
-                ><span id="target-label" data-i18n="personalInbox.recipientEmail">Recipient email</span><input dir="auto" name="target" type="email" required
+                ><span id="target-label" data-i18n="personalInbox.recipientEmail">Recipient email</span><input dir="auto" name="target" required
               /></label>
+              <label id="group-recipients" hidden><span data-i18n="personalInbox.groupRecipients">Invite by email</span><input dir="auto" name="invitees" maxlength="2050" /></label>
               <details><summary data-i18n="personalInbox.mailOptions">Invitation email options</summary><fieldset>
                 <label
                   ><span data-i18n="personalInbox.recipientLanguage">Recipient’s language</span><inbox-select name="locale"></inbox-select></label
@@ -149,5 +150,14 @@
         </section>
       </div>
     </main>
+    <dialog id="close-conversation" aria-labelledby="close-conversation-title">
+      <form method="dialog">
+        <p id="close-conversation-title" data-i18n="personalInbox.confirmClose">Close this conversation and delete its shared history for everyone?</p>
+        <div>
+          <button class="ui-button" value="cancel" autofocus data-i18n="common.cancel">Cancel</button>
+          <button class="ui-button" value="confirm" data-i18n="personalInbox.closeRoom">Close conversation</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

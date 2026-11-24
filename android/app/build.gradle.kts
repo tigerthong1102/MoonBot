@@ -64,6 +64,8 @@ android {
         targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersionName
+        resValue("string", "startupbot_inbox_origin", providers.gradleProperty("startupbotInboxOrigin")
+            .orElse(providers.environmentVariable("STARTUPBOT_INBOX_ORIGIN")).orElse("").get())
     }
 
     splits {
@@ -113,6 +115,7 @@ android {
 
     buildFeatures {
         compose = true
+        resValues = true
     }
 
     packaging {

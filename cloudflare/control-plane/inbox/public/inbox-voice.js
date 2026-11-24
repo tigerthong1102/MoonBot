@@ -1,15 +1,19 @@
+import { connectMobileVoice } from "./mobile-inbox-voice.js";
+
 const formats = [
+  ["audio/mp4;codecs=mp4a.40.2", "m4a"],
   ["audio/webm;codecs=opus", "webm"],
   ["audio/mp4", "m4a"],
 ];
-const mime = () => typeof MediaRecorder === "function" &&
-  formats.find(([type]) => MediaRecorder.isTypeSupported(type));
+const recordingFormats = () => typeof MediaRecorder === "function"
+  ? formats.filter(([type]) => MediaRecorder.isTypeSupported(type))
+  : [];
 
 export function voiceComposer({ recordButton, dictateButton, cancelButton, status, draft, desktop, eligible, maxBytes, stage, changed, error, t }) {
-  const bridge = window.startupbotInboxVoice;
+  let bridge = window.startupbotInboxVoice;
   let active = null;
   const stopTracks = stream => stream?.getTracks().forEach(track => track.stop());
-  const supportsRecording = Boolean((!desktop || bridge) && navigator.mediaDevices?.getUserMedia && mime());
+  const supportsRecording = Boolean((!desktop || bridge) && navigator.mediaDevices?.getUserMedia && recordingFormats().length);
   const update = () => {
     recordButton.hidden = !supportsRecording || !maxBytes();
     dictateButton.hidden = !bridge;
@@ -49,16 +53,48 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
   function stopRecording(entry) {
     if (!entry.recorder) { discard(); return; }
     if (entry.recorder.state === "recording") {
+      entry.stopping = true;
       entry.recorder.stop();
       stopTracks(entry.stream);
     }
   }
+  function startRecorder(entry, candidates) {
+    entry.recorder = null;
+    for (const [index, [mimeType, extension]] of candidates.entries()) {
+      try {
+        const recorder = new MediaRecorder(entry.stream, { mimeType, audioBitsPerSecond: 32000 });
+        const chunks = [];
+        const startedAt = performance.now();
+        entry.recorder = recorder;
+        recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+        recorder.onerror = event => {
+          if (active !== entry || entry.recorder !== recorder) return;
+          if (!entry.stopping && !chunks.length && performance.now() - startedAt < 1000
+            && ["EncodingError", "UnknownError", "NotSupportedError"].includes(event.error?.name)
+            && entry.stream.getAudioTracks().some(track => track.readyState === "live")) {
+            startRecorder(entry, candidates.slice(index + 1));
+          } else if (release(entry)) error("voice_failed");
+        };
+        recorder.onstop = () => {
+          if (entry.recorder !== recorder || !release(entry) || !eligible()) return;
+          const file = new File(chunks, "startupbot-voice." + extension, { type: recorder.mimeType || mimeType });
+          if (file.size > maxBytes()) error("voice_failed");
+          else if (file.size) stage(file);
+        };
+        recorder.start();
+        changed();
+        return;
+      } catch {
+        entry.recorder = null;
+      }
+    }
+    if (release(entry)) error("voice_failed");
+  }
   async function record() {
     if (active?.type === "record") { stopRecording(active); return; }
     if (active || !eligible() || !maxBytes()) return;
-    const format = mime();
-    if (!format) return;
-    const [mimeType, extension] = format;
+    const candidates = recordingFormats();
+    if (!candidates.length) return;
     const entry = {type: "record"};
     active = entry;
     changed();
@@ -68,20 +104,8 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
       const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
       if (active !== entry || !eligible()) { stopTracks(stream); release(entry); return; }
       entry.stream = stream;
-      const recorder = new MediaRecorder(stream, {mimeType, audioBitsPerSecond: 32000});
-      entry.recorder = recorder;
-      const chunks = [];
-      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
-      recorder.onerror = () => { if (release(entry)) error("voice_failed"); };
-      recorder.onstop = () => {
-        if (!release(entry) || !eligible()) return;
-        const file = new File(chunks, "startupbot-voice." + extension, {type: mimeType});
-        if (file.size > maxBytes()) error("voice_failed");
-        else if (file.size) stage(file);
-      };
-      recorder.start();
       entry.timeout = setTimeout(() => stopRecording(entry), 60000);
-      changed();
+      startRecorder(entry, candidates);
     } catch (cause) {
       if (release(entry)) error(cause?.name === "NotAllowedError" || cause?.name === "NotFoundError" || cause?.message === "voice_unavailable" ?
         "voice_unavailable" : "voice_failed");
@@ -107,7 +131,7 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
       if (release(entry)) error("dictation_failed");
     }
   }
-  bridge?.onDictation(message => {
+  function onDictation(message) {
     const entry = active;
     if (entry?.type !== "dictate" || entry.id !== message.id) return;
     if (typeof message.text === "string") {
@@ -119,7 +143,9 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
     } else if (release(entry) && message.status !== "done") {
       error(message.status === "unavailable" ? "dictation_unavailable" : "dictation_failed");
     }
-  });
+  }
+  if (bridge) bridge.onDictation(onDictation);
+  else bridge = connectMobileVoice(onDictation, connected => { bridge = connected; changed(); });
   recordButton.onclick = () => void record();
   dictateButton.onclick = () => void dictate().catch(() => { discard(); error("dictation_failed"); });
   cancelButton.onclick = discard;
@@ -128,6 +154,7 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
     if (event.key === "Escape" && active) { event.preventDefault(); discard(); }
   });
   window.addEventListener("pagehide", discard);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) discard(); });
   return { update, discard, get active() { return Boolean(active); } };
 }
 export function isVoiceMessage(name) {

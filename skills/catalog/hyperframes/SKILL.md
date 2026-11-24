@@ -1,13 +1,73 @@
 ---
 name: hyperframes
-description: "Build videos with local HyperFrames"
+description: Read first to make, edit, animate or render any video with HyperFrames (HTML rendered to video), including launch films, explainers, music videos, charts, maps, vertical clips, title cards, captions and overlays. Holds the render contract, the work loop and what each kind of video needs.
 license: Apache-2.0
 ---
 
-**StartupBot adaptation, 2026-11-19.** Source and changes are recorded in SOURCE.md.
 
-Use the workspace and tools already configured for this task. Treat upstream examples as examples. Ask before installing software, changing permissions, spending money, or sending files or messages to a third party. Use credentials from the configured connector or protected environment. Keep private data and keys out of output, commands that log secrets, and sample files. Do not run updater or telemetry instructions from a reference. When a required tool is unavailable, report what is missing and continue with the authorized input already provided.
+**StartupBot adaptation.** The instructions and references are adapted from the Apache-2.0 upstream source in SOURCE.md. Use the configured AI account, including a supported subscription connection. Local rendering needs Node.js, HyperFrames, Chrome and FFmpeg. API credentials are only needed for services that require them. Use `HYPERFRAMES_NO_TELEMETRY=1` when running the CLI. Use local media and installed fonts, and do not follow reference instructions for telemetry, cloud upload, automated updates or service signup without the user's request. Resolve `npx hyperframes` examples to the installed CLI, do not download packages automatically. If a tool or service is missing, explain the dependency.
 
-# Build videos with local HyperFrames
 
-Use an existing HyperFrames installation to build a video from original or authorized media. Agree on duration, aspect ratio, script and output path. Confirm version-specific commands with the local CLI help. Lint, check and preview the composition and inspect frames around transitions. Render a local MP4 after reviewing the preview. Set HYPERFRAMES_NO_TELEMETRY=1 in the CLI environment. Use fonts already installed and cleared for the output.
+
+# HyperFrames
+
+For a short, simple video with a clear brief, start with a compact shot plan and create the project immediately. Read `references/format.md` and only the references needed for the requested effects. Use `hyperframes init <project> --example blank --non-interactive --skip-skills`, replace the placeholders, then check, inspect representative frames and render the requested file. Use installed local assets and fonts when the person requests an offline video. If the result cannot be rendered or a required tool is missing, report the concrete error and preserve the project.
+
+HyperFrames renders HTML to video by seeking a paused timeline frame by frame, so every render is identical; the person edits the same files in the Studio preview. Use it unless another framework or a plain browser recording is asked for. Use the installed `hyperframes` CLI. On the provisioned Mac, use `"$HOME/.local/share/startupbot/hyperframes/node_modules/.bin/hyperframes"`.
+
+`index.html` is the root composition: it declares the video's variables and mounts one scene per sub-composition from `compositions/`. Media and fonts live in `assets/`. A new project: `npx hyperframes init <dir> --skip-skills`. A website as the subject: `npx hyperframes capture <url> --json`.
+
+Build what was asked: no voiceover or captions and no new aspect ratio unless the request or the source calls for them; a film over ~15 s that tells something gets music and sound on its visible actions unless the person asked for silence (`references/sound.md`). A new video is 1920×1080 at 30 fps. A question, a hold or a loose idea gets an answer or a proposal, not an edit. Use the available local media and tools to create effects, transitions and captions. When external generation or licensed assets are needed, explain the requirement and use an authorized configured service. Show real things from their source (the product's screens, the brand's logo, a real place's imagery); draw only what has none.
+
+## Contract
+
+`npx hyperframes check --json` reports most violations with a `Fix:` line.
+
+1. Every timed element has `class="clip"`, `data-start` and `data-duration` in seconds, and shows over `[start, start + duration)`: land an end state just before its end. `data-track-index` is only a Studio lane (clips that never overlap share one: `references/format.md`); paint order is `z-index`.
+2. The video's length is the root's `data-duration`: overrun is cut, an early end holds the last frame.
+3. Each composition builds one paused timeline and registers it after its tweens: `window.__timelines["<data-composition-id>"] = tl`.
+4. No `Date.now()`, unseeded `Math.random()`, network fetches, timers or `repeat: -1`. Everything visible is a function of timeline time.
+5. Never tween `display`, `visibility` or `autoAlpha` on a `.clip`; animate a child.
+6. No CSS `transform` on an element GSAP transforms; animate transforms, not `left`/`top`/`width`/`height`.
+7. Never `play()`, `pause()` or seek media. A `<video>` keeps its sound with `data-has-audio="true"`, else it is `muted`; music, voice, replacement sound and J/L cuts are a separate `<audio>`.
+8. Every `<audio>` has an `id` or it is left out of the mix. No `crossorigin` on media. Time the `<video>`, never its wrapper.
+9. Only the bundled fonts (`references/format.md`) resolve by name; any other family needs `@font-face` to a file in `assets/fonts/`.
+10. Asset paths: `assets/...` (no leading `/`), in sub-compositions too.
+11. Grades, grain, blur and vignettes on footage go through `npx hyperframes media-treatment`, never CSS filters.
+12. A scene file puts its styles, markup and scripts inside `<template>` and styles its root as `#root`. Intended overflow or overlap: `data-layout-allow-overflow`, `data-layout-allow-overlap`.
+
+## Keep it editable
+
+Studio edits the tags you write.
+
+- One scene per sub-composition, short readable ids; the root holds only scene hosts, media and audio.
+- Timed elements are written in the HTML, not made by script, each with a stable `id`.
+- Copy, brand colours and swappable media are variables (`data-var-text`, `data-var-src`, `var(--id)`).
+- One kind per track: `data-track-kind="graphics"` on scene and overlay hosts, `captions` on the one host that holds every caption group.
+- Content stays inside the 90% action-safe box, captions and key text inside 80% title-safe; Studio draws the guides, never add them.
+
+## Work loop
+
+- An existing project: `npx hyperframes timeline --json` shows what plays when; before any change, `npx hyperframes history --since mine --who <you>` shows what the person changed since your last turn: build on it (`/hyperframes-cli`).
+- A new film over ~15 s that tells something: its type's file (below), then `references/story.md`: three storylines that are three different films, in words only; the person picks unless they asked for the file or no stops. Then `SPEC.md` (`references/spec.md`): every adjective as a number, the defaults banned by name, the shots by frame.
+- After your last edit: `npx hyperframes check --json`; fix every error, weigh every warning. A film: `npx hyperframes snapshot --review` and `references/review.md`, ending in `REVIEW.md`. A small edit: snapshot what you changed (`--at`, `--range`, `--composition`) and look before you reply.
+- Render when the person approves the Studio preview, asks for the file or asks for no stops, after your check and review pass; otherwise stop at the preview and wait.
+
+## What to read
+
+| The request | Read |
+| --- | --- |
+| Another film's style on a new topic | `references/look.md` |
+| Launch, promo, feature | `references/types/launch.md` |
+| Explainer, tutorial | `references/types/explainer.md` |
+| Music video | `references/types/music.md` |
+| Chart, numbers | `references/types/data.md` |
+| Vertical or social clip | `references/types/vertical.md` |
+| 3D, simulation, generative | `references/types/3d.md` |
+| Character, mascot, story short | `references/types/character.md` |
+| A real place or map; a website, PR or script; kinetic type | `references/film.md` |
+| Captions; cards over a talking head | `references/captions.md`; `references/overlays.md` |
+| Motion: eases, titles, cuts, punch-ins, speed, holds | `references/motion.md` |
+| Scenes, attributes, media, lint; GSAP, Lottie, 3D, canvas | `references/format.md`; `references/runtimes.md` |
+
+Use the installed CLI version and its built-in help.

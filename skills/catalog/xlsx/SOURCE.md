@@ -4,7 +4,7 @@ Upstream directory https://github.com/anthropics/skills/tree/e4bb5d960d87126ff3b
 
 Upstream license https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/xlsx/LICENSE.txt
 
-StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. StartupBot also modified scripts/recalc.py to invoke the locally installed soffice directly with an isolated profile and report calculated array results that require new cells. Other included upstream files retain their original contents.
+StartupBot adapted SKILL.md for configured document tools and local dependencies. StartupBot also modified scripts/recalc.py to invoke the locally installed soffice directly with an isolated profile and report calculated array results that require new cells. Other included upstream files retain their original contents.
 
 Excluded third-party OOXML schemas and their dependent helpers. Retained the independent recalc helper.
 

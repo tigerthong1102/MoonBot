@@ -40,7 +40,7 @@ const REAL = [...new Set((SETTINGS_PLACES as readonly SettingsPlace[]).flatMap((
 const OTHER_APP = /(?:System|ChatGPT|Postiz →|Windows|macOS|iOS|Android|phone's|Chrome|Bot|bot's) $/;
 const SCANNED = ["server", "shared", "packages/phone-protocol/src", "skills", "electron"];
 const SOURCE = /\.(?:ts|mjs|md)$/;
-const TEST = /\.(?:test|node-test|e2e\.test)\.[cm]?[jt]s$|\/testing\//;
+const TEST = /\.(?:test|node-test|e2e\.test)\.[cm]?[jt]s$|[\\/]testing[\\/]/;
 
 function* sources(dir: string): Generator<string> {
   for (const name of readdirSync(dir)) {
@@ -66,6 +66,12 @@ function inventedPaths(text: string): string[] {
 }
 
 describe("menu paths in our own text", () => {
+  it("excludes test fixtures on Unix and Windows", () => {
+    expect(TEST.test("server/testing/fixtures/example.md")).toBe(true);
+    expect(TEST.test("server\\testing\\fixtures\\example.md")).toBe(true);
+    expect(TEST.test("server/production/example.md")).toBe(false);
+  });
+
   it("tell a stale path from a real one", () => {
     expect(inventedPaths('"Add it in Settings → API keys."')).toEqual(["Settings → API keys.\""]);
     expect(inventedPaths('"Sign in again in Settings → AI to keep using it."')).toEqual([]);

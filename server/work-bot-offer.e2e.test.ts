@@ -83,6 +83,7 @@ it.each(["deny", "allow", "queued", "codex"])("the main helper offers a bot with
     } else {
       expect(added).toHaveLength(1);
       expect(added[0]).toMatchObject({ id: result.result.bots[0]!.id, name, avatarCrop: "rounded" });
+      await expect.poll(async () => (await api<{ messages: Message[] }>(`/api/threads/${added[0]!.threadId}/messages`)).messages.some(row => row.role === "user" && row.text.includes(work)), { timeout: 15000 }).toBe(true);
       const png = await fetch(url + added[0]!.avatarUrl);
       expect(png.status).toBe(200);
       expect(Buffer.from(await png.arrayBuffer()).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");

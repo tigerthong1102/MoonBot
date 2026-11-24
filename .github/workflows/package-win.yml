@@ -112,7 +112,7 @@ jobs:
   ios:
     if: inputs.target == 'all' || inputs.target == 'ios'
     runs-on: macos-26
-    timeout-minutes: 35
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: node scripts/validate-pilot-origin.mjs
@@ -140,15 +140,4 @@ jobs:
           retention-days: 1
           compression-level: 0
       - name: Install and open StartupBot in iOS Simulator
-        run: |
-          read -r device runtime <<< "$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["deviceTypeIdentifier"]+" "+k for k,ds in sorted(json.load(sys.stdin)["devices"].items(),reverse=True) if ".iOS-" in k for d in ds if d["name"].startswith("iPhone")))')"
-          simulator=$(xcrun simctl create StartupBot-Inbox-Pilot "$device" "$runtime")
-          trap 'xcrun simctl delete "$simulator"' EXIT
-          xcrun simctl boot "$simulator"
-          xcrun simctl bootstatus "$simulator" -b
-          app="$RUNNER_TEMP/startupbot-derived/Build/Products/Debug-iphonesimulator/StartupBot.app"
-          xcrun simctl install "$simulator" "$app"
-          xcrun simctl launch "$simulator" ai.startupbot.ios
-          sleep 3
-          xcrun simctl io "$simulator" screenshot "$RUNNER_TEMP/ios-pilot.png"
-          test -s "$RUNNER_TEMP/ios-pilot.png"
+        run: python3 scripts/smoke-pilot-ios.py

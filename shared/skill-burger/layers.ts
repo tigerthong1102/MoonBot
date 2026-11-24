@@ -53,6 +53,8 @@ const BROWSER_LOOK = /(?:^|_)(?:snapshot|screenshot|read|get_text|status|tabs|wa
 const STATUS_ROW = /^[a-z]+: \S/;
 /** An input the driver clipped, or a value the server masked: the call can't be repeated as recorded. */
 const CLIPPED = /\[(?:additional data|large content|binary content) omitted\]|••••••|«redacted \d+ chars»/;
+const SHELL_OUTPUT_TOKENS = /'[^']*'|"(?:[^"\\]|\\[\s\S])*"|\\[\s\S]|(>\||>>?)/g;
+const NON_FILE_OUTPUT = /^(?:&\s*(?:\d+|-)|\/dev\/null|"\/dev\/null"|'\/dev\/null')(?=$|[\s;&|<>])/;
 
 function parse(text: string | undefined): Record<string, unknown> | undefined {
   if (!text) return undefined;
@@ -68,6 +70,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(v
 const text = (value: unknown): string | undefined => (typeof value === "string" && value.trim() ? value : undefined);
 const baseName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 const sentence = (words: string) => words.toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
+
+function capturesShellCommand(command: string): boolean {
+  if (parseRunCommand(command)) return true;
+  for (const match of command.matchAll(SHELL_OUTPUT_TOKENS)) {
+    if (match[1] && !NON_FILE_OUTPUT.test(command.slice(match.index + match[0].length).trimStart())) return true;
+  }
+  return false;
+}
 
 function slugParts(slug: string): { app: string; words: string } {
   const tokens = slug.split("_").filter(Boolean);
@@ -122,7 +132,7 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
     if (COMPUTER_LOOK.test(bare)) return [];
     if (bare === "exec" || bare === "run_command") {
       const full = text(input?.command);
-      if (!full || !parseRunCommand(full)) return [];
+      if (!full || !capturesShellCommand(full)) return [];
       return [{ ...base, id: message.id, kind: "shell", where: desk, tool: `${server}.exec`, words: shellLine(full), read: false, replay: clipped ? "ai" : "exact", args: { command: full } }];
     }
     const url = text(input?.url);
@@ -135,7 +145,7 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
   }
   if (bare === "vm_exec") {
     const full = text(input?.command);
-    if (!full || !parseRunCommand(full)) return [];
+    if (!full || !capturesShellCommand(full)) return [];
     return [{ ...base, id: message.id, kind: "shell", where: "vm", tool: "vm_exec", words: shellLine(full), read: false, replay: clipped ? "ai" : "exact", args: { command: full } }];
   }
   if (server && OWN_SERVERS.has(server)) return [];
@@ -183,9 +193,8 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
   }
   const command = text(tool.summary) ?? text(input?.command) ?? (nameIsCommand(tool.name) ? tool.name : undefined);
   if (command && (bare === "Bash" || bare === "shell" || bare === "vm_exec" || /^(?:exec_command|run_shell_command|bash|terminal)$/i.test(bare) || nameIsCommand(tool.name) || text(input?.command))) {
-    const parsed = parseRunCommand(command);
-    if (!parsed) return [];
     const full = text(input?.command) ?? command;
+    if (!capturesShellCommand(full) && (command === full || !parseRunCommand(command))) return [];
     const cwd = text(input?.cwd);
     return [{ ...base, id: message.id, kind: "shell", tool: bare === "vm_exec" ? "vm_exec" : "shell", words: shellLine(full), read: false, replay: clipped ? "ai" : "exact", args: { command: full, ...(cwd ? { cwd } : {}) } }];
   }

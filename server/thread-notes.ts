@@ -94,9 +94,6 @@ export function forgetInThreadNotes(botId: string, threadId: string, mentions: (
 
 type MemoryBody = { action?: unknown; text?: unknown; oldText?: unknown; until?: unknown; scope?: unknown };
 
-/** memory_update from a bot's turn, in `thread` when its saves default to that conversation's notes. "everywhere" and a
- * preference go to the bot's memory as before; forget reaches this conversation's notes as well as everything else. A
- * change to a passage that is only in MEMORY.md, with no scope given, changes it there. */
 export function scopedMemoryUpdate(
   layer: string,
   body: MemoryBody,
@@ -170,10 +167,7 @@ const cut = (text: string, max: number) => {
   return { text: text.slice(0, end), truncated: true };
 };
 
-/** session_search scope "threads": the bot's other conversations, never another bot's. With `threadId`, that
- * conversation's notes and a page of its messages, newest first, each cut short, before the message `before` names;
- * with `query`, the conversations whose title or notes hold every word; with neither, the newest. An id that is not one
- * of `threads` reads as not found, so the answer never says whether another bot's conversation exists. */
+/** Security: an inaccessible conversation is indistinguishable from a missing conversation. */
 export function reachThreads(input: {
   botId: string;
   current: string;

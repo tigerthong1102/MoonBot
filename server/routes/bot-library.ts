@@ -14,8 +14,7 @@ export interface BotLibraryRouteDeps {
 
 const LIBRARY = /^\/api\/bots\/([\w-]+)\/library$/;
 
-/** GET /api/bots/:id/library: the pages, apps and files the bot made in all of its conversations (shared/bot-library.ts).
- * Security: only conversations this viewer can read are searched, so on a Team Cloud another person's private
+/** Security: only conversations this viewer can read are searched, so on a Team Cloud another person's private
  * conversation names nothing here; a bot they cannot see reads as one that does not exist. */
 export function createBotLibraryRoutes(deps: BotLibraryRouteDeps): RouteHandler {
   return async ({ res, path, method, auth, json }) => {

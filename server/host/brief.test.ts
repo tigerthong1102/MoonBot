@@ -371,6 +371,20 @@ describe("the brief", () => {
     expect(records).toContain("Outlook draft");
   });
 
+  it("keeps long Outlook identifiers in draft records with or without cached headers", async () => {
+    const s = setup();
+    await s.brief.active("desktop", "UTC");
+    const id = `AAMk${"AB4m8".repeat(58)}=`;
+    const threadId = `AAQk${"cMn6z".repeat(45)}=`;
+    const email: EmailHeader = { ...ada, id, threadId, at: s.now() - MINUTE, app: "outlook" };
+    await s.brief.report({ routine: {} as never, at: s.now(), picked: [{ email, why: "Needs a reply.", needsReply: true }], trouble: [] });
+    const action = { type: "draft_reply", payload: { messageId: id } };
+    const identifiers = `id ${id} · thread ${threadId}`;
+    expect(s.brief.pressRecords(s.chief, action)).toContain(`${identifiers} · from Ada`);
+    s.restart();
+    expect(s.brief.pressRecords(s.chief, action)).toContain(`${identifiers}\n[end of records]`);
+  });
+
   it("opens an Outlook email in Outlook, never in Gmail", async () => {
     const s = setup();
     await s.brief.active("desktop", "UTC");

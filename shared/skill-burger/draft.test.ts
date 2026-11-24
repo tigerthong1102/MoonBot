@@ -139,6 +139,29 @@ describe("draftWorkflow", () => {
     expect(draft.workflow.args).toEqual({ value: { default: "staging" } });
   });
 
+  it("keeps a redirected write in order before the commands that use its file", () => {
+    const commands = ["printf report > report.txt", "cp report.txt archive.txt", "python make_appendix.py report.txt"];
+    const { workflow } = draftWorkflow([
+      ask("Archive the files and make the appendix"),
+      ...commands.map((command) => tool("Bash", { command }, { summary: command.split(" > ")[0] })),
+    ])!;
+    expect(workflow.steps.map((step) => step.kind === "shell" ? step.run : step.kind)).toEqual(commands);
+  });
+
+  it.each(["printf report >>report.txt", "printf report >| report.txt", "cat input.txt 2>errors.log", "printf report &>report.txt"])(
+    "captures the shell write %s",
+    (command) => {
+      expect(burgerLayers([ask("Save the data"), tool("Bash", { command })])).toMatchObject([{ kind: "shell", args: { command } }]);
+    },
+  );
+
+  it.each(["printf '%s' 'a > b'", 'printf "%s" "a > b"', "printf a\\>b", "cat < file.txt", "cat file.txt 2>&1", "cat file.txt > /dev/null"])(
+    "does not save %s as a file write",
+    (command) => {
+      expect(burgerLayers([ask("Read the data"), tool("Bash", { command })])).toEqual([]);
+    },
+  );
+
   it("writes long text the AI composed from a read with an AI step, marked non-deterministic", () => {
     const body = "Revenue rose 4% this week.\nTop region: West.\nNotes follow for the team, with every number checked against the sheet.";
     const draft = draftWorkflow([

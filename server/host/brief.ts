@@ -566,10 +566,11 @@ export function createBrief(deps: BriefDeps) {
     if (!row) return null;
     const header = headers.get(row.messageId);
     const outlook = row.app === "outlook";
+    const ids = `id ${clean(row.messageId, 512)} · thread ${clean(row.threadId, 512)}`;
     return [
       recordsBlock(outlook ? "Outlook" : "Gmail", [header
-        ? `id ${clean(row.messageId, 120)} · thread ${clean(row.threadId, 120)} · from ${clean(header.from, 160)} · subject ${clean(header.subject, 200)} · preview ${clean(header.preview, 300)}`
-        : `id ${clean(row.messageId, 120)} · thread ${clean(row.threadId, 120)}`]),
+        ? `${ids} · from ${clean(header.from, 160)} · subject ${clean(header.subject, 200)} · preview ${clean(header.preview, 300)}`
+        : ids]),
       outlook
         ? "Write a reply to this email as an Outlook draft replying to this message, to its sender, and leave it for the person to send. Do not send it."
         : "Write a reply to this email as a Gmail draft in the same thread, to its sender, and leave it for the person to send. Do not send it.",

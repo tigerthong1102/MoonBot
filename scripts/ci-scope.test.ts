@@ -276,6 +276,7 @@ describe("CI outputs", () => {
       "server/team-move.e2e.test.ts",
       "server/team-welcome.e2e.test.ts",
       "server/use-my-mac.e2e.test.ts",
+      "server/work-bot-team-private.e2e.test.ts",
       "server/workspace-banner.e2e.test.ts",
       "scripts/server-locale-plugin.test.ts",
       "server/server-lines.test.ts",

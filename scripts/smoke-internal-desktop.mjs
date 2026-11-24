@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { desktopSmokeNetwork } from "./desktop-smoke-network.mjs";
+import { smokeDesktopRestart, waitPortClosed } from "./smoke-desktop-restart.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({ options: { app: { type: "string" }, output: { type: "string" } } });
@@ -104,6 +105,7 @@ child.stderr.on("data", bytes => { output += bytes; appendFileSync(launchLog, by
 child.on("error", error => { output += `\n${error.stack}\n`; });
 let socket;
 let captureFailure = async () => {};
+const restartLifecycle = { started: false, stopped: false };
 let report = { platform: process.platform, arch: process.arch, app, status: "FAIL" };
 try {
   const target = await until(async () => {
@@ -368,34 +370,45 @@ try {
   }
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
+  const botIds = (await roster()).map(row => row.id);
+  if (mac) { socket.close(); child.kill("SIGTERM"); }
+  else await cdp("Browser.close").catch(() => {});
+  await until(() => child.exitCode !== null || child.signalCode !== null, "the first application shutdown", 45_000);
+  await waitPortClosed(port, "the first server to stop");
+  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, instructionsVerified: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion, declinedCompletion },
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
-    computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
-  await cdp("Browser.close").catch(() => {});
+    restart, computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };
 } catch (error) {
   report.error = error.stack;
   await captureFailure().catch(failure => { report.diagnosticsError = failure.message; });
   throw error;
 } finally {
   socket?.close();
-  if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
-  await until(() => child.exitCode !== null || child.signalCode !== null, "application shutdown", 15_000).catch(() => child.kill("SIGKILL"));
-  if (mac && report.status === "PASS") {
-    try {
+  let firstStopped = false;
+  try {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+    await until(() => child.exitCode !== null || child.signalCode !== null, "application shutdown", 15_000).catch(() => child.kill("SIGKILL"));
+    await until(() => child.exitCode !== null || child.signalCode !== null, "application exit", 15_000);
+    await waitPortClosed(port, "server shutdown");
+    firstStopped = true;
+    if (mac && report.status === "PASS") {
       const network = desktopSmokeNetwork(JSON.parse(readFileSync(netLog, "utf8")));
       writeFileSync(path.join(evidence, "chromium-network.json"), JSON.stringify(network, null, 2) + "\n");
       assert.equal(network.faviconRequests, 0, "Service badges requested an external favicon");
-    } catch (error) {
-      report.status = "FAIL";
-      report.error = error.message;
     }
+  } catch (error) {
+    report.status = "FAIL";
+    report.cleanupError = error.stack;
+  } finally {
+    if (!firstStopped || (restartLifecycle.started && !restartLifecycle.stopped)) report.retainedFixture = fixture;
+    writeFileSync(path.join(evidence, "desktop-smoke.json"), JSON.stringify(report, null, 2) + "\n");
+    const appLog = path.join(profile, "logs", "server.log");
+    writeFileSync(launchLog, output + (existsSync(appLog) ? `\n${readFileSync(appLog, "utf8")}` : ""));
+    if (!report.retainedFixture) rmSync(fixture, { recursive: true, force: true, maxRetries: 15, retryDelay: 200 });
   }
-  writeFileSync(path.join(evidence, "desktop-smoke.json"), JSON.stringify(report, null, 2) + "\n");
-  const appLog = path.join(profile, "logs", "server.log");
-  writeFileSync(launchLog, output + (existsSync(appLog) ? `\n${readFileSync(appLog, "utf8")}` : ""));
-  rmSync(fixture, { recursive: true, force: true, maxRetries: 15, retryDelay: 200 });
 }
 assert.equal(report.status, "PASS", report.error);
 console.log(JSON.stringify(report, null, 2));

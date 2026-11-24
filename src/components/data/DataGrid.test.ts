@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement, createRef, StrictMode, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
-import type { GridApi, IGetRowsParams } from "ag-grid-community";
+import { getGridApi, type GridApi, type IGetRowsParams } from "ag-grid-community";
 import { DATA_LIMITS, type DataColumn, type DataPage, type DataPageRequest } from "../../../shared/data-surface";
 
 const fixture = vi.hoisted(() => ({ api: vi.fn() }));
@@ -77,8 +77,10 @@ describe("AG Grid component lifecycle", () => {
     render("copy");
     await vi.waitFor(() => expect(handle.current?.visibleRows().rows).toEqual(rows));
     if (selected) {
-      const cell = host.querySelector<HTMLElement>('.ag-row[row-index="1"] .ag-cell')!;
-      flushSync(() => cell.click());
+      const grid = getGridApi(host.querySelector("[grid-id]"))!;
+      const row = grid.getDisplayedRowAtIndex(1)!;
+      flushSync(() => row.setSelected(true));
+      expect(grid.getSelectedNodes()).toEqual([row]);
       await vi.waitFor(() => expect(host.querySelector('.ag-row[row-index="1"]')?.getAttribute("aria-selected")).toBe("true"));
     }
     const viewport = host.querySelector('[data-testid="data-grid-viewport"]')!;

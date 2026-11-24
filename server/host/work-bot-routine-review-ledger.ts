@@ -17,7 +17,7 @@ export class WorkBotRoutineReviewLedger {
   readonly #now: () => number;
   readonly #ttlMs: number;
 
-  constructor(now: () => number = () => performance.now(), ttlMs = 120_000) {
+  constructor(now: () => number = () => performance.now(), ttlMs = 600_000) {
     if (!Number.isFinite(ttlMs) || ttlMs <= 0) throw new Error("Invalid routine review lifetime");
     this.#now = now;
     this.#ttlMs = ttlMs;

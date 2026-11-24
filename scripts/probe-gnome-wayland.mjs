@@ -48,7 +48,11 @@ try {
   const rpc = (method, params = {}) => new Promise((resolve, reject) => {
     const current = ++id;
     const timer = setTimeout(() => reject(new Error(method + " timed out")), 30000);
-    waiters.set(current, result => { clearTimeout(timer); result.error ? reject(new Error(result.error.message)) : resolve(result.result); });
+    waiters.set(current, result => {
+      clearTimeout(timer);
+      if (result.error) reject(new Error(result.error.message));
+      else resolve(result.result);
+    });
     proxy.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: current, method, params }) + "\n");
   });
   await rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "wayland-fixture", version: "1" } });

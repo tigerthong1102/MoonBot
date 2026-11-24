@@ -425,6 +425,50 @@ try {
   const declinedCompletion = await until(() => completedRequest(helper.threadId, declinedWork), "the declined request to finish in the main conversation");
   assert.deepEqual((await roster()).map(row => row.id).sort(), afterConsent.map(row => row.id).sort());
   assert.equal(declinedPrompts().length, 1);
+  await until(async () => !(await roster()).find(row => row.id === helper.id)?.busy, "the main helper to become idle before compaction");
+  const compacted = await request(`/api/bots/${helper.id}/compact`, { threadId: helper.threadId });
+  assert(compacted.status >= 200 && compacted.status < 300, "The synthetic conversation must allow compaction");
+  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.kind === "compaction" && row.compaction?.by === "person" && !row.compaction.fresh), "the synthetic conversation summary");
+  await until(async () => !(await roster()).find(row => row.id === helper.id)?.busy, "compaction to settle");
+  const blockedWork = "Theo dõi kết quả kiểm kho thử mỗi tuần.";
+  writeFileSync(textRoutes, JSON.stringify({ [blockedWork]: JSON.stringify({ name: "Kiểm kho", icon: "calendar" }) }));
+  const blockedPlan = JSON.parse(readFileSync(plan, "utf8"));
+  blockedPlan[helper.id].script.push({ key: "blocked-work", match: [blockedWork], reply: "Đã ghi nhận kiểm kho thử." });
+  writeFileSync(plan, JSON.stringify(blockedPlan));
+  await send(blockedWork);
+  const blocked = await until(async () => {
+    const rows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+    const source = rows.find(row => row.role === "user" && row.text === blockedWork);
+    const card = source && rows.map(row => row.card).find(value => value?.teamSetupRequest?.workBotOffer?.sourceMessageId === source.id && value.teamSetupRequest.workBotOffer.contextBlock === "data");
+    return card && { card, sourceId: source.id };
+  }, "the blocked offer for compacted context");
+  const blockedSection = `[...document.querySelectorAll('[data-work-bot-offer]')].find(card => card.innerText.includes(${JSON.stringify(blocked.card.title)}))`;
+  const contextExplanations = readdirSync(path.join(root, "src", "locales")).filter(name => name.endsWith(".json")).flatMap(name => {
+    const message = JSON.parse(readFileSync(path.join(root, "src", "locales", name), "utf8"))["server.workBot.dataUnavailable"];
+    return typeof message === "string" && message.trim() ? [message.trim()] : [];
+  });
+  assert(contextExplanations.length > 0, "The context warning must have a translation");
+  await until(() => evaluate(`(() => { const cards = [...document.querySelectorAll('[data-work-bot-offer]')].filter(card => card.innerText.includes(${JSON.stringify(blocked.card.title)})); const status = cards[0]?.querySelector('[role="status"]'); return cards.length === 1 && Boolean(status?.getClientRects().length && ${JSON.stringify(contextExplanations)}.includes(status.textContent.trim()) && getComputedStyle(status).visibility !== 'hidden'); })()`), "the visible explanation for unavailable context");
+  assert.equal(await evaluate(`(${blockedSection}).querySelectorAll('button').length`), 1, "A blocked offer must only allow continuing in the original conversation");
+  writeFileSync(path.join(evidence, "compacted-work-bot-offer.png"), Buffer.from((await cdp("Page.captureScreenshot", { format: "png" })).data, "base64"));
+  const refusal = await request(`/api/threads/${helper.threadId}/respond`, { requestId: blocked.card.requestId, behavior: "allow" });
+  assert.equal(refusal.status, 409, "A blocked handoff must not create a bot");
+  await evaluate(`(${blockedSection}).querySelector('button').click()`);
+  const blockedCompletion = await until(() => completedRequest(helper.threadId, blockedWork), "the blocked work to finish in its original conversation");
+  assert.equal(blockedCompletion.requestId, blocked.sourceId);
+  await until(async () => !(await roster()).find(row => row.id === helper.id)?.busy, "the source helper to become idle after blocked work");
+  assert(!((await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? []).some(row => row.text === blockedWork), "No blocked work may remain queued");
+  await new Promise(resolve => setTimeout(resolve, 1_000));
+  const settledRows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+  assert.equal(settledRows.find(row => row.card?.requestId === blocked.card.requestId)?.card?.teamSetupRequest?.result?.state, "denied");
+  assert(!((await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? []).some(row => row.text === blockedWork), "Blocked work must remain out of the queue");
+  assert.deepEqual((await roster()).map(row => row.id).sort(), afterConsent.map(row => row.id).sort());
+  const blockedPrompts = readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(blockedWork));
+  assert.equal(blockedPrompts.length, 1, "Blocked work must run once in the original conversation");
+  assert(JSON.stringify(blockedPrompts[0]).includes("Earlier conversation summary"), "The original provider must receive the saved summary");
+  writeFileSync(path.join(evidence, "compacted-work-bot-fixture.json"), JSON.stringify({ sourceId: blocked.sourceId, requestId: blockedCompletion.requestId, targetBotsCreated: 0, providerPrompts: 1, summaryPresent: true }) + "\n");
+  const freshStart = await request(`/api/bots/${helper.id}/start-fresh`, { threadId: helper.threadId });
+  assert(freshStart.status >= 200 && freshStart.status < 300, "The next independent fixture must start with fresh context");
   const created = await request("/api/bots", { name: "Internal package agent", cwd: home });
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
@@ -706,9 +750,9 @@ try {
   await until(() => child.exitCode !== null || child.signalCode !== null, "the first application shutdown", 45_000);
   await waitPortClosed(port, "the first server to stop");
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
-  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
+  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion },
+    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion, compactedContext: "PASS (blocked transfer; one source run with summary)" },
     artifactPreview: "PASS (synthetic Markdown opened from its conversation)",
     notificationNavigation: "PASS (feed enabled and opened in isolated profile)",
     permissionFixture: permissionCounts, workBotPermissions: handoffPermissions,

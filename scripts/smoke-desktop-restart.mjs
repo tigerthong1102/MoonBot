@@ -40,7 +40,7 @@ export async function waitPortClosed(port, label) {
   }), label, 15_000);
 }
 
-export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, expectedSkin, expectedWorkspace, stablePort }) {
+export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, expectedSkin, expectedWorkspace, stablePort }) {
   if (stablePort !== undefined && (!Number.isInteger(stablePort) || stablePort < 1024 || stablePort > 65535)) throw new Error("Invalid saved renderer port");
   if (expectedSkin && stablePort === undefined) throw new Error("Saved renderer port required for appearance verification");
   const port = stablePort ?? await freePort();
@@ -116,6 +116,14 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     }
     assert(rows.some(row => row.id === workRequestId && row.text === workMessage && row.requestPending === false));
     assert(rows.some(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === workRequestId && (replyText === undefined || row.text === replyText)));
+    if (blockedWork) {
+      const sourceRows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+      const matching = sourceRows.filter(row => row.role === "user" && row.text === blockedWork.text);
+      assert.equal(matching.length, 1);
+      assert.equal(matching[0].id, blockedWork.sourceId);
+      assert(sourceRows.some(row => row.turnTerminal && row.turnSucceeded && row.requestMessageId === blockedWork.sourceId));
+      assert.equal(sourceRows.find(row => row.card?.requestId === blockedWork.cardId)?.card?.teamSetupRequest?.result?.state, "denied");
+    }
     const botRow = `document.querySelector('[data-sidebar-bot-row="${workBot.id}"]')`;
     await until(() => evaluate(`Boolean(${botRow})`), "the restored bot in the sidebar");
     await evaluate(`${botRow}.click()`);

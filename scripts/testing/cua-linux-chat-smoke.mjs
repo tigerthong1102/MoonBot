@@ -6,17 +6,19 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { launchVerificationServer, runControlOmb } from "../control-omb.ts";
 
-export async function qualifyLinuxChat({ driver, driverProcess, socketPath, sandbox, fixtureTitle, startFixture, rpc, session, stop, until, multi = false }) {
+export async function qualifyLinuxChat({ driver, driverProcess, socketPath, sandbox, fixtureTitle, startFixture, rpc, session, stop, until, multi = false, wayland = false }) {
   const binary = realpathSync(driver);
   const stat = statSync(binary, { bigint: true });
   const fileIdentity = Object.fromEntries(["dev", "ino", "uid", "gid", "mode", "size", "mtimeNs", "ctimeNs"].map(key => [key, String(stat[key])]));
   const descriptor = {
-    schemaVersion: 1, mode: "linux-x11-supervised", platform: "linux", session: "x11", enabled: true, status: "ready",
+    schemaVersion: 1, mode: wayland ? "linux-wayland-gnome-supervised" : "linux-x11-supervised", platform: "linux", session: wayland ? "wayland" : "x11", enabled: true, status: "ready",
+    ...(wayland ? { compositor: "gnome-mutter" } : {}),
     ownerPid: process.pid, generation: randomUUID(),
     driver: { path: binary, version: "0.41.3", source: "environment", manifestSchema: "1", fileIdentity },
     daemon: { socketPath, pid: driverProcess.pid, contractVersion: "0.8.0", toolsListSchemaVersion: "1", capabilityVersion: "1", mcpProtocolVersion: "2025-06-18" },
     mcp: { command: binary, args: ["mcp", "--embedded", "--socket", socketPath], env: {
       CUA_DRIVER_EMBEDDED: "1", CUA_DRIVER_HOST_BUNDLE_ID: "ai.startupbot.desktop", CUA_DRIVER_RS_UPDATE_CHECK: "false", CUA_DRIVER_RS_TELEMETRY_ENABLED: "false",
+      ...(wayland ? { CUA_DRIVER_RS_ENABLE_WAYLAND: "1" } : {}),
     } },
     toolNames: ["click", "get_window_state", "list_apps", "type_text"], doctorWarnings: [],
   };
@@ -83,7 +85,7 @@ export async function qualifyLinuxChat({ driver, driverProcess, socketPath, sand
     assert.equal(await promptCount(), 1, "replay contacted the AI provider");
     const final = await rpc("tools/call", { name: "get_window_state", arguments: { ...reopened, session } });
     assert.equal(final.structuredContent?.window_title, "StartupBot Linux destination");
-    console.log("LINUX_CHAT_SAVED_STEPS_PASS", JSON.stringify({ learned: true, saved: true, restarted: true, replayed: true, steps: multi ? 2 : 1, extraProviderCalls: 0 }));
+    console.log("LINUX_CHAT_SAVED_STEPS_PASS", JSON.stringify({ session: wayland ? "gnome-wayland" : "x11", learned: true, saved: true, restarted: true, replayed: true, steps: multi ? 2 : 1, extraProviderCalls: 0 }));
   } finally {
     if (fixture) {
       await stop(fixture);

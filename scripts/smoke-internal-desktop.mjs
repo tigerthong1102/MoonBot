@@ -726,6 +726,41 @@ try {
   }
   writeFileSync(path.join(evidence, "permission-fixture.json"), JSON.stringify(permissionCounts, null, 2) + "\n");
   writeFileSync(path.join(evidence, "work-bot-permissions.json"), JSON.stringify(handoffPermissions, null, 2) + "\n");
+  const cancelWork = "Theo dõi tình trạng thiết bị giả hàng tuần.";
+  const cancelReady = path.join(fixture, "handoff-stop-ready"), cancelGate = path.join(fixture, "handoff-stop-gate"), cancelContinued = path.join(fixture, "handoff-stop-continued");
+  stoppedGateToRelease = cancelGate;
+  writeFileSync(textRoutes, JSON.stringify({ [cancelWork]: JSON.stringify({ name: "Thiết bị giả", icon: "calendar" }) }));
+  await evaluate(`${helperRow}.click()`);
+  await until(() => evaluate(`${helperRow}?.getAttribute('aria-current') === 'page'`), "the helper before the canceled handoff");
+  await send(cancelWork);
+  const cancelOffer = await until(async () => {
+    const rows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+    const source = rows.find(row => row.role === "user" && row.text === cancelWork);
+    const card = rows.find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === source?.id && !row.card.answered)?.card;
+    return source && card && { source, card };
+  }, "the cancellation fixture offer");
+  const cancelBotId = cancelOffer.card.teamSetupRequest.operations.find(operation => operation.action === "create")?.botId;
+  assert(cancelBotId);
+  writeFileSync(plan, JSON.stringify({ [cancelBotId]: { script: [{ key: "handoff-stop", match: [cancelWork], readyFile: cancelReady, gateFile: cancelGate, afterGateFile: cancelContinued, reply: "Canceled handoff must not finish." }] } }));
+  const cancelConsent = `[...document.querySelectorAll('[data-work-bot-offer]')].find(card => card.innerText.includes(${JSON.stringify(cancelOffer.card.title)}))?.querySelector('button')`;
+  await until(() => evaluate(`Boolean((${cancelConsent})?.getClientRects().length)`), "the cancellation fixture consent");
+  await evaluate(`(${cancelConsent}).click()`);
+  const cancelBot = await until(async () => (await roster()).find(row => row.id === cancelBotId), "the canceled handoff bot");
+  await until(() => evaluate(`document.querySelector('[data-sidebar-bot-row="${cancelBotId}"]')?.getAttribute('aria-current') === 'page'`), "navigation to the canceled handoff bot");
+  await until(() => existsSync(cancelReady), "the handed-off turn to reach its gate");
+  const cancelRows = () => request(`/api/threads/${cancelBot.threadId}/messages`).then(result => result.body.messages);
+  const cancelRequest = (await cancelRows()).find(row => row.role === "user" && row.workBotHandoffSource?.messageId === cancelOffer.source.id);
+  assert(cancelRequest?.id);
+  const cancelStopButton = `[...document.querySelectorAll('button[aria-label="Stop this turn"]')].filter(button => button.getClientRects().length)`;
+  await until(() => evaluate(`${cancelStopButton}.length === 1`), "one visible Stop button on the handed-off turn");
+  await evaluate(`${cancelStopButton}[0].click()`);
+  await until(async () => (await cancelRows()).find(row => row.id === cancelRequest.id)?.requestCancelled === true && !(await roster()).find(row => row.id === cancelBotId)?.busy, "the handed-off turn to stop");
+  writeFileSync(cancelGate, "release");
+  await new Promise(resolve => setTimeout(resolve, 1_000));
+  assert.equal(existsSync(cancelContinued), false, "Stopped handoff must not continue after its gate opens");
+  assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(cancelWork)).length, 1);
+  const canceledHandoff = { sourceId: cancelOffer.source.id, targetId: cancelBotId, threadId: cancelBot.threadId, requestId: cancelRequest.id, text: cancelWork, continued: cancelContinued };
+  writeFileSync(path.join(evidence, "work-bot-stop.json"), JSON.stringify({ ...canceledHandoff, continued: false }, null, 2) + "\n");
   const unauthenticated = await fetch(new URL("/api/auth/stream-ticket", target.url), { method: "POST", signal: AbortSignal.timeout(5_000) });
   assert([401, 403].includes(unauthenticated.status), "An external process must not inherit the renderer's mutation capability");
   assert.equal(createHash("sha256").update(readFileSync(sentinel)).digest("hex"), sentinelHash);
@@ -750,7 +785,7 @@ try {
   await until(() => child.exitCode !== null || child.signalCode !== null, "the first application shutdown", 45_000);
   await waitPortClosed(port, "the first server to stop");
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
-  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
+  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, canceledHandoff, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion, compactedContext: "PASS (blocked transfer; one source run with summary)" },
     artifactPreview: "PASS (synthetic Markdown opened from its conversation)",
@@ -758,6 +793,7 @@ try {
     permissionFixture: permissionCounts, workBotPermissions: handoffPermissions,
     reconnect: { status: "PASS", reconnectCompletion, oldStreamClosed: true, retryHandshakeFailed: true, replacementStreamOpened: true, notificationRecords: "at most one new record for fixture thread" },
     stopAfterNavigation: "PASS (synthetic turn canceled; no fake continuation observed for one second after a follow-up)",
+    stopAfterHandoff: "PASS (target request canceled and checked again after restart)",
     computerPanelNavigation: disposableDesktop ? "PASS (opened and closed on disposable runner; no desktop control)" : "NOT RUN (requires disposable desktop)",
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,

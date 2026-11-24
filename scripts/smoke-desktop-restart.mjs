@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createConnection, createServer } from "node:net";
 import path from "node:path";
 
@@ -40,7 +40,7 @@ export async function waitPortClosed(port, label) {
   }), label, 15_000);
 }
 
-export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, expectedSkin, expectedWorkspace, stablePort }) {
+export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, canceledHandoff, expectedSkin, expectedWorkspace, stablePort }) {
   if (stablePort !== undefined && (!Number.isInteger(stablePort) || stablePort < 1024 || stablePort > 65535)) throw new Error("Invalid saved renderer port");
   if (expectedSkin && stablePort === undefined) throw new Error("Saved renderer port required for appearance verification");
   const port = stablePort ?? await freePort();
@@ -137,6 +137,15 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     assert.equal(readFileSync(prompts, "utf8"), promptsBeforeRestart, "Restart must not issue another provider call");
     await new Promise(resolve => setTimeout(resolve, 3_000));
     assert.equal(readFileSync(prompts, "utf8"), promptsBeforeRestart, "Restart must not replay a pending request");
+    if (canceledHandoff) {
+      const source = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.find(row => row.id === canceledHandoff.sourceId);
+      const target = (await request(`/api/threads/${canceledHandoff.threadId}/messages`)).body.messages.find(row => row.id === canceledHandoff.requestId);
+      assert.equal(source?.workBotRouting?.targetBotId, canceledHandoff.targetId);
+      assert.equal(target?.workBotHandoffSource?.messageId, canceledHandoff.sourceId);
+      assert.equal(target?.requestCancelled, true);
+      assert.equal(existsSync(canceledHandoff.continued), false);
+      assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(canceledHandoff.text)).length, 1);
+    }
     if (followupText) {
       const before = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
       assert(!before.some(row => row.role === "user" && row.text === followupText));

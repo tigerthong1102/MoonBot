@@ -14,7 +14,16 @@ image="system-images;android-35;google_apis;x86_64"
 "$sdk/sdkmanager" --install "$image" emulator platform-tools
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
 test -x "$ANDROID_HOME/platform-tools/adb"
-echo no | "$sdk/avdmanager" create avd -n StartupBotPilot -k "$image"
+export ANDROID_AVD_HOME="$RUNNER_TEMP/pilot-avd"
+export ANDROID_USER_HOME="$RUNNER_TEMP/pilot-android-user"
+mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME"
+unset ANDROID_SDK_HOME
+printf 'no\n' | "$sdk/avdmanager" create avd --name StartupBotPilot --package "$image" --path "$ANDROID_AVD_HOME/StartupBotPilot.avd" --force
+test -f "$ANDROID_AVD_HOME/StartupBotPilot.avd/config.ini"
+if [[ ! -f "$ANDROID_AVD_HOME/StartupBotPilot.ini" ]]; then
+  printf 'avd.ini.encoding=UTF-8\npath=%s\ntarget=android-35\n' "$ANDROID_AVD_HOME/StartupBotPilot.avd" > "$ANDROID_AVD_HOME/StartupBotPilot.ini"
+fi
+"$ANDROID_HOME/emulator/emulator" -list-avds | grep -x StartupBotPilot
 sudo chown "$USER" /dev/kvm
 "$ANDROID_HOME/emulator/emulator" -avd StartupBotPilot -no-window -no-audio -no-snapshot -no-boot-anim -gpu swiftshader_indirect -memory 2500 > "$RUNNER_TEMP/emulator.log" 2>&1 &
 emulator_pid=$!

@@ -82,7 +82,7 @@ describe("editing an entry's detail with an input method", () => {
     const blur = vi.spyOn(input, "blur");
     press(input, { key: "Enter" });
     expect(blur).toHaveBeenCalledOnce();
-    // happy-dom does not deliver a React onBlur from the programmatic blur() the handler uses.
+    // happy-dom does not deliver React onBlur for programmatic blur().
     flushSync(() => input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
     await vi.waitFor(() => expect(request.mock.calls.some(([, init]) => init?.method === "PATCH")).toBe(true));
     const sent = request.mock.calls.find(([, init]) => init?.method === "PATCH")!;

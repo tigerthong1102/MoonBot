@@ -52,10 +52,7 @@ export function effectiveRoomTurnTimeoutMinutes(
 export const ROOM_TOOL_QUIET_LIMIT_MS = MAX_MCP_CALL_TIMEOUT_MINUTES * 60_000;
 
 export const ROOM_TURN_CLOCK_LOOK_MS = 5_000;
-/** Two looks more than this many periods apart: the process was suspended or its event loop blocked, which no timer can
- * tell apart, and neither is the turn's silence. On macOS (Electron 43) Node's timers and monotonic clock keep counting
- * while the computer sleeps, so a deadline due during the sleep fires the moment it wakes: only the gap between looks
- * tells the sleep apart. */
+/** On macOS (Electron 43), a deadline that becomes due during sleep can fire immediately after wake. */
 const SUSPENDED_LOOKS = 3;
 
 export interface RoomTurnClock {
@@ -77,9 +74,6 @@ const systemClock: RoomTurnClock = {
   },
 };
 
-/** Stops a turn that shows no progress for the limit, or for ROOM_TOOL_QUIET_LIMIT_MS while a tool runs; the clock
- * holds while the turn waits on a person or the computer, and while the computer sleeps; stray ends clamp the count at
- * zero. */
 export class RoomTurnDeadline {
   private limitMs: number;
   private clock: RoomTurnClock;

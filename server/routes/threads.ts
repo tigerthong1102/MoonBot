@@ -213,7 +213,7 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
       const mediaGrant = mediaId ? mediaLinks.use(mediaId, threadId, message.id, auth) : null;
       if (mediaId && !mediaGrant) return json(res, 404, { error: "that video link has expired", code: "media_link_expired" });
       const body = method === "POST" ? await readBody(req) : null;
-      // Access may have been revoked while the body was in flight; ask again before any file is opened.
+      // Authorization can change while the request body is streaming.
       if (body && !visibleTo(viewerFor(auth)).thread(threadId)) return json(res, 404, { error: "no such conversation" });
       const asksMediaLink = body?.media === true;
       const rawReference = streamsMessageImage ? url.searchParams.get("ref") : null;

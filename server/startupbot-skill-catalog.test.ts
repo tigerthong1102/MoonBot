@@ -93,7 +93,7 @@ it("upgrades original catalog folders and keeps their review choices", () => {
   }
 });
 
-it.each(["hyperframes-v2", "hyperframes-v3", "hyperframes-v4"])("upgrades the earlier %s skill", (version) => {
+it.each(["hyperframes-v2", "hyperframes-v3", "hyperframes-v4", "hyperframes-v5"])("upgrades the earlier %s skill", (version) => {
   const root = mkdtempSync(join(tmpdir(), "startupbot-hyperframes-upgrade-"));
   try {
     const catalog = join(root, "old-catalog");
@@ -111,6 +111,7 @@ it.each(["hyperframes-v2", "hyperframes-v3", "hyperframes-v4"])("upgrades the ea
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("compact shot plan");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("three visually distinct beats");
+    expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("read the complete JSON report");
     expect(readFileSync(join(library, "skills/hyperframes/references/types/launch.md"), "utf8")).toContain("Screenshot: motion preferences");
   } finally {
     rmSync(root, { recursive: true, force: true });

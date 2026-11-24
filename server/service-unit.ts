@@ -155,7 +155,9 @@ export function shippedSentinelCli(
     ? ["/Applications/StartupBot.app", join(home, "Applications", "StartupBot.app")].map((app) => ({
       node: join(app, "Contents", "MacOS", "StartupBot"), script: join(app, "Contents", "Resources", "server", "openmausbot.js"),
     }))
-    : platform === "linux" ? [{ node: "/opt/StartupBot/openmausbot", script: "/opt/StartupBot/resources/server/openmausbot.js" }] : [];
+    : platform === "linux" ? ["startupbot", "openmausbot"].map((binary) => ({
+      node: join("/opt/StartupBot", binary), script: "/opt/StartupBot/resources/server/openmausbot.js",
+    })) : [];
   return candidates.find((cli) => exists(cli.node) && exists(cli.script) && hasSentinel(cli.script)) ?? null;
 }
 

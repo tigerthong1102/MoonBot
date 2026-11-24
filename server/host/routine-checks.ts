@@ -269,6 +269,7 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
       const readOutlook = readable("outlook") && typeof session.outlookEmails === "function";
       if (readGmail || readOutlook) {
         const since = emailSince({ now: at, emailCursor: entry.mailCursor });
+        const judged = new Set([...(entry.judged ?? []), ...held]);
         const found: EmailHeader[] = [];
         let more = false;
         let mailRead = false;
@@ -287,7 +288,7 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
         }
         if (readOutlook) {
           try {
-            const outlook = await session.outlookEmails!(since, MAIL_READ_LIMIT);
+            const outlook = await session.outlookEmails!(since, MAIL_READ_LIMIT, judged);
             succeeded(entry, "outlook");
             found.push(...outlook.emails);
             more = more || outlook.more;
@@ -301,7 +302,6 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
           || (apps?.outlook === true && deps.mayRead(routine.botId, "outlook") && typeof session.outlookEmails === "function" && !readOutlook);
         if (mailRead) {
           const emails = [...new Map(found.map((email) => [email.id, email])).values()].sort((a, b) => b.at - a.at);
-          const judged = new Set([...(entry.judged ?? []), ...held]);
           const plan = planMail({ now: at, emails, judged });
           const waiting = plan.waiting.length;
           const advanced = waiting || more || mailFailed || skippedMail ? undefined : at;

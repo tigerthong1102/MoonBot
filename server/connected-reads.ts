@@ -352,6 +352,23 @@ export function outlookMessagesFromData(data: unknown): EmailHeader[] {
   return headers.sort((a, b) => b.at - a.at);
 }
 
+function outlookNextSkip(data: unknown, skip: number, size: number): number | undefined {
+  const response = record(data);
+  const next = [response, record(response?.response_data)]
+    .map((body) => body?.["@odata.nextLink"])
+    .find((value): value is string => typeof value === "string" && value.length > 0);
+  if (next) {
+    const raw = new URL(next).searchParams.get("$skip");
+    const offset = Number(raw);
+    if (!raw || !/^\d+$/.test(raw) || !Number.isSafeInteger(offset) || offset <= skip) {
+      throw new Error("the Outlook continuation did not provide a forward skip");
+    }
+    return offset;
+  }
+  const count = listIn(data, ["value", "messages"])?.length ?? 0;
+  return count >= size ? skip + count : undefined;
+}
+
 export function outlookMessageFromData(data: unknown): EmailHeader {
   const top = record(data);
   const header = outlookHeader(record(top?.message) ?? record(top?.response_data) ?? top);
@@ -443,7 +460,7 @@ export interface ReadSession {
   thread(threadId: string): Promise<ThreadMessage[]>;
   /** The connected Gmail account's own address. */
   address(): Promise<string>;
-  outlookEmails?(sinceMs: number, limit: number): Promise<EmailPage>;
+  outlookEmails?(sinceMs: number, limit: number, judged?: ReadonlySet<string>): Promise<EmailPage>;
   /** Null only when Outlook says the message is gone. */
   outlookMessage?(messageId: string): Promise<EmailHeader | null>;
 }
@@ -452,7 +469,7 @@ export interface ReadSession {
 export interface MailBodySession extends ReadSession {
   /** Null only when Gmail says the message is gone. */
   messageBody(messageId: string): Promise<string | null>;
-  outlookEmails(sinceMs: number, limit: number): Promise<EmailPage>;
+  outlookEmails(sinceMs: number, limit: number, judged?: ReadonlySet<string>): Promise<EmailPage>;
   /** Null only when Outlook says the message is gone. */
   outlookMessage(messageId: string): Promise<EmailHeader | null>;
   outlookBody(messageId: string): Promise<string>;
@@ -468,6 +485,7 @@ export interface ConnectedReads {
 const GMAIL_PAGE = 20;
 const GMAIL_PAGE_MIN = 5;
 const GMAIL_PAGES = 6;
+const OUTLOOK_PAGES = 24;
 
 type AccountPin = { accounts?: Promise<AppAccounts> };
 
@@ -618,26 +636,35 @@ export function createConnectedReads(deps: ConnectedReadDeps): Omit<ConnectedRea
         const data = await call(GMAIL_PROFILE_TOOL, { user_id: "me" });
         return parsed("gmail", () => profileFromData(data));
       },
-      async outlookEmails(sinceMs, limit) {
+      async outlookEmails(sinceMs, limit, judged) {
         requireFinite("outlook", sinceMs);
         let size = limit;
+        let skip = 0;
+        let more = true;
+        const emails = new Map<string, EmailHeader>();
         const pin: AccountPin = {};
-        for (;;) {
+        for (let pages = 0; pages < OUTLOOK_PAGES;) {
           const data = await call(OUTLOOK_LIST_TOOL, {
             user_id: "me", folder: "inbox", top: size, received_date_time_ge: new Date(sinceMs).toISOString(),
             select: ["id", "subject", "from", "receivedDateTime", "bodyPreview", "conversationId", "webLink"],
+            ...(skip ? { skip } : {}),
           }, { shortened: size > GMAIL_PAGE_MIN, pin });
           if (data === SHORTENED) {
             size = Math.max(GMAIL_PAGE_MIN, Math.floor(size / 2));
             continue;
           }
-          const emails = parsed("outlook", () => outlookMessagesFromData(data));
-          const response = record(data);
-          const hasNextLink = [response, record(response?.response_data)]
-            .some((body) => typeof body?.["@odata.nextLink"] === "string" && body["@odata.nextLink"].length > 0);
-          const pageLength = listIn(data, ["value", "messages"])?.length ?? 0;
-          return { emails: emails.slice(0, limit), more: hasNextLink || pageLength >= size };
+          pages++;
+          for (const email of parsed("outlook", () => outlookMessagesFromData(data))) {
+            if (!judged?.has(email.id)) emails.set(email.id, email);
+          }
+          const next = parsed("outlook", () => outlookNextSkip(data, skip, size));
+          if (next === undefined || emails.size >= limit) {
+            more = next !== undefined || emails.size > limit;
+            break;
+          }
+          skip = next;
         }
+        return { emails: [...emails.values()].sort((a, b) => b.at - a.at).slice(0, limit), more };
       },
       async outlookMessage(id) {
         const data = await call(OUTLOOK_MESSAGE_TOOL, {

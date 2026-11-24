@@ -36,10 +36,10 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean; con
         const found = inbox.filter((email) => email.at >= since).sort((a, b) => b.at - a.at);
         return { emails: found.slice(0, limit), more: found.length > limit };
       },
-      async outlookEmails(since, limit) {
+      async outlookEmails(since, limit, judged) {
         calls.push("outlookEmails");
         if (failing.outlook) throw new SourceError("outlook", failing.outlook, several.has("outlook"));
-        const found = outlookInbox.filter((email) => email.at >= since).sort((a, b) => b.at - a.at);
+        const found = outlookInbox.filter((email) => email.at >= since && !judged?.has(email.id)).sort((a, b) => b.at - a.at);
         const returned = Math.min(limit, limits.outlook);
         return { emails: found.slice(0, returned), more: found.length > returned };
       },
@@ -278,7 +278,6 @@ describe("a routine's checks", () => {
     expect(s.reports.at(-1)?.waiting).toBe(true);
     s.checks.commit(first.run!.key);
 
-    s.limits.outlook = Infinity;
     s.advance(15 * MINUTE);
     const second = await s.checks.check(routine, { manual: true });
     expect(s.checks.items(second.run!.key)?.mail.map((mail) => mail.id)).toEqual(["older"]);

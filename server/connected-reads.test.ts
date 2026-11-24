@@ -238,28 +238,70 @@ describe("a check's reads", () => {
     expect(outlookReads.every((one) => (one.args!.select as string[]).includes("webLink"))).toBe(true);
   });
 
-  it("marks an Outlook page as incomplete when a shortened response fills the smaller page", async () => {
+  it.each([{ marker: true, offset: 80 }, { marker: false, offset: 50 }])("continues after reducing a shortened Outlook page (marker: $marker)", async ({ marker, offset }) => {
     const { deps, frames } = relay({
       OUTLOOK_LIST_MESSAGES: (args) => {
         if (args.top === 100) return { successful: true, data_preview: {} };
-        return { successful: true, data: { value: Array.from({ length: 50 }, (_, i) => ({ id: `m${i}` })) } };
+        if (args.skip === offset) return { successful: true, data: { value: [{ id: "older" }] } };
+        return { successful: true, data: {
+          value: Array.from({ length: 50 }, (_, i) => ({ id: `m${i}` })),
+          ...(marker ? { "@odata.nextLink": `https://graph.microsoft.com/v1.0/me/messages?$skip=${offset}` } : {}),
+        } };
       },
     });
-    const page = await createConnectedReads(deps).session().outlookEmails(0, 100);
-    expect(page.emails).toHaveLength(50);
-    expect(page.more).toBe(true);
-    expect(frames.filter((one) => one.slug === "OUTLOOK_LIST_MESSAGES").map((one) => one.args?.top)).toEqual([100, 50]);
+    const page = await createConnectedReads({ ...deps, accounts: async () => ({ outlook: "ca_outlook" }) }).session().outlookEmails(0, 100);
+    expect(page.emails).toHaveLength(51);
+    expect(page.emails.at(-1)?.id).toBe("older");
+    expect(page.more).toBe(false);
+    const requests = frames.filter((one) => one.slug === "OUTLOOK_LIST_MESSAGES");
+    expect(requests.map((one) => [one.args?.top, one.args?.skip, one.item?.account])).toEqual([
+      [100, undefined, "ca_outlook"], [50, undefined, "ca_outlook"], [50, offset, "ca_outlook"],
+    ]);
   });
 
-  it("honors an Outlook continuation marker on a page smaller than the requested limit", async () => {
+  it("reads beyond the first Outlook page when the newest messages were already judged", async () => {
+    const messages = Array.from({ length: 5 }, (_, i) => ({ id: `m${i}` }));
+    const { deps, frames } = relay({
+      OUTLOOK_LIST_MESSAGES: (args) => {
+        const skip = Number(args.skip ?? 0);
+        const next = skip + Number(args.top);
+        return { successful: true, data: { response_data: {
+          value: messages.slice(skip, next),
+          ...(next < messages.length ? { "@odata.nextLink": `https://graph.microsoft.com/v1.0/me/messages?$skip=${next}` } : {}),
+        } } };
+      },
+    });
+    const session = createConnectedReads(deps).session();
+    expect(await session.outlookEmails(0, 2)).toMatchObject({ emails: [{ id: "m0" }, { id: "m1" }], more: true });
+    expect(await session.outlookEmails(0, 2, new Set(["m0", "m1", "m2", "m3"]))).toMatchObject({
+      emails: [{ id: "m4" }], more: false,
+    });
+    expect(frames.filter((one) => one.slug === "OUTLOOK_LIST_MESSAGES").map((one) => one.args?.skip)).toEqual([undefined, undefined, 2, 4]);
+  });
+
+  it("fails an Outlook read whose continuation repeats the current offset", async () => {
     const { deps } = relay({
-      OUTLOOK_LIST_MESSAGES: () => ({
-        successful: true,
-        data: { response_data: { value: [{ id: "o1" }], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/messages?$skip=1" } },
-      }),
+      OUTLOOK_LIST_MESSAGES: () => ({ successful: true, data: {
+        value: [{ id: "m1" }], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/messages?$skip=0",
+      } }),
     });
-    expect(await createConnectedReads(deps).session().outlookEmails(0, 100)).toMatchObject({
-      emails: [{ id: "o1" }], more: true,
+    await expect(createConnectedReads(deps).session().outlookEmails(0, 10)).rejects.toMatchObject({
+      app: "outlook", message: "the Outlook continuation did not provide a forward skip",
     });
+  });
+
+  it("reports more mail when an Outlook scan reaches its page limit", async () => {
+    const messages = Array.from({ length: 25 }, (_, i) => `m${i}`);
+    const { deps, frames } = relay({
+      OUTLOOK_LIST_MESSAGES: (args) => {
+        const offset = Number(args.skip ?? 0);
+        return { successful: true, data: {
+          value: [{ id: messages[offset] }],
+          "@odata.nextLink": `https://graph.microsoft.com/v1.0/me/messages?$skip=${offset + 1}`,
+        } };
+      },
+    });
+    expect(await createConnectedReads(deps).session().outlookEmails(0, 2, new Set(messages))).toEqual({ emails: [], more: true });
+    expect(frames.filter((one) => one.slug === "OUTLOOK_LIST_MESSAGES")).toHaveLength(24);
   });
 });

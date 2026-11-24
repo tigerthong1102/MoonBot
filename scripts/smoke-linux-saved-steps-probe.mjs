@@ -51,12 +51,12 @@ windowManager.once("error", (error) => {
 {
   // openbox claims the screen before it loads its theme and fonts, and a window mapped in between can go unmanaged;
   // _OB_THEME is set once that startup is done. A fresh runner can spend many seconds building the font cache.
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + 90_000;
   for (;;) {
     const { stdout } = await execFileAsync("xprop", ["-root", "_NET_SUPPORTING_WM_CHECK", "_OB_THEME"]).catch(() => ({ stdout: "" }));
     if (/window id #/.test(stdout) && /_OB_THEME\(UTF8_STRING\) =/.test(stdout)) break;
     if (windowManager.exitCode !== null || Date.now() > deadline) {
-      throw new Error("the window manager did not start on this display");
+      throw new Error(`the window manager did not start on this display: ${stdout}\n${windowManagerOutput}`);
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }

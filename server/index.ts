@@ -9330,12 +9330,13 @@ const teamSetupRequests = new TeamSetupRequestService({
   },
 });
 
-function offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal) {
+function offerWorkBot(botId: string, threadId: string, text: string, owner: string, messageId: string, signal?: AbortSignal, mayContinue?: () => boolean) {
   if (botMainThread(botId) !== threadId) return;
   const selection = store.projectBotForTask(botId, threadId)?.modelSelection;
   const instance = selection && registry.get(selection.instanceId);
   if (!instance || !selection) return;
   return teamSetupRequests.offerFromChat(botId, threadId, text, owner, messageId, () => {
+    if (mayContinue && !mayContinue()) return null;
     try { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); } catch { return null; }
     const current = store.projectBotForTask(botId, threadId)?.modelSelection;
     return botMainThread(botId) === threadId && current?.instanceId === selection.instanceId && current.model === selection.model &&
@@ -9348,14 +9349,14 @@ const workBotHost = createWorkBotHost({
   store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends,
   assertAvailable: () => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); },
   offerWorkBot, teamPersonFor: person => teamOwners.people?.everyone().find(entry => personKey({ id: "", email: entry.email }) === person),
-  sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM),
+  sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(),
   teamHost, conversationShares, threadStarters, threadBusy, startTurn,
 });
 const { workBotRouter, reconcileWorkBotBranch, workBotRoutingBlocks } = workBotHost;
 
 const resolveAndSendTeamSetup = createTeamSetupResponder({ store,
   assertAvailable: () => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); },
-  cloudTeam: Boolean(CLOUD_TEAM), teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter,
+  cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(), teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter,
   dataDir: DATA_DIR, answerCardNode, teamSetupDecisionText,
 });
 

@@ -9,11 +9,13 @@ import { sinceFreshStart } from "../fresh-start.ts";
 import { serverLine } from "../server-lines.ts";
 import { json } from "../harness/http.ts";
 import { appendDecision } from "../decision-log.ts";
+import { unsupportedWorkBotContext } from "../work-bot-context.ts";
 
 export function createTeamSetupResponder(deps: {
   store: Store;
   assertAvailable(): void;
   cloudTeam: boolean;
+  sharedNonTeam(): boolean;
   teamHost: { audienceOf(threadId: string): Audience };
   threadLanguage(threadId: string): string | undefined;
   assertTeamComputerChangeIdle(before: BotRecord, after: BotRecord): void;
@@ -23,7 +25,7 @@ export function createTeamSetupResponder(deps: {
   answerCardNode(threadId: string, messageId: string, text: string): boolean;
   teamSetupDecisionText(request: TeamSetupRequest): string;
 }) {
-  const { store, assertAvailable, cloudTeam, teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter, dataDir, answerCardNode, teamSetupDecisionText } = deps;
+  const { store, assertAvailable, cloudTeam, sharedNonTeam, teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter, dataDir, answerCardNode, teamSetupDecisionText } = deps;
 async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: string; threadId: string; requestId: string; behavior: string }, ownerReview: boolean): Promise<boolean> {
   const card = store.messagesFor(args.threadId).find((item) => item.card?.requestId === args.requestId && item.card.teamSetupRequest)?.card;
   if (!card) return false;
@@ -35,15 +37,16 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
     json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.legacyUnavailable") });
     return true;
   }
-  if (args.behavior === "allow" && cloudTeam && card.teamSetupRequest?.workBotOffer && audienceMember(teamHost.audienceOf(args.threadId))) {
-    json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.privateUnavailable") });
+  if (args.behavior === "allow" && card.teamSetupRequest?.workBotOffer && (sharedNonTeam() || (cloudTeam && audienceMember(teamHost.audienceOf(args.threadId))))) {
+    json(res, 409, { error: serverLine(threadLanguage(args.threadId), sharedNonTeam() ? "server.workBot.sharedUnavailable" : "server.workBot.privateUnavailable") });
     return true;
   }
   if (args.behavior === "allow" && card.teamSetupRequest?.workBotOffer) {
     const path = sinceFreshStart(store.activePath(args.threadId));
     const sourceIndex = path.findIndex(row => row.id === card.teamSetupRequest?.workBotOffer?.sourceMessageId);
-    if (sourceIndex >= 0 && path.slice(0, sourceIndex + 1).some(row => row.dataContext)) {
-      json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.dataUnavailable") });
+    const unsupported = sourceIndex >= 0 && unsupportedWorkBotContext(path.slice(0, sourceIndex + 1));
+    if (unsupported) {
+      json(res, 409, { error: serverLine(threadLanguage(args.threadId), unsupported === "data" ? "server.workBot.dataUnavailable" : "server.workBot.fileUnavailable") });
       return true;
     }
   }

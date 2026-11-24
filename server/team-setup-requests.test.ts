@@ -102,6 +102,24 @@ describe("reviewed Chief team setup", () => {
     expect(h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer?.topic ?? [])).toEqual(["Second work"]);
   });
 
+  it("does not publish an offer when eligibility changes while the provider is responding", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    h.messages.push({ id: "source", role: "user", text: "Follow the fixture report" });
+    let finish!: (answer: string) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>(resolve => { markStarted = resolve; });
+    const pendingAnswer = new Promise<string>(resolve => { finish = resolve; });
+    let allowed = true;
+    const pending = h.service.offerFromChat(h.chief.id, h.chief.threadId, "Follow the fixture report", "", "source", () => allowed ? { via: "engine", generateText: () => { markStarted(); return pendingAnswer; } } : null);
+    await started;
+    allowed = false;
+    finish('{"name":"Fixture report","icon":"tasks"}');
+    await pending;
+    expect(h.messages.some(row => row.card?.teamSetupRequest?.workBotOffer)).toBe(false);
+    expect(h.apply).not.toHaveBeenCalled();
+  });
+
   it("redacts input and drops a delayed result after its source is cleared", async () => {
     const h = harness();
     h.chief.defaultBot = {};

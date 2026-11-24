@@ -32,8 +32,9 @@ it("reopens a pending work-bot choice without dispatching it twice", async () =>
     const rows = async () => (await api<{ messages: Message[] }>(`/api/threads/${main.threadId}/messages`)).messages;
     await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text, sendId: randomUUID() });
     await expect.poll(async () => (await rows()).find(row => row.text === text)?.workBotRouting?.state, { timeout: 20000 }).toBe("waiting_choice");
-    fixture.child.kill("SIGTERM");
-    await new Promise<void>(resolve => fixture.child.once("exit", () => resolve()));
+    const originalChild = fixture.child;
+    originalChild.kill("SIGTERM");
+    await new Promise<void>(resolve => originalChild.once("exit", () => resolve()));
     const port = Number(new URL(base).port);
     const childEnv = verificationServerEnvironment(env, fixture.info.dataDir, port);
     restarted = spawn(process.execPath, verificationServerArgs(childEnv), { cwd: process.cwd(), env: childEnv, stdio: "ignore" });

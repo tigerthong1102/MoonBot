@@ -477,7 +477,7 @@ import { createChatAppRoutes, createChatApps, createChatAppsMcp } from "./routes
 import { buildBotOverview, type BotOverview, connectedAppsFacts } from "./bot-overview.ts";
 import { ProfileRequestService } from "./profile-requests.ts"; import { browserProfileLabel } from "./bot-browser-profile.ts";
 import { ModelRequestService } from "./model-requests.ts";
-import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts";
+import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts"; import { workBotCreationMode } from "./work-bot-permissions.ts";
 import { startsWithoutCloudComputer, teamSetupDecisionText as decisionText, type TeamSetupRequest } from "../shared/team-setup.ts";
 import { profileRevision, profileSnapshot } from "./profile-revision.ts";
 import { flushAllProfileHistory, flushProfileHistory, readHistory, recordProfileChange, soulChanges } from "./profile-versions.ts";
@@ -9316,7 +9316,7 @@ const modelRequests = new ModelRequestService({
 const teamSetupTeams = () => [...new Set(["", ...readSections(), ...store.bots.map((bot) => sectionKey(bot.section)), ...store.groups.map((group) => sectionKey(group.section))])];
 const teamSetupRequests = new TeamSetupRequestService({
   store, teams: teamSetupTeams, hasTeamAuthority, canPersist: proposalPersistence, maxBots: MAX_WORKSPACE_BOTS,
-  autoApply: appliesDirectly,
+  autoApply: appliesDirectly, workBotApprovalMode: (botId, threadId) => workBotCreationMode(sourceApprovalMode(botId, threadId), HOSTED_WORKSPACE),
   validateChange: (before, fields) => assertTeamComputerChangeIdle(before, { ...before, ...fields }),
   ownsThread: (botId, threadId) => Boolean(connectorThread(botId, threadId)),
   targetBusy: (botId, sourceThreadId) => {
@@ -9355,7 +9355,7 @@ const workBotHost = createWorkBotHost({
   assertAvailable: (botId, threadId) => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); if (botId && threadId) { const paused = botHolds.text(botId, threadLanguage(threadId)) ?? starterCaps.pausedText(botId, threadLanguage(threadId)); if (paused) throw Object.assign(new Error(paused), { status: 409 }); } },
   offerWorkBot, teamPersonFor: person => teamOwners.people?.everyone().find(entry => personKey({ id: "", email: entry.email }) === person),
   sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(),
-  teamHost, conversationShares, threadStarters, threadBusy, startTurn,
+  teamHost, conversationShares, threadStarters, threadBusy, approvalMode: sourceApprovalMode, startTurn,
 });
 const { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets } = workBotHost;
 for (const pending of pendingWorkBotRoutes()) { workBotRouter.recoverDispatch(pending.threadId, pending.message.id); if (pending.message.workBotRouting?.state === "waiting_choice" && pending.message.workBotRouting.requestId) workBotHost.annotateOfferContext(pending.threadId, pending.message.id, pending.message.workBotRouting.requestId); }

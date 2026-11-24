@@ -1,3 +1,4 @@
+import { levelWithin } from "../../shared/approval-mode.ts";
 import { defaultBotPerson } from "../../shared/default-bot.ts";
 import { sameModelSelection } from "../../shared/thread-model.ts";
 import { sameAccess } from "../../shared/bot-access.ts";
@@ -106,6 +107,7 @@ export function createWorkBotHost(deps: {
   conversationShares: { isShareKey(person: string): boolean };
   threadStarters: { get(threadId: string): string | undefined; setRequired(threadId: string, person: string): void };
   threadBusy(botId: string, threadId: string): boolean;
+  approvalMode(botId: string, threadId: string): import("../../shared/approval-mode.ts").ApprovalMode;
   startTurn(botId: string, text: string, opts: { threadId: string; userMessage?: Message; sender?: Message["sender"]; trigger: UsageTrigger; replyTo?: ReplyTarget; dataContext?: Message["dataContext"]; sendId?: string; allowRoomTurnElsewhere: true; workBotRoutingMessageId: string; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredText?: string[]; transferredMessageIds?: string[] } }): Promise<unknown>;
 }) {
   const { store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked, assertAvailable, offerWorkBot, teamPersonFor, sessionFor, cloudTeam, sharedNonTeam, teamHost, conversationShares, threadStarters, threadBusy, startTurn } = deps;
@@ -184,7 +186,7 @@ const workBotRouter = new WorkBotRouter({
     const bot = route?.sourceBotId ? store.bot(route.sourceBotId) : null;
     const owner = bot?.defaultBot ? defaultBotPerson(bot) : undefined;
     if (!source?.text || !route?.sourceBotId || !route.modelSelection || owner === undefined || route.ownerKey !== (owner ? personKey({ id: "", email: owner }) : "") || !sameModelSelection(store.projectBotForTask(route.sourceBotId, threadId)?.modelSelection, route.modelSelection)) return { interrupted: true };
-    if (sharedNonTeam() || (cloudTeam && audienceMember(teamHost.audienceOf(threadId)))) return null;
+    if (sharedNonTeam() || (cloudTeam && audienceMember(teamHost.audienceOf(threadId))) || deps.approvalMode(route.sourceBotId, threadId) === "custom") return null;
     const path = sinceFreshStart(store.activePath(threadId));
     const sourceIndex = path.findIndex(row => row.id === messageId);
     if (sourceIndex < 0) return { interrupted: true };
@@ -275,7 +277,12 @@ const workBotRouter = new WorkBotRouter({
           const member = person ? teamPersonFor(person) : undefined;
           if (!mayDispatchWorkBot(cloudTeam, member, from, to)) throw new Error("The requesting person's bot access changed");
           const accessMatches = from?.access && to?.access ? sameAccess(from.access, to.access) : !from?.access && !to?.access;
-          if (currentSource?.workBotRouting?.state !== "dispatching" || currentSource.text !== source.text || store.activeLeaf(threadId) !== sourceLeaf || store.activeLeaf(target.threadId) !== targetLeaf || !from || !to || to.hidden || !store.taskByThread(target.botId, target.threadId) || !sameAudience(from.visibility, to.visibility) || !accessMatches || !mayRead(teamHost.audienceOf(threadId), teamHost.audienceOf(target.threadId)) || !sameModelSelection(store.projectBotForTask(route.sourceBotId!, threadId)?.modelSelection, route.modelSelection) || !sameModelSelection(store.projectBotForTask(target.botId, target.threadId)?.modelSelection, route.modelSelection)) throw new Error("The conversation or its access changed during handoff");
+          const sourcePermission = store.projectBotForTask(route.sourceBotId!, threadId);
+          const targetPermission = store.projectBotForTask(target.botId, target.threadId);
+          const sourceMode = deps.approvalMode(route.sourceBotId!, threadId);
+          const targetMode = deps.approvalMode(target.botId, target.threadId);
+          const permissionMatches = sourcePermission && targetPermission && sourceMode !== "custom" && targetMode !== "custom" && levelWithin(targetMode, sourceMode);
+          if (currentSource?.workBotRouting?.state !== "dispatching" || currentSource.text !== source.text || store.activeLeaf(threadId) !== sourceLeaf || store.activeLeaf(target.threadId) !== targetLeaf || !from || !to || to.hidden || !store.taskByThread(target.botId, target.threadId) || !sameAudience(from.visibility, to.visibility) || !accessMatches || !permissionMatches || !mayRead(teamHost.audienceOf(threadId), teamHost.audienceOf(target.threadId)) || !sameModelSelection(store.projectBotForTask(route.sourceBotId!, threadId)?.modelSelection, route.modelSelection) || !sameModelSelection(store.projectBotForTask(target.botId, target.threadId)?.modelSelection, route.modelSelection)) throw new Error("The conversation or its access changed during handoff");
         };
         validateHandoff();
         const path = sinceFreshStart(store.activePath(threadId));

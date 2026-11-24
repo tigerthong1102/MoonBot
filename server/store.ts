@@ -1,6 +1,5 @@
 import { chmodSync, existsSync, readFileSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path"; import { isDeepStrictEqual } from "node:util";
-
 import { OwnedFile, writeFileAtomic } from "./atomic.ts"; import { saveLater, saveSoon, supersedeLaterSave } from "./save-batch.ts"; import { discardTranscriptFiles, messagesFile, resetTranscriptState } from "./transcript-cleanup.ts";
 import { commitRegistryChange, deferrablePatch, keptRevocation, saveRegistryFor, touchesPermissions } from "./registry-save.ts";
 import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts"; import { grantScopedApps } from "../shared/connector-scopes.ts"; import { dropRetiredApps } from "./retired-apps.ts";
@@ -24,7 +23,7 @@ import { AVATAR_FOCUS_CENTER, AVATAR_ZOOM_MIN, botAvatarProfile, clampAvatarFocu
 import { approvalModeFor, isApprovalMode, modelSwitchNeedsAsk, threadApproval, type ApprovalMode } from "../shared/approval-mode.ts";
 import { lastChangeRequestUrl } from "../shared/thread-link.ts";
 import { REMOVED_COMPUTER_DRIVER, type ComputerEngineMove } from "./computer-engine-removal.ts";
-import type { TeamSetupRequest, TeamSetupResult } from "../shared/team-setup.ts";
+import type { TeamSetupRequest, TeamSetupResult } from "../shared/team-setup.ts"; import { workBotCreationPermissions } from "./work-bot-permissions.ts";
 import type { GroupGoalRunCardData } from "../shared/group-goal-run.ts";
 import { isMentionBoundary, isMentionNameContinuation } from "../shared/mention-boundary.ts"; import { resolveMentions } from "../shared/room-mentions.ts";
 import type { HandedState } from "./delta-context.ts";
@@ -1350,10 +1349,11 @@ export class Store {
     return bot;
   }
 
-  applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">): TeamSetupResult {
+  applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">, workBotPermission?: ApprovalMode): TeamSetupResult {
     const chief = this.own(request.botId);
     if (!chief) throw new Error("The requesting Chief no longer exists");
     if (chief.lastTeamSetupReceipt?.requestId === request.requestId) return chief.lastTeamSetupReceipt.result;
+    const workBotPermissions = workBotCreationPermissions(request, Boolean(this.projectBotForTask(request.botId, request.threadId)), workBotPermission);
     const managedSections = [...new Set([...(chief.managedSections ?? []), ...request.newTeams])];
     if (managedSections.length > 100 || managedSections.some((name) => name.trim() !== name || name.length > 60) ||
         request.newTeams.some((name) => !name) || (request.newTeams.length && !chief.chiefOfStaff)) throw new Error("Invalid reviewed Chief team scope");
@@ -1369,12 +1369,12 @@ export class Store {
         next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
           title: "", description: "", soul: "", notifications: true, color: rotationColor(nextBots.length), unread: false,
           resumeCursors: {}, createdAt, ...operation.fields, ...avatar, modelSelection,
-          autoApprove: false,
+          ...workBotPermissions.bot,
           ...sharedAsMaker(chief),
           // A Chief's new specialist reports to the Chief's own person.
           ...(botOwner(chief) ? { createdBy: botOwner(chief)! } : {}),
           tasks: [{ threadId: operation.threadId, title: UNTITLED_THREAD, createdAt, updatedAt: createdAt, resumeCursors: {},
-            unread: false, activity: "idle", busy: false }],
+            unread: false, activity: "idle", busy: false, ...workBotPermissions.task }],
         };
         Object.assign(next, appsFromCreator(chief, next));
         if (!next.cwd) delete next.cwd;

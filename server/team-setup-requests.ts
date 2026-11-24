@@ -97,7 +97,7 @@ interface SetupStore {
   messagesFor(threadId: string): Array<{ id: string; role?: string; text?: string; card?: OptionCardData; workBotRouting?: import("./store.ts").Message["workBotRouting"] }>;
   appendMessage(threadId: string, message: { role: "bot"; kind: "options"; card: OptionCardData; from?: { botId: string; name: string; color: string } }): { id: string };
   patchMessage(threadId: string, messageId: string, patch: { card: OptionCardData }): unknown;
-  applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">): TeamSetupResult;
+  applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">, workBotPermission?: import("../shared/approval-mode.ts").ApprovalMode): TeamSetupResult;
   patchBot(id: string, patch: Partial<BotRecord>): unknown;
 }
 
@@ -110,6 +110,7 @@ interface Options {
   targetBusy(botId: string, sourceThreadId?: string): boolean;
   /** Null only where the owner confirms on a card (direct-apply.ts). */
   autoApply?(botId: string, threadId: string): DirectApply | null;
+  workBotApprovalMode?(botId: string, threadId: string): import("../shared/approval-mode.ts").ApprovalMode;
   driverCapabilities?(instanceId: string): DriverCapabilities | undefined;
   validateChange?(before: BotRecord, fields: TeamSetupFields): void;
   maxBots: number;
@@ -455,7 +456,9 @@ export class TeamSetupRequestService {
       return bot ? [{ id: bot.id, profile: profileSnapshot(bot) }] : [];
     });
     const avatar = request.workBotOffer && { avatarUrl: workBotAvatar(request.workBotOffer.icon, request.operations[0]!.botId), avatarCrop: "rounded" as const };
-    const result = this.options.store.applyTeamSetup(request, avatar);
+    const workBotMode = request.workBotOffer ? this.options.workBotApprovalMode?.(request.botId, request.threadId) ?? "ask" : undefined;
+    if (workBotMode === "custom") throw new TeamSetupError(serverLine(conversationLanguage(request.threadId), "server.workBot.permissionUnavailable"), 409);
+    const result = this.options.store.applyTeamSetup(request, avatar, workBotMode);
     for (const { id, profile } of before) {
       const bot = this.options.store.bot(id);
       if (bot) recordProfileChange(id, actor, via, profile, profileSnapshot(bot));

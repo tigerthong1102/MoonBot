@@ -16,6 +16,7 @@
   "server.workBot.privateUnavailable": "Ainda não é possível criar um bot dedicado com segurança nesta conversa privada. A conversa atual continua disponível.",
   "server.workBot.sharedUnavailable": "Ainda não é possível criar um bot dedicado com segurança neste espaço compartilhado. Continue nesta conversa.",
   "server.workBot.dataUnavailable": "Ainda não é possível transferir com segurança os dados desta conversa. Continue o trabalho aqui.",
+  "server.workBot.permissionUnavailable": "Não é possível transferir permissões personalizadas com segurança. Continue este trabalho aqui.",
   "server.workBot.fileUnavailable": "Ainda não é possível transferir com segurança os arquivos desta conversa. Continue o trabalho aqui.",
   "server.workBot.stopInAssignedBot": "Abra o bot responsável para interromper este trabalho.",
   "server.workBot.genericName": "Trabalho",

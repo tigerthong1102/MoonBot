@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts";
+import { workBotCreationMode, workBotCreationPermissions } from "./work-bot-permissions.ts";
 import { closedByStop, resumableCards } from "./host/resumable-cards.ts";
 import { botFolder } from "./bot-folder.ts";
 import { flushProfileHistory, readHistory } from "./profile-versions.ts";
@@ -864,4 +865,15 @@ describe("a Chief making bots, whatever the plan", () => {
     const app = full(97);
     expect(() => app.propose([specialist("Scout"), specialist("Writer")])).toThrow(expect.objectContaining({ status: 409, message: "This setup exceeds the workspace bot limit" }));
   });
+});
+
+it("caps new hosted work bots at Ask without changing desktop selections or custom refusal", () => {
+  for (const mode of ["ask", "edits", "auto", "full"] as const) {
+    expect(workBotCreationMode(mode, true)).toBe("ask");
+    const request = { workBotOffer: {} } as TeamSetupRequest;
+    expect(workBotCreationPermissions(request, true, workBotCreationMode(mode, true))).toEqual({ bot: { approvalMode: "ask", autoApprove: false }, task: { approvalMode: "ask", autoApprove: false } });
+    expect(workBotCreationMode(mode, false)).toBe(mode);
+  }
+  expect(workBotCreationMode("custom", true)).toBe("custom");
+  expect(workBotCreationMode("custom", false)).toBe("custom");
 });

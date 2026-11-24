@@ -613,55 +613,75 @@ try {
   assert(newNotices.length <= 1, "Reconnection must not create duplicate notifications for the synthetic turn");
   writeFileSync(path.join(evidence, "reconnect-fixture.json"), JSON.stringify({ requestId: reconnectCompletion.requestId, turnId: reconnectCompletion.turnId, originalClosed: true, failedHandshake: true, resultPersistedWhileDisconnected: true, replacementHello: true, providerPrompts: 1, newServerNotifications: newNotices.length }, null, 2) + "\n");
 
-  const approvalCases = [];
-  for (const [mode, decision] of [["full", "full"], ["ask", "deny"], ["ask", "allow"]]) {
-    const made = await request("/api/bots", { name: `Synthetic permission ${decision}`, cwd: home });
-    assert.equal(made.status, 201);
-    const subject = made.body.bot;
-    assert.equal((await request(`/api/bots/${subject.id}`, { approvalMode: mode }, "PATCH")).status, 200);
-    const row = (await roster()).find(item => item.id === subject.id);
-    assert.equal(row?.approvalMode, mode);
-    approvalCases.push({ subject, mode, decision, text: `Synthetic permission action ${decision}`, counter: path.join(fixture, `permission-${decision}.count`) });
-  }
-  writeFileSync(plan, JSON.stringify(Object.fromEntries(approvalCases.map(item => [item.subject.id, { script: [{
-    key: `permission-${item.decision}`, match: [item.text], approve: { tool_name: "Bash", input: { command: "synthetic-permission-write" } },
-    fixturePermissionCounter: item.counter, reply: "Synthetic permitted action finished.", replyIfDenied: "Synthetic action denied."
-  }] }]))));
+  const approvalCases = [
+    { mode: "ask", decision: "deny", topic: "Đơn hàng", text: "Theo dõi đơn hàng thử mỗi tuần." },
+    { mode: "ask", decision: "allow", topic: "Chất lượng", text: "Theo dõi chất lượng thử mỗi tháng." },
+    { mode: "full", decision: "full", topic: "Vận chuyển", text: "Theo dõi vận chuyển thử mỗi ngày." },
+  ];
   const permissionCounts = {};
+  const handoffPermissions = [];
   for (const item of approvalCases) {
-    const rowSelector = `document.querySelector('[data-sidebar-bot-row="${item.subject.id}"]')`;
-    await until(() => evaluate(`Boolean(${rowSelector})`), "the permission fixture bot");
-    await evaluate(`${rowSelector}.click()`);
-    await until(() => evaluate(`${rowSelector}?.getAttribute('aria-current') === 'page'`), "the permission fixture conversation");
+    assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: item.mode, applyToAllThreads: true }, "PATCH")).status, 200);
+    const before = await roster();
+    assert.equal(before.find(row => row.id === helper.id)?.approvalMode, item.mode);
+    writeFileSync(textRoutes, JSON.stringify({ [item.text]: JSON.stringify({ name: item.topic, icon: "calendar" }) }));
+    await evaluate(`${helperRow}.click()`);
+    await until(() => evaluate(`${helperRow}?.getAttribute('aria-current') === 'page'`), "the main helper before the permission handoff");
     await send(item.text);
+    const offer = await until(async () => {
+      const rows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+      const source = rows.find(row => row.role === "user" && row.text === item.text);
+      return source && rows.map(row => row.card).find(card => card?.teamSetupRequest?.workBotOffer?.sourceMessageId === source.id && !card.answered);
+    }, "the permission handoff offer for the source message");
+    const targetId = offer.teamSetupRequest.operations.find(operation => operation.action === "create")?.botId;
+    assert(targetId && !before.some(row => row.id === targetId));
+    const counter = path.join(fixture, `permission-${item.decision}.count`);
+    const command = `synthetic-permission-write-${item.decision}`;
+    writeFileSync(plan, JSON.stringify({ [targetId]: { script: [{
+      key: `permission-${item.decision}`, match: [item.text], approve: { tool_name: "Bash", input: { command } },
+      fixturePermissionCounter: counter, reply: "Synthetic permitted action finished.", replyIfDenied: "Synthetic action denied.",
+    }] } }));
+    const createButton = `[...document.querySelectorAll('[data-work-bot-offer]')].find(card => card.innerText.includes(${JSON.stringify(offer.title)}))?.querySelector('button')`;
+    await until(() => evaluate(`Boolean((${createButton})?.getClientRects().length) && (${createButton})?.textContent.trim() === ${JSON.stringify(offer.options[0])}`), "the consent button for this target");
+    assert.equal(existsSync(counter), false);
+    await evaluate(`(${createButton}).click()`);
+    const subject = await until(async () => (await roster()).find(row => row.id === targetId), "the bot created by consent");
+    assert.equal(subject.approvalMode, item.mode, "The new bot must inherit the main chat permission mode");
+    await until(() => evaluate(`document.querySelector('[data-sidebar-bot-row="${targetId}"]')?.getAttribute('aria-current') === 'page'`), "automatic navigation to the permission handoff target");
     if (item.mode === "ask") {
       const card = `[...document.querySelectorAll('[data-ask-card=approval]')].find(card => card.getClientRects().length)`;
       await until(() => evaluate(`Boolean(${card})`), "the synthetic permission approval");
-      assert.equal(existsSync(item.counter), false, "No fixture action may run before approval");
+      assert.equal(existsSync(counter), false, "No fixture action may run before approval");
       const cardText = await evaluate(`(${card}).innerText`);
-      assert.match(cardText, /synthetic-permission-write/i, "The approval must show the action being requested");
+      assert(cardText.includes(command), "The approval must show the action being requested");
       const choice = item.decision === "allow" ? "Allow once" : "Deny";
       const button = `[...(${card}).querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(choice)})`;
       await until(() => evaluate(`Boolean(${button})`), "the requested permission decision");
       await evaluate(`(${button}).click()`);
     }
-    const completion = await until(() => completedRequest(item.subject.threadId, item.text), "the permission fixture turn to settle");
-    const count = existsSync(item.counter) ? readFileSync(item.counter, "utf8").split("\n").filter(Boolean).length : 0;
+    const completion = await until(() => completedRequest(subject.threadId, item.text), "the permission fixture turn to settle");
+    const count = existsSync(counter) ? readFileSync(counter, "utf8").split("\n").filter(Boolean).length : 0;
     assert.equal(count, item.decision === "deny" ? 0 : 1, `Unexpected fixture action count in ${item.decision}`);
-    const rows = (await request(`/api/threads/${item.subject.threadId}/messages`)).body.messages;
+    const rows = (await request(`/api/threads/${subject.threadId}/messages`)).body.messages;
     assert(rows.some(row => row.role === "bot" && row.requestMessageId === completion.requestId && row.text === (item.decision === "deny" ? "Synthetic action denied." : "Synthetic permitted action finished.")));
     const permissionEvidence = await until(() => {
       if (!existsSync(plan + ".evidence.jsonl")) return null;
-      const entries = readFileSync(plan + ".evidence.jsonl", "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(entry => entry.botId === item.subject.id && entry.threadId === item.subject.threadId && entry.planKey === `permission-${item.decision}`);
+      const entries = readFileSync(plan + ".evidence.jsonl", "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(entry => entry.botId === subject.id && entry.threadId === subject.threadId && entry.planKey === `permission-${item.decision}`);
       return entries.length ? entries : null;
     }, "the fake provider permission evidence");
     assert.equal(permissionEvidence.length, 1);
     assert.equal(permissionEvidence[0].approval?.behavior, item.decision === "deny" ? "deny" : "allow");
     assert.equal(permissionEvidence[0].permissionMode, item.mode === "full" ? "bypassPermissions" : "default");
     assert.equal(permissionEvidence[0].permissionPromptTool, item.mode === "ask");
+    const copiedSource = rows.find(row => row.id === completion.requestId);
+    assert.equal(copiedSource?.workBotHandoffSource?.messageId, offer.teamSetupRequest.workBotOffer.sourceMessageId);
+    assert.equal(copiedSource.workBotHandoffSource.threadId, helper.threadId);
+    assert.equal(copiedSource.workBotHandoffSource.botId, helper.id);
     permissionCounts[item.decision] = count;
+    handoffPermissions.push({ mode: item.mode, decision: item.decision, sourceId: copiedSource.workBotHandoffSource.messageId, targetId, threadId: subject.threadId, requestId: completion.requestId, executions: count });
   }
   writeFileSync(path.join(evidence, "permission-fixture.json"), JSON.stringify(permissionCounts, null, 2) + "\n");
+  writeFileSync(path.join(evidence, "work-bot-permissions.json"), JSON.stringify(handoffPermissions, null, 2) + "\n");
   const unauthenticated = await fetch(new URL("/api/auth/stream-ticket", target.url), { method: "POST", signal: AbortSignal.timeout(5_000) });
   assert([401, 403].includes(unauthenticated.status), "An external process must not inherit the renderer's mutation capability");
   assert.equal(createHash("sha256").update(readFileSync(sentinel)).digest("hex"), sentinelHash);
@@ -691,7 +711,7 @@ try {
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion },
     artifactPreview: "PASS (synthetic Markdown opened from its conversation)",
     notificationNavigation: "PASS (feed enabled and opened in isolated profile)",
-    permissionFixture: permissionCounts,
+    permissionFixture: permissionCounts, workBotPermissions: handoffPermissions,
     reconnect: { status: "PASS", reconnectCompletion, oldStreamClosed: true, retryHandshakeFailed: true, replacementStreamOpened: true, notificationRecords: "at most one new record for fixture thread" },
     stopAfterNavigation: "PASS (synthetic turn canceled; no fake continuation observed for one second after a follow-up)",
     computerPanelNavigation: disposableDesktop ? "PASS (opened and closed on disposable runner; no desktop control)" : "NOT RUN (requires disposable desktop)",

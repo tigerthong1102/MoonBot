@@ -245,7 +245,6 @@ type ThreadRowProps = {
   onSnooze?: (task: ThreadRowTask, snoozedUntil: number | null) => void;
   onLink?: (task: ThreadRowTask, link: string | null) => void;
   onRefreshPermissions?: (task: ThreadRowTask) => void;
-  /** Opens the bot's memory for this conversation, once the row has opened it. */
   onMemory?: (task: ThreadRowTask) => void;
   selectMode?: boolean;
   checked?: boolean;

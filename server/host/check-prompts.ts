@@ -25,7 +25,7 @@ function when(ms: number, timeZone: string | undefined): string {
 }
 
 const emailLine = (email: EmailHeader): string =>
-  `id ${clean(email.id, 120)} · from ${clean(email.from, 160)} · subject ${clean(email.subject, 200)} · preview ${clean(email.preview, 300)}`;
+  `id ${clean(email.id, 512)} · from ${clean(email.from, 160)} · subject ${clean(email.subject, 200)} · preview ${clean(email.preview, 300)}`;
 
 export function emailRecords(emails: readonly EmailHeader[]): string {
   const gmail = emails.filter((email) => email.app !== "outlook");

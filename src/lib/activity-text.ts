@@ -5,7 +5,6 @@ import { formatServerText, isReferenceParam, type ServerTextParams } from "../..
 
 type NoticeTool = Pick<NonNullable<Message["tool"]>, "nameCode" | "nameParams">;
 
-/** The quiet line under a reply that saved to its conversation's own notes: it never stands in for the reply. */
 export function isSavedToThreadLine(message: { tool?: { nameCode?: string } | null }): boolean {
   return message.tool?.nameCode === "chat.notice.savedToThread";
 }

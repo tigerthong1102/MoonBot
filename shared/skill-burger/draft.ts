@@ -94,7 +94,7 @@ class Drafter {
   private composer(id: string, field: string, example: string): WorkflowRef | null {
     const read = [...this.recorded].reverse().find((entry) => entry.read);
     if (!read) return null;
-    const aiId = `${id}_write`;
+    const aiId = `${id}_write_${this.steps.length + 1}`;
     this.steps.push({
       id: aiId, kind: "ai", deterministic: false, label: `Write the ${field.replace(/_/g, " ")}`,
       prompt: `Write the ${field.replace(/_/g, " ")} for "${this.summary}" from the input. Match the example's length and tone.`,

@@ -228,12 +228,38 @@ describe("a check's reads", () => {
     });
     const session = createConnectedReads(deps).session();
     const list = await session.outlookEmails(Date.parse("2026-10-22T00:00:00Z"), 20);
-    expect(list.map((m) => m.id)).toEqual(["o2", "o1"]);
+    expect(list.emails.map((m) => m.id)).toEqual(["o2", "o1"]);
+    expect(list.more).toBe(false);
     expect(frames.filter((one) => one.slug === "OUTLOOK_LIST_MESSAGES").map((one) => Number(one.args!.top))).toEqual([20, 10]);
     expect(await session.outlookMessage("o1")).toMatchObject({ id: "o1", app: "outlook" });
     expect(await session.outlookMessage("gone")).toBeNull();
     const outlookReads = frames.filter((one) => one.slug?.startsWith("OUTLOOK_"));
     expect(outlookReads.length).toBeGreaterThan(0);
     expect(outlookReads.every((one) => (one.args!.select as string[]).includes("webLink"))).toBe(true);
+  });
+
+  it("marks an Outlook page as incomplete when a shortened response fills the smaller page", async () => {
+    const { deps, frames } = relay({
+      OUTLOOK_LIST_MESSAGES: (args) => {
+        if (args.top === 100) return { successful: true, data_preview: {} };
+        return { successful: true, data: { value: Array.from({ length: 50 }, (_, i) => ({ id: `m${i}` })) } };
+      },
+    });
+    const page = await createConnectedReads(deps).session().outlookEmails(0, 100);
+    expect(page.emails).toHaveLength(50);
+    expect(page.more).toBe(true);
+    expect(frames.filter((one) => one.slug === "OUTLOOK_LIST_MESSAGES").map((one) => one.args?.top)).toEqual([100, 50]);
+  });
+
+  it("honors an Outlook continuation marker on a page smaller than the requested limit", async () => {
+    const { deps } = relay({
+      OUTLOOK_LIST_MESSAGES: () => ({
+        successful: true,
+        data: { response_data: { value: [{ id: "o1" }], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/messages?$skip=1" } },
+      }),
+    });
+    expect(await createConnectedReads(deps).session().outlookEmails(0, 100)).toMatchObject({
+      emails: [{ id: "o1" }], more: true,
+    });
   });
 });

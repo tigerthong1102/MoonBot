@@ -289,8 +289,8 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
           try {
             const outlook = await session.outlookEmails!(since, MAIL_READ_LIMIT);
             succeeded(entry, "outlook");
-            found.push(...outlook);
-            more = more || outlook.length >= MAIL_READ_LIMIT;
+            found.push(...outlook.emails);
+            more = more || outlook.more;
             mailRead = true;
           } catch (error) {
             trouble.push(failed(entry, "outlook", error));

@@ -38,5 +38,4 @@ export function appLabel(slug: string): string {
   return words ? words[0]!.toUpperCase() + words.slice(1) : slug;
 }
 
-/** An app action that names no thing ("batch get", "list"): it reads from the app. */
 export const BARE_READ = /^(?:batch |bulk )?(?:get|read|fetch|list|query|search|lookup|retrieve)$/;

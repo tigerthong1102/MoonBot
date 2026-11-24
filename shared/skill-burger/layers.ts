@@ -6,7 +6,6 @@ import { nameIsCommand } from "../tool-name.ts";
 import { PLAIN_APP_TOOL } from "./apps.ts";
 
 export type LayerKind = "shell" | "app" | "browser" | "file" | "computer" | "ai";
-/** Where a step happens: a connected app, the browser, the bot's own computer, a cloud computer (VM), or the person's own computer. */
 export type LayerWhere = "app" | "browser" | "bot" | "vm" | "yourComputer";
 export type LayerStatus = "running" | "done" | "failed";
 
@@ -27,16 +26,12 @@ export interface BurgerLayer {
   app?: string;
   /** What replays it: a Composio slug (GMAIL_SEND_EMAIL), a plain app tool (gmail.search_emails), or the tool's name. */
   tool: string;
-  /** Words for the line: the app action ("send email"), the command's label, a file or host name. */
   words: string;
   status: LayerStatus;
-  /** A read: it fetched something and changed nothing. */
   read: boolean;
-  /** Where it ran, so a replay runs it in the same place. */
   where: LayerWhere;
   /** Exact replays without AI; `ai` means the recorded call can't be repeated as is. */
   replay: "exact" | "ai";
-  /** The parsed call: app arguments, {command, cwd}, {path, content} or {url}. */
   args?: Record<string, unknown>;
   account?: string;
   output?: string;
@@ -55,7 +50,6 @@ const FILE_WRITE = new Set(["Write", "write_file", "create_file"]);
 const FILE_EDIT = new Set(["Edit", "MultiEdit", "NotebookEdit", "edit", "apply_patch", "str_replace_based_edit_tool"]);
 const BROWSER_OPEN = /(?:^|_)(?:navigate|open|open_url|goto|tab_new)$/;
 const BROWSER_LOOK = /(?:^|_)(?:snapshot|screenshot|read|get_text|status|tabs|wait|check|console|network|close|evaluate_read)$/;
-/** A status row the app writes as an activity: a lowercase word, a colon, then words, never a tool name. */
 const STATUS_ROW = /^[a-z]+: \S/;
 /** An input the driver clipped, or a value the server masked: the call can't be repeated as recorded. */
 const CLIPPED = /\[(?:additional data|large content|binary content) omitted\]|••••••|«redacted \d+ chars»/;
@@ -82,7 +76,6 @@ function slugParts(slug: string): { app: string; words: string } {
   return { app: tokens.slice(0, appTokens).join("").toLowerCase(), words: sentence(tokens.slice(appTokens).join(" ")) };
 }
 
-/** The server and bare tool of an MCP name (mcp__composio__GMAIL_SEND_EMAIL); a bare name has no server. */
 function splitName(name: string): { server: string | null; bare: string } {
   if (!name.startsWith("mcp__")) return { server: null, bare: name };
   const [, server = "", ...rest] = name.split("__");
@@ -149,8 +142,11 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
 
   if (bare === MULTI_EXECUTE) {
     const calls = connectorCallsIn(MULTI_EXECUTE, input ?? {});
+    const items: unknown[] = Array.isArray(input?.tools) ? input.tools : [input];
     return calls.flatMap((call, index) => {
-      const layer = appLayer({ ...base, id: calls.length > 1 ? `${message.id}#${index}` : message.id }, call.slug, call.arguments, clipped || !input);
+      const item = items[index];
+      const account = isRecord(item) ? text(item.account) : undefined;
+      const layer = appLayer({ ...base, id: calls.length > 1 ? `${message.id}#${index}` : message.id }, call.slug, call.arguments, clipped || !input, account);
       return layer ? [layer] : [];
     });
   }

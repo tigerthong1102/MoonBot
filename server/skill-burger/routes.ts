@@ -98,7 +98,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const refused = "everyChat" in body.data ? (admin(auth) ? null : EVERY_CHAT_ADMIN_ONLY) : refusal(auth, body.data.botId);
       if (refused) return json(res, 403, { error: refused });
       const result = "everyChat" in body.data
-        ? setWorkflowEveryChat({ name, everyChat: body.data.everyChat, botId: body.data.botId, sha256: body.data.sha256, root: deps.root })
+        ? setWorkflowEveryChat({ name, everyChat: body.data.everyChat, botIds: deps.botIds(), botId: body.data.botId, sha256: body.data.sha256, root: deps.root })
         : renameWorkflowSkill({ place: placeOf(body.data.botId), name, to: body.data.rename, botIds, sha256: body.data.sha256, root: deps.root });
       if ("stale" in result) return stale();
       if ("error" in result) return json(res, result.taken ? 409 : 422, { error: result.error });

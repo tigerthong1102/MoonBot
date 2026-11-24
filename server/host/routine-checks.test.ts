@@ -17,6 +17,7 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean; con
   let now = Date.parse("2026-10-22T08:00:00Z");
   const inbox: EmailHeader[] = [];
   const outlookInbox: EmailHeader[] = [];
+  const limits = { outlook: Infinity };
   const events: CalendarEvent[] = [];
   const failing: Partial<Record<ReadApp, string>> = {};
   const several = new Set<ReadApp>();
@@ -38,7 +39,9 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean; con
       async outlookEmails(since, limit) {
         calls.push("outlookEmails");
         if (failing.outlook) throw new SourceError("outlook", failing.outlook, several.has("outlook"));
-        return outlookInbox.filter((email) => email.at >= since).sort((a, b) => b.at - a.at).slice(0, limit);
+        const found = outlookInbox.filter((email) => email.at >= since).sort((a, b) => b.at - a.at);
+        const returned = Math.min(limit, limits.outlook);
+        return { emails: found.slice(0, returned), more: found.length > returned };
       },
       async message() { return null; },
       async thread() { return []; },
@@ -71,7 +74,7 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean; con
     events.push(event);
     return event;
   };
-  return { checks, routine, mail, outlookMail, meeting, failing, several, calls, runs, reports, inbox, outlookInbox, sorted, advance: (ms: number) => { now += ms; }, now: () => now, file: join(dir, CHECKS_FILE) };
+  return { checks, routine, mail, outlookMail, meeting, failing, several, calls, runs, reports, inbox, outlookInbox, limits, sorted, advance: (ms: number) => { now += ms; }, now: () => now, file: join(dir, CHECKS_FILE) };
 }
 
 const run = (key: string, status: RoutineRun["status"], deliver?: "brief"): RoutineRun => ({
@@ -262,5 +265,22 @@ describe("a routine's checks", () => {
     s.advance(15 * MINUTE);
     const second = await s.checks.check(s.routine({ checks: ["mail"] }), { manual: true });
     expect(s.checks.items(second.run!.key)?.mail.map((email) => email.id)).toEqual(["o1"]);
+  });
+
+  it("keeps earlier Outlook mail eligible after committing an incomplete page", async () => {
+    const s = setup({ connected: { outlook: true } });
+    s.outlookMail("older", 5);
+    s.outlookMail("newer", 2);
+    s.limits.outlook = 1;
+    const routine = s.routine({ checks: ["mail"] });
+    const first = await s.checks.check(routine, { manual: true });
+    expect(s.checks.items(first.run!.key)?.mail.map((mail) => mail.id)).toEqual(["newer"]);
+    expect(s.reports.at(-1)?.waiting).toBe(true);
+    s.checks.commit(first.run!.key);
+
+    s.limits.outlook = Infinity;
+    s.advance(15 * MINUTE);
+    const second = await s.checks.check(routine, { manual: true });
+    expect(s.checks.items(second.run!.key)?.mail.map((mail) => mail.id)).toEqual(["older"]);
   });
 });

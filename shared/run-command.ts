@@ -1,4 +1,3 @@
-// What a shell command does, read from its text: the run card names the commands that change something, never the reads.
 
 const SEGMENT = /\s*(?:&&|\|\||;|\||\r?\n)\s*/;
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;

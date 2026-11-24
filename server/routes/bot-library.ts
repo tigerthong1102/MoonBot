@@ -7,7 +7,6 @@ import { PASS, type RouteHandler } from "./table.ts";
 
 export interface BotLibraryRouteDeps {
   bot(id: string): { id: string; threadId: string; tasks?: ReadonlyArray<{ threadId: string }> } | null | undefined;
-  /** The same filter the GET /api/bots listing applies to this caller. */
   visibleFor(auth: RequestAuth): Pick<VisibleSet, "bot" | "thread">;
   pages(): readonly PublishedPageRecord[];
   rows?: BotLibraryRows;

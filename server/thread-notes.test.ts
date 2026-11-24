@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { memoryOverview, parseMemoryPath, readMemoryDoc, threadNotesPath } from "./memory-store.ts";
 import {
+  THREAD_READ_BUDGET,
   THREAD_NOTES_MAX_LINES,
   createThreadScope,
   reachThreads,
@@ -183,6 +184,24 @@ describe("reaching another conversation on request", () => {
     expect(messages.map((message) => [message.messageId, message.by, message.truncated])).toEqual([["m3", "person", true], ["m2", "bot", false]]);
     expect(messages[0]!.text).toHaveLength(500);
     expect(reach(botId, { threadId: "sm", before: "m2" })).toMatchObject({ messages: [{ messageId: "m1", by: "person" }], earlier: null });
+  });
+
+  it("paginates text messages when valid notes alone exceed the response budget", () => {
+    const botId = freshBot();
+    for (let i = 0; i < 12; i += 1) {
+      const stored = updateThreadNotes(botId, "sm", { action: "append", text: `Fact ${i}: ${"a".repeat(730)}` });
+      expect(stored).toMatchObject({ ok: true, truncated: false });
+    }
+    expect(readThreadNotes(botId, "sm").length).toBeGreaterThan(THREAD_READ_BUDGET);
+    const page = reach(botId, { threadId: "sm", limit: 2 });
+    expect(page).toMatchObject({
+      notesTruncated: true,
+      messages: [{ messageId: "m3", truncated: true }, { messageId: "m2" }],
+      earlier: "m2",
+    });
+    if (!("messages" in page) || !page.messages || page.notes === undefined) throw new Error("Expected a transcript page");
+    expect(page.notes.length + page.messages.reduce((total, message) => total + message.text.length, 0)).toBeLessThanOrEqual(THREAD_READ_BUDGET);
+    expect(reach(botId, { threadId: "sm", before: "m2" })).toMatchObject({ messages: [{ messageId: "m1" }], earlier: null });
   });
 
   it("answers not found for its own conversation, another bot's, and one it was not given", () => {

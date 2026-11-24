@@ -145,13 +145,13 @@ export function removeWorkflowSkill(place: BurgerPlace, name: string, sha256: st
   return erase(place, name, sha256 ?? found.sha256, root);
 }
 
-export function setWorkflowEveryChat(input: { name: string; everyChat: boolean; botId?: string; sha256?: string; root?: string }): SavedWorkflow | Failure | { stale: true } {
+export function setWorkflowEveryChat(input: { name: string; everyChat: boolean; botIds: readonly string[]; botId?: string; sha256?: string; root?: string }): SavedWorkflow | Failure | { stale: true } {
   const root = input.root ?? skillsLibraryRoot();
   const from: BurgerPlace = input.everyChat ? { botId: input.botId ?? "" } : { everyChat: true };
   const found = readAt(from, input.name, root);
   if (!found || (input.sha256 && found.sha256 !== input.sha256)) return { stale: true };
   const to: BurgerPlace = input.everyChat ? { everyChat: true } : { botId: found.botId ?? "" };
-  if ("botId" in to && !to.botId) return { error: "The bot this Skill Burger came from is gone." };
+  if ("botId" in to && !input.botIds.includes(to.botId)) return { error: "The bot this Skill Burger came from is gone." };
   if ("everyChat" in to ? readSkillLibraryIndex(root)[input.name] : listSkills(to.botId).some((skill) => skill.name === input.name)) return { error: "That name is taken. Try another.", taken: true };
   const moved = write(to, input.name, found.workflow, found.botId, root);
   if ("error" in moved) return moved;

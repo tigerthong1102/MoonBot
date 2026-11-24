@@ -43,6 +43,11 @@ export interface EmailHeader {
   link?: string;
 }
 
+export interface EmailPage {
+  emails: EmailHeader[];
+  more: boolean;
+}
+
 export interface ThreadMessage {
   id: string;
   at: number;
@@ -432,14 +437,13 @@ export interface ConnectedReadDeps {
 export interface ReadSession {
   events(fromMs: number, toMs: number): Promise<CalendarEvent[]>;
   /** Inbox mail since `sinceMs`, newest first, at most `limit`; `more` when there was more than that. */
-  emails(sinceMs: number, limit: number): Promise<{ emails: EmailHeader[]; more: boolean }>;
+  emails(sinceMs: number, limit: number): Promise<EmailPage>;
   /** Null only when Gmail says the message is gone. */
   message(messageId: string): Promise<EmailHeader | null>;
   thread(threadId: string): Promise<ThreadMessage[]>;
   /** The connected Gmail account's own address. */
   address(): Promise<string>;
-  /** Outlook's inbox since `sinceMs`, newest first, at most `limit`, without bodies. */
-  outlookEmails?(sinceMs: number, limit: number): Promise<EmailHeader[]>;
+  outlookEmails?(sinceMs: number, limit: number): Promise<EmailPage>;
   /** Null only when Outlook says the message is gone. */
   outlookMessage?(messageId: string): Promise<EmailHeader | null>;
 }
@@ -448,8 +452,7 @@ export interface ReadSession {
 export interface MailBodySession extends ReadSession {
   /** Null only when Gmail says the message is gone. */
   messageBody(messageId: string): Promise<string | null>;
-  /** Outlook's inbox since `sinceMs`, newest first, at most `limit`, without bodies. */
-  outlookEmails(sinceMs: number, limit: number): Promise<EmailHeader[]>;
+  outlookEmails(sinceMs: number, limit: number): Promise<EmailPage>;
   /** Null only when Outlook says the message is gone. */
   outlookMessage(messageId: string): Promise<EmailHeader | null>;
   outlookBody(messageId: string): Promise<string>;
@@ -466,7 +469,6 @@ const GMAIL_PAGE = 20;
 const GMAIL_PAGE_MIN = 5;
 const GMAIL_PAGES = 6;
 
-/** The account lookup one multi-request read keeps for all its requests. */
 type AccountPin = { accounts?: Promise<AppAccounts> };
 
 const appOf = (slug: string): ReadApp => (slug.startsWith("GMAIL_") ? "gmail" : slug.startsWith("OUTLOOK_") ? "outlook" : "googlecalendar");
@@ -629,7 +631,12 @@ export function createConnectedReads(deps: ConnectedReadDeps): Omit<ConnectedRea
             size = Math.max(GMAIL_PAGE_MIN, Math.floor(size / 2));
             continue;
           }
-          return parsed("outlook", () => outlookMessagesFromData(data));
+          const emails = parsed("outlook", () => outlookMessagesFromData(data));
+          const response = record(data);
+          const hasNextLink = [response, record(response?.response_data)]
+            .some((body) => typeof body?.["@odata.nextLink"] === "string" && body["@odata.nextLink"].length > 0);
+          const pageLength = listIn(data, ["value", "messages"])?.length ?? 0;
+          return { emails: emails.slice(0, limit), more: hasNextLink || pageLength >= size };
         }
       },
       async outlookMessage(id) {

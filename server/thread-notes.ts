@@ -1,7 +1,3 @@
-// A conversation's own notes: the facts of the matter it is about (a client, the parties, terms, deadlines), kept in
-// memory/threads/<thread>.md beside the bot's memory and loaded into that conversation only. The bot's MEMORY.md and
-// topics keep what holds in every conversation. The bot picks the scope of each save; the person is never asked.
-//
 // Security: thread notes never reach the bot-wide memory by themselves. They are not listed with the topics, not
 // indexed for recall or session_search, not journaled, not archived and not read by memory upkeep; another of the
 // bot's conversations reads them only through session_search scope "threads", on that bot's own conversations.
@@ -28,9 +24,7 @@ interface ScopeTask {
 }
 
 export interface ThreadScopeDeps {
-  /** The bot's conversations the main-thread choice may name. */
   tasks(botId: string): readonly ScopeTask[];
-  /** The conversation the person set as main ("Set as main thread"), if any. */
   chosen(botId: string): string | undefined;
   room(threadId: string): boolean;
   routineRun(threadId: string): boolean;
@@ -38,9 +32,6 @@ export interface ThreadScopeDeps {
   team: boolean;
 }
 
-/** Whether saves in this conversation default to its own notes: a 1:1 conversation of the bot other than its main one.
- * A routine run starts a fresh conversation each time, so its notes would never be read again: it keeps the bot's
- * memory, as do rooms, the main conversation and every conversation on a Team Cloud. */
 export function createThreadScope(deps: ThreadScopeDeps): (botId: string, threadId: string) => boolean {
   return (botId, threadId) => {
     if (deps.team || deps.room(threadId) || deps.routineRun(threadId)) return false;
@@ -64,7 +55,6 @@ export function threadNotesOverBudget(text: string): boolean {
   return (text ? text.split("\n").length : 0) > THREAD_NOTES_MAX_LINES || Buffer.byteLength(text, "utf8") > THREAD_NOTES_MAX_BYTES;
 }
 
-/** What loads of a conversation's notes: expired entries hidden, then cut at the budget. */
 export function loadedThreadNotes(raw: string, now?: Date): { text: string; truncated: boolean } {
   let text = withoutExpired(raw, memoryDate(now)).text.trim();
   let truncated = false;
@@ -81,7 +71,6 @@ export function loadedThreadNotes(raw: string, now?: Date): { text: string; trun
 
 export type ThreadNotesResult = (MemoryUpdateResult & { ok: true; scope: "thread" }) | Extract<MemoryUpdateResult, { ok: false }>;
 
-/** One memory_update applied to this conversation's notes. Nothing moves out when they fill: the tool says they are full. */
 export function updateThreadNotes(botId: string, threadId: string, update: MemoryUpdate, opts: MemoryUpdateOptions = {}): ThreadNotesResult {
   const path = threadNotesPath(threadId);
   const current = readMemoryDoc(botId, path).text;
@@ -95,7 +84,6 @@ export function updateThreadNotes(botId: string, threadId: string, update: Memor
   return { ok: true, scope: "thread", truncated: threadNotesOverBudget(written.after), ...(edit.entry !== undefined ? { entry: edit.entry } : {}), moved: [] };
 }
 
-/** "Forget X" in this conversation's notes too; the facts removed. */
 export function forgetInThreadNotes(botId: string, threadId: string, mentions: (text: string) => boolean): string[] {
   const current = readThreadNotes(botId, threadId);
   if (!current) return [];
@@ -137,8 +125,6 @@ const SCOPE_RULES =
   " Choose the scope yourself; never ask the person which." +
   " Only when the person refers to another of your conversations (\"the clause we agreed for Supermouse\"), find it with session_search scope \"threads\" and words naming it, then read it with its thread_id, for that request only.";
 
-/** This conversation's notes and, in a conversation whose saves default to them, how to save there. For the volatile half
- * of the prompt, beside MEMORY.md, so a main conversation's prompt is unchanged and a compaction never drops them. */
 export function threadNotesPrompt(
   botId: string,
   threadId: string,
@@ -155,7 +141,6 @@ export function threadNotesPrompt(
   return `${rules}\n\nThis conversation's notes:\n${notes.text || "(none yet)"}${cut}`;
 }
 
-/** One of the bot's own conversations another may reach, as the caller found it allowed. */
 export interface ReachableThread {
   threadId: string;
   title?: string;
@@ -176,6 +161,7 @@ export const THREAD_LIST_MAX = 25;
 export const THREAD_READ_LIMIT = 10;
 export const THREAD_LINE_CHARS = 500;
 export const THREAD_READ_BUDGET = 8_000;
+const THREAD_READ_NOTES_LIMIT = 4_000;
 const NOTES_PREVIEW_CHARS = 300;
 
 const cut = (text: string, max: number) => {
@@ -206,10 +192,11 @@ export function reachThreads(input: {
     const thread = others.find((candidate) => candidate.threadId === input.threadId);
     if (!thread) return { error: "not-found" as const };
     const notes = notesOf(thread.threadId);
+    const shownNotes = cut(notes.text, THREAD_READ_NOTES_LIMIT);
     const lines = input.messages(thread.threadId).filter((line) => (line.role === "user" || line.role === "bot") && line.kind === "text" && line.text?.trim());
     const end = input.before ? lines.findIndex((line) => line.id === input.before) : lines.length;
     const limit = Math.min(Math.max(1, input.limit ?? THREAD_READ_LIMIT), THREAD_LIST_MAX);
-    let budget = THREAD_READ_BUDGET - notes.text.length;
+    let budget = THREAD_READ_BUDGET - shownNotes.text.length;
     const page: Array<{ messageId?: string; by: "person" | "bot"; at?: number; text: string; truncated: boolean }> = [];
     for (let index = (end === -1 ? 0 : end) - 1; index >= 0 && page.length < limit && budget > 0; index -= 1) {
       const line = lines[index]!;
@@ -220,7 +207,7 @@ export function reachThreads(input: {
     const oldest = (end === -1 ? 0 : end) - page.length;
     return {
       thread: { threadId: thread.threadId, ...(thread.title ? { title: thread.title } : {}) },
-      notes: notes.text, notesTruncated: notes.truncated,
+      notes: shownNotes.text, notesTruncated: notes.truncated || shownNotes.truncated,
       messages: page,
       earlier: oldest > 0 ? page.at(-1)?.messageId ?? null : null,
     };
@@ -266,7 +253,6 @@ export function reachThreadsByQuery(query: URLSearchParams, input: {
   });
 }
 
-/** "Saved to this thread", once, under the reply of a turn that saved to its conversation's notes. */
 export function createThreadSaveLines(deps: {
   bus: { subscribe(listener: (event: RuntimeEvent) => void): unknown };
   append(threadId: string, tool: { name: string; nameCode: ChatNoticeKey; ok: true }): void;

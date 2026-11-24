@@ -280,7 +280,6 @@ export function createDeleteLeftovers(deps: DeleteLeftoversDeps) {
     for (const bot of entries(root)) removeUnder(dataDir, join(root, bot, threadId));
   }
 
-  /** memory/threads/<thread>.md in the workspace of whichever bot kept the conversation. */
   function removeThreadNotes(threadId: string): void {
     const root = join(dataDir, "workspaces");
     for (const bot of entries(root)) removeUnder(dataDir, join(root, bot, "memory", "threads", `${threadId}.md`));

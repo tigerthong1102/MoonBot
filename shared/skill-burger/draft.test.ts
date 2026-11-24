@@ -147,9 +147,38 @@ describe("draftWorkflow", () => {
       multi("GMAIL_SEND_EMAIL", { recipient_email: "team@example.com", body }),
     ])!;
     const steps = draft.workflow.steps;
-    expect(steps.map((step) => [step.id, step.kind])).toEqual([["s1", "app"], ["s2_write", "ai"], ["s2", "app"]]);
+    expect(steps.map((step) => [step.id, step.kind])).toEqual([["s1", "app"], ["s2_write_2", "ai"], ["s2", "app"]]);
     expect(steps[1]).toMatchObject({ deterministic: false, input: { $step: "s1" }, example: body, label: "Write the body" });
-    expect(steps[2]!.kind === "app" && steps[2]!.args.body).toEqual({ $step: "s2_write" });
+    expect(steps[2]!.kind === "app" && steps[2]!.args.body).toEqual({ $step: "s2_write_2" });
+  });
+
+  it("references distinct composition steps for two fields of the same app call", () => {
+    const title = "Decision summary. ".repeat(20);
+    const body = "Details from the report. ".repeat(30);
+    const { workflow } = draftWorkflow([
+      ask("Create an issue using the report"),
+      multi("GOOGLESHEETS_BATCH_GET", { spreadsheet_id: "report" }, { data: { values: [["West", 40]] } }),
+      multi("GITHUB_CREATE_ISSUE", { title, body }),
+    ])!;
+    const [read, titleStep, bodyStep, issue] = workflow.steps;
+    expect(titleStep).toMatchObject({ kind: "ai", label: "Write the title", input: { $step: read!.id }, example: title });
+    expect(bodyStep).toMatchObject({ kind: "ai", label: "Write the body", input: { $step: read!.id }, example: body });
+    expect(titleStep!.id).not.toBe(bodyStep!.id);
+    expect(issue).toMatchObject({ kind: "app", args: { title: { $step: titleStep!.id }, body: { $step: bodyStep!.id } } });
+  });
+
+  it("preserves the account chosen for each app call in a multi-execute batch", () => {
+    const { workflow } = draftWorkflow([
+      ask("Sort the inboxes"),
+      tool("mcp__composio__COMPOSIO_MULTI_EXECUTE_TOOL", { tools: [
+        { tool_slug: "GMAIL_FETCH_EMAILS", arguments: { query: "invoice" }, account: "finance" },
+        { tool_slug: "GMAIL_FETCH_EMAILS", arguments: { query: "customer" }, account: "support" },
+        { tool_slug: "OUTLOOK_LIST_MESSAGES", arguments: { top: 5 } },
+      ] }),
+    ])!;
+    expect(workflow.steps.map((step) => step.kind === "app" ? [step.tool, step.account] : step.kind)).toEqual([
+      ["GMAIL_FETCH_EMAILS", "finance"], ["GMAIL_FETCH_EMAILS", "support"], ["OUTLOOK_LIST_MESSAGES", undefined],
+    ]);
   });
 
   it("saves a clipped, masked or code-running call as an AI step instead of guessing", () => {

@@ -6,8 +6,6 @@ import { setBurgerEveryChat, type SavedWorkflow } from "@/lib/skill-burger";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { Switch } from "../SettingsPrimitives";
 
-/** A Skill Burger's one choice: this bot only, or every chat. Changing what every bot uses is an admin's, as the shared
- * skills library is; anyone else sees the switch with the reason it is off. */
 export function EveryChatToggle({ skill, onMoved, compact = false, className }: {
   skill: SavedWorkflow;
   onMoved?: (skill: SavedWorkflow) => void;

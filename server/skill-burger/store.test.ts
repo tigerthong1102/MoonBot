@@ -44,17 +44,27 @@ describe("saved burgers", () => {
     const { root, bot, botIds } = fixture();
     const saved = saveWorkflowSkill({ workflow, place: { botId: bot }, botIds, root });
     if ("error" in saved) throw new Error(saved.error);
-    const shared = setWorkflowEveryChat({ name: saved.name, everyChat: true, botId: bot, sha256: saved.sha256, root });
+    const shared = setWorkflowEveryChat({ name: saved.name, everyChat: true, botId: bot, botIds, sha256: saved.sha256, root });
     expect(shared).toMatchObject({ name: saved.name, everyChat: true, botId: bot });
     expect(readSkillLibraryIndex(root)[saved.name]).toMatchObject({ everyBot: true, reviewState: "approved", tags: ["workflow"], source: `skill-burger:${bot}`, files: [WORKFLOW_FILE] });
     expect(JSON.parse(readFileSync(join(librarySkillDirectory(root, saved.name), WORKFLOW_FILE), "utf8"))).toEqual(workflow);
     expect(listSkills(bot)).toEqual([]);
     expect(workflowSkillsPrompt("any-other-bot", root)).toContain(`- ${saved.name}: ${workflow.summary} Read`);
 
-    const back = setWorkflowEveryChat({ name: saved.name, everyChat: false, root });
+    const back = setWorkflowEveryChat({ name: saved.name, everyChat: false, botIds, root });
     expect(back).toMatchObject({ name: saved.name, everyChat: false, botId: bot });
     expect(readSkillLibraryIndex(root)).toEqual({});
     expect(listSkills(bot).map((skill) => skill.name)).toEqual([saved.name]);
+  });
+
+  it("keeps the shared workflow available after its origin bot is deleted", () => {
+    const { root, bot } = fixture();
+    const saved = saveWorkflowSkill({ workflow, name: "shared-sales", place: { everyChat: true }, origin: bot, botIds: [bot], root });
+    if ("error" in saved) throw new Error(saved.error);
+    const moved = setWorkflowEveryChat({ name: saved.name, everyChat: false, botIds: [], sha256: saved.sha256, root });
+    expect(moved).toEqual({ error: "The bot this Skill Burger came from is gone." });
+    expect(listWorkflowSkills([], root)).toContainEqual(saved);
+    expect(listSkills(bot)).toEqual([]);
   });
 
   it("refuses a taken or malformed name and a workflow that isn't one", () => {

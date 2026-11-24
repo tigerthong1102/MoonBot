@@ -347,7 +347,6 @@ function memoryUpdateProblem(update: MemoryUpdate): Extract<MemoryEdit, { ok: fa
   return null;
 }
 
-/** What one memory_update makes of a notes file's text, before any budget or write. */
 export function editMemoryText(current: string, update: MemoryUpdate, opts: MemoryUpdateOptions = {}): MemoryEdit {
   const problem = memoryUpdateProblem(update);
   if (problem) return problem;

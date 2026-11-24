@@ -42,7 +42,7 @@ jobs:
       - run: pnpm build:cua:win
       - name: Package Windows
         shell: bash
-        run: pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never "-c.extraMetadata.startupbotInboxOrigin=$STARTUPBOT_INBOX_ORIGIN"
+        run: pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never -c.compression=normal "-c.extraMetadata.startupbotInboxOrigin=$STARTUPBOT_INBOX_ORIGIN"
       - name: Install and open the Windows package
         shell: pwsh
         run: |
@@ -54,16 +54,24 @@ jobs:
           $env:OMB_SMOKE_TEST = '1'
           $env:OMB_SMOKE_KEEP_OPEN = '1'
           $env:OMB_SMOKE_CUA = '0'
+          $env:OMB_SMOKE_HOME = Join-Path $env:RUNNER_TEMP 'pilot-home'
+          New-Item -ItemType Directory -Path $env:OMB_SMOKE_HOME -Force | Out-Null
           $env:OMB_DATA_DIR = Join-Path $env:RUNNER_TEMP 'pilot-data'
           $env:OMB_PORT = '25380'
           $env:OMB_WEBHOOK_PORT = '25381'
           $env:OMB_COMPANION_BONJOUR = '0'
           $profile = Join-Path $env:RUNNER_TEMP 'pilot-profile'
           Remove-Item Env:STARTUPBOT_INBOX_ORIGIN
-          $process = Start-Process $application -ArgumentList @("--user-data-dir=$profile", '--remote-debugging-port=25382') -PassThru
+          $stdout = Join-Path $env:RUNNER_TEMP 'pilot-desktop-stdout.txt'
+          $stderr = Join-Path $env:RUNNER_TEMP 'pilot-desktop-stderr.txt'
+          $process = Start-Process $application -ArgumentList @("--user-data-dir=$profile", '--remote-debugging-port=25382') -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
           try {
             node scripts/smoke-pilot-desktop.mjs
-            if ($LASTEXITCODE -ne 0) { throw 'Windows package UI smoke failed' }
+            if ($LASTEXITCODE -ne 0) {
+              Get-Content $stdout,$stderr -Tail 50 -ErrorAction SilentlyContinue
+              Get-Content (Join-Path $env:APPDATA 'StartupBot/logs/server.log') -Tail 50 -ErrorAction SilentlyContinue
+              throw 'Windows package UI smoke failed'
+            }
           } finally {
             Stop-Process -Id $process.Id -ErrorAction SilentlyContinue
           }

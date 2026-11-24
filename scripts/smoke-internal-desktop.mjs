@@ -185,10 +185,13 @@ try {
   assert(!initialBots.some(row => row.name === workName));
   const extra = "Ghi nhận, tôi vẫn đang ở chat chính.";
   const extraNext = "Xin xác nhận ghi chú thử thứ hai.";
+  const declinedWork = "Theo dõi lịch bảo trì thiết bị thử mỗi tháng.";
+  writeFileSync(textRoutes, JSON.stringify({ [workMessage]: JSON.stringify({ name: workName, icon: "calendar" }), [declinedWork]: JSON.stringify({ name: "Bảo trì", icon: "calendar" }) }));
   writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [
     { key: "first-work", match: [workMessage], reply: "Tôi sẽ giúp theo dõi tin tức AI." },
     { key: "queued-first", match: [extra], reply: "Đã ghi nhận ghi chú thứ nhất." },
     { key: "queued-next", match: [extraNext], reply: "Đã ghi nhận ghi chú thứ hai." },
+    { key: "declined-work", match: [declinedWork], reply: "Đã ghi nhận lịch bảo trì thử." },
   ] } }));
   const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
   await until(() => evaluate(`Boolean(${helperRow})`), "the main helper in the sidebar");
@@ -266,6 +269,23 @@ try {
     await img.decode();
     return [img.naturalWidth, img.naturalHeight];
   })()`), [128, 128]);
+  await evaluate(`${helperRow}.click()`);
+  await send(declinedWork);
+  const declined = await until(async () => {
+    const rows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+    const source = rows.find(row => row.role === "user" && row.text === declinedWork);
+    if (!source) return false;
+    return rows.map(row => row.card).find(card => card?.teamSetupRequest?.workBotOffer?.sourceMessageId === source.id && !card.answered);
+  }, "a second offer for continuing in the main conversation");
+  const declinedPrompts = () => readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(declinedWork));
+  assert.equal(declinedPrompts().length, 0);
+  const continueHere = `[...document.querySelectorAll('[data-work-bot-offer]')].find(card => card.innerText.includes(${JSON.stringify(declined.title)}))?.querySelectorAll('button')[1]`;
+  await until(() => evaluate(`Boolean(${continueHere})`), "the visible continue-here choice");
+  await evaluate(`(${continueHere}).click()`);
+  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.card?.requestId === declined.requestId && row.card.teamSetupRequest?.result?.state === "denied"), "the declined choice to be recorded");
+  const declinedCompletion = await until(() => completedRequest(helper.threadId, declinedWork), "the declined request to finish in the main conversation");
+  assert.deepEqual((await roster()).map(row => row.id).sort(), afterConsent.map(row => row.id).sort());
+  assert.equal(declinedPrompts().length, 1);
   const created = await request("/api/bots", { name: "Internal package agent", cwd: home });
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
@@ -349,7 +369,7 @@ try {
   const screenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-packaged.png"), Buffer.from(screenshot.data, "base64"));
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, instructionsVerified: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion },
+    workBotOffer: { beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, instructionsVerified: true, avatarDecoded: true, workCompletion, queuedCompletion, nextCompletion, declinedCompletion },
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,
     computerUse: "Permission status observed; real user-desktop control NOT RUN", liveProvider: "NOT RUN" };

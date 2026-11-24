@@ -3,7 +3,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { backgroundAccessibilityAction, slimResponse } from "./driver-wire.ts";
 import { resolveStep, resolveStepSoon, type CallOutcome, type ComputerCaller, type Patience } from "./resolve.ts";
 import { stepLabel, type Recipe, type RecipeStep } from "./rules.ts";
-import { expectedWindowsDestination, windowsSnapshotMatches, windowsTabCount } from "./windows-destination.ts";
+import { expectedWindowsDestination, windowsSnapshotMatches, windowsTabCount, windowsTabSelected } from "./windows-destination.ts";
 
 export interface ReplayTurn { threadId: string; turnId: string; provider: string; providerInstanceId: string }
 export interface StepApproval { ask(tool: string, summary: string): Promise<boolean> }
@@ -48,7 +48,7 @@ async function reachedWindowsDestination(caller: ComputerCaller, step: RecipeSte
     const state = slimResponse({ result: { structuredContent: response.structured } }, "win32").structured;
     if ("title" in destination && windowsSnapshotMatches(state, step, pid, window_id, destination.title)) return true;
     if ("tab" in destination && windowsSnapshotMatches(state, step, pid, window_id, step.window!.title)
-      && windowsTabCount(state, destination.tab) === 1) return true;
+      && windowsTabSelected(state, destination.tab)) return true;
     if (!windowsSnapshotMatches(state, step, pid, window_id, step.window!.title)) return false;
     await delay(WINDOWS_POLL_MS, undefined, { signal: bounded }).catch(() => {});
   }

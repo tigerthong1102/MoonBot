@@ -65,7 +65,7 @@ describe("Windows UIA projected window buttons", () => {
     const parent = { role: "ToolBar", label: "Navigation", depth: 2, element_index: 0, element_token: "s00000001:0" };
     const child = { ...button, depth: 3, parent_index: 0 };
     const before = { ...tree, returned_element_count: 2, total_element_count: 2, elements: [parent, child] };
-    const tab = { role: "TabItem", label: "Reports", depth: 2, element_index: 2, element_token: "s00000002:2" };
+    const tab = { role: "TabItem", label: "Reports", depth: 2, element_index: 2, element_token: "s00000002:2", selected: true };
     const after = { ...before, returned_element_count: 3, total_element_count: 3, elements: [parent, child, tab] };
     const built = record(before);
     if (!built.ok) throw Error(built.reason);
@@ -83,6 +83,8 @@ describe("Windows UIA projected window buttons", () => {
       elements: [...after.elements, { ...tab, element_index: 3, element_token: "s00000002:3" }] };
     expect(recordedWindowsDestination(recipe, { ...journal, calls: [journal.calls[0]!, journal.calls[1]!,
       { ...journal.calls[2]!, result: slim(duplicate) }] })).toBe(false);
+    expect(recordedWindowsDestination(recipe, { ...journal, calls: [journal.calls[0]!, journal.calls[1]!,
+      { ...journal.calls[2]!, result: slim({ ...after, elements: [parent, child, { ...tab, selected: false }] }) }] })).toBe(false);
     let clicks = 0, verified = 0, startingWithTab = false, reserved = 0;
     const caller: ComputerCaller = { async call(tool) {
       if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid: address.pid, name: tree.app_name }] } };

@@ -33,6 +33,11 @@ export function windowsTabCount(data: SlimStructured | undefined, label: string)
   return data?.elements?.filter((row) => row.role === "TabItem" && row.label === label).length ?? 0;
 }
 
+export function windowsTabSelected(data: SlimStructured | undefined, label: string): boolean {
+  const matches = data?.elements?.filter((row) => row.role === "TabItem" && row.label === label) ?? [];
+  return matches.length === 1 && matches[0]!.selected === true;
+}
+
 export function windowsSnapshotMatches(
   data: SlimStructured | undefined, step: RecipeStep, pid: unknown, windowId: unknown, title: string,
 ): boolean {
@@ -60,5 +65,5 @@ export function recordedWindowsDestination(recipe: Recipe, journal: RequestJourn
       ? windowsSnapshotMatches(after?.result.structured, step, pid, windowId, destination.title)
       : windowsTabCount(before?.result.structured, destination.tab) === 0
         && windowsSnapshotMatches(after?.result.structured, step, pid, windowId, step.window!.title)
-        && windowsTabCount(after?.result.structured, destination.tab) === 1);
+        && windowsTabSelected(after?.result.structured, destination.tab));
 }

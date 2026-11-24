@@ -8502,6 +8502,7 @@
   "brief.card.join": "Participar",
   "brief.card.open": "Abrir",
   "brief.card.openGmail": "Abrir no Gmail",
+  "brief.card.openOutlook": "Abrir no Outlook",
   "brief.card.openPage": "Abrir página",
   "brief.card.draftReply": "Criar rascunho de resposta para {who}",
   "brief.card.dismissEmail": "Dispensar o e-mail de {who}",

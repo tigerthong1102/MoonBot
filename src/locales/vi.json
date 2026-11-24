@@ -9120,6 +9120,7 @@
   "brief.card.join": "Nhập",
   "brief.card.open": "Mở",
   "brief.card.openGmail": "Mở trong Gmail",
+  "brief.card.openOutlook": "Mở trong Outlook",
   "brief.card.openPage": "Mở trang",
   "brief.card.draftReply": "Soạn thảo một câu trả lời cho {who}",
   "brief.card.dismissEmail": "Thải bỏ email của {who}",

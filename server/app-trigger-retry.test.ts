@@ -1,3 +1,4 @@
+import { deferred } from "./testing/deferred.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,7 +30,7 @@ describe("the app-event service's Retry-After", () => {
     [429, undefined, 2_000], [401, 90, 2_000], [503, 0, 2_000],
   ])("uses the retry interval for HTTP %i with Retry-After %s", async (status, retryAfter, expected) => {
     const directory = mkdtempSync(join(tmpdir(), "omb-trigger-retry-"));
-    const sleeping = Promise.withResolvers<number>();
+    const sleeping = deferred<number>();
     const poll = vi.fn<AppTriggerBroker["poll"]>().mockRejectedValue(new BrokerError("Please wait", status!, retryAfter));
     const broker: AppTriggerBroker = {
       triggerTypes: async () => ({}),

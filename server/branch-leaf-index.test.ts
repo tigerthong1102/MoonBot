@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { closeMessageDb, importThread, readStoredActiveLeaf } from "./message-db.ts";
+import { closeMessageDb, importThread, readThread } from "./message-db.ts";
 import { Store, type Message } from "./store.ts";
 
 afterEach(() => closeMessageDb());
@@ -15,7 +15,7 @@ it("chooses the newest child at every branch and persists its final descendant",
   store.onChange((event) => { if (event.type === "thread" && event.activeLeafId) leaves.push(event.activeLeafId); });
   expect(store.setActiveLeaf(threadId, "root")).toBe("newer-tail");
   expect(leaves).toEqual(["newer-tail"]);
-  expect(readStoredActiveLeaf(threadId)).toBe("newer-tail");
+  expect(readThread(threadId, "").activeLeafId).toBe("newer-tail");
   closeMessageDb();
   expect(new Store(selection).activeLeaf(threadId)).toBe("newer-tail");
 });
@@ -27,5 +27,5 @@ it("uses the later stored sibling to break equal timestamps and keeps other root
   expect(store.setActiveLeaf(threadId, "root")).toBe("second");
   expect(store.setActiveLeaf(threadId, "other-root")).toBe("other-tail");
   expect(store.setActiveLeaf(threadId, "missing")).toBeNull();
-  expect(readStoredActiveLeaf(threadId)).toBe("other-tail");
+  expect(readThread(threadId, "").activeLeafId).toBe("other-tail");
 });

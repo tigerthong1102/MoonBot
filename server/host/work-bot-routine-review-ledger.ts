@@ -31,17 +31,17 @@ export class WorkBotRoutineReviewLedger {
   }
 
   authorize(identity: WorkBotRoutineReviewIdentity): object | null {
-    const pending = this.#pending.get(identity.requestId);
-    if (!pending || pending.expiresAt <= this.#now() || !sameIdentity(pending.identity, identity)) return null;
+    const pending = this.#pending.get(identity.requestId), now = this.#now();
+    if (!Number.isFinite(now) || !pending || pending.expiresAt <= now || !sameIdentity(pending.identity, identity)) return null;
     const permit = Object.freeze({});
     this.#permits.set(permit, pending);
     return permit;
   }
 
   consume(permit: object, identity: WorkBotRoutineReviewIdentity): boolean {
-    const pending = this.#permits.get(permit);
+    const pending = this.#permits.get(permit), now = this.#now();
     this.#permits.delete(permit);
-    if (!pending || pending.expiresAt <= this.#now() || !sameIdentity(pending.identity, identity) || this.#pending.get(identity.requestId) !== pending) return false;
+    if (!Number.isFinite(now) || !pending || pending.expiresAt <= now || !sameIdentity(pending.identity, identity) || this.#pending.get(identity.requestId) !== pending) return false;
     this.#pending.delete(identity.requestId);
     return true;
   }

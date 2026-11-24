@@ -55,3 +55,13 @@ it("removes expired entries before accepting a fresh review", () => {
   expect(ledger.consume(old, identity)).toBe(false);
   expect(ledger.consume(ledger.authorize(identity)!, identity)).toBe(true);
 });
+
+it("fails closed when its clock is unavailable", () => {
+  let now = 1;
+  const ledger = new WorkBotRoutineReviewLedger(() => now, 10);
+  ledger.register(identity);
+  const permit = ledger.authorize(identity)!;
+  now = Number.NaN;
+  expect(ledger.authorize(identity)).toBeNull();
+  expect(ledger.consume(permit, identity)).toBe(false);
+});

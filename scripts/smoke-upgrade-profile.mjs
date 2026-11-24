@@ -57,10 +57,10 @@ try {
   const executable = process.platform === "darwin" ? path.join(path.resolve(values.app), "Contents", "MacOS", "StartupBot") : path.resolve(values.app);
   const options = { executable, profile, fixture, env, helper: { id: expected.botId }, workBot: { id: expected.botId, threadId: expected.threadId }, workMessage: expected.oldText,
     workRequestId: expected.messageId, replyText: expected.oldReply, prompts: config.instances.claude.environment.FAKE_CLAUDE_PROMPTS, workspaceFile: path.join(home, "synthetic-old-file.txt"),
-    fileContents: "baseline fixture file", botIds: bots.map(bot => bot.id), evidence: firstEvidence, lifecycle, routineId: expected.routineId };
+    fileContents: "baseline fixture file", botIds: bots.map(bot => bot.id), evidence: firstEvidence, lifecycle, routineId: expected.routineId, expectedSkin: expected.expectedSkin, expectedWorkspace: expected.expectedWorkspace === "home" ? home : undefined, stablePort: expected.stablePort };
   const first = await smokeDesktopRestart({ ...options, legacyOffer: expected.legacyOffer });
   const second = await smokeDesktopRestart({ ...options, evidence: secondEvidence, followupText, followupReply });
-  const result = { status: "PASS", first, second, limits: "Synthetic profile; no theme, due-time routine, companion, or live-provider test" };
+  const result = { status: "PASS", first, second, limits: `Synthetic profile; theme ${first.theme}; workspace ${first.workspace}; no due-time routine, companion, or live-provider test` };
   writeFileSync(path.join(evidence, "upgrade-profile.json"), JSON.stringify(result, null, 2) + "\n");
   console.log(JSON.stringify({ ...result, evidence }));
 } finally {

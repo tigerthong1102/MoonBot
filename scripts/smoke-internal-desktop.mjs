@@ -73,6 +73,14 @@ async function freePort() {
   await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   return port;
 }
+async function freePortExcept(used) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const port = await freePort();
+    if (!used.includes(port)) return port;
+  }
+  throw new Error("Could not allocate distinct synthetic test ports");
+}
+
 async function until(read, label, ms = 90_000) {
   const deadline = Date.now() + ms;
   let last;
@@ -83,8 +91,8 @@ async function until(read, label, ms = 90_000) {
   throw new Error(`Timed out waiting for ${label}${last ? `: ${last.message}` : ""}`);
 }
 const port = await freePort();
-const webhook = await freePort();
-const debug = await freePort();
+const webhook = await freePortExcept([port]);
+const debug = await freePortExcept([port, webhook]);
 const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERPROFILE: home,
   APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"),
   XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
@@ -113,7 +121,7 @@ try {
   const target = await until(async () => {
     if (child.exitCode !== null) throw new Error(`Application exited with ${child.exitCode}`);
     const list = await fetch(`http://127.0.0.1:${debug}/json/list`, { signal: AbortSignal.timeout(2_000) }).then(r => r.json());
-    return list.find(item => item.type === "page" && /^http:\/\/127\.0\.0\.1:\d+\/$/.test(item.url));
+    return list.find(item => item.type === "page" && item.url === `http://127.0.0.1:${port}/`);
   }, "the packaged renderer");
   socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
@@ -205,7 +213,23 @@ try {
   const initialBots = await roster();
   const helper = initialBots.find(row => row.defaultBot);
   assert(helper?.threadId, "The first-run main helper must exist");
-  assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: "full" }, "PATCH")).status, 200);
+  assert.equal((await request(`/api/bots/${helper.id}`, { approvalMode: "full", cwd: home }, "PATCH")).status, 200);
+  assert.equal((await roster()).find(row => row.id === helper.id)?.cwd, home);
+  await until(() => evaluate("Boolean(document.querySelector('[data-sidebar-account]')?.closest('button'))"), "the account menu entry");
+  await evaluate("document.querySelector('[data-sidebar-account]').closest('button').click()");
+  await until(() => evaluate("Boolean(document.querySelector('[data-menu-key=settings]'))"), "the Settings menu item");
+  await evaluate("document.querySelector('[data-menu-key=settings]').click()");
+  await until(() => evaluate("Boolean(document.querySelector('[data-settings-sheet] [data-settings-page=appearance]'))"), "Settings navigation");
+  await evaluate("document.querySelector('[data-settings-sheet] [data-settings-page=appearance]').click()");
+  const lightRadio = `[...document.querySelectorAll('[data-settings-sheet] [role=radio]')].find(button => button.textContent.trim() === "Light")`;
+  await until(() => evaluate(`Boolean(${lightRadio})`), "the light appearance choice");
+  await evaluate(`(${lightRadio}).click()`);
+  await until(() => evaluate("localStorage.getItem('omb-skin') === 'daylight' && document.documentElement.dataset.skin === 'daylight'"), "the chosen light appearance");
+  await evaluate("document.querySelector('[data-settings-sheet] button[aria-label=\"Close settings\"]').click()");
+  await until(() => evaluate("!document.querySelector('[data-settings-sheet]')"), "Settings to close");
+  const configuredHelper = (await roster()).find(row => row.id === helper.id);
+  assert.equal(configuredHelper?.approvalMode, "full");
+  assert.equal(configuredHelper?.cwd, home);
   if (values["create-upgrade-fixture"]) {
     const oldText = "Synthetic archived inventory note 4102", oldReply = "Synthetic archived result 4102";
     writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [{ key: "legacy-offer", match: [workMessage], reply: "Synthetic legacy work result." }, { key: "old-message", match: [oldText], reply: oldReply }] } }));
@@ -241,7 +265,7 @@ try {
     mkdirSync(destination);
     try {
       for (const entry of readdirSync(fixture)) cpSync(path.join(fixture, entry), path.join(destination, entry), { recursive: true, errorOnExist: true, force: false });
-      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id, legacyOffer }));
+      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id, expectedSkin: "daylight", expectedWorkspace: "home", stablePort: port, legacyOffer }));
     } catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
     report = { ...report, status: "PASS", baselineFixture: destination };
   } else {
@@ -453,7 +477,7 @@ try {
   await until(() => child.exitCode !== null || child.signalCode !== null, "the first application shutdown", 45_000);
   await waitPortClosed(port, "the first server to stop");
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
-  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, lifecycle: restartLifecycle });
+  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion },
     computerPanelNavigation: disposableDesktop ? "PASS (opened and closed on disposable runner; no desktop control)" : "NOT RUN (requires disposable desktop)",

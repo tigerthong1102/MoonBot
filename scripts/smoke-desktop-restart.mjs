@@ -12,6 +12,14 @@ async function freePort() {
   return port;
 }
 
+async function freePortExcept(used) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const port = await freePort();
+    if (!used.includes(port)) return port;
+  }
+  throw new Error("Could not allocate distinct synthetic test ports");
+}
+
 async function until(read, label, timeout = 90_000) {
   const deadline = Date.now() + timeout;
   let last;
@@ -32,8 +40,13 @@ export async function waitPortClosed(port, label) {
   }), label, 15_000);
 }
 
-export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer }) {
-  const port = await freePort(), webhook = await freePort(), debug = await freePort();
+export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, expectedSkin, expectedWorkspace, stablePort }) {
+  if (stablePort !== undefined && (!Number.isInteger(stablePort) || stablePort < 1024 || stablePort > 65535)) throw new Error("Invalid saved renderer port");
+  if (expectedSkin && stablePort === undefined) throw new Error("Saved renderer port required for appearance verification");
+  const port = stablePort ?? await freePort();
+  const webhook = await freePortExcept([port]);
+  const debug = await freePortExcept([port, webhook]);
+  if (stablePort) await waitPortClosed(port, "the saved renderer origin to be available");
   const args = [`--user-data-dir=${profile}`, `--remote-debugging-port=${debug}`, "--remote-debugging-address=127.0.0.1", "--no-first-run"];
   lifecycle.started = true;
   lifecycle.stopped = false;
@@ -50,7 +63,7 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
       if (spawnError) throw spawnError;
       if (child.exitCode !== null) throw new Error(`Application exited with ${child.exitCode}: ${output}`);
       const pages = await fetch(`http://127.0.0.1:${debug}/json/list`, { signal: AbortSignal.timeout(2_000) }).then(response => response.json());
-      return pages.find(page => page.type === "page" && /^http:\/\/127\.0\.0\.1:\d+\/$/.test(page.url));
+      return pages.find(page => page.type === "page" && page.url === `http://127.0.0.1:${port}/`);
     }, "the restarted renderer");
     socket = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
@@ -78,10 +91,12 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     await cdp("Runtime.enable");
     await cdp("Inspector.enable");
     await until(() => evaluate("Boolean(window.ogb?.getCapabilities && document.readyState === 'complete')"), "the restarted preload");
+    if (expectedSkin) await until(() => evaluate(`localStorage.getItem('omb-skin') === ${JSON.stringify(expectedSkin)} && document.documentElement.dataset.skin === ${JSON.stringify(expectedSkin)}`), "the restored appearance choice");
     const request = route => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)});return {status:r.status,body:await r.json()};})()`);
     const bots = await until(async () => { const response = await request("/api/bots?messages=0"); return response.status === 200 && response.body.bots; }, "the restored bots");
     assert.deepEqual(bots.map(bot => bot.id).sort(), [...botIds].sort());
     assert.equal(bots.find(bot => bot.id === helper.id)?.approvalMode, "full");
+    if (expectedWorkspace) assert.equal(bots.find(bot => bot.id === helper.id)?.cwd, expectedWorkspace);
     assert.equal(bots.find(bot => bot.id === workBot.id)?.threadId, workBot.threadId);
     const rows = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
     if (legacyOffer) {
@@ -138,7 +153,7 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     await until(() => child.exitCode !== null || child.signalCode !== null, "the restarted application to exit", 45_000);
     await waitPortClosed(port, "the restarted server to stop");
     assert.deepEqual(rendererErrors, [], "The restarted renderer reported an uncaught exception or crash");
-    return { status: "PASS", sameBotAndThread: true, workRequestId, noReplayObservedMs: 3000, fileRetained: true, fullAccessRetained: true };
+    return { status: "PASS", sameBotAndThread: true, workRequestId, noReplayObservedMs: 3000, fileRetained: true, fullAccessRetained: true, theme: expectedSkin ? "PASS" : "NOT RUN", workspace: expectedWorkspace ? "PASS" : "NOT RUN" };
   } finally {
     socket?.close();
     try {

@@ -4,7 +4,8 @@ import type { RoutineIntervalSchedule } from "./routine-schedules.ts";
 
 export const MAX_DATE_MS = 8_640_000_000_000_000;
 const LOCAL_DAY_MS = 24 * 60 * 60_000;
-export const INTERVAL_RESTRICTION_SEARCH_MS = 9 * LOCAL_DAY_MS;
+// The spring-forward transition can omit a weekly window entirely.
+export const INTERVAL_RESTRICTION_SEARCH_MS = 16 * LOCAL_DAY_MS;
 const CLOCK_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 export function clockMinutes(value: string): number | null {

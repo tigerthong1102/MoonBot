@@ -127,7 +127,7 @@ const makeBot = async (
     section,
     modelSelection: { instanceId, model: "claude-sonnet-5" },
   });
-  expect(patched.status).toBe(200);
+  expect(patched.status, JSON.stringify(patched.body)).toBe(200);
   return { id, threadId: str(field(created.body, "bot", "threadId")) };
 };
 
@@ -207,6 +207,7 @@ beforeAll(async () => {
       USERPROFILE: home,
       OMB_PORT: String(PORT),
       OMB_WEBHOOK_PORT: String(WEBHOOK_PORT),
+      OMB_DISABLE_MODEL_MANIFEST_FETCH: "1",
       FAKE_CLAUDE_DUMP: fakeClaudeDump,
       OMB_TEST_INTERNAL_CAPABILITY_KEY: TEST_CAPABILITY_KEY,
     },

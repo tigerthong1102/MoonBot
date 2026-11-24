@@ -75,7 +75,14 @@ describe("burst host", () => {
 });
 
 describe("burstDefaultModel", () => {
-  const catalog: ModelCatalog = { default: "big", options: [{ id: "big", label: "Big" }, { id: "small-mini", label: "Small" }] };
+  const catalog: ModelCatalog = {
+    default: "big",
+    options: [
+      { id: "big", label: "Big", provider: "engine" },
+      { id: "different-flash", label: "Different", provider: "other" },
+      { id: "small-mini", label: "Small", provider: "engine" },
+    ],
+  };
   const own: ModelSelection = { instanceId: "i", model: "big" };
 
   it("takes the engine's fast model when there is one this bot may use", () => {

@@ -205,7 +205,7 @@ Nếu gặp lỗi liên quan đến model (như `ModelNotOpen`), bạn có thể
 
 ## Xử lý lỗi
 
-- NẾU tập lệnh đưa ra lỗi "PermissionError: ARK_API_KEY hoặc MODEL_VIDEO_API_KEY hoặc MODEL_AGENT_API_KEY không tìm thấy trong các biến môi trường", hãy thông báo cho người dùng rằng họ cần cung cấp biến môi trường `ARK_API_KEY` hoặc `MODEL_VIDEO_API_KEY` hoặc `MODEL_AGENT_API_KEY`. Viết nó vào tệp biến môi trường trong không gian làm việc. Nếu tệp đã tồn tại, hãy thêm nó vào cuối. Đảm bảo định dạng biến môi trường là chính xác, làm cho biến môi trường có hiệu quả và thử lại tác vụ tạo video vừa thất bại.
+- Nếu thiếu khóa API, hướng dẫn người dùng thiết lập `ARK_API_KEY` hoặc `MODEL_VIDEO_API_KEY` hoặc `MODEL_AGENT_API_KEY` bằng cơ chế lưu thông tin xác thực an toàn trong môi trường của họ. Không yêu cầu gửi khóa qua chat, ghi vào tệp dự án hoặc in khóa ra. Chỉ thử lại sau khi người dùng đã cấu hình và cho phép yêu cầu.
 
 ## Ghi chú
 

@@ -765,7 +765,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Tạo video bằng mô hình Seedance của ByteDance.",
-    "instructionsSha256": "dd8994598246cdad9864ff1f933f0ad66946a8bc0e281336d55c1016aefd67a8",
+    "instructionsSha256": "6c074a83ae1269e24e84d45018d0049eab46fcb6855220ef784cee1247afe4f9",
     "summaryZh": "使用字节跳动的 Seedance 模型创建视频。",
     "summaryZhTw": "使用位元組跳動的 Seedance 模型建立影片。"
   },

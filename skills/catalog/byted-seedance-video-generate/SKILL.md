@@ -216,7 +216,7 @@ If you encounter a model-related error (like `ModelNotOpen`), you can downgrade 
 
 ## Error Handling
 
-- IF the script raises the error "PermissionError: ARK_API_KEY or MODEL_VIDEO_API_KEY or MODEL_AGENT_API_KEY not found in environment variables", inform the user that they need to provide the `ARK_API_KEY` or `MODEL_VIDEO_API_KEY` or `MODEL_AGENT_API_KEY` environment variable. Write it to the environment variable file in the workspace. If the file already exists, append it to the end. Ensure the environment variable format is correct, make the environment variable effective, and retry the video generation task that just failed.
+- If the API key is missing, ask the user to configure `ARK_API_KEY` or `MODEL_VIDEO_API_KEY` or `MODEL_AGENT_API_KEY` using a secure credential mechanism available in their environment. Never request the key in chat, write it to a project file, or print it. Retry only after the user has configured the credential and authorized the request.
 
 ## Notes
 

@@ -205,7 +205,7 @@ python scripts/video_generate.py -p "A beautiful landscape" --no-watermark
 
 ## 错误处理
 
-- 如果脚本引发错误“PermissionError：在环境变量中未找到 ARK_API_KEY 或 MODEL_VIDEO_API_KEY 或 MODEL_AGENT_API_KEY”，请通知用户需要提供 `ARK_API_KEY` 或 `MODEL_VIDEO_API_KEY` 或 `MODEL_AGENT_API_KEY` 环境变量。将其写入工作区的环境变量文件中。如果文件已存在，请将其附加到末尾。确保环境变量格式正确，使环境变量生效，然后重试刚才失败的视频生成任务。
+- 如果缺少 API 密钥，请指导用户通过其环境中安全的凭据机制配置 `ARK_API_KEY` 或 `MODEL_VIDEO_API_KEY` 或 `MODEL_AGENT_API_KEY`。不要要求在聊天中发送密钥、将其写入项目文件或打印密钥。仅在用户完成配置并授权请求后重试。
 
 ## 注释
 

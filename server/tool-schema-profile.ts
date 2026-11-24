@@ -243,8 +243,6 @@ function topLevelOnly(schema: Json, descriptionChars: number): Json {
   return { type: "object", properties, ...(required.length ? { required } : {}), additionalProperties: true };
 }
 
-/** kept: every field, constraint and annotation kept. trimmed: every field and constraint kept, fewer words. loosened: fields deeper in are
- * left to the tool's description. minimal: only the top-level fields. dropped: not even those fit. */
 export type SchemaFit =
   | { outcome: "kept"; schema: Json; bytes: number }
   | { outcome: "trimmed" | "loosened" | "minimal"; schema: Json; bytes: number; from: number }

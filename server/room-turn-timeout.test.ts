@@ -23,8 +23,7 @@ const cardOpened: RuntimeEvent = { ...base, type: "request.opened", requestId: "
 const cardResolved: RuntimeEvent = { ...base, type: "request.resolved", requestId: "r", behavior: "allow", source: "user" };
 const reply: RuntimeEvent = { ...base, type: "content.delta", streamKind: "assistant_text", delta: "ok" };
 
-/** Timers that keep counting through a sleep, as Node's do on macOS: `sleep` moves the clock on and runs nothing, and
- * `wake` runs what came due meanwhile, the kind named first. */
+/** On macOS, Node timers can become due while the computer is asleep. */
 function sleepingClock() {
   type Timer = { at: number; every?: number; run: () => void };
   let now = 0, nextId = 0;

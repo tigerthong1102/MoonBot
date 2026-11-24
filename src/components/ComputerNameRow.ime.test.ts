@@ -72,7 +72,7 @@ describe("renaming this computer with an input method", () => {
     type(input, "Study PC");
     const blur = press(input);
     expect(blur).toHaveBeenCalledOnce();
-    // happy-dom does not deliver a React onBlur from the programmatic blur() the handler uses.
+    // happy-dom does not deliver React onBlur for programmatic blur().
     flushSync(() => input.dispatchEvent(new FocusEvent("blur", { bubbles: true })));
     await vi.waitFor(() => expect(fixture.api).toHaveBeenCalledOnce());
     expect(fixture.api).toHaveBeenCalledWith("/api/config", expect.objectContaining({

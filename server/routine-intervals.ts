@@ -4,8 +4,7 @@ import type { RoutineIntervalSchedule } from "./routine-schedules.ts";
 
 export const MAX_DATE_MS = 8_640_000_000_000_000;
 const LOCAL_DAY_MS = 24 * 60 * 60_000;
-// A weekly window can disappear entirely in a spring-forward gap. Search past that skipped week,
-// with room for the timezone transition and the aligned interval on either side.
+// The spring-forward transition can omit a weekly window entirely.
 export const INTERVAL_RESTRICTION_SEARCH_MS = 16 * LOCAL_DAY_MS;
 const CLOCK_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 

@@ -109,7 +109,7 @@ const LINUX_ENGINE_BROWSERS = ["google-chrome", "google-chrome-stable", "google-
 /** Where Puppeteer and Playwright unpack Chrome inside a cache entry; an entry without one is incomplete. */
 const LINUX_CACHE_EXECUTABLES = ["chrome-linux64/chrome", "chrome-linux/chrome"];
 
-/** Google Chrome's own launchers, for a Linux desktop whose Chrome is not at Google's install path (NixOS puts it on PATH). */
+/** NixOS exposes Chrome through PATH. */
 const LINUX_CHROME_LAUNCHERS = ["google-chrome-stable", "google-chrome"];
 
 function linuxPath(host: ChromeHost): string[] {

@@ -46,7 +46,7 @@ function roleMenus(t, isMac) {
       { type: "separator" },
       role(t, "resetZoom", "native.role.actualSize"),
       role(t, "zoomIn", "native.role.zoomIn"),
-      // Electron's Zoom In key is Ctrl+Plus (Ctrl+Shift+=), so the unshifted =/+ key needs its own hidden item off macOS.
+      // Outside macOS, Electron maps the Zoom In role to Ctrl+Plus (Ctrl+Shift+=).
       ...(isMac ? [] : [{ ...role(t, "zoomIn", "native.role.zoomIn"), accelerator: "CommandOrControl+=", visible: false }]),
       role(t, "zoomOut", "native.role.zoomOut"),
       { type: "separator" },

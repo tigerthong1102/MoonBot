@@ -3,6 +3,7 @@ import { track } from "@/lib/analytics";
 import { useStore } from "@/state/store";
 import { t } from "@/lib/i18n";
 import { imeComposing } from "@/lib/send-key";
+import { randomUuid } from "@/lib/random-uuid";
 import { BotPickerList } from "./BotPickerList";
 import { EmailCodeForm } from "./EmailCodeForm";
 import { Layer } from "./Layer";
@@ -48,7 +49,7 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
         return;
       }
       const key = JSON.stringify([title, emails]);
-      if (attempt.current?.key !== key) attempt.current = { key, id: crypto.randomUUID() };
+      if (attempt.current?.key !== key) attempt.current = { key, id: randomUuid() };
       setBusy(true);
       try {
         const result = await bridge.create({ id: attempt.current.id, title, emails });

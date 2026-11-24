@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "此對話",
+  "memoryPage.everywhere": "所有對話",
+  "memoryPage.empty": "這裡還沒有記住任何內容。寫下你希望它知道的任何事。",
+  "chat.notice.savedToThread": "已儲存到此對話",
   "native.menu.personalInbox": "訊息",
   "settings.account.connectionFailed": "無法連線至 StartupBot。請再試一次。",
   "settings.account.emailAccess": "登入或建立帳戶",
@@ -4239,7 +4243,7 @@
   "botPanel.library.pages": "頁面",
   "botPanel.library.apps": "應用程式",
   "botPanel.library.files": "檔案",
-  "botPanel.library.scope": "來自這個對話",
+  "botPanel.library.showAll": "顯示全部",
   "botPanel.thisConversation": "在這個對話中",
   "botPanel.acts.custom": "自訂",
   "botPanel.acts.customHint": "在進階模式中變更",

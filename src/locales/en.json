@@ -1,4 +1,9 @@
 {
+  "memoryPage.thisThread": "This thread",
+  "memoryPage.everywhere": "Everywhere",
+  "memoryPage.empty": "Nothing remembered here yet. Write anything you want it to know.",
+  "chat.notice.savedToThread": "Saved to this thread",
+  "sidebar.bot.simple.mainThread": "Main thread",
   "reconcile.title": "Reconcile documents",
   "reconcile.close": "Close",
   "reconcile.intro": "Choose two UTF-8 CSV or single-sheet XLSX files. Your files stay on this device.",
@@ -4710,7 +4715,7 @@
   "botPanel.library.pages": "Pages",
   "botPanel.library.apps": "Apps",
   "botPanel.library.files": "Files",
-  "botPanel.library.scope": "From this conversation",
+  "botPanel.library.showAll": "Show all",
   "botPanel.thisConversation": "In this conversation",
   "botPanel.advanced.title": "More in Advanced mode",
   "botPanel.advanced.hint": "Sending on your behalf and app access are set there.",

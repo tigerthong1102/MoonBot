@@ -4020,7 +4020,12 @@
       "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
       "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
       "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd",
-      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c"
+      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "es": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -10525,7 +10530,12 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "fr": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -14331,7 +14341,12 @@
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
       "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
-      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0"
+      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "hi": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -17991,7 +18006,12 @@
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
       "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
-      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0"
+      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "ja": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -24905,7 +24925,6 @@
       "botPanel.library.pages": "9046da16aea909ba75a36cec13b56cb2144dc2ede45cde361e99a8d79802eabf",
       "botPanel.library.apps": "89dd748442c194857825848e1500abbbc5f52fb067ad27fb05dc9fb23eebba3b",
       "botPanel.library.files": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
-      "botPanel.library.scope": "ccb3484334f80d18e57e6d21f45819795d249122a76b6b293b1ca23c5df2f604",
       "botPanel.thisConversation": "9e131d429cc96e7b146549ca5ac81a4e72426ce6dea3e7ee22b09191933d3083",
       "botPanel.acts.custom": "494ca78f7374e46fb2de9ad9f2dbd4aaae89b50b2ca044177a1566a59e06627e",
       "botPanel.acts.customHint": "310e55204091030f78b208a2ce0e448ed5cc5c6e2ec0daa20461efb6bece42f9",
@@ -26091,7 +26110,12 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "pt-br": {
       "chat.clearMessages.question": "81d6c4e9d967df9cc372836338ffcab352f9d8bc7c14d4991bd925ec6adef712",
@@ -33318,7 +33342,6 @@
       "botPanel.library.pages": "9046da16aea909ba75a36cec13b56cb2144dc2ede45cde361e99a8d79802eabf",
       "botPanel.library.apps": "89dd748442c194857825848e1500abbbc5f52fb067ad27fb05dc9fb23eebba3b",
       "botPanel.library.files": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
-      "botPanel.library.scope": "ccb3484334f80d18e57e6d21f45819795d249122a76b6b293b1ca23c5df2f604",
       "botPanel.thisConversation": "9e131d429cc96e7b146549ca5ac81a4e72426ce6dea3e7ee22b09191933d3083",
       "botPanel.acts.custom": "494ca78f7374e46fb2de9ad9f2dbd4aaae89b50b2ca044177a1566a59e06627e",
       "botPanel.acts.customHint": "310e55204091030f78b208a2ce0e448ed5cc5c6e2ec0daa20461efb6bece42f9",
@@ -37209,7 +37232,13 @@
       "reconcile.fileType": "694ef553fd6674684845a9c1f1dc6b47228dfaf2d8f15f4cb39920b42d899f98",
       "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
       "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd",
-      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c"
+      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "sidebar.bot.simple.mainThread": "096ea9b3665fb5032135ef953c85ffb8dddbceb98cbbd5457bbbf706c10174b5",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "zh": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -42526,7 +42555,6 @@
       "botPanel.library.pages": "9046da16aea909ba75a36cec13b56cb2144dc2ede45cde361e99a8d79802eabf",
       "botPanel.library.apps": "89dd748442c194857825848e1500abbbc5f52fb067ad27fb05dc9fb23eebba3b",
       "botPanel.library.files": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
-      "botPanel.library.scope": "ccb3484334f80d18e57e6d21f45819795d249122a76b6b293b1ca23c5df2f604",
       "botPanel.thisConversation": "9e131d429cc96e7b146549ca5ac81a4e72426ce6dea3e7ee22b09191933d3083",
       "botPanel.acts.custom": "494ca78f7374e46fb2de9ad9f2dbd4aaae89b50b2ca044177a1566a59e06627e",
       "botPanel.acts.customHint": "310e55204091030f78b208a2ce0e448ed5cc5c6e2ec0daa20461efb6bece42f9",
@@ -47458,7 +47486,12 @@
       "server.rooms.linkedEnded": "bbeb2baa902dec0cdc4a381486fb238d8085d6a1fb7d1ad7a7b74fe982b3b20c",
       "room.members.far.place": "312a77edd15104f65401f8127c68968eb1586a75e13c44bc3bc5d28ea4f5125d",
       "room.members.far.off": "5c7291cc0bc0f48f169607324939b4b2bb308c5246d10cda4ad7501ba4883beb",
-      "room.members.far.missing": "4bc7f76d36ade5ee27902c91e3d7918641737b2387f846623c3f986a574177fa"
+      "room.members.far.missing": "4bc7f76d36ade5ee27902c91e3d7918641737b2387f846623c3f986a574177fa",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "zh-tw": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -53679,7 +53712,6 @@
       "botPanel.library.pages": "9046da16aea909ba75a36cec13b56cb2144dc2ede45cde361e99a8d79802eabf",
       "botPanel.library.apps": "89dd748442c194857825848e1500abbbc5f52fb067ad27fb05dc9fb23eebba3b",
       "botPanel.library.files": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
-      "botPanel.library.scope": "ccb3484334f80d18e57e6d21f45819795d249122a76b6b293b1ca23c5df2f604",
       "botPanel.thisConversation": "9e131d429cc96e7b146549ca5ac81a4e72426ce6dea3e7ee22b09191933d3083",
       "botPanel.acts.custom": "494ca78f7374e46fb2de9ad9f2dbd4aaae89b50b2ca044177a1566a59e06627e",
       "botPanel.acts.customHint": "310e55204091030f78b208a2ce0e448ed5cc5c6e2ec0daa20461efb6bece42f9",
@@ -57814,7 +57846,12 @@
       "server.routines.card.onceContinues": "47f36e2af395ab1cc4c1fa758a4e169404e1e0164fb07d2ad82914228cf99297",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "uk": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -61895,7 +61932,12 @@
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
       "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
-      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0"
+      "organization.notConfigured": "dd1841d295024256e8884cb898d863cb17333ef927fefae59368238e401c6ef0",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "vi": {
       "chat.clearMessages.question": "81d6c4e9d967df9cc372836338ffcab352f9d8bc7c14d4991bd925ec6adef712",
@@ -69353,7 +69395,6 @@
       "botPanel.library.pages": "9046da16aea909ba75a36cec13b56cb2144dc2ede45cde361e99a8d79802eabf",
       "botPanel.library.apps": "89dd748442c194857825848e1500abbbc5f52fb067ad27fb05dc9fb23eebba3b",
       "botPanel.library.files": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
-      "botPanel.library.scope": "ccb3484334f80d18e57e6d21f45819795d249122a76b6b293b1ca23c5df2f604",
       "botPanel.thisConversation": "9e131d429cc96e7b146549ca5ac81a4e72426ce6dea3e7ee22b09191933d3083",
       "botPanel.advanced.title": "d823803689ad1713989d7cd80dde661392f93c2a6a5690e748ab88ed10c98237",
       "botPanel.advanced.hint": "434ef07a7c8eafd2789a2fc936f8d050b62d7658d6777b0494db07e3c7d6294f",
@@ -73037,7 +73078,13 @@
       "sidebar.newBotOn.needsUpdate": "2fe10ee88189ee8ef942992b455e968fed8af782c1e7353b5a1ac4c54365c1b0",
       "server.workBot.question": "8c4d1a11be5b8b9f8291f8f4a5f1d64a30c18eda99331822e1bf1b15c013cc42",
       "server.workBot.create": "b23572a60492be71fc1ea5ba2ff20c60227c79d78d2da189e7ce7759ce9cfafd",
-      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c"
+      "workBotOffer.created": "4ed8b4671574aee55eea9f7380a0a4e1af6b299bec64b900c5fb2e48db3b703c",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "sidebar.bot.simple.mainThread": "096ea9b3665fb5032135ef953c85ffb8dddbceb98cbbd5457bbbf706c10174b5",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -79042,7 +79089,12 @@
       "engineSetup.cloudPasteHint": "e6e7b723c8ec76caec36a54986610db04f079430fd3a7a1986c627e18480a7ea",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "pl": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -86312,7 +86364,12 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "ru": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -93635,7 +93692,12 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "it": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -100764,7 +100826,13 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "sidebar.bot.simple.mainThread": "096ea9b3665fb5032135ef953c85ffb8dddbceb98cbbd5457bbbf706c10174b5",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     },
     "ko": {
       "connectedWorkspaces.localTitle": "7d6deafeab011d734c3fdd1bfd6f69544fbb746a004019269bdb48544b01164b",
@@ -104305,7 +104373,6 @@
       "botPanel.library.pages": "9046da16aea909ba75a36cec13b56cb2144dc2ede45cde361e99a8d79802eabf",
       "botPanel.library.apps": "89dd748442c194857825848e1500abbbc5f52fb067ad27fb05dc9fb23eebba3b",
       "botPanel.library.files": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
-      "botPanel.library.scope": "ccb3484334f80d18e57e6d21f45819795d249122a76b6b293b1ca23c5df2f604",
       "botPanel.thisConversation": "9e131d429cc96e7b146549ca5ac81a4e72426ce6dea3e7ee22b09191933d3083",
       "botPanel.acts.custom": "494ca78f7374e46fb2de9ad9f2dbd4aaae89b50b2ca044177a1566a59e06627e",
       "botPanel.acts.customHint": "310e55204091030f78b208a2ce0e448ed5cc5c6e2ec0daa20461efb6bece42f9",
@@ -108554,7 +108621,12 @@
       "task.bulk.retitleFailed": "fe8013b5add18967ec7df89806ef632a9a0c40012e6f651c0b236cc4127fbab6",
       "together.switch.title": "2829f92e4a9012d2265d7a82806d5750743ca14c0600d688485825dd4272938a",
       "together.switch.line": "f1da9a3fe37ffcb0273f52889240d8e3d13709220eca9c08b5b923f9def19409",
-      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8"
+      "together.switch.failed": "ad8287436402edb5c91ee0cc4bfe88f3301bac459a7d49e4cd2c564fa20aa1b8",
+      "botPanel.library.showAll": "2150d8df37e489573fb8f0f19ef89d2eda2ba4b49b3beb36333e5096a99a6dc0",
+      "memoryPage.thisThread": "bafc95570440f21442301daac35197fd29dd3a566fc7b3133587f31c4278229c",
+      "memoryPage.everywhere": "dcc10bfd55acda929a7dbd11cf657c55622f991c9bdb8dd1ee4b1a064215efdb",
+      "memoryPage.empty": "1fe786f321345cd3d462244d7c07c0ace8f7ee7eea273c44456061ec113137cf",
+      "chat.notice.savedToThread": "632b59b31de35bf2209b4b00c5110055145b632439143ee5b64413d05b4a27e6"
     }
   }
 }

@@ -1,4 +1,9 @@
 {
+  "memoryPage.thisThread": "Ця гілка",
+  "memoryPage.everywhere": "Усюди",
+  "memoryPage.empty": "Тут поки нічого не запам'ятано. Напишіть усе, що він має знати.",
+  "chat.notice.savedToThread": "Збережено в цій гілці",
+  "botPanel.library.showAll": "Показати всі",
   "native.menu.personalInbox": "Повідомлення",
   "cloudBuy.signIn.email": "Електронна пошта",
   "settings.account.connectionFailed": "Не вдалося підключитися до StartupBot. Спробуйте ще раз.",

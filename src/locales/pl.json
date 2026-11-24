@@ -1,4 +1,9 @@
 {
+  "memoryPage.thisThread": "Ten wątek",
+  "memoryPage.everywhere": "Wszędzie",
+  "memoryPage.empty": "Nic tu jeszcze nie zapamiętano. Napisz wszystko, co ma wiedzieć.",
+  "chat.notice.savedToThread": "Zapisano w tym wątku",
+  "botPanel.library.showAll": "Pokaż wszystkie",
   "native.menu.personalInbox": "Wiadomości",
   "settings.account.connectionFailed": "Nie można połączyć się ze StartupBot. Spróbuj ponownie.",
   "settings.account.emailAccess": "Zaloguj się lub utwórz konto",

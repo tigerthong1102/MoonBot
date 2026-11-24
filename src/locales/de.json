@@ -1,4 +1,9 @@
 {
+  "memoryPage.thisThread": "Dieser Thread",
+  "memoryPage.everywhere": "Überall",
+  "memoryPage.empty": "Hier ist noch nichts gespeichert. Schreib alles auf, was er wissen soll.",
+  "chat.notice.savedToThread": "In diesem Thread gespeichert",
+  "botPanel.library.showAll": "Alle anzeigen",
   "native.menu.personalInbox": "Nachrichten",
   "cloudBuy.signIn.email": "E-Mail",
   "settings.account.connectionFailed": "StartupBot ist nicht erreichbar. Bitte erneut versuchen.",

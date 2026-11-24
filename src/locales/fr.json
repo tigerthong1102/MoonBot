@@ -1,4 +1,9 @@
 {
+  "memoryPage.thisThread": "Ce fil",
+  "memoryPage.everywhere": "Partout",
+  "memoryPage.empty": "Rien n'est encore retenu ici. Écrivez tout ce que vous voulez qu'il sache.",
+  "chat.notice.savedToThread": "Enregistré dans ce fil",
+  "botPanel.library.showAll": "Tout afficher",
   "native.menu.personalInbox": "Messages",
   "cloudBuy.signIn.email": "E-mail",
   "settings.account.connectionFailed": "Impossible de joindre StartupBot. Réessayez.",

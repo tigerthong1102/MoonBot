@@ -1,4 +1,9 @@
 {
+  "memoryPage.thisThread": "Bu konuşma",
+  "memoryPage.everywhere": "Her yerde",
+  "memoryPage.empty": "Burada henüz hatırlanan bir şey yok. Bilmesini istediğin her şeyi yaz.",
+  "chat.notice.savedToThread": "Bu konuşmaya kaydedildi",
+  "botPanel.library.showAll": "Tümünü göster",
   "native.menu.personalInbox": "Mesajlar",
   "cloudBuy.signIn.email": "E-posta",
   "settings.account.connectionFailed": "StartupBot ile bağlantı kurulamadı. Tekrar deneyin.",

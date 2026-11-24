@@ -1,4 +1,8 @@
 {
+  "memoryPage.thisThread": "이 스레드",
+  "memoryPage.everywhere": "모든 곳",
+  "memoryPage.empty": "아직 여기에 기억된 내용이 없어요. 알아 두었으면 하는 내용을 적어 주세요.",
+  "chat.notice.savedToThread": "이 스레드에 저장했어요",
   "native.menu.personalInbox": "메시지",
   "settings.account.connectionFailed": "StartupBot에 연결할 수 없습니다. 다시 시도하세요.",
   "settings.account.emailAccess": "로그인 또는 계정 만들기",
@@ -3900,7 +3904,7 @@
   "botPanel.library.pages": "페이지",
   "botPanel.library.apps": "앱",
   "botPanel.library.files": "파일",
-  "botPanel.library.scope": "이 대화에서",
+  "botPanel.library.showAll": "모두 보기",
   "botPanel.thisConversation": "이 대화에서",
   "botPanel.acts.custom": "사용자 지정",
   "botPanel.acts.customHint": "고급 모드에서 바꾸세요",

@@ -152,7 +152,7 @@ export function stepLabel(step: RecipeStep): string {
   return step.window?.title ?? appName ?? "the screen";
 }
 
-const WINDOW_STATE_ARGS = new Set(["pid", "window_id", "tree_format", "include_screenshot"]);
+const WINDOW_STATE_ARGS = new Set(["pid", "window_id", "tree_format", "include_screenshot", "timeout_ms", "max_elements"]);
 
 interface Snapshot { pid?: number; windowId?: number; appName?: string; windowTitle?: string; elements: WireElement[]; complete: boolean; windowProjection: boolean }
 

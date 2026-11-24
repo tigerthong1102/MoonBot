@@ -35,7 +35,7 @@ function approvalSummary(step: RecipeStep, label: string): string {
 }
 
 export const WINDOWS_UNCERTAIN = "A saved click may already have reached the app. Check what happened before retrying. Once you have checked, use Forget saved steps on the original learned reply.";
-const WINDOWS_VERIFY_MS = 800;
+const WINDOWS_VERIFY_MS = 45_000;
 const WINDOWS_POLL_MS = 75;
 
 async function reachedWindowsTitle(caller: ComputerCaller, step: RecipeStep, address: Record<string, unknown>, title: string, signal: AbortSignal): Promise<boolean> {
@@ -43,7 +43,7 @@ async function reachedWindowsTitle(caller: ComputerCaller, step: RecipeStep, add
   const bounded = AbortSignal.any([signal, AbortSignal.timeout(WINDOWS_VERIFY_MS)]);
   for (;;) {
     if (bounded.aborted) return false;
-    const response = await caller.call("get_window_state", { pid, window_id, tree_format: "elements", include_screenshot: false }, bounded);
+    const response = await caller.call("get_window_state", { pid, window_id, tree_format: "elements", include_screenshot: false, timeout_ms: 30000, max_elements: 5000 }, bounded);
     if (!response.ok || bounded.aborted || response.structured.tree_format !== "elements") return false;
     const state = slimResponse({ result: { structuredContent: response.structured } }, "win32").structured;
     if (windowsSnapshotMatches(state, step, pid, window_id, title)) return true;

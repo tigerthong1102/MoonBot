@@ -148,7 +148,7 @@ export async function resolveStep(step: RecipeStep, caller: ComputerCaller, sign
     return fail("invalid saved Windows button");
   }
   const state = await caller.call("get_window_state", { pid: pid.value, window_id: windowId.value, include_screenshot: false,
-    ...(directButton ? { tree_format: "elements" } : {}) }, signal);
+    ...(directButton ? { tree_format: "elements", timeout_ms: 30000, max_elements: 5000 } : {}) }, signal);
   if (!state.ok) return state;
   const tree = state.structured;
   if (tree.pid !== pid.value || tree.window_id !== windowId.value) return fail("the computer answered for a different window");

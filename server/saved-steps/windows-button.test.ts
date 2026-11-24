@@ -47,6 +47,11 @@ describe("Windows UIA projected window buttons", () => {
     expect(record(tree, click, action, lookup, "darwin").ok).toBe(false);
   });
 
+  it("allows an unfiltered full-window read with a larger native traversal budget", () => {
+    expect(record(tree, click, action, { ...lookup, timeout_ms: 30000, max_elements: 5000 }).ok).toBe(true);
+    expect(record(tree, click, action, { ...lookup, timeout_ms: 30000, max_elements: 5000, max_depth: 3 }).ok).toBe(false);
+  });
+
   it("records accessibility delivery without treating it as a destination", () => {
     expect(slim(action).structured?.background_accessibility_action).toBe(true);
     expect(slim(action).structured).not.toHaveProperty("effect");

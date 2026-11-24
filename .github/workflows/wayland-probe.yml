@@ -1,0 +1,38 @@
+name: Exploratory GNOME Wayland
+on:
+  push:
+    branches: [codex/wayland-probe-20261125]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Install nested GNOME and GTK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnome-shell gnome-session-bin dbus-x11 xvfb at-spi2-core libatk-adaptor python3-gi gir1.2-gtk-3.0 x11-utils
+      - run: node scripts/prepare-cua-linux.mjs
+      - name: Probe an isolated GNOME Wayland session
+        run: |
+          dbus-run-session -- xvfb-run -a bash -eu -o pipefail <<'SHELL'
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          export XDG_CURRENT_DESKTOP=GNOME XDG_SESSION_TYPE=wayland LIBGL_ALWAYS_SOFTWARE=1
+          gnome-shell --nested --wayland --wayland-display=wayland-omb > "$RUNNER_TEMP/gnome.log" 2>&1 &
+          shell_pid=$!
+          trap 'kill "$shell_pid" 2>/dev/null || true; cat "$RUNNER_TEMP/gnome.log"' EXIT
+          for i in $(seq 1 90); do [ -S "$XDG_RUNTIME_DIR/wayland-omb" ] && break; kill -0 "$shell_pid"; sleep 1; done
+          test -S "$XDG_RUNTIME_DIR/wayland-omb"
+          export WAYLAND_DISPLAY=wayland-omb CUA_DRIVER_RS_ENABLE_WAYLAND=1
+          echo "WAYLAND_COMPOSITOR_RUNNING"
+          dist-native/cua-linux-x64/cua-driver doctor || true
+          dist-native/cua-linux-x64/cua-driver --help | head -80
+          SHELL

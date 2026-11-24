@@ -8,6 +8,7 @@ import { jsonFile } from "./desktop-prefs.mjs";
 import { app, session, systemPreferences, WebContentsView } from "electron";
 import { fileURLToPath } from "node:url";
 import { installInboxVoice, registerInboxVoice } from "./personal-inbox-voice.mjs";
+import { speechBusy } from "./speech.mjs";
 import { askForMicrophone } from "./privacy-settings.mjs";
 
 const panels = new WeakMap();
@@ -71,7 +72,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
   const page = view.webContents;
   const workspace = window.webContents;
   const bots = personalInboxBots(window, page, origin);
-  const disposeVoice = registerInboxVoice({ page, workspace, origin, localWorkspace, requestMicrophone });
+  const disposeVoice = registerInboxVoice({ page, workspace, origin, localWorkspace, requestMicrophone, canStartDictation: () => !speechBusy() });
   const invitePath = origin + "/desktop/invite-bot/";
   page.setWindowOpenHandler(({ url }) => {
     if (bots && url.startsWith(invitePath)) bots.invite(url.slice(invitePath.length));

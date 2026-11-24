@@ -129,8 +129,6 @@
               <div class="compose-row">
                 <button id="attach" type="button" class="ui-icon-button round" aria-label="Attach file" data-i18n-aria-label="personalInbox.attach" title="Attach file" data-i18n-title="personalInbox.attach"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-clip"></use></svg></button>
                 <input dir="auto" id="files" type="file" multiple hidden />
-                <button id="record-voice" type="button" class="ui-icon-button round" aria-label="Record voice message" hidden><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-mic"></use></svg></button>
-                <button id="dictate-voice" type="button" class="ui-icon-button round" aria-label="Start dictation" hidden><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-audio-lines"></use></svg></button>
                 <label class="kind round" title="Share a skill or task" data-i18n-title="personalInbox.shareWork"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-more"></use></svg>
                   <inbox-select name="kind" aria-label="Message type" data-i18n-aria-label="personalInbox.messageKind">
                     <option value="text" data-i18n="personalInbox.messages">Messages</option>
@@ -138,8 +136,12 @@
                     <option value="task" data-i18n="personalInbox.taskHandoff">Hand off a task</option>
                   </inbox-select>
                 </label>
-                <label class="sr" id="draft-label" for="draft" data-i18n="personalInbox.messages">Messages</label>
-                <textarea dir="auto" id="draft" name="body" rows="1" placeholder="Write a message…" data-i18n-placeholder="personalInbox.messagePlaceholder" maxlength="8000"></textarea>
+                <div class="draft-field">
+                  <label class="sr" id="draft-label" for="draft" data-i18n="personalInbox.messages">Messages</label>
+                  <textarea dir="auto" id="draft" name="body" rows="1" placeholder="Write a message…" data-i18n-placeholder="personalInbox.messagePlaceholder" maxlength="8000"></textarea>
+                  <button id="dictate-voice" type="button" class="ui-icon-button round" aria-label="Start dictation" hidden><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-mic"></use></svg></button>
+                  <button id="record-voice" type="button" class="ui-icon-button round voice-record" aria-label="Record voice message" hidden><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-audio-lines"></use></svg></button>
+                </div>
                 <button id="submit-post" class="ui-icon-button round" aria-label="Send" data-i18n-aria-label="personalInbox.send" title="Send" data-i18n-title="personalInbox.send"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-send"></use></svg></button>
               </div>
             </form>

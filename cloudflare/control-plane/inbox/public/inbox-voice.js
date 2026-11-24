@@ -102,7 +102,7 @@ export function voiceComposer({ recordButton, dictateButton, cancelButton, statu
     const entry = { id: crypto.randomUUID(), type: "dictate", base: draft.value, last: draft.value };
     active = entry;
     changed();
-    entry.timeout = setTimeout(() => { if (active === entry) discard(); }, 60000);
+    entry.timeout = setTimeout(() => { if (active === entry) dictateButton.click(); }, 60000);
     try {
       if (!(await bridge.dictate("start", entry.id)) && release(entry)) error("dictation_unavailable");
     } catch {

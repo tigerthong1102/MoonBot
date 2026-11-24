@@ -10,12 +10,12 @@ function inboxFrame(event) {
   return voice;
 }
 
-export function registerInboxVoice({ page, workspace, origin, localWorkspace, requestMicrophone }) {
+export function registerInboxVoice({ page, workspace, origin, localWorkspace, requestMicrophone, canStartDictation = () => true }) {
   const isHome = (value) => {
     const url = URL.canParse(value) ? new URL(value) : null;
     return url?.origin === origin && url.pathname === "/";
   };
-  const voice = { workspace, localWorkspace, requestMicrophone, isHome, microphoneUntil: 0, dictation: null };
+  const voice = { workspace, localWorkspace, requestMicrophone, canStartDictation, isHome, microphoneUntil: 0, dictation: null };
   views.set(page, voice);
   inboxPages.set(workspace, page);
   const allowed = (contents, permission, requesting, details) => {
@@ -56,7 +56,7 @@ export function installInboxVoice(ipc, localOnly, requireMainWindowSender) {
       endDictation(voice);
       return true;
     }
-    if (action === "start" && !voice.dictation) voice.dictation = id;
+    if (action === "start" && !voice.dictation && voice.canStartDictation()) voice.dictation = id;
     else if (action !== "finish" || voice.dictation !== id) return false;
     voice.microphoneUntil = 0;
     voice.workspace.send("personal-inbox:dictation-command", { id: voice.dictation, action });

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import { fishSpeech, fishSpeechBusy } from "@/lib/fish-speech";
+import { speechBridge } from "@/lib/speech";
 import { useComposerDictation } from "@/lib/use-composer-dictation";
 
 type Bridge = NonNullable<NonNullable<Window["ogb"]>["inboxDictation"]>;
@@ -16,7 +18,7 @@ function Session({ bridge, id, finish, clear }: { bridge: Bridge; id: string; fi
   const { recording, ready, speechError, toggle } = useComposerDictation({ draftId: id, text: transcript, onText: update });
   const heard = useRef(false);
   const start = useEffectEvent(() => {
-    if (ready) toggle();
+    if (ready && (speechBridge() !== fishSpeech || !fishSpeechBusy())) toggle();
     else report({ status: "unavailable" });
   });
   const finishCapture = useEffectEvent(toggle);

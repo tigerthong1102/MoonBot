@@ -112,6 +112,18 @@ describe("Windows UIA projected window buttons", () => {
     expect(record(tree, click, action, { ...lookup, timeout_ms: 30000, max_elements: 5000, max_depth: 3 }).ok).toBe(false);
   });
 
+  it("retains the stable app identity and the window provider's name when the driver names them differently", () => {
+    const state = { ...tree, app_name: "Fixture.exe" };
+    const journal = { complete: true, tainted: false, calls: [
+      { tool: "list_apps", arguments: {}, result: slim({ apps: [{ pid: address.pid, name: "Fixture App", bundle_id: "C:\\Fixture.exe" }] }), generation: "g" },
+      { tool: "get_window_state", arguments: lookup, result: slim(state), generation: "g" },
+      { tool: "click", arguments: click, result: slim(action), generation: "g" },
+    ] };
+    const built = buildRecipe({ id: "r", now: 1, request: 'Navigate using button "Navigate" and verify tab "Reports"', journal });
+    if (!built.ok) throw Error(built.reason);
+    expect(built.recipe.steps[0]?.app).toEqual({ bundleId: "C:\\Fixture.exe", name: "Fixture.exe" });
+  });
+
   it("records accessibility delivery without treating it as a destination", () => {
     expect(slim(action).structured?.background_accessibility_action).toBe(true);
     expect(slim(action).structured).not.toHaveProperty("effect");

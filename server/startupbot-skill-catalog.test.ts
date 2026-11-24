@@ -80,6 +80,9 @@ it("upgrades original catalog folders and keeps their review choices", () => {
     expect(index.pptx.files).toContain("references/upstream.md");
     expect(readFileSync(join(library, "skills/web-perf/SKILL.md"), "utf8")).toContain("Performance Trace");
     expect(index.hyperframes.files).toContain("references/format.md");
+    const filmGuide = readFileSync(join(library, "skills/hyperframes/references/film.md"), "utf8");
+    expect(filmGuide).toContain("user-provided image or video");
+    expect(filmGuide).not.toMatch(/scripts\/(?:bake-basemap|locate)\.mjs/);
     expect(index["hyperframes-cli"].files).toContain("references/preview-render.md");
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
   } finally {

@@ -1,5 +1,7 @@
 # Films from a source: measured facts
 
+<!-- Modified by StartupBot: use workflows supported by the bundled skill. -->
+
 What is specific to HyperFrames, or was measured on shipped films, when one video is made from a website, a script, a pull request, a music track, a real place or a short motion brief. The story comes first, from `story.md`; the shape of each kind of film is in `types/`. Motion craft is in `motion.md`, look in `look.md`, sound in `sound.md`, captions in `captions.md`.
 
 ## Script and pacing
@@ -37,12 +39,12 @@ What is specific to HyperFrames, or was measured on shipped films, when one vide
 ## Maps and real places
 
 - A real place (a city, a building, a route, a zoom from the globe to a street) is shown on real imagery. Vector outlines from Natural Earth or GeoJSON read as a diagram and lose the place; keep them for borders and labels drawn on top.
-- Live tiles change between renders, so bake the camera move to video with `scripts/bake-basemap.mjs` (MapLibre over Esri satellite or Carto tiles; writes an all-intra MP4 and `<NAME>-coords.json`). From space down to a street: `PROJECTION=globe FROM="lng,lat" CENTER="lng,lat" ZSTART=1.85 ZEND=16` (Earth in a starfield turns from FROM to CENTER, then dives); `--help` lists the rest. It needs network for the tiles and takes well under a second a frame, so bake once, keep the MP4, and run one bake at a time. Draw borders, pins and labels as a live SVG from those coordinates, animating them only while the camera holds.
-- Credit the imagery on screen ("Esri, Maxar, Earthstar Geographics" or "© CARTO, © OpenStreetMap") in small type on a soft dark backing, so it holds contrast over bright tiles; mark it `data-layout-ignore` so the type floor in `check` skips it.
+- Use a user-provided image or video of the place with permission for the intended use. Animate the still or clip in the composition; add borders, pins and labels as SVG overlays. If suitable imagery is unavailable, ask for it or offer a clearly labeled illustrative map instead of claiming that a real satellite camera move was rendered. Live map tiles can change between renders and may require separate rights or credentials.
+- Follow the imagery provider's attribution requirements. Place any required credit on screen with enough contrast to remain readable.
 
 ## Short motion pieces
 
 - Kinetic type takes 3–7 English words or 4–12 Chinese characters per scene. A count-up runs 1.2–1.6 s, then holds, landing on a downbeat or a hard stop.
 - A highlighter that wraps across lines: tween a custom property on a `background-size` band with `box-decoration-break: clone`. `getTotalLength()` can return 0 before layout; give line draw-ons a fallback.
 - Hide a round-capped line with a gap longer than the path (`stroke-dasharray="100 120"`, `stroke-dashoffset="110"` on `pathLength="100"`), not dash = gap = offset: that leaves a dot at the end on some curves.
-- A point in an image guessed directly misses by 16–24% of the frame. `scripts/locate.mjs` narrows it with a numbered 9×9 grid, then 6×6 on the crop, then a check render (about 2% error).
+- Check the position of a point in an image against a visible grid or a preview render, then adjust it before exporting. Ask the user to identify the point when it cannot be located reliably.

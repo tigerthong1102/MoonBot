@@ -2,6 +2,33 @@ import { expect, it } from "vitest";
 import type { Message } from "./store.ts";
 import { captureWorkBotContext, scanWorkBotContext, unsupportedWorkBotContext } from "./work-bot-context.ts";
 
+it("blocks handoff when source context or a replied-to row cannot be copied", async () => {
+  const user = { id: "user", role: "user", kind: "text", text: "Track this", at: 1 } as Message;
+  for (const extra of [
+    { id: "widget", role: "bot", kind: "widget", text: "Revenue: 42", at: 0 },
+    { id: "app", role: "bot", kind: "app", text: "Revenue: 42", at: 0 },
+    { id: "compact", role: "bot", kind: "compaction", at: 0 },
+    { id: "room", role: "bot", kind: "text", text: "Result", roomRequest: { phase: "result" }, at: 0 },
+  ]) {
+    expect(unsupportedWorkBotContext([extra as Message, user])).toBe("data");
+  }
+  const card = { id: "card", role: "bot", kind: "options", at: 0 } as Message;
+  for (const provenance of [{ peerAsk: {} }, { relay: {} }, { relayed: true }, { via: "api" }, { apiAsOwner: true }, { aside: true }, { fromApp: {} }, { pointed: [{ appId: "fixture", label: "Synthetic item" }] }, { automation: {} }, { automated: true }, { steered: true }, { webhookPost: {} }, { peerPost: {} }, { serverCard: true }, { setupSuggestion: {} }, { settingsCard: {} }, { reaction: "👍" }]) {
+    expect(unsupportedWorkBotContext([{ ...user, ...provenance } as Message])).toBe("data");
+  }
+  const digest = { ...user, kind: "digest", role: "bot", digest: { tools: [], memory: [], reply: "Done", hookCoverage: "none" } } as unknown as Message;
+  expect(unsupportedWorkBotContext([digest, user])).toBeNull();
+  for (const extra of [{ files: { changed: ["README"], added: [], deleted: [] } }, { files: { changed: [], added: [], deleted: [], truncated: 1 } }, { memory: [{ path: "private", kind: "updated" }] }, { memoryDropped: 1 }]) {
+    expect(unsupportedWorkBotContext([{ ...digest, digest: { ...digest.digest!, ...extra } }, user] as Message[])).toBe("files");
+  }
+  const reply = { ...user, id: "reply", replyToId: "card" };
+  expect(unsupportedWorkBotContext([card, reply, user])).toBe("data");
+  const text = { ...user, id: "earlier" };
+  const filler = Array.from({ length: 100 }, (_, i) => ({ ...user, id: `filler-${i}` }));
+  expect(await scanWorkBotContext([text, ...filler, { ...user, replyToId: "earlier" }], new AbortController().signal)).toBeNull();
+  expect(await scanWorkBotContext([card, ...filler, reply], new AbortController().signal)).toBe("data");
+});
+
 const row = (text: string, extra: Partial<Message> = {}): Message => ({ id: "fixture", role: "user", kind: "text", text, at: 1, ...extra });
 
 it("keeps untransferred Data and files in the original conversation", () => {

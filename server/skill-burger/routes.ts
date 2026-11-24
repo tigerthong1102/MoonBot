@@ -1,7 +1,3 @@
-// Skill Burger over HTTP. POST /api/skill-burgers saves the run in a conversation as that bot's workflow skill, built
-// here from the stored messages (their full inputs and outputs, already scrubbed of held secrets); GET lists every saved
-// one; PATCH turns "Use in every chat" on or off or renames one; DELETE with the sha256 it was saved with is its Undo.
-// A query or body `botId` names a bot's own burger; without it the name is one used in every chat.
 import { z } from "zod";
 
 import { draftWorkflow } from "../../shared/skill-burger/draft.ts";
@@ -15,14 +11,10 @@ export const SKILL_BURGERS_PATH = "/api/skill-burgers";
 
 export interface SkillBurgerRouteDeps {
   available?(auth: RequestAuth): boolean;
-  /** The conversation's messages on its active branch. */
   messages(threadId: string): readonly RunMessage[];
-  /** True when this thread is one of the bot's own conversations. */
   owns(botId: string, threadId: string): boolean;
   sees(auth: RequestAuth, threadId: string): boolean;
-  /** Every bot here, whose own burgers are listed and whose names a new one must not take. */
   botIds(): readonly string[];
-  /** What this person may do with a bot: a Team Cloud member edits a bot's own burgers only where they can edit the bot. */
   levelOf?(auth: RequestAuth, botId: string): "none" | "view" | "chat" | "edit";
   root?: string;
 }
@@ -34,7 +26,6 @@ const NOT_YOURS = "Only people who can edit this bot can change its Skill Burger
 const id = z.string().min(1).max(100);
 const saveBody = z.union([
   z.object({ botId: id, threadId: z.string().min(1).max(200), summary: z.string().max(160).optional(), name: z.string().max(64).optional() }).strict(),
-  // Undo of a removal: the workflow the list read before removing it, put back where it was under its name.
   z.object({ workflow: z.unknown(), name: z.string().max(64), botId: id.optional(), everyChat: z.boolean().optional() }).strict(),
 ]);
 const patchBody = z.union([
@@ -60,7 +51,6 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
   const placeOf = (botId: string | null | undefined): BurgerPlace => (botId ? { botId } : { everyChat: true });
   const admin = (auth: RequestAuth) => auth.scopes.includes("admin");
   const level = (auth: RequestAuth, botId: string) => (admin(auth) ? "edit" : deps.levelOf?.(auth, botId) ?? "none");
-  /** Null when this person may change the burger at `botId` (a bot's own) or in every chat (no botId); else the refusal. */
   const refusal = (auth: RequestAuth, botId: string | null | undefined): string | null =>
     botId ? (level(auth, botId) === "edit" ? null : NOT_YOURS) : admin(auth) ? null : EVERY_CHAT_ADMIN_ONLY;
   return async ({ req, res, url, path, method, auth, json, readBody }) => {
@@ -105,7 +95,6 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
     if (method === "PATCH") {
       const body = patchBody.safeParse(await readBody(req));
       if (!body.success) return json(res, 400, { error: "Send everyChat or rename." });
-      // Moving a burger in or out of every chat, or renaming one there, is the place's call; renaming a bot's own is its editor's.
       const refused = "everyChat" in body.data ? (admin(auth) ? null : EVERY_CHAT_ADMIN_ONLY) : refusal(auth, body.data.botId);
       if (refused) return json(res, 403, { error: refused });
       const result = "everyChat" in body.data

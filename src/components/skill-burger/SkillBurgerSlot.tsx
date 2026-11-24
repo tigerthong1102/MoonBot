@@ -3,8 +3,6 @@ import { useMemo, useState } from "react";
 import { askOf, burgerLayers, BURGER_MIN_LAYERS, type RunMessage } from "../../../shared/skill-burger/layers";
 import { layerLine, SkillBurger } from "./SkillBurger";
 
-/** The chat dock's burger: the run since the person's last ask, once it has two real steps, until it is closed. Once the
- * run finishes its top bun names what it did; the ask stands in until then. */
 export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liveTools, transcriptKey }: {
   botId: string;
   threadId: string;

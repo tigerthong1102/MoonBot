@@ -309,22 +309,18 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
           if (helpers) report.helpersSort = true;
           const picked = helpers && plan.batch.length ? await deps.inbox!.triage(plan.batch, deps.dismissedFrom()) : null;
           if (picked) {
-            // Sorted with no AI turn: every email of the batch is judged, and the picks become brief rows.
             report.picked = picked.flatMap((pick) => {
               const email = plan.batch.find((one) => one.id === pick.id);
               return email ? [{ email, why: pick.why, ...(pick.whyText ? { whyText: pick.whyText } : {}), needsReply: pick.needsReply }] : [];
             });
             entry.judged = keepNewest([...new Set([...(entry.judged ?? []), ...plan.batch.map((email) => email.id), ...plan.quiet.map((email) => email.id)])], MAX_JUDGED);
             if (plan.batch.length) deps.sorted?.(routine.id, plan.batch.length);
-            // Mail an earlier run still holds keeps the cursor back, so a failed run's mail is read again.
             const heldMail = Object.values(entry.pending ?? {}).some((one) => one.mail.length > 0);
             if (advanced !== undefined && !heldMail) entry.mailCursor = advanced;
           } else if (helpers && plan.batch.length && !aiAllowed) {
-            // The helper models did not answer this time and no fenced AI may sort: the mail waits for the next check.
           } else if (plan.batch.length && aiAllowed) {
             items.mail = plan.batch;
             pending.mail = [...plan.batch.map((email) => email.id), ...plan.quiet.map((email) => email.id)];
-            // The only draft a fenced run may write is a Gmail one, so an Outlook email gets no reply slot.
             pending.replies = plan.batch.filter((email) => email.app !== "outlook").map((email) => ({ threadId: email.threadId, to: addressOf(email.from) }));
             if (advanced !== undefined) pending.mailCursor = advanced;
           } else {

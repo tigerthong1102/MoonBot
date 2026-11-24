@@ -1,7 +1,3 @@
-// Saved burgers are ordinary skill folders (SKILL.md + workflow.json). One belongs to the bot it was made with, as that
-// bot's own skill, until someone turns on "Use in every chat": then it moves into the shared skills library, tagged
-// "workflow" and on for every bot, and turning it off moves it back. Library ones are listed to every bot whether or not
-// the library is switched on. Undo, rename and remove act on the exact copy they saw and refuse one that changed since.
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -19,7 +15,6 @@ export type { SavedWorkflow };
 const PROMPT_MAX_SKILLS = 20;
 const PROMPT_MAX_BYTES = 2_000;
 
-/** Where a saved burger is: one bot's own skills, or the shared library. */
 export type BurgerPlace = { botId: string } | { everyChat: true };
 type Failure = { error: string; taken?: true };
 
@@ -60,7 +55,6 @@ const listed = (name: string, workflow: Workflow, sha256: string, savedAt: strin
   args: Object.keys(workflow.args),
 });
 
-/** Every saved burger whose files are as saved: the library's, then each of `botIds`' own; newest first. */
 export function listWorkflowSkills(botIds: readonly string[], root: string = skillsLibraryRoot()): SavedWorkflow[] {
   const index = readSkillLibraryIndex(root);
   const shared = listLibrarySkills(root)
@@ -93,7 +87,6 @@ function taken(botIds: readonly string[], root: string): Set<string> {
   return new Set([...Object.keys(readSkillLibraryIndex(root)), ...botIds.flatMap((botId) => listSkills(botId).map((skill) => skill.name))]);
 }
 
-/** Writes a checked workflow to `place` under `name`; the caller has made sure the name is free there. */
 function write(place: BurgerPlace, name: string, workflow: Workflow, origin: string | undefined, root: string): SavedWorkflow | Failure {
   const body = `${JSON.stringify(workflow, null, 2)}\n`;
   if (Buffer.byteLength(body, "utf8") > WORKFLOW_MAX_BYTES) return { error: "This run is too large to save as a skill." };
@@ -115,7 +108,6 @@ function write(place: BurgerPlace, name: string, workflow: Workflow, origin: str
   return stored ?? { error: "The skill was saved but can't be read back." };
 }
 
-/** Takes away the copy at `place` with this hash. */
 function erase(place: BurgerPlace, name: string, sha256: string, root: string): { removed: true } | { stale: true } | { error: string } {
   const found = readAt(place, name, root);
   if (!found || found.sha256 !== sha256) return { stale: true };
@@ -127,8 +119,6 @@ function erase(place: BurgerPlace, name: string, sha256: string, root: string): 
   return "removed" in result ? { removed: true } : result;
 }
 
-/** Saves a run to `place` (the bot that made it, unless it is put back where it was). `name` is the person's own, or one
- * made from the summary; it is free across the library and `botIds`, so turning it on for every chat never collides. */
 export function saveWorkflowSkill(input: { workflow: unknown; place: BurgerPlace; botIds: readonly string[]; name?: string; origin?: string; root?: string }): SavedWorkflow | Failure {
   const root = input.root ?? skillsLibraryRoot();
   const checked = workflowSchema.safeParse(input.workflow);
@@ -155,7 +145,6 @@ export function removeWorkflowSkill(place: BurgerPlace, name: string, sha256: st
   return erase(place, name, sha256 ?? found.sha256, root);
 }
 
-/** "Use in every chat": on moves a bot's burger into the shared library, off moves it back to the bot it came from. */
 export function setWorkflowEveryChat(input: { name: string; everyChat: boolean; botId?: string; sha256?: string; root?: string }): SavedWorkflow | Failure | { stale: true } {
   const root = input.root ?? skillsLibraryRoot();
   const from: BurgerPlace = input.everyChat ? { botId: input.botId ?? "" } : { everyChat: true };
@@ -174,7 +163,6 @@ export function setWorkflowEveryChat(input: { name: string; everyChat: boolean; 
   return moved;
 }
 
-/** Rename: the same burger under a new name in the same place, with its SKILL.md written for that name. */
 export function renameWorkflowSkill(input: { place: BurgerPlace; name: string; to: string; botIds: readonly string[]; sha256?: string; root?: string }): SavedWorkflow | Failure | { stale: true } {
   const root = input.root ?? skillsLibraryRoot();
   const found = readAt(input.place, input.name, root);
@@ -191,8 +179,6 @@ export function renameWorkflowSkill(input: { place: BurgerPlace; name: string; t
   return renamed;
 }
 
-/** The turn's list of burgers used in every chat, for a bot that doesn't already see them through the skills library.
- * A bot's own burgers are its own skills and listed with them. */
 export function workflowSkillsPrompt(botId: string, root: string = skillsLibraryRoot()): string {
   const optedOut = librarySkillOptOuts(botId);
   const lines: string[] = [];

@@ -89,7 +89,6 @@ function BurgerCard({ skill, onRemove }: { skill: SavedWorkflow; onRemove: () =>
   );
 }
 
-/** Every Skill Burger the person's bots made: each bot's own, and the ones used in every chat. */
 export function SkillBurgersPage() {
   const dispatch = useStoreDispatch();
   const { skills, error, refresh } = useSavedBurgers();

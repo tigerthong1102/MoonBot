@@ -1,41 +1,32 @@
-import { Check, ChevronDown, ChevronUp, FileText, Globe, Monitor, Plus, Sparkles, Terminal, X, XCircle } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, FileText, Globe, Monitor, Plug, Plus, Sparkles, Terminal, X, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent } from "react";
 
-import { appMeta, BARE_READ } from "../../../shared/skill-burger/apps";
+import { appLabel, BARE_READ } from "../../../shared/skill-burger/apps";
 import type { BurgerLayer } from "../../../shared/skill-burger/layers";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { burgerStartsFolded, rememberSavedRun, removeBurger, saveBurger, savedRun, type SavedWorkflow } from "@/lib/skill-burger";
-import { ServiceIcon } from "../ServiceIcon";
 import { EveryChatToggle } from "./EveryChatToggle";
 
-/** One layer's icon: the app's own mark, or a plain icon for a command, a file, a page or the AI. */
-export function LayerIcon({ kind, app }: { kind: BurgerLayer["kind"]; app?: string }) {
-  if (kind === "app" && app) {
-    const meta = appMeta(app);
-    return <ServiceIcon card={{ logo: meta.logo, domain: meta.domain, label: meta.label }} className="size-4 shrink-0 rounded-[4px] text-[10px]" />;
-  }
-  const Icon = kind === "shell" ? Terminal : kind === "file" ? FileText : kind === "browser" ? Globe : kind === "computer" ? Monitor : Sparkles;
+export function LayerIcon({ kind }: { kind: BurgerLayer["kind"] }) {
+  const Icon = kind === "app" ? Plug : kind === "shell" ? Terminal : kind === "file" ? FileText : kind === "browser" ? Globe : kind === "computer" ? Monitor : Sparkles;
   return <Icon size={16} aria-hidden="true" className={cn("shrink-0", kind === "ai" ? "text-accent-text" : "text-ink-secondary")} />;
 }
 
 const capital = (words: string) => (words ? words[0]!.toUpperCase() + words.slice(1) : words);
 
-/** The line a layer reads as, in the person's language where the words are ours. */
 export function layerLine(layer: Pick<BurgerLayer, "kind" | "words" | "app"> & { where?: BurgerLayer["where"] }): string {
   const line = layer.kind === "shell" ? t("skillBurger.layer.run", { what: layer.words })
     : layer.kind === "file" ? t("skillBurger.layer.write", { name: layer.words })
     : layer.kind === "browser" ? t("skillBurger.layer.open", { site: layer.words })
-    : layer.kind === "app" && layer.app && BARE_READ.test(layer.words) ? t("skillBurger.layer.readFrom", { app: appMeta(layer.app).label })
+    : layer.kind === "app" && layer.app && BARE_READ.test(layer.words) ? t("skillBurger.layer.readFrom", { app: appLabel(layer.app) })
     : capital(layer.words);
-  // Where it ran, when that isn't the bot's own computer or the app itself.
   return layer.where === "vm" ? t("skillBurger.layer.onVm", { step: line }) : layer.where === "yourComputer" ? t("skillBurger.layer.onYourComputer", { step: line }) : line;
 }
 
 const SHEEN_PERIOD_MS = 2000;
 
-/** The running layer cooks: the same slow sheen as a bot's working phrase, and none with reduced motion. */
 function Cooking({ text }: { text: string }) {
   const [delay] = useState(() => `-${Date.now() % SHEEN_PERIOD_MS}ms`);
   return (
@@ -53,18 +44,15 @@ const FIELD = "w-full min-w-0 rounded-md border border-hairline/60 bg-card px-1.
 type Saving = { state: "idle" } | { state: "saving" } | { state: "saved"; skill: SavedWorkflow } | { state: "undone" } | { state: "error"; message: string };
 
 export function SkillBurger({ run, layers, summary: initialSummary, canSave, botId, threadId, onDismiss }: {
-  /** The run this card is for, so a save is remembered when the card comes back. */
   run: string;
   layers: BurgerLayer[];
   summary: string;
-  /** False while the bot still works, or for someone who can't write in this chat. */
   canSave: boolean;
   botId: string;
   threadId: string;
   onDismiss: () => void;
 }) {
   const [folded, setFolded] = useState(burgerStartsFolded);
-  /** The person's own words, once they changed them; until then the summary follows the ask. */
   const [own, setOwn] = useState<{ summary: string | null; name: string }>({ summary: null, name: "" });
   const [field, setField] = useState<{ summary: string; name: string } | null>(null);
   const advanced = useAdvancedMode();
@@ -192,7 +180,7 @@ export function SkillBurger({ run, layers, summary: initialSummary, canSave, bot
                 layer.status === "failed" && "text-danger",
               )}
             >
-              <LayerIcon kind={layer.kind} app={layer.app} />
+              <LayerIcon kind={layer.kind} />
               {layer.status === "running" ? <Cooking text={line} /> : (
                 <span data-burger-label="" className={cn("min-w-0 flex-1 truncate", layer.kind === "ai" && "text-ink-secondary")} title={line}>{line}</span>
               )}

@@ -53,6 +53,12 @@ it("shows only for a run of two real steps, one layer each, with the ask on top"
   expect(button("Add Skill Burger")?.disabled).toBe(true);
 });
 
+it("renders app steps with local icons", async () => {
+  await render([ask, app("m1", "GOOGLESHEETS_BATCH_GET"), app("m2", "GMAIL_SEND_EMAIL")]);
+  expect(host.querySelectorAll("[data-burger-layer] svg.lucide-plug")).toHaveLength(2);
+  expect(burger()?.querySelector("img")).toBeNull();
+});
+
 it("saves in one click, then Undo takes back the exact copy", async () => {
   fixture.api.mockImplementation(async (_path: string, init?: { method?: string }) => (init?.method === "POST" ? { skill: saved } : { removed: true }));
   await render([ask, app("m1", "GOOGLESHEETS_BATCH_GET"), app("m2", "GMAIL_SEND_EMAIL")]);

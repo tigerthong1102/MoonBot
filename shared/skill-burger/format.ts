@@ -1,9 +1,6 @@
-// A saved burger: a workflow skill is SKILL.md (numbered steps any bot can follow) plus workflow.json (the exact steps,
-// values and args a runner repeats without the AI). References are JSON values, never text templates: {"$arg": name}
-// and {"$step": id, "path": "a.0.b"}. A shell step reads its args from OMB_ARG_<NAME> environment variables.
 import { z } from "zod";
 
-import { appMeta } from "./apps.ts";
+import { appLabel } from "./apps.ts";
 
 export const WORKFLOW_FILE = "workflow.json";
 export const WORKFLOW_TAG = "workflow";
@@ -54,7 +51,6 @@ export const workflowSchema = z.object({
 }).strict();
 export type Workflow = z.infer<typeof workflowSchema>;
 
-/** A skill name from the summary's first words: lowercase, hyphens, unique among `taken`. */
 export function workflowSkillName(summary: string, taken: ReadonlySet<string>): string {
   const words = summary.toLowerCase().replace(/['’]/gu, "").normalize("NFKD").replace(/[^\p{L}\p{N}\s-]/gu, " ").replace(/[^a-z0-9\s-]/g, "").split(/[\s-]+/).filter(Boolean);
   const stem = words.slice(0, 6).join("-").slice(0, 48).replace(/-+$/, "") || "saved-workflow";
@@ -65,7 +61,7 @@ export function workflowSkillName(summary: string, taken: ReadonlySet<string>): 
 const yamlScalar = (value: string) => JSON.stringify(value.replace(/\s+/g, " ").trim());
 
 function stepLine(step: WorkflowStep, args: Workflow["args"]): string {
-  const where = step.kind === "app" ? appMeta(step.app).label : step.kind === "ai" ? "AI" : step.kind === "shell" ? "Command" : step.kind === "file" ? "File" : "Browser";
+  const where = step.kind === "app" ? appLabel(step.app) : step.kind === "ai" ? "AI" : step.kind === "shell" ? "Command" : step.kind === "file" ? "File" : "Browser";
   const used = Object.keys(args).filter((name) => JSON.stringify(step).includes(`"$arg":"${name}"`) || (step.kind === "shell" && step.run.includes(`OMB_ARG_${name.toUpperCase()}`)));
   const detail = used.map((name) => `${args[name]!.label ?? name}: ${name}${args[name]!.default === undefined ? "" : `, default ${JSON.stringify(args[name]!.default)}`}`);
   const what = step.kind === "shell" ? ` \`${step.run.split("\n", 1)[0]!.slice(0, 120)}\`` : step.kind === "app" ? ` (${step.tool})` : "";
@@ -73,7 +69,6 @@ function stepLine(step: WorkflowStep, args: Workflow["args"]): string {
   return `${where}${place}: ${step.label}${what}${detail.length ? ` (${detail.join("; ")})` : ""}${step.kind === "ai" ? " (your judgement)" : ""}`;
 }
 
-/** SKILL.md for a saved burger: the steps in words, so a bot can follow them even where nothing replays workflow.json. */
 export function renderWorkflowSkillMd(name: string, workflow: Workflow): string {
   const title = workflow.summary.replace(/[.!?]+$/, "");
   const lines = [

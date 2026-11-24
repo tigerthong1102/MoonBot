@@ -1,5 +1,3 @@
-// Per-conversation notes through a real server and the fake engine calling the real agents tools: which file a save
-// lands in, which conversation's prompt carries it, compaction, the quiet line, upkeep, cross-reading and lifecycle.
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -62,7 +60,6 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     expect(await notes(bot.id, main)).toMatchObject({ scoped: false });
     expect(await notes(bot.id, acme)).toMatchObject({ scoped: true, exists: false });
 
-    // A matter's fact said in its own conversation stays there, and the reply gets the quiet line under it.
     const saved = await turn(bot.id, acme, "The Acme NDA term is two years.", [
       { tool: "memory_update", arguments: { action: "append", text: "Acme NDA term: two years" } },
     ], "Got it: two years.");
@@ -76,12 +73,10 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     expect(line).toBeGreaterThan(reply);
     expect(acmeMessages.filter((message) => message.tool?.nameCode === "chat.notice.savedToThread")).toHaveLength(1);
 
-    // Thread A's notes never load in thread B; B is told how to save, and to read A only when asked.
     const other = await turn(bot.id, supermouse, "What's the notice period?");
     expect(other.context).not.toContain("Acme NDA term");
     expect(other.context).toContain("scope \"everywhere\"");
 
-    // The main conversation saves to MEMORY.md as before, and its prompt has no notes of its own.
     const home = await turn(bot.id, main, "Remember: I prefer short replies.", [
       { tool: "memory_update", arguments: { action: "append", text: "The person prefers short replies" } },
     ]);
@@ -90,7 +85,6 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     expect(await everywhere(bot.id)).toContain("The person prefers short replies");
     expect((await api<{ messages: any[] }>(`/api/threads/${main}/messages`)).messages.some((message) => message.tool?.nameCode === "chat.notice.savedToThread")).toBe(false);
 
-    // "Everywhere" from a matter's conversation goes to MEMORY.md, and it loads in every conversation.
     await turn(bot.id, supermouse, "For all my clients: I bill in INR.", [
       { tool: "memory_update", arguments: { action: "append", text: "The person bills in INR", scope: "everywhere" } },
     ]);
@@ -98,7 +92,6 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     expect((await notes(bot.id, supermouse)).text).toBe("");
     expect((await turn(bot.id, acme, "Draft the cover note.")).context).toContain("The person bills in INR");
 
-    // Asked for, another conversation's notes are read for that request: the same bot's only.
     const crossed = await turn(bot.id, supermouse, "Use the term we agreed for Acme.", [
       { tool: "session_search", arguments: { query: "Acme", scope: "threads" } },
       { tool: "session_search", arguments: { thread_id: acme, scope: "threads" } },
@@ -118,13 +111,11 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     expect(sneaked.results[0]).toContain("No conversation of yours has that thread_id");
     expect(sneaked.results[0]).not.toContain("two years");
 
-    // A compaction summarises the history; the notes still ride the next turn.
     await api(`/api/bots/${bot.id}/compact`, "POST", { threadId: acme }, 202);
     await expect.poll(async () => (await api<{ messages: any[] }>(`/api/threads/${acme}/messages`)).messages.some((message) => message.kind === "compaction"), { timeout: 20_000 }).toBe(true);
     await expect.poll(async () => (await api<{ bots: any[] }>("/api/bots?messages=0")).bots.find((entry) => entry.id === bot.id).tasks.find((task: any) => task.threadId === acme).busy, { timeout: 15_000 }).toBe(false);
     expect((await turn(bot.id, acme, "Remind me of the term?")).context).toContain("Acme NDA term: two years");
 
-    // Upkeep never reads a matter's conversation into the bot's memory.
     const learnedBefore = learnerPrompts().length;
     await turn(bot.id, acme, "Their indemnity cap is 2x fees.");
     await new Promise((resolve) => setTimeout(resolve, 3_000));
@@ -134,7 +125,6 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     expect(await everywhere(bot.id)).not.toContain("Acme");
     expect((await notes(bot.id, acme)).text).toContain("Acme NDA term: two years");
 
-    // Archive keeps the notes; delete removes them.
     await api(`/api/bots/${bot.id}/tasks/${acme}`, "PATCH", { archivedAt: Date.now() });
     expect((await notes(bot.id, acme)).text).toContain("Acme NDA term: two years");
     const file = join(fixture.info.dataDir, "workspaces", bot.id, "memory", "threads", `${acme}.md`);
@@ -143,7 +133,6 @@ it("keeps each conversation's matter in its own notes, and the person's facts ev
     await expect.poll(() => existsSync(file), { timeout: 10_000 }).toBe(false);
     expect(await everywhere(bot.id)).toContain("The person prefers short replies");
 
-    // The same words in the main conversation are read by upkeep as before, so the check above is not vacuous.
     await turn(bot.id, main, "Their indemnity cap is 2x fees.");
     await expect.poll(() => learnerPrompts().slice(learnedBefore).some((prompt) => prompt.includes("indemnity cap")), { timeout: 20_000 }).toBe(true);
   } finally {

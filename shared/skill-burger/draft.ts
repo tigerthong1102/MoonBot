@@ -1,10 +1,6 @@
-// A finished run as a draft workflow. Nobody fills a form: values the person typed in the ask become args (the recorded
-// value is the default); values an earlier step returned are piped from it; long text the AI wrote from something it
-// read becomes an AI step that writes it again next time. A step that can't be repeated exactly (its input was clipped
-// or masked, it ran code, it clicked in a browser) is saved as an AI step, never guessed. No secret is written down.
 import { redactSecretsInText } from "../redact.ts";
 import type { Workflow, WorkflowRef, WorkflowStep } from "./format.ts";
-import { appMeta, BARE_READ } from "./apps.ts";
+import { appLabel, BARE_READ } from "./apps.ts";
 import { askOf, burgerLayers, type BurgerLayer, type RunMessage } from "./layers.ts";
 
 const PIPE_MIN = 6;
@@ -20,9 +16,8 @@ const capital = (words: string) => (words ? words[0]!.toUpperCase() + words.slic
 
 const PLACE_WORDS: Partial<Record<BurgerLayer["where"], string>> = { vm: "on the cloud computer", yourComputer: "on the person's own computer", browser: "in the browser" };
 
-/** The line a layer gets: an app's action, "Run git push", "Write notes.md", "Open example.com". */
 export function layerLabel(layer: Pick<BurgerLayer, "kind" | "words" | "app">): string {
-  if (layer.kind === "app" && layer.app && BARE_READ.test(layer.words)) return `Read from ${appMeta(layer.app).label}`;
+  if (layer.kind === "app" && layer.app && BARE_READ.test(layer.words)) return `Read from ${appLabel(layer.app)}`;
   switch (layer.kind) {
     case "shell": return `Run ${layer.words}`;
     case "file": return `Write ${layer.words}`;
@@ -35,13 +30,11 @@ function parsedOutput(layer: BurgerLayer): unknown {
   if (!layer.output) return undefined;
   let value: unknown;
   try { value = JSON.parse(layer.output); } catch { return layer.output; }
-  // One tool of a multi-app call answers in its own slot of the shared result.
   const index = /#(\d+)$/.exec(layer.id)?.[1];
   const results = isRecord(value) && isRecord(value.data) && Array.isArray(value.data.results) ? value.data.results : undefined;
   return index !== undefined && results ? results[Number(index)] : value;
 }
 
-/** Where `target` sits in `value`, as a dotted path; "" for the value itself. */
 function findPath(value: unknown, target: string): string | null {
   let budget = SEARCH_BUDGET;
   const walk = (node: unknown, path: string[], depth: number): string | null => {
@@ -98,7 +91,6 @@ class Drafter {
     return null;
   }
 
-  /** An AI step that writes `field` from the last thing the run read, with the recorded text as its example. */
   private composer(id: string, field: string, example: string): WorkflowRef | null {
     const read = [...this.recorded].reverse().find((entry) => entry.read);
     if (!read) return null;
@@ -111,7 +103,6 @@ class Drafter {
     return { $step: aiId };
   }
 
-  /** One string from a recorded call: piped, made an arg, written by an AI step, or kept as it was. */
   private value(id: string, value: string, key: string | undefined): unknown {
     const piped = this.pipe(value);
     if (piped) return piped;
@@ -156,7 +147,7 @@ class Drafter {
 
   private ai(id: string, layer: BurgerLayer, label: string): WorkflowStep {
     const call = layer.args ? redactSecretsInText(JSON.stringify(layer.args)).slice(0, CONTEXT_MAX) : "";
-    const where = layer.kind === "app" && layer.app ? `in ${appMeta(layer.app).label}` : PLACE_WORDS[layer.where] ?? "";
+    const where = layer.kind === "app" && layer.app ? `in ${appLabel(layer.app)}` : PLACE_WORDS[layer.where] ?? "";
     const desktop = layer.kind === "computer" ? " Look at the screen first: it may not look the same as last time." : "";
     return {
       id, kind: "ai", deterministic: false, label,
@@ -208,7 +199,6 @@ function scrubValues<T extends object>(value: T): T {
 
 export interface WorkflowDraft { workflow: Workflow; layers: BurgerLayer[] }
 
-/** The run since the person's last ask as a workflow, or null when it has fewer than two finished steps. */
 export function draftWorkflow(messages: readonly RunMessage[], options: { summary?: string } = {}): WorkflowDraft | null {
   const layers = burgerLayers(messages).filter((layer) => layer.status === "done");
   if (layers.length < 2) return null;

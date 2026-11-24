@@ -90,7 +90,6 @@ describe("Library file replies", () => {
 });
 
 describe("Library apps", () => {
-  // The query before apps were read from messages_app: the result must stay the same, row for row.
   const THREAD_SCAN_SQL = `SELECT thread_id AS threadId, id AS messageId, at, json_extract(json, '$.app.title') AS title FROM messages
      WHERE thread_id IN (SELECT value FROM json_each(?)) AND kind = 'app' AND coalesce(json_extract(json, '$.app.doc'), '') <> '' ORDER BY at DESC, rowid LIMIT ?`;
 
@@ -99,7 +98,6 @@ describe("Library apps", () => {
     importThread("apps-b", [app("pb1", 500, "Other thread, same time"), app("pb2", 520, "Newest")], "pb2");
     importThread("apps-hidden", [app("ph1", 530, "Hidden from this viewer")], "ph1");
     importThread("apps-none", [reply("pn1", 540, "No apps here.")], "pn1");
-    // Past APPS_BY_THREAD_MAX conversations the other plan runs; conversations with no rows pad the list.
     const many = (ids: string[]) => [...ids, ...Array.from({ length: APPS_BY_THREAD_MAX }, (_, i) => `apps-gone-${i}`)];
     for (const ids of [["apps-a", "apps-b"], ["apps-none"], ["apps-gone"], []]) {
       for (const threadIds of [ids, many(ids)]) {

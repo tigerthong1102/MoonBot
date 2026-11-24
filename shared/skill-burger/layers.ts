@@ -1,6 +1,3 @@
-// A run as burger layers: one per real step a bot took for the person's last ask (a command that changed something, an
-// app action, a file it wrote, a page it opened). Looking around (reads of files, listings, snapshots, searches for
-// tools) is not a layer, and a failed attempt a later call of the same tool replaced is dropped as a retry.
 import { connectorCallsIn } from "../outbound.ts";
 import { isReadOnlyAction } from "../connector-scopes.ts";
 import { isConnectedAppsServer } from "../own-apps.ts";
@@ -13,7 +10,6 @@ export type LayerKind = "shell" | "app" | "browser" | "file" | "computer" | "ai"
 export type LayerWhere = "app" | "browser" | "bot" | "vm" | "yourComputer";
 export type LayerStatus = "running" | "done" | "failed";
 
-/** The few message fields a run is read from: the same on the client and the server. */
 export interface RunMessage {
   id: string;
   role: string;
@@ -52,11 +48,8 @@ const APP_CODE_TOOL = /^COMPOSIO_(?:REMOTE_WORKBENCH|REMOTE_BASH_TOOL|PROXY_EXEC
 const READ_WORDS = /^(?:batch |bulk )?(?:get|list|fetch|search|read|find|query|lookup|retrieve|view|describe|download)\b/;
 const APP_SLUG = /^[A-Z][A-Z0-9]*_[A-Z0-9_]+$/;
 const TWO_WORD_APPS = new Set(["MICROSOFT_TEAMS", "GOOGLE_DRIVE", "GOOGLE_DOCS", "GOOGLE_SHEETS", "GOOGLE_CALENDAR", "ZOHO_MAIL", "ZOHO_CRM"]);
-/** The app's own servers: coordination, computers, memory. Never a layer. */
 const OWN_SERVERS = new Set(["agents", "phone", "device", "dweb", "ogb", "data", "memory", "permission"]);
-/** A desktop the bot drives: its cloud computer, or the person's own computer. */
 const COMPUTER_SERVERS: Record<string, LayerWhere> = { computer: "vm", localComputer: "yourComputer" };
-/** Looking at a desktop changes nothing: never a layer. */
 const COMPUTER_LOOK = /^(?:screenshot|get_screen_size|exec_status|move|wait|zoom|cursor_position|list_[a-z_]+|read_[a-z_]+|get_[a-z_]+)$/;
 const FILE_WRITE = new Set(["Write", "write_file", "create_file"]);
 const FILE_EDIT = new Set(["Edit", "MultiEdit", "NotebookEdit", "edit", "apply_patch", "str_replace_based_edit_tool"]);
@@ -82,7 +75,6 @@ const text = (value: unknown): string | undefined => (typeof value === "string" 
 const baseName = (path: string) => path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 const sentence = (words: string) => words.toLowerCase().replace(/_/g, " ").replace(/\s+/g, " ").trim();
 
-/** GMAIL_SEND_EMAIL → app gmail, words "send email". */
 function slugParts(slug: string): { app: string; words: string } {
   const tokens = slug.split("_").filter(Boolean);
   const two = tokens.length > 2 ? `${tokens[0]}_${tokens[1]}` : "";
@@ -108,13 +100,11 @@ function appLayer(base: Omit<BurgerLayer, "kind" | "app" | "tool" | "words" | "r
   };
 }
 
-/** The layers one tool message stands for: none, one, or one per app of a multi-app call. */
 export function layersOf(message: RunMessage, live: ReadonlySet<string> = new Set()): BurgerLayer[] {
   const { server, bare } = splitName(message.tool?.name ?? "");
   return layersIn(message, live).map((layer) => ({ ...layer, where: layer.where ?? whereOf(layer, server, bare) }));
 }
 
-/** Where a layer ran, when its kind says it: an app, the browser, a VM command, or else the bot's own computer. */
 function whereOf(layer: Omit<BurgerLayer, "where"> & { where?: LayerWhere }, server: string | null, bare: string): LayerWhere {
   if (layer.kind === "app") return "app";
   if (layer.kind === "browser" || /browser/i.test(server ?? "") || /^(?:agent_)?browser_/.test(bare)) return "browser";
@@ -128,7 +118,6 @@ type RawLayer = Omit<BurgerLayer, "where"> & { where?: LayerWhere };
 function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
   const tool = message.tool;
   if (message.kind !== "activity" || !tool?.name) return [];
-  // The app's own status rows ("recovery: …", "notice: …") ride in activity messages too; they are not steps.
   if (STATUS_ROW.test(tool.name)) return [];
   const status: LayerStatus = tool.ok === false ? "failed" : tool.ok === undefined && live.has(message.id) ? "running" : "done";
   const base = { messageId: message.id, status, ...(tool.output ? { output: tool.output } : {}) };
@@ -149,11 +138,9 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
       try { host = new URL(url).host || url; } catch { /* keep the text */ }
       return [{ ...base, id: message.id, kind: "browser", where: desk, tool: `${server}.open_url`, words: host, read: false, replay: clipped ? "ai" : "exact", args: { url } }];
     }
-    // Clicks, typing, keys, scrolls and drags on a desktop: done again by the AI, which looks at the screen first.
     return [{ ...base, id: message.id, kind: "computer", where: desk, tool: `${server}.${bare}`, words: sentence(bare), read: false, replay: "ai", ...(input ? { args: input } : {}) }];
   }
   if (bare === "vm_exec") {
-    // A command on the bot's own VM or VPS desktop.
     const full = text(input?.command);
     if (!full || !parseRunCommand(full)) return [];
     return [{ ...base, id: message.id, kind: "shell", where: "vm", tool: "vm_exec", words: shellLine(full), read: false, replay: clipped ? "ai" : "exact", args: { command: full } }];
@@ -189,7 +176,6 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
     return [{ ...base, id: message.id, kind: "ai", tool: bare, words: sentence(bare.replace(/^(?:agent_)?browser_/, "")), read: false, replay: "ai", ...(input ? { args: input } : {}) }];
   }
   if (server && !isConnectedAppsServer(server)) {
-    // Another MCP server the person added: an app step only its own engine can call.
     return [{ ...base, id: message.id, kind: "app", app: server.toLowerCase(), tool: tool.name, words: sentence(bare), read: /^(?:get|list|search|read|find|fetch|query)/i.test(bare), replay: "ai", ...(input ? { args: input } : {}) }];
   }
   if (FILE_WRITE.has(bare) || FILE_EDIT.has(bare)) {
@@ -218,7 +204,6 @@ function askIndex(messages: readonly RunMessage[]): number {
   return -1;
 }
 
-/** The person's last ask, its first line. */
 export function askOf(messages: readonly RunMessage[]): string | undefined {
   const index = askIndex(messages);
   if (index < 0) return undefined;
@@ -226,7 +211,6 @@ export function askOf(messages: readonly RunMessage[]): string | undefined {
   return line || undefined;
 }
 
-/** A command as its layer reads: its first line, cut at 60 characters. */
 function shellLine(command: string): string {
   const line = command.trim().split(/\r?\n/, 1)[0]!.replace(/\s+/g, " ");
   return line.length > 60 ? `${line.slice(0, 59)}…` : line;
@@ -234,7 +218,6 @@ function shellLine(command: string): string {
 
 const sameStep = (a: BurgerLayer, b: BurgerLayer) => a.kind === b.kind && a.tool === b.tool && (a.app ?? "") === (b.app ?? "") && a.where === b.where;
 
-/** Desktop actions in a row on one computer are one layer: "click, type text, key press", done again by the AI. */
 function joinDesktop(layers: BurgerLayer[]): BurgerLayer[] {
   const out: BurgerLayer[] = [];
   for (const layer of layers) {
@@ -248,11 +231,9 @@ function joinDesktop(layers: BurgerLayer[]): BurgerLayer[] {
   return out;
 }
 
-/** The run since the person's last ask, as layers. */
 export function burgerLayers(messages: readonly RunMessage[], live: ReadonlySet<string> = new Set()): BurgerLayer[] {
   const layers = messages.slice(askIndex(messages) + 1).flatMap((message) => layersOf(message, live));
   return joinDesktop(layers.filter((layer, index) => layer.status !== "failed" || !layers.slice(index + 1).some((later) => later.status !== "failed" && sameStep(layer, later))));
 }
 
-/** A burger shows for a run of two real steps or more. */
 export const BURGER_MIN_LAYERS = 2;

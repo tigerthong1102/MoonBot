@@ -777,8 +777,6 @@ describe("limits counted per turn on a bearer that outlives the turn", () => {
   }, 40_000);
 
   it("tells a same-turn one-way (reply: none) hand-off that nothing comes back", async () => {
-    // Made with their department at creation: the case above may still be resuming its delegator, and the local API
-    // moves an existing bot to another department only while every bot is idle.
     const created = async (name: string) => {
       const made = await api("POST", "/api/bots", { name, section: "One way delegations", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
       expect(made.status, JSON.stringify(made.body)).toBe(201);

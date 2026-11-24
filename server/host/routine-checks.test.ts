@@ -242,7 +242,6 @@ describe("a routine's checks", () => {
     expect(result.run!.prompt).toContain("[Records from Outlook.");
     expect(result.run!.prompt).toContain("id o2 · from Sender o2 <o2@outlook.test>");
     expect(s.checks.items(result.run!.key)?.mail.map((email) => email.id)).toEqual(["o2", "o1"]);
-    // A fenced run drafts only in Gmail, so an Outlook conversation is never a draft it may write.
     expect(s.checks.mayDraft(result.run!.key, "conv-o2", "o2@outlook.test")).toBe(false);
     s.checks.commit(result.run!.key);
     s.advance(15 * MINUTE);
@@ -258,7 +257,6 @@ describe("a routine's checks", () => {
     expect(first.trouble).toBe("Couldn't read Outlook. Reconnect it in Connected apps.");
     expect(s.reports.at(-1)!.trouble).toEqual([{ app: "outlook", signedOut: true }]);
     s.checks.commit(first.run!.key);
-    // Outlook recovers on the next manual run; an email that arrived before the previous check is still read because the cursor stayed back.
     delete s.failing.outlook;
     s.outlookMail("o1", 4);
     s.advance(15 * MINUTE);

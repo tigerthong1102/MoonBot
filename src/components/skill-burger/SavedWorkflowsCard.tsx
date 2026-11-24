@@ -9,10 +9,8 @@ import { EveryChatToggle } from "./EveryChatToggle";
 import { MiniBurger } from "./MiniBurger";
 import { LayerIcon } from "./SkillBurger";
 
-/** A burger this bot uses: its own, and every one used in every chat. */
 export const usedBy = (botId: string) => (skill: SavedWorkflow) => skill.everyChat || skill.botId === botId;
 
-/** Takes a burger away, keeping what it takes to put it back. */
 export function useBurgerRemoval() {
   const [removed, setRemoved] = useState<{ skill: SavedWorkflow; workflow: unknown } | null>(null);
   const [problem, setProblem] = useState("");
@@ -39,8 +37,6 @@ export function useBurgerRemoval() {
   return { removed, problem, remove, undo };
 }
 
-/** The bot panel's Skill Burgers: the ones this bot uses. Open one to see its steps; switch it to every chat; remove it with
- * an Undo. */
 export function SavedWorkflowsCard({ botId }: { botId: string }) {
   const { skills: all, error } = useSavedBurgers();
   const advanced = useAdvancedMode();
@@ -80,7 +76,7 @@ export function SavedWorkflowsCard({ botId }: { botId: string }) {
             <ol id={listId} hidden={!expanded} aria-label={t("skillBurger.layers")} className="flex flex-col gap-1 px-3.5 pb-3">
               {skill.layers.map((layer, index) => (
                 <li key={index} className="flex min-w-0 items-center gap-2 text-[13px] text-ink-secondary">
-                  <LayerIcon kind={layer.kind} app={layer.app} />
+                  <LayerIcon kind={layer.kind} />
                   <span className="min-w-0 flex-1 truncate">{layer.label}</span>
                   {layer.kind === "ai" && <span className="shrink-0 text-[11px] text-ink-tertiary">{t("skillBurger.aiTag")}</span>}
                 </li>

@@ -1,7 +1,7 @@
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
 import { linkedWorkBotOwners } from "./work-bot-linked-owners.ts";
-import { assertWorkBotStopAllowed as assertWorkBotStop, cancelWorkBotRoutes, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
+import { assertWorkBotStopAllowed as assertWorkBotStop, cancelWorkBotRoutes, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, hasUncertainWorkBotStop, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
 import { assertWorkBotRoutineSafe } from "./host/work-bot-routine-guard.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
@@ -86,7 +86,7 @@ import { routeDirectTurn } from "./turn-route.ts"; import { QuickModelFallback }
 import { groupTurnCwd } from "./room-cwd.ts";
 import { RoomTurnDeadline, RoomTurnStallRegistry, effectiveRoomTurnTimeoutMinutes, parseConversationTurnTimeout, roomTurnTimeoutMessage } from "./room-turn-timeout.ts";
 import { roomTurnEnd, type RoomClaimEnd } from "./room-turn-end.ts";
-import { applyHoldDirective, classifyHoldDirective, heldMemberLine, rememberHeldMessage, stopWordPlacement } from "./room-holds.ts";
+import { applyHoldDirective, classifyHoldDirective, heldMemberLine, isStopCommand, rememberHeldMessage, stopWordPlacement } from "./room-holds.ts";
 import { refusalBody, refusalText, USER_ERROR, userError, userErrorFields, userErrorThrown } from "./user-errors.ts";
 import { chatNotice, failedNoticeTool, noticeTool, runtimeNoticeTool } from "./chat-notices.ts";
 import type { ServerErrorBody } from "../shared/server-text.ts";
@@ -7275,6 +7275,9 @@ async function acceptDirectSend(
     sendId ? `bot:${botId}:${threadId}:${sendId}` : undefined,
     sendFingerprint(text, replyTo?.id),
     async (): Promise<DirectSendReceipt> => {
+      const isTypedStop = isStopCommand(text, store.bot(botId)?.name);
+      const uncertainStop = !CLOUD_TEAM && !app && (trigger.kind === "user" || trigger.kind === "owner") && hasUncertainWorkBotStop(store.messagesFor(threadId), sendId, isTypedStop);
+      if (uncertainStop) throw Object.assign(new Error(serverLine(threadLanguage(threadId), "server.workBot.stopInAssignedBot")), { status: 409, code: "work_bot_stop_uncertain" });
       if (sendId) {
         if (cancelledChatFollowup("bot", botId, threadId, sendId)) {
           throw Object.assign(new Error("this queued sendId was cancelled; send a new message to try again"), { status: 409 });
@@ -7320,8 +7323,28 @@ async function acceptDirectSend(
       if (guardedStart) return guardedStart(currentAtStart);
       if (followUp === "restart" && (trigger.kind === "user" || trigger.kind === "owner")) assertWorkBotStopAllowed(threadId);
 
-      const typedStop = await stopOnTypedCommand({ botId, threadId, text, trigger, personPresent, fromApp: Boolean(app), busy: currentAtStart.busy === true || workBotRoutingBlocks(threadId), row: { replyToId: replyTo?.id, sendId, sender, ...spokenLineFields(via, callId) }, by: { ...(sender?.id ? { person: sender.id } : {}), admin: admin === true } });
-      if (typedStop) return typedStop;
+      const lastSource = store.activePath(threadId).findLast(row => row.role === "user");
+      if (!CLOUD_TEAM && !app && (trigger.kind === "user" || trigger.kind === "owner") && lastSource?.workBotRouting?.stopPending && isTypedStop) {
+        throw Object.assign(new Error(serverLine(threadLanguage(threadId), "server.workBot.stopInAssignedBot")), { status: 409, code: "work_bot_stop_uncertain" });
+      }
+      const handedTarget = !CLOUD_TEAM && handedRunTarget(store, threadBusy, id => directRequestOwners.get(id), botId, threadId);
+      const handedOwner = handedTarget ? directRequestOwners.get(handedTarget.threadId) : undefined;
+      let handoffStopAttempted = false;
+      const typedStop = await stopOnTypedCommand({ botId, threadId, text, trigger, personPresent, fromApp: Boolean(app), busy: currentAtStart.busy === true || workBotRoutingBlocks(threadId) || Boolean(handedTarget), row: { replyToId: replyTo?.id, sendId, sender, ...spokenLineFields(via, callId) }, by: { ...(sender?.id ? { person: sender.id } : {}), admin: admin === true }, ...(handedTarget && handedOwner ? { stopHandoff: async () => {
+        const current = directRequestOwners.get(handedTarget.threadId);
+        if (current !== handedOwner || current.stopped || !current.messageId) throw Object.assign(new Error("The handed-off work changed before it could be stopped"), { status: 409 });
+        const targetRefusal = runOwners.stopRefusal(handedTarget.threadId, { ...(sender?.id ? { person: sender.id } : {}), admin: admin === true });
+        if (targetRefusal) throw Object.assign(new Error(targetRefusal), { status: 403, code: "stop_not_yours" });
+        if (routines?.activeBotRunForBot(handedTarget.botId)?.threadId === handedTarget.threadId) throw Object.assign(new Error("Another run is active in the assigned conversation; open it to stop the intended work"), { status: 409 });
+        if (!lastSource?.workBotRouting || !store.patchMessage(threadId, lastSource.id, { workBotRouting: { ...lastSource.workBotRouting, stopPending: sendId ? { sendId } : {} } })) throw Object.assign(new Error("The handed-off work is no longer available"), { status: 409 });
+        handoffStopAttempted = true;
+        await stopThreadForPerson(handedTarget.botId, handedTarget.threadId, sender);
+      } } : {}) });
+      if (typedStop) {
+        const latestSource = handoffStopAttempted && lastSource ? store.messagesFor(threadId).find(row => row.id === lastSource.id) : undefined;
+        if (latestSource?.workBotRouting?.stopPending) store.patchMessage(threadId, latestSource.id, { workBotRouting: { ...latestSource.workBotRouting, stopPending: undefined } });
+        return typedStop;
+      }
       if (workBotRoutingBlocks(threadId) && personPresent && !app && !guardedStart) {
         const offerSource = pendingWorkBotOfferSource(store, pendingWorkBotIds, workBotChoiceLocks, threadId, sender, Boolean(CLOUD_TEAM), threadLanguage(threadId));
         const queued = queueSteeredMessage(botId, threadId, text, {

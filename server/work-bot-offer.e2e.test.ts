@@ -528,7 +528,7 @@ it("does not offer a dedicated bot after a Data-context request has already run"
   }
 }, 60000);
 
-it.each(["allow", "deny"])("stops the %s run from the original conversation without resuming its old session", async behavior => {
+it.each([["allow", "button"], ["deny", "button"], ["allow", "typed"], ["deny", "typed"]])("stops the %s run using %s from the original conversation without resuming its old session", async (behavior, method) => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-stop-target-"));
   const routes = join(dir, "routes.json");
   const finishGate = join(dir, "finish"), prompts = join(dir, "prompts.jsonl");
@@ -560,9 +560,14 @@ it.each(["allow", "deny"])("stops the %s run from the original conversation with
       const saved = JSON.parse(readFileSync(join(fixture!.info.dataDir, "bots.json"), "utf8")) as BotRecord[];
       return Boolean(saved.find(bot => bot.id === worker.id)?.tasks?.find(task => task.threadId === worker.threadId)?.resumeCursors?.claude);
     }, { timeout: 15000 }).toBe(true);
-    await api(`/api/bots/${main.id}/interrupt`, { threadId: main.threadId });
+    if (method === "typed") await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text: "stop", sendId: randomUUID() });
+    else await api(`/api/bots/${main.id}/interrupt`, { threadId: main.threadId });
     await expect.poll(async () => (await rows(worker.threadId)).find(row => row.role === "user" && row.text === text)?.requestCancelled, { timeout: 15000 }).toBe(true);
     await expect.poll(async () => !(await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.id === worker.id)?.busy, { timeout: 15000 }).toBe(true);
+    if (method === "typed") {
+      expect((await rows(main.threadId)).filter(row => row.role === "user" && row.text === "stop")).toHaveLength(1);
+      expect(readFileSync(prompts, "utf8").trim().split("\n").filter(Boolean)).toHaveLength(1);
+    }
     const later = "A different synthetic request";
     await api(`/api/bots/${worker.id}/messages`, { threadId: worker.threadId, text: later, sendId: randomUUID() });
     await expect.poll(async () => (await rows(worker.threadId)).find(row => row.text === later)?.requestPending, { timeout: 15000 }).toBe(true);

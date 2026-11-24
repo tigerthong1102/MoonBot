@@ -68,6 +68,13 @@ export function handedRunTarget(store: Store, busy: (botId: string, threadId: st
   return null;
 }
 
+export function hasUncertainWorkBotStop(rows: readonly Message[], sendId: string | undefined, isTypedStop: boolean): boolean {
+  return rows.some(row => {
+    const pending = row.workBotRouting?.stopPending;
+    return Boolean(pending && ((sendId && pending.sendId === sendId) || (isTypedStop && (!sendId || !pending.sendId))));
+  });
+}
+
 export function unambiguousWorkBotRequest(path: readonly Message[], ownerMessageId: string | undefined, verified: (message: Message) => boolean): boolean {
   if (!ownerMessageId) return false;
   const index = path.findIndex(message => message.id === ownerMessageId && message.role === "user");

@@ -21,7 +21,7 @@ it("upgrades verified audit snapshots while preserving approvals and customized 
   try {
     const catalog = join(root, "catalog");
     const library = join(root, "library");
-    const names = ["gemini-api", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "producthunt", "pptx", "byted-seedance-video-generate", "byted-seedream-image-generate"];
+    const names = ["comps-analysis", "gemini-api", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "producthunt", "pptx", "byted-seedance-video-generate", "byted-seedream-image-generate"];
     mkdirSync(catalog);
     for (const name of names) restoreAuditSnapshot(name, join(catalog, name));
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
@@ -35,6 +35,7 @@ it("upgrades verified audit snapshots while preserving approvals and customized 
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 60, failed: [] });
     const index = readSkillLibraryIndex(library);
     for (const name of names) expect(index[name].reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/comps-analysis/SKILL.md"), "utf8")).not.toContain("examples/comps_example.xlsx");
     expect(index["gemini-api"].files).toContain("references/media_generation.md");
     expect(index["google-ads-api-mcp-setup"].files).toContain("references/tools.md");
     expect(index.pptx.files).toContain("scripts/slide_text.py");

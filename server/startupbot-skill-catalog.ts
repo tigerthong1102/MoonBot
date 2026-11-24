@@ -8,6 +8,7 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["b79c22ecb6679835c84e70cc8813fabf3df957bdb1dc09ad9a66b8373ec7fc3e", "comps-analysis"],
   ["29b7d808e8e049759e82ccbedb10999ec9149669716bda064fab55cc25cbad4c", "byted-text-to-speech"],
   ["0afa47ef879ebebe3f571aa8ac7f9b1775583ff273dcb52c1168996724ae417d", "gemini-api"],
   ["8b4e269e1d88ef696d7fd5758039967c5f8df58f282612ebc5a9d73adce22df4", "apify-ecommerce"],
@@ -40,6 +41,7 @@ const supersededFolders = new Map([
 ]);
 
 const olderInstructions = new Map([
+  ["comps-analysis", "a6dad79f70eac93dffde0a3b09f7ee009f2e37035668d0818022fbc499b42698"],
   ["byted-text-to-speech", "5a2f18debb6cf3a695330256266b59550870a515bbae0949ab9141c8af239343"],
   ["gemini-api", "0df7c28dcf9f8d17105ab1955bd07d14bd8c58e9364fc40b045cddfd1149a7f0"],
   ["apify-ecommerce", "f7aac4c3f6e22301ff97192adad7253cb51c826c17cce07b14fa32638aa3fedf"],
@@ -130,7 +132,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
+        reviewState: ["comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

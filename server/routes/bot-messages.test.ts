@@ -176,6 +176,7 @@ it("refuses a handed-off stop before changing state when the assigned bot must b
   expect(store.activeLeaf(threadId)).toBe(before);
 });
 
+
 describe("editing a message with no AI", () => {
   it("says what a Send says on a team, and starts no turn", async () => {
     const line = "Olive needs to connect an AI before bots can answer. I've told them.";

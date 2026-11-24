@@ -256,6 +256,38 @@ it("keeps follow-up work with a synthetic file in the original conversation", as
   }
 }, 60000);
 
+it("does not offer a dedicated bot after a Data-context request has already run", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "work-bot-direct-data-"));
+  const routes = join(dir, "routes.json");
+  const textLog = join(dir, "text-log.jsonl");
+  const text = "Follow this synthetic Data report weekly";
+  writeFileSync(routes, JSON.stringify({ [text]: JSON.stringify({ name: "Data report", icon: "chart" }) }));
+  const token = randomBytes(32).toString("base64url");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (input, init = {}) => originalFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": token } });
+  let fixture: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
+  try {
+    fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_TEXT_LOG: textLog, OMB_TEST_DESKTOP_OWNER_TOKEN: token });
+    const base = fixture.info.url;
+    const api = async <T>(route: string, body?: unknown): Promise<T> => {
+      const response = await fetch(base + route, { method: body ? "POST" : "GET", headers: { origin: base, "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      const result = await response.json();
+      expect(response.ok, JSON.stringify(result)).toBe(true);
+      return result as T;
+    };
+    const main = (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.defaultBot)!;
+    const rows = async () => (await api<{ messages: Message[] }>(`/api/threads/${main.threadId}/messages`)).messages;
+    await api(`/api/bots/${main.id}/messages`, { threadId: main.threadId, text, dataContext: { cardId: "c_42" }, sendId: randomUUID() });
+    await expect.poll(async () => (await rows()).some(row => row.role === "bot" && row.kind === "text" && row.text === "hello from fake claude"), { timeout: 15000 }).toBe(true);
+    expect((await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer)).toBe(false);
+    expect(existsSync(textLog) ? readFileSync(textLog, "utf8") : "").not.toContain(text);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fixture?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}, 60000);
+
 it("stops the handed-off run from the original conversation", async () => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-stop-target-"));
   const routes = join(dir, "routes.json");

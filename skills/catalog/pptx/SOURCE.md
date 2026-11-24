@@ -68,3 +68,5 @@ Included upstream notices: THIRD_PARTY_NOTICES.md.
 - scripts/office/validators/redlining.py
 - scripts/slide_text.py
 - scripts/thumbnail.py
+
+Included the upstream SKILL.md as references/upstream.md and expanded the local document workflow.

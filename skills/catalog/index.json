@@ -62,7 +62,7 @@
     ],
     "category": "office",
     "summaryVi": "Tạo, sửa và kiểm tra công thức trong bảng tính Excel.",
-    "instructionsSha256": "c5c862d6d8ae4b9a7bed37c5a16f24d9415747479dd535fb7ca6011fa4d71cb0",
+    "instructionsSha256": "22ac3e76daf690d07c45a2cf453c030048d017d5166d480eeebada5e728c58dd",
     "summaryZh": "在 Excel 电子表格中创建、编辑和测试公式。",
     "summaryZhTw": "在 Excel 電子表格中建立、編輯和測試公式。"
   },
@@ -155,7 +155,7 @@
     ],
     "category": "office",
     "summaryVi": "Soạn và chỉnh sửa tài liệu Word.",
-    "instructionsSha256": "a100df67e78f4a30ce32a95abcaf02d4418013924f9d15f72e78fe52ca439020",
+    "instructionsSha256": "c4f89faac9e86316c6985e215f6f3cab8135473e9bb5a5d24a73c2f43c395c9d",
     "summaryZh": "撰写和编辑 Word 文档。",
     "summaryZhTw": "撰寫和編輯 Word 文件。"
   },
@@ -227,7 +227,7 @@
     ],
     "category": "office",
     "summaryVi": "Thiết kế và kiểm tra bài trình chiếu PowerPoint.",
-    "instructionsSha256": "7cc3d0066b6036227241edb9ff640ce7aa22781c34530f9550d69651c7a5cea2",
+    "instructionsSha256": "fe5e12c18ff824da4ec41527e0a0035e4b6825c6dfeba0219b3e9543bb4106ef",
     "summaryZh": "设计和测试 PowerPoint 演示文稿。",
     "summaryZhTw": "設計和測試 PowerPoint 簡報。"
   },
@@ -425,7 +425,7 @@
     ],
     "category": "web",
     "summaryVi": "Đo tốc độ tải và tìm nguyên nhân website chậm.",
-    "instructionsSha256": "ae0d9419aff36834233b865243c3eea06ade6fa74b0951680174f11647014f18",
+    "instructionsSha256": "1b7adf5eda4c29466fee9a9b4cda2782fa3be821b899b5f9630191541ea2115a",
     "summaryZh": "测量加载速度并查找网站缓慢的原因。",
     "summaryZhTw": "測量載入速度並尋找網站緩慢的原因。"
   },
@@ -511,7 +511,10 @@
     "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "references/film.md",
+      "references/look.md",
+      "references/types/launch.md"
     ],
     "excludedFiles": [
       "assets/frame-presets/biennale-yellow/FRAME.md",
@@ -562,29 +565,6 @@
       "assets/frame-presets/editorial-forest/FRAME.md",
       "assets/frame-presets/editorial-forest/caption-skin.html",
       "assets/frame-presets/editorial-forest/frame-showcase.html",
-      "references/captions.md",
-      "references/film.md",
-      "references/format.md",
-      "references/look.md",
-      "references/motion.md",
-      "references/overlays.md",
-      "references/path-tracing.md",
-      "references/plugin-installation.md",
-      "references/review.md",
-      "references/runtimes.md",
-      "references/skill-lifecycle.md",
-      "references/sound.md",
-      "references/spec.md",
-      "references/story.md",
-      "references/storyboard-format.md",
-      "references/storyboard.md",
-      "references/types/3d.md",
-      "references/types/character.md",
-      "references/types/data.md",
-      "references/types/explainer.md",
-      "references/types/launch.md",
-      "references/types/music.md",
-      "references/types/vertical.md",
       "scripts/bake-basemap.mjs",
       "scripts/lib/main-module.mjs",
       "scripts/lib/main-module.test.mjs",
@@ -593,11 +573,13 @@
       "scripts/locate.mjs",
       "scripts/locate.test.mjs",
       "scripts/plugin-cli.mjs",
-      "scripts/plugin-cli.test.mjs"
+      "scripts/plugin-cli.test.mjs",
+      "references/plugin-installation.md",
+      "references/skill-lifecycle.md"
     ],
     "category": "media",
     "summaryVi": "Dựng video từ HTML với HyperFrames.",
-    "instructionsSha256": "afe67b17e26fb9d3132da33ff9143f79025da60dd9da123aad7feeb81684fbf2",
+    "instructionsSha256": "11a2302d7b7d522d9878047c13e49ab92bec990dd8094136b51b9c7cbda44c4c",
     "summaryZh": "使用 HyperFrames 从 HTML 构建视频。",
     "summaryZhTw": "使用 HyperFrames 從 HTML 建立影片。"
   },
@@ -609,23 +591,10 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "references/beats.md",
-      "references/cloud.md",
-      "references/cloudrun.md",
-      "references/compare-and-batch.md",
-      "references/conventions.md",
-      "references/doctor-browser.md",
-      "references/feedback.md",
-      "references/init-and-scaffold.md",
-      "references/lambda.md",
-      "references/lint-validate-inspect.md",
-      "references/preview-render.md",
-      "references/upgrade-info-misc.md"
-    ],
+    "excludedFiles": [],
     "category": "media",
     "summaryVi": "Sử dụng công cụ dòng lệnh HyperFrames để dựng và xuất video.",
-    "instructionsSha256": "93b586ee1f828a0b02326e730ac0bc3916ed6e0b909077d8300ee0080b21be27",
+    "instructionsSha256": "101462e6097bc2cc0e9872b164c676a15f4f77b0e52bee99d7c944d6a1eab557",
     "summaryZh": "使用 HyperFrames 命令行工具编辑和导出视频。",
     "summaryZhTw": "使用 HyperFrames 命令列工具編輯和匯出影片。"
   },
@@ -651,7 +620,7 @@
     ],
     "category": "media",
     "summaryVi": "Tạo video bằng Gemini hoặc Veo qua kết nối đã cấu hình.",
-    "instructionsSha256": "0df7c28dcf9f8d17105ab1955bd07d14bd8c58e9364fc40b045cddfd1149a7f0",
+    "instructionsSha256": "218ce9d59ac461078788458a0f5f8f2ef6109d3386d5bd1468a8036ab3471742",
     "summaryZh": "通过配置的连接使用 Gemini 或 Veo 创建视频。",
     "summaryZhTw": "透過配置的連接使用 Gemini 或 Veo 創建視訊。"
   },
@@ -758,7 +727,7 @@
     "excludedFiles": [],
     "category": "commerce",
     "summaryVi": "Thu thập dữ liệu sản phẩm thương mại điện tử qua Apify.",
-    "instructionsSha256": "f7aac4c3f6e22301ff97192adad7253cb51c826c17cce07b14fa32638aa3fedf",
+    "instructionsSha256": "d68d1fbf0fa6a465587301e39474311c390c0d399f84928652853dcfad0b1d09",
     "summaryZh": "通过Apify收集电子商务产品数据。",
     "summaryZhTw": "透過Apify收集電子商務產品數據。"
   },
@@ -845,7 +814,7 @@
     ],
     "category": "media",
     "summaryVi": "Chuyển văn bản thành giọng đọc và thuyết minh.",
-    "instructionsSha256": "5a2f18debb6cf3a695330256266b59550870a515bbae0949ab9141c8af239343",
+    "instructionsSha256": "d2174024a0058fe89893fab0b70c92d668988c273c645c02c314dd75d7cdc6e1",
     "summaryZh": "将文本转换为画外音和旁白。",
     "summaryZhTw": "將文字轉換為畫外音和旁白。"
   },
@@ -1100,7 +1069,7 @@
     ],
     "category": "startup",
     "summaryVi": "Nghiên cứu sản phẩm ra mắt, chủ đề và xu hướng trên Product Hunt.",
-    "instructionsSha256": "d1714f2ece2962d1f836cb12e2b57f6f017d7a0b053f86b102b42cab9ae1b638",
+    "instructionsSha256": "2315e20b037b237a45b2818a993af3c9df3ac18e4ba18678a3f7189cf1e00ef3",
     "summaryZh": "在 Product Hunt 上研究产品发布、主题和趋势。",
     "summaryZhTw": "在 Product Hunt 上研究產品發布、主題和趨勢。"
   },

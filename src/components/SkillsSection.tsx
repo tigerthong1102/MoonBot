@@ -1,33 +1,16 @@
 // Security: local browse only, with no registry and no network fetch, so an import is exactly the bytes pasted here.
 import { Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import catalog from "../../skills/catalog/index.json";
-import { activeLocale, intlLocale, t, tFromServer } from "@/lib/i18n";
-import { useModalDialog } from "@/hooks/use-modal-dialog";
-import { api } from "@/state/api";
+import { intlLocale, t, tFromServer } from "@/lib/i18n";
+import { catalogEntry, skillDescription } from "@/lib/library-skill-presentation";
+import { activateLibrarySkill } from "@/lib/library-skill-use";
 import { offersSkillCommand } from "../../shared/skill-command";
 import { useStore } from "@/state/store";
 import { Card, Switch } from "./SettingsPrimitives";
 import type { SkillsLibrarySkillWire } from "../../shared/wire";
 import { Layer } from "./Layer";
 import { Select } from "./Select";
-import { SkillInstructions } from "./SkillInstructions";
-
-const catalogBySource = new Map(catalog.map((entry) => [entry.source, entry]));
-
-function catalogEntry(skill: SkillsLibrarySkillWire) {
-  const entry = catalogBySource.get(skill.source);
-  return entry?.name === skill.name ? entry : undefined;
-}
-
-function skillDescription(skill: SkillsLibrarySkillWire): string {
-  const entry = catalogEntry(skill);
-  const locale = activeLocale();
-  if (locale === "vi") return entry?.summaryVi ?? skill.description;
-  if (locale === "zh") return entry?.summaryZh ?? skill.description;
-  if (locale === "zh-tw") return entry?.summaryZhTw ?? skill.description;
-  return entry?.summaryEn ?? skill.description;
-}
+import { SkillSourceDialog } from "./SkillSourceDialog";
 
 function skillTags(skill: SkillsLibrarySkillWire): string[] {
   const entry = catalogEntry(skill);
@@ -219,20 +202,8 @@ export function SkillsSection({ chat }: { chat?: SkillChatTarget } = {}) {
     busy.current = true;
     setError("");
     setWorking(skill.name);
-    const botPath = `/api/bots/${encodeURIComponent(chat.botId)}`;
     try {
-      if (!skill.enabled) await api(`/api/skills-library/${encodeURIComponent(skill.name)}`, {
-        method: "PATCH", body: JSON.stringify({ enabled: true }),
-      });
-      await api(`${botPath}/skills-library`, {
-        method: "PATCH", body: JSON.stringify({ name: skill.name, assigned: true }),
-      });
-      const { skills } = await api<{ skills: { name: string; origin: string; enabled: boolean }[] }>(
-        `${botPath}/skills?threadId=${encodeURIComponent(chat.threadId)}`,
-      );
-      if (!skills.some((entry) => entry.name === skill.name && entry.enabled && entry.origin === "library")) {
-        throw new Error(t("skills.library.unavailable"));
-      }
+      await activateLibrarySkill(chat, skill);
       chat.use(skill.name);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("skills.library.unavailable"));
@@ -446,48 +417,7 @@ export function SkillsSection({ chat }: { chat?: SkillChatTarget } = {}) {
         </form>
       </Card>}
 
-      {viewing && <Layer modal><SkillSourceDialog viewing={viewing} error={error} working={Boolean(working)} onClose={() => { if (!working) setViewing(null); }} enableLabel={chat ? t("skills.library.enableAndUse") : t("skills.enableReviewed")} onEnable={() => void (chat ? useInChat(viewing.skill, true) : toggle(viewing.skill, true))} /></Layer>}
+      {viewing && <Layer modal><SkillSourceDialog viewing={viewing} details={<LibrarySkillMeta skill={viewing.skill} />} error={error} working={Boolean(working)} onClose={() => { if (!working) setViewing(null); }} enableLabel={chat ? t("skills.library.enableAndUse") : t("skills.enableReviewed")} onEnable={() => void (chat ? useInChat(viewing.skill, true) : toggle(viewing.skill, true))} /></Layer>}
     </div>
-  );
-}
-
-function SkillSourceDialog({ viewing, error, working, onClose, onEnable, enableLabel }: {
-  viewing: { skill: SkillsLibrarySkillWire; text: string; review: boolean };
-  error: string;
-  working: boolean;
-  onClose: () => void;
-  onEnable: () => void;
-  enableLabel: string;
-}) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useModalDialog(dialogRef, onClose);
-  return (
-        <div
-          ref={dialogRef}
-          tabIndex={-1}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="skills-library-view-title"
-          className="ui-scrim fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-6"
-        >
-          <div className="ui-modal flex max-h-[min(760px,90dvh)] w-full max-w-2xl flex-col p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div id="skills-library-view-title" className="text-[16px] font-semibold text-ink">{viewing.review ? t("skills.reviewTitle", { name: viewing.skill.name }) : viewing.skill.name}</div>
-              <button
-                type="button"
-                disabled={working}
-                onClick={onClose}
-                className="rounded-md px-2 py-1 text-[13px] text-ink-secondary hover:bg-control hover:text-ink"
-              >
-                {t("skills.library.close")}
-              </button>
-            </div>
-            <LibrarySkillMeta skill={viewing.skill} />
-            {viewing.skill.warnings.length > 0 && <div className="mt-2 text-[12px] text-warning">{viewing.skill.warnings.join(" · ")}</div>}
-            <SkillInstructions name={viewing.skill.name} text={viewing.text} label={t("skills.library.view", { skill: viewing.skill.name })} />
-            {error && <div role="alert" className="mt-2 text-[12px] text-danger">{error}</div>}
-            {viewing.review && <button type="button" disabled={working} onClick={onEnable} className="mt-4 self-end rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-accent-ink disabled:opacity-40">{enableLabel}</button>}
-          </div>
-        </div>
   );
 }

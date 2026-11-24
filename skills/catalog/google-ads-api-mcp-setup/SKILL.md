@@ -11,3 +11,5 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 # Check a Google Ads MCP connection
 
 Confirm the account to read and its permissions. Configure a trusted Google Ads MCP server through StartupBot connector settings, with the least privilege required for the use case. Test account enumeration and a small read-only query. Report the exact account and expected fields returned.
+
+For the upstream server's example read operations, field discovery and propose-and-confirm mutation flow, consult `references/tools.md`. Discover the tools and schemas exposed by the person's configured server first: names and supported operations can differ by version. Do not treat the reference as proof that a particular account, tool or write capability is available. Check the target and obtain authorization before any externally visible change.

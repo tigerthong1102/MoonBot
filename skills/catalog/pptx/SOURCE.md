@@ -8,6 +8,8 @@ StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. O
 
 Excluded third-party OOXML schemas and their dependent helpers.
 
+The upstream `scripts/slide_text.py` is included for read-only extraction with a compatible Python interpreter and `python-pptx`.
+
 Included upstream notices: THIRD_PARTY_NOTICES.md.
 
 ## Excluded upstream files
@@ -66,7 +68,6 @@ Included upstream notices: THIRD_PARTY_NOTICES.md.
 - scripts/office/validators/docx.py
 - scripts/office/validators/pptx.py
 - scripts/office/validators/redlining.py
-- scripts/slide_text.py
 - scripts/thumbnail.py
 
 Included the upstream SKILL.md as references/upstream.md and expanded the local document workflow.

@@ -10,3 +10,5 @@
 生成新视频前，确认提示词、画面比例、时长和要发送的源素材。通过已配置的服务确认当前可用的视频生成模型，提交请求，必要时轮询异步任务，并从同一服务取回结果。将视频保存在工作区，打开检查，报告时长及画面或音频问题。无法生成时说明缺少的权限；适用时可提供本地 HyperFrames 制作动画视频，但不要声称它等同于生成式实拍画面。
 
 查阅当前官方 Gemini 视频生成文档，确认支持的模型、限制和请求格式。预览模型可能停用，不要写死旧版 Veo 预览可用。使用 Google Cloud Agent Platform 时，使用已配置的项目、区域和凭据，发送数据前检查权限。切勿将密钥放入聊天、源文件、日志或 URL。未经用户授权，不要启用服务、发送私人素材或产生费用。
+
+需要实现细节时，只阅读对应的固定版本上游资料：`references/text_and_multimodal.md` 文本及多模态；`references/structured_and_tools.md` 结构化输出及函数调用；`references/media_generation.md` 生成图片、视频、语音或音乐；`references/embeddings.md` 嵌入；`references/bounding_box.md` 空间结果；`references/live_api.md` 实时会话；`references/advanced_features.md` 高级功能；`references/safety.md` 安全控制；或 `references/model_tuning.md` 模型微调。示例和模型 ID 属于固定快照，不保证目前仍可用。运行前核对最新官方文档、端点、账户权限和价格；未经用户要求不要启用使用归因或遥测。

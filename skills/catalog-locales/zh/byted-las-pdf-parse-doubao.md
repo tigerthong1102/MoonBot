@@ -3,3 +3,5 @@
 # 使用配置的豆宝服务提取PDF内容
 
 确认 PDF 可以发送到指定服务。使用配置的解析器提取请求的页面或表。保留行边界、引用页面并标记不确定的 OCR。使用本地 PDF 技能来完成应保留在计算机上的工作。
+
+如果已有获授权的 `las-cli`，检查已安装版本及 `las-cli operators help las_pdf_parse_doubao`，以发现当前输入 schema。指定所需页码和受支持的解析模式，在上传或付费调用前检查价格。获得授权后，按已安装版本文档使用 `las-cli price las_pdf_parse_doubao` 和 `las-cli operators call las_pdf_parse_doubao`，跟踪任务并取回文本和表格。不要在聊天中索要或输出凭据。缺少 CLI 或账户时说明依赖，适当时使用本地 PDF 工具，不要误称为 Doubao。上游 CLI 单独分发；安装或打包前核实其许可和服务条款。

@@ -254,3 +254,5 @@ Kỹ năng này được cấp phép theo Giấy phép Apache 2.0. Xem tệp GI�
 ## thông báo
 
 Vui lòng tuân thủ các điều khoản dịch vụ của Volcano Engine cũng như các luật và quy định có liên quan khi sử dụng kỹ năng này.
+
+Script đi kèm cần trình thông dịch Python và `httpx` trong `requirements.txt`; lệnh `--help` vẫn hoạt động khi thiếu `httpx`. Kiểm tra môi trường thực tế để tìm `startupbot-media-python`, `python3`, `python` hoặc `py -3` trên Windows. Nếu thiếu thư viện, dùng môi trường Python riêng cho tác vụ đã được phép và cài phiên bản được ghim từ nguồn tin cậy; không thay đổi Python toàn máy. Nếu thiếu Python, dùng dịch vụ tương thích đã cấu hình hoặc giải thích điều kiện còn thiếu. Tài khoản API ByteDance và quyền phát sinh phí là các điều kiện riêng.

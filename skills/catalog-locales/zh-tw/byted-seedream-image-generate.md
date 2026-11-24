@@ -254,3 +254,5 @@ local_path: /root/.openclaw/workspace/skills/image-generate/xxx.png
 ## 通知
 
 使用此技能時請遵守火山引擎的服務條款及相關法規。
+
+隨附指令碼需要可用的 Python 解譯器及 `requirements.txt` 中的 `httpx`；缺少 `httpx` 時 `--help` 仍可用。檢查實際環境中的 `startupbot-media-python`、`python3`、`python` 或 Windows 的 `py -3`。缺少依賴時，在獲授權的任務專用 Python 環境中從可信來源安裝固定版本，不修改全域 Python。沒有 Python 時使用已設定的相容服務或說明缺少的條件。ByteDance API 帳戶及產生費用的授權仍是獨立條件。

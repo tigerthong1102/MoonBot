@@ -217,3 +217,5 @@ Nếu gặp lỗi liên quan đến model (như `ModelNotOpen`), bạn có thể
 - Đa phương thức yêu cầu ít nhất một hình ảnh hoặc video (không hỗ trợ âm thanh)
 - Việc tạo âm thanh chỉ được hỗ trợ bởi Seedance 1.5 pro
 - Nếu bỏ phiếu hết thời gian, hãy sử dụng `--query-task` với task_id được trả về
+
+Script đi kèm cần trình thông dịch Python và `httpx` trong `requirements.txt`; lệnh `--help` vẫn hoạt động khi thiếu `httpx`. Kiểm tra môi trường thực tế để tìm `startupbot-media-python`, `python3`, `python` hoặc `py -3` trên Windows. Nếu thiếu thư viện, dùng môi trường Python riêng cho tác vụ đã được phép và cài phiên bản được ghim từ nguồn tin cậy; không thay đổi Python toàn máy. Nếu thiếu Python, dùng dịch vụ tương thích đã cấu hình hoặc giải thích điều kiện còn thiếu. Tài khoản API ByteDance và quyền phát sinh phí là các điều kiện riêng.

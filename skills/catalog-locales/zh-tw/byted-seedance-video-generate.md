@@ -217,3 +217,5 @@ python scripts/video_generate.py -p "A beautiful landscape" --no-watermark
 - 多模式需要至少一張圖像或視訊（不支援僅音訊）
 - 僅 Seedance 1.5 pro 支援音訊生成
 - 如果輪詢逾時，請使用 `--query-task` 和傳回的 task_id
+
+隨附指令碼需要可用的 Python 解譯器及 `requirements.txt` 中的 `httpx`；缺少 `httpx` 時 `--help` 仍可用。檢查實際環境中的 `startupbot-media-python`、`python3`、`python` 或 Windows 的 `py -3`。缺少依賴時，在獲授權的任務專用 Python 環境中從可信來源安裝固定版本，不修改全域 Python。沒有 Python 時使用已設定的相容服務或說明缺少的條件。ByteDance API 帳戶及產生費用的授權仍是獨立條件。

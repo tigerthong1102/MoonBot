@@ -28,6 +28,15 @@ const supersededFolders = new Map([
   ["b2d2e4e5a884469a63ae0abef7d0e95d756b70619f94736fd9b62efe34895f98", "dcf-model"],
   ["5a0400264fe9b7e20522ff39ab59535636b98a182448e641798554ef5d988f11", "webapp-testing"],
   ["ad2bd0eecf45c277877237eeb0096898e0e727dddf66dc7d3fd8d2e03b4399cf", "byted-seedream-image-generate"],
+  ["eb6a7f5467bcf0a501a2a167579ac67fcf079286441da74a1fc1bddce96aafcd", "gemini-api"],
+  ["ae82d7517dd3ce785e8accd1f7fa6db578cf7463ea433d125c68b83cda02aa2f", "google-ads-api-mcp-setup"],
+  ["4b05cb5da04db473ba937c62740d48176b20dc7b0c3e3236eb66be8056280ccd", "byted-las-asr-pro"],
+  ["09ff3e6d799ed113ea3c2dd725d3e960bcae80cfeb1d35d53d6dc745ea6c8f7f", "byted-las-pdf-parse-doubao"],
+  ["826bac3c4d01452e2fde4d5860f923f0c47458cb55c46799276c40481c6141c5", "generated-ui"],
+  ["864db9a552416a5b9ae7361fa95bdcaa323920d5a8ecc95ac3013dc213cf468e", "producthunt"],
+  ["4f52c9b2aad501afefdf935c1e08b091f41ff6a4a0ad1a6fcb4eebf6105c7b69", "pptx"],
+  ["1df4f729a62b6d2ed8c7987dfd542d8e0b4ecd45cb7e431cb751dd4288dae9e2", "byted-seedance-video-generate"],
+  ["718e9e770cc11c9ef01850e10f4d46926f6540dbdc12f542b5ddc86e3940ca70", "byted-seedream-image-generate"],
 ]);
 
 const olderInstructions = new Map([
@@ -42,9 +51,18 @@ const olderInstructions = new Map([
   ["hyperframes", "afe67b17e26fb9d3132da33ff9143f79025da60dd9da123aad7feeb81684fbf2"],
   ["hyperframes-cli", "93b586ee1f828a0b02326e730ac0bc3916ed6e0b909077d8300ee0080b21be27"],
   ["byted-seedream-image-generate", "9f525c94dd91cedae6507002f875266645a732134967e63f09d230ba4e3367cb"],
+  ["generated-ui", "ee2543eb7ddbe3fda74a9d60dca4f66e18583024ac82d08793843b1df4446812"],
+  ["byted-seedance-video-generate", "0ad5a085009ba9da06229c0e19f6383e2092cf17439d0a6b3a7bce9642149189"],
 ]);
 
 const additionalOlderInstructions = new Map([
+  ["gemini-api", new Set(["218ce9d59ac461078788458a0f5f8f2ef6109d3386d5bd1468a8036ab3471742"])],
+  ["google-ads-api-mcp-setup", new Set(["91131558e35560aafff656d605c0dee78bfd4ac429e1ca4f94c7211e0e982af3"])],
+  ["byted-las-asr-pro", new Set(["e8b30070e07dbe4ffd2dfb4ccc499d64fd52c64cfb2ae70bdf85e8d28d51a530"])],
+  ["byted-las-pdf-parse-doubao", new Set(["9b7b9bfa212311a356999d9e00db4e46c6e218f05af10fe00bf773e867a8c677"])],
+  ["producthunt", new Set(["2315e20b037b237a45b2818a993af3c9df3ac18e4ba18678a3f7189cf1e00ef3"])],
+  ["pptx", new Set(["fe5e12c18ff824da4ec41527e0a0035e4b6825c6dfeba0219b3e9543bb4106ef"])],
+  ["byted-seedream-image-generate", new Set(["6197608c6cca5877c44cafee20f0aca138d3c0ab56acb754809c149a773e35a1"])],
   ["hyperframes", new Set([
     "5b3f2384088aae01eaf835ec1588128387432f7ddc112321f80dfa22b3ab7880",
     "11a2302d7b7d522d9878047c13e49ab92bec990dd8094136b51b9c7cbda44c4c",
@@ -112,7 +130,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech"].includes(entry.name)
+        reviewState: ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

@@ -171,6 +171,10 @@ function finishCapture(gen: number) {
   void upload(gen, clip.frames(), abort);
 }
 
+export function fishSpeechBusy() {
+  return session.phase !== "idle";
+}
+
 export const fishSpeech: SpeechBridge = {
   async speechStart(options) {
     teardown();

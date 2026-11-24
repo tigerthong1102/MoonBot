@@ -390,6 +390,50 @@ it("stores one attachment on retry, enforces size and withdraws download access 
     expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM " + table).first("n")).toBe(0);
 });
 
+it("streams a bounded voice attachment only to members, with byte ranges and a download", async () => {
+  const owner = await login("owner@example.test");
+  const member = await login("member@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  await call("rooms", owner.cookie, { kind: "group", id, title: "Voice room" });
+  await call(room + "/invite", owner.cookie, { email: member.email });
+  await call(room + "/accept", member.cookie, {});
+  const sample = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x01]);
+  const upload = async (bytes: Uint8Array<ArrayBuffer>) => {
+    const ctx = createExecutionContext();
+    const response = await worker.fetch(new Request(origin + "/api/" + room + "/files/" + uuid(), {
+      method: "POST", headers: { origin, cookie: owner.cookie, "x-inbox-name": "startupbot-voice.webm" }, body: bytes,
+    }), testEnv, ctx);
+    await waitOnExecutionContext(ctx);
+    expect(response.status).toBe(201);
+    const { posts } = await (await call(room, owner.cookie)).json<{ posts: { seq: number }[] }>();
+    return room + "/files/" + posts.at(-1)!.seq;
+  };
+  const clip = await upload(sample);
+  const unsupported = await upload(new Uint8Array([0x48, 0x54, 0x4d, 0x4c]));
+  expect((await call(unsupported + "?play=1", member.cookie)).status).toBe(415);
+  const played = await call(clip + "?play=1", member.cookie);
+  expect(played.headers.get("content-type")).toBe("audio/webm");
+  expect(played.headers.get("x-content-type-options")).toBe("nosniff");
+  expect(played.headers.has("content-disposition")).toBe(false);
+  expect(new Uint8Array(await played.arrayBuffer())).toEqual(sample);
+  async function range(value: string) {
+    const ctx = createExecutionContext();
+    const response = await worker.fetch(new Request(origin + "/api/" + clip + "?play=1", {
+      headers: { cookie: member.cookie, range: value },
+    }), testEnv, ctx);
+    await waitOnExecutionContext(ctx);
+    return response;
+  }
+  const part = await range("bytes=0-1");
+  expect(part.status).toBe(206);
+  expect(part.headers.get("content-range")).toBe("bytes 0-1/5");
+  expect(new Uint8Array(await part.arrayBuffer())).toEqual(sample.slice(0, 2));
+  expect((await range("bytes=5-")).status).toBe(416);
+  expect((await call(clip, member.cookie)).headers.get("content-disposition")).toMatch(/^attachment;/);
+  await call(room + "/remove", owner.cookie, { person: member.id });
+  expect((await call(clip + "?play=1", member.cookie)).status).toBe(404);
+});
+
 it("resumes verified parallel file parts and publishes once after checking membership", async () => {
   const a = await login("owner@example.test"), b = await login("member@example.test");
   const id = uuid(), room = "rooms/" + id;

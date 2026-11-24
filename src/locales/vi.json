@@ -11355,5 +11355,14 @@
   "personalInbox.botNone": "Chưa có bot nào có thể mời trên máy này.",
   "personalInbox.botFailed": "Bot chưa thể trả lời.",
   "personalInbox.botDone": "Đã kết thúc thảo luận",
-  "personalInbox.botCancel": "Dừng thảo luận"
+  "personalInbox.botCancel": "Dừng thảo luận",
+  "personalInbox.voiceMessage": "Tin nhắn thoại",
+  "personalInbox.recordVoice": "Ghi âm tin nhắn",
+  "personalInbox.stopRecording": "Dừng ghi âm",
+  "personalInbox.discardVoice": "Hủy thu giọng nói",
+  "personalInbox.recordingVoice": "Đang ghi âm…",
+  "personalInbox.startingVoice": "Đang mở micro…",
+  "personalInbox.dictatingVoice": "Đang nhập bằng giọng nói…",
+  "personalInbox.microphoneUnavailable": "Không dùng được micro. Hãy kiểm tra quyền truy cập micro.",
+  "personalInbox.recordingFailed": "Không ghi âm được. Hãy thử lại."
 }

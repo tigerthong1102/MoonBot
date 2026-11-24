@@ -390,6 +390,34 @@ it("stores one attachment on retry, enforces size and withdraws download access 
     expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM " + table).first("n")).toBe(0);
 });
 
+it("publishes small compressed Markdown once and preserves its original bytes", async () => {
+  const owner = await login("owner@example.test"), member = await login("member@example.test");
+  const id = uuid(), room = "rooms/" + id;
+  await call("rooms", owner.cookie, { kind: "group", id, title: "Markdown" });
+  await call(room + "/invite", owner.cookie, { email: member.email });
+  await call(room + "/accept", member.cookie, {});
+  const bytes = new TextEncoder().encode("# Checklist\n- Đối chiếu số liệu.\n".repeat(31_000));
+  expect(bytes.length).toBeGreaterThan(750_000);
+  expect(bytes.length).toBeLessThan(1_500_000);
+  const path = room + "/files/" + uuid() + "/gzip";
+  const send = async (source: Uint8Array<ArrayBuffer>) => {
+    const ctx = createExecutionContext();
+    const response = await worker.fetch(new Request(origin + "/api/" + path, {
+      method: "POST", headers: { origin, cookie: owner.cookie, "x-inbox-name": "SKILL.md" },
+      body: new Uint8Array(gzipSync(source)),
+    }), testEnv, ctx);
+    await waitOnExecutionContext(ctx);
+    return response.status;
+  };
+  expect((await Promise.all([send(bytes), send(bytes)])).sort()).toEqual([200, 201]);
+  expect(await send(new TextEncoder().encode("# changed"))).toBe(409);
+  const { posts } = await (await call(room, member.cookie)).json<{ posts: { seq: number; fileSize: number }[] }>();
+  expect(posts).toHaveLength(1);
+  expect(posts[0].fileSize).toBe(bytes.length);
+  const copy = await call(room + "/files/" + posts[0].seq, member.cookie);
+  expect(await copy.arrayBuffer()).toEqual(bytes.buffer);
+});
+
 it("streams a bounded voice attachment only to members, with byte ranges and a download", async () => {
   const owner = await login("owner@example.test");
   const member = await login("member@example.test");
@@ -494,6 +522,14 @@ it("resumes verified parallel file parts and publishes once after checking membe
   const rawPosts = await (await call(room, a.cookie)).json<{ posts: { seq: number }[] }>();
   const rawDownload = await call(room + "/files/" + rawPosts.posts.at(-1)!.seq, a.cookie);
   expect(new Uint8Array(await rawDownload.arrayBuffer())).toEqual(joined);
+  const four = room + "/files/" + uuid();
+  const fourParts = new Uint8Array(2_250_003).fill(65);
+  fourParts.set(parts[1], 2_250_000);
+  expect((await post(four + "/start", b.cookie, JSON.stringify({
+    size: fourParts.length, hashes: [hashes[0], hashes[0], hashes[0], hashes[1]],
+  }), "application/json")).status).toBe(200);
+  expect((await post(four + "/0", b.cookie, fourParts, "application/octet-stream", "identity", 4)).status).toBe(200);
+  expect((await call(four + "/complete", b.cookie, {})).status).toBe(200);
   const brPath = room + "/files/" + uuid();
   await begin(brPath);
   expect((await post(brPath + "/0", b.cookie, new Uint8Array(brotliCompressSync(joined)), "application/octet-stream", "br", 2)).status).toBe(200);

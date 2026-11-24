@@ -2187,6 +2187,87 @@ describe("scrollback pages", () => {
     expect(replied.bots[0].hasMore).toBe(false);
   });
 
+  it("merges a created bot snapshot with streamed messages in order", () => {
+    const first = message("a", 1);
+    const second = message("b", 2);
+    const streamed = { ...bot, messages: [first], activeLeafId: "a" } as Bot;
+    const landed = reducer({ ...initialState, bots: [streamed] }, {
+      type: "createdBotSnapshot", bot: { ...bot, messages: [first, second], activeLeafId: "b" }, since: {}, olderSince: {}, deletionRevision: 0, heldAtStart: [],
+    });
+    expect(landed.bots[0].messages.map(row => row.id)).toEqual(["a", "b"]);
+    expect(landed.bots[0].activeLeafId).toBe("b");
+  });
+
+  it("refreshes pagination availability from the created bot snapshot", () => {
+    const current = { ...bot, messages: [], hasMore: false } as Bot;
+    const landed = reducer({ ...initialState, bots: [current] }, {
+      type: "createdBotSnapshot", bot: { ...bot, messages: [message("a", 1)], hasMore: true }, since: {}, olderSince: {}, deletionRevision: 0, heldAtStart: [],
+    });
+    expect(landed.bots[0].hasMore).toBe(true);
+  });
+
+  it("keeps newer pagination results when a created bot snapshot is delayed", () => {
+    const current = { ...bot, messages: [message("old", 1)], hasMore: false } as Bot;
+    const state = { ...initialState, bots: [current], olderPageRevision: { [bot.threadId]: 1 } };
+    const landed = reducer(state, {
+      type: "createdBotSnapshot", bot: { ...bot, messages: [message("a", 2)], hasMore: true }, since: {}, olderSince: {}, deletionRevision: 0, heldAtStart: [],
+    });
+    expect(landed.bots[0].messages.map(row => row.id)).toEqual(["old"]);
+    expect(landed.bots[0].hasMore).toBe(false);
+  });
+
+  it("keeps a page that finishes while the created bot snapshot is loading", () => {
+    const current = { ...bot, messages: [message("new", 3)], hasMore: true } as Bot;
+    const loading = reducer({ ...initialState, bots: [current] }, { type: "loadOlderMessages", threadId: bot.threadId });
+    const olderSince = loading.olderPageRevision;
+    const paged = reducer(loading, { type: "olderMessages", threadId: bot.threadId, generation: 0, messages: [message("old", 1)], hasMore: false });
+    const landed = reducer(paged, { type: "createdBotSnapshot", bot: { ...bot, messages: [message("new", 3)], hasMore: true }, since: {}, olderSince, deletionRevision: 0, heldAtStart: current.messages });
+    expect(landed.bots[0].messages.map(row => row.id)).toEqual(["old", "new"]);
+    expect(landed.bots[0].hasMore).toBe(false);
+  });
+
+  it("does not resurrect or select a bot deleted while its snapshot is loading", () => {
+    const deleted = reducer({ ...initialState, bots: [bot] }, { type: "deleteBot", botId: bot.id });
+    const landed = reducer(deleted, { type: "createdBotSnapshot", bot, since: {}, olderSince: {}, deletionRevision: 0, heldAtStart: [] });
+    expect(landed.bots.some(item => item.id === bot.id)).toBe(false);
+  });
+
+  it("does not select a bot hidden while its snapshot is loading", () => {
+    const hidden = { ...bot, hidden: true } as Bot;
+    const landed = reducer({ ...initialState, bots: [hidden] }, { type: "createdBotSnapshot", bot, since: {}, olderSince: {}, deletionRevision: 0, heldAtStart: [] });
+    expect(landed.selectedId).not.toBe(bot.id);
+  });
+
+  it("uses the snapshot leaf when an older local branch is absent from the snapshot", () => {
+    const old = message("old-branch", 1);
+    const first = message("a", 2);
+    const second = { ...message("b", 3), parentId: "a" };
+    const current = { ...bot, messages: [old], activeLeafId: old.id } as Bot;
+    const landed = reducer({ ...initialState, bots: [current] }, {
+      type: "createdBotSnapshot", bot: { ...bot, messages: [first, second], activeLeafId: "b" }, since: {}, olderSince: {}, deletionRevision: 0, heldAtStart: [old],
+    });
+    expect(landed.bots[0].messages.map(row => row.id)).toEqual(["a", "b"]);
+    expect(landed.bots[0].activeLeafId).toBe("b");
+  });
+
+  it("keeps the streamed child visible when a created bot snapshot arrives late", () => {
+    const first = message("a", 1);
+    const second = { ...message("b", 2), parentId: "a" };
+    const child = { ...message("c", 3), parentId: "b" };
+    const streamed = { ...bot, messages: [child], activeLeafId: null } as Bot;
+    const landed = reducer({ ...initialState, bots: [streamed] }, {
+      type: "createdBotSnapshot", bot: { ...bot, messages: [first, second], activeLeafId: "b" }, since: {}, olderSince: {}, deletionRevision: 0, heldAtStart: [],
+    });
+    expect(landed.bots[0].messages.map(row => row.id)).toEqual(["a", "b", "c"]);
+    expect(landed.bots[0].activeLeafId).toBe("c");
+  });
+
+  it("drops a created bot snapshot if the transcript changed while it loaded", () => {
+    const cleared = { ...initialState, bots: [{ ...bot, messages: [] }], transcriptGeneration: { [bot.threadId]: 1 } };
+    const landed = reducer(cleared, { type: "createdBotSnapshot", bot, since: {}, olderSince: {}, deletionRevision: 0, heldAtStart: [] });
+    expect(landed.bots[0].messages).toEqual([]);
+  });
+
   it("answers the scrollback question from a payload that carries a transcript", () => {
     const group = {
       id: "room",

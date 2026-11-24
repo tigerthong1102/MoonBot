@@ -62,6 +62,21 @@ export class ThreadStarters {
     writeFileAtomic(this.file, JSON.stringify(Object.fromEntries(this.starters)) + "\n", { mode: 0o600 });
   }
 
+  /** Records a thread owner durably before private content is written to it. */
+  setRequired(threadId: string, person: string): void {
+    if (!KEY.test(person) || !THREAD.test(threadId)) throw new Error("Invalid private thread owner");
+    const existing = this.starters.get(threadId);
+    if (existing) {
+      if (existing !== person) throw new Error("Thread belongs to another person");
+      return;
+    }
+    if (this.starters.size >= MAX_ENTRIES) throw new Error("Thread owner capacity reached");
+    const next = new Map(this.starters);
+    next.set(threadId, person);
+    writeFileAtomic(this.file, JSON.stringify(Object.fromEntries(next)) + "\n", { mode: 0o600 });
+    this.starters.set(threadId, person);
+  }
+
   /** Record once; a thread keeps the person it was first opened for. */
   set(threadId: string, person: string | undefined): void {
     if (!person || !KEY.test(person) || !THREAD.test(threadId) || this.starters.has(threadId)) return;

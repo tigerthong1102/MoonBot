@@ -18,7 +18,7 @@ import { botOpensTo, closeTrayUnlessShown, closeUnpinnedTray, openBot, openThrea
 import { patchGroupTask } from "./thread-edits"; import { unreadBeyondFrame, wholeBotFrame } from "./bot-thread-frame";
 import type { EngineInstall } from "./engine-install";
 import { optimisticMessageId, optimisticUserMessage, sendArrived, sendReconciled } from "./optimistic-send";
-import { patchedGroups, roomAnswers, snapshotPatch } from "./room-frames";
+import { foldSnapshotOntoStreamed, patchedGroups, roomAnswers, snapshotPatch } from "./room-frames";
 import { savedStateAction, type SavedOwner, type SavedSnapshot } from "./saved-state";
 import { keepBotNavigation, keepGroupNavigation, navigatedSince, visibleMessages } from "./snapshot-navigation";
 export { visibleMessages } from "./snapshot-navigation";
@@ -113,7 +113,7 @@ export type SecretRequestCardData = Omit<import("../../shared/wire").SecretReque
 
 export type ComputerControlState = { held: boolean; helpReason: string | null; help?: import("../../shared/wire").ComputerHelpRef | null };
 
-export interface Message extends Pick<import("../../shared/wire").WireMessage, "widget" | "app" | "fromApp" | "pointed" | "routedBy" | "quickModel" | "automation" | "publishedPage" | "sender" | "setupSuggestion" | "settingsCard" | "helperIntro" | "helperFollowup" | "setupOffer" | "savedSteps" | "setupChoices" | "setupChoicesPending" | "setupChoicesUpdating" | "setupRequest" | "relay" | "inbox" | "sentDirectly" | "doneWhen" | "bugReport" | "engineCompaction" | "stoppedBy"> {
+export interface Message extends Pick<import("../../shared/wire").WireMessage, "widget" | "app" | "fromApp" | "pointed" | "routedBy" | "quickModel" | "automation" | "publishedPage" | "sender" | "setupSuggestion" | "settingsCard" | "helperIntro" | "helperFollowup" | "setupOffer" | "savedSteps" | "setupChoices" | "setupChoicesPending" | "setupChoicesUpdating" | "setupRequest" | "relay" | "inbox" | "sentDirectly" | "doneWhen" | "bugReport" | "engineCompaction" | "stoppedBy" | "workBotRouting"> {
   id: string;
   role: "bot" | "user";
   kind: "text" | "options" | "activity" | "screen" | "connector" | "secret" | "signin" | "routine.run" | "goal.run" | "burst" | "digest" | "compaction" | "call" | "widget" | "app";
@@ -566,6 +566,8 @@ export interface AppState {
   consumedQueueIds: Record<string, true>;
   backgroundThreadEvents: Record<string, Array<Extract<Action, { type: "messagesCleared" | "messageAdded" | "messagePatched" | "threadActive" | "optimisticMessageRemoved" }>>>;
   loadingOlder: Record<string, true>;
+  olderPageRevision: Record<string, number>;
+  botDeletionRevision: Record<string, number>;
   /** Bumped when a transcript is replaced or its branch moves, never on append; stale scrollback pages are dropped. */
   transcriptGeneration: Record<string, number>;
   clearRevisions: Record<string, number>;
@@ -691,6 +693,7 @@ export type Action =
       always?: boolean;
       rememberCommand?: boolean;
       onError?: (message: string) => void;
+      openCreatedBot?: boolean;
     }
   | { type: "newTask"; botId: string; projectId?: string; cwd?: string; onCreated?: () => void; onError?: (message: string) => void }
   | { type: "switchTask"; botId: string; threadId: string; whole?: true }
@@ -714,6 +717,7 @@ export type Action =
   | { type: "duplicateBot"; botId: string }
   | { type: "markUnread"; botId: string }
   | { type: "botPatched"; bot: BotAnnouncement; tasksPartial?: true }
+  | { type: "createdBotSnapshot"; bot: BotAnnouncement; since: AppState["transcriptGeneration"]; olderSince: AppState["olderPageRevision"]; deletionRevision: number; heldAtStart: readonly Message[] }
   | { type: "messageAdded"; threadId: string; message: Message }
   | { type: "messagePatched"; threadId: string; message: Message }
   | { type: "optimisticMessageRemoved"; threadId: string; sendId: string; restoreLeafId?: string | null }
@@ -901,9 +905,11 @@ export function reducer(state: AppState, action: Action): AppState {
     case "loadOlderMessages":
       return state.loadingOlder[action.threadId]
         ? state
-        : { ...state, loadingOlder: { ...state.loadingOlder, [action.threadId]: true } };
-    case "olderMessages":
-      return reduceOlderMessages(state, action);
+        : { ...state, loadingOlder: { ...state.loadingOlder, [action.threadId]: true }, olderPageRevision: { ...state.olderPageRevision, [action.threadId]: (state.olderPageRevision[action.threadId] ?? 0) + 1 } };
+    case "olderMessages": {
+      const next = reduceOlderMessages(state, action);
+      return { ...next, olderPageRevision: { ...next.olderPageRevision, [action.threadId]: (next.olderPageRevision[action.threadId] ?? 0) + 1 } };
+    }
     case "sectionDeleted":
       return {
         ...state, sections: action.sections,
@@ -1088,7 +1094,7 @@ export function reducer(state: AppState, action: Action): AppState {
       const selectedId =
         state.selectedId === action.botId ? (bots.find((b) => !b.hidden)?.id ?? bots[0]?.id ?? "") : state.selectedId;
       const { [action.botId]: _deleted, ...deletingBots } = state.deletingBots;
-      return reconcileModelVariantSessions({ ...state, bots, selectedId, deletingBots });
+      return reconcileModelVariantSessions({ ...state, bots, selectedId, deletingBots, botDeletionRevision: { ...state.botDeletionRevision, [action.botId]: (state.botDeletionRevision[action.botId] ?? 0) + 1 } });
     }
     case "botDeletionPending": {
       if (action.on) {
@@ -1101,6 +1107,25 @@ export function reducer(state: AppState, action: Action): AppState {
     }
     case "markUnread":
       return updateBot(withMascotMotion(state, action.botId, "surprise"), action.botId, (b) => ({ ...b, unread: true }));
+    case "createdBotSnapshot": {
+      const { bot, since, olderSince, deletionRevision, heldAtStart } = action;
+      const current = state.bots.find(item => item.id === bot.id);
+      if ((state.botDeletionRevision[bot.id] ?? 0) !== deletionRevision || current?.hidden) return state;
+      if ((state.transcriptGeneration[bot.threadId] ?? 0) !== (since[bot.threadId] ?? 0)) return state;
+      if (!current) return reducer(reducer(state, { type: "botPatched", bot }), { type: "select", id: bot.id });
+      if (current.threadId !== bot.threadId) return state;
+      if ((state.olderPageRevision[bot.threadId] ?? 0) !== (olderSince[bot.threadId] ?? 0) || state.loadingOlder[bot.threadId]) return reducer(state, { type: "select", id: bot.id });
+      const messages = foldSnapshotOntoStreamed(current.messages, new Set(heldAtStart), bot.messages ?? []);
+      const snapshotIds = new Set((bot.messages ?? []).map(message => message.id));
+      const heldIds = new Set(heldAtStart.map(message => message.id));
+      const streamedLeaf = current.activeLeafId && !heldIds.has(current.activeLeafId) && !snapshotIds.has(current.activeLeafId) && messages.some(message => message.id === current.activeLeafId);
+      let activeLeafId = streamedLeaf ? current.activeLeafId : bot.activeLeafId;
+      for (const message of messages) {
+        if (!snapshotIds.has(message.id) && message.parentId === activeLeafId) activeLeafId = message.id;
+      }
+      const updated = updateBot(state, bot.id, previous => ({ ...previous, messages, activeLeafId, hasMore: bot.hasMore }));
+      return reducer(updated, { type: "select", id: bot.id });
+    }
     case "botPatched": {
       const before = state.bots.find((b) => b.id === action.bot.id);
       if (action.tasksPartial) return before ? reducer(state, { type: "botPatched", bot: wholeBotFrame(before, action.bot) }) : state;
@@ -1798,6 +1823,8 @@ export const initialState: AppState = {
   modelVariantSessions: {},
   backgroundThreadEvents: {},
   loadingOlder: {},
+  olderPageRevision: {},
+  botDeletionRevision: {},
   transcriptGeneration: {},
   clearRevisions: {},
   bots: [],
@@ -2427,6 +2454,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }).catch(showError);
           break;
         case "decideRequest": {
+          const navigationAtDecision = selectionRevision.current;
           const respond = () =>
             api(`/api/threads/${action.threadId}/respond`, {
               method: "POST",
@@ -2455,6 +2483,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               const response = await respond();
               if (response?.settlementPending && typeof response.message === "string") {
                 showError(new Error(response.message));
+              }
+              if (action.openCreatedBot && response?.routingState === "interrupted") showError(new Error(t("workBotRouting.interrupted")));
+              if (action.openCreatedBot && action.behavior === "allow" && response?.result?.state === "applied" && response?.routingState === "dispatched") {
+                const created = response.result.bots?.find((bot: { id?: unknown; action?: unknown }) => bot.action === "created" && typeof bot.id === "string");
+                if (created && selectionRevision.current === navigationAtDecision) {
+                  const since = stateRef.current.transcriptGeneration;
+                  const olderSince = stateRef.current.olderPageRevision;
+                  const deletionRevision = stateRef.current.botDeletionRevision[created.id] ?? 0;
+                  const heldAtStart = stateRef.current.bots.find(item => item.id === created.id)?.messages ?? [];
+                  const bot = await readOneBot(created.id, MESSAGE_PAGE_SIZE);
+                  if (!bot || bot.hidden || !Array.isArray(bot.messages)) throw new Error(t("serverError.owner.unavailable"));
+                  if (selectionRevision.current === navigationAtDecision) {
+                    rawDispatch({ type: "createdBotSnapshot", bot: withTaskWrites(bot), since, olderSince, deletionRevision, heldAtStart });
+                    const opened = store.getState();
+                    if (opened.selectedId === bot.id && opened.activeView === "chat" && opened.bots.some(item => item.id === bot.id && item.threadId === bot.threadId && !item.hidden)) {
+                      void api(`/api/bots/${bot.id}/read`, { method: "POST", body: JSON.stringify({ threadId: bot.threadId }) }).catch(() => {});
+                    }
+                  }
+                }
               }
             })
             .catch((error) => {

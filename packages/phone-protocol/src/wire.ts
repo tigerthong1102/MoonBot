@@ -536,6 +536,19 @@ export interface WireMessage extends ServerTextLine, HelperIntroField, SetupCard
   /** Set before execution and cleared only after the request's verified
    * final turn and dependencies settle. A restart never clears it. */
   requestPending?: boolean;
+  /** Durable routing of a user request while its work-bot choice is resolved. */
+  workBotRouting?: {
+    state: "classifying" | "waiting_choice" | "dispatching" | "interrupted" | "dispatched" | "cancelled";
+    requestId?: string;
+    sourceBotId?: string;
+    ownerKey?: string;
+    triggerKind?: "owner" | "user";
+    modelSelection?: ModelSelection;
+    targetBotId?: string;
+    targetThreadId?: string;
+  };
+  /** Source identity of a conversation line copied during a work-bot handoff. */
+  workBotCopy?: { sourceThreadId: string; sourceMessageId: string; requestMessageId: string; status?: "cancelled" | "unsettled" | "settled" | "unknown" };
   /** The last assistant text item from a settled provider turn. */
   turnTerminal?: boolean;
   turnCompletedAt?: number; savedSteps?: SavedStepsMark;

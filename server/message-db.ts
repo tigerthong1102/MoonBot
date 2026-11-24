@@ -465,6 +465,14 @@ export function appendMessage(threadId: string, message: Message): void {
   });
 }
 
+export function appendMessageBatch(threadId: string, messages: Message[]): void {
+  if (!messages.length) return;
+  transaction(() => {
+    for (const message of messages) insertMessage(threadId, message);
+    setActiveLeaf(threadId, messages[messages.length - 1]!.id);
+  });
+}
+
 export function updateMessage(threadId: string, message: Message): void {
   prepared("UPDATE messages SET at = ?, role = ?, kind = ?, text = ?, json = ?, search_text = ? WHERE thread_id = ? AND id = ?").run(message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), cjkSearchText(message.text), threadId, message.id);
 }
@@ -477,6 +485,14 @@ export function workingGoalRunMessages(): Array<{ threadId: string; message: Mes
     )
     .all() as Array<{ thread_id: string; json: string }>;
   return rows.map((row) => ({ threadId: row.thread_id, message: JSON.parse(row.json) as Message }));
+}
+
+export function pendingWorkBotRoutes(): Array<{ threadId: string; message: Message }> {
+  const rows = db().prepare(
+    "SELECT thread_id, json FROM messages WHERE role = 'user' AND kind = 'text' AND " +
+    "json_extract(json, '$.workBotRouting.state') IN ('classifying', 'waiting_choice', 'dispatching')",
+  ).all() as Array<{ thread_id: string; json: string }>;
+  return rows.map(row => ({ threadId: row.thread_id, message: JSON.parse(row.json) as Message }));
 }
 
 /** First-reply rescue rows that never settled or ended: at boot, every one of them belongs to a turn that is gone. */

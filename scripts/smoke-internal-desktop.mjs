@@ -56,12 +56,13 @@ const plan = path.join(fixture, "chat-plan.json");
 const workMessage = "Tôi cần theo dõi tin tuc AI hang ngay, cap nhat lien tuc cho toi nhe";
 const workName = "Tin tức AI";
 const textRoutes = path.join(fixture, "work-topic.json");
+const prompts = path.join(fixture, "provider-prompts.jsonl");
 writeFileSync(textRoutes, JSON.stringify({ [workMessage]: JSON.stringify({ name: workName, icon: "calendar" }) }));
 writeFileSync(plan, "{}");
 const reply = "StartupBot packaged agent fixture answered successfully";
 writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", profile: { name: "Fixture Owner" }, features: { smartSetupChoices: false }, instances: {
   claude: { driver: "claudeAgent", displayName: "Internal package fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") },
-    environment: { FAKE_CLAUDE_ROOM_PLAN: plan, FAKE_CLAUDE_TEXT_ROUTES: textRoutes } },
+    environment: { FAKE_CLAUDE_ROOM_PLAN: plan, FAKE_CLAUDE_TEXT_ROUTES: textRoutes, FAKE_CLAUDE_PROMPTS: prompts } },
 } }));
 
 async function freePort() {
@@ -201,6 +202,8 @@ try {
   const consent = `[...document.querySelectorAll('[data-work-bot-offer] button')].find(button => button.getClientRects().length && !button.disabled && button.textContent.trim() === ${JSON.stringify(offered.options[0])})`;
   await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(offered.title)}) && Boolean(${consent})`), "the visible work question and its consent button");
   assert.deepEqual((await roster()).map(row => row.id).sort(), initialBots.map(row => row.id).sort());
+  const workPrompts = () => existsSync(prompts) ? readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(workMessage)) : [];
+  assert.equal(workPrompts().length, 0, "No provider run may start before the work-bot choice");
   const offerScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "work-bot-consent.png"), Buffer.from(offerScreenshot.data, "base64"));
   await until(() => evaluate(`Boolean(${composer})`), "the composer to stay usable while the suggestion is open");
@@ -220,6 +223,18 @@ try {
   const workBot = newBots[0];
   assert.equal(workBot.name, workName);
   assert.equal(accepted.bots[0].id, workBot.id);
+  await until(async () => (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text === workMessage), "the original request in the new bot");
+  await until(() => evaluate(`document.querySelector('[data-sidebar-bot-row="${workBot.id}"]')?.getAttribute('aria-current') === 'page'`), "automatic navigation to the new bot");
+  await until(() => workPrompts().length === 1, "exactly one provider run for the handed-off work");
+  await until(async () => {
+    const rows = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
+    const bot = (await roster()).find(row => row.id === workBot.id);
+    const userIndex = rows.findIndex(row => row.role === "user" && row.text === workMessage);
+    return userIndex >= 0 && rows.slice(userIndex + 1).some(row => row.role === "bot" && row.kind === "text") && bot && !bot.busy;
+  }, "the handed-off work to finish");
+  assert.equal(workPrompts().length, 1);
+  const handedOffScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
+  writeFileSync(path.join(evidence, "work-bot-handoff.png"), Buffer.from(handedOffScreenshot.data, "base64"));
   assert(readFileSync(path.join(data, "bots", workBot.id, "SOUL.md"), "utf8").includes(workMessage));
   assert.match(workBot.avatarUrl, /^\/api\/attachments\/[^/]+\.png$/);
   assert.deepEqual(await evaluate(`(async () => {

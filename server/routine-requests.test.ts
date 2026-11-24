@@ -31,9 +31,9 @@ class MemoryStore implements RoutineRequestStore {
 
   appendMessage(
     threadId: string,
-    message: { role: "bot"; kind: "options"; card: RoutineRequestOptionCard },
+    message: { role: "bot"; kind: "options"; requestMessageId?: string; card: RoutineRequestOptionCard },
   ): RoutineRequestMessage {
-    const stored = { id: `message-${++this.sequence}`, card: message.card };
+    const stored = { id: `message-${++this.sequence}`, card: message.card, requestMessageId: message.requestMessageId };
     const messages = this.threads.get(threadId) ?? [];
     messages.push(stored);
     this.threads.set(threadId, messages);
@@ -115,6 +115,25 @@ function cardFingerprint(card: RoutineRequestOptionCard, messageId: string): str
 }
 
 describe("RoutineRequestService", () => {
+  it("does not attach ambiguous request metadata after a delayed readiness check", async () => {
+    let finish!: (value: { ready: boolean }) => void;
+    const readiness = new Promise<{ ready: boolean }>(resolve => { finish = resolve; });
+    const { service, store } = harness(undefined, () => readiness);
+    let source: string | undefined = "source-message";
+    const pending = service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal({ runOn: "cloud" }), requestMessageId: () => source });
+    source = undefined;
+    finish({ ready: true });
+    await pending;
+    expect(store.messagesFor("thread-a")).toHaveLength(1);
+    expect(store.messagesFor("thread-a")[0]?.requestMessageId).toBeUndefined();
+  });
+
+  it("keeps the originating message id on the schedule card", async () => {
+    const { service, store } = harness();
+    await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal(), requestMessageId: () => "source-message" });
+    expect(store.messagesFor("thread-a")[0]).toMatchObject({ requestMessageId: "source-message" });
+  });
+
   it("refuses instruction replacement after redaction without saving a card or changing other fields", async () => {
     const { routines, service, store } = harness();
     const prompt = "Review the queue.\n".repeat(180) + "Use sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789.";

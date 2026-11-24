@@ -83,6 +83,25 @@ describe("reviewed Chief team setup", () => {
     expect(h.apply).not.toHaveBeenCalled();
   });
 
+  it("releases the classifier queue after cancellation even when the provider ignores abort", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    h.messages.push({ id: "one", role: "user", text: "First work" }, { id: "two", role: "user", text: "Second work" });
+    let finish!: (answer: string) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>(resolve => { markStarted = resolve; });
+    const stalled = new Promise<string>(resolve => { finish = resolve; });
+    const abort = new AbortController();
+    const first = h.service.offerFromChat(h.chief.id, h.chief.threadId, "First work", "", "one", () => ({ via: "engine", generateText: () => { markStarted(); return stalled; } }), abort.signal);
+    await started;
+    abort.abort();
+    await first;
+    await h.service.offerFromChat(h.chief.id, h.chief.threadId, "Second work", "", "two", () => ({ via: "engine", generateText: async () => '{"name":"Second work","icon":"tasks"}' }));
+    finish('{"name":"First work","icon":"tasks"}');
+    await Promise.resolve();
+    expect(h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer?.topic ?? [])).toEqual(["Second work"]);
+  });
+
   it("redacts input and drops a delayed result after its source is cleared", async () => {
     const h = harness();
     h.chief.defaultBot = {};

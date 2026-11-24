@@ -88,8 +88,9 @@ export function teamSetupRevision(bot: BotRecord, fields?: TeamSetupFields): str
 interface SetupStore {
   bots: BotRecord[];
   bot(id: string): BotRecord | null | undefined;
+  projectBotForTask?(id: string, threadId: string): BotRecord | null | undefined;
   activePath(threadId: string): Array<{ id: string; role?: string; text?: string; card?: OptionCardData }>;
-  messagesFor(threadId: string): Array<{ id: string; role?: string; card?: OptionCardData }>;
+  messagesFor(threadId: string): Array<{ id: string; role?: string; card?: OptionCardData; workBotRouting?: import("./store.ts").Message["workBotRouting"] }>;
   appendMessage(threadId: string, message: { role: "bot"; kind: "options"; card: OptionCardData; from?: { botId: string; name: string; color: string } }): { id: string };
   patchMessage(threadId: string, messageId: string, patch: { card: OptionCardData }): unknown;
   applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">): TeamSetupResult;
@@ -279,26 +280,27 @@ export class TeamSetupRequestService {
   }
 
   propose(args: SetupArgs) { return this.card(this.prepare(args), args.from); }
-  async offerFromChat(botId: string, threadId: string, text: string, owner: string, messageId: string, writer: () => SideJobText | null | undefined) {
+  async offerFromChat(botId: string, threadId: string, text: string, owner: string, messageId: string, writer: () => SideJobText | null | undefined, abort?: AbortSignal) {
     const key = JSON.stringify([threadId, messageId]);
     if (this.classifying.has(key)) return;
     this.classifying.add(key);
     const previous = this.offerTails.get(threadId) ?? Promise.resolve();
-    const next = previous.then(() => this.classifyMessage(botId, threadId, text, owner, messageId, writer));
-    this.offerTails.set(threadId, next);
-    try { await next; } finally {
+    const decision = previous.then(() => this.classifyMessage(botId, threadId, text, owner, messageId, writer, abort));
+    const tail = decision.then(() => {});
+    this.offerTails.set(threadId, tail);
+    try { return await decision; } finally {
       this.classifying.delete(key);
-      if (this.offerTails.get(threadId) === next) this.offerTails.delete(threadId);
+      if (this.offerTails.get(threadId) === tail) this.offerTails.delete(threadId);
     }
   }
 
-  private async classifyMessage(botId: string, threadId: string, text: string, owner: string, messageId: string, writer: () => SideJobText | null | undefined) {
+  private async classifyMessage(botId: string, threadId: string, text: string, owner: string, messageId: string, writer: () => SideJobText | null | undefined, abort?: AbortSignal) {
     const { store, maxBots } = this.options;
-    const bot = store.bot(botId);
+    const bot = store.projectBotForTask?.(botId, threadId) ?? store.bot(botId);
     const eligible = () => {
       const current = store.bot(botId);
       const rows = store.activePath(threadId);
-      return current?.defaultBot && !current.hidden && defaultBotPerson(current) === owner && chiefLevel(current) &&
+      return !abort?.aborted && current?.defaultBot && !current.hidden && defaultBotPerson(current) === owner && chiefLevel(current) &&
         store.bots.length < maxBots && this.options.ownsThread(botId, threadId) &&
         rows.some(row => row.id === messageId && row.role === "user" && row.text === text) &&
         !rows.some(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === messageId);
@@ -311,14 +313,22 @@ export class TeamSetupRequestService {
       const excerpt = brief.length > 6000 ? brief.slice(0, 4000) + "…" + brief.slice(-1900) : brief;
       const previousTopics = this.activeOfferTopics(threadId);
       const prompt = workBotPrompt(excerpt, !store.bots.some(row => !row.defaultBot && !row.hidden), previousTopics.slice(-20));
-      const signal = AbortSignal.timeout(WORK_OFFER_TIMEOUT_MS);
-      const reply = await engine.generateText(prompt, { timeoutMs: WORK_OFFER_TIMEOUT_MS, signal, started: () => {
-        if (!eligible() || !writer()) throw new TeamSetupError("Source conversation changed");
-      } });
+      const timeout = AbortSignal.timeout(WORK_OFFER_TIMEOUT_MS);
+      const signal = abort ? AbortSignal.any([abort, timeout]) : timeout;
+      const reply = await Promise.race([
+        engine.generateText(prompt, { timeoutMs: WORK_OFFER_TIMEOUT_MS, signal, started: () => {
+          if (!eligible() || !writer()) throw new TeamSetupError("Source conversation changed");
+        } }),
+        new Promise<null>(resolve => {
+          if (signal.aborted) resolve(null);
+          else signal.addEventListener("abort", () => resolve(null), { once: true });
+        }),
+      ]);
+      if (reply === null) return;
       const topic = readWorkBotTopic(reply);
       if (!topic || signal.aborted || !eligible() || !writer()) return;
       const name = workBotName(topic.name, store.bots);
-      this.proposeWorkBot({ botId, threadId, plan: {
+      return this.proposeWorkBot({ botId, threadId, plan: {
         reason: name, operations: [{ action: "create", key: "follow_up", fields: {
           name, title: topic.name, description: [...excerpt].slice(0, 120).join(""),
           soul: excerpt, modelSelection: bot.modelSelection,
@@ -367,9 +377,11 @@ export class TeamSetupRequestService {
     if (request.workBotOffer) {
       const lang = conversationLanguage(request.threadId);
       const fields = request.operations[0]!.fields;
+      const source = this.options.store.messagesFor(request.threadId).find(message => message.id === request.workBotOffer?.sourceMessageId);
+      const routed = Boolean(source?.workBotRouting);
       return {
-        title: serverLine(lang, "server.workBot.question", { name: fields.name ?? "" }),
-        subtitle: fields.soul ?? "", options: [serverLine(lang, "server.workBot.create"), "Cancel"],
+        title: serverLine(lang, routed ? "server.workBot.routeQuestion" : "server.workBot.question", { name: fields.name ?? "" }),
+        subtitle: fields.soul ?? "", options: [serverLine(lang, routed ? "server.workBot.routeCreate" : "server.workBot.create"), "Cancel"],
         requestId: request.requestId, tool: "set_up_team", teamSetupRequest: request,
       };
     }

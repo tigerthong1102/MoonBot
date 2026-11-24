@@ -1169,6 +1169,30 @@ export class Store {
     return full;
   }
 
+  appendWorkBotContext(threadId: string, rows: Array<{ sourceId: string; replySourceId?: string; message: Omit<Message, "id" | "at" | "parentId" | "replyToId"> & { at: number } }>): Map<string, Message> {
+    const thread = this.thread(threadId);
+    const copied = new Map<string, Message>();
+    const messages: Message[] = [];
+    let parentId = thread.activeLeafId;
+    for (const row of rows) {
+      const replyToId = row.replySourceId ? copied.get(row.replySourceId)?.id : undefined;
+      const message: Message = { id: newId(), parentId, ...redactBotAuthored(row.message), ...(replyToId ? { replyToId } : {}) };
+      messages.push(message);
+      copied.set(row.sourceId, message);
+      parentId = message.id;
+    }
+    mdb.appendMessageBatch(threadId, messages);
+    for (const message of messages) {
+      thread.messages.push(message);
+      this.threads.grew(threadId, message);
+      thread.activeLeafId = message.id;
+      this.noteThreadActivity(threadId, message.at, movesThreadToTop(message), message.turnCompletedAt ?? message.at);
+      this.emit({ type: "message", threadId, message });
+    }
+    if (messages.some(message => message.role === "user" && message.kind === "text")) this.dismissOnboardingCard(threadId);
+    return copied;
+  }
+
   insertMessageAfter(threadId: string, anchorId: string | undefined, message: Omit<Message, "id" | "at">): Message {
     const t = this.thread(threadId);
     const anchorExists = anchorId !== undefined && t.messages.some((m) => m.id === anchorId);

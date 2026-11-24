@@ -13,7 +13,7 @@ export function WorkBotOfferCard({ card, threadId }: { card: OptionCardData; thr
   const available = created && state.bots.some(bot => bot.id === created.id && !bot.hidden);
   const pending = !card.answered && !card.dismissed && !card.expired && !result;
   const decide = (behavior: "allow" | "deny") => {
-    if (threadId && card.requestId) dispatch({ type: "decideRequest", threadId, requestId: card.requestId, behavior });
+    if (threadId && card.requestId) dispatch({ type: "decideRequest", threadId, requestId: card.requestId, behavior, openCreatedBot: behavior === "allow" });
   };
 
   return <section data-work-bot-offer className="w-full max-w-[640px] rounded-2xl border border-hairline bg-card p-4">

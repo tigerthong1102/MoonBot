@@ -516,6 +516,10 @@ const Bubble = memo(function Bubble({
               )}
               {message.quickModel && <QuickModelNote model={message.quickModel} />}
               <UserLineNote message={message} />
+              {message.workBotRouting && message.workBotRouting.state !== "dispatched" && <div role="status" className="mt-1 text-[11px] text-ink-tertiary">
+                {t(`workBotRouting.${message.workBotRouting.state}`)}
+                {(message.workBotRouting.state === "classifying" || message.workBotRouting.state === "waiting_choice" || message.workBotRouting.state === "dispatching") && <button type="button" className="ml-2 underline" onClick={() => dispatch({ type: "interrupt", botId, threadId })}>{t("chat.stop")}</button>}
+              </div>}
               {collapsible && (
                 <button onClick={() => setExpanded(true)} className="mt-1 text-[13px] text-ink-secondary hover:text-ink">
                   {t("chat.showFull")}

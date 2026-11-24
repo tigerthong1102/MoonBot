@@ -14,7 +14,7 @@ function roomFieldsOnly({
   return { ...room, section: room.section };
 }
 
-function foldSnapshotOntoStreamed(
+export function foldSnapshotOntoStreamed(
   current: readonly Message[],
   heldAtStart: ReadonlySet<Message>,
   snapshot: readonly Message[],

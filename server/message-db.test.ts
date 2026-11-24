@@ -10,6 +10,7 @@ import { closeMessageDb,
   indexMemoryFile,
   indexedMemoryFiles,
   insertMessage,
+  appendMessageBatch,
   insertNotificationLog,
   lastRowAt,
   liveAppRows,
@@ -18,6 +19,7 @@ import { closeMessageDb,
   optionCardsForTools,
   logNotification,
   openRescueMessages,
+  pendingWorkBotRoutes,
   latestSaidByBot,
   markNotificationLogRead,
   readMessageText,
@@ -66,6 +68,27 @@ describe("message-db", () => {
     expect(thread.activeLeafId).toBe("m2");
   });
 
+  it("rolls back all copied messages and the active leaf if a batch insert fails", () => {
+    insertMessage("target", msg("original", "original"));
+    setActiveLeaf("target", "original");
+    const db = new DatabaseSync(join(DATA_DIR, "messages.db"));
+    db.exec("CREATE TRIGGER fail_work_bot_fixture BEFORE INSERT ON messages WHEN NEW.id = 'fail' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END");
+    expect(() => appendMessageBatch("target", [msg("first", "first"), msg("fail", "second")])).toThrow("fixture failure");
+    db.close();
+    closeMessageDb();
+    const after = readThread("target", legacy("target"));
+    expect(after.messages.map(row => row.id)).toEqual(["original"]);
+    expect(after.activeLeafId).toBe("original");
+  });
+
+  it("persists a complete copied context batch with its active leaf", () => {
+    appendMessageBatch("target", [msg("first", "first", { parentId: null }), msg("second", "second", { parentId: "first", replyToId: "first" })]);
+    closeMessageDb();
+    const after = readThread("target", legacy("target"));
+    expect(after.messages.map(row => [row.id, row.parentId, row.replyToId])).toEqual([["first", null, undefined], ["second", "first", "first"]]);
+    expect(after.activeLeafId).toBe("second");
+  });
+
   it("clears search and every branch while retaining page files until the thread itself is deleted", () => {
     insertMessage("target", msg("secret", "fixtureoldwords"));
     insertMessage("target", msg("side", "alternatebranch /api/attachments/fixture-A.png", { parentId: null }));
@@ -94,6 +117,15 @@ describe("message-db", () => {
     insertMessage("t2", msg("m1", "{\"app\":{\"live\":true}}"));
     expect(liveAppRows()).toEqual([{ threadId: "t2", messageId: "a3" }, { threadId: "t1", messageId: "a1" }]);
     expect(liveAppRows(1)).toEqual([{ threadId: "t2", messageId: "a3" }]);
+  });
+
+  it("finds unfinished work bot routing after reopening the database", () => {
+    insertMessage("t1", msg("classifying", "work", { role: "user", kind: "text", workBotRouting: { state: "classifying" } }));
+    insertMessage("t1", msg("waiting", "work", { role: "user", kind: "text", workBotRouting: { state: "waiting_choice", requestId: "request" } }));
+    insertMessage("t2", msg("dispatching", "work", { role: "user", kind: "text", workBotRouting: { state: "dispatching", targetBotId: "bot", targetThreadId: "target" } }));
+    insertMessage("t2", msg("dispatched", "work", { role: "user", kind: "text", workBotRouting: { state: "dispatched" } }));
+    closeMessageDb();
+    expect(pendingWorkBotRoutes().map(row => [row.threadId, row.message.id])).toEqual([["t1", "classifying"], ["t1", "waiting"], ["t2", "dispatching"]]);
   });
 
   it("finds the first-reply rescue rows that never settled or ended", () => {

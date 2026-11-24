@@ -189,6 +189,7 @@ export function drainSteeredMessages(
   ) => void | Promise<void>,
   isBlocked?: (botId: string, threadId: string, head: SteerQueueHead) => boolean,
   offerWorkBot?: (botId: string, threadId: string, text: string, owner: string, messageId: string) => void,
+  routeWorkBot?: (botId: string, threadId: string, item: QueueEntry["items"][number], message: Message) => boolean,
 ): void {
   // deleting only the entry being visited is safe under Map iteration
   for (const [threadId, entry] of queues) {
@@ -204,7 +205,10 @@ export function drainSteeredMessages(
     if (bot.busy || isBlocked?.(entry.botId, threadId, entry.items[0])) continue;
     // isBlocked can re-enter this drain; if a nested drain took this entry, it is stale.
     if (queues.get(threadId) !== entry) continue;
-    const group = drainCoalesceHead(entry.items, coalesceIdentity, (item) => item.queuedAt);
+    const first = entry.items[0];
+    const canRoute = (item: QueueEntry["items"][number]) => Boolean(routeWorkBot && typeof item.workBotOfferOwner === "string" && !item.rowId && !item.dataContext && !item.mentions?.length && (item.trigger?.kind === "user" || item.trigger?.kind === "owner") && (!item.replyToId || store.messagesFor?.(threadId).some(row => row.id === item.replyToId && row.kind === "text")));
+    const separatelyRouted = canRoute(first);
+    const group = separatelyRouted ? [first] : drainCoalesceHead(entry.items, item => `${coalesceIdentity(item)}:${canRoute(item)}`, (item) => item.queuedAt);
     const ids = group.map((item) => item.messageId);
     settleChatFollowups(ids, "dispatching");
     const rest = entry.items.slice(group.length);
@@ -234,6 +238,10 @@ export function drainSteeredMessages(
     }
     const last = appended.at(-1);
     if (!last) continue;
+    if (separatelyRouted && routeWorkBot?.(entry.botId, threadId, first, last)) {
+      settleChatFollowups(ids, null);
+      continue;
+    }
     for (const [index, item] of group.entries()) if (typeof item.workBotOfferOwner === "string") offerWorkBot?.(entry.botId, threadId, item.text, item.workBotOfferOwner, appended[index]!.id);
     // A blank line keeps each message its own Markdown block; otherwise a trailing attachment tag merges into the next and stops being an image.
     const prompt = group.map((item) => item.prompt).join("\n\n");

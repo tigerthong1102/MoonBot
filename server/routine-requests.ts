@@ -80,6 +80,7 @@ export interface RoutineRequestOptionCard {
 
 export interface RoutineRequestMessage {
   id: string;
+  requestMessageId?: string;
   card?: RoutineRequestOptionCard;
 }
 
@@ -90,6 +91,7 @@ export interface RoutineRequestStore {
     message: {
       role: "bot";
       kind: "options";
+      requestMessageId?: string;
       card: RoutineRequestOptionCard;
       from?: { botId: string; name: string; color: string };
     },
@@ -125,6 +127,7 @@ export interface ProposeRoutineRequestArgs {
   threadId: string;
   /** Untrusted model output; normalized by routineProposalSchema in propose(). */
   proposal: unknown;
+  requestMessageId?: () => string | undefined;
   from?: { botId: string; name: string; color: string };
   /** Caller/turn lease, checked synchronously right before the durable card append. */
   canCommit?: () => boolean;
@@ -1023,6 +1026,8 @@ export class RoutineRequestService {
       messageInput.card.options = [];
       messageInput.card.dismissed = true;
     }
+    const requestMessageId = args.requestMessageId?.();
+    if (requestMessageId) messageInput.requestMessageId = requestMessageId;
     const message = this.store.appendMessage(threadId, messageInput);
     const proposal = {
       requestId,

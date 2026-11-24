@@ -1,10 +1,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
 import { freePortBlock } from "../../server/testing/ports.ts";
+import { verificationServerEnvironment } from "../../scripts/control-omb.ts";
 import type { Scenario, Step } from "../types.ts";
 import { buildScriptedPlan } from "../providers/mock/scripted-plan.ts";
 import { BaseWorld, type WorldContext } from "./base-world.ts";
@@ -22,7 +23,7 @@ export class LocalVmWorld extends BaseWorld {
   private stateFile = "";
   private dumpFile = "";
   private planPath = "";
-  private stderr = "";
+  private output = "";
   private computers = new Map<string, { url: string; token: string }>();
 
   override async boot(scenario: Scenario): Promise<void> {
@@ -35,7 +36,7 @@ export class LocalVmWorld extends BaseWorld {
     mkdirSync(join(ui, "assets"), { recursive: true });
     writeFileSync(join(ui, "index.html"), "<title>evals</title>");
     writeFileSync(join(ui, "assets", "eval.css"), "body{}");
-    mkdirSync(data, { recursive: true });
+    mkdirSync(join(data, "tmp"), { recursive: true });
     this.vmState({});
     writeFileSync(join(data, "config.json"), JSON.stringify({
       instances: {
@@ -49,47 +50,39 @@ export class LocalVmWorld extends BaseWorld {
     const port = await freePortBlock([0, 1]);
     const hooks = pathToFileURL(join(ROOT, "server", "testing", "group-local-vm-hooks.mjs")).href;
     const env: NodeJS.ProcessEnv = {
-      PATH: dirname(process.execPath),
-      HOME: this.fixtureHome,
-      USERPROFILE: this.fixtureHome,
-      OMB_DATA_DIR: data,
-      APPDATA: join(this.fixtureHome, "appdata"),
-      LOCALAPPDATA: join(this.fixtureHome, "localappdata"),
-      TEMP: this.fixtureHome,
-      TMP: this.fixtureHome,
-      TMPDIR: this.fixtureHome,
-      OMB_PORT: String(port),
-      OMB_WEBHOOK_PORT: String(port + 1),
+      ...verificationServerEnvironment({ SystemRoot: process.env.SystemRoot }, data, port),
       OMB_STATIC_DIR: ui,
       OMB_TEST_VM_STATE: this.stateFile,
-      OMB_DISABLE_MODEL_MANIFEST_FETCH: "1",
-      ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+      FAKE_CLAUDE_DUMP: this.dumpFile,
     };
     const child = this.child = spawn(process.execPath, ["--import", hooks, join(ROOT, "server", "index.ts")], {
       cwd: ROOT,
       env,
       stdio: ["ignore", "pipe", "pipe"],
     });
-    this.child.stderr?.on("data", (chunk) => (this.stderr += chunk));
+    const capture = (chunk: Buffer) => { this.output = (this.output + chunk.toString()).slice(-2_000); };
+    child.stdout?.on("data", capture);
+    child.stderr?.on("data", capture);
     const base = "http://127.0.0.1:" + port;
     await waitUntil(
       "VM fixture server to come up",
       async () => {
-        // exitCode stays null for a child killed by a signal; either way
-        // the boot is over and the captured stderr says why
         if (child.exitCode !== null || child.signalCode !== null) {
-          const how = child.signalCode !== null ? " (killed by " + child.signalCode + ")" : "";
-          throw new Error("server exited" + how + ": " + this.stderr.slice(-2000));
+          throw new Error(`server exited (${child.signalCode ?? child.exitCode})`);
         }
         try {
-          return (await fetch(base + "/api/health")).ok;
+          const response = await fetch(base + "/api/health", { signal: AbortSignal.timeout(1_000) });
+          const body = response.ok ? await response.json() as { app?: string; pid?: number } : null;
+          return body?.app === "openmausbot" && body.pid === child.pid;
         } catch {
           return false;
         }
       },
       (up) => up,
       20_000,
-    );
+    ).catch((cause: unknown) => {
+      throw new Error(`VM fixture failed to start${this.output ? `: ${this.output.trim()}` : ""}`, { cause });
+    });
     // eval-gates lives under the server's OMB_DATA_DIR so installSkill's
     // <dataRoot>/skills target is the directory index.ts hot-loads user
     // skills from; anywhere else and installed skills never reach the prompt.

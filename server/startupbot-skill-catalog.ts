@@ -48,6 +48,7 @@ const additionalOlderInstructions = new Map([
   ["hyperframes", new Set([
     "5b3f2384088aae01eaf835ec1588128387432f7ddc112321f80dfa22b3ab7880",
     "11a2302d7b7d522d9878047c13e49ab92bec990dd8094136b51b9c7cbda44c4c",
+    "6c35bb338eb62f222c950d878f8702de8baceff21a0b1c2b1c6462a44e118bf5",
   ])],
 ]);
 

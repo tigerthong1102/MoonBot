@@ -566,6 +566,15 @@ describe("how every bot replies", () => {
     ]) expect(REPLY_HABITS_PROMPT).toContain(habit);
   });
 
+  it("tells every bot to recover from missing tools in the actual execution environment", () => {
+    const prompt = buildSystemPrompt("You are Kiwi.", "", []).text;
+    expect(prompt).toContain("Check capabilities in the environment where the work runs");
+    expect(prompt).toContain("distinguish errors from warnings");
+    expect(prompt).toContain("independently check its result");
+    expect(prompt).toContain("do not silently change machine-wide software");
+    expect(prompt).toContain("Never claim a result was produced or verified when it was not");
+  });
+
   it("asks one thing with tap-to-answer choices, keeps forms for real edits, and confirms a routine in plain words", () => {
     expect(WIDGET_PROMPT).toContain("Unless the person asked you, in this chat or in your instructions, to check with them first, ask only what you cannot find or sensibly default yourself, and one thing at a time.");
     expect(WIDGET_PROMPT).toContain("a Card with a Row of Buttons, one per option, whose onClickAction sends that option in one tap");

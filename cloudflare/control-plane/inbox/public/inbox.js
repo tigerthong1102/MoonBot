@@ -6,15 +6,17 @@ import { isVoiceMessage, voiceComposer } from "./inbox-voice.js";
 installInboxSelects();
 const el = (id) => document.getElementById(id);
 el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") !== "1";
+function showRoomList() {
+  voice.discard();
+  for (const audio of voicePlayers.values()) audio.pause();
+  delete document.body.dataset.thread;
+}
 for (const back of document.querySelectorAll(".list-back")) {
-  back.onclick = () => {
-    voice.discard();
-    for (const audio of voicePlayers.values()) audio.pause();
-    delete document.body.dataset.thread;
-  };
+  back.onclick = showRoomList;
 }
 const hostAuth = !el("desktop-back").hidden && new URLSearchParams(location.search).get("hostAuth") === "1";
 const accountOnly = !el("desktop-back").hidden && new URLSearchParams(location.search).get("account") === "1";
+const desktopBots = !el("desktop-back").hidden && new URLSearchParams(location.search).has("bots");
 const skin = new URLSearchParams(location.search).get("skin");
 if (skin) document.documentElement.dataset.skin = skin;
 else {
@@ -140,6 +142,7 @@ function clearRoom() {
   el("invite-link-field").value = "";
   el("invite-link-field").hidden = true;
   el("room-options").open = false;
+  el("invite-actions").hidden = true;
   activeBatch = null;
   for (const item of attachments) {
     item.player?.pause();
@@ -399,7 +402,18 @@ async function refreshRoom(poll) {
   }
   const group = r.kind === "group";
   const manager = group && (r.isOwner || r.admin);
+  const limited = group && (r.muted || (r.announcements && !manager));
+  const canInviteBot = group && !limited && desktopBots;
+  const peer = !group && detail.members.length === 2 && detail.members.find(member => member.email !== me.email);
   el("invite").hidden = !manager;
+  el("invite-person").hidden = !manager;
+  el("invite-bot").hidden = !canInviteBot;
+  if (canInviteBot) el("invite-bot").href = "/desktop/invite-bot/" + r.id;
+  else el("invite-bot").removeAttribute("href");
+  el("open-group-bots").hidden = !group || canInviteBot;
+  el("create-group-from-direct").hidden = !peer;
+  el("create-group-from-direct").dataset.peer = peer?.email ?? "";
+  el("invite-actions").hidden = !group && !peer;
   moderators = new Set(detail.members.filter(m => m.admin || m.id === detail.group.owner).map(m => m.email));
   const oldRevision = previousRoom?.revision;
   if (group && oldRevision !== r.revision) readingOlder = false;
@@ -412,7 +426,7 @@ async function refreshRoom(poll) {
     if (group) {
       const ui = groupControls({room:r,detail,me,node,button,api,refresh,status});
       el("members").replaceChildren(ui.list); el("manage").append(ui.controls);
-      const bots = groupBots({room:r,me,node,button,api,refresh,status});
+      const bots = groupBots({room:r,me,node,button,api,refresh,status,manager,writable:!limited,desktopBots});
       bots.dataset.bots = ""; el("manage").append(bots); bots.open = !!botPanelOpen;
     } else el("members").replaceChildren(...detail.members.map(m => node("li", m.email)));
     if (r.isOwner && r.kind === "direct" && detail.members.length === 2)
@@ -434,7 +448,6 @@ async function refreshRoom(poll) {
     );
   }
   const waiting = r.kind === "direct" && detail.members.length !== 2;
-  const limited = group && (r.muted || (r.announcements && !manager));
   el("compose").hidden = !!(waiting || limited);
   if (waiting || limited) voice.discard();
   updateComposer();
@@ -493,6 +506,31 @@ function createLabels() {
 function emailList(value) {
   return [...new Set(value.trim().toLowerCase().split(/[\s,;]+/).filter(Boolean).map(address => address.replace(/^@/, "")))];
 }
+el("invite-person").onclick = () => {
+  el("room-options").open = true;
+  el("invite").elements.email.focus();
+};
+el("open-group-bots").onclick = () => {
+  const bots = el("manage").querySelector("[data-bots]");
+  if (!bots) return;
+  el("room-options").open = true;
+  bots.open = true;
+  bots.querySelector("summary").focus();
+};
+el("create-group-from-direct").onclick = () => {
+  const form = el("create-room");
+  const peer = el("create-group-from-direct").dataset.peer;
+  if (!peer) return;
+  if (form.elements.kind.value !== "group") {
+    form.reset();
+    form.elements.kind.value = "group";
+  }
+  form.elements.invitees.value = emailList(peer + " " + form.elements.invitees.value).join(", ");
+  createLabels();
+  showRoomList();
+  el("new-room").open = true;
+  form.elements.target.focus();
+};
 el("create-room").elements.kind.onchange = createLabels;
 el("create-room").onsubmit = run(async () => {
   const form = el("create-room"),

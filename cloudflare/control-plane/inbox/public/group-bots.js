@@ -2,10 +2,8 @@ import { language, t } from "./inbox-i18n.js";
 
 import { inboxSelect } from "./inbox-select.js";
 
-export function groupBots({ room, me, node, button, api, refresh, status }) {
+export function groupBots({ room, me, node, button, api, refresh, status, manager, writable, desktopBots }) {
   const panel = node("details", "");
-  const manager = room.isOwner || room.admin;
-  const writable = !room.muted && (!room.announcements || manager);
   panel.append(node("summary", t("personalInbox.bots")));
   const content = node("div", "");
   panel.append(content);
@@ -40,13 +38,7 @@ export function groupBots({ room, me, node, button, api, refresh, status }) {
         );
       children.push(row);
     }
-    if (writable && new URLSearchParams(location.search).has("bots")) {
-      const link = node("a", t("personalInbox.inviteBot"));
-      link.href = "/desktop/invite-bot/" + room.id;
-      link.target = "_blank";
-      children.push(link, node("small", t("personalInbox.botTalkHelp")));
-    } else if (writable)
-      children.push(node("small", t("personalInbox.botNoDevice")));
+    if (writable) children.push(node("small", t(desktopBots ? "personalInbox.botTalkHelp" : "personalInbox.botNoDevice")));
     if (round?.step === -1)
       children.push(node("p", t("personalInbox.botFailed")));
     if (round && round.step !== -1) {

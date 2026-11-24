@@ -89,6 +89,12 @@
           </div>
           <div id="actions"></div>
           <div id="conversation" hidden>
+            <div id="invite-actions" hidden>
+              <button class="ui-button" type="button" id="invite-person" aria-controls="room-options" data-i18n="personalInbox.inviteGroup" hidden>Invite to group</button>
+              <a class="ui-button" id="invite-bot" target="_blank" data-i18n="personalInbox.inviteBot" hidden>Invite my bot</a>
+              <button class="ui-button" type="button" id="open-group-bots" aria-controls="room-options" data-i18n="personalInbox.bots" hidden>Bots in this group</button>
+              <button class="ui-button" type="button" id="create-group-from-direct" aria-controls="create-room" data-i18n="personalInbox.createGroup" hidden>Create group</button>
+            </div>
             <details id="room-options">
               <summary title="Conversation info" data-i18n-title="personalInbox.roomInfo"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-info"></use></svg><span class="sr" data-i18n="personalInbox.roomInfo">Conversation info</span></summary>
               <form id="invite" hidden>

@@ -8,6 +8,9 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["adfa8a000dc22d041f444be9a841c075dec76c0a9edd0091da23159013249757", "docx"],
+  ["3b0ee778f53c9fbf88d64b026b233321180aeecfd93713ebe3c9623b59c47ab6", "pptx"],
+  ["3fdea15edd601b3c15b7bb7667f78084df7ab6f50f388509932cf5bc0db6abe6", "xlsx"],
   ["d2639c68a8a93b0e8ed6e4f22982529ed613658cece6ac36e12e46ff25da9086", "web-perf"],
   ["551f55a60606b93e5e54f8ef068a3b663dd2492c62c61e083e25c05ee7cf5d08", "hyperframes"],
   ["37911cfa907a24a4245749004bb67702596575919690346aac2e9f3e69feeeb0", "hyperframes-cli"],
@@ -22,6 +25,9 @@ const supersededFolders = new Map([
 ]);
 
 const olderInstructions = new Map([
+  ["docx", "a100df67e78f4a30ce32a95abcaf02d4418013924f9d15f72e78fe52ca439020"],
+  ["pptx", "7cc3d0066b6036227241edb9ff640ce7aa22781c34530f9550d69651c7a5cea2"],
+  ["xlsx", "c5c862d6d8ae4b9a7bed37c5a16f24d9415747479dd535fb7ca6011fa4d71cb0"],
   ["web-perf", "ae0d9419aff36834233b865243c3eea06ade6fa74b0951680174f11647014f18"],
   ["hyperframes", "afe67b17e26fb9d3132da33ff9143f79025da60dd9da123aad7feeb81684fbf2"],
   ["hyperframes-cli", "93b586ee1f828a0b02326e730ac0bc3916ed6e0b909077d8300ee0080b21be27"],
@@ -87,7 +93,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["hyperframes", "hyperframes-cli", "web-perf"].includes(entry.name)
+        reviewState: ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

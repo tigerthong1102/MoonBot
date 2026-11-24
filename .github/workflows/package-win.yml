@@ -111,29 +111,24 @@ jobs:
 
   ios:
     if: inputs.target == 'all' || inputs.target == 'ios'
-    runs-on: macos-26-intel
+    runs-on: macos-26
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: node scripts/validate-pilot-origin.mjs
-      - name: Build and install the iOS Simulator app
+      - name: Build the iOS Simulator package for Apple Silicon
         working-directory: ios
         run: |
+          test "$(uname -m)" = arm64
           command -v xcodegen || brew install xcodegen
           xcodegen generate
-          read -r device runtime <<< "$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["deviceTypeIdentifier"]+" "+k for k,ds in sorted(json.load(sys.stdin)["devices"].items(),reverse=True) if ".iOS-" in k for d in ds if d["name"].startswith("iPhone")))')"
-          simulator=$(xcrun simctl create StartupBot-Inbox-Pilot "$device" "$runtime")
-          xcrun simctl boot "$simulator"
-          xcodebuild -project StartupBot.xcodeproj -scheme StartupBot -configuration Debug             -destination "platform=iOS Simulator,id=$simulator" -derivedDataPath "$RUNNER_TEMP/startupbot-derived"             STARTUPBOT_INBOX_ORIGIN="$STARTUPBOT_INBOX_ORIGIN" ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= build -quiet
+          xcodebuild -project StartupBot.xcodeproj -scheme StartupBot -configuration Debug \
+            -destination "generic/platform=iOS Simulator" -derivedDataPath "$RUNNER_TEMP/startupbot-derived" \
+            STARTUPBOT_INBOX_ORIGIN="$STARTUPBOT_INBOX_ORIGIN" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= build -quiet
           app="$RUNNER_TEMP/startupbot-derived/Build/Products/Debug-iphonesimulator/StartupBot.app"
           test "$(/usr/libexec/PlistBuddy -c 'Print StartupBotInboxOrigin' "$app/Info.plist")" = "$STARTUPBOT_INBOX_ORIGIN"
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")" = 1.0.1
-          xcrun lipo -verify_arch arm64 x86_64 "$app/StartupBot"
-          xcrun simctl bootstatus "$simulator" -b
-          xcrun simctl install "$simulator" "$app"
-          xcrun simctl launch "$simulator" ai.startupbot.ios
-          sleep 3
-          xcrun simctl io "$simulator" screenshot "$RUNNER_TEMP/ios-pilot.png"
+          test "$(xcrun lipo -archs "$app/StartupBot")" = arm64
           ditto -c -k --keepParent "$app" "$RUNNER_TEMP/StartupBot-1.0.1-iOS-Simulator.zip"
       - name: Encrypt the iOS Simulator archive
         run: bash scripts/encrypt-pilot-package.sh "$RUNNER_TEMP/StartupBot-1.0.1-iOS-Simulator.zip" ios
@@ -144,3 +139,16 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+      - name: Install and open StartupBot in iOS Simulator
+        run: |
+          read -r device runtime <<< "$(xcrun simctl list devices available -j | python3 -c 'import json,sys; print(next(d["deviceTypeIdentifier"]+" "+k for k,ds in sorted(json.load(sys.stdin)["devices"].items(),reverse=True) if ".iOS-" in k for d in ds if d["name"].startswith("iPhone")))')"
+          simulator=$(xcrun simctl create StartupBot-Inbox-Pilot "$device" "$runtime")
+          trap 'xcrun simctl delete "$simulator"' EXIT
+          xcrun simctl boot "$simulator"
+          xcrun simctl bootstatus "$simulator" -b
+          app="$RUNNER_TEMP/startupbot-derived/Build/Products/Debug-iphonesimulator/StartupBot.app"
+          xcrun simctl install "$simulator" "$app"
+          xcrun simctl launch "$simulator" ai.startupbot.ios
+          sleep 3
+          xcrun simctl io "$simulator" screenshot "$RUNNER_TEMP/ios-pilot.png"
+          test -s "$RUNNER_TEMP/ios-pilot.png"

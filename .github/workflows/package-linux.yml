@@ -1,6 +1,8 @@
 name: Internal package verification
 
 on:
+  push:
+    branches: [codex/platform-smoke-0dd00b8-20261124]
   workflow_dispatch:
     inputs:
       ios_runner:
@@ -337,7 +339,7 @@ jobs:
           retention-days: 7
 
   android:
-    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'android')
+    if: ${{ github.event_name == 'push' || (inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'android')) }}
     name: StartupBot Android internal APK and AAB
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -429,7 +431,7 @@ jobs:
           retention-days: 7
 
   ios:
-    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')
+    if: ${{ github.event_name == 'push' || (inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')) }}
     name: StartupBot iOS internal simulator
     runs-on: ${{ inputs.ios_runner || 'macos-26' }}
     timeout-minutes: 90
@@ -492,7 +494,7 @@ jobs:
           retention-days: 7
 
   ios-device:
-    if: inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')
+    if: ${{ github.event_name == 'push' || (inputs.mobile && (inputs.mobile_os == 'all' || inputs.mobile_os == 'ios')) }}
     name: StartupBot iOS unsigned device Release archive
     runs-on: ${{ inputs.ios_runner || 'macos-26' }}
     timeout-minutes: 45

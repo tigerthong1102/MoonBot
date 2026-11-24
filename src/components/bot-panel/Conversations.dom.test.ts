@@ -265,7 +265,7 @@ describe("a bot's conversations in its panel", () => {
       return [...document.querySelector(`[data-thread-overlay][aria-label="Actions for ${title}"]`)!.querySelectorAll("button")];
     };
     const items = menuFor("Translate the launch post");
-    expect(items.map((button) => button.textContent)).toEqual(["Rename thread", "Memory", "Pin", "Archive", "Delete thread"]);
+    expect(items.map((button) => button.textContent)).toEqual(["Copy link", "Rename thread", "Memory", "Regenerate title", "Pin", "Archive", "Delete thread"]);
     click(items.find((button) => button.textContent === "Pin")!);
     expect(fixture.dispatch.mock.calls).toEqual([[{ type: "updateTask", botId: "research", threadId: "launch", patch: { pinned: true } }]]);
     fixture.dispatch.mockReset();

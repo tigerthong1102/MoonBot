@@ -2,7 +2,7 @@ import { inboxLanguage, supportedInboxLanguage } from "./inbox-language";
 import { previewGroup } from "./inbox-group";
 import { InboxSignals, notifyRoom } from "./inbox-signals";
 export { InboxSignals };
-import { inboxFile, inboxFilePart, maxFileBytes, maxBatchParts, partBytes } from "./inbox-files";
+import { inboxFile, inboxFilePart, maxFileBytes, maxBatchParts, maxRawBatchParts, partBytes } from "./inbox-files";
 import { allowPilotLogin, claimGuestInvites, suppressGuestMail } from "./inbox-guest";
 import { z } from "zod";
 import { createAuth, deleteExpiredVerifications } from "./auth";
@@ -100,6 +100,20 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     headers: new Headers({ cookie: req.headers.get("cookie") ?? "" }),
   });
   if (!session?.user.emailVerified) return errorResponse(401, "unauthorized");
+  if (url.pathname === "/api/account/updates") {
+    if (req.method === "POST") {
+      const choice = z.object({ enabled: z.boolean(), initial: z.boolean().optional(), email: z.email() }).safeParse(
+        await req.json().catch(() => null),
+      );
+      if (!choice.success) return errorResponse(400, "invalid_request");
+      if (choice.data.email !== session.user.email) return errorResponse(409, "account_changed");
+      await env.DB.prepare('UPDATE "user" SET product_updates=? WHERE id=? AND (?=0 OR product_updates IS NULL)')
+        .bind(Number(choice.data.enabled), session.user.id, Number(choice.data.initial === true)).run();
+    }
+    const value = await env.DB.prepare('SELECT product_updates FROM "user" WHERE id=?')
+      .bind(session.user.id).first<number>("product_updates");
+    return json({ email: session.user.email, enabled: value === null ? null : value === 1 });
+  }
   if (url.pathname === "/api/language" && req.method === "POST") {
     const input = z.object({locale:z.string().refine(supportedInboxLanguage)}).safeParse(await req.json().catch(()=>null));
     if (!input.success) return errorResponse(400,"invalid_request");
@@ -127,7 +141,7 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   if (req.method === "GET" && url.pathname === "/api/me") {
     await claimGuestInvites(env.DB, session.user.id, session.user.email.toLowerCase());
     const locale = await env.DB.prepare("SELECT locale FROM inbox_languages WHERE person=?").bind(session.user.id).first<string>("locale");
-    return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts });
+    return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts });
   }
   const result = await inboxRoutes(req, env, session.user.id, ctx);
   if (env.SIGNALS && result.ok && req.method === "POST") {

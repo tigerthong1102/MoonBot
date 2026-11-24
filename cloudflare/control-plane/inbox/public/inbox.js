@@ -8,6 +8,7 @@ el("desktop-back").hidden = new URLSearchParams(location.search).get("desktop") 
 for (const back of document.querySelectorAll(".list-back")) {
   back.onclick = () => { delete document.body.dataset.thread; };
 }
+const hostAuth = !el("desktop-back").hidden && new URLSearchParams(location.search).get("hostAuth") === "1";
 const accountOnly = !el("desktop-back").hidden && new URLSearchParams(location.search).get("account") === "1";
 const skin = new URLSearchParams(location.search).get("skin");
 if (skin) document.documentElement.dataset.skin = skin;
@@ -138,6 +139,10 @@ function signedOut() {
   for (const id of ["inbox", "logout", "saved"]) el(id).hidden = true;
   el("blocked").open = false;
   el("room").hidden = false;
+  if (hostAuth) {
+    location.assign("/desktop/sign-in");
+    return;
+  }
   el("signin").hidden = false;
   el("join-prompt").hidden = true;
   el("verify").hidden = true;
@@ -182,6 +187,7 @@ el("verify").onsubmit = run(async () => {
 });
 el("logout").onclick = run(async () => {
   await api("auth/sign-out", {});
+  if (hostAuth) { location.assign("/desktop/back"); return; }
   signedOut();
   status(t("personalInbox.signedOut"));
 });
@@ -794,9 +800,10 @@ async function postFile(url, body, headers) {
   }
 }
 
-async function uploadParts(url, item, headers, partSize, batchParts, compressor) {
+async function uploadParts(url, item, headers, partSize, batchParts, compressor, raw = false) {
   const pack = (blob) => compressor ? compressor.compress(blob) : smallerBody(blob);
   const encoding = compressor ? "br" : "gzip";
+  const rawBatchParts = me.fileRawBatchParts ?? 0;
   const parts = [];
   const hashes = [];
   for (let offset = 0; offset < item.file.size; offset += partSize) {
@@ -818,11 +825,14 @@ async function uploadParts(url, item, headers, partSize, batchParts, compressor)
   }
   async function sendPart(group) {
     const index = group[0];
-    if (group.length > 1) {
+    if (raw || group.length > 1) {
       const slice = item.file.slice(index * partSize, (group.at(-1) + 1) * partSize);
-      const packed = await pack(slice);
-      if (packed !== slice && packed.size <= partSize) {
-        await postFile(url + "/" + index, packed, { ...headers, "x-inbox-encoding": encoding, "x-inbox-parts": String(group.length) });
+      const packed = raw ? slice : await pack(slice);
+      const acceptsRawBatch = group.length <= rawBatchParts;
+      if (acceptsRawBatch || (packed !== slice && packed.size <= partSize)) {
+        await postFile(url + "/" + index, packed, {
+          ...headers, "x-inbox-encoding": packed === slice ? "identity" : encoding, "x-inbox-parts": String(group.length),
+        });
         return;
       }
     }
@@ -831,25 +841,19 @@ async function uploadParts(url, item, headers, partSize, batchParts, compressor)
       await postFile(url + "/" + n, body, { ...headers, "x-inbox-encoding": body === parts[n] ? "identity" : encoding });
     }
   }
-  const started = performance.now();
-  if (groups.length) await sendPart(groups[0]);
-  const firstMs = performance.now() - started;
-  let concurrency = firstMs < 3000 ? 3 : firstMs < 20000 ? 2 : 1;
-  let next = 1;
+  let next = 0;
   let failure;
-  async function sendNext(_, lane) {
-    while (lane < concurrency && !failure && next < groups.length) {
+  async function sendNext() {
+    while (!failure && next < groups.length) {
       const group = groups[next++];
       try {
-        const at = performance.now();
         await sendPart(group);
-        if (performance.now() - at > Math.max(15000, 2.5 * firstMs)) concurrency = 1;
       } catch (error) {
         failure = error;
       }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, groups.length) }, sendNext));
+  await Promise.all(Array.from({ length: Math.min(3, groups.length) }, sendNext));
   if (failure) throw failure;
   await postFile(url + "/complete", null, headers);
 }
@@ -863,13 +867,15 @@ async function uploadFile(room, item) {
     const sample = new Blob([item.file.slice(0, 65536), item.file.slice(middle, middle + 65536), item.file.slice(-65536)]);
     const packedSample = me.fileGzip ? await smallerBody(sample) : sample;
     const compressible = packedSample !== sample;
+    if (!compressible && me.fileRawBatchParts)
+      return uploadParts(url, item, headers, partSize, me.fileRawBatchParts, null, true);
     if (!compressible || item.file.size > 20_000_000 || item.file.size * packedSample.size / sample.size > 2 * partSize) {
       const codec = compressible && me.fileBrotli && typeof Worker === "function" ? fileCompressor() : null;
       try {
         const br = codec ? await codec.compress(sample) : sample;
         const useBr = codec && br.size < packedSample.size * 0.98;
         const ratio = sample.size / (useBr ? br.size : packedSample.size);
-        const batch = Math.min(me.fileBatchParts ?? 1, Math.max(1, Math.floor(ratio * 0.85)));
+        const batch = Math.min(me.fileBatchParts ?? 1, Math.max(me.fileRawBatchParts ?? 1, Math.floor(ratio * 0.85)));
         await uploadParts(url, item, headers, partSize, batch, useBr ? codec : null);
       } finally {
         codec?.close();

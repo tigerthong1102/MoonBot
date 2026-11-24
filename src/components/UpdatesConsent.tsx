@@ -13,7 +13,7 @@ const PRIMARY = "inline-flex min-h-10 items-center justify-center gap-1.5 rounde
 const SECONDARY = "inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-2 text-[14px] text-ink-secondary hover:bg-raised hover:text-ink disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus";
 
 export function updatesConsentBridge(): UpdatesConsentBridge | undefined {
-  return window.ogb?.remoteClient?.active === true ? undefined : window.ogb?.updatesConsent;
+  return window.ogb?.remoteClient?.active === true ? undefined : window.ogb?.personalAccount?.updatesConsent ?? window.ogb?.updatesConsent;
 }
 
 function readable(value: unknown): UpdatesConsentState | null {
@@ -27,8 +27,15 @@ export function useUpdatesConsent(bridge: UpdatesConsentBridge | undefined) {
   useEffect(() => {
     if (!bridge) return;
     let active = true;
-    void bridge.state().then(next => { if (active) setState(readable(next)); }, () => { if (active) setState(null); });
-    return () => { active = false; };
+    let revision = 0;
+    const refresh = () => {
+      const current = ++revision;
+      void bridge.state().then(next => { if (active && current === revision) setState(readable(next)); },
+        () => { if (active && current === revision) setState(null); });
+    };
+    refresh();
+    const off = window.ogb?.personalAccount?.onChange(refresh);
+    return () => { active = false; off?.(); };
   }, [bridge]);
   const choose = async (status: UpdatesConsentStatus, email?: string) => {
     if (!bridge) return;
@@ -101,7 +108,7 @@ export function UpdatesConsentRow() {
     <Switch checked={on} disabled={busy} aria-label={t("settings.updatesConsent.aria")}
       onClick={() => {
         if (on) void set("withdrawn").catch(() => {});
-        else if (state.signedIn) void set("opted_in").catch(() => {});
+        else if (state.signedIn || window.ogb?.personalAccount?.updatesConsent) void set("opted_in").catch(() => {});
         else setAsking(true);
       }} />
     {asking && <UpdatesConsentDialog signedIn={false} onNo={() => setAsking(false)}

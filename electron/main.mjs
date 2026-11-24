@@ -94,7 +94,7 @@ import { createComputerSharing, isHomeFolder, validateSharedFolders } from "./co
 import { createHostScreenLease } from "./host-screen-lease.mjs";
 import { acquireDataDirLease } from "./data-dir-lease.mjs";
 import { reviveAfterFailedSwitch, switchLocalEnvironment } from "./environment-switch.mjs";
-import { createManagedDesktopClient, createManagedDesktopRelay, createManagedDesktopStore } from "./managed-desktop.mjs";
+import { createManagedDesktopClient, createManagedDesktopRelay, createManagedDesktopStore, registerEnrollmentHandlers } from "./managed-desktop.mjs";
 import { CHECKOUT_SOURCES, cloudMenuSublabel, cloudTarget, createCloudAccountClient as cloudAccountClient, createCloudAccountStore } from "./cloud-account.mjs";
 import { installCloudPlanIpc } from "./cloud-plan-ipc.mjs";
 import { cloudLinkOpensSheet, colorDotIcons, createCloudLook, createCloudReadyNotice, installCloudBuy, lookFile } from "./cloud-buy.mjs"; import { unreadBadgeIcon } from "./color-dot.mjs";
@@ -1495,7 +1495,11 @@ function activeOrigin() {
   return activeEnvironment(environmentsState)?.origin ?? rendererOrigin();
 }
 
-const inbox = createPersonalInbox(() => mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow(), nativeText.intlTag);
+const inbox = createPersonalInbox({
+  window: () => mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow(), locale: nativeText.intlTag,
+  isLocal: win => senderIsLocal({ sender: win.webContents }), showLocal: () => switchEnvironment(LOCAL_ID),
+  previousChoice: () => nativeText.prefs.updatesConsent(),
+});
 inbox.install(ipcMain, localOnly, requireMainWindowSender);
 
 function refreshApplicationMenu() {
@@ -2503,11 +2507,7 @@ ipcMain.handle("cloud-account:openTeam", localWorkspaceOnly("cloud-account:openT
 ipcMain.handle("cloud-account:cancelPlan", localWorkspaceOnly("cloud-account:cancelPlan", (_event, survey) => ensureCloudAccount().cancelPlan(survey)));
 ipcMain.handle("cloud-account:keepPlan", localWorkspaceOnly("cloud-account:keepPlan", () => ensureCloudAccount().keepPlan()));
 ipcMain.handle("organization:settings-opened", localWorkspaceOnly("organization:settings-opened", () => organizationEntry.settingsOpened()));
-ipcMain.handle("organization:state", localWorkspaceOnly("organization:state", () => ensureManagedDesktop().state()));
-ipcMain.handle("organization:begin", localWorkspaceOnly("organization:begin", (_event, input) => ensureManagedDesktop().begin(input)));
-ipcMain.handle("organization:reopen", localWorkspaceOnly("organization:reopen", () => ensureManagedDesktop().reopen()));
-ipcMain.handle("organization:cancel", localWorkspaceOnly("organization:cancel", () => ensureManagedDesktop().cancelEnrollment()));
-ipcMain.handle("organization:refresh", localWorkspaceOnly("organization:refresh", () => ensureManagedDesktop().refresh()));
+registerEnrollmentHandlers(ipcMain, localWorkspaceOnly, ensureManagedDesktop);
 ipcMain.handle("organization:disconnect", localWorkspaceOnly("organization:disconnect", () => {
   companyBackupConfigurationRevision++;
   companyBackupController?.abort(); preparedCompanyRestore = null;

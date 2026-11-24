@@ -435,6 +435,21 @@ it("resumes verified parallel file parts and publishes once after checking membe
   joined[750002] = 3;
   expect((await post(second + "/0", b.cookie, new Uint8Array(gzipSync(joined)), "application/octet-stream", "gzip", 2)).status).toBe(200);
   expect(await (await begin(second)).json()).toMatchObject({ received: [0,1] });
+  const rawPath = room + "/files/" + uuid();
+  await begin(rawPath);
+  expect((await post(rawPath + "/0", b.cookie, joined, "application/octet-stream", "identity", 3)).status).toBe(400);
+  expect((await post(rawPath + "/0", b.cookie, joined.slice(0, -1), "application/octet-stream", "identity", 2)).status).toBe(400);
+  const corrupt = joined.slice();
+  corrupt[750002] = 4;
+  expect((await post(rawPath + "/0", b.cookie, corrupt, "application/octet-stream", "identity", 2)).status).toBe(400);
+  expect(await (await begin(rawPath)).json()).toMatchObject({ received: [] });
+  expect((await post(rawPath + "/0", b.cookie, joined, "application/octet-stream", "identity", 2)).status).toBe(200);
+  expect((await post(rawPath + "/0", b.cookie, joined, "application/octet-stream", "identity", 2)).status).toBe(200);
+  expect(await (await begin(rawPath)).json()).toMatchObject({ received: [0,1] });
+  expect((await call(rawPath + "/complete", b.cookie, {})).status).toBe(200);
+  const rawPosts = await (await call(room, a.cookie)).json<{ posts: { seq: number }[] }>();
+  const rawDownload = await call(room + "/files/" + rawPosts.posts.at(-1)!.seq, a.cookie);
+  expect(new Uint8Array(await rawDownload.arrayBuffer())).toEqual(joined);
   const brPath = room + "/files/" + uuid();
   await begin(brPath);
   expect((await post(brPath + "/0", b.cookie, new Uint8Array(brotliCompressSync(joined)), "application/octet-stream", "br", 2)).status).toBe(200);
@@ -569,4 +584,19 @@ it("lets members invite only their bots and only managers remove them, even duri
   await call(room+"/moderate",a.cookie,{action:"promote",person:b.id});
   expect((await cmd(b,"remove",{bot:first})).ok).toBe(true);
   expect((await cmd(a,"reply",{round:other,bot:first,claim:inFlight.claim,text:"Late reply"})).ok).toBe(false);
+});
+
+it("keeps explicit email-update choices with the verified account across devices", async () => {
+  const email = "a@example.test";
+  const { cookie: first } = await login(email);
+  const { cookie: second } = await login(email);
+  const { cookie: peer } = await login("b@example.test");
+  const route = "account/updates";
+  expect((await call(route)).status).toBe(401);
+  expect(await (await call(route, first)).json()).toEqual({ email, enabled: null });
+  expect((await call(route, peer, { email, enabled: false })).status).toBe(409);
+  expect((await call(route, first, { email, enabled: false })).status).toBe(200);
+  expect(await (await call(route, second, { email, enabled: true, initial: true })).json()).toEqual({ email, enabled: false });
+  expect(await (await call(route, second, { email, enabled: true })).json()).toEqual({ email, enabled: true });
+  expect(await (await call(route, peer)).json()).toEqual({ email: "b@example.test", enabled: null });
 });

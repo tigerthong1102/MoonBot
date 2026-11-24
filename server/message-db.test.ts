@@ -128,6 +128,8 @@ describe("message-db", () => {
     insertMessage("target", msg("copy", "private copy", { sendId: "workbot-offer", workBotHandoffSource: { threadId: "source", messageId: "offer" } }));
     insertMessage("target", msg("forged", "private copy", { sendId: "other", workBotHandoffSource: { threadId: "source", messageId: "forged" } }));
     const owners: Record<string, string> = { source: "source-bot", target: "target-bot" };
+    recoverLegacyWorkBotLinks(() => undefined);
+    expect(workBotLinksForThread("source")).toEqual([]);
     recoverLegacyWorkBotLinks(threadId => owners[threadId]);
     clearThreadMessages("target", () => {}); closeMessageDb();
     expect(workBotLinksForThread("source")).toEqual([{ sourceBotId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target" }]);

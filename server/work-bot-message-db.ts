@@ -55,15 +55,17 @@ export function createWorkBotMessageDb(deps: {
         if (database.prepare("SELECT 1 FROM command_receipts WHERE kind = 'migration' AND key = 'work_bot_links_v2'").get()) return;
         const rows = database.prepare("SELECT thread_id, json FROM messages WHERE role = 'user' AND kind = 'text' AND json_extract(json, '$.workBotHandoffSource.messageId') IS NOT NULL").all() as Array<{ thread_id: string; json: string }>;
         const insert = database.prepare("INSERT OR IGNORE INTO work_bot_links (source_bot_id, source_thread_id, source_message_id, target_bot_id, target_thread_id) VALUES (?, ?, ?, ?, ?)");
+        let unresolved = false;
         for (const row of rows) {
           const message = JSON.parse(row.json) as Message;
           const source = message.workBotHandoffSource;
           if (!source || !source.threadId || !source.messageId || message.sendId !== `workbot-${source.messageId}` || source.threadId === row.thread_id) continue;
           const sourceBot = botForThread(source.threadId), targetBot = botForThread(row.thread_id);
-          if (!sourceBot || !targetBot || sourceBot === targetBot || (source.botId && source.botId !== sourceBot)) continue;
+          if (!sourceBot || !targetBot) { unresolved = true; continue; }
+          if (sourceBot === targetBot || (source.botId && source.botId !== sourceBot)) continue;
           insert.run(sourceBot, source.threadId, source.messageId, targetBot, row.thread_id);
         }
-        database.prepare("INSERT INTO command_receipts (kind, key, at, result) VALUES ('migration', 'work_bot_links_v2', 0, '{}')").run();
+        if (!unresolved) database.prepare("INSERT INTO command_receipts (kind, key, at, result) VALUES ('migration', 'work_bot_links_v2', 0, '{}')").run();
       });
     },
     workBotLinksForThread(threadId: string, botId?: string): WorkBotLink[] {

@@ -8,6 +8,7 @@ import { draftWorkflow } from "../../shared/skill-burger/draft.ts";
 import type { RunMessage } from "../../shared/skill-burger/layers.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
+import type { Store } from "../store.ts";
 import { listWorkflowSkills, readWorkflowSkill, removeWorkflowSkill, renameWorkflowSkill, saveWorkflowSkill, setWorkflowEveryChat, type BurgerPlace } from "./store.ts";
 
 export const SKILL_BURGERS_PATH = "/api/skill-burgers";
@@ -40,6 +41,20 @@ const patchBody = z.union([
   z.object({ everyChat: z.boolean(), botId: id.optional(), sha256: z.string().max(64).optional() }).strict(),
   z.object({ rename: z.string().min(1).max(64), botId: id.optional(), sha256: z.string().max(64).optional() }).strict(),
 ]);
+
+export function createStandaloneSkillBurgerRoutes(
+  store: Pick<Store, "activePath" | "bots" | "bot" | "taskByThread">,
+  sees: SkillBurgerRouteDeps["sees"],
+  enabled: () => boolean,
+): RouteHandler {
+  return createSkillBurgerRoutes({
+    messages: (threadId) => store.activePath(threadId),
+    botIds: () => store.bots.map((bot) => bot.id),
+    owns: (botId, threadId) => store.bot(botId)?.threadId === threadId || Boolean(store.taskByThread(botId, threadId)),
+    sees,
+    available: (auth) => auth.scopes.includes("admin") && enabled(),
+  });
+}
 
 export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandler {
   const placeOf = (botId: string | null | undefined): BurgerPlace => (botId ? { botId } : { everyChat: true });

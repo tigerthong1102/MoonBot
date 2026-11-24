@@ -18,6 +18,7 @@ const bot = (threadId: string, extra: Partial<Bot> = {}) => ({ id: "counsel", th
   unread: false, messages: [], modelSelection: { instanceId: "x", model: "x" }, ...extra }) as unknown as Bot;
 const files: Record<string, string> = {};
 const scoped = new Set<string>();
+const denied = new Set<string>();
 const puts: Array<{ url: string; text: string; expectedHash?: string }> = [];
 const reply = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const hash = (text: string) => `h${text.length}:${text.split("\n").length}`;
@@ -30,10 +31,12 @@ beforeEach(() => {
   puts.length = 0;
   for (const key of Object.keys(files)) delete files[key];
   scoped.clear();
+  denied.clear();
   files["MEMORY.md"] = "- Prefers short replies.\n";
   vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
     const url = new URL(input, "http://x");
     const thread = threadOf(url);
+    if (thread && denied.has(thread)) return reply(404, { error: "no such conversation" });
     const path = thread ? `memory/threads/${thread}.md` : url.searchParams.get("path") ?? "MEMORY.md";
     if (init?.method === "PUT") {
       const body = JSON.parse(String(init.body)) as { path?: string; text: string; expectedHash?: string };
@@ -125,4 +128,15 @@ it("shows only the active conversation's notes after switching", async () => {
   expect(field("thread")?.value).toBe("Acme notes");
   await show(bot("other"));
   expect(field("thread")?.value).toBe("Other notes");
+});
+
+it("clears displayed notes when a new read finds the conversation is no longer accessible", async () => {
+  scoped.add("acme");
+  files["memory/threads/acme.md"] = "Acme notes";
+  await show(bot("acme"));
+  expect(field("thread")?.value).toBe("Acme notes");
+
+  denied.add("acme");
+  await show(bot("acme", { busy: true }));
+  expect(field("thread")).toBeNull();
 });

@@ -131,7 +131,10 @@ export function ThreadMemoryCard({ bot }: { bot: Pick<Bot, "id" | "name" | "thre
   useEffect(() => {
     if (bot.memoryEnabled === false) return;
     let live = true;
-    fetchThreadNotes(bot.id, bot.threadId).then((doc) => { if (live) setLoaded({ botId: bot.id, threadId: bot.threadId, doc }); }).catch(() => {});
+    fetchThreadNotes(bot.id, bot.threadId).then(
+      (doc) => { if (live) setLoaded({ botId: bot.id, threadId: bot.threadId, doc }); },
+      () => { if (live) setLoaded(null); },
+    );
     return () => { live = false; };
   }, [bot.id, bot.threadId, bot.busy, bot.memoryEnabled]);
   const doc = loaded?.botId === bot.id && loaded.threadId === bot.threadId && typeof loaded.doc?.text === "string" ? loaded.doc : null;

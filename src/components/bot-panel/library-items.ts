@@ -16,7 +16,10 @@ export interface LibraryItems {
   unshared: string[];
 }
 
-const fileKey = (file: GalleryFile) => file.private ? file.path : fileIdentity(file.path);
+function fileKey({ file, threadId }: LibraryFile): string {
+  const path = file.private ? file.path : fileIdentity(file.path);
+  return /^(?:\/|[A-Za-z]:[\\/]|\\\\)/.test(path) ? path : JSON.stringify([threadId, path]);
+}
 
 export function libraryItems(bot: Bot, messages: readonly Message[] = visibleMessages(bot)): LibraryItems {
   const pages: LibraryPage[] = [];
@@ -73,7 +76,7 @@ export function allLibraryItems(bot: Bot, local: LibraryItems, remote: BotLibrar
   return {
     pages: newestOnce([...local.pages, ...remote.pages.filter(keep)], (page) => page.url),
     apps: newestOnce([...local.apps, ...remote.apps.filter(keep)], (app) => app.messageId),
-    shared: newestOnce([...local.shared, ...sharedFiles(remote.files.filter(keep))], (item) => fileKey(item.file)),
+    shared: newestOnce([...local.shared, ...sharedFiles(remote.files.filter(keep))], fileKey),
     unshared: local.unshared,
   };
 }

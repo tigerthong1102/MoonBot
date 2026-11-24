@@ -138,7 +138,6 @@ export function saveWorkflowSkill(input: { workflow: unknown; place: BurgerPlace
   return write(input.place, asked || workflowSkillName(checked.data.summary, names), checked.data, input.origin, root);
 }
 
-/** Undo or remove: takes away the copy with this hash, so it never removes one someone changed since. */
 export function removeWorkflowSkill(place: BurgerPlace, name: string, sha256: string | undefined, root: string = skillsLibraryRoot()) {
   const found = readAt(place, name, root);
   if (!found) return { stale: true } as const;

@@ -69,9 +69,9 @@ export function parseControlCommand(command: string): { subcommand: string; dryR
 }
 
 const READ_PROGRAM = new Set([
-  "cat", "less", "more", "head", "tail", "wc", "stat", "file", "du", "df", "ls", "tree", "find",
+  "cat", "less", "more", "head", "tail", "wc", "stat", "file", "du", "df", "ls", "tree",
   "which", "type", "where", "whereis", "pwd", "echo", "printf", "printenv", "env", "ps", "pgrep", "top",
-  "grep", "rg", "ag", "ack", "fgrep", "egrep", "awk", "cut", "sort", "uniq", "tr", "diff", "cmp",
+  "grep", "rg", "ag", "ack", "fgrep", "egrep", "awk", "cut", "uniq", "tr", "diff", "cmp",
   "md5", "shasum", "sha256sum", "jq", "yq", "column",
   "export", "unset", "alias", "true", "false", ":", "sleep", "exit",
 ]);
@@ -88,6 +88,8 @@ const GH_READ = new Set(["pr view", "pr list", "pr checks", "pr diff", "issue vi
 const GH_VALUE_FLAG = new Set(["-R", "--repo"]);
 const NO_VALUE_FLAG = new Set<string>();
 const SED_IN_PLACE = /^(?:-[a-zA-Z]*i|--in-place)/;
+const SORT_OUTPUT = /^(?:-[bcCdfghiMmnrRsuVz]*o|--output(?:=|$))/;
+const FIND_ACTION = /^-(?:delete|exec(?:dir)?|ok(?:dir)?|fls|fprint(?:0|f)?)$/;
 const HTTP_MUTATION = /^(?:POST|PUT|PATCH|DELETE)$/i;
 const METHOD_FLAG = /^(?:-X|--request|--method)(?:=(.*))?$/;
 const METHOD_ATTACHED = /^-X(\w+)$/;
@@ -148,6 +150,13 @@ function isRead(argv: string[]): boolean {
   switch (program) {
     case "sed":
       return !rest.some((token) => SED_IN_PLACE.test(unquote(token)));
+    case "sort": {
+      const end = rest.indexOf("--");
+      const options = end === -1 ? rest : rest.slice(0, end);
+      return !options.some((token) => SORT_OUTPUT.test(unquote(token)));
+    }
+    case "find":
+      return !rest.some((token) => FIND_ACTION.test(unquote(token)));
     case "git":
       return isGitRead(rest);
     case "gh": {

@@ -182,10 +182,11 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
   }
   if (FILE_WRITE.has(bare) || FILE_EDIT.has(bare)) {
     const path = text(input?.file_path) ?? text(input?.path) ?? text(input?.notebook_path);
-    if (!path) return [{ ...base, id: message.id, kind: "ai", tool: bare, words: "edit files", read: false, replay: "ai" }];
+    const changes = FILE_EDIT.has(bare) ? input : undefined;
+    if (!path) return [{ ...base, id: message.id, kind: "ai", tool: bare, words: "edit files", read: false, replay: "ai", ...(changes ? { args: changes } : {}) }];
     const content = typeof input?.content === "string" ? input.content : undefined;
     const exact = FILE_WRITE.has(bare) && content !== undefined && !clipped;
-    return [{ ...base, id: message.id, kind: exact ? "file" : "ai", tool: bare, words: baseName(path), read: false, replay: exact ? "exact" : "ai", args: exact ? { path, content } : { path } }];
+    return [{ ...base, id: message.id, kind: exact ? "file" : "ai", tool: bare, words: baseName(path), read: false, replay: exact ? "exact" : "ai", args: exact ? { path, content } : changes ?? { path } }];
   }
   const command = text(tool.summary) ?? text(input?.command) ?? (nameIsCommand(tool.name) ? tool.name : undefined);
   if (command && (bare === "Bash" || bare === "shell" || bare === "vm_exec" || /^(?:exec_command|run_shell_command|bash|terminal)$/i.test(bare) || nameIsCommand(tool.name) || text(input?.command))) {

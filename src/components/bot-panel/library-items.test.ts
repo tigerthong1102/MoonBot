@@ -43,6 +43,21 @@ describe("allLibraryItems", () => {
     const local = libraryItems(bot([live("m5", 5, "https://five.mausbot.page/")]));
     expect(allLibraryItems(bot([]), local, null)).toBe(local);
   });
+
+  it("keeps relative reports from separate conversations and deduplicates references to an absolute file", () => {
+    const open = bot([reply("local", 30, "[local report](./report.pdf)")]);
+    const remote: BotLibrary = { pages: [], apps: [], files: [
+      { threadId: "t2", messageId: "more-recent", at: 40, attachments: [], links: ["./report.pdf", "C:/shared/totals.csv"] },
+      { threadId: "t2", messageId: "duplicate", at: 20, attachments: [], links: ["./report.pdf"] },
+      { threadId: "t3", messageId: "archive", at: 10, attachments: [], links: ["./report.pdf", "file:///C:/shared/totals.csv"] },
+    ] };
+    expect(allLibraryItems(open, libraryItems(open), remote).shared.map((item) => [item.threadId, item.messageId, item.file.name])).toEqual([
+      ["t2", "more-recent", "report.pdf"],
+      ["t2", "more-recent", "totals.csv"],
+      ["t1", "local", "report.pdf"],
+      ["t3", "archive", "report.pdf"],
+    ]);
+  });
 });
 
 describe("threadLabel", () => {

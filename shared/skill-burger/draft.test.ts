@@ -190,6 +190,43 @@ describe("draftWorkflow", () => {
     expect(workflow.steps.map((step) => step.kind === "shell" ? step.run : step.kind)).toEqual(commands);
   });
 
+  it.each(["sort -o report.csv raw.csv", "sort -roreport.csv raw.csv", "sort --output=report.csv raw.csv", 'find . -name "*.tmp" -delete', "find . -fprint inventory.txt"])(
+    "keeps the file-changing command %s",
+    (command) => {
+      const { workflow } = draftWorkflow([ask("Update the archive"), tool("Bash", { command }), tool("Bash", { command: "cp archive.tar backup.tar" })])!;
+      expect(workflow.steps[0]).toMatchObject({ kind: "shell", run: command });
+    },
+  );
+
+  it.each(["sort raw.csv", "sort -- -o", 'find . -name "*.tmp"'])("leaves %s out of the saved workflow", (command) => {
+    expect(burgerLayers([ask("Look for the raw files"), tool("Bash", { command })])).toEqual([]);
+  });
+
+  it.each(["Edit", "MultiEdit"])("keeps the change requested by %s as context for an AI step", (name) => {
+    const replacement = { old_string: '"retries": 1', new_string: '"retries": 4' };
+    const { workflow } = draftWorkflow([
+      ask("Update the configuration and make a copy"),
+      tool(name, { file_path: "/work/config.json", ...(name === "Edit" ? replacement : { edits: [replacement] }) }),
+      tool("Bash", { command: "cp config.json backup.json" }),
+    ])!;
+    const [change] = workflow.steps;
+    expect(change).toMatchObject({ kind: "ai", deterministic: false, label: "Config.json" });
+    if (change?.kind !== "ai") throw new Error("Expected an AI step");
+    expect(change.prompt).toContain(JSON.stringify(replacement.old_string));
+    expect(change.prompt).toContain(JSON.stringify(replacement.new_string));
+  });
+
+  it("omits edit arguments containing a credential from the saved AI step", () => {
+    const secret = `sk-ant-${"a".repeat(40)}`;
+    const { workflow } = draftWorkflow([
+      ask("Update the configuration"),
+      tool("Edit", { file_path: "/work/config.json", old_string: "placeholder", new_string: secret }),
+      tool("Bash", { command: "cp config.json backup.json" }),
+    ])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining("used a secret") });
+    expect(JSON.stringify(workflow)).not.toContain(secret);
+  });
+
   it.each(["printf report >>report.txt", "printf report >| report.txt", "cat input.txt 2>errors.log", "printf report &>report.txt"])(
     "captures the shell write %s",
     (command) => {

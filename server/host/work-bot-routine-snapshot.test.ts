@@ -14,7 +14,13 @@ it("captures linked schedules and active runs without exposing their content", (
     expect(workBotRoutineSnapshot("target", links, [changed], [run]).fingerprint).not.toBe(current.fingerprint);
   }
   expect(workBotRoutineSnapshot("target", links, [routine], [{ ...run, status: "completed" }]).fingerprint).not.toBe(current.fingerprint);
-  expect(workBotRoutineSnapshot("target", links, [{ ...routine, prompt: "private changed without revision" }], [run]).fingerprint).toBe(current.fingerprint);
+  expect(workBotRoutineSnapshot("target", links, [routine], [{ ...run, prompt: "changed run" }]).fingerprint).not.toBe(current.fingerprint);
+  expect(workBotRoutineSnapshot("target", links, [routine], [{ ...run, retryAt: 55 }]).fingerprint).not.toBe(current.fingerprint);
+  expect(workBotRoutineSnapshot("target", links, [routine], [{ ...run, manual: true }]).fingerprint).not.toBe(current.fingerprint);
+  expect(workBotRoutineSnapshot("target", links, [routine], [{ ...run, sameConversation: true }]).fingerprint).not.toBe(current.fingerprint);
+  expect(workBotRoutineSnapshot("target", links, [routine], [{ ...run, deliveryId: "delivery" }]).fingerprint).not.toBe(current.fingerprint);
+  expect(workBotRoutineSnapshot("target", links, [{ ...routine, prompt: "private changed without revision" }], [run]).fingerprint).not.toBe(current.fingerprint);
+  expect(workBotRoutineSnapshot("target", links, [{ ...routine, schedule: { type: "daily", time: "10:00", weekdays: [1] } }], [run]).fingerprint).not.toBe(current.fingerprint);
   expect(workBotRoutineSnapshot("target", links, [routine], [{ ...run, seenAt: 12, output: "private output" }]).fingerprint).toBe(current.fingerprint);
   expect(workBotRoutineSnapshot("target", [...links, { botId: "second", threadId: "t2" }], [routine], [run]).fingerprint).not.toBe(current.fingerprint);
   expect(workBotRoutineSnapshot("target", [{ threadId: "unknown" }], [], [])).toMatchObject({ conflict: true, hasResolvedLinks: false });

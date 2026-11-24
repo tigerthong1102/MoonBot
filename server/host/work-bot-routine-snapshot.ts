@@ -7,15 +7,15 @@ type Related = { botId?: string; threadId: string };
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, canonical(child)]));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, child]) => [key, canonical(child)]));
   return value;
 }
 
 export function workBotRoutineSnapshot(botId: string, related: readonly Related[], routines: readonly Routine[], runs: readonly RoutineRun[]): { conflict: boolean; hasResolvedLinks: boolean; hasCompleteRecords: boolean; fingerprint: string } {
   const references = [...related].sort((a, b) => `${a.botId ?? ""}\0${a.threadId}`.localeCompare(`${b.botId ?? ""}\0${b.threadId}`));
   const matches = (entry: { botId: string; sourceThreadId?: string }) => Boolean(entry && typeof entry === "object") && entry.botId !== botId && references.some(link => entry.botId === link.botId || entry.sourceThreadId === link.threadId);
-  const relatedRoutines = routines.filter(matches).map(({ id, botId, sourceThreadId, updatedAt, enabled, nextRunAt, target }) => ({ id, botId, sourceThreadId, updatedAt, enabled, nextRunAt, target })).sort((a, b) => String(a.id ?? "").localeCompare(String(b.id ?? "")));
-  const relatedRuns = runs.filter(run => matches(run) && ["queued", "running", "waiting"].includes(run.status)).map(({ id, routineId, botId, sourceThreadId, status, scheduledFor }) => ({ id, routineId, botId, sourceThreadId, status, scheduledFor })).sort((a, b) => String(a.id ?? "").localeCompare(String(b.id ?? "")));
+  const relatedRoutines = routines.filter(matches).map(({ id, name, prompt, botId, sourceThreadId, resultsThreadId, updatedAt, enabled, nextRunAt, target, groupId, runOn, schedule, durationMinutes, timeoutMinutes, attachments, continuity, sameConversation, modelSelection, overlap, runOnStartup, checks, access, deliver, heldFor, wakeAt, installedPackage }) => ({ id, name, prompt, botId, sourceThreadId, resultsThreadId, updatedAt, enabled, nextRunAt, target, groupId, runOn, schedule, durationMinutes, timeoutMinutes, attachments, continuity, sameConversation, modelSelection, overlap, runOnStartup, checks, access, deliver, heldFor, wakeAt, installedPackage })).sort((a, b) => String(a.id ?? "").localeCompare(String(b.id ?? "")));
+  const relatedRuns = runs.filter(run => matches(run) && ["queued", "running", "waiting"].includes(run.status)).map(({ id, routineId, routineName, prompt, durationMinutes, timeoutMinutes, attachments, target, groupId, botId, runOn, sourceThreadId, resultsThreadId, threadId, status, scheduledFor, retryAt, retried, triggerSource, eventSource, access, deliver, manual, byPerson, sameConversation, checkKey, webhookId, deliveryId }) => ({ id, routineId, routineName, prompt, durationMinutes, timeoutMinutes, attachments, target, groupId, botId, runOn, sourceThreadId, resultsThreadId, threadId, status, scheduledFor, retryAt, retried, triggerSource, eventSource, access, deliver, manual, byPerson, sameConversation, checkKey, webhookId, deliveryId })).sort((a, b) => String(a.id ?? "").localeCompare(String(b.id ?? "")));
   const hasResolvedLinks = references.every(link => Boolean(link.botId));
   const routineIds = new Set(routines.map(routine => routine?.id));
   const runIds = new Set(runs.map(run => run?.id));

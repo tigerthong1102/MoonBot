@@ -754,17 +754,17 @@ const mcpToolCall = (serverName: string, name: string, input: Record<string, unk
   return { ok: !reply.error && !reply.result?.isError, content: reply.result?.content ?? reply.error?.message ?? "" };
 };
 
-function runWindowsNavigationFixture(calls: ScriptedToolCall[]): Array<{ ok: true; input: Record<string, unknown>; content: unknown }> {
+function runNavigationFixture(calls: ScriptedToolCall[], linux = false): Array<{ ok: true; input: Record<string, unknown>; content: unknown }> {
   launchFiles ??= readLaunchFiles();
   const server = (launchFiles.mcpConfig as { mcpServers?: Record<string, unknown> } | null)?.mcpServers?.computer;
   const fail = (issue: string): never => {
     // Keep the bounded, non-sensitive reason at the end of stderr, without a stack that hides it.
-    process.stderr.write("Windows navigation fixture failed: " + issue + "\n");
+    process.stderr.write("Navigation fixture failed: " + issue + "\n");
     process.exit(1);
   };
   if (!server) return fail("config:missing-computer");
-  const worker = spawnSync(process.execPath, [fileURLToPath(new URL("../../scripts/testing/cua-win-chat-mcp.mjs", import.meta.url))], {
-    input: JSON.stringify({ server, calls }), encoding: "utf8", timeout: 15_000, windowsHide: true,
+  const worker = spawnSync(process.execPath, [fileURLToPath(new URL(linux ? "../../scripts/testing/cua-linux-chat-mcp.mjs" : "../../scripts/testing/cua-win-chat-mcp.mjs", import.meta.url))], {
+    input: JSON.stringify({ server, calls }), encoding: "utf8", timeout: linux ? 30_000 : 15_000, windowsHide: true,
   });
   if (worker.error) return fail((worker.error as NodeJS.ErrnoException).code === "ETIMEDOUT" ? "worker:timeout" : "worker:spawn-error");
   if (worker.status !== 0) return fail("worker:nonzero-exit");
@@ -1260,7 +1260,8 @@ const playTurn = (prompt: JsonValue, late = false) => {
   if (scriptedToolCalls) {
     const failureContext: string[] = [];
     const windowsFixture = process.env.FAKE_CLAUDE_WINDOWS_NAVIGATION_FIXTURE === "1" && scriptedToolCalls.length > 0;
-    const fixtureReplies = windowsFixture ? runWindowsNavigationFixture(scriptedToolCalls) : undefined;
+    const linuxFixture = process.env.FAKE_CLAUDE_LINUX_NAVIGATION_FIXTURE === "1" && scriptedToolCalls.length > 0;
+    const fixtureReplies = windowsFixture || linuxFixture ? runNavigationFixture(scriptedToolCalls, linuxFixture) : undefined;
     for (const [index, call] of scriptedToolCalls.entries()) {
       const id = call.id ?? `tu-${process.pid}-${++toolUseCount}`;
       const fixtureReply = fixtureReplies?.[index];
@@ -1381,3 +1382,4 @@ process.stdin.on("end", () => {
   stdinEnded = true;
   finishIfDone();
 });
+

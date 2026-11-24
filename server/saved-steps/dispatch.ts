@@ -76,7 +76,7 @@ export class SavedStepsDispatch {
   sendTurn(engine: ProviderInstance, request: ReplayRequest | null, input: SendTurnInput, start: Start): Promise<TurnStartResult> {
     this.runs.delete(input.threadId);
     this.replayable.delete(input.threadId);
-    if (request && this.deps.platform === "win32") {
+    if (request && (this.deps.platform === "win32" || this.deps.platform === "linux")) {
       const key = requestKey(request.message.text ?? "");
       if (/^(?:navigate using button |điều hướng bằng nút )/u.test(key) && this.deps.recipes.windowsPending(request.botId, key)) {
         this.deps.taint(input.threadId);
@@ -177,16 +177,17 @@ export class SavedStepsDispatch {
   }
 
   private permitsRecipe(recipe: Recipe, toolScope: unknown): boolean {
-    const windows = this.deps.platform === "win32";
-    const supported = recipe.steps.every((step) => windows
-      ? step.element?.uiaWindowChild === true && windowButtonClick(step.tool, step.args)
-      : !step.element?.uiaWindowChild);
-    return supported && (!windows || expectedWindowsDestination(recipe) !== undefined) && toolsAllowed(recipe, toolScope);
+    const guarded = this.deps.platform === "win32" || this.deps.platform === "linux";
+    const supported = recipe.steps.every((step) => guarded
+      ? (this.deps.platform === "win32" ? step.element?.uiaWindowChild === true : step.element?.linuxWindowChild === true)
+        && windowButtonClick(step.tool, step.args)
+      : !step.element?.uiaWindowChild && !step.element?.linuxWindowChild);
+    return supported && (!guarded || expectedWindowsDestination(recipe) !== undefined) && toolsAllowed(recipe, toolScope);
   }
 
   private replayHolds(request: ReplayRequest, input: SendTurnInput): boolean {
     return this.deps.enabled() && input.approvalMode === "full" && input.integrations?.localComputer?.scope === "local-computer"
-      && (this.deps.platform !== "win32" || input.integrations.localComputer.platform === "win32")
+      && ((this.deps.platform !== "win32" && this.deps.platform !== "linux") || input.integrations.localComputer.platform === this.deps.platform)
       && request.placePicked && personTextRequest(request.message) && request.turnText === request.message.text;
   }
 
@@ -194,7 +195,7 @@ export class SavedStepsDispatch {
     if (!this.replayHolds(request, input)) return undefined;
     const text = request.turnText;
     const recipe = this.deps.recipes.find(request.botId, requestKey(text));
-    return recipe && (this.deps.platform !== "win32" || recipe.request === text.trim())
+    return recipe && ((this.deps.platform !== "win32" && this.deps.platform !== "linux") || recipe.request === text.trim())
       && recipeFitsRequest(recipe, text) && this.permitsRecipe(recipe, input.toolScope) ? recipe : undefined;
   }
 
@@ -226,10 +227,10 @@ export class SavedStepsDispatch {
     const outcome = await this.runSteps(run, computer, approval);
     approval.close();
     if (outcome.kind === "failed") {
-      if (this.deps.platform === "win32") return this.end(run, { kind: "error", message: outcome.error });
+      if (this.deps.platform === "win32" || this.deps.platform === "linux") return this.end(run, { kind: "error", message: outcome.error });
       return this.fallBack(run, outcome, input, start);
     }
-    if (outcome.kind === "error" && this.deps.platform !== "win32") this.forget(run);
+    if (outcome.kind === "error" && this.deps.platform !== "win32" && this.deps.platform !== "linux") this.forget(run);
     this.end(run, outcome);
   }
 
@@ -244,7 +245,7 @@ export class SavedStepsDispatch {
       const [first] = run.recipe.steps;
       return { kind: "failed", done: 0, total: run.recipe.steps.length, tool: first!.tool, label: stepLabel(first!), error: errorText(error) };
     }
-    const windowsAttempt = this.deps.platform !== "win32" ? undefined : {
+    const windowsAttempt = this.deps.platform !== "win32" && this.deps.platform !== "linux" ? undefined : {
       begin: () => {
         if (!this.deps.recipes.beginWindowsAttempt(run.botId, run.recipe.key, run.recipe.id)) return false;
         this.activeWindows.add(run);
@@ -343,3 +344,4 @@ function toolsAllowed(recipe: Recipe, toolScope: unknown): boolean {
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+

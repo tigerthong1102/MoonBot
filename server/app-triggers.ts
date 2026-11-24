@@ -19,6 +19,7 @@ import {
 } from "../shared/app-triggers.ts";
 import { appLabel } from "./app-event-catalog.ts";
 import { eventBlock, eventPreview, eventPrompt, matchesFilter, mergeEventBlock } from "./app-events.ts";
+import { appTestEvent } from "./app-trigger-test-coordinator.ts";
 import { BrokerError, type AppTriggerBroker, type BrokerEvent, type BrokerInventory, type BrokerTriggerType } from "./app-trigger-broker.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { instructionsUpdateRefusal } from "./automation-instructions.ts";
@@ -52,6 +53,8 @@ type Frame = { kind: "app-trigger"; botId: string; trigger: AppTrigger } | { kin
   | { kind: "app-trigger.attempt"; botId: string; attempt: AppEventAttempt } | { kind: "app-trigger.service"; service: AppTriggerService };
 
 export interface AppTriggerManagerOptions {
+  routeTestEvent?: (event: NonNullable<ReturnType<typeof appTestEvent>>) => { state: "handled" | "rejected" | "cancelled" | "unknown" | "unrecognized" };
+  quarantineTestEvent?: (identity: { eventId: string; remoteId: string; seq: number }) => void;
   file?: string;
   now?: () => number;
   broker: AppTriggerBroker;
@@ -479,6 +482,23 @@ export class AppTriggerManager {
     let next = this.cursor;
     try {
       for (const event of events) {
+        if (event.kind === "test" && this.options.routeTestEvent) {
+          const parsed = appTestEvent(event.kind, event.triggerId ?? "", event.id, event.event.data);
+          try {
+            const data = event.event.data;
+            if (!parsed && data && typeof data === "object" && "marker" in data) throw new Error();
+            const result = parsed ? this.options.routeTestEvent(parsed) : { state: "unrecognized" as const };
+            if (result.state === "unrecognized") {
+              if (parsed) throw new Error();
+              if (!this.options.quarantineTestEvent || !event.triggerId) throw new Error();
+              this.options.quarantineTestEvent({ eventId: event.id, remoteId: event.triggerId, seq: event.seq });
+            } else if (result.state !== "handled" && result.state !== "rejected" && result.state !== "cancelled") throw new Error();
+          } catch {
+            throw new Error("Could not safely process app test event");
+          }
+          next = event.seq;
+          continue;
+        }
         try {
           this.handle(event);
         } catch (error) {

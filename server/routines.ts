@@ -135,6 +135,7 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   eventSource?: "app" | "wait"; sameConversation?: true; byPerson?: true;
   webhookId?: string;
   deliveryId?: string;
+  receiptScope?: "app-test";
   sourceThreadId?: string;
   resultsThreadId?: string;
   threadId?: string;
@@ -751,12 +752,12 @@ export class RoutineManager {
     return cloneRun(run);
   }
 
-  webhookRunReceipt(webhookId: string, deliveryId: string): { id: string } | null {
+  webhookRunReceipt(webhookId: string, deliveryId: string, scope?: "app-test"): { id: string } | null {
     const receipt = this.webhookRunReceipts.find((candidate) =>
-      candidate.webhookId === webhookId && candidate.deliveryId === deliveryId &&
+      candidate.webhookId === webhookId && candidate.deliveryId === deliveryId && candidate.scope === scope &&
       candidate.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS);
     if (receipt) return { id: receipt.runId };
-    const active = this.runs.find((run) => run.webhookId === webhookId && run.deliveryId === deliveryId &&
+    const active = this.runs.find((run) => run.webhookId === webhookId && run.deliveryId === deliveryId && run.receiptScope === scope &&
       ["queued", "running", "waiting"].includes(run.status));
     return active ? { id: active.id } : null;
   }
@@ -764,11 +765,12 @@ export class RoutineManager {
   enqueueWebhook(input: {
     webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number;
     eventSource?: "app" | "wait"; sameConversation?: boolean; byPerson?: boolean;
+    receiptScope?: "app-test";
     /** Where the run reports, instead of the event's own results chat. */
     resultsThreadId?: string;
   }): { id: string } {
     this.assertWritable();
-    const existing = this.webhookRunReceipt(input.webhookId, input.deliveryId);
+    const existing = this.webhookRunReceipt(input.webhookId, input.deliveryId, input.receiptScope);
     if (existing) return existing;
     if (this.options.botState(input.botId) === "missing") {
       throw Object.assign(new Error("The assigned MAUS no longer exists"), { status: 410 });
@@ -776,33 +778,33 @@ export class RoutineManager {
     const run: RoutineRun = {
       id: randomUUID(), routineId: input.webhookId, routineName: input.webhookName, prompt: input.prompt, target: "bot",
       botId: input.botId, runOn: input.runOn, scheduledFor: input.receivedAt, status: "queued", manual: false,
-      triggerSource: "webhook", webhookId: input.webhookId, deliveryId: input.deliveryId, attachments: [], createdAt: this.now(),
+      triggerSource: "webhook", webhookId: input.webhookId, deliveryId: input.deliveryId, ...(input.receiptScope ? { receiptScope: input.receiptScope } : {}), attachments: [], createdAt: this.now(),
       resultsThreadId: input.resultsThreadId ?? this.options.eventResultsThread?.(input), ...(input.eventSource ? { eventSource: input.eventSource } : {}), ...(input.sameConversation ? { sameConversation: true } : {}), ...(input.byPerson ? { byPerson: true } : {}),
     };
-    this.commitEvent(run, input.deliveryId, () => { this.runs.push(run); });
+    this.commitEvent(run, input.deliveryId, () => { this.runs.push(run); }, undefined, input.receiptScope);
     return cloneRun(run);
   }
 
   /** Adds an outside event to its trigger's run that has not started yet, so a burst becomes one run. Null when there
    *  is no such run with the same conversation setting, or `merge` declines (the run is full). */
-  mergeIntoQueuedRun(webhookId: string, deliveryId: string, sameConversation: boolean, merge: (prompt: string) => string | null): { id: string } | null {
+  mergeIntoQueuedRun(webhookId: string, deliveryId: string, sameConversation: boolean, merge: (prompt: string) => string | null, scope?: "app-test"): { id: string } | null {
     this.assertWritable();
-    const existing = this.webhookRunReceipt(webhookId, deliveryId);
+    const existing = this.webhookRunReceipt(webhookId, deliveryId, scope);
     if (existing) return existing;
     const run = this.runs.findLast((candidate) => candidate.webhookId === webhookId && candidate.status === "queued" && !candidate.threadId && (candidate.sameConversation === true) === sameConversation);
     const merged = run?.prompt === undefined ? null : merge(run.prompt);
     if (!run || merged === null) return null;
     const before = run.prompt;
-    this.commitEvent(run, deliveryId, () => { run.prompt = merged; }, () => { run.prompt = before; });
+    this.commitEvent(run, deliveryId, () => { run.prompt = merged; }, () => { run.prompt = before; }, scope);
     return { id: run.id };
   }
 
-  private commitEvent(run: RoutineRun, deliveryId: string, apply: () => void, revert?: () => void): void {
+  private commitEvent(run: RoutineRun, deliveryId: string, apply: () => void, revert?: () => void, scope?: "app-test"): void {
     const previousReceipts = this.webhookRunReceipts;
     const receipts = previousReceipts.filter((receipt) => receipt.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS);
     // Never evict a promised retry identity to admit fresh work.
     if (receipts.length >= MAX_EVENT_RECEIPTS) throw Object.assign(new Error("Webhook retry history is full; try again later"), { status: 429 });
-    receipts.push({ webhookId: run.webhookId!, deliveryId, runId: run.id, acceptedAt: this.now() });
+    receipts.push({ webhookId: run.webhookId!, deliveryId, runId: run.id, acceptedAt: this.now(), ...(scope ? { scope } : {}) });
     const previousRuns = this.runs.slice();
     apply();
     this.webhookRunReceipts = receipts;

@@ -118,6 +118,40 @@ afterEach(() => { for (const root of scratch.splice(0)) rmSync(root, { recursive
 describe("encrypted full workspace backups", () => {
   it("leaves waits out of backups and Cloud sends", () => expect(omittedFromWorkspaceBackup("waits.json")).toBe(true));
 
+  it("does not carry private test-request journals into a restored workspace", async () => {
+    const source = directory(), name = "app-trigger-test-requests.json", quarantine = "app-trigger-test-quarantine.json", temporary = `${name}.123.12345678-1234-4234-8234-123456789abc.tmp`;
+    writeFileSync(join(source, name), "synthetic source journal");
+    writeFileSync(join(source, quarantine), "synthetic source quarantine");
+    writeFileSync(join(source, temporary), "synthetic incomplete write");
+    writeFileSync(join(source, "notes.md"), "kept");
+    writeFileSync(join(source, "routines.json"), JSON.stringify({ routines: [], runs: [{ id: "test-run", receiptScope: "app-test", deliveryId: "synthetic-test-id" }, { id: "ordinary-run", deliveryId: "ordinary-id" }], webhookRunReceipts: [{ scope: "app-test", deliveryId: "synthetic-test-id" }, { deliveryId: "ordinary-id" }] }));
+    expect(omittedFromWorkspaceBackup(name)).toBe(true);
+    expect(omittedFromWorkspaceBackup(quarantine)).toBe(true);
+    expect(omittedFromWorkspaceBackup(temporary)).toBe(true);
+    const exported = await createWorkspaceBackup(source, { password: PASSWORD });
+    const target = directory();
+    writeFileSync(join(target, name), "synthetic previous journal");
+    writeFileSync(join(target, quarantine), "synthetic previous quarantine");
+    writeFileSync(join(target, temporary), "synthetic previous incomplete write");
+    const staged = await stageWorkspaceBackup(target, exported.path, { password: PASSWORD });
+    const manifest = readJson(join(target, ".backups", staged.id, "staged", "manifest.json"));
+    expect(manifest.entries.map((entry: { path: string }) => entry.path)).not.toContain(name);
+    expect(manifest.entries.map((entry: { path: string }) => entry.path)).not.toContain(quarantine);
+    expect(manifest.entries.map((entry: { path: string }) => entry.path)).not.toContain(temporary);
+    commitPendingWorkspaceRestore(target, staged.id);
+    const result = applyPendingWorkspaceRestore(target);
+    expect(result).toMatchObject({ restored: true });
+    expect(existsSync(join(target, name))).toBe(false);
+    expect(existsSync(join(target, quarantine))).toBe(false);
+    expect(readFileSync(join(result.safetyCopyPath!, "data", quarantine), "utf8")).toBe("synthetic previous quarantine");
+    expect(existsSync(join(target, temporary))).toBe(false);
+    expect(readFileSync(join(result.safetyCopyPath!, "data", name), "utf8")).toBe("synthetic previous journal");
+    expect(readFileSync(join(target, "notes.md"), "utf8")).toBe("kept");
+    const routines = readJson(join(target, "routines.json"));
+    expect(routines.webhookRunReceipts).toEqual([{ deliveryId: "ordinary-id" }]);
+    expect(routines.runs).toEqual([{ id: "test-run" }, { id: "ordinary-run", deliveryId: "ordinary-id" }]);
+  });
+
   it("carries no waits, and a restore ends the waits already here, keeping them in the safety copy", async () => {
     const source = directory();
     writeFileSync(join(source, "waits.json"), JSON.stringify({ version: 1, waits: [{ id: "from-the-backup" }] }));

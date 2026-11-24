@@ -86,8 +86,12 @@ export function routinesWithoutTeamPrivate(value: unknown, bots: unknown, privac
   const names = (row: Row, keys: readonly string[]) => keys.some((key) => typeof row[key] === "string" && privacy.threads.has(row[key] as string));
   const routines = rows(value.routines).filter((routine) => !privacy.bots.has(String(routine.botId)) && routineHome(routine, { privateTo, task: (_bot, threadId) => tasks.get(threadId) }) === null);
   const kept = new Set(routines.map((routine) => routine.id));
-  const runs = rows(value.runs).filter((run) => kept.has(run.routineId) && !names(run, ["threadId", "resultsThreadId", "sourceThreadId", "executionThreadId"]));
-  return { ...value, ...(Array.isArray(value.routines) ? { routines } : {}), ...(Array.isArray(value.runs) ? { runs } : {}) };
+  const runs = rows(value.runs).filter((run) => kept.has(run.routineId) && !names(run, ["threadId", "resultsThreadId", "sourceThreadId", "executionThreadId"])).map(run => {
+    if (run.receiptScope !== "app-test") return run;
+    const copy = { ...run }; delete copy.receiptScope; delete copy.deliveryId; return copy;
+  });
+  const webhookRunReceipts = rows(value.webhookRunReceipts).filter(receipt => receipt.scope !== "app-test");
+  return { ...value, ...(Array.isArray(value.routines) ? { routines } : {}), ...(Array.isArray(value.runs) ? { runs } : {}), ...(Array.isArray(value.webhookRunReceipts) ? { webhookRunReceipts } : {}) };
 }
 
 function chunks(ids: readonly string[]): string[][] {

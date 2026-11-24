@@ -82,6 +82,7 @@ export interface AppTriggerBroker {
   inventory(): Promise<BrokerInventory>;
   poll(input: { after: number; waitS: number; poller: string; signal?: AbortSignal }): Promise<{ events: BrokerEvent[]; cursor: number }>;
   testEvent(triggerId: string, data: Record<string, unknown>): Promise<void>;
+  testEventReceipt?(triggerId: string, data: Record<string, unknown>): Promise<{ id: string; seq: number }>;
 }
 
 async function errorText(response: Response): Promise<string> {
@@ -95,7 +96,7 @@ async function errorText(response: Response): Promise<string> {
 }
 
 /** `access` is read on every call: the desktop hands the token over after the server starts, and a Cloud registers late. */
-export function brokerClient(access: () => BrokerAccess | null, fetchImpl: typeof fetch = (...args) => fetch(...args)): AppTriggerBroker {
+export function brokerClient(access: () => BrokerAccess | null, fetchImpl: typeof fetch = (...args) => fetch(...args), options: { strictEvents?: boolean } = {}): AppTriggerBroker {
   async function call(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
     const current = access();
     if (!current) throw new BrokerError("The connected-apps service is not set up on this computer", 0);
@@ -151,7 +152,30 @@ export function brokerClient(access: () => BrokerAccess | null, fetchImpl: typeo
     async poll({ after, waitS, poller, signal }) {
       const query = new URLSearchParams({ after: String(after), wait: String(waitS), limit: "50" });
       const response = await call(`/v1/events?${query}`, { headers: { "x-omb-poller": poller }, signal, timeoutMs: (waitS + 15) * 1000 });
-      const body = pollSchema.parse(await json(response));
+      let rawBody: unknown;
+      try { rawBody = await json(response); }
+      catch (error) {
+        if (options.strictEvents) throw new BrokerError("The connected-apps service returned an invalid event batch", 502);
+        throw error;
+      }
+      const checked = options.strictEvents ? pollSchema.safeParse(rawBody) : undefined;
+      if (checked && !checked.success) throw new BrokerError("The connected-apps service returned an invalid event batch", 502);
+      const body = checked?.success ? checked.data : pollSchema.parse(rawBody);
+      if (options.strictEvents) {
+        const events: BrokerEvent[] = [];
+        let last = after;
+        for (const raw of body.events) {
+          const parsed = brokerEventSchema.safeParse(raw);
+          if (!parsed.success || !Number.isSafeInteger(parsed.data.seq) || parsed.data.seq <= last || !parsed.data.id || parsed.data.id.length > 200
+            || !Number.isSafeInteger(parsed.data.receivedAt) || parsed.data.receivedAt < 0 || parsed.data.receivedAt > 8_640_000_000_000_000
+            || (parsed.data.kind !== "account_expired" && (!parsed.data.triggerId || parsed.data.triggerId.length > 200))
+            || (parsed.data.kind === "account_expired" && (typeof parsed.data.event.data?.connected_account_id !== "string" || !parsed.data.event.data.connected_account_id))) throw new BrokerError("The connected-apps service returned an invalid event batch", 502);
+          events.push(parsed.data);
+          last = parsed.data.seq;
+        }
+        if (!Number.isSafeInteger(body.cursor) || body.cursor !== last) throw new BrokerError("The connected-apps service returned an invalid event batch", 502);
+        return { events, cursor: last };
+      }
       // One malformed row must not stall the queue: it is skipped, and the cursor still moves past it.
       const events = body.events.flatMap((event) => {
         const parsed = brokerEventSchema.safeParse(event);
@@ -161,6 +185,20 @@ export function brokerClient(access: () => BrokerAccess | null, fetchImpl: typeo
     },
     async testEvent(triggerId, data) {
       await (await call("/v1/events/test", { method: "POST", body: JSON.stringify({ triggerId, data }) })).body?.cancel();
+    },
+    async testEventReceipt(triggerId, data) {
+      let response: Response;
+      try { response = await call("/v1/events/test", { method: "POST", body: JSON.stringify({ triggerId, data }) }); }
+      catch (error) {
+        if (error instanceof BrokerError) throw new BrokerError("The connected-apps service did not confirm the test event", error.status, error.retryAfterS);
+        throw new BrokerError("The connected-apps service did not confirm the test event", 0);
+      }
+      try {
+        const receipt = z.object({ queued: z.literal(true), id: z.string().regex(/^test_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/), seq: z.number().int().positive().safe() }).parse(await json(response));
+        return { id: receipt.id, seq: receipt.seq };
+      } catch {
+        throw new BrokerError("The connected-apps service did not confirm the test event", 502);
+      }
     },
   };
 }

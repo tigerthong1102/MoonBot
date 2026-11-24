@@ -133,6 +133,15 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     expect(routinesWithoutTeamPrivate(routines, bots, privacy)).toEqual({ routines: [routines.routines[2]], runs: [routines.runs[2]], ownerNotices: [] });
   });
 
+  it("omits test-event receipt identities from a team-private export", () => {
+    const privacy = { threads: new Set<string>(), bots: new Set<string>(), attachments: new Set<string>() };
+    const value = { routines: [{ id: "routine", botId: "bot", name: "Fixture" }], runs: [{ id: "test-run", routineId: "routine", receiptScope: "app-test", deliveryId: "test-id" }, { id: "ordinary", routineId: "routine", deliveryId: "ordinary-id" }], webhookRunReceipts: [{ scope: "app-test", deliveryId: "test-id" }, { deliveryId: "ordinary-id" }] };
+    const result = routinesWithoutTeamPrivate(value, [], privacy) as typeof value;
+    expect(result.webhookRunReceipts).toEqual([{ deliveryId: "ordinary-id" }]);
+    expect(result.runs).toEqual([{ id: "test-run", routineId: "routine" }, { id: "ordinary", routineId: "routine", deliveryId: "ordinary-id" }]);
+    expect(value.runs[0]).toMatchObject({ receiptScope: "app-test", deliveryId: "test-id" });
+  });
+
   it("strips the private conversations' rows from the snapshot databases and rebuilds them, so no freed page keeps their words", () => {
     const root = directory();
     teamData(root);

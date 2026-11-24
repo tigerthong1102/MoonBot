@@ -30,6 +30,9 @@ const HEADER_BYTES = MAGIC.length + 16 + 12;
 const TAG_BYTES = 16;
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const WAITS_FILE = "waits.json";
+const APP_TEST_JOURNAL = "app-trigger-test-requests.json";
+const APP_TEST_QUARANTINE = "app-trigger-test-quarantine.json";
+const appTestJournal = (name: string) => name === APP_TEST_JOURNAL || name === APP_TEST_QUARANTINE || /^app-trigger-test-(?:requests|quarantine)\.json\.\d+\.[0-9a-f-]+\.tmp$/.test(name);
 const EXCLUDED = new Set([
   ".backups", "tools", "browser", "agent-browser-profiles", "cache", ".cache", "tmp", ".tmp", "dist-native", "tunnel-runtime", "evidence",
   ".openmausbot-server-child", "environment-id", "sessions.json", "tunnel-account.json",
@@ -95,7 +98,7 @@ export interface WorkspaceRestoreResult {
 export type LastWorkspaceRestore = WorkspaceRestoreResult & { restored: true; id: string; pathsRewritten?: true };
 
 function excluded(name: string): boolean {
-  return EXCLUDED.has(name) || excludedWorkspaceAuthPath(name) || name.startsWith("openmausbot-server.lease.") || name.startsWith("box-create-requests.lock.") || /^perm-[A-Za-z0-9_-]+\.sock$/.test(name);
+  return EXCLUDED.has(name) || appTestJournal(name.toLowerCase()) || excludedWorkspaceAuthPath(name) || name.startsWith("openmausbot-server.lease.") || name.startsWith("box-create-requests.lock.") || /^perm-[A-Za-z0-9_-]+\.sock$/.test(name);
 }
 function forbiddenArchivePath(path: string): boolean {
   const folded = path.toLowerCase();
@@ -105,7 +108,7 @@ function forbiddenArchivePath(path: string): boolean {
 function preserved(name: string): boolean {
   // An existing WAL/SHM belongs to the old database, and existing waits to the old chats: neither may accompany restored ones.
   const folded = name.toLowerCase();
-  return excluded(folded) && !LIVE_DATABASE_SIDECARS.has(folded) && folded !== WAITS_FILE;
+  return excluded(folded) && !LIVE_DATABASE_SIDECARS.has(folded) && folded !== WAITS_FILE && !appTestJournal(folded);
 }
 const SNAPSHOT_DATABASES: Record<string, string> = { "messages.db": "messages-snapshot.db", "runtime.db": "runtime-snapshot.db" };
 const LIVE_DATABASE_SIDECARS = new Set(Object.keys(SNAPSHOT_DATABASES).flatMap((name) => [`${name}-wal`, `${name}-shm`]));
@@ -764,6 +767,7 @@ function prepareRestore(dataDir: string, id: string, manifest: Manifest): string
   }
   changeJson("routines.json", (value) => {
     if (!record(value)) throw new Error("Invalid routine definitions in workspace backup.");
+    if (Array.isArray(value.webhookRunReceipts)) value.webhookRunReceipts = value.webhookRunReceipts.filter(receipt => !record(receipt) || receipt.scope !== "app-test");
     if (Array.isArray(value.routines)) for (const routine of value.routines) if (record(routine)) {
       routine.enabled = false;
       // A restore is a change to the routine: nothing may read its old stamp as the moment something else switched it off.
@@ -771,6 +775,7 @@ function prepareRestore(dataDir: string, id: string, manifest: Manifest): string
       if (typeof routine.prompt === "string") routine.prompt = paths.text(routine.prompt);
     }
     if (Array.isArray(value.runs)) for (const run of value.runs) {
+      if (record(run) && run.receiptScope === "app-test") { delete run.receiptScope; delete run.deliveryId; }
       if (record(run) && ["queued", "running", "waiting"].includes(String(run.status))) {
         run.status = "failed";
         run.error = "This queued or active run was not resumed after workspace restore.";

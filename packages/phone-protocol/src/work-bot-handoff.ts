@@ -15,6 +15,7 @@ export interface WorkBotMessageFields {
     targetBotId?: string;
     targetThreadId?: string;
     recoveryBlocked?: true;
+    stopPending?: { sendId?: string };
   };
   workBotCopy?: { sourceThreadId: string; sourceMessageId: string; requestMessageId: string; status?: "cancelled" | "unsettled" | "settled" | "unknown" };
 }

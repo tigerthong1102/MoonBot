@@ -42,6 +42,20 @@ describe("a typed stop", () => {
     expect(w.rows).toEqual([expect.objectContaining({ role: "user", text: "alles stoppen" })]);
   });
 
+  it("stops the captured handoff before recording the stop in the source conversation", async () => {
+    const w = world();
+    const stopHandoff = async () => { expect(w.rows).toEqual([]); w.stopped.push("target"); };
+    expect(await w.send("stop", { busy: true, stopHandoff })).toMatchObject({ ok: true });
+    expect(w.stopped).toEqual(["target"]);
+    expect(w.rows).toEqual([expect.objectContaining({ role: "user", text: "stop" })]);
+  });
+
+  it("does not record a stop when the captured handoff cannot be stopped", async () => {
+    const w = world();
+    await expect(w.send("stop", { busy: true, stopHandoff: async () => { throw new Error("handoff changed"); } })).rejects.toThrow("handoff changed");
+    expect(w.rows).toEqual([]);
+  });
+
   it("stops teammates working for this thread, unless the bot is waiting on the person's answer, when it may be that answer", async () => {
     const working = world({ working: ["t"] });
     expect(await working.send("stop")).toMatchObject({ ok: true });

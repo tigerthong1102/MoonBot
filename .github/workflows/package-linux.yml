@@ -67,9 +67,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - name: Install package validation and native smoke tools
-        run: >-
-          sudo apt-get update && sudo apt-get install -y
-          at-spi2-core dbus-x11 desktop-file-utils libxi6 libxkbcommon0 openbox squashfs-tools x11-utils xdotool xvfb
+        run: |
+          printf '%s\n' https://mirrors.edge.kernel.org/ubuntu https://mirror.math.princeton.edu/pub/ubuntu https://archive.ubuntu.com/ubuntu |
+            sudo tee /etc/apt/startupbot-ubuntu-mirrors.txt >/dev/null
+          sudo sed -Ei 's#https?://([a-z0-9.-]+\.)?ubuntu\.com/ubuntu/?#mirror+file:/etc/apt/startupbot-ubuntu-mirrors.txt#g' /etc/apt/sources.list.d/ubuntu.sources
+          sudo apt-get -o Acquire::Retries=2 update
+          sudo apt-get -o Acquire::Retries=2 install -y at-spi2-core dbus-x11 desktop-file-utils libxi6 libxkbcommon0 openbox squashfs-tools x11-utils xdotool xvfb
       - run: pnpm install --frozen-lockfile
       - name: Clean generated output
         run: pnpm clean
@@ -106,9 +109,6 @@ jobs:
           test "${#deb[@]}" -eq 1
           pnpm smoke:deb-command "${deb[0]}"
       - name: Prove an AppImage update lands on the launched path
-        # Installs the current published release over a copy named after a
-        # version, which is the shape that used to orphan the launcher. Runs
-        # against the real feed, so it also covers the differential download.
         run: pnpm smoke:linux-update
       - name: Configure Chromium sandbox for the unpacked app
         run: |
@@ -124,7 +124,7 @@ jobs:
         run: pnpm smoke:linux-package
       - name: Remove the installed upgrade fixture
         if: always()
-        run: sudo dpkg --purge openmausbot || true
+        run: sudo dpkg --purge startupbot || true
       - name: Prepare release assets
         id: release
         shell: bash
@@ -135,17 +135,8 @@ jobs:
           deb="release/StartupBot-${version}-amd64.deb"
           test -f "$appimage"
           test -f "$deb"
-          cp "$appimage" release/StartupBot.AppImage
-          cp "$deb" release/StartupBot-amd64.deb
-          chmod 0755 release/StartupBot.AppImage
-          (
-            cd release
-            sha256sum \
-              "$(basename "$appimage")" \
-              "$(basename "$deb")" \
-              StartupBot.AppImage \
-              StartupBot-amd64.deb > SHA256SUMS-ubuntu-x64.txt
-          )
+          (cd release && sha256sum "${appimage#release/}" "${deb#release/}" > SHA256SUMS-ubuntu-x64.txt)
+          cp docs/STARTUPBOT_LINUX_VI.md release/
           echo "artifact-name=StartupBot-ubuntu-${version}-x64" >> "$GITHUB_OUTPUT"
           echo "version: $version"
           echo "commit:  $(git rev-parse HEAD)"
@@ -164,11 +155,11 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.release.outputs.artifact-name }}
+          compression-level: 0
           path: |
             release/StartupBot-*-amd64.deb
             release/StartupBot-*-x86_64.AppImage
-            release/StartupBot-amd64.deb
-            release/StartupBot.AppImage
+            release/STARTUPBOT_LINUX_VI.md
             release/SHA256SUMS-ubuntu-x64.txt
           if-no-files-found: error
           retention-days: 14

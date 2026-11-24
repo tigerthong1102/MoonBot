@@ -1,10 +1,8 @@
-// End-to-end proof that an AppImage update from the real release feed lands on
-// the path the user launches, using the shipped bundle. Runs under Electron
-// (electron-updater needs its net stack):
-//   xvfb-run -a pnpm exec electron scripts/smoke-linux-update.mjs
 import { createHash } from "node:crypto";
 import {
+  appendFileSync,
   copyFileSync,
+  createReadStream,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -13,6 +11,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { createServer } from "node:http";
+import { once } from "node:events";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -57,12 +57,13 @@ async function main() {
   mkdirSync(applications);
 
   // The bug shape: a version in the filename, and a launcher pinned to it.
-  const launched = path.join(installDir, "OpenMausBot-0.0.1-x86_64.AppImage");
+  const launched = path.join(installDir, "StartupBot-0.0.1-x86_64.AppImage");
   copyFileSync(packaged, launched);
-  const desktopEntry = path.join(applications, "com.openmausbot.app.desktop");
+  appendFileSync(launched, "previous-build-fixture");
+  const desktopEntry = path.join(applications, "ai.startupbot.desktop");
   writeFileSync(
     desktopEntry,
-    `[Desktop Entry]\nName=OpenMausBot\nExec=${launched} %U\nType=Application\n`,
+    `[Desktop Entry]\nName=StartupBot\nExec=${launched} %U\nType=Application\n`,
   );
 
   // Isolate every path the updater writes to.
@@ -79,7 +80,23 @@ async function main() {
   const { AppImageUpdater } = require(bundle);
 
   const updateConfig = path.join(workspace, "app-update.yml");
-  copyFileSync(path.join(root, "release/linux-unpacked/resources/app-update.yml"), updateConfig);
+  const assetPath = "/" + path.basename(packaged);
+  const metadata = path.join(releaseDir, "latest-linux.yml");
+  const server = createServer((request, response) => {
+    const pathname = new URL(request.url, "http://localhost").pathname;
+    const file = pathname === "/latest-linux.yml" ? metadata : pathname === assetPath ? packaged : null;
+    if (!file || !existsSync(file)) {
+      response.writeHead(404).end();
+      return;
+    }
+    createReadStream(file).on("error", (error) => response.destroy(error)).pipe(response);
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  writeFileSync(updateConfig, JSON.stringify({
+    provider: "generic", url: "http://127.0.0.1:" + server.address().port,
+    updaterCacheDirName: "startupbot-linux-smoke",
+  }));
 
   // The constructor parses the current version once, so this has to be in
   // place before the updater exists. Without it the comparison runs against
@@ -96,7 +113,7 @@ async function main() {
     console.log("   ", ...values.map(String));
   }
 
-  console.log("[smoke-linux-update] checking the real release feed…");
+  console.log("[smoke-linux-update] checking the packaged update metadata…");
   const result = await updater.checkForUpdates();
   if (!result?.updateInfo?.version) throw new Error("the feed returned no update");
   // A feed response alone is not an offer: a version comparison that decided
@@ -138,7 +155,7 @@ async function main() {
       "the launcher still points at a real file",
       execTarget === launched && existsSync(launched),
     ],
-    ["the file now holds the published build", sha512(launched) === expected.sha512],
+    ["the file now holds the packaged build", sha512(launched) === expected.sha512],
     ["the relaunch uses the launched path", relaunched === launched],
   ];
 

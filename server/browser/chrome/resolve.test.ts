@@ -78,7 +78,7 @@ describe("which Chrome the bots' browser runs", () => {
   });
 
   it("on a Linux desktop finds a Google Chrome that is only on PATH, as on NixOS", () => {
-    const linuxDesktop = (files: string[]) => host("linux", files, { env: { OMB_RESOURCES_PATH: "/opt/OpenMausBot/resources", PATH: "/run/wrappers/bin:/run/current-system/sw/bin:/usr/bin" } });
+    const linuxDesktop = (files: string[]) => host("linux", files, { env: { OMB_RESOURCES_PATH: "/opt/StartupBot/resources", PATH: "/run/wrappers/bin:/run/current-system/sw/bin:/usr/bin" } });
     expect(resolveChromePlan(linuxDesktop(["/run/current-system/sw/bin/google-chrome"]), managed))
       .toEqual({ kind: "chrome", chrome: { path: "/run/current-system/sw/bin/google-chrome", source: "installed" }, fallback: null });
     expect(resolveChromePlan(linuxDesktop(["/usr/bin/google-chrome-stable", "/usr/bin/google-chrome"]), managed))

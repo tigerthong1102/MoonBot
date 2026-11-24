@@ -61,9 +61,7 @@ function open(): DatabaseSync {
       PRIMARY KEY (thread_id, id)
     );
     CREATE INDEX IF NOT EXISTS messages_thread ON messages(thread_id);
-    -- at is not part of the primary key, so newest-per-thread reads cannot
-    -- walk these rows in time order on messages_thread. Created on every
-    -- open, including a database that already has messages.
+    -- SQLite can use a composite index to read messages by thread in timestamp order.
     CREATE INDEX IF NOT EXISTS messages_thread_at ON messages(thread_id, at);
     -- Partial, so no other query's plan can move onto them: only a statement that repeats the WHERE may use one.
     ${BOT_TEXT_MESSAGE_INDEXES_SQL}

@@ -99,5 +99,29 @@ describe("Linux multi-step navigation", () => {
       expect(restarted.save("bot", result.recipe)).toBe(false);
     } finally { rmSync(temp, { recursive: true, force: true }); }
   });
+
+  it("does not continue in a replacement process with the same app and window names", async () => {
+    const result = build(); if (!result.ok) throw new Error(result.reason);
+    let clicked = false; let firstTransitionRead = false; let clicks = 0; let verified = 0;
+    const caller: ComputerCaller = { async call(tool) {
+      const pid = clicked && firstTransitionRead ? 101 : 100;
+      const live = clicked ? { ...second, pid } : first;
+      if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid, name: "fixture" }] } };
+      if (tool === "list_windows") return { ok: true, structured: { windows: [{ window_id: 7, pid, title: live.window_title }] } };
+      if (tool === "get_window_state") {
+        if (clicked) firstTransitionRead = true;
+        return { ok: true, structured: live };
+      }
+      if (tool === "click") { clicked = true; clicks++; return { ok: true, structured: delivery }; }
+      throw new Error(tool);
+    } };
+    const outcome = await runSteps(result.recipe, { threadId: "t", turnId: "r", provider: "fake", providerInstanceId: "fake" }, {
+      caller, approval: { ask: async () => true }, publish: () => {}, signal: new AbortController().signal,
+      windowsAttempt: { begin: () => true, verified: () => { verified++; } },
+    });
+    expect(outcome).toMatchObject({ kind: "failed", error: WINDOWS_UNCERTAIN });
+    expect(clicks).toBe(1);
+    expect(verified).toBe(0);
+  });
 });
 

@@ -118,7 +118,6 @@ class Drafter {
     return node;
   }
 
-  /** Words the person typed that the command repeats become OMB_ARG_<NAME>, where the shell would expand them. */
   private shell(run: string): string {
     const words = [...new Set(run.split(/\s+/).slice(1).map((word) => word.replace(/^["'`]+|["'`;,)]+$/g, "")).filter((word) => !word.startsWith("-") && this.inAsk(word)))];
     let out = run;
@@ -160,7 +159,6 @@ class Drafter {
     const label = layerLabel(layer).slice(0, 120);
     const raw = layer.args === undefined ? "" : JSON.stringify(layer.args);
     if (raw && (MASKED.test(raw) || redactSecretsInText(raw) !== raw)) {
-      // A secret was part of the call: the step is saved without it, for the AI to do again with the person's own key.
       this.steps.push({ id, kind: "ai", deterministic: false, label, prompt: `Do this step again: ${label}. It used a secret, so it isn't saved here.` });
     } else if (layer.replay !== "exact" || !layer.args) {
       this.steps.push(this.ai(id, layer, label));

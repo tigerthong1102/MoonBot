@@ -18,19 +18,15 @@ export interface RunMessage {
 }
 
 export interface BurgerLayer {
-  /** The message id, with `#n` for the nth tool of one multi-app call. */
   id: string;
   messageId: string;
   kind: LayerKind;
-  /** The connected app's lowercase slug (gmail), for app layers. */
   app?: string;
-  /** What replays it: a Composio slug (GMAIL_SEND_EMAIL), a plain app tool (gmail.search_emails), or the tool's name. */
   tool: string;
   words: string;
   status: LayerStatus;
   read: boolean;
   where: LayerWhere;
-  /** Exact replays without AI; `ai` means the recorded call can't be repeated as is. */
   replay: "exact" | "ai";
   args?: Record<string, unknown>;
   account?: string;

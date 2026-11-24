@@ -17,7 +17,6 @@ const RECALLED = "They are your own conversations with this person, read for thi
 
 const day = (at: unknown) => typeof at === "number" && Number.isFinite(at) ? new Date(at).toISOString().slice(0, 10) : "";
 
-/** session_search scope "threads" without thread_id: the bot's other conversations that match. */
 export function threadsListText(query: string, r: Json): string {
   const threads = Array.isArray(r.threads) ? r.threads.filter((thread): thread is Json => Boolean(thread) && typeof thread === "object") : [];
   if (!threads.length) return query ? `None of your other conversations matches "${query}" by its name or its notes. Try the conversation's name, or fewer words.` : "You have no other conversations.";
@@ -29,7 +28,6 @@ export function threadsListText(query: string, r: Json): string {
   return `${threads.length === 1 ? "1 conversation" : `${threads.length} conversations`} of yours${query ? ` matching "${query}"` : ", newest first"}:\n${lines.join("\n")}${more}\n\nTo read one, call session_search with scope "threads" and its thread_id. ${RECALLED}`;
 }
 
-/** session_search scope "threads" with thread_id: that conversation's notes and a page of its messages, newest first. */
 export function threadReadText(r: Json): string {
   if (r.error || !r.thread || typeof r.thread !== "object") return "No conversation of yours has that thread_id. Find it with session_search scope \"threads\" and a few words naming it.";
   const thread = r.thread as Json;
@@ -40,7 +38,6 @@ export function threadReadText(r: Json): string {
   return `Conversation "${String(thread.title ?? "Untitled")}" (thread ${String(thread.threadId)}). ${notes}\n\n${lines.length ? `Its latest messages, newest first:\n${lines.join("\n")}` : "No messages."}${earlier}\n\n${RECALLED}`;
 }
 
-/** What memory_update answers once a note is saved: `scope` "thread" when it went to this conversation's notes. */
 export function memorySavedText(r: Json): string {
   const thread = r.scope === "thread";
   const entry = typeof r.entry === "string" && r.entry ? ` Entry: ${r.entry}` : "";

@@ -19,5 +19,4 @@ export interface BotLibraryFileMessage {
   links: string[];
 }
 
-/** The most of each group the server sends; the panel shows the newest few and expands in place. */
 export const BOT_LIBRARY_MAX = 200;

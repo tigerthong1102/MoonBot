@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { parseRunCommand } from "../run-command.ts";
 import { draftWorkflow, layerLabel } from "./draft.ts";
 import { renderWorkflowSkillMd, workflowSchema, workflowSkillName } from "./format.ts";
 import { burgerLayers, type RunMessage } from "./layers.ts";
@@ -105,6 +106,37 @@ describe("burger layers", () => {
   });
 });
 
+describe("Git commands in saved runs", () => {
+  it.each([
+    "git branch",
+    "git branch -r",
+    "git branch -a",
+    "git branch --contains HEAD",
+    "git branch --sort -creatordate",
+    "git tag --list release-*",
+    "git tag -v v1",
+    "git tag --points-at HEAD",
+    "git remote -v",
+    "git remote show -n origin",
+    "git remote get-url --push origin",
+  ])("excludes the read-only command %s", (command) => {
+    expect(parseRunCommand(command)).toBeUndefined();
+  });
+
+  it.each([
+    ["git branch release", "git branch"],
+    ["git branch --unset-upstream", "git branch"],
+    ["git -C repo branch -rd origin/old", "git branch"],
+    ["git tag v1", "git tag"],
+    ["git tag -d v1", "git tag"],
+    ["git tag -am note v1", "git tag"],
+    ["git remote add mirror https://example.test/repo", "git remote"],
+    ["git remote set-url origin https://example.test/repo", "git remote"],
+  ])("keeps the change from %s", (command, label) => {
+    expect(parseRunCommand(command)).toMatchObject({ label });
+  });
+});
+
 describe("draftWorkflow", () => {
   it("returns nothing for a run of fewer than two steps", () => {
     expect(draftWorkflow([ask("hi"), tool("Bash", { command: "git push" }, { summary: "git push" })])).toBeNull();
@@ -144,6 +176,16 @@ describe("draftWorkflow", () => {
     const { workflow } = draftWorkflow([
       ask("Archive the files and make the appendix"),
       ...commands.map((command) => tool("Bash", { command }, { summary: command.split(" > ")[0] })),
+    ])!;
+    expect(workflow.steps.map((step) => step.kind === "shell" ? step.run : step.kind)).toEqual(commands);
+  });
+
+  it("keeps Git ref and remote changes in the saved workflow", () => {
+    const commands = ["git -C repo branch candidate", "git checkout candidate", "git tag checkpoint", "git remote add mirror https://example.test/repo"];
+    const { workflow } = draftWorkflow([
+      ask("Prepare a snapshot"),
+      tool("Bash", { command: "git branch --list" }),
+      ...commands.map((command) => tool("Bash", { command })),
     ])!;
     expect(workflow.steps.map((step) => step.kind === "shell" ? step.run : step.kind)).toEqual(commands);
   });

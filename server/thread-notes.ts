@@ -245,6 +245,27 @@ export function reachThreads(input: {
   };
 }
 
+export function reachThreadsByQuery(query: URLSearchParams, input: {
+  botId: string;
+  current: string;
+  notes: boolean;
+  threadIds: readonly string[];
+  task(threadId: string): ReachableThread | undefined;
+  messages(threadId: string): readonly ThreadLine[];
+}) {
+  return reachThreads({
+    botId: input.botId,
+    current: input.current,
+    notes: input.notes,
+    threads: input.threadIds.flatMap((id) => input.task(id) ?? []),
+    messages: input.messages,
+    query: query.get("q")?.trim(),
+    threadId: query.get("threadId") ?? undefined,
+    before: query.get("before") ?? undefined,
+    limit: Number(query.get("limit")) || undefined,
+  });
+}
+
 /** "Saved to this thread", once, under the reply of a turn that saved to its conversation's notes. */
 export function createThreadSaveLines(deps: {
   bus: { subscribe(listener: (event: RuntimeEvent) => void): unknown };

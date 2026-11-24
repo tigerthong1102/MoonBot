@@ -3,6 +3,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -115,7 +116,10 @@ let socket;
 const rendererErrors = [];
 let computerPanelVisible = false;
 let stoppedGateToRelease;
+let reconnectGateToRelease;
+let interceptionEnabled = false;
 let captureFailure = async () => {};
+let restoreNetwork = async () => {};
 const restartLifecycle = { started: false, stopped: false };
 let report = { platform: process.platform, arch: process.arch, app, status: "FAIL" };
 try {
@@ -127,11 +131,29 @@ try {
   socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
   let sequence = 0;
+  const eventStreams = new Map();
+  const pausedStreams = [];
   const pending = new Map();
   socket.addEventListener("message", event => {
     const message = JSON.parse(String(event.data));
     if (message.method === "Runtime.exceptionThrown") rendererErrors.push({ kind: "exception", detail: message.params?.exceptionDetails?.text ?? "unknown" });
     if (message.method === "Inspector.targetCrashed") rendererErrors.push({ kind: "renderer-crash" });
+    if (message.method === "Network.requestWillBeSent") {
+      const url = new URL(message.params.request.url);
+      if (url.origin === `http://127.0.0.1:${port}` && url.pathname === "/api/events" && url.searchParams.get("window") === "1" && url.searchParams.get("frames") === "thread") eventStreams.set(message.params.requestId, { opened: false, closed: false, failed: false, frames: 0, hello: false });
+    }
+    if (message.method === "Fetch.requestPaused") {
+      const url = new URL(message.params.request.url);
+      if (url.origin === `http://127.0.0.1:${port}` && url.pathname === "/api/events" && url.searchParams.get("window") === "1" && url.searchParams.get("frames") === "thread") pausedStreams.push({ id: message.params.requestId, networkId: message.params.networkId });
+    }
+    const stream = eventStreams.get(message.params?.requestId);
+    if (stream && message.method === "Network.responseReceived" && message.params.response?.status === 200 && message.params.response?.mimeType === "text/event-stream") stream.opened = true;
+    if (stream && (message.method === "Network.loadingFailed" || message.method === "Network.loadingFinished")) stream.closed = true;
+    if (stream && message.method === "Network.loadingFailed") stream.failed = true;
+    if (stream && message.method === "Network.eventSourceMessageReceived") {
+      stream.frames += 1;
+      try { if (JSON.parse(message.params.data)?.kind === "hello") stream.hello = true; } catch {}
+    }
     const request = pending.get(message.id);
     if (!request) return;
     pending.delete(message.id); clearTimeout(request.timer);
@@ -143,6 +165,7 @@ try {
     const timer = setTimeout(() => { pending.delete(id); reject(new Error(`CDP ${method} timed out`)); }, 30_000);
     pending.set(id, { resolve, reject, timer }); socket.send(JSON.stringify({ id, method, params }));
   });
+  restoreNetwork = () => cdp("Fetch.disable");
   const evaluate = async expression => {
     const result = await cdp("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
     if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
@@ -158,6 +181,7 @@ try {
   };
   await cdp("Runtime.enable");
   await cdp("Inspector.enable");
+  await cdp("Network.enable");
   await until(() => evaluate("Boolean(window.ogb?.getCapabilities && document.readyState === 'complete')"), "the preload bridge");
   const request = (route, body, method = "POST") => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)},${JSON.stringify(body === undefined ? {} : { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) })});return {status:r.status,body:await r.json()};})()`);
   const health = await request("/api/health");
@@ -404,6 +428,9 @@ try {
   const stopText = "Hold the synthetic turn for cancellation";
   const stopReady = path.join(fixture, "stop-ready"), stopGate = path.join(fixture, "stop-gate"), stopContinued = path.join(fixture, "stop-continued");
   const postStop = "Check the synthetic conversation after stop";
+  const reconnectText = "Hold the synthetic turn while reconnecting";
+  const reconnectReady = path.join(fixture, "reconnect-ready"), reconnectGate = path.join(fixture, "reconnect-gate"), reconnectDone = path.join(fixture, "reconnect-done");
+  reconnectGateToRelease = reconnectGate;
   stoppedGateToRelease = stopGate;
   writeFileSync(plan, JSON.stringify({ [bot.id]: { script: [
     { key: "first", match: [first], reply },
@@ -416,6 +443,7 @@ try {
     { key: "followup", match: [followup], reply: "Fresh fixture reply." },
     { key: "stop", match: [stopText], readyFile: stopReady, gateFile: stopGate, afterGateFile: stopContinued, progressAfterGate: "CANCELED_GATE_RELEASED", reply: "Canceled fixture should not finish." },
     { key: "post-stop", match: [postStop], reply: "Synthetic conversation remains usable." },
+    { key: "reconnect", match: [reconnectText], readyFile: reconnectReady, gateFile: reconnectGate, afterGateFile: reconnectDone, reply: "Synthetic reconnect turn finished." },
   ] } }));
   const sent = await request(`/api/bots/${encodeURIComponent(bot.id)}/messages`, { text: first });
   assert.equal(sent.status, 202, JSON.stringify(sent.body));
@@ -483,6 +511,69 @@ try {
   assert(!stoppedRows.some(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === stopSource.id));
   await new Promise(resolve => setTimeout(resolve, 1_000));
   assert.equal(existsSync(stopContinued), false, "The canceled fake provider must not continue after its gate opens");
+  writeFileSync(path.join(evidence, "stop-fixture.json"), JSON.stringify({ requestId: stopSource.id, canceled: true, providerPrompts: 1, gateContinuationObserved: false, observationMs: 1000 }, null, 2) + "\n");
+  const streamsBeforeReload = new Set(eventStreams.keys());
+  await cdp("Page.enable");
+  await evaluate("window.__fixtureReloadMarker = true");
+  await cdp("Page.reload", { ignoreCache: true });
+  await until(() => evaluate("Boolean(!window.__fixtureReloadMarker && window.ogb?.getCapabilities && document.readyState === 'complete')"), "the reloaded renderer");
+  await until(() => evaluate(`Boolean(${selectBot})`), "the fixture bot after reload");
+  await evaluate(`${selectBot}.click()`);
+  await until(() => [...eventStreams.entries()].some(([id, value]) => !streamsBeforeReload.has(id) && value.opened && !value.closed && value.hello), "a live event stream with hello");
+  const noticesBefore = (await request("/api/notifications")).body.notifications;
+  await send(reconnectText);
+  await until(() => existsSync(reconnectReady), "the reconnect fixture turn to be running");
+  const reconnectSource = (await transcript()).find(row => row.role === "user" && row.text === reconnectText);
+  assert(reconnectSource?.id);
+  const liveStreams = [...eventStreams.entries()].filter(([id, value]) => !streamsBeforeReload.has(id) && value.opened && !value.closed && value.hello);
+  assert.equal(liveStreams.length, 1, "Exactly one fixture event stream must own the renderer");
+  await evaluate(`(() => {
+    const original = EventSource.prototype.close;
+    window.__fixtureStreamCloses = [];
+    EventSource.prototype.close = function() {
+      const wasOpen = this.readyState === EventSource.OPEN;
+      const result = original.call(this);
+      const url = new URL(this.url, window.location.href);
+      if (url.origin === window.location.origin && url.pathname === "/api/events" && url.searchParams.get("window") === "1" && url.searchParams.get("frames") === "thread") window.__fixtureStreamCloses.push(wasOpen && this.readyState === EventSource.CLOSED);
+      return result;
+    };
+  })()`);
+  interceptionEnabled = true;
+  await cdp("Fetch.enable", { patterns: [{ urlPattern: `http://127.0.0.1:${port}/api/events*`, requestStage: "Request" }] });
+  await evaluate("window.dispatchEvent(new Event('omb:retry-live-events'))");
+  await until(() => evaluate("window.__fixtureStreamCloses?.length === 1 && window.__fixtureStreamCloses[0] === true"), "the original EventSource to close");
+  const openedAtDisconnect = new Set([...eventStreams.entries()].filter(([, value]) => value.opened).map(([id]) => id));
+  const failedAttempt = await until(() => pausedStreams[0], "the first reconnect attempt to pause");
+  assert(failedAttempt.networkId, "The failed reconnect must have a network request ID");
+  await cdp("Fetch.failRequest", { requestId: failedAttempt.id, errorReason: "ConnectionReset" });
+  await until(() => eventStreams.get(failedAttempt.networkId)?.failed && !eventStreams.get(failedAttempt.networkId)?.opened, "the reconnect handshake to fail");
+  const replacementAttempt = await until(() => pausedStreams.find(entry => entry.id !== failedAttempt.id), "the retry attempt to pause");
+  assert(replacementAttempt.networkId, "The replacement stream must have a network request ID");
+  writeFileSync(reconnectGate, "release");
+  await until(() => existsSync(reconnectDone), "the fake provider to pass its gate while disconnected");
+  await until(() => {
+    const db = new DatabaseSync(path.join(data, "messages.db"), { readOnly: true });
+    try {
+      const rows = db.prepare("SELECT json FROM messages WHERE thread_id = ?").all(bot.threadId).map(row => JSON.parse(row.json));
+      const source = rows.find(row => row.id === reconnectSource.id);
+      const terminal = rows.filter(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === reconnectSource.id);
+      return source?.requestPending === false && terminal.length === 1;
+    } finally { db.close(); }
+  }, "the result to persist while the stream is disconnected");
+  assert(![...eventStreams.entries()].some(([id, value]) => !openedAtDisconnect.has(id) && value.opened), "No event stream may reopen before the disconnected result is persisted");
+  await cdp("Fetch.continueRequest", { requestId: replacementAttempt.id });
+  await cdp("Fetch.disable");
+  interceptionEnabled = false;
+  await until(() => { const stream = eventStreams.get(replacementAttempt.networkId); return stream?.opened && !stream.closed && stream.hello; }, "the replacement event stream with hello");
+  const reconnectCompletion = await until(() => completedRequest(bot.threadId, reconnectText), "the reconnect fixture turn to finish");
+  await until(() => evaluate("document.body.innerText.includes('Synthetic reconnect turn finished.')"), "the reconnected renderer to show the result");
+  assert.equal((await transcript()).filter(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === reconnectCompletion.requestId).length, 1);
+  assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(reconnectText)).length, 1);
+  const noticesAfter = (await request("/api/notifications")).body.notifications;
+  const newNotices = noticesAfter.filter(row => !noticesBefore.some(before => before.id === row.id) && row.threadId === bot.threadId);
+  assert(newNotices.length <= 1, "Reconnection must not create duplicate notifications for the synthetic turn");
+  writeFileSync(path.join(evidence, "reconnect-fixture.json"), JSON.stringify({ requestId: reconnectCompletion.requestId, turnId: reconnectCompletion.turnId, originalClosed: true, failedHandshake: true, resultPersistedWhileDisconnected: true, replacementHello: true, providerPrompts: 1, newServerNotifications: newNotices.length }, null, 2) + "\n");
+
   const unauthenticated = await fetch(new URL("/api/auth/stream-ticket", target.url), { method: "POST", signal: AbortSignal.timeout(5_000) });
   assert([401, 403].includes(unauthenticated.status), "An external process must not inherit the renderer's mutation capability");
   assert.equal(createHash("sha256").update(readFileSync(sentinel)).digest("hex"), sentinelHash);
@@ -510,6 +601,7 @@ try {
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion },
+    reconnect: { status: "PASS", reconnectCompletion, oldStreamClosed: true, retryHandshakeFailed: true, replacementStreamOpened: true, notificationRecords: "at most one new record for fixture thread" },
     stopAfterNavigation: "PASS (synthetic turn canceled; no fake continuation observed for one second after a follow-up)",
     computerPanelNavigation: disposableDesktop ? "PASS (opened and closed on disposable runner; no desktop control)" : "NOT RUN (requires disposable desktop)",
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
@@ -521,8 +613,11 @@ try {
   await captureFailure().catch(failure => { report.diagnosticsError = failure.message; });
   throw error;
 } finally {
-  try { if (stoppedGateToRelease && !existsSync(stoppedGateToRelease)) writeFileSync(stoppedGateToRelease, "cleanup"); }
-  catch (error) { report.status = "FAIL"; report.cleanupGateError = error.stack; }
+  for (const gate of [stoppedGateToRelease, reconnectGateToRelease]) {
+    try { if (gate && !existsSync(gate)) writeFileSync(gate, "cleanup"); }
+    catch (error) { report.status = "FAIL"; report.cleanupGateError = error.stack; }
+  }
+  if (interceptionEnabled) await restoreNetwork().catch(() => {});
   socket?.close();
   let firstStopped = false;
   try {

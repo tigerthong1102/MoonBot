@@ -340,7 +340,11 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
     <div data-look="app" className={cn("flex h-full flex-col", framed && "bg-frame")} onClickCapture={event => {
       if (drawerOpen) noteDrawerAction(event);
       if (personalInboxShown) closePersonalInboxOnConversationClick(event.target);
-    }} onKeyDownCapture={drawerOpen ? noteDrawerAction : undefined}>
+    }} onKeyDownCapture={event => {
+      if (drawerOpen) noteDrawerAction(event);
+      if (personalInboxShown && (event.key === "Enter" || event.key === " ") && event.target instanceof Element
+        && event.target.matches('[role="button"][data-sidebar-bot-row]')) closePersonalInboxOnConversationClick(event.target);
+    }}>
       <WindowFrameBar notifications={notificationTray} />
       <BotLimitPopup />
       <ConversationShareDialogs />

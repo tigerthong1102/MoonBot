@@ -262,11 +262,10 @@ window.addEventListener("hashchange", run(async () => {
   invitedRoom = params.get("room");
   el("join-prompt").hidden = true;
   if (joinToken) await showGroupInvitation();
-  else if (me && invitedRoom) {
+  else if (me && invitedRoom && /^[a-f0-9-]{36}$/.test(invitedRoom)) {
     const room = invitedRoom;
-    await refresh();
+    await select(room);
     if (invitedRoom !== room) return;
-    if (rooms.some(r => r.id === room)) await select(room);
     invitedRoom = null;
     history.replaceState(null, "", location.pathname + location.search);
   }

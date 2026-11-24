@@ -8,6 +8,8 @@ StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. O
 
 Excluded credential provisioning and local dotenv writing scripts.
 
+Added an optional macOS system-voice fallback; it is separate from the ByteDance service.
+
 Included upstream notices: upstream-notices/LICENSE, NOTICE.
 
 ## Excluded upstream files

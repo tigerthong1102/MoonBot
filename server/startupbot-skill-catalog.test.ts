@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -33,6 +33,34 @@ it("stages the catalog with notices and preserves existing library choices on re
     expect(setLibrarySkillReviewState("xlsx", "approved", root)).not.toHaveProperty("error");
     expect(installStartupBotSkillCatalog({ root })).toEqual({ installed: 0, failed: [] });
     expect(readSkillLibraryIndex(root).xlsx?.reviewState).toBe("approved");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("upgrades the original HyperFrames folders and keeps their review choices", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-hyperframes-upgrade-"));
+  try {
+    const catalog = join(root, "old-catalog");
+    const library = join(root, "library");
+    mkdirSync(catalog);
+    const names = ["hyperframes", "hyperframes-cli"];
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
+      .filter((entry: { name: string }) => names.includes(entry.name));
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    for (const name of names) {
+      cpSync(join("server/testing/fixtures/startupbot-old-skills", name), join(catalog, name), { recursive: true });
+    }
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 2, failed: [] });
+    expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
+
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 61, failed: [] });
+    const index = readSkillLibraryIndex(library);
+    expect(index.hyperframes.reviewState).toBe("approved");
+    expect(index["hyperframes-cli"].reviewState).toBe("disabled");
+    expect(index.hyperframes.files).toContain("references/format.md");
+    expect(index["hyperframes-cli"].files).toContain("references/preview-render.md");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

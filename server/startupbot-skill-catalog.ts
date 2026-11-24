@@ -85,7 +85,9 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: previous?.reviewState ?? "disabled",
+        reviewState: entry.name === "hyperframes" || entry.name === "hyperframes-cli"
+          ? previous?.reviewState ?? "disabled"
+          : "disabled",
         everyBot: previous?.everyBot,
       });
     } catch (error) {

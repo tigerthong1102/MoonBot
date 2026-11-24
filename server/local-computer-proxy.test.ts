@@ -13,6 +13,8 @@ import { CONTROL_UNCONFIRMED } from "./control-client.ts";
 import { gatedLocalComputer } from "./local-computer.ts";
 import { OWN_PROFILE_UNAVAILABLE } from "./local-computer-guidance.ts";
 import { ComputerJournal, parseJournalEntry } from "./saved-steps/journal.ts";
+import { buildRecipe } from "./saved-steps/rules.ts";
+import { recordedWindowsDestination } from "./saved-steps/windows-destination.ts";
 import { CLICK_SENT_UNCONFIRMED } from "./unconfirmed-click.ts";
 import { SPAWNED_PROXIES } from "./proxy-paths.ts";
 import { wideSchema } from "./testing/oversized-tool-schema.ts";
@@ -475,6 +477,85 @@ readline.createInterface({input: process.stdin}).on("line", (line) => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+
+  it("win32: gated native background button click is delivered once and recorded with its destination", async () => {
+    const native = `
+const readline = require("node:readline");
+let clicks = 0;
+let wid = 7;
+const pid = 4242;
+const send = (id, structuredContent) => process.stdout.write(JSON.stringify({
+  jsonrpc: "2.0", id, result: { content: [{ type: "text", text: "private fixture driver reply" }], structuredContent }
+}) + "\\n");
+readline.createInterface({ input: process.stdin }).on("line", (line) => {
+  const frame = JSON.parse(line);
+  if (frame.id === undefined) return;
+  const { name, arguments: args } = frame.params;
+  if (name === "click" && args.element_token === "s00000001:1") {
+    clicks++;
+    send(frame.id, { effect: "unverifiable", route: "accessibility", delivery: { mode: "background" }, clicks });
+  } else if (name === "get_window_state") {
+    send(frame.id, {
+      pid, window_id: wid, app_name: "Fixture", window_title: clicks === 1 ? "Destination" : "Starting",
+      tree_format: "elements", elements_complete: true, returned_element_count: 1, total_element_count: 1,
+      elements: [{ role: "Button", label: "Navigate", element_index: 1, depth: 1, enabled: true,
+        element_token: clicks === 0 ? "s00000001:1" : "s00000002:1" }]
+    });
+  } else throw new Error("unexpected fixture request");
+});
+`;
+    const journal = new ComputerJournal();
+    const scope = { botId: "b1", threadId: "t1", generation: "navigation" };
+    let checks = 0;
+    let records = 0;
+    const server = createServer((req, res) => {
+      let raw = "";
+      req.on("data", (chunk) => { raw += chunk; });
+      req.on("end", () => {
+        if (req.method === "POST") {
+          const entry = parseJournalEntry(JSON.parse(raw));
+          if (entry) { journal.record(scope, entry); records++; }
+        } else { journal.gateChecked(scope); checks++; }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(req.method === "POST" ? { ok: true } : { held: false, helpOpen: false }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const connection = gatedLocalComputer(
+      { command: process.execPath, args: ["-e", native], env: {}, platform: "win32", scope: "local-computer" },
+      { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/control`, token: "native-click-test" }, true,
+    );
+    const child = spawn(connection.command, connection.args, { env: { ...process.env, ...connection.env }, stdio: ["pipe", "pipe", "pipe"] });
+    try {
+      const lines = createInterface({ input: child.stdout! })[Symbol.asyncIterator]();
+      const rpc = async (id: number, name: string, args: Record<string, unknown>) => {
+        child.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } }) + "\n");
+        const frame = JSON.parse((await lines.next()).value as string);
+        expect(frame.id).toBe(id);
+        return frame.result.structuredContent;
+      };
+      const address = { pid: 4242, window_id: 7 };
+      const read = { ...address, include_screenshot: false, tree_format: "elements" };
+      expect((await rpc(1, "get_window_state", read)).window_title).toBe("Starting");
+      const click = await rpc(2, "click", { ...address, element_token: "s00000001:1", delivery_mode: "background" });
+      expect(click).toMatchObject({ effect: "unverifiable", route: "accessibility", clicks: 1 });
+      expect((await rpc(3, "get_window_state", read)).window_title).toBe("Destination");
+      expect(checks).toBe(3);
+      expect(records).toBe(3);
+      const taken = journal.take(scope.threadId, new Set([scope.generation]))!;
+      expect(taken).toMatchObject({ complete: true, tainted: false, calls: [
+        { tool: "get_window_state" },
+        { tool: "click", result: { isError: false, structured: { background_accessibility_action: true } } },
+        { tool: "get_window_state" },
+      ] });
+      const built = buildRecipe({ request: 'Navigate using button "Navigate" and verify window title "Destination"', journal: taken, id: "r", now: 1 });
+      expect(built.ok).toBe(true);
+      if (built.ok) expect(recordedWindowsDestination(built.recipe, taken)).toBe(true);
+    } finally {
+      child.kill("SIGKILL");
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 10_000);
 
   it("rejects malformed environment and missing authority without printing connection secrets", () => {
     for (const overrides of [

@@ -1,4 +1,5 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import { writeFileAtomic } from "../atomic.ts";
@@ -52,11 +53,13 @@ export class RecipeStore {
     return this.read(botId).recipes.find((recipe) => recipe.key === key);
   }
 
-  save(botId: string, recipe: Recipe): void {
+  save(botId: string, recipe: Recipe): boolean {
+    if (!safeBotId(botId) || (recipe.steps.some((step) => step.element?.uiaWindowChild) && this.windowsPending(botId, recipe.key))) return false;
     const kept = this.read(botId).recipes.filter((existing) => existing.key !== recipe.key && existing.id !== recipe.id);
     kept.push(recipe);
     kept.sort((a, b) => b.lastUsedAt - a.lastUsedAt);
     this.write(botId, kept.slice(0, MAX_RECIPES));
+    return true;
   }
 
   touch(botId: string, recipeId: string): void {
@@ -75,11 +78,79 @@ export class RecipeStore {
     return true;
   }
 
+  // Exclusive creation reserves a normalized request across chats and survives a server restart.
+  windowsPending(botId: string, key: string): boolean {
+    if (!safeBotId(botId)) return true;
+    try {
+      lstatSync(this.pendingPath(botId, key));
+      return true;
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code !== "ENOENT";
+    }
+  }
+
+  beginWindowsAttempt(botId: string, key: string, recipeId: string): boolean {
+    if (!safeBotId(botId)) return false;
+    mkdirSync(this.folder(botId), { recursive: true, mode: 0o700 });
+    let fd: number;
+    try { fd = openSync(this.pendingPath(botId, key), "wx", 0o600); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "EEXIST") return false; throw error; }
+    // If creation or flushing fails, do not click. A partial file is still a fail-closed reservation.
+    try { writeFileSync(fd, recipeId); fsyncSync(fd); }
+    finally { closeSync(fd); }
+    return true;
+  }
+
+  finishWindowsAttempt(botId: string, key: string): void {
+    if (!safeBotId(botId)) return;
+    try { unlinkSync(this.pendingPath(botId, key)); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+  }
+
+  /** Owner action from the recipe's chat marker, only after checking the app. Internal retirement never clears uncertainty. */
+  forgetAfterReview(botId: string, recipeId: string): boolean {
+    if (!safeBotId(botId)) return false;
+    const { recipes } = this.read(botId, false);
+    const target = recipes.find((recipe) => recipe.id === recipeId);
+    if (target) {
+      this.write(botId, recipes.filter((recipe) => recipe.id !== recipeId));
+      this.clearWindowsIfOwned(this.pendingPath(botId, target.key), recipeId);
+      return true;
+    }
+    // An unresolved recipe may have aged out or been evicted. Its original marker can still reconcile it.
+    const folder = this.folder(botId);
+    let files: string[];
+    try { files = readdirSync(folder); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+    for (const name of files) {
+      if (!/^saved-steps-pending-[a-f0-9]{64}$/u.test(name)) continue;
+      if (this.clearWindowsIfOwned(join(folder, name), recipeId)) return true;
+    }
+    return false;
+  }
+
+  private clearWindowsIfOwned(path: string, recipeId: string): boolean {
+    try {
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.size !== Buffer.byteLength(recipeId) || readFileSync(path, "utf8") !== recipeId) return false;
+      unlinkSync(path);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
+    }
+  }
+
+  private pendingPath(botId: string, key: string): string {
+    const hash = createHash("sha256").update(key).digest("hex");
+    return join(this.folder(botId), `saved-steps-pending-${hash}`);
+  }
+
   private path(botId: string): string {
     return join(this.folder(botId), FILE_NAME);
   }
 
-  private read(botId: string): { recipes: Recipe[] } {
+  private read(botId: string, expire = true): { recipes: Recipe[] } {
     if (!safeBotId(botId)) return { recipes: [] };
     let parsed: unknown;
     try {
@@ -94,7 +165,7 @@ export class RecipeStore {
     const valid: Recipe[] = [];
     for (const raw of recipes) {
       const result = recipeSchema.safeParse(raw);
-      if (result.success && result.data.lastUsedAt >= cutoff) valid.push(result.data as Recipe);
+      if (result.success && (!expire || result.data.lastUsedAt >= cutoff)) valid.push(result.data as Recipe);
     }
     return { recipes: valid };
   }

@@ -113,7 +113,7 @@ export interface BridgeOptions {
   liveness?: BridgeLiveness;
   /** `describe`: what a tools/call would open, passed to the gate so the person can be asked in plain words. */
   gate?: { url: string; token: string; describe?: (frame: unknown) => Record<string, string> };
-  journal?: { url: string; token: string };
+  journal?: { url: string; token: string; platform?: NodeJS.Platform };
   rewriteResponse?: (line: string) => string;
   /** A tools/call the bridge carries out itself through the child, answering the agent with what this resolves to; null
    * forwards the frame as it came. Frames after it wait, so the agent's calls still act in order. */
@@ -347,7 +347,7 @@ export function runMcpBridge(options: BridgeOptions): void {
     : null;
 
   const tap = options.journal
-    ? createJournalTap({ post: postJournal(options.journal.url, options.journal.token) })
+    ? createJournalTap({ post: postJournal(options.journal.url, options.journal.token), platform: options.journal.platform })
     : null;
   const reply = createReplyQueue(tap, (written) => process.stdout.write(written + "\n"));
   const answer = (line: string) => reply(line, line);

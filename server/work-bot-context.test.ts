@@ -13,7 +13,23 @@ it("keeps untransferred Data and files in the original conversation", () => {
   expect(unsupportedWorkBotContext([row("Read file:///tmp/report.pdf")])).toBe("files");
   expect(unsupportedWorkBotContext([row("Read (/Users/demo/report.pdf)")])).toBe("files");
   expect(unsupportedWorkBotContext([row("Read:C:\\fixture\\report.xlsx")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Theo dõi data/hoadon.xlsx mỗi tuần")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Review báo-cáo.csv")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Read .\\reports\\stock.pdf")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Check reports/report.md and data/ledger.sqlite")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Open data/query.sql")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Theo dõi ảnh.heic")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Read ./folder/report")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Theo dõi ảnh.avif và hình.gif")])).toBe("files");
+  expect(unsupportedWorkBotContext([row("Read âm-thanh.wav")])).toBe("files");
   expect(unsupportedWorkBotContext([row("Read [website](https://example.test/news)")])).toBeNull();
+  expect(unsupportedWorkBotContext([row("Read https://example.test/report.pdf")])).toBeNull();
+  expect(unsupportedWorkBotContext([row("Read https://example.test/?file=report.pdf")])).toBeNull();
+  expect(unsupportedWorkBotContext([row("Theo dõi https://example.test/?name=báo-cáo.csv")])).toBeNull();
+  expect(unsupportedWorkBotContext([row("Read https://x.test/?next=/reports/a&p=C:/x")])).toBeNull();
+  expect(unsupportedWorkBotContext([row("Giúp anh/chị theo dõi bán hàng và/hoặc marketing")])).toBeNull();
+  expect(unsupportedWorkBotContext([row("Giúp anh/chị theo dõi bán hàng và/hoặc marketing".normalize("NFD"))])).toBeNull();
+  expect(unsupportedWorkBotContext([row("Track sales/marketing weekly")])).toBeNull();
   expect(unsupportedWorkBotContext([row("Track our inventory weekly")])).toBeNull();
 });
 

@@ -4,6 +4,12 @@ import type { Message } from "./store.ts";
 type Reason = "data" | "files" | null;
 const cache = new WeakMap<Message, { text: string | undefined; hasData: boolean; attachmentCount: number; reason: Reason }>();
 
+function relativeFileReference(text: string): boolean {
+  return /(?<![\p{L}\p{M}\p{N}_@./:\\-])(?:\.{1,2}[\\/]|[\p{L}\p{M}\p{N}_.-]+[\\/])(?:[\p{L}\p{M}\p{N}_.-]+[\\/])*[\p{L}\p{M}\p{N}_-][\p{L}\p{M}\p{N}_.-]*\.[\p{L}\p{M}\p{N}]{1,16}(?![\p{L}\p{M}\p{N}_])/iu.test(text) ||
+    /(?<![\p{L}\p{M}\p{N}_@./:\\-])\.{1,2}[\\/][\p{L}\p{M}\p{N}_.-]+/iu.test(text) ||
+    /(?<![\p{L}\p{M}\p{N}_@./:\\-])[\p{L}\p{M}\p{N}_-][\p{L}\p{M}\p{N}_.-]*\.(?:csv|tsv|xlsx?|xlsm|pdf|docx?|pptx?|txt|md|sql|sqlite|db|json|xml|zip|tar|gz|7z|png|jpe?g|webp|heic|avif|gif|tiff?|mp[34]|wav|m4a|mov)(?![\p{L}\p{M}\p{N}_])/iu.test(text);
+}
+
 export function unsupportedWorkBotContext(messages: readonly Message[]): "data" | "files" | null {
   for (const message of messages) {
     const text = message.text, hasData = Boolean(message.dataContext), attachmentCount = message.attachments?.length ?? 0;
@@ -13,8 +19,9 @@ export function unsupportedWorkBotContext(messages: readonly Message[]): "data" 
       continue;
     }
     let reason: Reason = null;
+    const pathText = (text ?? "").replace(/https?:\/\/[^\s<>]+/giu, " ");
     if (hasData) reason = "data";
-    else if (attachmentCount || /<attached-(?:file|image)\b/i.test(text ?? "") || /(?:file:\/\/|(?<![\w])[a-z]:[\\/]|\\\\|(?:^|[^:\w/])\/(?!\/))\S+/i.test(text ?? "") || (/\]\s*[([]/.test(text ?? "") && messageFileTargets(text ?? "").length)) reason = "files";
+    else if (attachmentCount || /<attached-(?:file|image)\b/i.test(text ?? "") || /(?:file:\/\/|(?<![\p{L}\p{M}\p{N}_])[a-z]:[\\/]|\\\\|(?:^|[^:\p{L}\p{M}\p{N}_/])\/(?!\/))\S+/iu.test(pathText) || relativeFileReference(pathText) || (/\]\s*[([]/.test(text ?? "") && messageFileTargets(text ?? "").length)) reason = "files";
     cache.set(message, { text, hasData, attachmentCount, reason });
     if (reason) return reason;
   }

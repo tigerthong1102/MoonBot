@@ -6,6 +6,34 @@ import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
 
+it("keeps work referring to a relative fixture file in its original conversation", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "work-bot-relative-file-"));
+  const routes = join(dir, "routes.json");
+  const text = "Theo dõi data/hoadon.xlsx mỗi tuần";
+  writeFileSync(routes, JSON.stringify({ [text]: JSON.stringify({ name: "Hóa đơn", icon: "ledger" }) }));
+  const token = randomBytes(32).toString("base64url");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (input, init = {}) => originalFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": token } });
+  let fixture: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
+  try {
+    fixture = await launchVerificationServer({ ...process.env, FAKE_CLAUDE_TEXT_ROUTES: routes, OMB_TEST_DESKTOP_OWNER_TOKEN: token });
+    const base = fixture.info.url;
+    const bots = async () => (await (await fetch(`${base}/api/bots?messages=0`)).json() as { bots: BotRecord[] }).bots;
+    const before = await bots(), main = before.find(bot => bot.defaultBot)!;
+    const sent = await fetch(`${base}/api/bots/${main.id}/messages`, { method: "POST", headers: { origin: base, "content-type": "application/json" }, body: JSON.stringify({ threadId: main.threadId, text, sendId: randomUUID() }) });
+    expect(sent.ok).toBe(true);
+    const rows = async () => (await (await fetch(`${base}/api/threads/${main.threadId}/messages`)).json() as { messages: Message[] }).messages;
+    await expect.poll(async () => (await rows()).find(row => row.text === text)?.workBotRouting?.state, { timeout: 20000 }).toBe("dispatched");
+    await expect.poll(async () => { const messages = await rows(); const index = messages.findIndex(row => row.text === text); return index >= 0 && messages.slice(index + 1).some(row => row.role === "bot" && row.kind === "text"); }, { timeout: 20000 }).toBe(true);
+    expect((await rows()).some(row => row.card?.teamSetupRequest?.workBotOffer)).toBe(false);
+    expect(await bots()).toHaveLength(before.length);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fixture?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}, 60000);
+
 it.each(["deny", "allow", "queued", "codex"])("the main helper offers a bot without interrupting the work, then handles %s once", async scenario => {
   const queued = scenario === "queued";
   const codex = scenario === "codex";

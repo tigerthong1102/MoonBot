@@ -6288,7 +6288,7 @@
   "workBotOffer.created": "Đã tạo bot “{name}”",
   "server.workBot.legacyUnavailable": "Đề xuất cũ này chưa thể chuyển việc an toàn. Hãy kiểm tra công việc hiện tại trước khi giao yêu cầu mới.",
   "server.workBot.privateUnavailable": "Chưa thể tạo bot riêng an toàn từ hội thoại riêng tư này. Bạn vẫn có thể tiếp tục trong hội thoại hiện tại.",
-  "server.workBot.sharedUnavailable": "Chưa thể tạo bot riêng an toàn trong workspace dùng chung này. Bạn hãy tiếp tục tại hội thoại hiện tại.",
+  "server.workBot.sharedUnavailable": "Chưa thể tạo bot riêng an toàn trong không gian dùng chung này. Bạn hãy tiếp tục tại hội thoại hiện tại.",
   "server.workBot.dataUnavailable": "Chưa thể chuyển an toàn dữ liệu gắn với hội thoại này. Bạn hãy tiếp tục công việc tại đây.",
   "server.workBot.fileUnavailable": "Chưa thể chuyển an toàn tệp gắn với hội thoại này. Bạn hãy tiếp tục công việc tại đây.",
   "server.workBot.stopInAssignedBot": "Hãy mở bot được giao việc để dừng công việc này.",

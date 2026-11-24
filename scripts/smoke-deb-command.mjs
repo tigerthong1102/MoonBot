@@ -85,6 +85,12 @@ const installed = inContainer(
     command,
     'dpkg-query -W -f="INSTALLED=\\${Version} \\${db:Status-Abbrev}\\n" startupbot',
     'test -x /opt/StartupBot/startupbot && echo "EXECUTABLE=yes"',
+    "export HOME=/tmp/startupbot-home XDG_STATE_HOME=/tmp/startupbot-home/state ELECTRON_RUN_AS_NODE=1",
+    'mkdir -p "$HOME"',
+    '/opt/StartupBot/startupbot /opt/StartupBot/resources/server/openmausbot.js service install --sentinel --data-dir "$HOME/.startupbot"',
+    'unit="$XDG_STATE_HOME/startupbot-sentinel/openmausbot-sentinel.service"',
+    'grep -Fqx "Environment=ELECTRON_RUN_AS_NODE=1" "$unit"',
+    'grep -Fq "ExecStart=/opt/StartupBot/startupbot /opt/StartupBot/resources/server/openmausbot.js sentinel --once " "$unit"',
   ].join("\n"),
 );
 

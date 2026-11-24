@@ -9,3 +9,5 @@ Bản thử nghiệm dành cho Ubuntu Desktop 24.04 trên máy Intel hoặc AMD 
 Để dùng bản AppImage, cấp quyền bằng `chmod +x StartupBot-*-x86_64.AppImage` rồi chạy `./StartupBot-*-x86_64.AppImage`. Trên Ubuntu có hạn chế sandbox, ưu tiên gói Debian vì gói này cài kèm chính sách AppArmor cho trình duyệt.
 
 Tính năng điều khiển máy tính cần phiên desktop X11. Trong phiên Wayland, StartupBot chặn thao tác điều khiển chưa được hỗ trợ. Với bản thử nghiệm này, để nâng cấp, tải bộ cài StartupBot mới và cài lại cùng định dạng. Khi gỡ gói Debian bằng `sudo apt remove startupbot`, APT quản lý các tệp ứng dụng, còn dữ liệu cá nhân nằm trong thư mục người dùng.
+
+Nếu APT báo xung đột với một bản thử cũ, chạy `dpkg-query -S /opt/StartupBot/openmausbot` để xác định gói đang sở hữu tệp. Chỉ khi kết quả là `openmausbot: /opt/StartupBot/openmausbot` và đó là bản thử StartupBot anh/chị muốn thay, hãy đóng ứng dụng, sao lưu dữ liệu, rồi dùng `sudo apt remove openmausbot` trước khi cài gói mới. Giữ nguyên gói OpenMausBot chính thức nằm ở `/opt/OpenMausBot`.

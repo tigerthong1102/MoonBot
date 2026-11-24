@@ -38,7 +38,7 @@ it("creates one synthetic schedule only in the approved work bot", async () => {
     const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
     const weekday = weekdays[(new Date().getDay() + 3) % 7];
     const plan = join(fixture.info.dataDir, "room-plan.json");
-    writeFileSync(plan, JSON.stringify({ [targetId]: { steps: [{ tool: "create_trigger", arguments: { when: "schedule", name: "Synthetic stock fixture", instructions: "Check the synthetic fixture only.", schedule: { type: "weekly", time: "03:01", weekdays: [weekday] } } }], reply: "Synthetic schedule created." }, [main.id]: { script: [{ key: "follow-up", match: [followUp], reply: "Synthetic follow-up complete." }] } }));
+    writeFileSync(plan, JSON.stringify({ [targetId]: { steps: [{ tool: "create_trigger", arguments: { when: "schedule", name: "Synthetic stock fixture", instructions: "Check the synthetic fixture only.", schedule: { type: "weekly", time: "03:01", weekdays: [weekday] } } }], reply: "Synthetic schedule created." }, [main.id]: { script: [{ key: "follow-up", match: [followUp], steps: [{ tool: "session_search", arguments: { query: "synthetic stock count" } }, { tool: "session_read", arguments: { thread_id: main.threadId, message_id: source.id } }], reply: "Synthetic follow-up complete." }] } }));
     const before = (await api<{ routines: unknown[] }>("/api/routines")).routines.length;
     const answer = () => api<{ result: { bots: Array<{ id: string }> } }>(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior: "allow" });
     const accepted = await answer();
@@ -50,7 +50,14 @@ it("creates one synthetic schedule only in the approved work bot", async () => {
     expect(routines).toHaveLength(before + 1);
     expect(routines.filter(routine => routine.name === "Synthetic stock fixture")).toMatchObject([{ botId: worker.id, sourceThreadId: worker.threadId }]);
     expect((await rows(main.threadId)).some(row => row.card?.routineRequest)).toBe(false);
-    expect(readFileSync(plan + ".evidence.jsonl", "utf8").trim().split("\n")).toHaveLength(2);
+    const evidence = readFileSync(plan + ".evidence.jsonl", "utf8").trim().split("\n").map(line => JSON.parse(line) as { botId: string; evidence: Array<{ step?: { tool?: string }; response?: unknown }> });
+    expect(evidence).toHaveLength(2);
+    const mainTools = evidence.find(turn => turn.botId === main.id)!.evidence;
+    for (const tool of ["session_search", "session_read"]) {
+      const response = JSON.stringify(mainTools.find(entry => entry.step?.tool === tool)?.response);
+      expect(response).toContain("assigned to another bot");
+      expect(response).not.toContain(text);
+    }
     expect(readFileSync(prompts, "utf8").trim().split("\n").map(line => JSON.parse(line) as unknown).filter(prompt => JSON.stringify(prompt).includes(text))).toHaveLength(1);
   } finally {
     globalThis.fetch = originalFetch;

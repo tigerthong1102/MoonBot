@@ -13499,6 +13499,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           const room = roomByThread.get(hit.threadId);
           return {
             ...hit,
+            snippet: routedWorkMarker(store.messagesFor(hit.threadId).find(line => line.id === hit.messageId) ?? {}) ?? hit.snippet,
             task: room
               ? (room.tasks ?? []).find((task) => task.threadId === hit.threadId)?.title
               : store.taskByThread(from.id, hit.threadId)?.title,
@@ -13528,13 +13529,14 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         const own = recall.ownThreads.includes(threadId);
         const message = own ? readMessageText(threadId, messageId) : null;
         if (!message) return json(res, 404, { error: "no such message in your conversations" });
+        const contextTextForAgent = routedWorkMarker(store.messagesFor(threadId).find(line => line.id === messageId) ?? {}) ?? message.text;
         const readInRoom = Boolean(store.groupByThread(fromThreadId));
         const readCrossed = readInRoom && threadId !== fromThreadId && !recall.roomByThread.has(threadId);
         if (readCrossed) discloseRecall(from, fromThreadId, [threadId]);
         return json(res, 200, {
           ...message,
           crossed: readCrossed,
-          text: message.text.length > SESSION_READ_MAX_CHARS ? `${message.text.slice(0, SESSION_READ_MAX_CHARS)}…` : message.text,
+          text: contextTextForAgent.length > SESSION_READ_MAX_CHARS ? `${contextTextForAgent.slice(0, SESSION_READ_MAX_CHARS)}…` : contextTextForAgent,
           task: store.taskByThread(from.id, threadId)?.title,
         });
       }

@@ -457,7 +457,7 @@ export function appendMessage(threadId: string, message: Message): void {
   });
 }
 
-export const { appendMessageBatch, pendingWorkBotRoutes } = createWorkBotMessageDb({ db, transaction, insertMessage, setActiveLeaf });
+export const { appendMessageBatch, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, insertMessage, setActiveLeaf });
 
 export function updateMessage(threadId: string, message: Message): void {
   prepared("UPDATE messages SET at = ?, role = ?, kind = ?, text = ?, json = ?, search_text = ? WHERE thread_id = ? AND id = ?").run(message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), cjkSearchText(message.text), threadId, message.id);

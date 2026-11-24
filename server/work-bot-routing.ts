@@ -13,6 +13,8 @@ export interface WorkBotRoutingDependencies {
   mainTarget(threadId: string, messageId: string): Target | null;
   decision(threadId: string, messageId: string, requestId: string): Promise<{ state: "pending" | "interrupted" } | { state: "chosen"; target: Target }>;
   dispatch(threadId: string, messageId: string, target: Target): Promise<void>;
+  recoverDispatch?(threadId: string, messageId: string, route: Routing): boolean;
+  finishRecovery?(threadId: string, messageId: string, route: Routing): void;
   report(error: unknown): void;
 }
 
@@ -89,11 +91,19 @@ export class WorkBotRouter {
     try {
       const route = this.deps.message(threadId, messageId)?.workBotRouting;
       if (route?.state === "classifying") await this.classify(threadId, messageId);
-      else if (route?.state === "dispatching") this.deps.patch(threadId, messageId, "dispatching", { ...route, state: "interrupted" });
+      else if (route?.state === "dispatching" || route?.state === "dispatched" || route?.state === "interrupted") this.recoverDispatch(threadId, messageId);
       else if (route?.state === "waiting_choice") await this.reconcileChoice(threadId, messageId);
     } catch (error) {
       this.deps.report(error);
     }
+  }
+
+  recoverDispatch(threadId: string, messageId: string): void {
+    const route = this.deps.message(threadId, messageId)?.workBotRouting;
+    if (!route || !["dispatching", "dispatched", "interrupted"].includes(route.state)) return;
+    if (this.deps.recoverDispatch && !this.deps.recoverDispatch(threadId, messageId, route)) return;
+    if (route.state !== "interrupted" && !this.deps.patch(threadId, messageId, route.state, { ...route, state: "interrupted" })) return;
+    this.deps.finishRecovery?.(threadId, messageId, route);
   }
 
   async reconcileChoice(threadId: string, messageId: string): Promise<void> {

@@ -58,6 +58,19 @@ function workBotRoutingBlocks(threadId: string, exceptMessageId?: string): boole
 
 const workBotRouter = new WorkBotRouter({
   message: (threadId, messageId) => store.messagesFor(threadId).find(message => message.id === messageId),
+  recoverDispatch: (_threadId, messageId, route) => {
+    if (!route.targetBotId || !route.targetThreadId) return route.state === "dispatching";
+    const target = store.messagesFor(route.targetThreadId).find(row => row.id === messageId || row.sendId === `workbot-${messageId}`);
+    if (route.state !== "dispatching" && target?.requestPending !== true) return false;
+    if (target && !store.patchMessage(route.targetThreadId, target.id, { workBotExecutionUncertain: true })) return false;
+    if (target && !store.patchTask(route.targetBotId, route.targetThreadId, { resumeCursors: {}, rewound: true })) return false;
+    return true;
+  },
+  finishRecovery: (_threadId, messageId, route) => {
+    if (!route.targetThreadId) return;
+    const target = store.messagesFor(route.targetThreadId).find(row => row.id === messageId || row.sendId === `workbot-${messageId}`);
+    if (target?.workBotExecutionUncertain && target.requestPending === true) store.patchMessage(route.targetThreadId, target.id, { requestPending: false });
+  },
   patch: (threadId, messageId, expected, routing) => {
     const message = store.messagesFor(threadId).find(row => row.id === messageId);
     if (!message || message.workBotRouting?.state !== expected) return false;
@@ -192,7 +205,7 @@ const workBotRouter = new WorkBotRouter({
           validateHandoff();
           validateContext();
           const copied = store.appendWorkBotContext(target.threadId, [...staged, { sourceId: messageId, ...(source.replyToId ? { replySourceId: source.replyToId } : {}), message: {
-            role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`,
+            role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`, workBotHandoffSource: { threadId, messageId },
             ...(source.sender ? { sender: source.sender } : {}), ...(source.dataContext ? { dataContext: source.dataContext } : {}),
           } }]);
           return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}) };

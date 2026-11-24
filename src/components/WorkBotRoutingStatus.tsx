@@ -4,6 +4,7 @@ import { t } from "@/lib/i18n";
 
 export function WorkBotRoutingStatus({ message, botId, threadId, dispatch }: { message: Message; botId: string; threadId: string; dispatch: Dispatch<Action> }) {
   const route = message.workBotRouting;
+  if (message.workBotExecutionUncertain) return <div role="status" className="mt-1 text-[11px] text-ink-tertiary">{t("workBotRouting.interrupted")}</div>;
   if (!route || route.state === "dispatched") return null;
   return <div role="status" className="mt-1 text-[11px] text-ink-tertiary">
     {t(`workBotRouting.${route.state}`)}

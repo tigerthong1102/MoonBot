@@ -4,7 +4,7 @@ import { createWorkBotHost } from "./host/work-bot-host.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
 import { createProfileModelResponder } from "./host/profile-model-responder.ts";
-import { pendingWorkBotRoutes } from "./message-db.ts";
+import { pendingWorkBotRoutes, pendingWorkBotTargets } from "./message-db.ts";
 import { startFailureText } from "./start-failure-text.ts";
 import { reserveGmailDrafts } from "./gmail-draft-policy.ts";
 import { createGmailDrafts } from "./host/gmail-drafts.ts";
@@ -9355,6 +9355,8 @@ const workBotHost = createWorkBotHost({
   teamHost, conversationShares, threadStarters, threadBusy, startTurn,
 });
 const { workBotRouter, reconcileWorkBotBranch, workBotRoutingBlocks } = workBotHost;
+for (const pending of pendingWorkBotRoutes()) workBotRouter.recoverDispatch(pending.threadId, pending.message.id);
+for (const pending of pendingWorkBotTargets()) { const bot = store.botByThread(pending.threadId); if (bot && store.patchMessage(pending.threadId, pending.message.id, { workBotExecutionUncertain: true }) && store.patchTask(bot.id, pending.threadId, { resumeCursors: {}, rewound: true })) store.patchMessage(pending.threadId, pending.message.id, { requestPending: false }); }
 
 const resolveAndSendTeamSetup = createTeamSetupResponder({ store,
   assertAvailable: () => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); },
@@ -15312,7 +15314,7 @@ server.listen(PORT, listenHost(server), async () => {
   }
   // Only once every registry is initialized and the endpoint listens: earlier dispatch can hit uninitialized bindings.
   moveFreeze.hold(() => { routines!.start(); botWaits.start(); proactive.start(); }, () => { routines!.stop(); botWaits.stop(); proactive.stop(); });
-  for (const pending of pendingWorkBotRoutes()) void workBotRouter.recover(pending.threadId, pending.message.id);
+  for (const pending of pendingWorkBotRoutes()) if (pending.message.workBotRouting?.state === "classifying" || pending.message.workBotRouting?.state === "waiting_choice") void workBotRouter.recover(pending.threadId, pending.message.id);
   limitClock.start(); burst.recover();
   moveFreeze.hold(() => memoryUpkeep.start(), () => memoryUpkeep.stop());
 });

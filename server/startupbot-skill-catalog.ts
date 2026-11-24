@@ -8,6 +8,7 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["b93a65ef1e361e7df9d837b029cbae8841365bed363c4e0a82c8726796c0b069", "producthunt"],
   ["adfa8a000dc22d041f444be9a841c075dec76c0a9edd0091da23159013249757", "docx"],
   ["3b0ee778f53c9fbf88d64b026b233321180aeecfd93713ebe3c9623b59c47ab6", "pptx"],
   ["3fdea15edd601b3c15b7bb7667f78084df7ab6f50f388509932cf5bc0db6abe6", "xlsx"],
@@ -25,6 +26,7 @@ const supersededFolders = new Map([
 ]);
 
 const olderInstructions = new Map([
+  ["producthunt", "d1714f2ece2962d1f836cb12e2b57f6f017d7a0b053f86b102b42cab9ae1b638"],
   ["docx", "a100df67e78f4a30ce32a95abcaf02d4418013924f9d15f72e78fe52ca439020"],
   ["pptx", "7cc3d0066b6036227241edb9ff640ce7aa22781c34530f9550d69651c7a5cea2"],
   ["xlsx", "c5c862d6d8ae4b9a7bed37c5a16f24d9415747479dd535fb7ca6011fa4d71cb0"],
@@ -93,7 +95,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx"].includes(entry.name)
+        reviewState: ["hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

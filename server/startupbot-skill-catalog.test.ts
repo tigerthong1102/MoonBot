@@ -87,15 +87,15 @@ it("upgrades original catalog folders and keeps their review choices", () => {
   }
 });
 
-it("upgrades the earlier expanded HyperFrames skill", () => {
-  const root = mkdtempSync(join(tmpdir(), "startupbot-hyperframes-v2-"));
+it.each(["hyperframes-v2", "hyperframes-v3"])("upgrades the earlier %s skill", (version) => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-hyperframes-upgrade-"));
   try {
     const catalog = join(root, "old-catalog");
     const library = join(root, "library");
     const oldSkill = join(catalog, "hyperframes");
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", oldSkill, { recursive: true });
-    cpSync("server/testing/fixtures/startupbot-old-skills/hyperframes-v2", oldSkill, { recursive: true });
+    cpSync(join("server/testing/fixtures/startupbot-old-skills", version), oldSkill, { recursive: true });
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
       .filter((entry: { name: string }) => entry.name === "hyperframes");
     writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
@@ -104,6 +104,7 @@ it("upgrades the earlier expanded HyperFrames skill", () => {
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 61, failed: [] });
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("compact shot plan");
+    expect(readFileSync(join(library, "skills/hyperframes/references/types/launch.md"), "utf8")).toContain("Screenshot: motion preferences");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

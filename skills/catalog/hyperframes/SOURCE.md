@@ -4,7 +4,7 @@ Upstream directory https://github.com/heygen-com/hyperframes/tree/77ea9d80cfc8b3
 
 Upstream license https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE
 
-StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. Other included upstream files retain their original contents.
+StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. The placeholder example in references/types/launch.md was changed to avoid implying an application-specific Settings path. Other included upstream files retain their original contents.
 
 Included upstream references. Excluded upstream fonts, presets and helper scripts. Modified SKILL.md to use configured local tools and omit the usage beacon.
 

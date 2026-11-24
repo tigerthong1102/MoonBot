@@ -44,7 +44,10 @@ const olderInstructions = new Map([
 ]);
 
 const additionalOlderInstructions = new Map([
-  ["hyperframes", "5b3f2384088aae01eaf835ec1588128387432f7ddc112321f80dfa22b3ab7880"],
+  ["hyperframes", new Set([
+    "5b3f2384088aae01eaf835ec1588128387432f7ddc112321f80dfa22b3ab7880",
+    "11a2302d7b7d522d9878047c13e49ab92bec990dd8094136b51b9c7cbda44c4c",
+  ])],
 ]);
 
 const catalogSchema = z.array(z.object({
@@ -95,7 +98,7 @@ export function installStartupBotSkillCatalog({
       }
       if (previous) {
         const expected = olderInstructions.get(entry.name) ?? createHash("sha256").update(folder.skillMd).digest("hex");
-        if (previous.sha256 !== expected && previous.sha256 !== additionalOlderInstructions.get(entry.name)) continue;
+        if (previous.sha256 !== expected && !additionalOlderInstructions.get(entry.name)?.has(previous.sha256)) continue;
         const archived = retireLibrarySkill(entry.name, previous.sha256, root);
         if ("error" in archived) throw new Error(archived.error);
         if ("stale" in archived) continue;

@@ -1491,6 +1491,35 @@ describe("AppTriggerManager", () => {
     expect(triggers.mutationActivity()).toBe("no-mutation");
   });
 
+  it("retains the broker reconnect event through a rename and restart", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const saved = await gmailTrigger(triggers);
+    let entered!: () => void, release!: () => void;
+    const syncing = new Promise<void>(resolve => { entered = resolve; });
+    const resume = new Promise<void>(resolve => { release = resolve; });
+    const setEnabled = client.setEnabled.bind(client);
+    vi.spyOn(client, "setEnabled").mockImplementationOnce(async (...args) => {
+      const result = await setEnabled(...args);
+      entered();
+      await resume;
+      return result;
+    });
+    const rename = triggers.update(saved.id, { name: "Renamed fixture" });
+    await syncing;
+    try {
+      expect((await broker.expire(gmail)).ok).toBe(true);
+      await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/Event history or bot links/);
+      expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
+    } finally {
+      release();
+      await rename;
+    }
+    await drain(triggers);
+    expect(manager().list()).toMatchObject([{ id: saved.id, name: "Renamed fixture", problem: { kind: "reconnect" } }]);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
   it("retries an unrelated event after a concurrent automation mutation finishes", async () => {
     const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
     const triggers = manager({ broker: client, linkedBots: () => false });

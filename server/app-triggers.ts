@@ -97,6 +97,7 @@ export class AppTriggerManager {
   private cursorReviewTimer: ReturnType<typeof setTimeout> | null = null;
   private unreadable = false;
   private mutationsInFlight = 0;
+  private committingMutation = false;
   private mutationGeneration = 0;
   private pollsInFlight = 0;
   private pollGeneration = 0;
@@ -582,6 +583,7 @@ export class AppTriggerManager {
   }
 
   private handle(event: BrokerEvent, sourceScope: string | null): void {
+    if (this.committingMutation || (this.options.linkedBots && this.mutationsInFlight)) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
     if (event.kind === "account_expired") {
       const accountId = event.event.data?.connected_account_id;
       for (const trigger of this.triggers.filter((candidate) => candidate.accountId === accountId)) this.setProblem(trigger, { kind: "reconnect", at: this.now() });
@@ -598,7 +600,6 @@ export class AppTriggerManager {
     }
     if (held?.sourceScope && sourceScope !== held.sourceScope) throw new RetryAppEvent("Conflicting event source");
     if (held?.event && JSON.stringify(held.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
-    if (this.options.linkedBots && this.mutationsInFlight) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
     let data = event.event.data ?? {};
     let allBound = this.bound(event.triggerId);
     if (event.kind === "test" && Object.hasOwn(data, "omb_test_target")) {
@@ -931,7 +932,10 @@ export class AppTriggerManager {
   }
 
   private exclusive<T>(work: () => Promise<T>): Promise<T> {
-    const next = this.serial.then(work, work);
+    const next = this.serial.then(async () => {
+      this.committingMutation = true;
+      try { return await work(); } finally { this.committingMutation = false; }
+    });
     this.serial = next.catch(() => undefined);
     return next;
   }

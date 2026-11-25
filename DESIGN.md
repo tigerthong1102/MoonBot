@@ -52,6 +52,9 @@ where they belong instead of adding new places.
   usage caps and choose whether they stop all new work or unattended work,
   because spending limits depend on the owner's budget and cannot be chosen
   safely for everyone. Keep these controls together in Settings.
+  AI Twin has a disabled-by-default internal release gate during qualification.
+  It has no app-wide settings control. The person opts in by creating a Twin
+  after the capability is enabled for that environment.
 - **No new asks.** No new permission asks, approval cards, confirm dialogs,
   nags or waits that interrupt the person, and no default below Full access.
   A bot gets on with the work; a change that needs undoing gets **Undo**.
@@ -59,6 +62,9 @@ where they belong instead of adding new places.
   Show one confirmation in that conversation naming what will be erased and
   what will be kept. The person can cancel before deletion. Retaining a copy
   for Undo would defeat the request to erase the transcript.
+  The same exception applies when the person permanently deletes an AI Twin
+  profile. Confirm once in that profile and name the writing preferences that
+  will be deleted. Keeping a copy for Undo would retain that personal data.
   The main helper may offer a dedicated bot for work the person has just
   described, in any language. The decision uses the meaning of the message.
   A pending offer for one responsibility leaves other subjects eligible.

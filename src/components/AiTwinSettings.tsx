@@ -58,7 +58,7 @@ export function AiTwinSettings() {
         const fresh = await api<AiTwinView>(AI_TWIN_PATH, { timeoutMs: 8_000 }).catch(() => null);
         if (alive.current && fresh) {
           setView(fresh);
-          if (fresh.twin?.id !== twin?.id) setEditing(false);
+          setEditing(false);
           setConfirming(false);
         }
       } else {

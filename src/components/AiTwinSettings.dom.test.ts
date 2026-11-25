@@ -60,3 +60,24 @@ it("keeps setup opt-in, updates the profile on acknowledgment, and cancels delet
   await act(async () => button(dialog!, "Cancel").click());
   expect(apiMock).toHaveBeenCalledTimes(2);
 });
+
+it("shows the latest profile after a conflicting save before another edit is allowed", async () => {
+  const previous = { id: "same", name: "Original AI", style: "Use lists.", revision: 1, paused: false, createdAt: 1, updatedAt: 1 };
+  apiMock.mockResolvedValueOnce({ twin: previous, creationEpoch: "initial" });
+  const profile = await mount();
+  await act(async () => button(profile, "Edit profile").click());
+  const input = profile.querySelector("input")!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Stale edit");
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  apiMock.mockRejectedValueOnce(new ApiError("twin_changed", 409, { error: "twin_changed" }));
+  apiMock.mockResolvedValueOnce({ twin: { ...previous, name: "Latest AI", style: "Use short paragraphs.", revision: 2 }, creationEpoch: "initial" });
+  await act(async () => button(profile, "Save").click());
+  expect(profile.querySelector("input")).toBeNull();
+  expect(profile.textContent).toContain("Latest AI");
+  expect(profile.textContent).not.toContain("Stale edit");
+  await act(async () => button(profile, "Edit profile").click());
+  expect(profile.querySelector("input")?.value).toBe("Latest AI");
+  expect(profile.querySelector("textarea")?.value).toBe("Use short paragraphs.");
+});

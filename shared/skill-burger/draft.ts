@@ -336,7 +336,8 @@ class Drafter {
     } else if (layer.kind === "file") {
       const content = String(layer.args.content ?? "");
       const path = String(layer.args.path).replace(CONVERSATION_FOLDER, ".");
-      this.steps.push({ id, kind: "file", label, path, content: (this.value(id, content, "content", layer.afterRead, path.split(/[\\/]/).pop()) as string | WorkflowRef) });
+      if (/^(?:[\\/]|[A-Za-z]:)/.test(path)) this.steps.push(this.ai(id, layer, label, " Determine a safe relative destination in this conversation before writing."));
+      else this.steps.push({ id, kind: "file", label, path, content: (this.value(id, content, "content", layer.afterRead, path.split(/[\\/]/).pop()) as string | WorkflowRef) });
     } else if (layer.kind === "browser") {
       const url = String(layer.args.url);
       this.steps.push({ id, kind: "browser", label, action: "open", url: this.inAsk(url) ? this.askArg(url, "url") : url });

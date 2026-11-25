@@ -1,6 +1,3 @@
-// Each saved Skill Burger's recent runs, so its card can say how the last ones went: when, in which chat, which step
-// stopped a failed one, which saved values a run reused. One small JSON file; at most RUNS_KEPT runs a burger and
-// NAMES_KEPT burgers, newest first. A run that pauses (for the bot, for teammates) is updated in place as it goes on.
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 

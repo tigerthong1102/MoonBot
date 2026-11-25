@@ -1,8 +1,3 @@
-// A saved Skill Burger's delegate step, run the way the bot ran it: each teammate gets its own message through the same
-// coordinate_bots door (sent as this turn, so every hand-off rule and limit applies), all at once; the run pauses while
-// they work, and their replies resume the bot as any hand-off's do. If a reply falls short of its done-when, the bot says
-// which and why, and only those go back, for at most the step's review rounds. A teammate that is gone is matched by name
-// or role, else the bot picks who does its part (asking the person if it can't tell).
 import type { WorkflowRef, WorkflowStep, WorkflowText } from "../../shared/skill-burger/format.ts";
 import { teammateNames } from "../../shared/skill-burger/format.ts";
 

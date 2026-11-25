@@ -1,5 +1,3 @@
-// The server's own parts a Skill Burger run needs, gathered once at boot: the turn's folder, a capability of another kind
-// for the same turn (so an app step meets the connectors gate and a page the browser's), and the chat's event bus.
 import { randomUUID } from "node:crypto";
 
 import { harnessMcpTokenEnv } from "../harness-mcp-token.ts";

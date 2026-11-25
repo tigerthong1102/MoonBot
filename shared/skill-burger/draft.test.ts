@@ -108,6 +108,10 @@ describe("burger layers", () => {
 });
 
 describe("Git commands in saved runs", () => {
+  it.each(["/projects/customer-a/notes.md", "C:\\projects\\customer-a\\notes.md"])("does not save an unscoped absolute destination %s as an exact file step", (path) => {
+    const { workflow } = draftWorkflow([ask("Write a note"), tool("Write", { file_path: path, content: "hello" }), tool("Bash", { command: "echo done > marker.txt" })])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", deterministic: false, prompt: expect.stringContaining("safe relative destination") });
+  });
   it.each([
     "git branch",
     "git branch -r",

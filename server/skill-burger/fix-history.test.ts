@@ -30,7 +30,7 @@ describe("keeping a fix", () => {
 
   it("captures the requested missing-case handoff after earlier pauses", () => {
     const handoff = runText({ status: "needs_input", run: "run-1", steps: [{ id: "d2", label: "Classify", state: "handed", case: "support" }], requiresInput: { type: "missing_case", step: "d2", prompt: 'The run reached the "support" case of "Classify", which has no saved steps yet.', resumeToken: "run-1" } });
-    const messages = [runCall('Your turn: think; resume "run-1"'), bash("echo unrelated"), runCall(handoff), bash("cp support.csv output.csv"), runCall("The Skill Burger ran")];
+    const messages = [runCall('Your turn: think; resume "run-1"'), bash("echo unrelated"), runCall(JSON.stringify([{ type: "text", text: handoff }])), bash("cp support.csv output.csv"), runCall("The Skill Burger ran")];
     const layers = judgementLayers(messages, "run-1", "d2", "Classify", "support", false);
     expect(layers).toHaveLength(1);
     expect(JSON.stringify(layers)).toContain("cp support.csv output.csv");

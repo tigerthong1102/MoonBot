@@ -64,7 +64,8 @@ export function judgementLayers(messages: readonly RunMessage[], run: string, de
   const marker = `Workflow case: ${JSON.stringify({ step: decide, case: chosen })}`;
   const handed = messages.findIndex((message) => {
     const output = message.tool?.output ?? "";
-    return isRunCall(message) && output.includes(run) && (output.includes(marker) || (uniqueLabel && !output.includes("Workflow case: ") && output.includes(prompt)));
+    const includes = (value: string) => output.includes(value) || output.includes(value.replaceAll('"', '\\"'));
+    return isRunCall(message) && output.includes(run) && (includes(marker) || (uniqueLabel && !output.includes("Workflow case: ") && includes(prompt)));
   });
   if (handed < 0) return [];
   const after = messages.slice(handed + 1);

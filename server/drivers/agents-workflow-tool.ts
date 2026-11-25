@@ -1,6 +1,3 @@
-// The agents catalog's Skill Burger tools: run_workflow runs a saved Skill Burger's steps exactly, without the AI, and
-// hands back only what needs judgement; workflow_edit changes its steps when the person asks (add a case, drop one, put a
-// condition on a step). The routes are server/skill-burger/runs.ts.
 import type { Json } from "./agents-client.ts";
 import type { ToolCallContext, ToolCallResult } from "./agents-call.ts";
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-export async function smokeWindowsQuit({ inspect, evaluate }) {
+export async function smokeWindowsQuit({ inspect, evaluate, expectedPid }) {
   const deadline = Date.now() + 20_000;
   let target;
   while (!target && Date.now() < deadline) {
@@ -17,6 +17,7 @@ export async function smokeWindowsQuit({ inspect, evaluate }) {
       const receive = event => { const frame = JSON.parse(String(event.data)); if (frame.id !== id) return; clearTimeout(timer); inspector.removeEventListener("message", receive); if (frame.error || frame.result?.exceptionDetails) reject(new Error(frame.error?.message ?? frame.result.exceptionDetails.text)); else resolve(frame.result?.result?.value); };
       inspector.addEventListener("message", receive); inspector.send(JSON.stringify({ id, method: "Runtime.evaluate", params: { expression, returnByValue: true } }));
     });
+    assert.equal(await main("process.pid"), expectedPid, "The inspector must belong to the fixture application");
     await main(`(()=>{const e=process.getBuiltinModule('module').createRequire(process.resourcesPath+'/app.asar/package.json')('electron');const original=e.Tray.prototype.setContextMenu;e.Tray.prototype.setContextMenu=function(menu){if(menu?.items?.some(item=>item.label==='Quit StartupBot')&&menu.items.some(item=>item.label==='Open StartupBot'))globalThis.__fixtureQuitMenu=menu;return original.call(this,menu)};return true})()`);
     await evaluate("window.ogb.desktopLanguage.set('vi')");
     await evaluate("window.ogb.desktopLanguage.set('en')");

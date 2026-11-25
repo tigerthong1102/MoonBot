@@ -202,9 +202,10 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
       assert(JSON.stringify(newPrompts[0]).includes(followupText), "The new provider turn must contain the follow-up");
     }
     assert.deepEqual(rendererErrors, [], "The restarted renderer reported an uncaught exception or crash");
-    if (process.platform === "win32") { await smokeWindowsQuit({ inspect, evaluate, cdp }); } else if (process.platform === "darwin") { socket.close(); child.kill("SIGTERM"); }
+    if (process.platform === "win32") { await smokeWindowsQuit({ inspect, evaluate, expectedPid: child.pid }); } else if (process.platform === "darwin") { socket.close(); child.kill("SIGTERM"); }
     else await cdp("Browser.close").catch(() => {});
     await until(() => child.exitCode !== null || child.signalCode !== null, "the restarted application to exit", 45_000);
+    assert.equal(child.exitCode, 0, "The restarted application must exit cleanly"); assert.equal(child.signalCode, null);
     await waitPortClosed(port, "the restarted server to stop");
     assert.deepEqual(rendererErrors, [], "The restarted renderer reported an uncaught exception or crash");
     return { status: "PASS", sameBotAndThread: true, workRequestId, noReplayObservedMs: 3000, fileRetained: true, fullAccessRetained: true, theme: expectedSkin ? "PASS" : "NOT RUN", workspace: expectedWorkspace ? "PASS" : "NOT RUN" };

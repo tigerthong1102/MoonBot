@@ -301,10 +301,11 @@ try {
     assert.deepEqual(legacyGroup.body.group.memberIds, [helper.id]);
     writeFileSync(path.join(home, "synthetic-old-file.txt"), "baseline fixture file");
     assert.deepEqual(rendererErrors, [], "The baseline renderer reported an uncaught exception or crash");
-    if (inspect) await smokeWindowsQuit({ inspect, evaluate, cdp });
+    if (inspect) await smokeWindowsQuit({ inspect, evaluate, expectedPid: child.pid });
     else if (mac) { socket.close(); child.kill("SIGTERM"); }
     else await cdp("Browser.close").catch(() => {});
     await until(() => child.exitCode !== null || child.signalCode !== null, "the baseline application shutdown", 45_000);
+    assert.equal(child.exitCode, 0, "The baseline must exit cleanly"); assert.equal(child.signalCode, null);
     await waitPortClosed(port, "the baseline server shutdown");
     assert.deepEqual(rendererErrors, [], "The baseline renderer reported an uncaught exception or crash");
     const destination = path.resolve(values["create-upgrade-fixture"]);
@@ -796,10 +797,11 @@ try {
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   const botIds = (await roster()).map(row => row.id);
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
-  if (inspect) await smokeWindowsQuit({ inspect, evaluate, cdp });
+  if (inspect) await smokeWindowsQuit({ inspect, evaluate, expectedPid: child.pid });
   else if (mac) { socket.close(); child.kill("SIGTERM"); }
   else await cdp("Browser.close").catch(() => {});
   await until(() => child.exitCode !== null || child.signalCode !== null, "the first application shutdown", 45_000);
+  assert.equal(child.exitCode, 0, "The first application must exit cleanly"); assert.equal(child.signalCode, null);
   await waitPortClosed(port, "the first server to stop");
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, canceledHandoff, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle, usernameGroup });

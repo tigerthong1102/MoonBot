@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AI_TWIN_LOOKUP_PATH, AI_TWIN_PREVIEW_PATH, AI_TWIN_QUESTION_MAX, type AiTwinLesson, type AiTwinPreviewProvider, type AiTwinProfile } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
+import { AiTwinDisclosure } from "./AiTwinDisclosure";
 import { SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 
 export function AiTwinPreview({ twin, provider, refresh }: {
@@ -57,11 +58,10 @@ export function AiTwinPreview({ twin, provider, refresh }: {
   }
 
   return (
-    <details open={open} onToggle={(event) => {
-      setOpen(event.currentTarget.open);
-      if (!event.currentTarget.open) {
-        const running = abort.current;
-        running?.abort();
+    <AiTwinDisclosure title={t("settings.aiTwin.preview")} open={open} onToggle={() => {
+      setOpen(!open);
+      if (open) {
+        abort.current?.abort();
         setPending(null);
         setQuestion("");
         setDraft("");
@@ -69,7 +69,6 @@ export function AiTwinPreview({ twin, provider, refresh }: {
         setError(null);
       }
     }}>
-      <summary className="cursor-pointer text-[13px] font-medium text-ink">{t("settings.aiTwin.preview")}</summary>
       {open && (
         <form onSubmit={lookup} className="mt-3 flex flex-col gap-2">
           <SettingsField label={t("settings.aiTwin.sampleQuestion")}>
@@ -106,6 +105,6 @@ export function AiTwinPreview({ twin, provider, refresh }: {
           )}
         </form>
       )}
-    </details>
+    </AiTwinDisclosure>
   );
 }

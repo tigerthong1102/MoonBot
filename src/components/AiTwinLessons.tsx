@@ -5,6 +5,7 @@ import {
 } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
+import { AiTwinDisclosure } from "./AiTwinDisclosure";
 import { SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 
 type LessonForm = { lessonId?: string; question: string; answer: string };
@@ -15,6 +16,7 @@ export function AiTwinLessons({ twin, lessons, changed, refresh }: {
   changed: (view: AiTwinView) => void;
   refresh: () => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [form, setForm] = useState<LessonForm | null>(null);
   const [error, setError] = useState<"retry" | "changed" | "duplicate" | "full" | null>(null);
   const [pending, setPending] = useState(false);
@@ -54,8 +56,7 @@ export function AiTwinLessons({ twin, lessons, changed, refresh }: {
   }
 
   return (
-    <details>
-      <summary className="cursor-pointer text-[13px] font-medium text-ink">{t("settings.aiTwin.lessons")}</summary>
+    <AiTwinDisclosure title={t("settings.aiTwin.lessons")} open={open} onToggle={() => setOpen(!open)}>
       <div className="mt-3 flex flex-col gap-3">
         {lessons.length > 0 && (
           <ul className="flex flex-col gap-3">
@@ -112,6 +113,6 @@ export function AiTwinLessons({ twin, lessons, changed, refresh }: {
               error === "changed" ? "settings.aiTwin.conflict" : "settings.aiTwin.saveError",
         )}</p>}
       </div>
-    </details>
+    </AiTwinDisclosure>
   );
 }

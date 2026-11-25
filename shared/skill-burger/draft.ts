@@ -331,7 +331,8 @@ class Drafter {
       });
     } else if (layer.kind === "shell") {
       const cwd = typeof layer.args.cwd === "string" ? layer.args.cwd.replace(CONVERSATION_FOLDER, ".") : undefined;
-      this.steps.push({ id, kind: "shell", label: label.replace(CONVERSATION_FOLDER, "."), run: this.shell(command.replace(CONVERSATION_FOLDER, ".")), ...(cwd ? { cwd } : {}) });
+      const shell = layer.args.shell === "bash" || layer.args.shell === "unknown" ? layer.args.shell : undefined;
+      this.steps.push({ id, kind: "shell", label: label.replace(CONVERSATION_FOLDER, "."), run: this.shell(command.replace(CONVERSATION_FOLDER, ".")), ...(cwd ? { cwd } : {}), ...(shell ? { shell } : {}) });
     } else if (layer.kind === "file") {
       const content = String(layer.args.content ?? "");
       const path = String(layer.args.path).replace(CONVERSATION_FOLDER, ".");

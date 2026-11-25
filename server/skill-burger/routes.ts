@@ -73,9 +73,10 @@ export function judgementLayers(messages: readonly RunMessage[], run: string, de
 }
 
 /** The tool rows of what the bot did between a run stopping at a failed step and going on from it: its fix. */
-export function fixLayers(messages: readonly RunMessage[], run: string) {
+export function fixLayers(messages: readonly RunMessage[], run: string, step: string) {
   const isRunCall = (message: RunMessage) => message.kind === "activity" && /(?:^|__)run_workflow$/.test(message.tool?.name ?? "");
-  const stopped = messages.findIndex((message) => isRunCall(message) && (message.tool?.output ?? "").includes(run) && /stopped/i.test(message.tool?.output ?? ""));
+  const marker = `Workflow failure: ${JSON.stringify({ step })}`;
+  const stopped = messages.findLastIndex((message) => { const output = message.tool?.output ?? ""; return isRunCall(message) && output.includes(run) && (output.includes(marker) || output.includes(marker.replaceAll('"', '\\"'))); });
   if (stopped < 0) return [];
   const after = messages.slice(stopped + 1);
   const resumed = after.findIndex(isRunCall);
@@ -175,7 +176,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const found = readWorkflowSkill(placeOf(botId), burger, deps.root);
       const sha256 = listWorkflowSkills(botId ? [botId] : [], deps.root).find((skill) => skill.name === burger && skill.everyChat === !botId)?.sha256;
       if (!found || !sha256) return json(res, 404, { error: "No such skill." });
-      const layers = fixLayers(deps.messages(threadId), run);
+      const layers = fixLayers(deps.messages(threadId), run, step);
       if (!layers.length) return json(res, 422, { error: "The bot did nothing to fix it that could be saved." });
       const draft = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary, deps.teammate ? { teammate: teammateFor(auth) } : {});
       const fix = mergeDraftInputs(found.workflow, draft);

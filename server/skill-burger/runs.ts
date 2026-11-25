@@ -1,6 +1,3 @@
-// The bot's side of running and changing Skill Burgers: the internal routes behind the run_workflow and workflow_edit
-// tools. A run is the bot's own turn doing the steps, so every step goes through the doors that turn has (executors.ts),
-// and each step shows in the chat as it starts and ends, which is what the burger card cooks and stacks from.
 import { join } from "node:path";
 import { z } from "zod";
 

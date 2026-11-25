@@ -172,6 +172,11 @@ describe("draftWorkflow", () => {
     expect(draft.workflow.args).toEqual({ value: { default: "staging" } });
   });
 
+  it("records the interpreter for Bash and marks unspecified shells as unknown", () => {
+    const { workflow } = draftWorkflow([ask("Make files"), tool("Bash", { command: "echo {north,south} > regions.txt" }), tool("run_shell_command", { command: "echo data > output.txt" })])!;
+    expect(workflow.steps).toMatchObject([{ kind: "shell", shell: "bash" }, { kind: "shell", shell: "unknown" }]);
+  });
+
   it.each(["cwd", "Cwd", "workdir", "working_directory", "directory", "dir"])(
     "saves the ACP working directory supplied as %s for both shell steps",
     (key) => {

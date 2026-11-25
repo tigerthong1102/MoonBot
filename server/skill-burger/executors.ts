@@ -57,7 +57,7 @@ function defaultShell(): NonNullable<ExecutorContext["shell"]> {
 
 /** Runs `script` as the bot, in its box where the box is on, and collects up to `maxBytes` of each stream. */
 function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["shell"]>[0]): Promise<ExecResult> {
-  const shell = context.shell ?? defaultShell();
+  const shell = context.shell ?? (input.shell === "bash" ? { command: "bash", args: (script: string) => ["-c", script] } : defaultShell());
   return new Promise((done) => {
     let child: ReturnType<typeof spawnCli>;
     try {
@@ -68,7 +68,7 @@ function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["she
         cwd,
         env: { PATH: commandPath(), HOME: process.env.HOME, LANG: process.env.LANG, ...input.env },
         stdio: ["pipe", "pipe", "pipe"],
-        box: { botId: context.botId },
+        box: { botId: context.botId, workflowEnv: Object.keys(input.env) },
       }, "bot");
     } catch (error) {
       done({ ok: false, error: error instanceof Error ? error.message : String(error) });

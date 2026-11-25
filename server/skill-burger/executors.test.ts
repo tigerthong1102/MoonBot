@@ -111,4 +111,10 @@ describe("where a Skill Burger's steps run", () => {
     expect(await exec.shell({ command: "yes | head -c 5000", env: {}, where: "bot", tool: "shell", signal: signal(), maxBytes: 1_000 })).toMatchObject({ ok: false, tooLarge: true });
     expect(shellQuote(value)).toBe(`'it'\\''s $(rm -rf /) \`x\`'`);
   });
+
+  it.skipIf(process.platform === "win32")("uses Bash for a recorded Bash command", async () => {
+    const exec = createExecutors({ botId: "b", cwd: folder(), internal: async () => ({ ok: false, body: {} }) });
+    const result = await exec.shell({ command: "printf '%s\\n' {north,south}", shell: "bash", env: {}, where: "bot", tool: "shell", signal: signal(), maxBytes: 1_000 });
+    expect(result).toEqual({ ok: true, output: "north\nsouth\n" });
+  });
 });

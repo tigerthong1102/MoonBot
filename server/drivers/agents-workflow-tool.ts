@@ -20,7 +20,7 @@ export function runText(envelope: Json): string {
   const reused = defaults.length ? [`The request didn't give ${defaults.length > 1 ? "these inputs" : "this input"}, so the run used the saved ${defaults.length > 1 ? "values" : "value"}: ${defaults.join("; ")}. Tell the person.`, ""] : [];
   if (error) {
     const goOn = typeof error.resumeToken === "string" ? ` Once the cause is fixed, call run_workflow with resume ${JSON.stringify(error.resumeToken)} to go on from that step.` : "";
-    return [...reused, `The Skill Burger stopped: ${String(error.message)}`, ...lines, "", `Nothing after that step ran, and no step is tried twice by itself. Tell the person what failed; don't redo the step by hand unless they ask.${goOn}`].join("\n");
+    return [...reused, `The Skill Burger stopped: ${String(error.message)}`, ...(typeof error.step === "string" ? [`Workflow failure: ${JSON.stringify({ step: error.step })}`] : []), ...lines, "", `Nothing after that step ran, and no step is tried twice by itself. Tell the person what failed; don't redo the step by hand unless they ask.${goOn}`].join("\n");
   }
   if (envelope.status === "cancelled") return ["The Skill Burger was stopped.", ...lines].join("\n");
   if (envelope.status === "needs_input" && ask) {

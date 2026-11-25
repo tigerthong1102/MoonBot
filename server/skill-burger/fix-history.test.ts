@@ -39,12 +39,12 @@ describe("keeping a fix", () => {
   it("takes what the bot did between the failed step and going on, and puts it just before that step", () => {
     const messages = [
       { id: "u", role: "user", kind: "text", text: "/make-csv" },
-      runCall('The Skill Burger stopped: "Convert" failed: in2csv: command not found. Once the cause is fixed, call run_workflow with resume "run-1"'),
+      runCall('The Skill Burger stopped: "Convert" failed: in2csv: command not found.\nWorkflow failure: {"step":"s1"}\nOnce the cause is fixed, call run_workflow with resume "run-1"'),
       bash("python3 -m venv .venv && .venv/bin/pip install csvkit"),
       bash(".venv/bin/in2csv a.json > done.csv"),
       runCall("The Skill Burger ran: …"),
     ] as RunMessage[];
-    const layers = fixLayers(messages, "run-1");
+    const layers = fixLayers(messages, "run-1", "s1");
     expect(layers.map((layer) => layer.kind)).toEqual(["shell", "shell"]);
     const workflow = wf([
       { id: "s1", kind: "shell", label: "Fetch", run: "curl -s https://example.com/a.json -o a.json" },
@@ -63,7 +63,13 @@ describe("keeping a fix", () => {
   });
 
   it("finds nothing when the run never stopped", () => {
-    expect(fixLayers([runCall("The Skill Burger ran: …"), bash("echo hi > a.txt")], "run-1")).toEqual([]);
+    expect(fixLayers([runCall("The Skill Burger ran: …"), bash("echo hi > a.txt")], "run-1", "s1")).toEqual([]);
+  });
+
+  it("captures the repair belonging to the requested failure", () => {
+    const messages = [runCall('The Skill Burger stopped. Workflow failure: {"step":"s1"} resume "run-1"'), bash("echo first > first.txt"), runCall("resumed"), runCall(JSON.stringify([{ type: "text", text: 'The Skill Burger stopped. Workflow failure: {"step":"s2"} resume "run-1"' }])), bash("echo second > second.txt"), runCall("resumed")];
+    expect(JSON.stringify(fixLayers(messages, "run-1", "s2"))).toContain("second.txt");
+    expect(JSON.stringify(fixLayers(messages, "run-1", "s2"))).not.toContain("first.txt");
   });
 });
 

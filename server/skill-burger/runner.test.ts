@@ -71,6 +71,22 @@ describe("running a Skill Burger", () => {
     expect(h.calls).toHaveLength(0);
   });
 
+  it("hands the complete local-computer command and resolved inputs to the bot", async () => {
+    const h = harness();
+    const result = await h.start(wf([{ id: "s1", kind: "shell", label: "Write", where: "yourComputer", run: 'printf %s "$OMB_ARG_SITE" > file.txt', cwd: "reports", stdin: { $arg: "site" } }], { site: { default: "example.test" } }));
+    expect(result).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step" } });
+    expect(JSON.parse(result.requiresInput!.input!)).toMatchObject({ command: 'printf %s "$OMB_ARG_SITE" > file.txt', cwd: "reports", stdin: "example.test", env: { OMB_ARG_SITE: "example.test" } });
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("hands commands with an unknown interpreter to the bot", async () => {
+    const h = harness();
+    const result = await h.start(wf([{ id: "s1", kind: "shell", label: "Write", shell: "unknown", run: "echo {one,two} > out.txt" }]));
+    expect(result).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step" } });
+    expect(result.requiresInput!.input).toContain("{one,two}");
+    expect(h.calls).toHaveLength(0);
+  });
+
   it("enforces saved checks on AI handoffs before running the next action", async () => {
     const h = harness();
     const checked = wf([{ id: "s1", kind: "ai", label: "Classify", deterministic: false, prompt: "Classify", check: { says: "good", rule: { op: "eq", value: "good" } } }, app("s2", "GMAIL_SEND_EMAIL", {})]);

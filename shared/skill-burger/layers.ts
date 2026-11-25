@@ -321,7 +321,7 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
     const directories = new Set(Object.values(fields));
     const cwd = text(directories.values().next().value);
     const ambiguous = directories.size > 1 || (directories.size === 1 && (!cwd || cwd.includes("\0")));
-    const args = { command: full, ...(ambiguous ? fields : cwd ? { cwd } : {}) };
+    const args = { command: full, shell: bare.toLowerCase() === "bash" ? "bash" : "unknown", ...(ambiguous ? fields : cwd ? { cwd } : {}) };
     return [{ ...base, id: message.id, kind: "shell", tool: bare === "vm_exec" ? "vm_exec" : "shell", words: fetchOnly ? hostOf(/https?:\/\/[^\s"'<>]+/.exec(full)?.[0] ?? "") || shellLine(full) : shellLine(full), read: fetchOnly, replay: clipped || ambiguous ? "ai" : "exact", args }];
   }
   return [];

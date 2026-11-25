@@ -142,13 +142,28 @@ describe("a saved delegation", () => {
   it("fails the step, names why, and can go on from it once fixed", async () => {
     const t = team();
     let refuse = true;
-    const exec: StepExecutors = { ...t.exec, delegate: async (input) => (refuse ? { ok: false, error: "Rio is at its plan's hand-off limit" } : t.exec.delegate!(input)) };
+    const exec: StepExecutors = { ...t.exec, delegate: async (input) => (refuse ? { ok: false, error: "Rio is at its plan's hand-off limit", definitive: true } : t.exec.delegate!(input)) };
     const h = harness(exec);
     const failed: RunEnvelope = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: qa() }, h.deps);
     expect(failed).toMatchObject({ ok: false, error: { step: "s1", message: '"Ask Kiwi, Rio and Miso" failed: Rio is at its plan\'s hand-off limit', resumeToken: failed.run } });
     expect(runText(failed as never)).toContain(`call run_workflow with resume "${failed.run}" to go on from that step`);
     refuse = false;
     expect(await h.resume("fixed")).toMatchObject({ requiresInput: { type: "teammates" } });
+  });
+
+  it("does not offer a retry when earlier hand-offs were accepted before a later refusal", async () => {
+    const t = team();
+    let count = 0;
+    const exec: StepExecutors = { ...t.exec, delegate: async (input) => {
+      count += 1;
+      return count === 1 ? t.exec.delegate!(input) : { ok: false, error: "connection lost" };
+    } };
+    const h = harness(exec);
+    const failed = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: qa() }, h.deps);
+    expect(t.sent).toHaveLength(1);
+    expect(failed.error?.message).toContain("may already have received work");
+    expect(failed.error?.resumeToken).toBeUndefined();
+    expect(h.saved).toHaveLength(0);
   });
 });
 

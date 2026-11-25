@@ -236,10 +236,10 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     });
   };
   /** A failed step stops the run, and the run can go on from it once the bot has fixed the cause. Nothing is retried by itself. */
-  const fail = (step: WorkflowStep, type: NonNullable<RunEnvelope["error"]>["type"], message: string, detail?: StepDetail): RunEnvelope => {
+  const fail = (step: WorkflowStep, type: NonNullable<RunEnvelope["error"]>["type"], message: string, detail?: StepDetail, resumable = true): RunEnvelope => {
     end(step, { state: "failed", error: message, ...(detail ? { detail } : {}) });
-    deps.save({ ...state, results, waiting: { step: step.id, type: "failed" }, createdAt: now() });
-    return envelope({ ok: false, error: { type, message: type === "timeout" ? message : `"${step.label}" failed: ${message}`, step: step.id, resumeToken: id } });
+    if (resumable) deps.save({ ...state, results, waiting: { step: step.id, type: "failed" }, createdAt: now() });
+    return envelope({ ok: false, error: { type, message: type === "timeout" ? message : `"${step.label}" failed: ${message}`, step: step.id, ...(resumable ? { resumeToken: id } : {}) } });
   };
 
   /** Sends a delegate step's first round, or hands the bot the parts whose teammate is gone. */
@@ -252,7 +252,7 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     const delegation: NonNullable<RunState["delegation"]> = { step: step.id, round: 1, who, requests: [], replies: {} };
     if (missing.length) return hand(step, "missing_bot", undefined, { prompt: missingPrompt(missing), delegation });
     const sent = await sendRound(step, delegation, (ref) => resolve(ref, args, results), exec as DelegateExecutors, signal);
-    if (!sent.ok) return fail(step, "step_failed", clip(redactSecretsInText(sent.error), ERROR_MAX));
+    if (!sent.ok) return fail(step, "step_failed", sent.unsafeToRetry ? `Some teammates may already have received work. Check their assignments before trying again: ${clip(redactSecretsInText(sent.error), ERROR_MAX)}` : clip(redactSecretsInText(sent.error), ERROR_MAX), undefined, !sent.unsafeToRetry);
     delegation.requests = sent.requests;
     const names = [...new Set(sent.requests.map((request) => request.name))];
     results[step.id] = { state: "handed", detail: { waitingOn: names, rounds: 1 } };
@@ -404,10 +404,11 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
     if (delegation.round - 1 >= (step.review?.rounds ?? 0)) return finish(parts);
     const sent = await sendRound(step, delegation, fill, exec, signal, redo);
     if (!sent.ok) {
-      results[step.id] = { state: "failed", error: clip(sent.error, ERROR_MAX) };
+      const error = sent.unsafeToRetry ? `Some teammates may already have received work. Check their assignments before trying again: ${clip(redactSecretsInText(sent.error), ERROR_MAX)}` : clip(redactSecretsInText(sent.error), ERROR_MAX);
+      results[step.id] = { state: "failed", error };
       deps.events.ended(state.id, state.name, step, results[step.id]!);
-      deps.save({ ...state, results, waiting: { step: step.id, type: "failed" }, createdAt: Date.now() });
-      return { protocolVersion: 1, ok: false, run: state.id, steps: [], error: { type: "step_failed", message: `"${step.label}" couldn't send the work back: ${clip(sent.error, ERROR_MAX)}`, step: step.id, resumeToken: state.id } };
+      if (!sent.unsafeToRetry) deps.save({ ...state, results, waiting: { step: step.id, type: "failed" }, createdAt: Date.now() });
+      return { protocolVersion: 1, ok: false, run: state.id, steps: [], error: { type: "step_failed", message: `"${step.label}" couldn't send the work back: ${error}`, step: step.id, ...(!sent.unsafeToRetry ? { resumeToken: state.id } : {}) } };
     }
     const next = { ...delegation, round: delegation.round + 1, requests: sent.requests };
     const names = [...new Set(sent.requests.map((request) => request.name))];

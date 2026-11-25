@@ -474,6 +474,9 @@ try {
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
   assert(bot?.id, "Bot creation did not return its identity");
+  const duplicate = await request("/api/bots", { name: "Internal package agent", cwd: home });
+  assert.equal(duplicate.status, 201, JSON.stringify(duplicate.body));
+  assert.notEqual(duplicate.body.bot?.id, bot.id);
   await smokeGroupUsernames({ bot, evaluate, until, cdp, evidence });
   const first = "Please answer this internal package fixture.";
   assert.equal((await request("/api/sidebar-sections", { name: "Package fixture", botIds: [bot.id] })).status, 200);

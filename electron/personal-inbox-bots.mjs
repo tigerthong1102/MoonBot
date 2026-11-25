@@ -26,7 +26,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
     }
   }
   function assertNoOtherPending(records, workspaceId, bot, owner) {
-    if (!bot.username && Object.values(records).some(record => record?.workspaceId === workspaceId && record.localBotId === bot.id && (record.owner !== owner || record.origin !== origin) && record.definitiveRejected !== true)) throw Error("identity_pending_other_account");
+    if (!bot.username && Object.values(records).some(record => record?.workspaceId === workspaceId && record.localBotId === bot.id && (record.owner !== owner || record.origin !== origin) && record.registrationState !== "fresh" && record.definitiveRejected !== true)) throw Error("identity_pending_other_account");
   }
   function bindingKey(records, workspaceId, bot, owner) {
     const primary = JSON.stringify([workspaceId, bot.id]);
@@ -34,7 +34,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
     assertNoOtherPending(records, workspaceId, bot, owner);
     if (records[alternate]) return alternate;
     const record = records[primary];
-    return record && (record.owner !== owner || record.origin !== origin) && record.definitiveRejected === true && !bot.username ? alternate : primary;
+    return record && (record.owner !== owner || record.origin !== origin) && (record.registrationState === "fresh" || record.definitiveRejected === true) && !bot.username ? alternate : primary;
   }
   function identityNamespace(record) {
     return record.accountScoped ? `account:${createHash("sha256").update(JSON.stringify([record.workspaceId, record.origin, record.owner])).digest("hex")}` : record.workspaceId;
@@ -127,13 +127,15 @@ export function personalInboxBots(window, page, origin, localRequest, language =
         invite: async request => {
           const before = bindings(), candidate = before[key];
           assertNoOtherPending(before, workspaceId, bot, owner);
+          if (candidate?.id !== record.id || candidate.owner !== owner || candidate.origin !== origin || candidate.workspaceId !== workspaceId) throw Error("identity_changed");
           const canMarkRejected = candidate?.id === record.id && candidate.accountScoped === true && ["fresh", "rejected"].includes(candidate.registrationState);
-          if (canMarkRejected) { before[key] = { ...candidate, definitiveRejected: false, registrationState: "pending" }; file.write(before); }
+          const pendingClaim = randomUUID();
+          before[key] = { ...candidate, definitiveRejected: false, registrationState: "pending", pendingClaim }; file.write(before);
           try { await claims.registerIdentity(request); signed = request; }
           catch (error) {
             if (canMarkRejected && error?.status === 403) {
               const fresh = bindings(), saved = fresh[key];
-              if (saved?.id === record.id && saved.owner === owner && saved.origin === origin && saved.workspaceId === workspaceId) {
+              if (saved?.id === record.id && saved.owner === owner && saved.origin === origin && saved.workspaceId === workspaceId && saved.pendingClaim === pendingClaim) {
                 fresh[key] = { ...saved, definitiveRejected: true, registrationState: "rejected" }; file.write(fresh);
               }
             }
@@ -236,13 +238,25 @@ export function personalInboxBots(window, page, origin, localRequest, language =
             catch (error) { if (error?.status === 400) throw Object.assign(Error("legacy_service"), { cause: error }); throw error; }
           },
           invite: async request => {
+            let canMarkRejected = false;
+            const pendingClaim = randomUUID();
             if (!oldBinding) {
               const fresh = bindings(), saved = fresh[key];
               assertNoOtherPending(fresh, workspaceId, bot, me.id);
               if (saved?.id !== record.id || saved.owner !== me.id || saved.origin !== origin || saved.workspaceId !== workspaceId) throw Error("identity_changed");
-              fresh[key] = { ...saved, definitiveRejected: false, registrationState: "pending" }; file.write(fresh);
+              canMarkRejected = saved.accountScoped === true && ["fresh", "rejected"].includes(saved.registrationState);
+              fresh[key] = { ...saved, definitiveRejected: false, registrationState: "pending", pendingClaim }; file.write(fresh);
             }
-            await claims.invite(request); signed = request;
+            try { await claims.invite(request); signed = request; }
+            catch (error) {
+              if (canMarkRejected && error?.status === 403) {
+                const fresh = bindings(), saved = fresh[key];
+                if (saved?.id === record.id && saved.owner === me.id && saved.origin === origin && saved.workspaceId === workspaceId && saved.registrationState === "pending" && saved.pendingClaim === pendingClaim) {
+                  fresh[key] = { ...saved, definitiveRejected: true, registrationState: "rejected" }; file.write(fresh);
+                }
+              }
+              throw error;
+            }
           },
         });
         try { await registration.register({ workspaceId, localBotId: bot.id, bindingId: record.id, owner: me.id, room, origin, name: bot.name }); }

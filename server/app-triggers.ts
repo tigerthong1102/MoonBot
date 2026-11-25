@@ -197,10 +197,8 @@ function publicTrigger(stored: StoredTrigger): AppTrigger {
   return structuredClone(trigger);
 }
 
-function sameWork(a: StoredTrigger, b: StoredTrigger): boolean {
-  return a.app === b.app && a.event === b.event && a.accountId === b.accountId && a.prompt === b.prompt
-    && isDeepStrictEqual(a.config, b.config) && isDeepStrictEqual(a.filter, b.filter);
-}
+const watchKey = (trigger: StoredTrigger) => JSON.stringify([trigger.app, trigger.event, trigger.accountId]);
+function sameWork(a: StoredTrigger, b: StoredTrigger): boolean { return watchKey(a) === watchKey(b); }
 
 export class AppTriggerManager {
   private readonly file: string;
@@ -250,15 +248,14 @@ export class AppTriggerManager {
     });
     const left = active.filter(row => sourceOwners.has(row.trigger.botId));
     const right = active.filter(row => targetOwners.has(row.trigger.botId));
-    const key = (trigger: StoredTrigger) => JSON.stringify([trigger.app, trigger.event, trigger.accountId, trigger.prompt]);
     const buckets = new Map<string, StoredTrigger[]>();
     for (const { trigger } of left) {
-      const id = key(trigger);
+      const id = watchKey(trigger);
       const bucket = buckets.get(id);
       if (bucket) bucket.push(trigger);
       else buckets.set(id, [trigger]);
     }
-    if (left.length && right.length && (active.some(row => row.pending) || right.some(({ trigger }) => buckets.get(key(trigger))?.some(candidate => sameWork(candidate, trigger))))) throw new AppTriggerError("The bots may already be watching the same event. Review their automations before handoff.", 409);
+    if (left.length && right.length && (active.some(row => row.pending) || right.some(({ trigger }) => buckets.get(watchKey(trigger))?.some(candidate => sameWork(candidate, trigger))))) throw new AppTriggerError("The bots may already be watching the same event. Review their automations before handoff.", 409);
   }
 
   constructor(options: AppTriggerManagerOptions) {

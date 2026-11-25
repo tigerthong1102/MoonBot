@@ -23,7 +23,7 @@ it("queues one run for one synthetic event after a linked duplicate is rejected"
     linkedOwners: bot => linkedWorkBotOwners(bot, id => links.filter(item => item.sourceBotId === id || item.targetBotId === id)),
     runs: { enqueue: input => routines.enqueueWebhook(input), merge: (...args) => routines.mergeIntoQueuedRun(...args), receipt: (...args) => routines.webhookRunReceipt(...args), pending: id => routines.activeWebhookRunCount(id), pendingCounts: () => routines.activeWebhookRunCounts(), cancelQueued: (...args) => routines.cancelQueuedWebhook(...args) },
   });
-  const create = (botId: string) => manager.create({ botId, sourceThreadId: `${botId}-thread`, name: "Synthetic watch", prompt: "Draft synthetic note", app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE" });
+  const create = (botId: string) => manager.create({ botId, sourceThreadId: `${botId}-thread`, name: "Synthetic watch", prompt: botId === "target" ? "Draft another synthetic note" : "Draft synthetic note", app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE" });
   try {
     const original = await create("first");
     await expect(create("target")).rejects.toMatchObject({ status: 409 });
@@ -56,7 +56,7 @@ it("rejects joining two bot groups with matching existing event automations", as
     runs: { enqueue: input => routines.enqueueWebhook(input), merge: (...args) => routines.mergeIntoQueuedRun(...args), receipt: (...args) => routines.webhookRunReceipt(...args), pending: id => routines.activeWebhookRunCount(id), pendingCounts: () => routines.activeWebhookRunCounts(), cancelQueued: (...args) => routines.cancelQueuedWebhook(...args) },
   });
   try {
-    for (const botId of ["b", "d"]) await manager.create({ botId, name: "Synthetic watch", prompt: "Draft synthetic note", app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE" });
+    for (const botId of ["b", "d"]) await manager.create({ botId, name: "Synthetic watch", prompt: `Draft synthetic note for ${botId}`, app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE" });
     expect(() => manager.assertCanLink("a", "c")).toThrow("may already be watching");
     expect(() => manager.assertCanLink("a", "b")).not.toThrow();
     expect(manager.list()).toHaveLength(2);

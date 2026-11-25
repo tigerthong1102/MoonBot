@@ -42,9 +42,9 @@ it.each([["source", "target"], ["target", "source"]])("prevents the same active 
   await expect(h.create(second)).rejects.toMatchObject({ status: 409 });
   expect(h.writes()).toBe(writes);
   await h.create("independent");
-  await h.create(second, { prompt: "Different work" });
-  await h.create(second, { filter: { text: "different filter" } });
-  expect(h.reopened().list()).toHaveLength(4);
+  await expect(h.create(second, { prompt: "Different work" })).rejects.toMatchObject({ status: 409 });
+  await expect(h.create(second, { filter: { text: "different filter" } })).rejects.toMatchObject({ status: 409 });
+  expect(h.reopened().list()).toHaveLength(2);
 });
 
 it("fences handoff while a broker mutation is in flight", async () => {

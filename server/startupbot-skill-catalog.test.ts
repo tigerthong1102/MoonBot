@@ -247,6 +247,7 @@ it("upgrades ByteDance TTS while preserving approval and customized files", () =
     mkdirSync(catalog);
     cpSync("skills/catalog/byted-text-to-speech", join(catalog, "byted-text-to-speech"), { recursive: true });
     rmSync(join(catalog, "byted-text-to-speech/scripts"), { recursive: true });
+    rmSync(join(catalog, "byted-text-to-speech/references"), { recursive: true });
     restoreAuditSnapshot("byted-tts-previous", join(catalog, "byted-text-to-speech"));
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => entry.name === "byted-text-to-speech");
     writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));

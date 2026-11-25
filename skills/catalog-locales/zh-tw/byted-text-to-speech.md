@@ -3,6 +3,9 @@
 
 使用 `scripts/synthesize.mjs` 和 Node.js 20 或更新版本和已設定的 `MODEL_SPEECH_API_KEY`，將文字放入工作 UTF-8 檔案，再執行 `node scripts/synthesize.mjs --text-file INPUT --output NEW_AUDIO.mp3 --speaker VOICE`。工具會向 ByteDance 傳送文字，可能產生費用；僅在使用者授權服務與費用後執行。輸出檔案必須不存在，工具不會自動建立金鑰。支援 mp3、pcm、ogg_opus 及語速、音高、音量和取樣率選項。檢查音訊並如實說明是否聽過。
 
+
+原始指南保存在 `references/upstream.md`，供對照功能。本調整不支援其中的自動建立金鑰和 Python 指令，不要執行這些部分。
+
 # 使用授權的位元組跳動語音連接器產生旁白
 
 使用現有的位元組跳動 TTS 連線。確認文字、語音選擇和音訊格式。合成音頻，將其保存在任務工作區中，並檢查持續時間和聲音品質。僅使用使用者有權使用的聲音。

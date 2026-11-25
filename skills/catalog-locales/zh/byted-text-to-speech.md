@@ -3,6 +3,9 @@
 
 使用 `scripts/synthesize.mjs` 和 Node.js 20 或更高版本和已配置的 `MODEL_SPEECH_API_KEY`，将文本放入任务 UTF-8 文件，再运行 `node scripts/synthesize.mjs --text-file INPUT --output NEW_AUDIO.mp3 --speaker VOICE`。工具会向 ByteDance 发送文本，可能产生费用；仅在用户授权服务和费用后运行。输出文件必须不存在，工具不会自动创建密钥。支持 mp3、pcm、ogg_opus 及语速、音高、音量和采样率选项。检查音频并如实说明是否听过。
 
+
+原始指南保存在 `references/upstream.md`，供对照功能。本适配不支持其中的自动创建密钥和 Python 命令，不要运行这些部分。
+
 # 使用授权的字节跳动语音连接器生成旁白
 
 使用现有的字节跳动 TTS 连接。确认文本、语音选择和音频格式。合成音频，将其保存在任务工作区中，并检查持续时间和声音质量。仅使用用户有权使用的声音。

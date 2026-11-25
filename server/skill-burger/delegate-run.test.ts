@@ -185,9 +185,14 @@ describe("a step's check", () => {
   it("asks the bot when only words say what done means", async () => {
     const { h, run } = runWith("12", { says: "the CSV has a header row" });
     expect(await run).toMatchObject({ status: "needs_input", requiresInput: { type: "check", step: "s1", input: "12" } });
-    expect(await h.resume("fail: no header")).toMatchObject({ ok: false, error: { message: '"Count rows" didn\'t pass its check: no header' } });
-    expect(await h.resume("go on")).toMatchObject({ status: "needs_input", requiresInput: { type: "check" } });
-    expect(await h.resume("pass")).toMatchObject({ ok: true, status: "ok" });
+    const savedBefore = h.saved.length;
+    const failed = await h.resume("fail: no header");
+    expect(failed).toMatchObject({ ok: false, error: { message: expect.stringContaining('"Count rows" didn\'t pass its check: no header') } });
+    expect(failed.error?.resumeToken).toBeUndefined();
+    expect(h.saved).toHaveLength(savedBefore);
+    const passing = runWith("12", { says: "the CSV has a header row" });
+    await passing.run;
+    expect(await passing.h.resume("pass")).toMatchObject({ ok: true, status: "ok" });
   });
 });
 

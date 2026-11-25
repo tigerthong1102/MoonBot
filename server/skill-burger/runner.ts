@@ -282,12 +282,12 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     deps.events.started(id, name, step);
     const limit = step.timeoutMs ?? STEP_TIMEOUT_MS;
     const outcome = await timed(limit, deps.signal, (signal) => execute(step, args, results, deps.exec, signal));
-    if (outcome === "timeout") return fail(step, "timeout", `"${step.label}" took longer than ${Math.round(limit / 1000)} s and was stopped.`);
-    if (!outcome.ok) return fail(step, outcome.tooLarge ? "output_too_large" : "step_failed", clip(redactSecretsInText(outcome.error), ERROR_MAX));
+    if (outcome === "timeout") return fail(step, "timeout", `"${step.label}" took longer than ${Math.round(limit / 1000)} s and was stopped. Check the action's result before trying again.`, undefined, false);
+    if (!outcome.ok) return fail(step, outcome.tooLarge ? "output_too_large" : "step_failed", `${clip(redactSecretsInText(outcome.error), ERROR_MAX)}. Check the action's result before trying again.`, undefined, false);
     const output = parsed(outcome.output);
     const check = checkRule(step);
     if (check?.rule) {
-      if (!compare(valueAt(output, check.rule.path), check.rule.op, check.rule.value)) return fail(step, "step_failed", `its check didn't hold: ${check.says}`, { check: { passed: false, says: check.says } });
+      if (!compare(valueAt(output, check.rule.path), check.rule.op, check.rule.value)) return fail(step, "step_failed", `its check didn't hold: ${check.says}. Check the action's result before trying again.`, { check: { passed: false, says: check.says } }, false);
     } else if (check) {
       results[step.id] = { state: "done", output };
       return hand(step, "check", undefined, { prompt: `Check this step's result against: "${check.says}". Resume with "pass", or "fail: <why>".`, input: asText(output) });
@@ -362,8 +362,7 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
     const why = verdict.replace(/^fail[:\s-]*/i, "").slice(0, ERROR_MAX) || "it didn't meet its check";
     results[step.id] = { state: "failed", error: why, detail: { check: { passed: false, says: checkRule(step)?.says ?? "", why } } };
     deps.events.ended(state.id, state.name, step, results[step.id]!);
-    deps.save({ ...state, results, waiting: { step: step.id, type: "failed" }, createdAt: Date.now() });
-    return { protocolVersion: 1, ok: false, run: state.id, steps: [], error: { type: "step_failed", message: `"${step.label}" didn't pass its check: ${why}`, step: step.id, resumeToken: state.id } };
+    return { protocolVersion: 1, ok: false, run: state.id, steps: [], error: { type: "step_failed", message: `"${step.label}" didn't pass its check: ${why}. Check the action's result before trying again.`, step: step.id } };
   }
   if (step.kind === "delegate" && (waiting.type === "teammates" || waiting.type === "review" || waiting.type === "missing_bot")) {
     const delegation = state.delegation;

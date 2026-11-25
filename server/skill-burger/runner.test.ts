@@ -65,6 +65,14 @@ describe("running a Skill Burger", () => {
     expect(h.events).toEqual(["start s1", "failed s1"]);
   });
 
+  it("does not offer to repeat an action whose outcome is uncertain", async () => {
+    const h = harness({ app: async () => ({ ok: false, error: "connection lost" }) });
+    const result = await h.start(wf([app("s1", "GMAIL_SEND_EMAIL", {})]));
+    expect(result.error?.message).toContain("Check the action's result before trying again");
+    expect(result.error?.resumeToken).toBeUndefined();
+    expect(h.saved).toHaveLength(0);
+  });
+
   it("stops a step past its time limit, and a step whose output is too large", async () => {
     vi.useFakeTimers();
     try {

@@ -88,6 +88,8 @@ it("upgrades the merged HyperFrames skill and preserves approval", () => {
     const library = join(root, "library");
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    for (const file of ["scripts/bake-basemap.test.mjs", "scripts/lib/literal-media-input.mjs", "scripts/lib/trusted-package.mjs"]) rmSync(join(catalog, "hyperframes", file));
+    restoreAuditSnapshot("hyperframes-basemap-previous", join(catalog, "hyperframes"));
     restoreAuditSnapshot("hyperframes-resolution-previous", join(catalog, "hyperframes"));
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
       .filter((entry: { name: string }) => entry.name === "hyperframes");
@@ -98,6 +100,27 @@ it("upgrades the merged HyperFrames skill and preserves approval", () => {
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("--resolution portrait-1440p");
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("upgrades the installed HyperFrames basemap safely and preserves approval", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-basemap-upgrade-"));
+  try {
+    const catalog = join(root, "catalog"), library = join(root, "library");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    for (const file of ["scripts/bake-basemap.test.mjs", "scripts/lib/literal-media-input.mjs", "scripts/lib/trusted-package.mjs"]) rmSync(join(catalog, "hyperframes", file));
+    restoreAuditSnapshot("hyperframes-basemap-previous", join(catalog, "hyperframes"));
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => entry.name === "hyperframes");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
+    expect(readSkillLibraryIndex(library).hyperframes.filesSha256).toBe("226eb0a4300ceb9b4b26efec68740cce694bfc13da9153f2da74b6ea7c4a58d1");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
+    expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/hyperframes/scripts/bake-basemap.mjs"), "utf8")).toContain("trustedPackageEntry");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

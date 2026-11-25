@@ -10,6 +10,8 @@ Included the upstream preset design documents, caption skins, showcase HTML, hel
 
 Added bounded retries for non-blocking warnings after a subscription-backed desktop test repeatedly restructured a video before export.
 
+Restored the basemap package-loading and literal-path protections from upstream commit 559ad7b6d9569bd286cd4a0e5fb895610d02c220, with their helper modules and basemap tests.
+
 In scripts/lib/main-module.test.mjs and scripts/lib/windows-exe-search.test.mjs, replaced test-file suffix regular expressions with equivalent string suffix checks for supported skill file paths. The guard and CLI-entry tests check the included HyperFrames and media-use directories, rather than assuming the unrelated upstream figma skill, CLI source tree, and repository-wide layout are present.
 
 ## Upstream behavior to configure before use

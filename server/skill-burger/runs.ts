@@ -7,7 +7,7 @@ import { z } from "zod";
 import { RUN_STEP_MARK } from "../../shared/skill-burger/layers.ts";
 import type { WorkflowStep } from "../../shared/skill-burger/format.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
-import { applyEdit, editSchema, editUndo } from "./edit.ts";
+import { applyEdit, editSchema, editUndo, undoScope } from "./edit.ts";
 import { createExecutors, type ExecutorContext } from "./executors.ts";
 import { createRunHistory } from "./history.ts";
 import { createRunStates } from "./run-state.ts";
@@ -108,11 +108,13 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     }
     if (path === UNDO_PATH) {
       const parsed = undoBody.safeParse(body);
-      const kept = parsed.success ? editUndo.take(parsed.data.undo) : null;
+      if (!parsed.success) return json(res, 404, { error: "There is nothing to undo with that id." });
+      const kept = editUndo.peek(parsed.data.undo);
       if (!kept) return json(res, 404, { error: "There is nothing to undo with that id." });
       const found = findWorkflowSkill(turn.botId, kept.name, deps.root);
       if (!found) return json(res, 404, { error: "That Skill Burger is gone." });
       if ("everyChat" in found.place && !turn.mayEditEveryChat) return json(res, 403, { error: "Only an admin of this installation can change a Skill Burger used in every chat." });
+      if (!editUndo.take(parsed.data.undo, undoScope(found.place), kept.name)) return json(res, 404, { error: "There is nothing to undo with that id." });
       const restored = replaceWorkflowSkill({ place: found.place, name: kept.name, workflow: kept.previous, sha256: kept.sha256, root: deps.root });
       if ("stale" in restored) return json(res, 409, { error: "The Skill Burger changed since; undo isn't safe now." });
       return "error" in restored ? json(res, 422, restored) : json(res, 200, { skill: restored });
@@ -130,7 +132,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     const saved = replaceWorkflowSkill({ place: found.place, name, workflow: next, sha256: found.sha256, root: deps.root });
     if ("stale" in saved) return json(res, 409, { error: "The Skill Burger changed meanwhile; read it again and retry." });
     if ("error" in saved) return json(res, 422, saved);
-    return json(res, 200, { skill: saved, undo: editUndo.keep(name, found.workflow, saved.sha256) });
+    return json(res, 200, { skill: saved, undo: editUndo.keep(name, found.workflow, saved.sha256, undoScope(found.place)) });
   };
 
   /** The routes for one agents tool call: `authorization` is the bearer it came with. */

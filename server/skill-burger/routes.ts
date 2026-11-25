@@ -4,7 +4,7 @@ import { draftFromLayers, draftWorkflow } from "../../shared/skill-burger/draft.
 import { askOf, burgerLayers, type RunMessage } from "../../shared/skill-burger/layers.ts";
 import { caseName } from "../../shared/skill-burger/format.ts";
 import { applyChoices, draftView } from "../../shared/skill-burger/draft-view.ts";
-import { applyEdit, editUndo, insertFix } from "./edit.ts";
+import { applyEdit, editUndo, insertFix, undoScope } from "./edit.ts";
 import type { RunHistory } from "./history.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
@@ -164,7 +164,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const saved = replaceWorkflowSkill({ place: placeOf(botId), name: burger, workflow: next, sha256, root: deps.root });
       if ("stale" in saved) return stale();
       if ("error" in saved) return json(res, 422, saved);
-      return json(res, 200, { skill: saved, undo: editUndo.keep(burger, found.workflow, saved.sha256) });
+      return json(res, 200, { skill: saved, undo: editUndo.keep(burger, found.workflow, saved.sha256, undoScope(placeOf(botId))) });
     }
     if (method === "POST" && name.endsWith("/paths")) {
       const body = pathBody.safeParse(await readBody(req));
@@ -185,7 +185,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const saved = replaceWorkflowSkill({ place: placeOf(botId), name: burger, workflow: next, sha256, root: deps.root });
       if ("stale" in saved) return stale();
       if ("error" in saved) return json(res, 422, saved);
-      return json(res, 200, { skill: saved, undo: editUndo.keep(burger, found.workflow, saved.sha256) });
+      return json(res, 200, { skill: saved, undo: editUndo.keep(burger, found.workflow, saved.sha256, undoScope(placeOf(botId))) });
     }
     if (method === "GET" && name.endsWith("/runs")) {
       // A burger's recent runs, by the bots this person can see.
@@ -212,8 +212,8 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const refused = "everyChat" in body.data ? (admin(auth) ? null : EVERY_CHAT_ADMIN_ONLY) : refusal(auth, body.data.botId);
       if (refused) return json(res, 403, { error: refused });
       if ("undo" in body.data) {
-        const kept = editUndo.take(body.data.undo);
-        if (!kept || kept.name !== name) return json(res, 404, { error: "There is nothing to undo." });
+        const kept = editUndo.take(body.data.undo, undoScope(placeOf(body.data.botId)), name);
+        if (!kept) return json(res, 404, { error: "There is nothing to undo." });
         const restored = replaceWorkflowSkill({ place: placeOf(body.data.botId), name, workflow: kept.previous, sha256: kept.sha256, root: deps.root });
         if ("stale" in restored) return stale();
         return "error" in restored ? json(res, 422, { error: restored.error }) : json(res, 200, { skill: restored });

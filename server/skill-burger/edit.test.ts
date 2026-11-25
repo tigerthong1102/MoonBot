@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { applyDecisions, parseDecisions } from "../../shared/skill-burger/decisions.ts";
 import { caseOf, workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
-import { applyEdit, editSchema } from "./edit.ts";
+import { applyEdit, createEditUndo, editSchema } from "./edit.ts";
 
 const base: Workflow = workflowSchema.parse({
   version: 1, summary: "Sort new email", args: {},
@@ -12,6 +12,19 @@ const base: Workflow = workflowSchema.parse({
   ],
 });
 const edit = (value: unknown) => editSchema.parse(value);
+
+it("keeps undo tokens scoped to the skill location and expires them", () => {
+  let now = 1_000;
+  const undo = createEditUndo(() => now);
+  const id = undo.keep("sort-email", base, "sha", "bot:a");
+  expect(undo.take(id, "bot:b", "sort-email")).toBeNull();
+  expect(undo.take(id, "bot:a", "other")).toBeNull();
+  expect(undo.take(id, "bot:a", "sort-email")).toMatchObject({ name: "sort-email" });
+  const expired = undo.keep("sort-email", base, "sha", "bot:a");
+  now += 24 * 60 * 60_000 + 1;
+  expect(undo.peek(expired)).toBeNull();
+  expect(undo.take(expired, "bot:a", "sort-email")).toBeNull();
+});
 
 describe("changing a saved Skill Burger's steps", () => {
   it("adds a case in words: a new fork after a step, with its steps tagged for the case and their refs renumbered", () => {

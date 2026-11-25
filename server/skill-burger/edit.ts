@@ -124,20 +124,32 @@ export function insertFix(workflow: Workflow, id: string, fix: readonly Workflow
 
 /** What each change replaced, by id, so its Undo can put it back. Kept a day. */
 export function createEditUndo(now: () => number = Date.now) {
-  const kept = new Map<string, { name: string; previous: Workflow; sha256: string; at: number }>();
+  const kept = new Map<string, { name: string; previous: Workflow; sha256: string; scope: string; at: number }>();
+  const peek = (id: string) => {
+    const entry = kept.get(id);
+    if (!entry || now() - entry.at > 24 * 60 * 60_000 || now() < entry.at) {
+      kept.delete(id);
+      return null;
+    }
+    return entry;
+  };
   return {
-    keep(name: string, previous: Workflow, sha256: string): string {
+    keep(name: string, previous: Workflow, sha256: string, scope: string): string {
       for (const [id, entry] of kept) if (now() - entry.at > 24 * 60 * 60_000) kept.delete(id);
+      while (kept.size >= 1_000) kept.delete(kept.keys().next().value!);
       const id = randomUUID();
-      kept.set(id, { name, previous, sha256, at: now() });
+      kept.set(id, { name, previous, sha256, scope, at: now() });
       return id;
     },
-    take(id: string): { name: string; previous: Workflow; sha256: string } | null {
-      const entry = kept.get(id);
+    peek,
+    take(id: string, scope: string, name: string): { name: string; previous: Workflow; sha256: string } | null {
+      const entry = peek(id);
+      if (!entry || entry.scope !== scope || entry.name !== name) return null;
       kept.delete(id);
-      return entry ?? null;
+      return entry;
     },
   };
 }
+export const undoScope = (place: { botId: string } | { everyChat: true }): string => "botId" in place ? `bot:${place.botId}` : "every-chat";
 export type EditUndo = ReturnType<typeof createEditUndo>;
 export const editUndo = createEditUndo();

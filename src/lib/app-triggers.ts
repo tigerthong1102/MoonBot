@@ -13,6 +13,7 @@ export interface AppTriggerState {
   loaded: boolean;
   triggers: AppTrigger[];
   attempts: AppEventAttempt[];
+  heldReviews?: AppTriggersSnapshot["heldReviews"];
   service: AppTriggerService | null;
 }
 
@@ -32,7 +33,7 @@ function set(next: AppTriggerState): void {
 }
 
 export function applyAppTriggerSnapshot(snapshot: AppTriggersSnapshot): void {
-  set({ loaded: true, triggers: snapshot.triggers, attempts: snapshot.attempts.slice(-MAX_ATTEMPTS), service: snapshot.service });
+  set({ loaded: true, ...(snapshot.heldReviews ? { heldReviews: snapshot.heldReviews } : {}), triggers: snapshot.triggers, attempts: snapshot.attempts.slice(-MAX_ATTEMPTS), service: snapshot.service });
 }
 
 export function applyAppTriggerFrame(frame: ServerFrame): void {

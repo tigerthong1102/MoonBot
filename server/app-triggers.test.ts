@@ -271,6 +271,23 @@ describe("AppTriggerManager", () => {
     expect(triggers.get(saved.id)).toBeNull();
   });
 
+  it("shows the affected automations without exposing event data or starting work on review", async () => {
+    const options = { linkedBots: (a: string, b: string) => a !== b };
+    const triggers = manager(options);
+    const first = await gmailTrigger(triggers);
+    const other = await triggers.create({ botId: "bot-2", name: "Second fixture", prompt: "Check orders", app: first.app, event: first.event, filter: first.filter });
+    await broker.deliver(first.remote.triggerId!, { subject: "private fixture subject", sender: "private@acme.com" }, "private-delivery-id");
+    await drain(triggers);
+    const reviews = triggers.heldEventSummaries(() => true);
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]!.triggers.map(t => t.id).sort()).toEqual([first.id, other.id].sort());
+    expect(JSON.stringify(reviews)).not.toMatch(/private|Check orders|Draft a reply/);
+    expect(triggers.heldEventSummaries(trigger => trigger.botId === first.botId)).toEqual([]);
+    const reopened = manager(options);
+    expect(reopened.heldEventSummaries(() => true)).toEqual(reviews);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
   it("discards only a reviewed held event and never redelivers it after restart", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let failNotification = false;

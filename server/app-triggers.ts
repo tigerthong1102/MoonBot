@@ -11,6 +11,7 @@ import {
   APP_FILTER_MAX,
   GMAIL_APP,
   gmailSearchQuery,
+  type HeldAppEventReview,
   type AppEventAttempt,
   type AppEventOutcome,
   type AppTrigger,
@@ -323,6 +324,23 @@ export class AppTriggerManager {
     this.assertWritable();
     const scope = this.options.acknowledgmentScope?.() ?? null;
     return [...this.heldEvents].flatMap(([id, held]) => held.event && !held.discarded ? [{ id, digest: eventDigest(held.event), reason: held.reason, readyToDiscard: scope !== null && scope === this.acknowledgedCredential && held.sourceScope === this.acknowledgedScope && held.event.seq <= this.acknowledgedCursor }] : []);
+  }
+
+  heldEventSummaries(visible: (trigger: AppTrigger) => boolean): HeldAppEventReview[] {
+    if (this.unreadable || this.heldUnreadable) return [];
+    const summaries: HeldAppEventReview[] = [];
+    for (const held of this.heldEvents.values()) {
+      if (!held.event || held.discarded) continue;
+      const triggers = this.triggers.filter(trigger => heldEventMatches(held, trigger));
+      if (triggers.some(trigger => !visible(trigger))) continue;
+      summaries.push({
+        key: eventDigest(held.event),
+        receivedAt: held.event.receivedAt,
+        reason: held.reason,
+        triggers: triggers.map(trigger => ({ id: trigger.id, botId: trigger.botId, name: trigger.name })),
+      });
+    }
+    return summaries.sort((a, b) => b.receivedAt - a.receivedAt);
   }
 
   discardHeldEvent(id: string, digest: string): void {

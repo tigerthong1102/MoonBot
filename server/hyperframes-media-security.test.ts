@@ -1,5 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 
@@ -22,4 +24,26 @@ it("rejects media domains resolving to private addresses and redirects to loopba
   `;
   const output = execFileSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
   expect(output).toContain("private DNS and redirect refused");
+});
+
+it("sends no media telemetry without an explicit opt-in", () => {
+  const home = mkdtempSync(join(tmpdir(), "startupbot-media-telemetry-"));
+  try {
+    const moduleUrl = pathToFileURL(resolve("skills/catalog/media-use/scripts/lib/telemetry.mjs")).href;
+    const script = `
+      import assert from 'node:assert/strict';
+      import { track, optedOut } from ${JSON.stringify(moduleUrl)};
+      let requests = 0;
+      globalThis.fetch = async () => { requests++; throw new Error('unexpected network'); };
+      assert.equal(optedOut(), true);
+      await track('synthetic-test');
+      assert.equal(requests, 0);
+    `;
+    execFileSync(process.execPath, ["--input-type=module", "-e", script], {
+      env: { PATH: process.env.PATH, HOME: home, USERPROFILE: home, NODE_ENV: "production" },
+      timeout: 10_000,
+    });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });

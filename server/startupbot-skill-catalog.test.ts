@@ -66,6 +66,7 @@ it("upgrades the merged media skill and preserves approval", () => {
     const library = join(root, "library");
     mkdirSync(catalog);
     cpSync("skills/catalog/media-use", join(catalog, "media-use"), { recursive: true });
+    restoreAuditSnapshot("media-use-current-previous", join(catalog, "media-use"));
     restoreAuditSnapshot("media-use-security-previous", join(catalog, "media-use"));
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
       .filter((entry: { name: string }) => entry.name === "media-use");

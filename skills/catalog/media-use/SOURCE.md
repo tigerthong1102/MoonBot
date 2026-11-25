@@ -29,3 +29,5 @@ The upstream `audio/assets/sfx/CREDITS.md` identifies Pixabay as the source of t
 - audio/assets/sfx/whoosh-cinematic.mp3
 - audio/assets/sfx/whoosh-short.mp3
 - audio/assets/sfx/whoosh.mp3
+
+StartupBot defaults media-use telemetry to off. It can be enabled with STARTUPBOT_MEDIA_TELEMETRY=1, subject to upstream opt-outs.

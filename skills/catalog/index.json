@@ -1162,6 +1162,8 @@
       "audio/scripts/lib/sfx.test.mjs",
       "audio/references/sfx.md",
       "scripts/lib/media-fetch.mjs",
+      "scripts/lib/telemetry.mjs",
+      "scripts/lib/telemetry.test.mjs",
       "scripts/resolve.mjs",
       "scripts/resolve-plugin.test.mjs",
       "audio/scripts/audio.test.mjs"

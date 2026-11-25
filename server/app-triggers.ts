@@ -227,9 +227,9 @@ export class AppTriggerManager {
     const linked = this.options.linkedOwners?.(trigger.botId, trigger.sourceThreadId);
     if (!linked?.size) return;
     const counts = this.options.runs.pendingCounts?.();
-    const candidates = [...this.triggers.map(candidate => ({ candidate, enabled: candidate.enabled })), ...this.deleted.map(entry => ({ candidate: entry.trigger, enabled: false }))];
-    const conflict = candidates.some(({ candidate, enabled }) => candidate.id !== trigger.id && linked.has(candidate.botId)
-      && ((counts ? counts.get(candidate.id) ?? 0 : this.options.runs.pending(candidate.id)) > 0 || (enabled && sameWork(candidate, trigger))));
+    const candidates = [...this.triggers, ...this.deleted.map(entry => entry.trigger)];
+    const conflict = candidates.some(candidate => candidate.id !== trigger.id && linked.has(candidate.botId)
+      && ((counts ? counts.get(candidate.id) ?? 0 : this.options.runs.pending(candidate.id)) > 0 || sameWork(candidate, trigger)));
     if (conflict) throw new AppTriggerError("A linked bot may already be watching this event. Review its automations before enabling another.", 409);
   }
 
@@ -240,11 +240,11 @@ export class AppTriggerManager {
     const targetOwners = new Set([target, ...this.options.linkedOwners?.(target) ?? []]);
     if ([...sourceOwners].some(id => targetOwners.has(id))) return;
     const counts = this.options.runs.pendingCounts?.();
-    const all = [...this.triggers.map(trigger => ({ trigger, deleted: false })), ...this.deleted.map(entry => ({ trigger: entry.trigger, deleted: true }))];
-    const active = all.flatMap(({ trigger, deleted }) => {
+    const all = [...this.triggers, ...this.deleted.map(entry => entry.trigger)];
+    const active = all.flatMap(trigger => {
       if (!sourceOwners.has(trigger.botId) && !targetOwners.has(trigger.botId)) return [];
       const pending = (counts ? counts.get(trigger.id) ?? 0 : this.options.runs.pending(trigger.id)) > 0;
-      return pending || (!deleted && trigger.enabled) ? [{ trigger, pending }] : [];
+      return [{ trigger, pending }];
     });
     const left = active.filter(row => sourceOwners.has(row.trigger.botId));
     const right = active.filter(row => targetOwners.has(row.trigger.botId));

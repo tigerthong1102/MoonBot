@@ -78,7 +78,7 @@ it("blocks linking duplicate watches and keeps running deleted work protected", 
   await expect(h.create("target")).rejects.toMatchObject({ status: 409 });
   await expect(h.create("target", { prompt: "Different current settings" })).rejects.toMatchObject({ status: 409 });
   h.pending.clear();
-  expect((await h.create("target")).enabled).toBe(true);
+  await expect(h.create("target")).rejects.toMatchObject({ status: 409 });
 });
 
 it("fails closed when persisted automations cannot be read", () => {
@@ -100,11 +100,11 @@ it("serializes concurrent creation and protects resume, edits and restore", asyn
   expect(h.writes()).toBe(writes);
   await h.manager.update(paused.id, { name: "Renamed" });
   await h.manager.remove(active.id);
-  await h.manager.update(paused.id, { enabled: true });
+  await expect(h.manager.update(paused.id, { enabled: true })).rejects.toMatchObject({ status: 409 });
   const beforeRestore = h.writes();
   await expect(h.manager.restore(active.id)).rejects.toMatchObject({ status: 409 });
   expect(h.writes()).toBe(beforeRestore);
-  expect(h.reopened().list()).toMatchObject([{ id: paused.id, enabled: true }]);
+  expect(h.reopened().list().find(trigger => trigger.id === paused.id)?.enabled).toBe(false);
 });
 
 it("protects pending disabled or deleted work only while another group has work", async () => {
@@ -112,13 +112,22 @@ it("protects pending disabled or deleted work only while another group has work"
   h.setLinked(false);
   const disabled = await h.create("source", { enabled: false, prompt: "A synthetic watch" });
   const other = await h.create("target", { prompt: "An unrelated synthetic watch" });
-  expect(() => h.manager.assertCanLink("source", "target")).not.toThrow();
+  expect(() => h.manager.assertCanLink("source", "target")).toThrow("same event");
   h.pending.add(disabled.id);
   expect(() => h.manager.assertCanLink("source", "target")).toThrow("same event");
   await h.manager.remove(disabled.id);
   expect(() => h.manager.assertCanLink("source", "target")).toThrow("same event");
   await h.manager.remove(other.id);
-  expect(() => h.manager.assertCanLink("source", "target")).not.toThrow();
+  expect(() => h.manager.assertCanLink("source", "target")).toThrow("same event");
+});
+
+it("does not reassign a queued event when the previous watch is paused", async () => {
+  const h = fixture();
+  const source = await h.create("source");
+  const target = await h.create("target", { enabled: false });
+  await h.manager.update(source.id, { enabled: false });
+  await expect(h.manager.update(target.id, { enabled: true })).rejects.toMatchObject({ status: 409 });
+  expect(h.reopened().list().filter(trigger => trigger.enabled)).toHaveLength(0);
 });
 
 

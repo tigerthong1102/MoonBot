@@ -30,7 +30,7 @@ it("leaves the profile absent when the feature is disabled, even on an authentic
   try {
     expect((await call()).status).toBe(404);
     const config = await fetch(url + "/api/config", { headers: owner }).then((res) => res.json());
-    expect(config).toMatchObject({ features: { aiTwin: false } });
+    expect(config).not.toHaveProperty("features.aiTwin");
     expect(existsSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR))).toBe(false);
   } finally {
     await fixture.close();
@@ -41,7 +41,7 @@ it("does not offer AI Twin on a standalone server", async () => {
   const fixture = await launchVerificationServer({});
   try {
     const config = await fetch(fixture.info.url + "/api/config").then((res) => res.json());
-    expect(config).toMatchObject({ features: { aiTwin: false } });
+    expect(config).not.toHaveProperty("features.aiTwin");
     expect((await fetch(fixture.info.url + AI_TWIN_PATH)).status).toBe(404);
     expect(existsSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR))).toBe(false);
   } finally {

@@ -11751,7 +11751,7 @@ function configStatus() {
       preserveInstalledApps: localVmPreservesInstalledApps(cfg),
     },
     features: {
-      aiTwin: AI_TWIN_ENABLED,
+      ...(AI_TWIN_ENABLED && { aiTwin: true }),
       skillAuthoring: skillAuthoringEnabled(cfg),
       skillReview: cfg.features?.skillReview === true,
       skillReviewSteps: skillReviewSteps(cfg),

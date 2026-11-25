@@ -1,8 +1,9 @@
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import catalogEntries from "../skills/catalog/index.json";
 import { launchVerificationServer, type VerificationServer } from "../scripts/control-omb.ts";
+
+const catalogEntries: { name: string }[] = JSON.parse(readFileSync(new URL("../skills/catalog/index.json", import.meta.url), "utf8"));
 
 const SKILL_MD = [
   "---",

@@ -339,6 +339,15 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
     }
     const teamPrivate = teamPrivateThreads({ starters: join(root, "thread-starters.json"), groups: join(root, "groups.json"), bots: join(root, "bots.json") });
     const privacy = teamPrivate && { ...teamPrivate, attachments: teamPrivateAttachments(root, join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), teamPrivate) };
+    const assertNoTeamHeldEvents = () => {
+      if (!privacy) return;
+      const main = join(root, "app-triggers.json");
+      if (existsSync(join(root, "app-triggers.json.held"))) throw new Error("Team backup cannot safely include held app events. Review and resolve them before exporting.");
+      if (!existsSync(main)) return;
+      const appEvents = privateJson(main);
+      if (!record(appEvents) || ("heldEvents" in appEvents && (!Array.isArray(appEvents.heldEvents) || appEvents.heldEvents.length))) throw new Error("Team backup cannot safely include held app events. Review and resolve them before exporting.");
+    };
+    assertNoTeamHeldEvents();
     if (privacy) {
       stripTeamPrivate({ messages: join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), runtime: join(snapshot, SNAPSHOT_DATABASES["runtime.db"]!) }, privacy);
       warnings.push(TEAM_PRIVATE_NOTE);
@@ -347,6 +356,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       for (const name of readdirSync(directory).sort()) {
         if (!prefix && excluded(name)) continue;
         const path = prefix ? `${prefix}/${name}` : name;
+        if (privacy && path === "app-triggers.json.held") throw new Error("Team backup cannot safely include held app events. Review and resolve them before exporting.");
         if (excludedWorkspaceAuthPath(path) || ephemeralWorkspaceTokenPath(path) || redownloadedOrgLibraryPath(path) || liveDataEnginePath(path)) continue;
         if (privacy && omittedAsTeamPrivate(path, privacy)) continue;
         // Reject noncanonical spellings: a case-sensitive host must not export auth paths active on Windows/Mac.
@@ -418,6 +428,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       }
     };
     walk(root);
+    assertNoTeamHeldEvents();
     if (skippedLinks) warnings.push(`${skippedLinks} managed skill discovery link(s) were omitted and are recreated by the app.`);
     if (skippedDependencies) warnings.push(`${skippedDependencies} installed dependency folder(s) (node_modules) were omitted; reinstall them in the project after restoring.`);
     if (copiedLinks) warnings.push(`${copiedLinks} symbolic link(s) inside a workspace were saved as copies of what they point to; restoring creates regular files and folders there.`);

@@ -9,6 +9,7 @@ import { eventCount } from "./app-events.ts";
 import { brokerClient, type BrokerEvent } from "./app-trigger-broker.ts";
 import { AppTriggerManager, type AppTriggerManagerOptions } from "./app-triggers.ts";
 import { RoutineManager } from "./routines.ts";
+import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
 import { startBrokerFake, type BrokerFake } from "./testing/broker-fake.ts";
 
 let dir = "";
@@ -75,6 +76,28 @@ async function gmailTrigger(triggers: AppTriggerManager, filter = { from: "acme.
 }
 
 describe("AppTriggerManager", () => {
+  it.each([false, true])("waits for app-event polling to stop and resumes after backup failure=%s", async fail => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    await gmailTrigger(triggers);
+    let activePolls = 0;
+    const poll = vi.spyOn(client, "poll").mockImplementation(({ signal }) => new Promise((_resolve, reject) => {
+      activePolls++;
+      const stop = () => { activePolls--; reject(new Error("fixture poll aborted")); };
+      if (signal?.aborted) stop(); else signal?.addEventListener("abort", stop, { once: true });
+    }));
+    triggers.start();
+    try {
+      await expect.poll(() => activePolls, { timeout: 5000 }).toBe(1);
+      const gate = new WorkspaceBackupMaintenance();
+      const run = gate.run(async () => { expect(activePolls).toBe(0); if (fail) throw new Error("fixture backup failure"); }, {
+        idle: () => true, pause: () => {}, flush: () => triggers.stop(), resume: () => triggers.start(),
+      });
+      if (fail) await expect(run).rejects.toThrow("fixture backup failure"); else await expect(run).resolves.toBeUndefined();
+      await expect.poll(() => poll.mock.calls.length, { timeout: 5000 }).toBeGreaterThanOrEqual(2);
+    } finally { await triggers.stop(); }
+    expect(activePolls).toBe(0);
+  });
   it("keeps a shared event held after a pause and restart", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let triggers = manager({ linkedBots: links });

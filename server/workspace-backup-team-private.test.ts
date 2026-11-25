@@ -91,6 +91,23 @@ async function exported(root: string): Promise<{ data: string; warnings: string[
 }
 
 describe("what a Team Cloud's export leaves out (the private sentence: not the Owner, not an admin)", () => {
+  it("refuses a team export rather than exposing or silently dropping held app events", async () => {
+    process.env.OMB_CLOUD_ROLE = "team";
+    const root = directory();
+    teamData(root);
+    file(join(root, "app-triggers.json.held"), JSON.stringify({ version: 1, events: [{ id: "fixture", event: { private: "fixture" } }] }));
+    await expect(createWorkspaceBackupSnapshot(root, { password: PASSWORD, appVersion: "test" })).rejects.toThrow(/held app events/);
+    expect(existsSync(join(root, "app-triggers.json.held"))).toBe(true);
+  }, 60_000);
+
+  it("also refuses a team export with held payloads in the earlier format", async () => {
+    process.env.OMB_CLOUD_ROLE = "team";
+    const root = directory();
+    teamData(root);
+    json(join(root, "app-triggers.json"), { version: 1, heldEvents: [{ id: "fixture", event: { private: "fixture" } }] });
+    await expect(createWorkspaceBackupSnapshot(root, { password: PASSWORD, appVersion: "test" })).rejects.toThrow(/held app events/);
+    expect(existsSync(join(root, "app-triggers.json"))).toBe(true);
+  }, 60_000);
   it("knows the private conversations from who opened them: a member's own chats, never the team's, a room's or an outside marker's", () => {
     const root = directory();
     teamData(root);

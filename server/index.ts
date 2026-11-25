@@ -12039,7 +12039,7 @@ const workspaceBackupAccess = {
     return work();
   }, {
     idle: () => !providerFleetReloading && !providerAuthSessions.active && !browserEngineInstall &&
-      !routines?.isTicking && !calendarCalls?.isTicking && !botWaits.isTicking &&
+      !routines?.isTicking && !calendarCalls?.isTicking && !botWaits.isTicking && appTriggers.manager.mutationActivity() !== "changing" &&
       !localVmImageBusy && !localVmProvisionBusy && !localVmModeChangeBusy &&
       !localVmLifecycleBusy.size && !boatLifecycleBusyBots.size && !computerPreviews.size && !orphanBoatLifecycleBusyIds.size &&
       !computerProviderConfigTransitions.size &&
@@ -12047,8 +12047,9 @@ const workspaceBackupAccess = {
       store.bots.every((bot) => !botHasActiveTurn(bot.id) && !routines?.activeRunForBot(bot.id) && !sharedVm.snapshot(bot.id).held) &&
       store.groups.every((group) => !groupIsWorking(group)),
     pause: () => { routines?.stop(); calendarCalls?.stop(); botWaits.stop(); watchdog.stop(); memoryUpkeep.pause(); },
-    resume: () => { if (!moveFreeze.frozen()) { routines?.start(); calendarCalls?.start(); botWaits.start(); } watchdog.start(); memoryUpkeep.resume(); },
+    resume: () => { if (!moveFreeze.frozen()) { routines?.start(); calendarCalls?.start(); botWaits.start(); appTriggers.start(); } watchdog.start(); memoryUpkeep.resume(); },
     flush: async () => {
+      await appTriggers.stop();
       await Promise.all([chatApps.settleLive(), flushAllProfileHistory(), flushAllMemoryJournals(), flushUsageLedger(DATA_DIR), flushDecisionLog(DATA_DIR), flushAdminActivity(DATA_DIR)]);
       // Writers gated and work idle: release the WAL connection for a consistent snapshot; Store reopens it lazily.
       await closeMessageSearch();

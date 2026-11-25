@@ -128,6 +128,30 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns()).toHaveLength(0);
   });
 
+  it("remembers the original binding owner when it is removed before the first poll", async () => {
+    const links = () => true;
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_remove_before_poll");
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.remove(first.id);
+    triggers = manager({ linkedBots: links });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("remembers the original binding owner when it changes filter before the first poll", async () => {
+    const links = () => true;
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_rebind_before_poll");
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.update(first.id, { filter: { from: "other.example" } });
+    triggers = manager({ linkedBots: links });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
   it("does not acknowledge events while the routine receipt store is unreadable", async () => {
     const triggers = manager({ linkedBots: () => false });
     const first = await gmailTrigger(triggers);
@@ -299,6 +323,26 @@ describe("AppTriggerManager", () => {
     release();
     await updating;
     expect(triggers.mutationActivity()).toBe("no-mutation");
+  });
+
+  it("retries an unrelated event after a concurrent automation mutation finishes", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client, linkedBots: () => false });
+    const first = await gmailTrigger(triggers);
+    const type = await client.triggerType(first.event);
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_other_mutation");
+    let entered!: () => void, release!: () => void;
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    const proceed = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "triggerType").mockImplementationOnce(async () => { entered(); await proceed; return type; });
+    const creating = triggers.create({ botId: "independent", name: "Other", prompt: "Other work", app: "gmail", event: first.event, filter: { from: "other.example" } });
+    await waiting;
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/Event history or bot links/);
+    release();
+    await creating;
+    await triggers.pollOnce(undefined, 0);
+    expect(routines.listRuns()).toHaveLength(1);
+    expect(routines.listRuns()[0]?.botId).toBe("bot-1");
   });
 
   it("rejects a concurrent duplicate before one event can queue two runs", async () => {

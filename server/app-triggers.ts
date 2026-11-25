@@ -138,6 +138,7 @@ const fileSchema = z.object({
   attempts: z.array(attemptSchema).default([]),
   deleted: z.array(z.object({ at: z.number(), trigger: storedSchema })).default([]),
   heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]) })])).default([]),
+  bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).default([]),
 });
 
 export interface AppTriggerInput {
@@ -217,6 +218,7 @@ export class AppTriggerManager {
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
   private heldEvents = new Map<string, "conflict" | "unknown">();
+  private bindingOwners = new Map<string, Set<string>>();
   private stopped = true;
   private abort = new AbortController();
   private nextReconcileAt = 0;
@@ -238,6 +240,10 @@ export class AppTriggerManager {
       this.attemptLog = parsed.data.attempts.slice(-MAX_ATTEMPTS);
       this.deleted = parsed.data.deleted.filter((entry) => entry.at >= this.now() - RESTORE_WINDOW_MS);
       this.heldEvents = new Map(parsed.data.heldEvents.map(row => typeof row === "string" ? [row, "conflict" as const] : [row.id, row.reason]));
+      for (const owner of parsed.data.bindingOwners) this.rememberBindingOwner(owner.remoteId, owner.botId);
+      for (const trigger of [...parsed.data.triggers, ...parsed.data.deleted.map(entry => entry.trigger)]) {
+        if (trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         this.unreadable = true;
@@ -559,6 +565,7 @@ export class AppTriggerManager {
     const data = event.event.data ?? {};
     const held = this.heldEvents.get(event.id);
     if (held) throw new LinkedEventConflict(held === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE);
+    if (this.mutationsInFlight) throw new LinkedEventConflict(EVENT_HISTORY_UNAVAILABLE);
     const bound = this.bound(event.triggerId);
     const candidates = bound.filter(trigger => this.options.runs.receipt(trigger.id, event.id) || (trigger.enabled && this.options.botState(trigger.botId) !== "missing" && matchesFilter(trigger.app, trigger.filter, data)));
     if (this.options.linkedBots) {
@@ -567,11 +574,12 @@ export class AppTriggerManager {
       try {
         if (!this.options.runs.eventRecipients) throw new Error("Event receipt lookup unavailable");
         const previous = this.options.runs.eventRecipients(event.id);
+        const owners = event.triggerId ? [...(this.bindingOwners.get(event.triggerId) ?? [])] : [];
         bound.forEach((first, index) => bound.slice(index + 1).forEach(second => {
           if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
         }));
         for (const candidate of candidates) {
-          if (previous.some(bot => bot === null || (bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId)))) affected.add(candidate);
+          if (previous.some(bot => bot === null || (bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId))) || owners.some(bot => bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId))) affected.add(candidate);
         }
       } catch {
         reason = EVENT_HISTORY_UNAVAILABLE;
@@ -834,6 +842,12 @@ export class AppTriggerManager {
     return triggerId ? this.triggers.filter((trigger) => trigger.remote.triggerId === triggerId) : [];
   }
 
+  private rememberBindingOwner(remoteId: string, botId: string): void {
+    const owners = this.bindingOwners.get(remoteId) ?? new Set<string>();
+    owners.add(botId);
+    this.bindingOwners.set(remoteId, owners);
+  }
+
   private record(trigger: StoredTrigger, event: BrokerEvent, outcome: AppEventOutcome, details: { reason?: string; runId?: string } = {}): void {
     const preview = eventPreview(event.event.data ?? {});
     const attempt: AppEventAttempt = {
@@ -892,10 +906,11 @@ export class AppTriggerManager {
   }
 
   private save(overrides: { cursor?: number } = {}): void {
+    for (const trigger of this.triggers) if (trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
     if (this.unreadable) return;
     mkdirSync(dirname(this.file), { recursive: true });
     writeFileAtomic(this.file, JSON.stringify({
-      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents].map(([id, reason]) => ({ id, reason })),
+      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents].map(([id, reason]) => ({ id, reason })), bindingOwners: [...this.bindingOwners].flatMap(([remoteId, owners]) => [...owners].map(botId => ({ remoteId, botId }))),
     } satisfies z.input<typeof fileSchema>, null, 2), { mode: 0o600 });
   }
 }

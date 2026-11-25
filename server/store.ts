@@ -26,7 +26,6 @@ import { REMOVED_COMPUTER_DRIVER, type ComputerEngineMove } from "./computer-eng
 import type { TeamSetupRequest, TeamSetupResult } from "../shared/team-setup.ts"; import { workBotCreationPermissions } from "./work-bot-permissions.ts";
 import type { GroupGoalRunCardData } from "../shared/group-goal-run.ts";
 import { isMentionBoundary, isMentionNameContinuation } from "../shared/mention-boundary.ts"; import { resolveMentions } from "../shared/room-mentions.ts";
-import { assertSelectedBotUsernames } from "./selected-bot-usernames.ts";
 import type { HandedState } from "./delta-context.ts";
 import type { AgentPart, PartPair, RoomPart } from "./package-parts.ts";
 import type {
@@ -1128,7 +1127,6 @@ export class Store {
   }
 
   appendMessage(threadId: string, message: Omit<Message, "id" | "at"> & { at?: number }, command?: Command): Message {
-    assertSelectedBotUsernames(message, id => { const bot = this.bot(id), group = this.groupByThread(threadId); return Boolean(bot && !bot.hidden && (!group || group.memberIds.includes(id))); });
     const t = this.thread(threadId);
     const full: Message = { id: newId(), at: Date.now(), parentId: t.activeLeafId, ...redactBotAuthored(message) };
     const persist = () => { mdb.appendMessage(threadId, full); return full; };

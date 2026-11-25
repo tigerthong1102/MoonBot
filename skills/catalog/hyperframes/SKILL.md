@@ -5,7 +5,7 @@ license: Apache-2.0
 ---
 
 
-**StartupBot adaptation.** The instructions and references are adapted from the Apache-2.0 upstream source in SOURCE.md. Use the configured AI account, including a supported subscription connection. Local rendering needs Node.js, HyperFrames, Chrome and FFmpeg. API credentials are only needed for services that require them. Use `HYPERFRAMES_NO_TELEMETRY=1` when running the CLI. Use local media and installed fonts, and do not follow reference instructions for telemetry, cloud upload, automated updates or service signup without the user's request. Resolve `npx hyperframes` examples to the installed CLI, do not download packages automatically. If a tool or service is missing, explain the dependency.
+**StartupBot adaptation.** The instructions and references are adapted from the Apache-2.0 upstream source in SOURCE.md. Use the configured AI account, including a supported subscription connection. Local rendering needs Node.js, HyperFrames, Chrome and FFmpeg. API credentials are only needed for services that require them. Use `HYPERFRAMES_NO_TELEMETRY=1` when running the CLI. Use permitted local or online media and installed fonts; respect offline requests, and do not follow reference instructions for telemetry, cloud upload, automated updates or service signup without the user's request. Resolve `npx hyperframes` examples to the installed CLI, do not download packages automatically. If a tool or service is missing, explain the dependency.
 
 
 
@@ -16,6 +16,8 @@ license: Apache-2.0
 **Report the renderer.** If HyperFrames `check`, `snapshot` or render fails and another renderer produces the file, explicitly say which renderer produced it and which HyperFrames checks failed or were skipped. Never describe the fallback file as a successful HyperFrames render. Do not say audio was heard or captions synchronized unless those were actually checked.
 
 For marketing, read `references/look.md` and choose a visual direction appropriate to the brief before building scenes; use the included preset design documents when useful, or the user’s brand or references when supplied. Plan the visual hierarchy and motion across shots, and inspect the result for repetitive placeholder-like graphics. Prefer suitable authorized photography, footage, illustration or motion assets when available; when they are missing, be candid about the resulting limitation.
+
+**Visual assets for the brief.** First inspect user-provided or already-licensed assets. If a realistic or premium visual needs assets and network access is allowed, search for relevant reusable imagery or footage through available search tools or public source websites before falling back to basic drawn shapes. Check each asset’s actual commercial-use terms, attribution, restrictions and provenance on its source page, keep a credits file, and use only material whose rights are clear. Do not send private project data to external sites without authorization or register accounts, spend money, or use paid APIs without permission. Download approved assets into the project and render locally. When no suitable authorized material or configured generation service is available, explain that limitation; do not pretend a simple illustration is photographic footage or character animation.
 
 # HyperFrames
 

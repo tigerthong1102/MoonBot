@@ -10,6 +10,7 @@ import {
 import { beforeAll, afterEach, expect, it } from "vitest";
 import worker, { type InboxEnv } from "../src/personal-inbox-worker";
 import { botClaimBytes, proofUsername } from "../../../shared/bot-proof";
+import { createPersonalInboxClaims } from "../../../electron/personal-inbox-claims.mjs";
 
 declare global {
   namespace Cloudflare {
@@ -829,6 +830,26 @@ async function signedBotClaim(who: Awaited<ReturnType<typeof login>>, room: stri
   return { username: await proofUsername(key), proof: { nonce, publicKey: hex(key), signature: hex(signature) } };
 }
 const botKey = () => crypto.subtle.generateKey("Ed25519", false, ["sign", "verify"]);
+
+it("routes desktop owned-bot challenge and signed invite through the real worker", async () => {
+  const owner = await login("owner@example.test"), room = uuid(), bot = uuid();
+  expect((await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" })).status).toBe(200);
+  const claims = createPersonalInboxClaims(async (path: string, body: unknown) => {
+    const response = await call(path, owner.cookie, body);
+    if (!response.ok) throw new Error(`fixture_http_${response.status}`);
+    return response.json();
+  });
+  const { nonce } = await claims.challenge({ room, owner: owner.id, bot });
+  const pair = await botKey();
+  const key = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+  const signature = new Uint8Array(await crypto.subtle.sign("Ed25519", pair.privateKey, new Uint8Array(botClaimBytes({ origin, owner: owner.id, bot, room, nonce }))));
+  const hex = (bytes: Uint8Array) => Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  const username = await proofUsername(key);
+  const request = { room, owner: owner.id, bot, name: "Fixture", username, proof: { nonce, publicKey: hex(key), signature: hex(signature) } };
+  expect(await claims.invite(request)).toEqual({ ok: true });
+  expect(await (await call(`rooms/${room}/bots`, owner.cookie)).json()).toMatchObject({ bots: [{ id: bot, username }] });
+  await expect(claims.invite(request)).rejects.toThrow("fixture_http_409");
+});
 
 it("keeps bot usernames unique and owner-bound when inviting to groups", async () => {
   const owner = await login("owner@example.test"), member = await login("member@example.test");

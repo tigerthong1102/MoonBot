@@ -4,6 +4,7 @@ import { app, Menu } from "electron";
 import { jsonFile } from "./desktop-prefs.mjs";
 import { startupBotDataDir } from "./startupbot-identity.mjs";
 import { inboxBotLabel } from "./inbox-bot-label.mjs";
+import { createPersonalInboxClaims } from "./personal-inbox-claims.mjs";
 
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -59,6 +60,7 @@ export function personalInboxBots(window, page, origin) {
     if (!response.ok) throw Error("unavailable");
     return response.json();
   }
+  const claims = createPersonalInboxClaims(cloud);
   function report(type) {
     if (current())
       void page
@@ -88,8 +90,8 @@ export function personalInboxBots(window, page, origin) {
         throw Error("account_changed");
       records[bot.id] = record;
       file.write(records);
-      await cloud("rooms/" + room + "/bots", {
-        action: "invite",
+      await claims.inviteLegacy({
+        room,
         bot: record.id,
         name: bot.name,
         owner: me.id,

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppTriggerRequestService } from "./app-trigger-requests.ts";
 import { appEventCatalog } from "./app-event-catalog.ts";
 import { eventCount } from "./app-events.ts";
-import { brokerClient } from "./app-trigger-broker.ts";
+import { BrokerError, brokerClient } from "./app-trigger-broker.ts";
 import { AppTriggerManager, type AppTriggerManagerOptions } from "./app-triggers.ts";
 import { RoutineManager } from "./routines.ts";
 import { startBrokerFake, type BrokerFake } from "./testing/broker-fake.ts";
@@ -120,6 +120,81 @@ describe("AppTriggerManager", () => {
     const create = (botId: string, text: string) => triggers.create({ botId, name: "Fixture", prompt: "Summarize matching updates", app: "slack", event: "SLACK_CHANNEL_MESSAGE_RECEIVED", filter: { text } });
     await create("source", "warehouse");
     await expect(create("target", "sales")).resolves.toMatchObject({ botId: "target" });
+  });
+
+  it("delivers a queued Run now only to the selected bot even after another bot binds and the manager restarts", async () => {
+    const triggers = manager();
+    const selected = await gmailTrigger(triggers);
+    await expect(triggers.runNow(selected.id)).resolves.toEqual({ via: "service" });
+    const other = await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: selected.app, event: selected.event, filter: selected.filter });
+    expect(other.remote.triggerId).toBe(selected.remote.triggerId);
+    await drain(manager());
+    expect(routines.listRuns()).toMatchObject([{ botId: selected.botId, routineId: selected.id }]);
+    expect(runsOf(selected.id)[0]!.prompt).not.toContain("omb_test_target");
+  });
+
+  it("reports a pre-upgrade manual test without a destination and still dispatches ordinary messages", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const first = await gmailTrigger(triggers);
+    const legacy = { omb_test: true, note: "A test run started from StartupBot." };
+    await client.testEvent(first.remote.triggerId!, legacy);
+    const other = await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: first.app, event: first.event, filter: first.filter });
+    const restarted = manager();
+    await drain(restarted);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(restarted.attempts()).toHaveLength(2);
+    expect(restarted.attempts().every(attempt => attempt.outcome === "skipped" && attempt.reason?.includes("Run now"))).toBe(true);
+    await broker.deliver(first.remote.triggerId!, { ...legacy, omb_test_target: { triggerId: other.id, botId: other.botId } }, "ordinary-message");
+    await drain(restarted);
+    expect(routines.listRuns().map(run => run.botId).sort()).toEqual([first.botId, other.botId].sort());
+  });
+
+  it("does not broadcast a test when the broker truncates its destination", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: first.app, event: first.event, filter: first.filter });
+    await client.testEvent(first.remote.triggerId!, { omb_test_target: { triggerId: first.id, botId: first.botId }, text: "x".repeat(70 * 1024) });
+    await drain(triggers);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(triggers.attempts().map(attempt => attempt.outcome)).toEqual(["skipped", "skipped"]);
+  });
+
+  it("records a missed test against the selected automation after it changes source", async () => {
+    const triggers = manager();
+    const selected = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: selected.app, event: selected.event, filter: selected.filter });
+    await triggers.runNow(selected.id);
+    await triggers.update(selected.id, { filter: { subject: "changed" } });
+    await drain(triggers);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(triggers.attempts()).toMatchObject([{ triggerId: selected.id, outcome: "skipped", reason: expect.stringContaining("changed event sources") }]);
+  });
+
+  it("does not redirect a queued test when its selected automation was deleted", async () => {
+    const triggers = manager();
+    const selected = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: selected.app, event: selected.event, filter: selected.filter });
+    await triggers.runNow(selected.id);
+    await triggers.remove(selected.id);
+    await drain(manager());
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("does not queue a local fallback when the broker accepted the test but the response was lost", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const selected = await gmailTrigger(triggers);
+    const send = client.testEvent.bind(client);
+    vi.spyOn(client, "testEvent").mockImplementationOnce(async (id, data) => {
+      await send(id, data);
+      throw new BrokerError("fixture connection closed after accept", 0);
+    });
+    await expect(triggers.runNow(selected.id)).rejects.toMatchObject({ status: 503 });
+    expect(routines.listRuns()).toHaveLength(0);
+    await drain(triggers);
+    expect(routines.listRuns()).toMatchObject([{ botId: selected.botId, routineId: selected.id }]);
   });
 
   it("keeps a concurrent rename while applying a reconfiguration", async () => {

@@ -28,6 +28,8 @@ import type { RoutineRunOn } from "./routines.ts";
 
 export const DEFAULT_MAX_PENDING_RUNS = 3;
 const MAX_ATTEMPTS = 2_000;
+const RUN_NOW_NOTE = "A test run started from StartupBot.";
+const runNowTargetSchema = z.object({ triggerId: z.string(), botId: z.string() });
 const MAX_DELETED = 50;
 const RESTORE_WINDOW_MS = 7 * 24 * 60 * 60_000;
 const POLL_WAIT_S = 25;
@@ -439,16 +441,18 @@ export class AppTriggerManager {
 
   /** A test event marked as one, sent through the service's real queue when the automation has its copy there. */
   async runNow(id: string): Promise<{ via: "service" | "here"; runId?: string } | null> {
+    this.assertWritable();
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
-    const data = { omb_test: true, note: "A test run started from StartupBot." };
+    const data = { omb_test: true, note: RUN_NOW_NOTE };
     if (trigger.remote.triggerId && trigger.remote.state === "active" && this.options.service().available) {
       try {
-        await this.options.broker.testEvent(trigger.remote.triggerId, data);
+        await this.options.broker.testEvent(trigger.remote.triggerId, { ...data, omb_test_target: { triggerId: trigger.id, botId: trigger.botId } });
         this.wake();
         return { via: "service" };
       } catch (error) {
-        if (!(error instanceof BrokerError) || !error.transient) throw new AppTriggerError(error instanceof Error ? error.message : String(error), 502);
+        if (error instanceof BrokerError && error.transient) throw new AppTriggerError("Test delivery could not be confirmed. Check recent runs before trying again.", 503);
+        throw new AppTriggerError(error instanceof Error ? error.message : String(error), 502);
       }
     }
     const eventId = `test_${randomUUID()}`;
@@ -525,8 +529,24 @@ export class AppTriggerManager {
       for (const trigger of this.bound(event.triggerId)) this.setProblem(trigger, { kind: "reconnect", at: this.now() });
       return;
     }
-    const data = event.event.data ?? {};
-    for (const trigger of this.bound(event.triggerId)) {
+    let data = event.event.data ?? {};
+    let bound = this.bound(event.triggerId);
+    if (event.kind === "test" && Object.hasOwn(data, "omb_test_target")) {
+      const { omb_test_target, ...payload } = data;
+      const target = runNowTargetSchema.safeParse(omb_test_target);
+      const selected = target.success ? this.triggers.find(trigger => trigger.id === target.data.triggerId && trigger.botId === target.data.botId) : undefined;
+      if (selected && !bound.includes(selected)) {
+        this.record(selected, { ...event, event: {} }, "skipped", { reason: "This automation changed event sources before the test arrived. Use Run now to test its current source." });
+      }
+      bound = selected && bound.includes(selected) ? [selected] : [];
+      data = payload;
+    } else if (event.kind === "test" && (bound.length > 1 || data.omb_truncated === true || (data.omb_test === true && data.note === RUN_NOW_NOTE))) {
+      for (const trigger of bound) {
+        this.record(trigger, { ...event, event: {} }, "skipped", { reason: "This test has no verified destination. Use Run now on the intended automation." });
+      }
+      return;
+    }
+    for (const trigger of bound) {
       if (!trigger.enabled) {
         this.record(trigger, event, "skipped", { reason: "paused" });
         continue;

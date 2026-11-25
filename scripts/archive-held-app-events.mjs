@@ -1,8 +1,9 @@
 import { constants } from "node:fs";
+import { execFile } from "node:child_process";
 import { mkdir, open, realpath, rmdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { parseArgs, promisify } from "node:util";
 import { eventDigest, fileSchema, parseHeldEvents } from "../server/app-trigger-file.ts";
 
 const ledger = "app-triggers.json";
@@ -29,7 +30,38 @@ async function newPath(value) {
 
 async function durableFile(filename, content) {
   const handle = await open(filename, "wx", 0o600);
-  try { await handle.writeFile(content); await handle.sync(); } finally { await handle.close(); }
+  try { await privateDirectory(filename, false, true); await handle.writeFile(content); await handle.sync(); await privateDirectory(filename, false, true); }
+  finally { await handle.close(); }
+}
+
+const powershell = String.raw`
+$ErrorActionPreference = 'Stop'
+$path = $env:STARTUPBOT_PRIVATE_DIR
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+if ($env:STARTUPBOT_PRIVATE_SETUP -eq '1') {
+  $acl = New-Object System.Security.AccessControl.DirectorySecurity
+  $acl.SetOwner($sid)
+  $acl.SetAccessRuleProtection($true, $false)
+  $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')
+  $acl.AddAccessRule($rule)
+  Set-Acl -LiteralPath $path -AclObject $acl
+}
+$actual = Get-Acl -LiteralPath $path
+$rules = @($actual.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
+$file = $env:STARTUPBOT_PRIVATE_FILE -eq '1'
+if ((!$file -and (!$actual.AreAccessRulesProtected -or $rules[0].IsInherited)) -or $actual.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value -or $rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or $rules[0].AccessControlType -ne 'Allow' -or $rules[0].FileSystemRights -ne 'FullControl') { throw 'Private ACL verification failed' }
+`;
+
+async function privateDirectory(folder, setup = false, file = false) {
+  if (process.platform !== "win32") return;
+  const systemRoot = process.env.SystemRoot;
+  if (!systemRoot) throw Error("Windows security service is unavailable.");
+  const executable = path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  try {
+    await promisify(execFile)(executable, ["-NoProfile", "-NonInteractive", "-Command", powershell], {
+      env: { ...process.env, STARTUPBOT_PRIVATE_DIR: folder, STARTUPBOT_PRIVATE_SETUP: setup ? "1" : "0", STARTUPBOT_PRIVATE_FILE: file ? "1" : "0" }, timeout: 20_000, windowsHide: true,
+    });
+  } catch { throw Error("Windows private archive ACL could not be established and verified."); }
 }
 
 async function syncDirectory(folder) {
@@ -40,7 +72,6 @@ async function syncDirectory(folder) {
 
 /** Archives processed held payloads without changing the closed source or replaying any event. */
 export async function archiveHeldAppEvents(profile, workspace, output, archive) {
-  if (process.platform === "win32") throw Error("Private archive permissions cannot be guaranteed on Windows. Use a protected Unix environment with a copy of the profile.");
   const [source, work, destination, privateArchive] = await Promise.all([realpath(profile), realpath(workspace), newPath(output), newPath(archive)]);
   if ([source, work].some(root => within(root, destination) || within(root, privateArchive)) || within(destination, privateArchive) || within(privateArchive, destination)) {
     throw Error("Choose new recovery and archive directories outside the profile and workspace.");
@@ -67,14 +98,20 @@ export async function archiveHeldAppEvents(profile, workspace, output, archive) 
   if (Buffer.byteLength(JSON.stringify(rows), "utf8") >= 2_000_000) throw Error("Compact receipts would still exceed the held-event storage limit.");
   await mkdir(privateArchive, { mode: 0o700 });
   try {
+    await privateDirectory(privateArchive, true);
     await durableFile(path.join(privateArchive, sidecar), rawHeld);
+    await privateDirectory(privateArchive);
     await durableFile(path.join(privateArchive, ledger), rawLedger);
+    await privateDirectory(privateArchive);
     await syncDirectory(privateArchive);
     await syncDirectory(path.dirname(privateArchive));
     await mkdir(destination, { mode: 0o700 });
     try {
+      await privateDirectory(destination, true);
       await durableFile(path.join(destination, ledger), rawLedger);
+      await privateDirectory(destination);
       await durableFile(path.join(destination, sidecar), JSON.stringify({ version: 4, events: rows }));
+      await privateDirectory(destination);
       await syncDirectory(destination);
       await syncDirectory(path.dirname(destination));
     } catch (error) {

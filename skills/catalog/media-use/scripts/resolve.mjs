@@ -3,8 +3,7 @@ import "./lib/windows-exe-search.mjs";
 import { spawnSync } from "node:child_process";
 import { resolveNpxInvocation } from "./lib/npx-sync.mjs";
 
-// Legacy shim: runs only the CLI the plugin launcher (or the person, by HYPERFRAMES_CLI_ENTRY) hands over. It never
-// runs a packages/cli found beside its own folder: in a project-scope install that folder is the project's.
+// Only the explicitly selected CLI may run; project-local packages are not trusted.
 try {
   const invocation = resolveNpxInvocation(
     ["hyperframes", "media-use", "resolve", ...process.argv.slice(2)],

@@ -63,8 +63,6 @@ test(
   },
 );
 
-// fails without the fix: with no plugin version set, the shim ran packages/cli/dist/cli.js (or bun on src/cli.ts)
-// from three folders above itself, which in a project-scope install is the project's own folder.
 test(
   "a project-scope install never runs a CLI planted beside its skills folder",
   { skip: process.platform === "win32" },

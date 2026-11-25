@@ -37,7 +37,7 @@ const REAL = [...new Set((SETTINGS_PLACES as readonly SettingsPlace[]).flatMap((
   const parts = path.slice(`Settings${ARROW}`.length).replace(/ \(.*\)$/, "").split(ARROW);
   return parts.map((_, index) => parts.slice(0, index + 1).join(ARROW));
 }))].sort((a, b) => b.length - a.length);
-const OTHER_APP = /(?:System|ChatGPT|Postiz →|Windows|macOS|iOS|Android|phone's|Chrome|Bot|bot's) $/;
+const OTHER_APP = /(?:System|ChatGPT|Postiz →|Apify Console →|Windows|macOS|iOS|Android|phone's|Chrome|Bot|bot's) $/;
 const SCANNED = ["server", "shared", "packages/phone-protocol/src", "skills", "electron"];
 const SOURCE = /\.(?:ts|mjs|md)$/;
 const TEST = /\.(?:test|node-test|e2e\.test)\.[cm]?[jt]s$|[\\/]testing[\\/]/;
@@ -78,6 +78,7 @@ describe("menu paths in our own text", () => {
     expect(inventedPaths('"open Settings → Phone & devices → Your other computers in StartupBot"')).toEqual([]);
     expect(inventedPaths('"open Settings → AI → API keys"')).toEqual(["Settings → AI → API keys\""]);
     expect(inventedPaths('"in System Settings → Privacy & Security"')).toEqual([]);
+    expect(inventedPaths('Token from [Apify Console → Settings → Integrations](https://console.apify.com/settings/integrations)')).toEqual([]);
     expect(inventedPaths("// Settings → Computers, a comment only")).toEqual([]);
   });
 

@@ -204,7 +204,7 @@ export class AppTriggerManager {
   private pollerId = randomBytes(16).toString("base64url");
   private cursor = 0;
   private unreadable = false;
-  private creationsInFlight = 0;
+  private mutationsInFlight = 0;
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
@@ -240,8 +240,14 @@ export class AppTriggerManager {
     return this.triggers.map(publicTrigger);
   }
 
-  creationState(): "unreadable" | "creating" | "idle" {
-    return this.unreadable ? "unreadable" : this.creationsInFlight > 0 ? "creating" : "idle";
+  mutationActivity(): "unreadable" | "changing" | "no-mutation" {
+    return this.unreadable ? "unreadable" : this.mutationsInFlight > 0 ? "changing" : "no-mutation";
+  }
+
+  private async trackMutation<T>(work: () => Promise<T>): Promise<T> {
+    this.mutationsInFlight++;
+    try { return await work(); }
+    finally { this.mutationsInFlight--; }
   }
 
   get(id: string): AppTrigger | null {
@@ -266,8 +272,10 @@ export class AppTriggerManager {
   /** Validated against the event type and the person's connected accounts, then saved and copied to the service. A
    *  service that cannot be reached leaves it pending; reconciliation finishes it. */
   async create(input: AppTriggerInput): Promise<AppTrigger> {
-    this.creationsInFlight++;
-    try {
+    return this.trackMutation(() => this.createTracked(input));
+  }
+
+  private async createTracked(input: AppTriggerInput): Promise<AppTrigger> {
     this.assertWritable();
     this.assertAvailable();
     const name = input.name.trim().slice(0, NAME_MAX);
@@ -310,14 +318,15 @@ export class AppTriggerManager {
     this.emitTrigger(trigger);
     this.wake();
     return publicTrigger(trigger);
-    } finally {
-      this.creationsInFlight--;
-    }
   }
 
   /** Another server's automation under its own id, against the same connected account: a new one starts switched off;
    * one already here keeps its switch and takes the rest. */
   async adopt(record: AppTrigger): Promise<AppTrigger> {
+    return this.trackMutation(() => this.adoptTracked(record));
+  }
+
+  private async adoptTracked(record: AppTrigger): Promise<AppTrigger> {
     const config = Object.fromEntries(Object.entries(record.config).filter(([key, value]) => value !== undefined && !(record.app === GMAIL_APP && key === "query")));
     if (this.triggers.some((candidate) => candidate.id === record.id)) {
       return (await this.update(record.id, { name: record.name, prompt: record.prompt, runOn: record.runOn, filter: record.filter ?? null, config,
@@ -337,6 +346,10 @@ export class AppTriggerManager {
   }
 
   async update(id: string, patch: AppTriggerPatch, options: { protectInstructions?: boolean } = {}): Promise<AppTrigger | null> {
+    return this.trackMutation(() => this.updateTracked(id, patch, options));
+  }
+
+  private async updateTracked(id: string, patch: AppTriggerPatch, options: { protectInstructions?: boolean }): Promise<AppTrigger | null> {
     this.assertWritable();
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
@@ -391,6 +404,10 @@ export class AppTriggerManager {
   }
 
   async remove(id: string): Promise<boolean> {
+    return this.trackMutation(() => this.removeTracked(id));
+  }
+
+  private async removeTracked(id: string): Promise<boolean> {
     this.assertWritable();
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return false;
@@ -414,6 +431,10 @@ export class AppTriggerManager {
 
   /** Brings back one deleted in the last week, with its settings; the service copy is made again. */
   async restore(id: string): Promise<AppTrigger | null> {
+    return this.trackMutation(() => this.restoreTracked(id));
+  }
+
+  private async restoreTracked(id: string): Promise<AppTrigger | null> {
     this.assertWritable();
     return this.exclusive(async () => {
       const entry = this.deleted.find((candidate) => candidate.trigger.id === id && candidate.at >= this.now() - RESTORE_WINDOW_MS);
@@ -433,6 +454,10 @@ export class AppTriggerManager {
 
   /** A test event marked as one, sent through the service's real queue when the automation has its copy there. */
   async runNow(id: string): Promise<{ via: "service" | "here"; runId?: string } | null> {
+    return this.trackMutation(() => this.runNowTracked(id));
+  }
+
+  private async runNowTracked(id: string): Promise<{ via: "service" | "here"; runId?: string } | null> {
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
     const data = { omb_test: true, note: "A test run started from StartupBot." };
@@ -480,7 +505,7 @@ export class AppTriggerManager {
   /** Compares every automation with the service's copy and fixes what differs: a missing copy is made, one nobody
    *  wants is deleted, and on/off is matched. Idempotent; the person is never asked to set anything up again. */
   reconcile(): Promise<void> {
-    return this.exclusive(() => this.reconcileNow());
+    return this.trackMutation(() => this.exclusive(() => this.reconcileNow()));
   }
 
   /** Handles one batch in order. The cursor (the service's ack) moves only after the runs and this file are saved:

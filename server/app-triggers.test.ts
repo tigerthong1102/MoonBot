@@ -79,22 +79,58 @@ describe("AppTriggerManager", () => {
     const releases: Array<() => void> = [];
     vi.spyOn(client, "triggerType").mockImplementation(() => new Promise(resolve => releases.push(() => resolve(type))));
     const triggers = manager({ broker: client });
-    expect(triggers.creationState()).toBe("idle");
+    expect(triggers.mutationActivity()).toBe("no-mutation");
     const first = gmailTrigger(triggers);
     const second = gmailTrigger(triggers);
-    expect(triggers.creationState()).toBe("creating");
+    expect(triggers.mutationActivity()).toBe("changing");
     expect(triggers.list()).toEqual([]);
     releases[0]!();
     await first;
-    expect(triggers.creationState()).toBe("creating");
+    expect(triggers.mutationActivity()).toBe("changing");
     releases[1]!();
     await expect(second).rejects.toMatchObject({ status: 409 });
-    expect(triggers.creationState()).toBe("idle");
+    expect(triggers.mutationActivity()).toBe("no-mutation");
   });
 
   it("does not call an unreadable trigger store idle", () => {
     const triggers = manager({ file: dir });
-    expect(triggers.creationState()).toBe("unreadable");
+    expect(triggers.mutationActivity()).toBe("unreadable");
+  });
+
+  it("reports a restore while the broker has bound it but the local record is not yet saved", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const saved = await gmailTrigger(triggers);
+    await triggers.remove(saved.id);
+    const create = client.create.bind(client);
+    let entered!: () => void, release!: () => void;
+    const bound = new Promise<void>(resolve => { entered = resolve; });
+    const proceed = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "create").mockImplementationOnce(async input => { const result = await create(input); entered(); await proceed; return result; });
+    const restoring = triggers.restore(saved.id);
+    await bound;
+    expect(triggers.list()).toEqual([]);
+    expect(triggers.mutationActivity()).toBe("changing");
+    release();
+    expect((await restoring)?.id).toBe(saved.id);
+    expect(triggers.mutationActivity()).toBe("no-mutation");
+  });
+
+  it("reports reconfiguration while event metadata is still loading", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const saved = await gmailTrigger(triggers);
+    const type = await client.triggerType(saved.event);
+    let entered!: () => void, release!: () => void;
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    const proceed = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "triggerType").mockImplementationOnce(async () => { entered(); await proceed; return type; });
+    const updating = triggers.update(saved.id, { filter: { from: "changed.example" } });
+    await waiting;
+    expect(triggers.mutationActivity()).toBe("changing");
+    release();
+    await updating;
+    expect(triggers.mutationActivity()).toBe("no-mutation");
   });
 
   it("rejects a concurrent duplicate before one event can queue two runs", async () => {

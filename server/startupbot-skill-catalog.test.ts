@@ -84,6 +84,31 @@ it("upgrades the merged media skill and preserves approval", () => {
   }
 });
 
+it("upgrades the in-app video guides while preserving approval and custom changes", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-in-app-guide-"));
+  try {
+    const catalog = join(root, "catalog"), library = join(root, "library");
+    const names = ["hyperframes", "hyperframes-cli"];
+    mkdirSync(catalog);
+    for (const name of names) {
+      cpSync(`skills/catalog/${name}`, join(catalog, name), { recursive: true });
+      cpSync(`server/testing/fixtures/hyperframes-in-app-previous/${name}.md`, join(catalog, name, "SKILL.md"));
+    }
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => names.includes(entry.name));
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 2, failed: [] });
+    for (const name of names) expect(setLibrarySkillReviewState(name, "approved", library)).not.toHaveProperty("error");
+    const customized = join(library, "skills/hyperframes-cli/references/preview-render.md");
+    writeFileSync(customized, readFileSync(customized, "utf8") + "\nCustom note.\n");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize - 1, failed: [] });
+    expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("return the resulting file in the StartupBot conversation");
+    expect(readFileSync(customized, "utf8")).toContain("Custom note.");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it("upgrades the merged HyperFrames skill and preserves approval", () => {
   const root = mkdtempSync(join(tmpdir(), "startupbot-resolution-upgrade-"));
   try {

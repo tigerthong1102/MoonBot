@@ -30,8 +30,8 @@ Kết quả `--json` có thể chứa `_meta.updateNotice` khi có bản HyperFr
 1. Viết, rồi chạy `npx hyperframes lint` sau bản đầu và sau các thay đổi cấu trúc.
 2. Chạy `npx hyperframes check --json` và sửa mọi lỗi. Khi còn lỗi lint, kiểm tra bố cục và tương phản không chạy; "0 samples" nghĩa là chưa kiểm tra gì. Lỗi tương phản có `suggestedColor`. Phát hiện ở một mẫu duy nhất (ví dụ lúc xuất hiện) chỉ mang tính thông tin; video từ 3 giây trở lên không có thay đổi hiển thị sẽ không qua `sweep_static`.
 3. Chạy `npx hyperframes snapshot` và xem PNG (trong `.hyperframes/artifacts/snapshots/`): đây là cách xem video. Với sub-composition, chụp giữa mỗi cảnh; nội dung nhỏ không có style hoặc thiếu phần chính là lỗi gắn cảnh (`../hyperframes/references/format.md`).
-4. Chạy `npx hyperframes preview --background`, kiểm tra URL trả 200, đưa URL dự án cho người dùng và chờ, trừ khi họ yêu cầu tệp hoặc không dừng. Chỉ vượt qua kiểm tra không đủ lý do để kết xuất.
-5. Khi được kết xuất (bước 4), chạy `npx hyperframes render -o out.mp4`. Xác nhận tệp không rỗng, thời lượng `ffprobe` khớp `data-duration` gốc, rồi xem các khung hình đã giải mã.
+4. Xem ảnh chụp và chuyển động, rồi sửa lỗi nhìn thấy được. Không yêu cầu người dùng mở Studio hoặc URL dự án trừ khi họ chủ động yêu cầu xem trước.
+5. Với yêu cầu làm video, sau khi kiểm tra và xem lại, chạy `npx hyperframes render -o out.mp4`. Xác nhận tệp không rỗng, thời lượng `ffprobe` khớp `data-duration` gốc, xem các khung hình đã giải mã và trả tệp trong cuộc trò chuyện StartupBot.
 
 "Phần tử này" hoặc vùng đang chọn: `npx hyperframes preview --context --json --context-fields selection`; `no-selection` nghĩa là cần yêu cầu người dùng nhấp chọn.
 

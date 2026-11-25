@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -587,6 +589,40 @@ describe("AppTriggerManager", () => {
     expect(triggers.snapshot().service.cursorReview).toBe("unverified");
     expect(poll).not.toHaveBeenCalled();
     expect(readFileSync(file, "utf8")).toBe(original);
+  });
+
+  it("opens a recovered ledger on its original installation and consumes only the new delivery once", async () => {
+    const backup = join(dir, "verified"), oldProfile = join(dir, "legacy"), recovered = join(dir, "recovered");
+    mkdirSync(backup);
+    mkdirSync(oldProfile);
+    const ledger = "app-triggers.json";
+    const scope = createHash("sha256").update(JSON.stringify([broker.url, owner.id])).digest("hex");
+    const options = { installationScope: async () => scope, linkedBots: () => false };
+    const original = manager({ ...options, file: join(backup, ledger) });
+    const trigger = await gmailTrigger(original);
+    const data = { subject: "Order fixture", sender: "fixture@acme.com" };
+    await broker.deliver(trigger.remote.triggerId!, data, "before-upgrade");
+    await drain(original);
+    const scopedFile = readFileSync(join(backup, ledger), "utf8");
+    const { cursorScope, ...legacy } = JSON.parse(scopedFile);
+    expect(cursorScope).toBe(scope);
+    const legacyFile = JSON.stringify(legacy);
+    writeFileSync(join(oldProfile, ledger), legacyFile);
+    execFileSync(process.execPath, ["scripts/recover-app-event-account.mjs", "--profile", oldProfile, "--trusted-backup", backup, "--output", recovered]);
+    await broker.deliver(trigger.remote.triggerId!, data, "after-recovery");
+    const wrong = manager({ ...options, file: join(recovered, ledger), installationScope: async () => "another-installation" });
+    await expect(wrong.pollOnce(undefined, 0)).rejects.toThrow(/account changed/);
+    expect(runsOf(trigger.id)).toHaveLength(1);
+    const resumed = manager({ ...options, file: join(recovered, ledger) });
+    await drain(resumed);
+    await drain(resumed);
+    const [queued] = runsOf(trigger.id);
+    expect(runsOf(trigger.id)).toHaveLength(1);
+    expect(routines.webhookRunReceipt(trigger.id, "before-upgrade")?.id).toBe(queued!.id);
+    expect(routines.webhookRunReceipt(trigger.id, "after-recovery")?.id).toBe(queued!.id);
+    expect(resumed.attempts().filter(row => row.eventId === "after-recovery")).toMatchObject([{ outcome: "joined", runId: queued!.id }]);
+    expect(readFileSync(join(backup, ledger), "utf8")).toBe(scopedFile);
+    expect(readFileSync(join(oldProfile, ledger), "utf8")).toBe(legacyFile);
   });
 
   it("keeps the unverified cursor warning while installation verification is offline", async () => {

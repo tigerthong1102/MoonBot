@@ -10,7 +10,7 @@ it("refuses a duplicate while the linked schedule can resume automatically", asy
   const directory = mkdtempSync(join(tmpdir(), "startupbot-held-routine-fixture-"));
   let now = Date.parse("2026-10-01T00:00:00Z"), next = 0;
   const started: string[] = [];
-  const store = { messagesFor: () => [], activePath: () => [], botByThread: () => undefined } as unknown as Store;
+  const store = { messagesFor: () => [], activePath: () => [], botByThread: () => undefined, bot: (id: string) => ({ id }) } as unknown as Store;
   const links = () => [{ sourceBotId: "source", sourceThreadId: "home", sourceMessageId: "offer", targetBotId: "target", targetThreadId: "new" }];
   const request = { requestId: "fixture-request", messageId: "fixture-card", botId: "target", threadId: "new", action: "create" as const, fingerprintVersion: 1 as const, fingerprint: "a".repeat(64) } satisfies RoutineRequestCommit;
   const manager = new RoutineManager({ file: join(directory, "routines.json"), now: () => now, botState: () => "ready", goalState: () => "ready",
@@ -35,7 +35,7 @@ it("refuses a duplicate while the linked schedule can resume automatically", asy
 it("allows a new schedule after the person explicitly pauses the held source", async () => {
   const directory = mkdtempSync(join(tmpdir(), "startupbot-paused-routine-fixture-"));
   const now = Date.parse("2026-10-01T00:00:00Z"), started: string[] = [];
-  const store = { messagesFor: () => [], activePath: () => [], botByThread: () => undefined } as unknown as Store;
+  const store = { messagesFor: () => [], activePath: () => [], botByThread: () => undefined, bot: (id: string) => ({ id }) } as unknown as Store;
   const links = () => [{ sourceBotId: "source", sourceThreadId: "home", sourceMessageId: "offer", targetBotId: "target", targetThreadId: "new" }];
   const request = { requestId: "fixture-request", messageId: "fixture-card", botId: "target", threadId: "new", action: "create" as const, fingerprintVersion: 1 as const, fingerprint: "a".repeat(64) } satisfies RoutineRequestCommit;
   const manager = new RoutineManager({ file: join(directory, "routines.json"), now: () => now, botState: () => "ready", goalState: () => "ready",

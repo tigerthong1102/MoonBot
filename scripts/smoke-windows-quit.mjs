@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-export async function smokeWindowsQuit({ inspect, evaluate, cdp }) {
+export async function smokeWindowsQuit({ inspect, evaluate }) {
   const deadline = Date.now() + 20_000;
   let target;
   while (!target && Date.now() < deadline) {
@@ -21,8 +21,8 @@ export async function smokeWindowsQuit({ inspect, evaluate, cdp }) {
     await evaluate("window.ogb.desktopLanguage.set('vi')");
     await evaluate("window.ogb.desktopLanguage.set('en')");
     assert.equal(await main("Boolean(globalThis.__fixtureQuitMenu?.items.find(item=>item.label==='Quit StartupBot'))"), true, "The native tray Quit action must be available");
-    await cdp("Browser.close").catch(() => {});
-    assert.equal(await main("process.getBuiltinModule('module').createRequire(process.resourcesPath+'/app.asar/package.json')('electron').BrowserWindow.getAllWindows().some(win=>!win.isDestroyed()&&!win.isVisible())"), true, "Closing the window must leave the tray application running");
+    const origin = await evaluate("location.origin");
+    assert.equal(await main(`(()=>{const windows=process.getBuiltinModule('module').createRequire(process.resourcesPath+'/app.asar/package.json')('electron').BrowserWindow.getAllWindows();const win=windows.find(candidate=>candidate.webContents.getURL().startsWith(${JSON.stringify(origin + "/")}));if(!win)return false;win.close();return !win.isDestroyed()&&!win.isVisible()})()`), true, "Closing the fixture window must leave the tray application running");
     await main("(()=>{const item=globalThis.__fixtureQuitMenu.items.find(entry=>entry.label==='Quit StartupBot');setTimeout(()=>item.click(item,null,{}),10);return true})()");
   } finally { inspector.close(); }
 }

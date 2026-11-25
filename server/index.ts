@@ -589,6 +589,7 @@ import { gzipTunnelReplies, json, onJsonBody, parsedBodyOf, readBody } from "./h
 import { holdBodyDeadline } from "./body-deadline.ts";
 import { createNoAiNotice } from "./host/no-ai-notice.ts"; import { PASS, ROUTES, dispatchRoutes } from "./routes/table.ts"; import { createBotLinkHost } from "./host/bot-link-host.ts"; import { followRoomMentions } from "./host/bot-link-rooms.ts"; import { standInAmong, standInWriteRefusal } from "./host/stand-in-guard.ts"; import { isBotLinkHeldPath, linkSessionRefusal } from "./routes/bot-link.ts"; import { createSecretCards } from "./host/secret-cards.ts"; import { createInternalCredentialRequestRoutes, createSecretCardRoutes } from "./routes/secret-cards.ts"; import { applyIncludedPagesMessage } from "./pages/access.ts"; import { createPublishedPages } from "./pages/service.ts"; import { createInternalToolRoutes } from "./routes/internal-tools.ts"; import { createHelperSuggestionRoutes } from "./routes/helper-suggestion.ts"; import { createXConnectorRoutes } from "./routes/x-connector.ts"; import { createMoveFreeze, switchAutomationsOff } from "./move-freeze.ts"; import { createMoveFreezeRoutes } from "./routes/move-freeze.ts"; import { createMoveWaits } from "./move-waits.ts"; import { assertBotHere, botMoveRefusal, createBotMoves } from "./bot-moves.ts"; import { createBotMoveRoutes } from "./routes/bot-moves.ts"; import { createTeamMoveIn, moveInRefusal } from "./team-move-in.ts";
 import { inboxBotTextRoutes } from "./routes/inbox-bot-text.ts";
+import { applyDesktopMutationTokenMessage } from "./host/desktop-owner.ts";
 import { createAiTwinStore } from "./ai-twin.ts";
 import { createAiTwinRoutes } from "./routes/ai-twin.ts";
 import { createHostedSlackRoutes } from "./routes/hosted-slack.ts";
@@ -1458,19 +1459,6 @@ function postDesktopPrivateMessage(message: DesktopPrivateMessage): boolean {
     return false;
   }
 }
-function applyDesktopMutationTokenMessage(raw: unknown): boolean {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
-  const message = raw as Record<string, unknown>;
-  if (message.type !== "openmausbot:desktop-mutation-token") return false;
-  if (typeof message.token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(message.token)) {
-    throw new Error("invalid desktop mutation capability");
-  }
-  desktopMutationToken = message.token;
-  if (typeof message.companionToken === "string" && /^[A-Za-z0-9_-]{43}$/.test(message.companionToken)) {
-    companionMutationToken = message.companionToken;
-  }
-  return true;
-}
 const browserCleanup: BrowserCleanupCoordinator = new BrowserCleanupCoordinator({
   file: join(DATA_DIR, "browser-cleanups.json"),
   send: (request) => {
@@ -1490,7 +1478,8 @@ const phoneSecrets = new PhoneSecretBridge(postDesktopPrivateMessage, undefined,
 utilityParentPort?.on("message", (event) => {
   const message = event?.data;
   try {
-    if (applyDesktopMutationTokenMessage(message) || desktopComputer.receive(message) || tailnetShare.receive(message, (answer) => utilityParentPort?.postMessage(answer))) return;
+    if (applyDesktopMutationTokenMessage(message, (token) => { desktopMutationToken = token; }, (token) => { companionMutationToken = token; })) return;
+    if (desktopComputer.receive(message) || tailnetShare.receive(message, (answer) => utilityParentPort?.postMessage(answer))) return;
     if (handleDesktopTrustedApprovalMessage(message)) return;
     if (browserCleanup.receive(message)) return;
     if (phoneSecrets.receive(message) || botLogins.receiveHandoff(message, postDesktopPrivateMessage, (what) => cloudConnections.handoff(what))) return;

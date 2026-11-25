@@ -35,6 +35,7 @@ export interface BurgerTurn extends Pick<ExecutorContext, "internal"> {
   threadId: string;
   cwd: string;
   signal?: AbortSignal;
+  assignedSkills?: readonly string[];
   publish(event: StepEvent): void;
   /** A burger used in every chat belongs to the whole place: whether this turn may change one. */
   mayEditEveryChat: boolean;
@@ -96,7 +97,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     if (path === RUN_PATH) {
       const parsed = runBody.safeParse(body);
       if (!parsed.success) return json(res, 400, { error: "run_workflow needs the Skill Burger's name." });
-      const found = findWorkflowSkill(turn.botId, parsed.data.name, deps.root);
+      const found = findWorkflowSkill(turn.botId, parsed.data.name, deps.root, turn.assignedSkills);
       if (!found) return json(res, 404, { error: `No Skill Burger named "${parsed.data.name}" here. Check the names in your skills index.` });
       const envelope = await startRun({ name: parsed.data.name, botId: turn.botId, threadId: turn.threadId, sha256: found.sha256, workflow: found.workflow, ...(parsed.data.args ? { args: parsed.data.args } : {}) }, runDeps(turn));
       return json(res, 200, finished(turn, parsed.data.name, envelope));
@@ -113,7 +114,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
       if (!parsed.success) return json(res, 404, { error: "There is nothing to undo with that id." });
       const kept = editUndo.peek(parsed.data.undo);
       if (!kept) return json(res, 404, { error: "There is nothing to undo with that id." });
-      const found = findWorkflowSkill(turn.botId, kept.name, deps.root);
+      const found = findWorkflowSkill(turn.botId, kept.name, deps.root, turn.assignedSkills);
       if (!found) return json(res, 404, { error: "That Skill Burger is gone." });
       if ("everyChat" in found.place && !turn.mayEditEveryChat) return json(res, 403, { error: "Only an admin of this installation can change a Skill Burger used in every chat." });
       if (!editUndo.take(parsed.data.undo, undoScope(found.place), kept.name)) return json(res, 404, { error: "There is nothing to undo with that id." });
@@ -126,7 +127,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     const { name: _name, ...rest } = raw;
     const edit = editSchema.safeParse(rest);
     if (!name || !edit.success) return json(res, 400, { error: `workflow_edit needs name and a change: ${edit.success ? "name" : edit.error.issues[0]?.message ?? ""}` });
-    const found = findWorkflowSkill(turn.botId, name, deps.root);
+    const found = findWorkflowSkill(turn.botId, name, deps.root, turn.assignedSkills);
     if (!found) return json(res, 404, { error: `No Skill Burger named "${name}" here.` });
     if ("everyChat" in found.place && !turn.mayEditEveryChat) return json(res, 403, { error: "Only an admin of this installation can change a Skill Burger used in every chat." });
     const next = applyEdit(found.workflow, edit.data);

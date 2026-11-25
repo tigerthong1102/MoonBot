@@ -163,12 +163,16 @@ export function setWorkflowEveryChat(input: { name: string; everyChat: boolean; 
 }
 
 /** The burger a bot runs by this name: its own first, then one used in every chat. */
-export function findWorkflowSkill(botId: string, name: string, root: string = skillsLibraryRoot()): { place: BurgerPlace; workflow: Workflow; sha256: string } | null {
-  for (const place of [{ botId }, { everyChat: true as const }] satisfies BurgerPlace[]) {
-    const found = readAt(place, name, root);
-    if (found) return { place, workflow: found.workflow, sha256: found.sha256 };
+export function findWorkflowSkill(botId: string, name: string, root: string = skillsLibraryRoot(), assigned: readonly string[] = []): { place: BurgerPlace; workflow: Workflow; sha256: string } | null {
+  const ownSkill = listSkills(botId).find((skill) => skill.name === name);
+  if (ownSkill) {
+    const own = ownSkill.enabled ? readAt({ botId }, name, root) : null;
+    return own ? { place: { botId }, workflow: own.workflow, sha256: own.sha256 } : null;
   }
-  return null;
+  const shared = readSkillLibraryIndex(root)[name];
+  if (!shared || (!assigned.includes(name) && (!shared.everyBot || librarySkillOptOuts(botId).has(name)))) return null;
+  const found = readAt({ everyChat: true }, name, root);
+  return found ? { place: { everyChat: true }, workflow: found.workflow, sha256: found.sha256 } : null;
 }
 
 /** Puts a changed workflow in place of the copy with `sha256`, under the same name; the old copy comes back if the new

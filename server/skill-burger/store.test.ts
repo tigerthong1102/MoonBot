@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { WORKFLOW_FILE, type Workflow } from "../../shared/skill-burger/format.ts";
-import { librarySkillDirectory, readSkillLibraryIndex } from "../skill-library.ts";
-import { listSkills, skillsSystemPrompt } from "../skills.ts";
-import { listWorkflowSkills, readWorkflowSkill, removeWorkflowSkill, renameWorkflowSkill, saveWorkflowSkill, setWorkflowEveryChat, workflowSkillsPrompt } from "./store.ts";
+import { librarySkillDirectory, readSkillLibraryIndex, setLibrarySkillEveryBot, setLibrarySkillOptOut } from "../skill-library.ts";
+import { installSkill, listSkills, setSkillEnabled, skillsSystemPrompt } from "../skills.ts";
+import { findWorkflowSkill, listWorkflowSkills, readWorkflowSkill, removeWorkflowSkill, renameWorkflowSkill, saveWorkflowSkill, setWorkflowEveryChat, workflowSkillsPrompt } from "./store.ts";
 
 const workflow: Workflow = {
   version: 1,
@@ -65,6 +65,38 @@ describe("saved burgers", () => {
     expect(moved).toEqual({ error: "The bot this Skill Burger came from is gone." });
     expect(listWorkflowSkills([], root)).toContainEqual(saved);
     expect(listSkills(bot)).toEqual([]);
+  });
+
+  it("only lets a bot use a shared workflow assigned to it or enabled for every bot", () => {
+    const { root, bot } = fixture();
+    const saved = saveWorkflowSkill({ workflow, name: "scoped-workflow", place: { everyChat: true }, botIds: [bot], root });
+    if ("error" in saved) throw new Error(saved.error);
+    expect(findWorkflowSkill(bot, saved.name, root)).not.toBeNull();
+    setLibrarySkillOptOut(bot, saved.name, true);
+    expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
+    expect(findWorkflowSkill(bot, saved.name, root, [saved.name])).not.toBeNull();
+    setLibrarySkillOptOut(bot, saved.name, false);
+    setLibrarySkillEveryBot(saved.name, false, root);
+    expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
+    expect(findWorkflowSkill(bot, saved.name, root, [saved.name])).not.toBeNull();
+  });
+
+  it("does not fall through to a shared workflow when a private skill has the same name", () => {
+    const { root, bot } = fixture();
+    const saved = saveWorkflowSkill({ workflow, name: "private-collision", place: { everyChat: true }, botIds: [bot], root });
+    if ("error" in saved) throw new Error(saved.error);
+    const installed = installSkill(bot, "fixture", [{ path: "SKILL.md", content: "---\nname: private-collision\ndescription: Private skill\n---\nPrivate instructions.\n" }]);
+    expect(installed).not.toHaveProperty("error");
+    expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
+  });
+
+  it("refuses a private workflow after its owner disables it", () => {
+    const { root, bot, botIds } = fixture();
+    const saved = saveWorkflowSkill({ workflow, name: "private-disabled", place: { botId: bot }, botIds, root });
+    if ("error" in saved) throw new Error(saved.error);
+    expect(findWorkflowSkill(bot, saved.name, root)).not.toBeNull();
+    setSkillEnabled(bot, saved.name, false);
+    expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
   });
 
   it("refuses a taken or malformed name and a workflow that isn't one", () => {

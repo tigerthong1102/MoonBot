@@ -20,6 +20,7 @@ export interface SkillBurgerRouteDeps {
   owns(botId: string, threadId: string): boolean;
   sees(auth: RequestAuth, threadId: string): boolean;
   botIds(): readonly string[];
+  assignedSkills?(botId: string): readonly string[] | undefined;
   levelOf?(auth: RequestAuth, botId: string): "none" | "view" | "chat" | "edit";
   /** A teammate a run handed work to, by the id or name it used: its name and role now. */
   teammate?(idOrName: string): { id?: string; name: string; role?: string } | undefined;
@@ -85,6 +86,7 @@ export function createStandaloneSkillBurgerRoutes(
     ...extras,
     messages: (threadId) => store.activePath(threadId),
     botIds: () => store.bots.map((bot) => bot.id),
+    assignedSkills: (botId) => store.bot(botId)?.assignedSkills,
     owns: (botId, threadId) => store.bot(botId)?.threadId === threadId || Boolean(store.taskByThread(botId, threadId)),
     sees,
     available: (auth) => auth.scopes.includes("admin") && enabled(),
@@ -198,7 +200,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const runner = url.searchParams.get("runner");
       if (runner) {
         if (level(auth, runner) === "none") return json(res, 404, { error: "No such skill." });
-        const found = findWorkflowSkill(runner, name, deps.root);
+        const found = findWorkflowSkill(runner, name, deps.root, deps.assignedSkills?.(runner));
         return found ? json(res, 200, { workflow: found.workflow, everyChat: "everyChat" in found.place }) : json(res, 404, { error: "No such skill." });
       }
       const at = url.searchParams.get("botId");

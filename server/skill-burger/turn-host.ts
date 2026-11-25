@@ -12,6 +12,7 @@ export interface BurgerHostDeps {
   available(): boolean;
   port: number;
   cwd(botId: string, threadId: string): string;
+  assignedSkills?(botId: string): readonly string[] | undefined;
   /** A bearer of `kind` for the same turn. */
   mint(turn: CallingTurn, kind: "connectors" | "computer"): string;
   /** The bot's browser for this turn, as the turn's browser tools would get it; null while it has none. */
@@ -39,6 +40,7 @@ export function burgerTurn(host: BurgerHostDeps, turn: CallingTurn, authorizatio
     threadId: turn.threadId,
     signal,
     cwd: host.cwd(turn.botId, turn.threadId),
+    assignedSkills: host.assignedSkills?.(turn.botId),
     mayEditEveryChat: host.mayEditEveryChat(),
     publish: (event: StepEvent) => host.publish(turn.threadId, { eventId: randomUUID(), createdAt: new Date().toISOString(), threadId: turn.threadId, itemType: "tool", ...event }),
     async internal(kind, path, body, signal) {

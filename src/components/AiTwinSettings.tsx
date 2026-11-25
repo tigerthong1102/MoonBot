@@ -108,7 +108,7 @@ export function AiTwinSettings() {
         <>
           <div className="min-w-0 text-[13px] text-ink" dir="auto">
             <span className="break-words font-medium">{twin.name}</span>
-            <span className="ml-2 text-ink-secondary">{t(twin.paused ? "settings.aiTwin.paused" : "settings.aiTwin.private")}</span>
+            <span className="ms-2 text-ink-secondary">{t(twin.paused ? "settings.aiTwin.paused" : "settings.aiTwin.private")}</span>
           </div>
           {twin.style && <p dir="auto" className="whitespace-pre-wrap break-words text-[13px] text-ink-secondary">{twin.style}</p>}
           <div className="flex flex-wrap gap-2">

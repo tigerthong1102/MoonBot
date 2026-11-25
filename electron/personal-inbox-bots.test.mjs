@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { afterEach, expect, it, vi } from "vitest";
+import { safeStorage } from "electron";
 
 const fixture = vi.hoisted(() => ({ home: "", menu: null, destroyed: null, response: 0 }));
 vi.mock("electron", () => ({
@@ -14,7 +15,24 @@ vi.mock("electron", () => ({
 }));
 import { personalInboxBots } from "./personal-inbox-bots.mjs";
 
-afterEach(() => { fixture.destroyed?.(); fixture.response = 0; vi.useRealTimers(); if (fixture.home) rmSync(fixture.home, { recursive: true, force: true }); });
+afterEach(() => { fixture.destroyed?.(); fixture.response = 0; vi.restoreAllMocks(); vi.useRealTimers(); if (fixture.home) rmSync(fixture.home, { recursive: true, force: true }); });
+
+it("shows a disabled choice when the operating system key store does not answer", async () => {
+  fixture.home = mkdtempSync(join(tmpdir(), "startupbot-key-store-fixture-"));
+  mkdirSync(join(fixture.home, ".startupbot")); fixture.menu = null;
+  vi.useFakeTimers();
+  const probe = vi.spyOn(safeStorage, "isAsyncEncryptionAvailable").mockImplementation(() => new Promise(() => {}));
+  const workspaceId = "33333333-3333-4333-8333-333333333333";
+  const localFetch = async endpoint => ({ ok: true, json: async () => endpoint.endsWith("bot-identity") ? { workspaceId } : { bots: [{ id: "fixture-bot", name: "Fixture" }] } });
+  const workspace = { getURL: () => "http://127.0.0.1:4000", isDestroyed: () => false, executeJavaScript: code => runInNewContext(code, { location: { origin: "http://127.0.0.1:4000" }, fetch: localFetch }) };
+  const page = { isDestroyed: () => false, session: { fetch: async () => ({ ok: true, json: async () => ({ id: "owner-fixture" }) }) }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
+  const instance = personalInboxBots({ webContents: workspace }, page, "https://fixture.invalid", localFetch);
+  instance.invite("11111111-1111-4111-8111-111111111111");
+  await vi.advanceTimersByTimeAsync(4_000);
+  expect(fixture.menu).toHaveLength(1);
+  expect(fixture.menu[0].enabled).toBe(false);
+  expect(probe).toHaveBeenCalledTimes(1);
+});
 
 it("registers same-name bots before selection without joining a room", async () => {
   fixture.home = mkdtempSync(join(tmpdir(), "startupbot-pick-fixture-"));

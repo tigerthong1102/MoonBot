@@ -67,7 +67,13 @@ export function personalInboxBots(window, page, origin, localRequest, language =
   const picksInFlight = new Set();
   const preparationRetryAt = new Map();
   const identityEndpoint = "/api/personal-inbox/bot-identity";
-  const encryption = { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value) };
+  let encryptionProbe;
+  const encryption = { available: async () => {
+    encryptionProbe ??= Promise.resolve().then(() => safeStorage.isAsyncEncryptionAvailable()).then(available => available && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text")).catch(() => false).finally(() => { encryptionProbe = undefined; });
+    let timer;
+    try { return await Promise.race([encryptionProbe, new Promise(resolve => { timer = setTimeout(() => resolve(false), 2_000); })]); }
+    finally { clearTimeout(timer); }
+  }, encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value) };
   function report(type) {
     if (current())
       void page

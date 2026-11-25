@@ -162,10 +162,15 @@ describe("AppTriggerManager", () => {
     triggers.receive([event], 1);
     expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
     expect(heldEvents()).toHaveLength(1);
+    const sidecar = join(dir, "app-triggers.json.held");
+    const held = JSON.parse(readFileSync(sidecar, "utf8"));
+    expect(held.version).toBe(2);
+    writeFileSync(sidecar, JSON.stringify({ ...held, version: 1 }));
     writeFileSync(main, beforeCheckpoint);
     routines.close();
     routines = new RoutineManager({ file: join(dir, "routines.json"), botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
     triggers = manager({ linkedBots: links });
+    expect(JSON.parse(readFileSync(sidecar, "utf8"))).toEqual(held);
     triggers.receive([event], 1);
     expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
   });

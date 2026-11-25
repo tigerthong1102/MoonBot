@@ -143,7 +143,7 @@ const fileSchema = z.object({
   heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })])).default([]),
   bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).default([]),
 });
-const heldStoreSchema = z.object({ version: z.literal(1), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional(), allowedTriggerIds: z.array(z.string()).optional(), heldBotIds: z.array(z.string()).optional() })) });
+const heldStoreSchema = z.object({ version: z.union([z.literal(1), z.literal(2)]), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional(), allowedTriggerIds: z.array(z.string()).optional(), heldBotIds: z.array(z.string()).optional() })) });
 
 export interface AppTriggerInput {
   botId: string;
@@ -239,6 +239,7 @@ export class AppTriggerManager {
     this.heldFile = `${this.file}.held`;
     this.now = options.now ?? Date.now;
     let embeddedEvents = false;
+    let upgradeHeldStore = false;
     try {
       const parsed = fileSchema.safeParse(JSON.parse(readFileSync(this.file, "utf8")));
       if (!parsed.success) throw parsed.error;
@@ -261,6 +262,7 @@ export class AppTriggerManager {
     }
     try {
       const stored = heldStoreSchema.parse(JSON.parse(readFileSync(this.heldFile, "utf8")));
+      upgradeHeldStore = stored.version === 1;
       if (new Set(stored.events.map(row => row.id)).size !== stored.events.length) throw new Error("Duplicate held event IDs");
       for (const row of stored.events) {
         if (row.event && row.event.id !== row.id) throw new Error("Mismatched held event ID");
@@ -273,10 +275,10 @@ export class AppTriggerManager {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
     }
     if ([...this.heldEvents.values()].some(value => !value.event)) this.heldUnreadable = true;
-    if (embeddedEvents && !this.heldUnreadable) {
+    if ((embeddedEvents || upgradeHeldStore) && !this.heldUnreadable) {
       try {
         mkdirSync(dirname(this.heldFile), { recursive: true });
-        writeFileAtomic(this.heldFile, JSON.stringify({ version: 1, events: [...this.heldEvents].map(([id, value]) => ({ id, ...value })) }), { mode: 0o600 });
+        writeFileAtomic(this.heldFile, JSON.stringify({ version: 2, events: [...this.heldEvents].map(([id, value]) => ({ id, ...value })) }), { mode: 0o600 });
       } catch { this.heldUnreadable = true; }
     }
   }
@@ -904,7 +906,7 @@ export class AppTriggerManager {
     const rows = [...next].map(([id, value]) => ({ id, ...value }));
     if (rows.length > MAX_HELD_EVENTS || Buffer.byteLength(JSON.stringify(rows), "utf8") > MAX_HELD_BYTES) throw new RetryAppEvent("Held event storage is full");
     mkdirSync(dirname(this.heldFile), { recursive: true });
-    writeFileAtomic(this.heldFile, JSON.stringify({ version: 1, events: rows }), { mode: 0o600 });
+    writeFileAtomic(this.heldFile, JSON.stringify({ version: 2, events: rows }), { mode: 0o600 });
     this.heldEvents = next;
   }
 

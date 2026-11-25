@@ -14,7 +14,7 @@ export function AiTwinPreview({ twin, provider, refresh }: {
   const [draft, setDraft] = useState("");
   const [lesson, setLesson] = useState<AiTwinLesson | null | undefined>(undefined);
   const [error, setError] = useState<"retry" | "changed" | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<"lookup" | "generate" | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => () => abort.current?.abort(), []);
@@ -23,7 +23,7 @@ export function AiTwinPreview({ twin, provider, refresh }: {
     if (!question.trim() || abort.current || (action === "generate" && !provider)) return;
     const request = new AbortController();
     abort.current = request;
-    setPending(true);
+    setPending(action);
     setDraft("");
     setLesson(undefined);
     setError(null);
@@ -47,7 +47,7 @@ export function AiTwinPreview({ twin, provider, refresh }: {
       }
     } finally {
       abort.current = null;
-      if (!request.signal.aborted) setPending(false);
+      if (!request.signal.aborted) setPending(null);
     }
   }
 
@@ -62,7 +62,7 @@ export function AiTwinPreview({ twin, provider, refresh }: {
       if (!event.currentTarget.open) {
         const running = abort.current;
         running?.abort();
-        setPending(false);
+        setPending(null);
         setQuestion("");
         setDraft("");
         setLesson(undefined);
@@ -74,17 +74,17 @@ export function AiTwinPreview({ twin, provider, refresh }: {
         <form onSubmit={lookup} className="mt-3 flex flex-col gap-2">
           <SettingsField label={t("settings.aiTwin.sampleQuestion")}>
             <textarea dir="auto" className={`${SETTINGS_INPUT} h-auto min-h-20 py-1.5`} rows={3} maxLength={AI_TWIN_QUESTION_MAX}
-              value={question} onChange={(event) => { setQuestion(event.target.value); setDraft(""); setLesson(undefined); }} disabled={pending} required />
+              value={question} onChange={(event) => { setQuestion(event.target.value); setDraft(""); setLesson(undefined); }} disabled={pending !== null} required />
           </SettingsField>
           <div className="flex flex-wrap gap-2">
-            <button type="submit" className="ui-button ui-button-primary" disabled={pending || !question.trim() || error === "changed"}>
+            <button type="submit" className="ui-button ui-button-primary" disabled={pending !== null || !question.trim() || error === "changed"}>
               {t("settings.aiTwin.lookupLesson")}
             </button>
-            {provider && <button type="button" className="ui-button" disabled={pending || !question.trim() || error === "changed"}
+            {provider && <button type="button" className="ui-button" disabled={pending !== null || !question.trim() || error === "changed"}
               onClick={() => void run("generate")}>{t("settings.aiTwin.generateDraft")}</button>}
           </div>
           {provider && <p className="text-[12px] text-ink-secondary">{t("settings.aiTwin.previewDisclosure", { provider: provider.name, model: provider.model })}</p>}
-          {pending && <p role="status" className="text-[12px] text-ink-secondary">{t("settings.aiTwin.generating")}</p>}
+          {pending && <p role="status" className="text-[12px] text-ink-secondary">{t(pending === "lookup" ? "settings.aiTwin.lookupPending" : "settings.aiTwin.generating")}</p>}
           {lesson === null && <p role="status" className="text-[13px] text-ink-secondary">{t("settings.aiTwin.lessonMissing")}</p>}
           {lesson && (
             <div role="status" className="flex flex-col gap-1 text-[13px]">

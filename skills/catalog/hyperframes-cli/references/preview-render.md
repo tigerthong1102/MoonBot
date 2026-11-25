@@ -15,7 +15,7 @@ npx hyperframes preview --context --json  # print compact agent context from Stu
 
 Hot-reloads on file changes. Opens Studio in the browser automatically — the full timeline editor, where the user can play the video and edit anything by hand before rendering. This is the review surface, not just a viewer.
 
-When handing a project back to the user, use the Studio project URL, not the source `index.html` path:
+When the user explicitly requests Studio, use the Studio project URL, not the source `index.html` path:
 
 ```text
 http://localhost:<port>/#project/<project-name>
@@ -99,7 +99,7 @@ Validation runs before any server boots, so an invalid value exits cleanly witho
 
 ## render
 
-> Render after the user has reviewed in `preview` and approved, or when they asked for the file or to work without stopping. Passing checks alone is not a reason to render.
+> For a video request, review representative frames and motion, fix visible defects, then render and return the file in the conversation. If the person explicitly requests a preview for approval first, wait for that approval. Passing checks alone is not a substitute for visual review.
 
 ```bash
 npx hyperframes render                                # standard MP4 from cwd

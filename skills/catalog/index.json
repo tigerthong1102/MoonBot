@@ -510,6 +510,7 @@
     "modified": [
       "SKILL.md",
       "references/film.md",
+      "references/story.md",
       "references/look.md",
       "references/types/launch.md",
       "scripts/bake-basemap.mjs",
@@ -523,7 +524,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Dựng video từ HTML với HyperFrames.",
-    "instructionsSha256": "08c71637864ffb4f1df7667377505e04cdf2f29986fafdfe8c0b2f822d3b377c",
+    "instructionsSha256": "0c2fba74abfad551058ea1dc7e19046a6c52129b265c83e45e620e8c52d74567",
     "summaryZh": "使用 HyperFrames 从 HTML 构建视频。",
     "summaryZhTw": "使用 HyperFrames 從 HTML 建立影片。"
   },
@@ -533,12 +534,15 @@
     "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "references/compare-and-batch.md",
+      "references/conventions.md",
+      "references/preview-render.md"
     ],
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Sử dụng công cụ dòng lệnh HyperFrames để dựng và xuất video.",
-    "instructionsSha256": "101462e6097bc2cc0e9872b164c676a15f4f77b0e52bee99d7c944d6a1eab557",
+    "instructionsSha256": "f15d43801226105db9eeac9e0cad0945b70e1e8aaff3a5345df5c5c91e71d908",
     "summaryZh": "使用 HyperFrames 命令行工具编辑和导出视频。",
     "summaryZhTw": "使用 HyperFrames 命令列工具編輯和匯出影片。"
   },

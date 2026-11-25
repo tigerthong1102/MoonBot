@@ -66,6 +66,8 @@ it("upgrades the merged media skill and preserves approval", () => {
     const library = join(root, "library");
     mkdirSync(catalog);
     cpSync("skills/catalog/media-use", join(catalog, "media-use"), { recursive: true });
+    rmSync(join(catalog, "media-use/scripts/lib/literal-media-input.mjs"));
+    restoreAuditSnapshot("media-use-file-safety-previous", join(catalog, "media-use"));
     restoreAuditSnapshot("media-use-current-previous", join(catalog, "media-use"));
     restoreAuditSnapshot("media-use-security-previous", join(catalog, "media-use"));
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
@@ -314,6 +316,8 @@ it("updates the installed media skill while preserving approval", () => {
     const catalog = join(root, "catalog"), library = join(root, "library");
     mkdirSync(catalog);
     cpSync("skills/catalog/media-use", join(catalog, "media-use"), { recursive: true });
+    rmSync(join(catalog, "media-use/scripts/lib/literal-media-input.mjs"));
+    restoreAuditSnapshot("media-use-file-safety-previous", join(catalog, "media-use"));
     restoreAuditSnapshot("media-use-current-previous", join(catalog, "media-use"));
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => entry.name === "media-use");
     writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
@@ -323,6 +327,27 @@ it("updates the installed media skill while preserving approval", () => {
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
     expect(readSkillLibraryIndex(library)["media-use"].reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/media-use/scripts/lib/media-fetch.mjs"), "utf8")).not.toContain("Tests replace `fetch`");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("upgrades media file-safety helpers from the verified bundled version", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-media-file-upgrade-"));
+  try {
+    const catalog = join(root, "catalog"), library = join(root, "library");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/media-use", join(catalog, "media-use"), { recursive: true });
+    rmSync(join(catalog, "media-use/scripts/lib/literal-media-input.mjs"));
+    restoreAuditSnapshot("media-use-file-safety-previous", join(catalog, "media-use"));
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => entry.name === "media-use");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("media-use", "approved", library)).not.toHaveProperty("error");
+    expect(readSkillLibraryIndex(library)["media-use"].filesSha256).toBe("f2a06185c507f61a1665bdb27509c1eb9ec1dc95e604e280b669ec178d2663b2");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
+    expect(readSkillLibraryIndex(library)["media-use"].reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/media-use/scripts/dither.mjs"), "utf8")).toContain("privateStagingOutput");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -6,6 +6,7 @@ import { formatInstant, routineCronText } from "./routine-cron-text.ts";
 import { conversationLanguage, serverLine } from "./server-lines.ts";
 import { plainClock, plainTimeZone, plainWeekdays } from "../shared/plain-time-zone.ts";
 import { normalizeCronSchedule, nextCronRuns } from "../shared/routine-schedule.ts";
+import type { WorkBotLink } from "./work-bot-message-db.ts";
 import { newId } from "./contracts.ts";
 import { UNDO_STALE, type DirectApply, type DirectApplyCheck } from "./direct-apply.ts";
 import { redactSecretsInText } from "./redact.ts";
@@ -66,6 +67,7 @@ import type { RoutineRequestOptionCard, RoutineRequestStore } from "./routine-re
 export type { RoutineRequestMessage, RoutineRequestOptionCard, RoutineRequestStore } from "./routine-request-store.ts";
 
 export interface RoutineRequestServiceOptions {
+  workBotLinks?: (threadId: string) => readonly WorkBotLink[];
   store: RoutineRequestStore;
   routines: RoutineManager;
   now?: () => number;
@@ -767,13 +769,16 @@ function requestCommit(payload: RoutineRequestCardData, messageId: string): Rout
   };
 }
 
-function revalidateOperation(operation: RoutineRequestOperation, manager: RoutineManager, botId: string, now: number): void {
+function revalidateOperation(operation: RoutineRequestOperation, manager: RoutineManager, context: {
+  botId: string; threadId: string; now: number; heldHandoff: (routine: Routine) => boolean;
+}): void {
+  const { botId, threadId, now, heldHandoff } = context;
   if (operation.action === "create") {
     const definition = operation.routine;
     const owner = operation.forBot?.botId ?? botId;
     const schedule = asSchedule(definition.schedule, now);
     const duplicate = manager.listRoutines().find((routine) => {
-      if (!routine.enabled || routine.target !== "bot" || routine.botId !== owner
+      if ((!routine.enabled && !routine.heldFor) || routine.target !== "bot" || routine.botId !== owner
         || routine.runOn !== definition.runOn || routine.prompt !== definition.instructions
         || routine.durationMinutes !== definition.durationMinutes
         || routine.timeoutMinutes !== definition.timeoutMinutes
@@ -782,18 +787,22 @@ function revalidateOperation(operation: RoutineRequestOperation, manager: Routin
         || Boolean(routine.runOnStartup) !== Boolean(definition.runOnStartup)
         || (routine.attachments?.length ?? 0) > 0) return false;
       if (schedule.type === "limit_reset" || routine.schedule.type === "limit_reset") {
-        return schedule.type === routine.schedule.type && isDeepStrictEqual(requestSchedule(schedule), requestSchedule(routine.schedule));
+        return routine.enabled && schedule.type === routine.schedule.type && isDeepStrictEqual(requestSchedule(schedule), requestSchedule(routine.schedule));
       }
       const candidate = schedule.type === "interval" && routine.schedule.type === "interval"
         && definition.schedule.type === "interval" && definition.schedule.anchorAt === undefined
         ? { ...schedule, anchorAt: routine.schedule.anchorAt }
         : schedule;
-      return isDeepStrictEqual(candidate, routine.schedule);
+      if (!isDeepStrictEqual(candidate, routine.schedule)) return false;
+      if (routine.enabled) return true;
+      return !routine.sameConversation && !routine.resultsThreadId && !routine.modelSelection
+        && !routine.checks?.length && !routine.access && !routine.deliver && heldHandoff(routine);
     });
     if (duplicate) {
       // The tool cannot choose a result destination.
       throw new RoutineRequestError(
-        `An enabled routine with the same instructions and execution settings already exists (${duplicate.id}). Use trigger_info to review it, then change or run that trigger instead.`,
+        duplicate.enabled ? `An enabled routine with the same instructions and execution settings already exists (${duplicate.id}). Use trigger_info to review it, then change or run that trigger instead.`
+          : serverLine(conversationLanguage(threadId), "server.workBot.scheduleConflict"),
         409,
         { terminal: true },
       );
@@ -900,6 +909,7 @@ export class RoutineRequestService {
   private readonly validateTarget?: RoutineRequestServiceOptions["validateTarget"];
   private readonly autoApply?: RoutineRequestServiceOptions["autoApply"];
   private readonly engines?: LimitResetEngines;
+  private readonly workBotLinks?: RoutineRequestServiceOptions["workBotLinks"];
 
   constructor(options: RoutineRequestServiceOptions) {
     this.store = options.store;
@@ -911,6 +921,28 @@ export class RoutineRequestService {
     this.validateTarget = options.validateTarget;
     this.autoApply = options.autoApply;
     this.engines = options.engines;
+    this.workBotLinks = options.workBotLinks;
+  }
+
+  private isHeldHandoffSchedule(routine: Routine, threadId: string): boolean {
+    const sourceThreadId = routine.sourceThreadId;
+    if (!sourceThreadId || !this.workBotLinks) return false;
+    const incoming = this.workBotLinks(threadId).filter(link => link.targetThreadId === threadId && link.targetBotId === routine.botId);
+    if (sourceThreadId === threadId) return incoming.length > 0;
+    const origins = incoming.filter(link => link.sourceThreadId === sourceThreadId);
+    if (!origins.length) return false;
+    if (routine.delegatedFromMessageId) return origins.some(link => link.sourceMessageId === routine.delegatedFromMessageId);
+    return this.store.messagesFor(sourceThreadId).some(message => {
+      const card = message.card;
+      const receipt = card?.routineRequest;
+      return card?.answered === "allow" && !card.undone && receipt?.operation?.action === "create"
+        && receipt.threadId === sourceThreadId && receipt.operation.forBot?.botId === routine.botId && receipt.resultId === routine.id
+        && origins.some(link => link.sourceMessageId === message.requestMessageId && link.sourceBotId === receipt.botId);
+    });
+  }
+
+  private revalidate(operation: RoutineRequestOperation, botId: string, threadId: string, now: number): void {
+    revalidateOperation(operation, this.routines, { botId, threadId, now, heldHandoff: routine => this.isHeldHandoffSchedule(routine, threadId) });
   }
 
   /** Writes the card without applying it, the first half of submit(); no production path stops here since Triggers v2. */
@@ -943,7 +975,7 @@ export class RoutineRequestService {
     await this.requireCloudReadiness(operation, botId);
     // The probe is async: re-check the captured revision before persisting the snapshot.
     const cardAt = this.now();
-    revalidateOperation(operation, this.routines, botId, cardAt);
+    this.revalidate(operation, botId, threadId, cardAt);
     const requestId = newId();
     const payload: RoutineRequestCardData = {
       version: 1,
@@ -1261,12 +1293,12 @@ export class RoutineRequestService {
         this.store.patchMessage(args.threadId, message.id, { card: { ...card, answered: "deny", held: undefined } });
         return { claimed: true, state: "denied" };
       }
-      revalidateOperation(payload.operation, this.routines, payload.botId, this.now());
+      this.revalidate(payload.operation, payload.botId, payload.threadId, this.now());
       if (payload.operation.forBot && this.validateTarget) {
         const refusal = this.validateTarget(payload.botId, payload.operation.forBot);
         if (refusal) throw new RoutineRequestError(refusal, 404, { terminal: true });
       }
-      const resultId = this.apply(payload, message.id, fingerprint);
+      const resultId = this.apply(payload, message.id, fingerprint, message.requestMessageId);
       return this.settleApplied(args.threadId, message.id, card, payload, resultId);
     } catch (error) {
       const status = error instanceof RoutineRequestError ? error.status : (error as { code?: string } | null)?.code === "work_bot_schedule_conflict" ? 409 : 400;
@@ -1351,7 +1383,7 @@ export class RoutineRequestService {
     }
   }
 
-  private apply(payload: RoutineRequestCardData, messageId: string, fingerprint: string): string {
+  private apply(payload: RoutineRequestCardData, messageId: string, fingerprint: string, requestMessageId?: string): string {
     const operation = payload.operation;
     const confirmationAt = this.now();
     switch (operation.action) {
@@ -1366,6 +1398,7 @@ export class RoutineRequestService {
           botId: payload.botId,
           threadId: payload.threadId,
           action: "create",
+          delegatedFromMessageId: operation.forBot ? requestMessageId : undefined,
           fingerprintVersion: ROUTINE_REQUEST_FINGERPRINT_VERSION,
           fingerprint,
         }).id;

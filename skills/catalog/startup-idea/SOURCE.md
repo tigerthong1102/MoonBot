@@ -6,6 +6,4 @@ Upstream license https://github.com/fabricioctelles/skills/blob/c491efea06e200e8
 
 StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. StartupBot folded the YAML description to one line for the app’s skill reader. Other included upstream files retain their original contents.
 
-## Excluded upstream files
-
-- evals/evals.json
+The upstream `evals/evals.json` is retained as example evaluation scenarios; the scenarios have not been run or certified by StartupBot.

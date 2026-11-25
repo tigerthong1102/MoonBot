@@ -8,6 +8,18 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["1dff97bbde66b5b4af3d14c5aab56499d6742c5c1a23e80c0a88c4c0a2b2e999", "hyperframes"],
+  ["759e4397580408711937ca57322c7c35ad026cc070c98b8deb2595ec037065e6", "pptx"],
+  ["8826653319762358dc0f9dabe7c67a7bcaeed76731b548ddc23fb5240aef599a", "shopify"],
+  ["6e6c4c82bbfd31bcb3442df6fc54e5c977b15ff9a1d093947802b2add7db8326", "woocommerce"],
+  ["1f3d841fc7b35f063cd303ca492cd89a425b91f4179334b3a56adf534580f946", "product-discovery"],
+  ["2d9a3bd52658ae4f404765af66054acaf792243e1af1dfc053b3106310348b4d", "pricing-strategy"],
+  ["e1997bc481016aef4afccaca7a5ae536921513bf76ba353e9a97944073554ddd", "business-finance-fundamentals"],
+  ["3dddb7b1a4a99b6111f1889af08f0bdae1b1b12a6864b04703ac482e7282b087", "team-leadership"],
+  ["2e3be027f72ff7bc60a4b1cba431a3515021f589a26069d03dc7dc604a29b946", "startup-idea"],
+  ["e03bf7d4addfce4ad653f6b50b9cc86bcc87193f31d1db62fa6398042bf762d0", "web-perf"],
+  ["d88c9f21c85e0866cfd1dd35970eca248dd8bf13f5b5b99d9efba27705c014ab", "gemini-api"],
+  ["5ac09c9a192939c57cf3e05c6a623ac6e521616926044245fbf6f34243d4a3ca", "producthunt"],
   ["07b62f68d600a9e3561f91133969587be1d2a8493dc11b7902454432dc6d4fca", "hyperframes"],
   ["b79c22ecb6679835c84e70cc8813fabf3df957bdb1dc09ad9a66b8373ec7fc3e", "comps-analysis"],
   ["29b7d808e8e049759e82ccbedb10999ec9149669716bda064fab55cc25cbad4c", "byted-text-to-speech"],
@@ -59,14 +71,16 @@ const olderInstructions = new Map([
 ]);
 
 const additionalOlderInstructions = new Map([
-  ["gemini-api", new Set(["218ce9d59ac461078788458a0f5f8f2ef6109d3386d5bd1468a8036ab3471742"])],
+  ["web-perf", new Set(["1b7adf5eda4c29466fee9a9b4cda2782fa3be821b899b5f9630191541ea2115a"])],
+  ["gemini-api", new Set(["218ce9d59ac461078788458a0f5f8f2ef6109d3386d5bd1468a8036ab3471742", "7b7453f9d9db260b4a0a8e20a14c2fab1a10b148952f55fe0b47a1211f7fcf8f"])],
   ["google-ads-api-mcp-setup", new Set(["91131558e35560aafff656d605c0dee78bfd4ac429e1ca4f94c7211e0e982af3"])],
   ["byted-las-asr-pro", new Set(["e8b30070e07dbe4ffd2dfb4ccc499d64fd52c64cfb2ae70bdf85e8d28d51a530"])],
   ["byted-las-pdf-parse-doubao", new Set(["9b7b9bfa212311a356999d9e00db4e46c6e218f05af10fe00bf773e867a8c677"])],
   ["producthunt", new Set(["2315e20b037b237a45b2818a993af3c9df3ac18e4ba18678a3f7189cf1e00ef3"])],
-  ["pptx", new Set(["fe5e12c18ff824da4ec41527e0a0035e4b6825c6dfeba0219b3e9543bb4106ef"])],
+  ["pptx", new Set(["fe5e12c18ff824da4ec41527e0a0035e4b6825c6dfeba0219b3e9543bb4106ef", "29405467d70f30b2ee3b2ad312bedbe16005061d2dac684eea2c80df0b95abcd"])],
   ["byted-seedream-image-generate", new Set(["6197608c6cca5877c44cafee20f0aca138d3c0ab56acb754809c149a773e35a1"])],
   ["hyperframes", new Set([
+    "02ed02e7c4aa04cb65cd06630255b73d1e9727b1f6790df6c5d00512a7b91a73",
     "37fe24371f4a1ef2be2c2e6feeb3c7d1d45c177db5a508a83177080d26226dcd",
     "5b3f2384088aae01eaf835ec1588128387432f7ddc112321f80dfa22b3ab7880",
     "11a2302d7b7d522d9878047c13e49ab92bec990dd8094136b51b9c7cbda44c4c",
@@ -134,7 +148,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
+        reviewState: ["shopify", "woocommerce", "product-discovery", "pricing-strategy", "business-finance-fundamentals", "team-leadership", "startup-idea", "comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

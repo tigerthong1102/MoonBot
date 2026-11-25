@@ -165,12 +165,12 @@
     "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pptx/LICENSE.txt",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/apply_theme.js"
     ],
     "excludedFiles": [
       "scripts/__init__.py",
       "scripts/add_slide.py",
-      "scripts/apply_theme.js",
       "scripts/clean.py",
       "scripts/office/helpers/__init__.py",
       "scripts/office/helpers/pptx_chart.py",
@@ -419,9 +419,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "references/skill-feedback.md"
-    ],
+    "excludedFiles": [],
     "category": "web",
     "summaryVi": "Đo tốc độ tải và tìm nguyên nhân website chậm.",
     "instructionsSha256": "1b7adf5eda4c29466fee9a9b4cda2782fa3be821b899b5f9630191541ea2115a",
@@ -513,50 +511,15 @@
       "SKILL.md",
       "references/film.md",
       "references/look.md",
-      "references/types/launch.md"
-    ],
-    "excludedFiles": [
-      "assets/frame-presets/biennale-yellow/caption-skin.html",
-      "assets/frame-presets/biennale-yellow/frame-showcase.html",
-      "assets/frame-presets/blockframe/caption-skin.html",
-      "assets/frame-presets/blockframe/frame-showcase.html",
-      "assets/frame-presets/blue-professional/caption-skin.html",
-      "assets/frame-presets/blue-professional/frame-showcase.html",
-      "assets/frame-presets/bold-poster/caption-skin.html",
-      "assets/frame-presets/bold-poster/frame-showcase.html",
-      "assets/frame-presets/broadside/caption-skin.html",
-      "assets/frame-presets/broadside/frame-showcase.html",
-      "assets/frame-presets/capsule/caption-skin.html",
-      "assets/frame-presets/capsule/frame-showcase.html",
-      "assets/frame-presets/cartesian/caption-skin.html",
-      "assets/frame-presets/cartesian/frame-showcase.html",
-      "assets/frame-presets/cobalt-grid/caption-skin.html",
-      "assets/frame-presets/cobalt-grid/frame-showcase.html",
-      "assets/frame-presets/code-editorial/caption-skin.html",
-      "assets/frame-presets/code-editorial/frame-showcase.html",
-      "assets/frame-presets/coral/caption-skin.html",
-      "assets/frame-presets/coral/frame-showcase.html",
-      "assets/frame-presets/creative-mode/caption-skin.html",
-      "assets/frame-presets/creative-mode/frame-showcase.html",
-      "assets/frame-presets/daisy-days/caption-skin.html",
-      "assets/frame-presets/daisy-days/frame-showcase.html",
-      "assets/frame-presets/editorial-forest/caption-skin.html",
-      "assets/frame-presets/editorial-forest/frame-showcase.html",
-      "scripts/bake-basemap.mjs",
-      "scripts/lib/main-module.mjs",
-      "scripts/lib/main-module.test.mjs",
-      "scripts/lib/windows-exe-search.mjs",
-      "scripts/lib/windows-exe-search.test.mjs",
+      "references/types/launch.md",
       "scripts/locate.mjs",
-      "scripts/locate.test.mjs",
-      "scripts/plugin-cli.mjs",
-      "scripts/plugin-cli.test.mjs",
-      "references/plugin-installation.md",
-      "references/skill-lifecycle.md"
+      "scripts/lib/main-module.test.mjs",
+      "scripts/lib/windows-exe-search.test.mjs"
     ],
+    "excludedFiles": [],
     "category": "media",
     "summaryVi": "Dựng video từ HTML với HyperFrames.",
-    "instructionsSha256": "02ed02e7c4aa04cb65cd06630255b73d1e9727b1f6790df6c5d00512a7b91a73",
+    "instructionsSha256": "d615ecdf85209ca9cb16bf57f162329a09332ac11aa617030ffab5682046a4fc",
     "summaryZh": "使用 HyperFrames 从 HTML 构建视频。",
     "summaryZhTw": "使用 HyperFrames 從 HTML 建立影片。"
   },
@@ -583,9 +546,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "references/attribution.md"
-    ],
+    "excludedFiles": [],
     "category": "media",
     "summaryVi": "Tạo video bằng Gemini hoặc Veo qua kết nối đã cấu hình.",
     "instructionsSha256": "7b7453f9d9db260b4a0a8e20a14c2fab1a10b148952f55fe0b47a1211f7fcf8f",
@@ -705,9 +666,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "commerce",
     "summaryVi": "Làm việc với cửa hàng và dữ liệu Shopify.",
     "instructionsSha256": "d06ed22e1cb49822edc0a4eb1e0d22d4c819fefb1b671fd1503451191efef859",
@@ -722,9 +681,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "commerce",
     "summaryVi": "Làm việc với cửa hàng và dữ liệu WooCommerce.",
     "instructionsSha256": "ca58f402e54573383839190f2c9fff1147700ad7d595d0ef479bed20635602c6",
@@ -932,9 +889,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "evals/evals.json"
-    ],
+    "excludedFiles": [],
     "category": "startup",
     "summaryVi": "Đánh giá ý tưởng khởi nghiệp và giả định cần kiểm chứng.",
     "instructionsSha256": "68f83211a9f8cedc27560c529c9d84ee3ac58fe505368106fde9ba5e971de139",
@@ -949,9 +904,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "startup",
     "summaryVi": "Khám phá nhu cầu khách hàng và cơ hội sản phẩm.",
     "instructionsSha256": "703c0587b4e674ba5f5c94addde931f4f1d4e20142615be8e3a47e5cfd5a29e9",
@@ -996,9 +949,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "startup",
     "summaryVi": "Xây dựng chiến lược định giá sản phẩm.",
     "instructionsSha256": "6b7d23841c1462740ee69bde9e7a10181699b926aeeb48e3fab4f7e255a13fec",
@@ -1013,9 +964,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "finance",
     "summaryVi": "Tính và hiểu các chỉ số tài chính khi vận hành công ty.",
     "instructionsSha256": "30996f7e4462b3c41888de4fcacc9f2dcde9afd9c48a1c258d11e9e8e43d3664",
@@ -1108,9 +1057,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "startup",
     "summaryVi": "Quản lý đội ngũ và phát triển kỹ năng lãnh đạo.",
     "instructionsSha256": "976c3040f63ab51f024cd9a81f087f1afa40309971aa4e3330c3f6a98075a36b",
@@ -1176,5 +1123,43 @@
     "instructionsSha256": "51f605076f16fbf2c205566f93804b55e2a0635450054a6136435cae2b1d3c9b",
     "summaryZh": "使用 Google Forms 表单和回复。",
     "summaryZhTw": "使用 Google Forms 表單和回覆。"
+  },
+  {
+    "name": "media-use",
+    "source": "https://github.com/heygen-com/hyperframes/tree/77ea9d80cfc8b347ccca966487a8ff902ce28320/skills/media-use",
+    "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md",
+      "audio/scripts/lib/audio-carve.mjs",
+      "audio/scripts/lib/concurrency.mjs"
+    ],
+    "excludedFiles": [
+      ".gitignore",
+      "audio/assets/sfx/chime.mp3",
+      "audio/assets/sfx/click-soft.mp3",
+      "audio/assets/sfx/click.mp3",
+      "audio/assets/sfx/error.mp3",
+      "audio/assets/sfx/glitch-1.mp3",
+      "audio/assets/sfx/glitch-2.mp3",
+      "audio/assets/sfx/glitch-3.mp3",
+      "audio/assets/sfx/impact-bass-1.mp3",
+      "audio/assets/sfx/impact-bass-2.mp3",
+      "audio/assets/sfx/key-press.mp3",
+      "audio/assets/sfx/notification.mp3",
+      "audio/assets/sfx/ping.mp3",
+      "audio/assets/sfx/pop.mp3",
+      "audio/assets/sfx/riser.mp3",
+      "audio/assets/sfx/sparkle.mp3",
+      "audio/assets/sfx/typing.mp3",
+      "audio/assets/sfx/whoosh-cinematic.mp3",
+      "audio/assets/sfx/whoosh-short.mp3",
+      "audio/assets/sfx/whoosh.mp3"
+    ],
+    "category": "media",
+    "summaryVi": "Tìm và chuẩn bị hình ảnh, cảnh quay, giọng đọc và âm thanh cho video.",
+    "summaryZh": "为视频寻找并准备图像、镜头、旁白和声音。",
+    "summaryZhTw": "為影片尋找並準備影像、鏡頭、旁白和聲音。",
+    "instructionsSha256": "ac48850cfb2cc6cff224321def514708e86901a0f3619294528fc685891aff8d"
   }
 ]

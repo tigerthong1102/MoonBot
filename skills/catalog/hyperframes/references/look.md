@@ -24,7 +24,7 @@ A reference film or image gives its grammar, never its content: shot lengths, ho
 
 ## Presets
 
-The following preset design documents are available at `../assets/frame-presets/<name>/FRAME.md`. Read the matching document when it fits the brief. They provide visual guidance, not complete ready-to-render templates: caption skins and showcase HTML are not included. The `code-editorial` font files and their SIL Open Font License notices are included; other named typefaces require a permitted local font file or an available alternative. Use a supplied brand or reference when appropriate.
+The following preset design documents are available at `../assets/frame-presets/<name>/FRAME.md`, alongside upstream caption skins and showcase HTML. Read the matching document when it fits the brief. Inspect each example for remote fonts, scripts and assets before opening or using it; respect offline requests and verify rights. The `code-editorial` font files and their SIL Open Font License notices are included; other named typefaces require a permitted local font file or an available alternative. Use a supplied brand or reference when appropriate.
 
 | Preset              | Look                                                                                           |
 | ------------------- | ---------------------------------------------------------------------------------------------- |

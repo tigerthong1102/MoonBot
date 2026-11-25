@@ -4,46 +4,12 @@ Upstream directory https://github.com/heygen-com/hyperframes/tree/77ea9d80cfc8b3
 
 Upstream license https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE
 
-StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. The placeholder example in references/types/launch.md was changed to avoid implying an application-specific Settings path. The map and image-location instructions in references/film.md and preset instructions in references/look.md were adapted to omit excluded files. Other included upstream files retain their original contents.
+StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. The placeholder example in references/types/launch.md was changed to avoid implying an application-specific Settings path. The map, image-location and preset instructions were adapted to describe the restored helpers, their external dependencies and authorization requirements. Except where noted below, other included upstream files retain their original contents.
 
-Included upstream references, 13 preset design documents and the unmodified code-editorial font files with their SIL Open Font License notices. Excluded other preset assets and helper scripts. Modified SKILL.md to use configured local tools and omit the usage beacon. Added HTML document structure and offline font guidance after testing HyperFrames CLI 0.9.88. Added guidance for finding commercially usable visual assets when online access is authorized.
+Included the upstream preset design documents, caption skins, showcase HTML, helper scripts, references and the unmodified code-editorial font files with their SIL Open Font License notices. Modified SKILL.md to use configured local tools and omit the usage beacon. Added HTML document structure and offline font guidance after testing HyperFrames CLI 0.9.88. Added guidance for finding commercially usable visual assets when online access is authorized. Modified scripts/locate.mjs to send the Gemini API key in its supported authentication header rather than the URL and to read images using Node instead of a platform-specific base64 command.
 
-## Excluded upstream files
+In scripts/lib/main-module.test.mjs and scripts/lib/windows-exe-search.test.mjs, replaced test-file suffix regular expressions with equivalent string suffix checks for supported skill file paths.
 
-- assets/frame-presets/biennale-yellow/caption-skin.html
-- assets/frame-presets/biennale-yellow/frame-showcase.html
-- assets/frame-presets/blockframe/caption-skin.html
-- assets/frame-presets/blockframe/frame-showcase.html
-- assets/frame-presets/blue-professional/caption-skin.html
-- assets/frame-presets/blue-professional/frame-showcase.html
-- assets/frame-presets/bold-poster/caption-skin.html
-- assets/frame-presets/bold-poster/frame-showcase.html
-- assets/frame-presets/broadside/caption-skin.html
-- assets/frame-presets/broadside/frame-showcase.html
-- assets/frame-presets/capsule/caption-skin.html
-- assets/frame-presets/capsule/frame-showcase.html
-- assets/frame-presets/cartesian/caption-skin.html
-- assets/frame-presets/cartesian/frame-showcase.html
-- assets/frame-presets/cobalt-grid/caption-skin.html
-- assets/frame-presets/cobalt-grid/frame-showcase.html
-- assets/frame-presets/code-editorial/caption-skin.html
-- assets/frame-presets/code-editorial/frame-showcase.html
-- assets/frame-presets/coral/caption-skin.html
-- assets/frame-presets/coral/frame-showcase.html
-- assets/frame-presets/creative-mode/caption-skin.html
-- assets/frame-presets/creative-mode/frame-showcase.html
-- assets/frame-presets/daisy-days/caption-skin.html
-- assets/frame-presets/daisy-days/frame-showcase.html
-- assets/frame-presets/editorial-forest/caption-skin.html
-- assets/frame-presets/editorial-forest/frame-showcase.html
-- scripts/bake-basemap.mjs
-- scripts/lib/main-module.mjs
-- scripts/lib/main-module.test.mjs
-- scripts/lib/windows-exe-search.mjs
-- scripts/lib/windows-exe-search.test.mjs
-- scripts/locate.mjs
-- scripts/locate.test.mjs
-- scripts/plugin-cli.mjs
-- scripts/plugin-cli.test.mjs
-- references/plugin-installation.md
-- references/skill-lifecycle.md
+## Upstream behavior to configure before use
+
+The restored upstream plugin launcher can download CLI releases through npx. The image-location helper can transmit an image to Google Gemini; the basemap helper fetches map tiles and scripts from external services. Preset HTML may load fonts and animation scripts from remote servers. These files are not an authorization to transmit user material, spend money, download tools or ignore offline requests.

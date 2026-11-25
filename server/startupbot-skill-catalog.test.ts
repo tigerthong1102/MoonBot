@@ -6,6 +6,8 @@ import { expect, it } from "vitest";
 import { installLibrarySkill, readSkillLibraryIndex, setLibrarySkillReviewState, skillLibraryEvents } from "./skill-library.ts";
 import { installStartupBotSkillCatalog } from "./startupbot-skill-catalog.ts";
 
+const catalogSize = (JSON.parse(readFileSync("skills/catalog/index.json", "utf8")) as unknown[]).length;
+
 const auditSnapshot: Record<string, string> = JSON.parse(readFileSync("server/testing/fixtures/skill-audit-before.json", "utf8"));
 
 function restoreAuditSnapshot(name: string, destination: string) {
@@ -33,7 +35,7 @@ it("upgrades verified audit snapshots while preserving approvals and customized 
     const customPath = join(library, "skills", "byted-las-pdf-parse-doubao", "SOURCE.md");
     const custom = readFileSync(customPath, "utf8") + "\nCustom note.\n";
     writeFileSync(customPath, custom);
-    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 60, failed: [] });
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize - 1, failed: [] });
     const index = readSkillLibraryIndex(library);
     for (const name of names) expect(index[name].reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/comps-analysis/SKILL.md"), "utf8")).not.toContain("examples/comps_example.xlsx");
@@ -57,6 +59,36 @@ it("upgrades verified audit snapshots while preserving approvals and customized 
   }
 });
 
+it("upgrades the latest verified catalog without overwriting customized skills", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-full-upgrade-"));
+  try {
+    const catalog = join(root, "catalog");
+    const library = join(root, "library");
+    const names = ["hyperframes", "pptx", "shopify", "woocommerce", "product-discovery", "pricing-strategy", "business-finance-fundamentals", "team-leadership", "startup-idea", "web-perf", "gemini-api", "producthunt"];
+    mkdirSync(catalog);
+    restoreAuditSnapshot("full-previous", catalog);
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
+      .filter((entry: { name: string }) => names.includes(entry.name));
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: names.length, failed: [] });
+    for (const name of names) expect(setLibrarySkillReviewState(name, "approved", library)).not.toHaveProperty("error");
+    const customPath = join(library, "skills/team-leadership/SOURCE.md");
+    const custom = readFileSync(customPath, "utf8") + "\nCustom note.\n";
+    writeFileSync(customPath, custom);
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize - 1, failed: [] });
+    const index = readSkillLibraryIndex(library);
+    for (const name of names) expect(index[name].reviewState).toBe("approved");
+    expect(index.hyperframes.files).toContain("scripts/locate.mjs");
+    expect(index.pptx.files).toContain("scripts/apply_theme.js");
+    expect(index.shopify.files).toContain("_scores.json");
+    expect(index["media-use"].files).toContain("UPSTREAM.md");
+    expect(readFileSync(customPath, "utf8")).toBe(custom);
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it("stages the catalog with notices and preserves existing library choices on restart", () => {
   const root = mkdtempSync(join(tmpdir(), "startupbot-skill-catalog-"));
   try {
@@ -66,14 +98,14 @@ it("stages the catalog with notices and preserves existing library choices on re
     const onInstall = () => publishedSizes.push(Object.keys(readSkillLibraryIndex(root)).length);
     skillLibraryEvents.on("invalidate", onInstall);
     try {
-      expect(installStartupBotSkillCatalog({ root })).toEqual({ installed: 60, failed: [] });
+      expect(installStartupBotSkillCatalog({ root })).toEqual({ installed: catalogSize - 1, failed: [] });
     } finally {
       skillLibraryEvents.off("invalidate", onInstall);
     }
-    expect(publishedSizes).toHaveLength(60);
-    expect(new Set(publishedSizes)).toEqual(new Set([61]));
+    expect(publishedSizes).toHaveLength(catalogSize - 1);
+    expect(new Set(publishedSizes)).toEqual(new Set([catalogSize]));
     const index = readSkillLibraryIndex(root);
-    expect(Object.keys(index)).toHaveLength(61);
+    expect(Object.keys(index)).toHaveLength(catalogSize);
     expect(index.pdf?.source).toBe("local-import");
     expect(Object.values(index).every((entry) => entry.reviewState === "disabled" && !entry.everyBot)).toBe(true);
     for (const entry of Object.values(index).filter(({ name }) => name !== "pdf")) {
@@ -108,6 +140,7 @@ it("upgrades original catalog folders and keeps their review choices", () => {
       }
       cpSync(join("server/testing/fixtures/startupbot-old-skills", name), join(catalog, name), { recursive: true });
       if (name === "producthunt") {
+        rmSync(join(catalog, name, "upstream-claude-plugin"), { recursive: true, force: true });
         writeFileSync(join(catalog, name, "scripts/producthunt_api.py"), Buffer.from(auditSnapshot["producthunt/scripts/producthunt_api.py"], "base64"));
       }
     }
@@ -119,7 +152,7 @@ it("upgrades original catalog folders and keeps their review choices", () => {
     expect(setLibrarySkillReviewState("gemini-api", "approved", library)).not.toHaveProperty("error");
     expect(setLibrarySkillReviewState("byted-text-to-speech", "approved", library)).not.toHaveProperty("error");
 
-    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 61, failed: [] });
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
     const index = readSkillLibraryIndex(library);
     expect(index.hyperframes.reviewState).toBe("approved");
     expect(index["hyperframes-cli"].reviewState).toBe("disabled");
@@ -138,9 +171,10 @@ it("upgrades original catalog folders and keeps their review choices", () => {
     expect(index.hyperframes.files).toContain("references/format.md");
     const filmGuide = readFileSync(join(library, "skills/hyperframes/references/film.md"), "utf8");
     expect(filmGuide).toContain("user-provided image or video");
-    expect(filmGuide).not.toMatch(/scripts\/(?:bake-basemap|locate)\.mjs/);
+    expect(filmGuide).toContain("../scripts/locate.mjs");
+    expect(filmGuide).toContain("../scripts/bake-basemap.mjs");
     const lookGuide = readFileSync(join(library, "skills/hyperframes/references/look.md"), "utf8");
-    expect(lookGuide).toContain("not complete ready-to-render templates");
+    expect(lookGuide).toContain("caption skins and showcase HTML");
     expect(lookGuide).toContain("../assets/frame-presets/");
     expect(index["hyperframes-cli"].files).toContain("references/preview-render.md");
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
@@ -158,6 +192,9 @@ it.each(["hyperframes-v2", "hyperframes-v3", "hyperframes-v4", "hyperframes-v5",
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", oldSkill, { recursive: true });
     rmSync(join(oldSkill, "assets"), { recursive: true, force: true });
+    rmSync(join(oldSkill, "scripts"), { recursive: true, force: true });
+    for (const name of ["plugin-installation.md", "skill-lifecycle.md"]) rmSync(join(oldSkill, "references", name), { force: true });
+    writeFileSync(join(oldSkill, "references/film.md"), Buffer.from(auditSnapshot["hyperframes/references/film.md"], "base64"));
     writeFileSync(join(oldSkill, "references/look.md"), Buffer.from(auditSnapshot["hyperframes/references/look.md"], "base64"));
     cpSync(join("server/testing/fixtures/startupbot-old-skills", version), oldSkill, { recursive: true });
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
@@ -165,7 +202,7 @@ it.each(["hyperframes-v2", "hyperframes-v3", "hyperframes-v4", "hyperframes-v5",
     writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
     expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
     expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
-    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 61, failed: [] });
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("compact shot plan");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("three visually distinct beats");
@@ -195,7 +232,7 @@ it("preserves a customized HyperFrames reference during catalog upgrade", () => 
     const reference = join(library, "skills/hyperframes/references/film.md");
     const custom = readFileSync(reference, "utf8") + "\nCustom instruction.\n";
     writeFileSync(reference, custom);
-    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 60, failed: [] });
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize - 1, failed: [] });
     expect(readFileSync(reference, "utf8")).toBe(custom);
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
   } finally {

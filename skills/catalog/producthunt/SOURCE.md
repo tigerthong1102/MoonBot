@@ -6,7 +6,7 @@ Upstream license https://github.com/ReScienceLab/opc-skills/blob/0c44a6a6e654c38
 
 StartupBot adapted SKILL.md for configured credentials and expanded the read-only operations. StartupBot modified `scripts/producthunt_api.py` to avoid printing credentials or untrusted HTTP response bodies in errors and to distinguish missing counts from zero. Other included upstream files retain their original contents.
 
-Excluded the hidden Claude manifest and shell-profile setup instructions.
+The original `.claude-plugin/plugin.json` is preserved byte-for-byte at `upstream-claude-plugin/plugin.json` as an inert historical reference because hidden paths are not accepted by the importer. Its relative paths are not active in this relocated position. The manifest declares MIT while the repository root license is Apache-2.0; this discrepancy does not establish separate licensing rights. Shell-profile setup instructions remain excluded.
 
 ## Excluded upstream files
 

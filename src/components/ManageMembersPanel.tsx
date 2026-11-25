@@ -113,7 +113,7 @@ export function ManageMembersPanel({
       >
         <div className="mb-1 text-[15px] font-semibold text-ink">{t("room.members.title")}</div>
         <div className="mb-3 truncate text-[13px] text-ink-secondary">{group.name}</div>
-        <BotPickerList bots={bots} picked={picked} onToggle={toggle} emptyHint={t("room.members.emptyHint")} onSearchChange={setQuery} hasOtherMatches={farMembers.length > 0} />
+        <BotPickerList bots={bots} allBots={state.bots} picked={picked} onToggle={toggle} emptyHint={t("room.members.emptyHint")} onSearchChange={setQuery} hasOtherMatches={farMembers.length > 0} />
         <RoomFarMembers members={farMembers} picked={picked} onToggle={toggle} />
         {!memberIds.length && <div className="mt-2 text-[12px] text-ink-secondary">{t("room.members.needOne")}</div>}
         {saveError && (

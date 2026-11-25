@@ -1,6 +1,5 @@
-export function botUsername(id: string): string {
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) return `bot_u${id.replaceAll("-", "")}`;
-  let encoded = "";
-  for (let i = 0; i < id.length; i += 1) encoded += id.charCodeAt(i).toString(16).padStart(4, "0");
-  return `bot_x${encoded}`;
+export function registeredBotUsernames(bots: readonly { id: string; groupUsername?: unknown }[]): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const bot of bots) if (typeof bot.groupUsername === "string" && /^bot_k[a-f0-9]{64}$/.test(bot.groupUsername)) counts.set(bot.groupUsername, (counts.get(bot.groupUsername) ?? 0) + 1);
+  return new Map(bots.flatMap(bot => typeof bot.groupUsername === "string" && counts.get(bot.groupUsername) === 1 ? [[bot.id, bot.groupUsername] as const] : []));
 }

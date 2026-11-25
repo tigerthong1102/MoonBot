@@ -11,6 +11,7 @@ import { beforeAll, afterEach, expect, it } from "vitest";
 import worker, { type InboxEnv } from "../src/personal-inbox-worker";
 import { botClaimBytes, proofUsername } from "../../../shared/bot-proof";
 import { createPersonalInboxClaims } from "../../../electron/personal-inbox-claims.mjs";
+import { createBotIdentityRegistration } from "../../../electron/bot-identity-registration.mjs";
 
 declare global {
   namespace Cloudflare {
@@ -849,6 +850,29 @@ it("routes desktop owned-bot challenge and signed invite through the real worker
   expect(await claims.invite(request)).toEqual({ ok: true });
   expect(await (await call(`rooms/${room}/bots`, owner.cookie)).json()).toMatchObject({ bots: [{ id: bot, username }] });
   await expect(claims.invite(request)).rejects.toThrow("fixture_http_409");
+});
+
+it("registers the Electron identity coordinator against the worker with a scoped claim", async () => {
+  const owner = await login("owner@example.test"), room = uuid(), bot = uuid();
+  expect((await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" })).status).toBe(200);
+  const claims = createPersonalInboxClaims(async (path: string, body: unknown) => {
+    const response = await call(path, owner.cookie, body);
+    if (!response.ok) throw new Error(`fixture_http_${response.status}`);
+    return response.json();
+  });
+  const pair = await botKey(), key = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+  const hex = (bytes: Uint8Array) => Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  const identity = { publicKey: hex(key), username: await proofUsername(key) };
+  let state: { kind: "new" } | { kind: "existing"; username: string } = { kind: "new" };
+  const registration = createBotIdentityRegistration({
+    identityStoreFor: async () => ({ identity: async () => identity, signClaim: async (_id, _state, claim) => ({ ...identity, signature: hex(new Uint8Array(await crypto.subtle.sign("Ed25519", pair.privateKey, new Uint8Array(botClaimBytes(claim))))) }) }),
+    loadIdentity: async () => state,
+    commitIdentity: async () => { state = { kind: "existing", username: identity.username }; return state; },
+    currentAccount: async () => owner.id, validateTarget: async () => true,
+    challenge: claims.challenge, invite: claims.invite,
+  });
+  expect(await registration.register({ workspaceId: "fixture-workspace", localBotId: "fixture-bot", bindingId: bot, owner: owner.id, room, origin, name: "Fixture" })).toEqual({ username: identity.username });
+  expect(await (await call(`rooms/${room}/bots`, owner.cookie)).json()).toMatchObject({ bots: [{ id: bot, username: identity.username }] });
 });
 
 it("keeps bot usernames unique and owner-bound when inviting to groups", async () => {

@@ -57,7 +57,7 @@ export async function signOutPersonalAccount(origin) {
   if (!response.ok) throw new Error("StartupBot sign-out failed");
 }
 
-export async function showPersonalInbox(window, origin, language, requestSignIn, { localWorkspace, room }) {
+export async function showPersonalInbox(window, origin, language, requestSignIn, { localWorkspace, room, localRequest }) {
   if (!window || window.isDestroyed() || !origin) return;
   const existing = panels.get(window)?.view;
   if (existing) {
@@ -74,7 +74,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
   } });
   const page = view.webContents;
   const workspace = window.webContents;
-  const bots = personalInboxBots(window, page, origin);
+  const bots = personalInboxBots(window, page, origin, localRequest);
   const disposeVoice = registerInboxVoice({ page, workspace, origin, localWorkspace, requestMicrophone, canStartDictation: () => !speechBusy() });
   const invitePath = origin + "/desktop/invite-bot/";
   page.setWindowOpenHandler(({ url }) => {
@@ -147,7 +147,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
   }
 }
 
-export function createPersonalInbox({ window, locale, languageKey, isLocal, showLocal, previousChoice }) {
+export function createPersonalInbox({ window, locale, languageKey, isLocal, showLocal, previousChoice, localRequest }) {
   const metadata = createRequire(import.meta.url)("../package.json");
   function origin() {
     return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
@@ -175,7 +175,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
     if (!email) return requestSignIn(win, true);
     await waitForWorkspace(win);
     return showPersonalInbox(win, base, locale(), () => requestSignIn(win, true), {
-      localWorkspace: () => !win.isDestroyed() && isLocal(win), room,
+      localWorkspace: () => !win.isDestroyed() && isLocal(win), room, localRequest,
     });
   }
   function install(ipcMain, localOnly, requireMainWindowSender) {

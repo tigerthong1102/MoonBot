@@ -595,7 +595,7 @@ import { PhoneSecretBridge, PhoneSecretSubmissionRegistry } from "./phone-secret
 import { gzipTunnelReplies, json, onJsonBody, parsedBodyOf, readBody } from "./harness/http.ts";
 import { holdBodyDeadline } from "./body-deadline.ts";
 import { createNoAiNotice } from "./host/no-ai-notice.ts"; import { PASS, ROUTES, dispatchRoutes } from "./routes/table.ts"; import { createBotLinkHost } from "./host/bot-link-host.ts"; import { followRoomMentions } from "./host/bot-link-rooms.ts"; import { standInAmong, standInWriteRefusal } from "./host/stand-in-guard.ts"; import { isBotLinkHeldPath, linkSessionRefusal } from "./routes/bot-link.ts"; import { createSecretCards } from "./host/secret-cards.ts"; import { createInternalCredentialRequestRoutes, createSecretCardRoutes } from "./routes/secret-cards.ts"; import { applyIncludedPagesMessage } from "./pages/access.ts"; import { createPublishedPages } from "./pages/service.ts"; import { createInternalToolRoutes } from "./routes/internal-tools.ts"; import { createHelperSuggestionRoutes } from "./routes/helper-suggestion.ts"; import { createXConnectorRoutes } from "./routes/x-connector.ts"; import { createMoveFreeze, switchAutomationsOff } from "./move-freeze.ts"; import { createMoveFreezeRoutes } from "./routes/move-freeze.ts"; import { createMoveWaits } from "./move-waits.ts"; import { assertBotHere, botMoveRefusal, createBotMoves } from "./bot-moves.ts"; import { createBotMoveRoutes } from "./routes/bot-moves.ts"; import { createTeamMoveIn, moveInRefusal } from "./team-move-in.ts";
-import { inboxBotTextRoutes } from "./routes/inbox-bot-text.ts";
+import { inboxBotTextRoutes } from "./routes/inbox-bot-text.ts"; import { createInboxBotIdentityHost } from "./host/inbox-bot-identity-host.ts";
 import { createHostedSlackRoutes } from "./routes/hosted-slack.ts";
 import { createBotPresetRoutes } from "./routes/bot-presets.ts"; import { createWorkspaceBannerRoutes, workspaceBannerStore, workspaceBannerSummary } from "./routes/workspace-banner.ts";
 import { createBotMemoryRoutes } from "./routes/bot-memory.ts"; import { createBotLibraryRoutes } from "./routes/bot-library.ts";
@@ -12059,7 +12059,7 @@ const workspaceCopyAccess = { dataDir: DATA_DIR, appVersion: serverVersion(), re
 const workspaceBackupRoutes = createWorkspaceBackupRoutes(workspaceCopyAccess);
 let restartRequested = false;
 const cloudMoveRoutes = createCloudMoveRoutes();
-ROUTES.push(inboxBotTextRoutes({ desktop: DESKTOP_MANAGED, bots: () => store.bots, held: id => Boolean(botHolds.held(id)), jobs: sideJobs }));
+ROUTES.push(inboxBotTextRoutes({ desktop: DESKTOP_MANAGED, bots: () => store.bots, held: id => Boolean(botHolds.held(id)), jobs: sideJobs, ...createInboxBotIdentityHost({ directory: DATA_DIR, maintenance: workspaceMaintenance, bots: () => store.bots, token: () => desktopMutationToken, assertTurns: () => moveFreeze.assertTurns(), setIdentity: (id, identity) => store.setGroupUsername(id, identity) }) }));
 ROUTES.push(createHostedSlackRoutes({ bot: (id) => store.bot(id), hostedReady: () => Boolean(workspaceAccess) && entitled("admin") })); ROUTES.push(createStopLineRoutes(),
   createStandaloneSkillBurgerRoutes(store, (auth, id) => visibleTo(viewerFor(auth)).thread(id), () => !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership()));
 const orgInstallStatuses = () => orgLibrary?.installStatuses() ?? new Map();

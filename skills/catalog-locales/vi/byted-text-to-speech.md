@@ -6,6 +6,9 @@ Dùng `scripts/synthesize.mjs` với Node.js 20 trở lên, biến bảo mật `
 
 Tài liệu gốc được giữ tại `references/upstream.md` để đối chiếu tính năng. Bản điều chỉnh này không hỗ trợ phần tự tạo khóa và lệnh Python trong tài liệu gốc; không chạy các phần đó.
 
+
+Không yêu cầu người dùng dán khóa vào chat hoặc lưu khóa trong tệp dự án; dùng cấu hình bảo mật.
+
 # Tạo tường thuật bằng trình kết nối giọng nói ByteDance được ủy quyền
 
 Sử dụng kết nối ByteDance TTS hiện có. Xác nhận văn bản, lựa chọn giọng nói và định dạng âm thanh. Tổng hợp, lưu âm thanh trong không gian làm việc của tác vụ, đồng thời kiểm tra thời lượng và chất lượng âm thanh. Chỉ sử dụng giọng nói mà người dùng được phép sử dụng.

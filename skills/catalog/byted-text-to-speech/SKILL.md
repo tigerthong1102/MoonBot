@@ -12,7 +12,7 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 
 Use `scripts/synthesize.mjs` with Node.js 20 or newer, an explicitly configured `MODEL_SPEECH_API_KEY`, and text in a task-owned UTF-8 file: `node scripts/synthesize.mjs --text-file INPUT --output NEW_AUDIO.mp3 --speaker VOICE`. The script sends that text to ByteDance and may incur service charges; only run it when the person authorized this service and its cost. It requires a new output path and does not provision credentials. It supports mp3, pcm and ogg_opus and speech, pitch, loudness and sample-rate options. Verify the resulting audio and report whether you actually listened.
 
-The original guide is preserved in `references/upstream.md` for feature comparison. Its automatic key provisioning and Python commands are not supported by this adaptation; do not run them.
+The original guide is preserved in `references/upstream.md` for feature comparison. Its automatic key provisioning and Python commands are not supported by this adaptation; do not run them. Do not ask the person to paste a key into chat or save it in a project file; use protected configuration.
 
 Use an existing ByteDance TTS connection. Confirm the text, voice choice and audio format. Synthesize, save the audio in the task workspace, and check duration and audible quality. Use only voices the user is authorized to use.
 

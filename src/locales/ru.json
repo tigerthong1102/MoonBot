@@ -6977,6 +6977,8 @@
   "settings.account.free": "Бесплатно",
   "settings.account.fromHere": "Выйти или сменить аккаунт на {place}",
   "settings.account.mausbot": "Аккаунт {app}",
+  "settings.aiTwin.title": "AI Twin",
+  "settings.aiTwin.menuHint": "Сохраняйте ответы своими словами",
   "settings.account.nameRow": "Ваше имя, фото и о вас",
   "settings.account.notSignedIn": "Вход не выполнен",
   "settings.account.onThisDevice": "На этом устройстве",

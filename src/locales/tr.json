@@ -5654,6 +5654,8 @@
   "settings.account.free": "Ücretsiz",
   "settings.account.fromHere": "{place} üzerinden çıkış yapın veya hesap değiştirin",
   "settings.account.mausbot": "{app} hesabı",
+  "settings.aiTwin.title": "AI Twin",
+  "settings.aiTwin.menuHint": "Yanıtları kendi sözlerinizle kaydedin",
   "settings.account.nameRow": "Adınız, fotoğrafınız ve hakkınızda",
   "settings.account.notSignedIn": "Giriş yapılmadı",
   "settings.account.onThisDevice": "Bu cihazda",

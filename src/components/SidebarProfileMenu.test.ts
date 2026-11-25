@@ -316,6 +316,17 @@ describe("profileMenuItems", () => {
     expect(build({ phone: null, plan: null }).map((item) => item.key)).toEqual(["account", "settings", "support"]);
   });
 
+  it("offers the AI Twin shortcut next to Your account when the current desktop supports it", () => {
+    const onSelect = vi.fn();
+    const twin = { key: "ai-twin", label: "AI Twin", subtitle: "Save answers in your own words", onSelect };
+    for (const simple of [undefined, { tools: [] }]) {
+      const items = build({ twin, simple });
+      expect(items.slice(0, 3).map((item) => item.key)).toEqual(["account", "ai-twin", "phone-devices"]);
+      items[1]!.onSelect();
+    }
+    expect(onSelect).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps Check for updates in Help in both modes, and raises a ready update to the top", () => {
     const update = { key: "update", label: "Check for updates", onSelect: noop };
     expect(build({ update }).find((item) => item.key === "support")!.submenu!.map((item) => item.key)).toEqual(["help", "shortcuts", "feedback", "update", "about"]);

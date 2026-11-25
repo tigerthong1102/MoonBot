@@ -6156,6 +6156,8 @@
   "settings.account.free": "Gratis",
   "settings.account.fromHere": "Cierra sesión o cambia de cuenta desde {place}",
   "settings.account.mausbot": "Cuenta de {app}",
+  "settings.aiTwin.title": "AI Twin",
+  "settings.aiTwin.menuHint": "Guarda respuestas con tus propias palabras",
   "settings.account.nameRow": "Tu nombre, foto y sobre ti",
   "settings.account.notSignedIn": "Sin iniciar sesión",
   "settings.account.onThisDevice": "En este dispositivo",

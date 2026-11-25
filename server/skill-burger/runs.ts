@@ -34,6 +34,7 @@ export interface BurgerTurn extends Pick<ExecutorContext, "internal"> {
   botId: string;
   threadId: string;
   cwd: string;
+  signal?: AbortSignal;
   publish(event: StepEvent): void;
   /** A burger used in every chat belongs to the whole place: whether this turn may change one. */
   mayEditEveryChat: boolean;
@@ -81,6 +82,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     exec: deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, cwd: turn.cwd, internal: turn.internal }),
     events: stepEvents(turn, open),
     save: (state) => states.save(state),
+    signal: turn.signal,
   });
   const finished = (turn: BurgerTurn, name: string | undefined, envelope: RunEnvelope) => {
     if (envelope.status !== "needs_input") open.delete(envelope.run);
@@ -136,9 +138,9 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   };
 
   /** The routes for one agents tool call: `authorization` is the bearer it came with. */
-  const routesFor = (calling: CallingTurn, authorization: string | undefined): RouteHandler => (ctx) =>
+  const routesFor = (calling: CallingTurn, authorization: string | undefined, signal?: AbortSignal): RouteHandler => (ctx) =>
     ctx.method === "POST" && [RUN_PATH, RESUME_PATH, EDIT_PATH, UNDO_PATH].includes(ctx.path) && deps.host
-      ? internalRoutes(burgerTurn(deps.host, calling, authorization))(ctx)
+      ? internalRoutes(burgerTurn(deps.host, calling, authorization, signal))(ctx)
       : Promise.resolve(PASS);
 
   /** For a turn the teammates' replies resume: the line that sends it back into the run it paused for them. */

@@ -21,7 +21,7 @@ export interface BurgerHostDeps {
 }
 
 /** The run's view of the calling turn: `authorization` is the agents bearer the tool call came with. */
-export function burgerTurn(host: BurgerHostDeps, turn: CallingTurn, authorization: string | undefined): BurgerTurn {
+export function burgerTurn(host: BurgerHostDeps, turn: CallingTurn, authorization: string | undefined, signal?: AbortSignal): BurgerTurn {
   const post = async (path: string, token: string, body: unknown, signal: AbortSignal) => {
     try {
       const res = await fetch(`http://127.0.0.1:${host.port}${path}`, body === undefined
@@ -36,6 +36,7 @@ export function burgerTurn(host: BurgerHostDeps, turn: CallingTurn, authorizatio
   return {
     botId: turn.botId,
     threadId: turn.threadId,
+    signal,
     cwd: host.cwd(turn.botId, turn.threadId),
     mayEditEveryChat: host.mayEditEveryChat(),
     publish: (event: StepEvent) => host.publish(turn.threadId, { eventId: randomUUID(), createdAt: new Date().toISOString(), threadId: turn.threadId, itemType: "tool", ...event }),

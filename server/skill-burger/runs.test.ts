@@ -12,6 +12,7 @@ import { json, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { dispatchRoutes } from "../routes/table.ts";
 import { createSkillBurgerRuns, type BurgerTurn, type StepEvent } from "./runs.ts";
+import type { StepExecutors } from "./runner.ts";
 import { saveWorkflowSkill } from "./store.ts";
 
 const servers: Server[] = [];
@@ -19,7 +20,7 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise((done) => server.close(done))));
 });
 
-async function serve() {
+async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"] } = {}) {
   const root = mkdtempSync(join(tmpdir(), "burger-runs-"));
   const bot = `run-burger-${Math.random().toString(36).slice(2, 10)}`;
   const events: StepEvent[] = [];
@@ -36,11 +37,11 @@ async function serve() {
   const runs = createSkillBurgerRuns({
     dataDir: root, root,
     executors: () => ({
-      app: async (input) => { calls.push(`${input.tool} ${JSON.stringify(input.args)}`); return { ok: true, output: { rows: [[1]] } }; },
+      app: options.app ?? (async (input) => { calls.push(`${input.tool} ${JSON.stringify(input.args)}`); return { ok: true, output: { rows: [[1]] } }; }),
       shell: async () => ({ ok: true, output: "" }), browser: async () => ({ ok: true, output: "" }), file: async () => ({ ok: true, output: "" }),
     }),
   });
-  const turnFor = (botId: string): BurgerTurn => ({ botId, threadId: "t1", cwd: root, mayEditEveryChat: false, internal: async () => ({ ok: false, body: {} }), publish: (event) => events.push(event) });
+  const turnFor = (botId: string): BurgerTurn => ({ botId, threadId: "t1", cwd: root, mayEditEveryChat: false, signal: options.signal, internal: async () => ({ ok: false, body: {} }), publish: (event) => events.push(event) });
   let as = bot;
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -71,6 +72,26 @@ it("runs a bot's Skill Burger, hands its AI step back, and goes on once the bot 
   expect(h.calls.at(-1)).toBe('GMAIL_SEND_EMAIL {"to":"priya@example.com","body":"One row."}');
   expect(h.events.filter((event) => event.type === "item.started").map((event) => event.title)).toEqual(["Read the sheet", "Write the body", "Send email"]);
   expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "again" })).toHaveProperty("error");
+});
+
+it("aborts an in-flight workflow action when the owning turn is revoked", async () => {
+  const controller = new AbortController();
+  let started!: (signal: AbortSignal) => void;
+  let finish!: () => void;
+  const began = new Promise<AbortSignal>((resolve) => { started = resolve; });
+  const blocked = new Promise<void>((resolve) => { finish = resolve; });
+  const h = await serve({ signal: controller.signal, app: async (input) => {
+    started(input.signal);
+    await blocked;
+    return { ok: false, error: "stopped" };
+  } });
+  const request = h.post("/api/internal/skill-burgers/run", { name: "email-the-sheet" });
+  const actionSignal = await began;
+  controller.abort();
+  const aborted = actionSignal.aborted;
+  finish();
+  await request;
+  expect(aborted).toBe(true);
 });
 
 it("changes the steps when asked, with an undo, and refuses a burger that isn't there", async () => {

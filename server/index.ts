@@ -13277,7 +13277,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         return json(res, 200, { rooms: rooms.slice(0, 50), unpostable: unpostable.slice(0, 50) });
       }
       const triggerContext = { from: internalSender, threadId: internalCapability.threadId, ownsThread: (botId: string, threadId: string) => Boolean(connectorThread(botId, threadId)), guestDriven: cloudGuestDriven(internalCapability.threadId), outsideDriven: () => outsideDrivenThread(internalCapability.threadId), canCommit: () => internalCapabilityIsActive(internalCapability), routineShown: (routine: Routine) => teamRoutines.inTurn(routine, internalCapability.threadId) };
-      if (await dispatchRoutes([appTriggers.internalRoutes(triggerContext), skillBurgerRuns.routesFor(internalCapability, req.headers.authorization)], { req, res, url, path, method, auth, json, readBody })) return;
+      if (await dispatchRoutes([appTriggers.internalRoutes(triggerContext), skillBurgerRuns.routesFor(internalCapability, req.headers.authorization, callSignal)], { req, res, url, path, method, auth, json, readBody: readInternalBody })) return;
       if (method === "POST" && path === "/api/internal/trigger-requests") {
         const from = internalSender;
         const fromThreadId = internalCapability.threadId;

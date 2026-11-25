@@ -36,7 +36,7 @@ export function createBotIdentityStore({ directory, encryption }) {
     const expectedUsername = identityState.kind === "existing" ? identityState.username : undefined;
     if (!(await encryption.available())) throw new Error("Bot identity storage is unavailable");
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const key = createHash("sha256").update(botId, "utf8").digest("hex");
+    const key = createHash("sha256").update(JSON.stringify(["startupbot-bot-identity-v1", botId]), "utf8").digest("hex");
     const encryptedFile = join(directory, `${key}.enc`), markerFile = join(directory, `${key}.public.json`);
     const marker = existsSync(markerFile) ? JSON.parse(readRegular(markerFile).toString("utf8")) : null;
     if (marker && (marker.botId !== botId || typeof marker.username !== "string" || typeof marker.publicKey !== "string")) throw new Error("Bot identity marker is unavailable");

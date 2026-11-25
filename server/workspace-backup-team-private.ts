@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { parseHeldEvents, type HeldEvent } from "./app-trigger-file.ts";
+import { fileSchema, parseHeldEvents, retiredEventKey, type HeldEvent } from "./app-trigger-file.ts";
 import { isLayerId, layerAudience } from "./audience.ts";
 import { CLOUD_NOBODY_KEY, CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts";
 import { routineHome } from "./routine-home.ts";
@@ -201,11 +201,11 @@ export function stripTeamPrivate(snapshot: { messages: string; runtime: string }
 
 export const TEAM_PRIVATE_NOTE = "Members' private chats are theirs alone and are not in this export: their conversations, what bots remember from them, their own StartupBot and their About you stay out.";
 
-export function teamAppEventLedger(main: unknown, sidecar: unknown): unknown {
+export function teamAppEventLedger(main: unknown, sidecar: unknown, privacy: Pick<TeamPrivacy, "bots" | "threads">): unknown {
   const blocked = "Team backup cannot safely include held app events. Review and resolve them before exporting.";
   if (main === undefined && sidecar === undefined) return undefined;
-  if (typeof main !== "object" || main === null || Array.isArray(main)) throw new Error(blocked);
-  const ledger = main as Record<string, unknown>;
+  if (!record(main)) throw new Error(blocked);
+  const ledger = main;
   const ids = Object.hasOwn(ledger, "heldEvents") ? ledger.heldEvents : [];
   if (!Array.isArray(ids) || ids.some(id => typeof id !== "string")) throw new Error(blocked);
   const held = new Map<string, HeldEvent>();
@@ -213,11 +213,21 @@ export function teamAppEventLedger(main: unknown, sidecar: unknown): unknown {
     try { parseHeldEvents(sidecar, held); } catch { throw new Error(blocked); }
   }
   if (held.size !== ids.length || new Set(ids).size !== ids.length || ids.some(id => !held.has(id))) throw new Error(blocked);
-  for (const receipt of held.values()) {
+  if (!held.size && ledger.version !== 2) return ledger;
+  const parsed = fileSchema.safeParse(ledger);
+  if (!parsed.success || !parsed.data.cursorScope) throw new Error(blocked);
+  const scope = parsed.data.cursorScope;
+  const definitions = [...parsed.data.triggers, ...parsed.data.deleted.map(row => row.trigger)];
+  if (definitions.some(trigger => privacy.bots.has(trigger.botId) || (trigger.sourceThreadId && privacy.threads.has(trigger.sourceThreadId))) ||
+      parsed.data.bindingOwners?.some(owner => privacy.bots.has(owner.botId))) throw new Error("Team backup cannot safely include private app automation definitions.");
+  const retired = new Map(Object.entries(parsed.data.retiredReceipts ?? {}));
+  for (const [id, receipt] of held) {
     const event = receipt.event;
-    // The broker only serves rows beyond the restored cursor for this installation.
-    if (!receipt.discarded || !event || Object.keys(event.event).length || !receipt.sourceScope || receipt.sourceScope !== ledger.cursorScope ||
-        !Number.isSafeInteger(event.seq) || event.seq < 1 || typeof ledger.cursor !== "number" || !Number.isSafeInteger(ledger.cursor) || event.seq > ledger.cursor) throw new Error(blocked);
+    if (!receipt.discarded || !receipt.eventDigest || !event || Object.keys(event.event).length || receipt.sourceScope !== scope ||
+        !Number.isSafeInteger(event.seq) || event.seq < 1 || event.seq > parsed.data.cursor) throw new Error(blocked);
+    retired.set(retiredEventKey(receipt.sourceScope, id), receipt.eventDigest);
   }
-  return held.size ? { ...ledger, heldEvents: [] } : ledger;
+  const privateIds = new Set([...held.keys()].map(id => id.slice(0, 200)));
+  const attempts = parsed.data.attempts.filter(attempt => !privateIds.has(attempt.eventId) && !retired.has(retiredEventKey(scope, attempt.eventId)));
+  return { ...ledger, version: 2, heldEvents: [], retiredReceipts: Object.fromEntries(retired), attempts };
 }

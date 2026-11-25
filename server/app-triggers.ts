@@ -17,9 +17,9 @@ import {
   type AppTriggerService,
   type AppTriggersSnapshot,
 } from "../shared/app-triggers.ts";
-import { AppTriggerError, cleanFilter, resolveAccount, triggerConfig, waitForAppEvents, type AppTriggerInput, type AppTriggerPatch, type ConnectedApps } from "./app-trigger-config.ts";
+import { AppTriggerError, cleanFilter, resolveAccount, triggerConfig, waitForAppEvents, type AppTriggerInput, type AppTriggerPatch } from "./app-trigger-config.ts";
 import { reconcileTrigger, replaceTrigger, stageTriggerUpdate, syncReplacementBinding } from "./app-trigger-mutation.ts";
-import { countQueueLimit, eventDigest, fileSchema, noteDrops, publicTrigger, parseHeldEvents, type HeldEvent, type StoredTrigger } from "./app-trigger-file.ts";
+import { countQueueLimit, eventDigest, fileSchema, noteDrops, publicTrigger, parseHeldEvents, retiredEventKey, type HeldEvent, type StoredTrigger } from "./app-trigger-file.ts";
 export { AppTriggerError, type AppTriggerInput, type AppTriggerPatch } from "./app-trigger-config.ts";
 import { appLabel } from "./app-event-catalog.ts";
 import { eventBlock, eventPreview, eventPrompt, matchesFilter, mergeEventBlock } from "./app-events.ts";
@@ -28,7 +28,8 @@ import { writeFileAtomic } from "./atomic.ts";
 import { EVENT_HISTORY_UNAVAILABLE, LINKED_EVENT_CONFLICT, heldEventMatches, isEventHoldProblem, summarizeHeldEvents, activeBindingOwners, rememberBindingOwner } from "./app-trigger-held.ts";
 import { instructionsUpdateRefusal } from "./automation-instructions.ts";
 import { DATA_DIR } from "./config.ts";
-import type { RoutineRunOn } from "./routines.ts";
+import type { AppTriggerManagerOptions } from "./app-trigger-options.ts";
+export type { AppTriggerManagerOptions } from "./app-trigger-options.ts";
 
 export const DEFAULT_MAX_PENDING_RUNS = 3;
 const MAX_ATTEMPTS = 2_000;
@@ -50,33 +51,6 @@ const MAX_HELD_BYTES = 2_000_000;
 class LinkedEventConflict extends Error {}
 class RetryAppEvent extends Error {}
 
-type Frame = { kind: "app-trigger"; botId: string; trigger: AppTrigger } | { kind: "app-trigger.deleted"; triggerId: string }
-  | { kind: "app-trigger.attempt"; botId: string; attempt: AppEventAttempt } | { kind: "app-trigger.service"; service: AppTriggerService };
-
-export interface AppTriggerManagerOptions {
-  file?: string;
-  now?: () => number;
-  broker: AppTriggerBroker;
-  /** Whether app events can work here at all, and why not. Checked on every loop, since access arrives late. */
-  service: () => { available: true } | { available: false; reason: "self-hosted" | "unavailable" | "off" };
-  connectedApps: () => Promise<ConnectedApps>;
-  botState: (botId: string) => "ready" | "busy" | "missing";
-  linkedBots?: (first: string, second: string) => boolean;
-  acknowledgmentScope?: () => string | null;
-  installationScope?: (signal?: AbortSignal) => Promise<string | null>;
-  runs: {
-    enqueue(input: { webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number; eventSource: "app"; sameConversation?: boolean }): { id: string };
-    merge(triggerId: string, eventId: string, sameConversation: boolean, merge: (prompt: string) => string | null): { id: string } | null;
-    receipt(triggerId: string, eventId: string): { id: string } | null;
-    eventRecipients?(eventId: string): Array<string | null>;
-    pending(triggerId: string): number;
-    cancelQueued(triggerId: string, message: string): void;
-  };
-  emit?: (frame: Frame) => void;
-  log?: (line: string) => void;
-  sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
-}
-
 export class AppTriggerManager {
   private readonly mutationCredential = new AsyncLocalStorage<{ credential: string | null }>();
   private readonly file: string;
@@ -88,6 +62,7 @@ export class AppTriggerManager {
   private deleted: Array<{ at: number; trigger: StoredTrigger }> = [];
   private pollerId = randomBytes(16).toString("base64url");
   private cursor = 0;
+  private retiredReceipts = new Map<string, string>();
   private cursorScope: string | undefined;
   private acknowledgedCursor = 0;
   private acknowledgedScope: string | null = null;
@@ -129,6 +104,7 @@ export class AppTriggerManager {
       if (!parsed.success) throw parsed.error;
       this.pollerId = parsed.data.pollerId;
       this.cursor = parsed.data.cursor;
+      this.retiredReceipts = new Map(Object.entries(parsed.data.retiredReceipts ?? {}));
       this.cursorScope = parsed.data.cursorScope;
       this.triggers = parsed.data.triggers;
       this.attemptLog = parsed.data.attempts.slice(-MAX_ATTEMPTS);
@@ -598,6 +574,11 @@ export class AppTriggerManager {
       if (held.sourceScope !== sourceScope || held.eventDigest !== eventDigest(event)) throw new RetryAppEvent("Conflicting event identity");
       return;
     }
+    const retired = !held && sourceScope && this.retiredReceipts.get(retiredEventKey(sourceScope, event.id));
+    if (retired) {
+      if (retired !== eventDigest(event)) throw new LinkedEventConflict(EVENT_HISTORY_UNAVAILABLE);
+      return;
+    }
     if (held?.sourceScope && sourceScope !== held.sourceScope) throw new RetryAppEvent("Conflicting event source");
     if (held?.event && JSON.stringify(held.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
     let data = event.event.data ?? {};
@@ -954,7 +935,7 @@ export class AppTriggerManager {
   }
 
   private assertCursorScope(scope: string | null): void {
-    if (!this.options.linkedBots) return;
+    if (!this.options.linkedBots && !this.retiredReceipts.size) return;
     if (!scope) { this.setCursorUnavailable(); throw new RetryAppEvent("The connected-app account could not be verified."); }
     if (this.cursorScope && this.cursorScope !== scope) { this.setCursorReview("changed"); throw new RetryAppEvent("Connected-app account changed; review the saved event cursor before continuing."); }
     if (this.cursorScope) return;
@@ -995,7 +976,8 @@ export class AppTriggerManager {
     if (this.heldUnreadable) throw new RetryAppEvent("Held event storage is unavailable");
     mkdirSync(dirname(this.file), { recursive: true });
     writeFileAtomic(this.file, JSON.stringify({
-      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, ...(this.cursorScope ? { cursorScope: this.cursorScope } : {}), triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents.keys()], bindingOwners: [...this.bindingOwners].flatMap(([remoteId, owners]) => [...owners].map(botId => ({ remoteId, botId }))),
+      ...(this.retiredReceipts.size ? { version: 2 as const, retiredReceipts: Object.fromEntries(this.retiredReceipts) } : { version: 1 as const }),
+      pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, ...(this.cursorScope ? { cursorScope: this.cursorScope } : {}), triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents.keys()], bindingOwners: [...this.bindingOwners].flatMap(([remoteId, owners]) => [...owners].map(botId => ({ remoteId, botId }))),
     } satisfies z.input<typeof fileSchema>, null, 2), { mode: 0o600 });
   }
 }

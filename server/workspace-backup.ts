@@ -149,7 +149,8 @@ function entryExists(path: string): boolean {
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
 }
 function privateJson(path: string): unknown {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  if (!lstatSync(path).isFile()) throw new Error("Workspace backup metadata must be a regular file.");
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.size > MAX_METADATA_BYTES) throw new Error("Workspace backup metadata is too large or is not a regular file.");
@@ -341,7 +342,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
     const privacy = teamPrivate && { ...teamPrivate, attachments: teamPrivateAttachments(root, join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), teamPrivate) };
     const readTeamAppEvents = () => {
       const read = (name: string) => { const path = join(root, name); return entryExists(path) ? privateJson(path) : undefined; };
-      return teamAppEventLedger(read("app-triggers.json"), read("app-triggers.json.held"));
+      return teamAppEventLedger(read("app-triggers.json"), read("app-triggers.json.held"), privacy!);
     };
     if (privacy) readTeamAppEvents();
     if (privacy) {
@@ -353,7 +354,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
         if (!prefix && excluded(name)) continue;
         const path = prefix ? `${prefix}/${name}` : name;
         if (privacy && ["app-triggers.json", "app-triggers.json.held"].includes(path.toLowerCase()) && path !== path.toLowerCase()) throw new Error("Noncanonical Team app event ledger filename.");
-        if (privacy && path === "app-triggers.json.held") continue;
+        if (privacy && (path === "app-triggers.json.held" || /^app-triggers\.json(?:\.held)?\.\d+\.[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.tmp$/i.test(path))) continue;
         if (excludedWorkspaceAuthPath(path) || ephemeralWorkspaceTokenPath(path) || redownloadedOrgLibraryPath(path) || liveDataEnginePath(path)) continue;
         if (privacy && omittedAsTeamPrivate(path, privacy)) continue;
         // Reject noncanonical spellings: a case-sensitive host must not export auth paths active on Windows/Mac.

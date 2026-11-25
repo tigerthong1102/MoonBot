@@ -55,8 +55,10 @@ const attemptSchema = z.object({
   runId: z.string().optional(),
   preview: z.string().optional(),
 });
+const digestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 export const fileSchema = z.object({
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(2)]),
+  retiredReceipts: z.record(digestSchema, digestSchema).optional(),
   pollerId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
   cursor: z.number().int().nonnegative(),
   cursorScope: z.string().min(1).max(128).optional(),
@@ -65,7 +67,8 @@ export const fileSchema = z.object({
   deleted: z.array(z.object({ at: z.number(), trigger: storedSchema })).default([]),
   heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })])).default([]),
   bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).optional(),
-});
+}).refine(value => value.version === 2 ? Boolean(value.cursorScope && value.retiredReceipts && Object.keys(value.retiredReceipts).length) : value.retiredReceipts === undefined);
+export const retiredEventKey = (scope: string, id: string) => createHash("sha256").update(JSON.stringify([scope, id])).digest("hex");
 const heldStoreSchema = z.object({ version: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional(), allowedTriggerIds: z.array(z.string()).optional(), heldBotIds: z.array(z.string()).optional(), heldTriggerIds: z.array(z.string()).optional(), discarded: z.literal(true).optional(), eventDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(), sourceScope: z.string().min(1).max(128).optional() })) });
 export type HeldEvent = { reason: "conflict" | "unknown"; event?: BrokerEvent; allowedTriggerIds?: string[]; heldBotIds?: string[]; heldTriggerIds?: string[]; discarded?: true; eventDigest?: string; sourceScope?: string };
 export const eventDigest = (event: BrokerEvent) => createHash("sha256").update(JSON.stringify(event)).digest("hex");

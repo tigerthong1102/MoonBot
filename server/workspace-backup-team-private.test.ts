@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { retiredEventKey } from "./app-trigger-file.ts";
 import { CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts";
 import { openRuntimeStore } from "./runtime/store.ts";
 import type { Assignment } from "./runtime/types.ts";
@@ -104,7 +105,9 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     id: "fixture-private-event", reason: "conflict", discarded: true, sourceScope: "fixture-scope", eventDigest: "a".repeat(64),
     event: { id: "fixture-private-event", seq: 3, kind: "message", triggerId: "fixture-private-trigger", receivedAt: 1, event: {} },
   };
-  const ledger = { version: 1, cursorScope: retired.sourceScope, cursor: 3, pollerId: "test-poller", triggers: [], heldEvents: [retired.id] };
+  const publicTeam = { bots: new Set<string>(), threads: new Set<string>() };
+  const attempt = { id: "sample", triggerId: "allowed-trigger", eventId: retired.id, at: 1, outcome: "started", preview: "private fixture preview" };
+  const ledger = { version: 1, attempts: [attempt], cursorScope: retired.sourceScope, cursor: 3, pollerId: "test-poller", triggers: [], heldEvents: [retired.id] };
 
   it("exports the scoped cursor after retirement and leaves the private receipts in the original", async () => {
     process.env.OMB_CLOUD_ROLE = "team";
@@ -113,22 +116,26 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     json(join(root, "app-triggers.json"), ledger);
     const receipts = { version: 4, events: [retired] };
     json(join(root, "app-triggers.json.held"), receipts);
+    const scratch = "app-triggers.json.held.1234.12345678-1234-1234-1234-123456789abc.tmp";
+    file(join(root, scratch), "private fixture preview");
     const { data } = await exported(root);
-    expect(JSON.parse(textOf(join(data, "app-triggers.json")))).toEqual({ ...ledger, heldEvents: [] });
+    expect(JSON.parse(textOf(join(data, "app-triggers.json")))).toEqual({ ...ledger, version: 2, attempts: [], heldEvents: [], retiredReceipts: { [retiredEventKey(retired.sourceScope, retired.id)]: retired.eventDigest } });
+    expect(existsSync(join(data, scratch))).toBe(false);
+    expect(existsSync(join(root, scratch))).toBe(true);
     expect(existsSync(join(data, "app-triggers.json.held"))).toBe(false);
     expect(textOf(join(root, "app-triggers.json"))).toBe(JSON.stringify(ledger));
     expect(textOf(join(root, "app-triggers.json.held"))).toBe(JSON.stringify(receipts));
   }, 60_000);
 
   it("rejects a missing, malformed, active, unacknowledged or differently scoped retirement receipt", () => {
-    expect(() => teamAppEventLedger(ledger, undefined)).toThrow(/held app events/);
+    expect(() => teamAppEventLedger(ledger, undefined, publicTeam)).toThrow(/held app events/);
     const invalid = [
       { ...retired, discarded: undefined }, { ...retired, eventDigest: "invalid" }, { ...retired, sourceScope: "different" },
       { ...retired, event: { ...retired.event, seq: ledger.cursor + 1 } },
       { ...retired, event: { ...retired.event, event: { data: { private: "fixture" } } } },
     ];
-    for (const row of invalid) expect(() => teamAppEventLedger(ledger, { version: 4, events: [row] })).toThrow(/held app events/);
-    expect(() => teamAppEventLedger(ledger, { version: 4, events: [retired, { id: "still-held", reason: "unknown" }] })).toThrow(/held app events/);
+    for (const row of invalid) expect(() => teamAppEventLedger(ledger, { version: 4, events: [row] }, publicTeam)).toThrow(/held app events/);
+    expect(() => teamAppEventLedger(ledger, { version: 4, events: [retired, { id: "still-held", reason: "unknown" }] }, publicTeam)).toThrow(/held app events/);
   });
 
   it("also refuses a team export with held payloads in the earlier format", async () => {

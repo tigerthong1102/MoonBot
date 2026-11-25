@@ -108,3 +108,10 @@ node scripts/recover-app-event-account.mjs \
 ```
 
 The command creates a new directory with the matching automation files. It does not open StartupBot or contact a broker. Keep the source snapshots. Validate the output in a separate closed profile copy with the original broker and installation. StartupBot verifies the connected installation before it resumes polling. A missing proof, a changed ledger, or a changed sidecar leaves the original files intact. When a verified original snapshot is unavailable, leave the affected automations paused. Do not copy a cursor from a different installation or invent a scope.
+
+
+### Held app events in a Team backup
+
+Review unresolved events before exporting. The [offline archive procedure](../held-event-offline-archive.md) keeps their payloads in a separate private archive. The Team export retains the verified account, cursor and opaque receipts for retired deliveries. It omits the private sidecar and related previews. A delivery with the same upstream ID and a changed sequence is held for review after restore. Other deliveries can continue independently.
+
+These receipts use version 2 of the automation ledger. A version 1 reader pauses this ledger. Keep the original closed profile to roll back. A Team export containing retired receipts and member-private automation definitions is refused, since restoring a filtered set against the original connection could remove its private remote bindings.

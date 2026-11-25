@@ -245,7 +245,8 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
       return {
         instance,
         name: instance.displayName ?? (instance.driverKind === "claudeAgent" ? "Claude Code" : "OpenAI-compatible AI"),
-        generateText: booked("ai-twin-preview", twin, instance, instance.generateText.bind(instance), { kind: "bot", botId: twinId }, () => ({ model: selection.model })),
+        generateText: booked("ai-twin-preview", twin, instance, instance.generateText.bind(instance),
+          { kind: "bot", botId: twinId }, () => ({ model: selection.model, requireIsolatedText: true })),
       };
     },
   };

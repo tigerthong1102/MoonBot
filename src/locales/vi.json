@@ -1097,7 +1097,7 @@
   "settings.aiTwin.previewChanged": "AI hoặc thiết lập Twin đã thay đổi. Hãy tải lại phần xem thử.",
   "settings.aiTwin.previewError": "Không soạn được bản nháp. Hãy thử lại.",
   "settings.aiTwin.privateDraft": "Bản nháp riêng tư",
-  "settings.aiTwin.noPreviewProvider": "AI đang dùng không hỗ trợ xem thử riêng tư. Hãy chọn AI có hỗ trợ rồi mở lại hồ sơ.",
+  "settings.aiTwin.noPreviewProvider": "AI đang dùng không hỗ trợ xem thử riêng tư. Hãy đặt AI mặc định có hỗ trợ rồi mở lại hồ sơ.",
   "settings.profile.aboutMe": "Giới thiệu về tôi",
   "settings.profile.aboutMeHelp": "Được chia sẻ với mọi bot trong cuộc trò chuyện riêng tư và group chat. Tự động lưu.",
   "settings.profile.everyBotRules": "Quy tắc cho mọi bot",

@@ -1959,7 +1959,7 @@
   "settings.aiTwin.previewChanged": "The AI or Twin settings changed. Reload the preview to continue.",
   "settings.aiTwin.previewError": "Couldn’t generate a draft. Try again.",
   "settings.aiTwin.privateDraft": "Private draft",
-  "settings.aiTwin.noPreviewProvider": "The active AI can’t create a private preview. Select a supported AI and reopen your profile.",
+  "settings.aiTwin.noPreviewProvider": "The active AI can’t create a private preview. Set a supported default AI and reopen your profile.",
   "settings.profile.aboutMe": "About me",
   "settings.profile.aboutMeHelp": "Shared with every bot in private and group chats. Saved automatically.",
   "settings.profile.awayEmails": "Email me when I'm away",

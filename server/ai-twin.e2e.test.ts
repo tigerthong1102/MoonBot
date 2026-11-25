@@ -116,7 +116,7 @@ it("only makes a consented, tool-free text preview through the selected provider
 
   try {
     const { fixture, url, owner, call } = await launchTwin(true, {
-      FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_TEXT_LOG: promptLog,
+      FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_TEXT_LOG: promptLog, FAKE_CLAUDE_VERSION: "2.1.321",
     });
     try {
       const { creationEpoch } = (await (await call()).json()) as AiTwinView;

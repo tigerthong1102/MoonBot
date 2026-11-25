@@ -93,3 +93,18 @@ workspaces. Evidence logs remain. These tests do not prove real cloud accounts,
 external providers, phone recovery or OS-specific file-picker appearance. Saved
 credentials are deliberately not transferred. No live mutation is part of this
 recipe.
+
+### Recovering a connected-app account from a verified snapshot
+
+An older profile can have saved automations and pending deliveries without a record of which broker installation owns them. StartupBot keeps that data and pauses incoming app events. Selecting an account by its display name cannot establish ownership of a saved queue. Remote queues have their own retention period.
+
+For a previously verified installation, use two **trusted, closed** snapshots. The reference snapshot must have the original account scope recorded by StartupBot. The poller ID, cursor, automation ledger and held-event sidecar in the other snapshot must match it. This also applies to a populated profile whose cursor is zero.
+
+```sh
+node scripts/recover-app-event-account.mjs \
+  --profile "/path/to/closed-unscoped-copy" \
+  --trusted-backup "/path/to/original-verified-copy" \
+  --output "/path/to/new-recovery-directory"
+```
+
+The command creates a new directory with the matching automation files. It does not open StartupBot or contact a broker. Keep the source snapshots. Validate the output in a separate closed profile copy with the original broker and installation. StartupBot verifies the connected installation before it resumes polling. A missing proof, a changed ledger, or a changed sidecar leaves the original files intact. When a verified original snapshot is unavailable, leave the affected automations paused. Do not copy a cursor from a different installation or invent a scope.

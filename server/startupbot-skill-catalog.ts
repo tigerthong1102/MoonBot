@@ -15,6 +15,7 @@ const supersededFolders = new Map([
   ["70b63a6241cc75987c6af3e5a7f73fafb8b0353948c3a35cb0e33f3fe1e9f99d", "byted-las-pdf-parse-doubao"],
   ["34ba9e97ff58a1e78f84df4da447d0262c0bdc6d16c829f8b378cf710f95dd2c", "byted-las-asr-pro"],
   ["c6766679d3271943d01f28fe8651955c80e74dc0f8306767d2f8ccd2bdea6d41", "producthunt"],
+  ["f2a06185c507f61a1665bdb27509c1eb9ec1dc95e604e280b669ec178d2663b2", "media-use"],
   ["a757fb78a1e1e543212e70068ec3e5c59beb96758666dae4fac4aad6f146660a", "media-use"],
   ["226eb0a4300ceb9b4b26efec68740cce694bfc13da9153f2da74b6ea7c4a58d1", "hyperframes"],
   ["03e73f96b82124f1a13ba82c56d86ed3fa1a09ce4ee1f9bb8b0fbba88c4a9294", "media-use"],

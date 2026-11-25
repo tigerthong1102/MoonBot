@@ -143,7 +143,7 @@ const fileSchema = z.object({
   heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })])).default([]),
   bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).default([]),
 });
-const heldStoreSchema = z.object({ version: z.literal(1), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })) });
+const heldStoreSchema = z.object({ version: z.literal(1), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional(), allowedTriggerIds: z.array(z.string()).optional(), heldBotIds: z.array(z.string()).optional() })) });
 
 export interface AppTriggerInput {
   botId: string;
@@ -222,7 +222,7 @@ export class AppTriggerManager {
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
-  private heldEvents = new Map<string, { reason: "conflict" | "unknown"; event?: BrokerEvent }>();
+  private heldEvents = new Map<string, { reason: "conflict" | "unknown"; event?: BrokerEvent; allowedTriggerIds?: string[]; heldBotIds?: string[] }>();
   private heldUnreadable = false;
   private bindingOwners = new Map<string, Set<string>>();
   private stopped = true;
@@ -267,7 +267,7 @@ export class AppTriggerManager {
         const existing = this.heldEvents.get(row.id);
         if (existing?.event && row.event && JSON.stringify(existing.event) !== JSON.stringify(row.event)) throw new Error("Conflicting held event copies");
         const event = row.event ?? existing?.event;
-        this.heldEvents.set(row.id, { reason: row.reason, ...(event ? { event } : {}) });
+        this.heldEvents.set(row.id, { reason: row.reason, ...(event ? { event } : {}), ...(row.allowedTriggerIds ? { allowedTriggerIds: row.allowedTriggerIds } : {}), ...(row.heldBotIds ? { heldBotIds: row.heldBotIds } : {}) });
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
@@ -575,6 +575,7 @@ export class AppTriggerManager {
             next = event.seq;
             continue;
           }
+          if (this.heldEvents.has(event.id)) throw new RetryAppEvent("Held event delivery failed; retry is required");
           const tries = (this.failures.get(event.id) ?? 0) + 1;
           this.failures.set(event.id, tries);
           if (tries < POISON_TRIES) throw error;
@@ -604,9 +605,11 @@ export class AppTriggerManager {
     }
     const data = event.event.data ?? {};
     const held = this.heldEvents.get(event.id);
-    if (held) throw new LinkedEventConflict(held.reason === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE);
+    if (held?.event && JSON.stringify(held.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
     if (this.mutationsInFlight) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
-    const bound = this.bound(event.triggerId);
+    const allBound = this.bound(event.triggerId);
+    const bound = held ? allBound.filter(trigger => held.allowedTriggerIds?.includes(trigger.id)) : allBound;
+    if (held && (!held.allowedTriggerIds || !held.heldBotIds || !this.options.linkedBots)) return;
     const candidates = bound.filter(trigger => this.options.runs.receipt(trigger.id, event.id) || (trigger.enabled && this.options.botState(trigger.botId) !== "missing" && matchesFilter(trigger.app, trigger.filter, data)));
     if (this.options.linkedBots) {
       const affected = new Set<StoredTrigger>();
@@ -614,6 +617,7 @@ export class AppTriggerManager {
       try {
         if (!this.options.runs.eventRecipients) throw new Error("Event receipt lookup unavailable");
         const previous = this.options.runs.eventRecipients(event.id);
+        for (const candidate of candidates) if (held?.heldBotIds?.some(bot => bot === candidate.botId || this.options.linkedBots!(bot, candidate.botId))) affected.add(candidate);
         const owners = event.triggerId ? [...(this.bindingOwners.get(event.triggerId) ?? [])] : [];
         bound.forEach((first, index) => bound.slice(index + 1).forEach(second => {
           if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
@@ -628,7 +632,9 @@ export class AppTriggerManager {
       }
       if (affected.size) {
         for (const trigger of affected) if (trigger.problem?.kind !== "error" || trigger.problem.text !== reason) this.setProblem(trigger, { kind: "error", text: reason, at: this.now() });
-        throw new LinkedEventConflict(reason);
+        const allowedTriggerIds = candidates.filter(trigger => !affected.has(trigger)).map(trigger => trigger.id);
+        this.holdEvent(event, reason === LINKED_EVENT_CONFLICT ? "conflict" : "unknown", allowedTriggerIds, [...affected].map(trigger => trigger.botId));
+        for (let index = bound.length - 1; index >= 0; index--) if (!allowedTriggerIds.includes(bound[index]!.id)) bound.splice(index, 1);
       }
     }
     for (const trigger of bound) {
@@ -888,11 +894,11 @@ export class AppTriggerManager {
     this.bindingOwners.set(remoteId, owners);
   }
 
-  private holdEvent(event: BrokerEvent, reason: "conflict" | "unknown"): void {
+  private holdEvent(event: BrokerEvent, reason: "conflict" | "unknown", allowedTriggerIds?: string[], heldBotIds?: string[]): void {
     const existing = this.heldEvents.get(event.id);
     if (existing?.event && JSON.stringify(existing.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
     const next = new Map(this.heldEvents);
-    next.set(event.id, { reason: existing?.reason ?? reason, event: structuredClone(event) });
+    next.set(event.id, { reason: existing?.reason ?? reason, event: structuredClone(event), ...(existing ? (existing.allowedTriggerIds && existing.heldBotIds && allowedTriggerIds && heldBotIds ? { allowedTriggerIds: existing.allowedTriggerIds.filter(id => allowedTriggerIds.includes(id)), heldBotIds: [...new Set([...existing.heldBotIds, ...heldBotIds])] } : {}) : (allowedTriggerIds && heldBotIds ? { allowedTriggerIds, heldBotIds: [...new Set(heldBotIds)] } : {})) });
     const rows = [...next].map(([id, value]) => ({ id, ...value }));
     if (rows.length > MAX_HELD_EVENTS || Buffer.byteLength(JSON.stringify(rows), "utf8") > MAX_HELD_BYTES) throw new RetryAppEvent("Held event storage is full");
     mkdirSync(dirname(this.heldFile), { recursive: true });

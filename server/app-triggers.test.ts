@@ -150,6 +150,60 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
   });
 
+  it("holds linked recipients while delivering the same event once to an independent bot after replay", async () => {
+    const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const third = await triggers.create({ botId: "bot-3", name: "Independent", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    expect(third.remote.triggerId).toBe(first.remote.triggerId);
+    const main = join(dir, "app-triggers.json"), beforeCheckpoint = readFileSync(main, "utf8");
+    const event = { seq: 1, id: "fixture-shared", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    triggers.receive([event], 1);
+    expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+    expect(heldEvents()).toHaveLength(1);
+    writeFileSync(main, beforeCheckpoint);
+    routines.close();
+    routines = new RoutineManager({ file: join(dir, "routines.json"), botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
+    triggers = manager({ linkedBots: links });
+    triggers.receive([event], 1);
+    expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+  });
+
+  it("replays an independent recipient after a failure between hold and enqueue", async () => {
+    const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-3", name: "Independent", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-before-enqueue", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    for (let attempt = 0; attempt < 6; attempt++) {
+      failNextEnqueue = "before-save";
+      expect(() => triggers.receive([event], 1)).toThrow("retry is required");
+      expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
+    }
+    expect(heldEvents()).toHaveLength(1);
+    expect(routines.listRuns()).toHaveLength(0);
+    triggers = manager({ linkedBots: links });
+    triggers.receive([event], 1);
+    triggers.receive([event], 1);
+    expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+  });
+
+  it("does not replay a held event to a bot that was paused at capture", async () => {
+    const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
+    const triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const third = await triggers.create({ botId: "bot-3", name: "Paused", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.update(third.id, { enabled: false });
+    const event = { seq: 1, id: "fixture-paused", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    triggers.receive([event], 1);
+    await triggers.update(third.id, { enabled: true });
+    triggers.receive([event], 1);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
   it("does not duplicate an unrelated run after a crash before the cursor checkpoint", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let triggers = manager({ linkedBots: links });

@@ -28,22 +28,21 @@ def graphql(query: str, variables: dict = None) -> dict:
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode())
             if "errors" in data:
-                print(f"error: {data['errors'][0]['message']}", file=sys.stderr)
+                print(f"error: {str(data['errors'][0]['message']).replace(token, '[redacted]')}", file=sys.stderr)
                 sys.exit(1)
             return data.get("data", {})
     except urllib.error.HTTPError as e:
-        error_body = e.read().decode()
-        print(f"error: HTTP {e.code} - {error_body}", file=sys.stderr)
+        print(f"error: HTTP {e.code}", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
-        print(f"error: {e}", file=sys.stderr)
+        print(f"error: {str(e).replace(token, '[redacted]')}", file=sys.stderr)
         sys.exit(1)
 
 
 def format_count(n) -> str:
     """Format numbers (1234567 -> 1.2M)"""
     if n is None:
-        return "0"
+        return "N/A"
     n = int(n)
     if n >= 1_000_000:
         return f"{n/1_000_000:.1f}M"

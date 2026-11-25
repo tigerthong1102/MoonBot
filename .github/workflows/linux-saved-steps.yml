@@ -1,11 +1,12 @@
 name: Linux Saved Steps
 on:
   push:
-    branches: [main, codex/linux-saved-steps-20261124]
+    branches: [main, codex/linux-saved-steps-multistep]
     paths:
       - 'server/saved-steps/**'
       - 'server/testing/fake-claude-cli.ts'
       - 'scripts/smoke-linux-saved-steps-probe.mjs'
+      - 'scripts/probe-gnome-wayland.mjs'
       - 'scripts/testing/cua-linux-chat-*.mjs'
       - '.github/workflows/linux-saved-steps.yml'
   pull_request:
@@ -13,6 +14,7 @@ on:
       - 'server/saved-steps/**'
       - 'server/testing/fake-claude-cli.ts'
       - 'scripts/smoke-linux-saved-steps-probe.mjs'
+      - 'scripts/probe-gnome-wayland.mjs'
       - 'scripts/testing/cua-linux-chat-*.mjs'
       - '.github/workflows/linux-saved-steps.yml'
 permissions:
@@ -39,4 +41,35 @@ jobs:
       - run: pnpm exec tsc -p tsconfig.server.json
       - name: Record, save and replay on real GTK
         run: dbus-run-session -- xvfb-run -a node --experimental-strip-types scripts/smoke-linux-saved-steps-probe.mjs
+  gnome-wayland:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - name: Install GNOME Wayland and GTK fixture tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnome-shell gnome-session-bin dbus-x11 xvfb at-spi2-core libatk-adaptor python3-gi gir1.2-gtk-3.0 x11-utils
+      - run: node scripts/prepare-cua-linux.mjs
+      - name: Record and replay in native GNOME Wayland
+        run: |
+          dbus-run-session -- xvfb-run -a bash -eu -o pipefail <<'SHELL'
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          export XDG_CURRENT_DESKTOP=GNOME XDG_SESSION_TYPE=wayland LIBGL_ALWAYS_SOFTWARE=1
+          gnome-shell --nested --wayland --wayland-display=wayland-omb > "$RUNNER_TEMP/gnome.log" 2>&1 &
+          shell_pid=$!
+          trap 'kill "$shell_pid" 2>/dev/null || true; cat "$RUNNER_TEMP/gnome.log"; rm -rf "$XDG_RUNTIME_DIR"' EXIT
+          for i in $(seq 1 90); do [ -S "$XDG_RUNTIME_DIR/wayland-omb" ] && break; kill -0 "$shell_pid"; sleep 1; done
+          test -S "$XDG_RUNTIME_DIR/wayland-omb"
+          export WAYLAND_DISPLAY=wayland-omb CUA_DRIVER_RS_ENABLE_WAYLAND=1 CUA_DRIVER_RS_TELEMETRY_ENABLED=false
+          node --experimental-strip-types scripts/probe-gnome-wayland.mjs
+          SHELL
+
 

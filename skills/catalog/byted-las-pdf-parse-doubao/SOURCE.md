@@ -10,4 +10,6 @@ The original header is in UPSTREAM-LICENSE. LICENSE contains the full Apache-2.0
 
 Replaced credential setup with the configured service.
 
+The optional `@volcengine/las-cli` runtime is distributed separately and is not included in this catalog. Its npm metadata for version 0.3.8 reported `UNLICENSED` when checked on 2026-11-24; verify distribution and service rights independently.
+
 Included upstream notices: upstream-notices/LICENSE, NOTICE.

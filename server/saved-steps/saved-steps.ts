@@ -12,6 +12,7 @@ import { ComputerJournal, hostScope, type JournalCapability, type RequestJournal
 import { buildRecipe, otherToolsHarmless, personTextRequest } from "./rules.ts";
 import { RecipeStore } from "./store.ts";
 import { recordedWindowsDestination } from "./windows-destination.ts";
+import { recordedLinuxDestinations } from "./linux-navigation.ts";
 
 export { COMPUTER_JOURNAL_PATH } from "./journal-tap.ts";
 
@@ -105,7 +106,8 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
     if (!enabled() || automated || !taken?.calls.length || !personTextRequest(request) || after.some((line) => line.role === "user") || !otherToolsHarmless(after)) return;
     const built = buildRecipe({ request: request.text ?? "", journal: taken, id: randomUUID(), now: now(), platform });
     if (!built.ok || !dispatch.wouldReplay(threadId, built.recipe)) return;
-    if ((platform === "win32" || platform === "linux") && !recordedWindowsDestination(built.recipe, taken)) return;
+    if (platform === "win32" && !recordedWindowsDestination(built.recipe, taken)) return;
+    if (platform === "linux" && !recordedLinuxDestinations(built.recipe, taken)) return;
     if (!recipes.save(botId, built.recipe)) return;
     deps.patchMessage(threadId, reply.id, { savedSteps: { recipeId: built.recipe.id, learned: true } });
   };
@@ -142,4 +144,5 @@ export function createSavedSteps(deps: SavedStepsDeps): SavedSteps {
     },
   };
 }
+
 

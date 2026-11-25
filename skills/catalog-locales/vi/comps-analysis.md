@@ -20,7 +20,7 @@ Kỹ năng này dạy Claude xây dựng các phân tích công ty có thể so 
 
 **Tài liệu tham khảo & bối cảnh hóa:**
 
-Một ví dụ về phân tích công ty có thể so sánh được cung cấp trong `examples/comps_example.xlsx`. Khi sử dụng tệp này hoặc tệp ví dụ khác trong thư mục kỹ năng này, hãy sử dụng chúng một cách thông minh:
+Khi người dùng cung cấp một tệp ví dụ về phân tích công ty có thể so sánh, hãy sử dụng tệp đó một cách phù hợp:
 
 ** NÊN sử dụng ví dụ cho:**
 - Hiểu hệ thống phân cấp cấu trúc (cách phân chia các phần)

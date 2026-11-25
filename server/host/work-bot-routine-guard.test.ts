@@ -36,6 +36,20 @@ it("checks existing source schedules at commit without exposing their contents",
   expect(() => assertWorkBotRoutineSafe(sourceStore, () => "en", sourceRequest, [{ botId: "unrelated", enabled: true } as Routine], [])).not.toThrow();
 });
 
+it("refuses scheduling while a linked bot may restore routines after a move", () => {
+  const link = { sourceBotId: "source-bot", sourceThreadId: "source-thread", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target-thread" };
+  const moving = { id: "target-bot", movedTo: { state: "moving", team: { id: "fixture-team", name: "Fixture" }, at: 1 } };
+  const store = { messagesFor: () => [], activePath: () => [], botByThread: () => null, bot: (id: string) => id === moving.id ? moving : null } as unknown as Store;
+  const request = { threadId: "source-thread", botId: "source-bot", messageId: "card" } as RoutineRequestCommit;
+  expect(() => assertWorkBotRoutineSafe(store, () => "en", request, [], [], () => [link])).toThrow("may overlap");
+  const movedWithWork = { ...store, bot: () => ({ ...moving, movedTo: { ...moving.movedTo, state: "moved", held: ["routine:fixture"] } }) } as unknown as Store;
+  expect(() => assertWorkBotRoutineSafe(movedWithWork, () => "en", request, [], [], () => [link])).toThrow("may overlap");
+  const movedEmpty = { ...store, bot: () => ({ ...moving, movedTo: { ...moving.movedTo, state: "moved", held: [] } }) } as unknown as Store;
+  expect(() => assertWorkBotRoutineSafe(movedEmpty, () => "en", request, [], [], () => [link])).not.toThrow();
+  const deleted = { ...store, bot: () => null } as unknown as Store;
+  expect(() => assertWorkBotRoutineSafe(deleted, () => "en", request, [], [], () => [link])).not.toThrow();
+});
+
  it("uses persisted links after either conversation history is cleared", () => {
   const store = { messagesFor: () => [], activePath: () => [], botByThread: () => null, bot: (id: string) => ({ id }) } as unknown as Store;
   const link = { sourceBotId: "source-bot", sourceThreadId: "source-thread", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target-thread" };

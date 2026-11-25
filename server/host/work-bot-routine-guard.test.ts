@@ -46,6 +46,10 @@ it("refuses scheduling while a linked bot may restore routines after a move", ()
   expect(() => assertWorkBotRoutineSafe(movedWithWork, () => "en", request, [], [], () => [link])).toThrow("may overlap");
   const movedEmpty = { ...store, bot: () => ({ ...moving, movedTo: { ...moving.movedTo, state: "moved", held: [] } }) } as unknown as Store;
   expect(() => assertWorkBotRoutineSafe(movedEmpty, () => "en", request, [], [], () => [link])).not.toThrow();
+  for (const corrupt of [null, false, 0, ""]) {
+    const invalid = { ...store, bot: () => ({ id: "target-bot", movedTo: corrupt }) } as unknown as Store;
+    expect(() => assertWorkBotRoutineSafe(invalid, () => "en", request, [], [], () => [link])).toThrow("may overlap");
+  }
   const deleted = { ...store, bot: () => null } as unknown as Store;
   expect(() => assertWorkBotRoutineSafe(deleted, () => "en", request, [], [], () => [link])).not.toThrow();
 });

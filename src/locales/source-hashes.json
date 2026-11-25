@@ -31467,6 +31467,7 @@
       "computer.linux.waylandBefore": "b7e8a9882b2d52992df92ab368660a1163ee2519a0de709cd0b2804049577fc1",
       "computer.linux.waylandXorg": "cc5f252c7270867ff65f184a981357dc27ed7394a3b4ffda30b641403079437f",
       "computer.linux.waylandAfter": "3a33d0c8942cdbdda24c0ef502f66599cb6219bb51ea89f52e527a85ecf7e771",
+      "computer.linux.waylandOtherDesktop": "3f2dd5c5c584d38fcd9dd39756a9096087a42af246781c13e41cb89c61c9be45",
       "computer.linux.enableBefore": "ccd7f089e499acbe858b7ef4ebd150cad1f8270179aa306713fcf26e57a19a81",
       "computer.linux.enableAfter": "aa5baf0697c14f382d2503df0f051359af62fb05a84673f45fb517219af9d3c6",
       "computer.linux.waylandInput": "50a6716997228327ea1c602a2571024c6c9b1515344c38b1b23957b5931c6f15",
@@ -33762,6 +33763,7 @@
       "computerAsk.state.ended": "cfa0c46e21d39583ecbf5476f4064c3dd5513015d138d5d45d9c33cafd188761",
       "computer.problem.localAiCannot": "9cd7232b1cd4325e0f7f6dea45d03928d18512bbd06b0d2c96cf22e6e2000765",
       "computer.problem.localWaylandBlocked": "b3277b9be203319d5cea262318097bea9f65ea82b6d91d1fd8977703b48f1782",
+      "computer.problem.localWaylandBlockedOther": "350a7ad5cba076518d35be7a83a24eb473f6c8316f5204d05951319266b8e147",
       "computer.problem.localWaylandDesktop": "0600a4d6dd1f33d9dfc5cfdb0908cddd23f530c04983fc8484c83248ae2af1e1",
       "computer.problem.localTurnOn": "4b801f7bf28fa36d35bf53a37a9be11623edb15dd92ebe154b953919aba80351",
       "computer.problem.localNotReady": "9f0eadacab6da3bc01dad088852a5d76eeb84e0d74cd15363e70989ed64b65fb",
@@ -73554,7 +73556,9 @@
       "skillBurger.menu.aria": "f608d3348f5f91d57ab2cce10e8532510658d5773ef01d01cad83396e652c1b3",
       "skillBurger.menu.rename": "6fa62b3dba2f02f2fe92df35669ff8ef242051be54b1d3aaadfd798e07abbce9",
       "skillBurger.card.everyChat": "bf7316f06d071bbaecf615f0765a0656b508d4a33387064a0f36d5475f703450",
-      "skillBurger.page.empty": "791d7d255294881aeddec8d476cdd4cede45560565d353dff2ac906e3c5688dc"
+      "skillBurger.page.empty": "791d7d255294881aeddec8d476cdd4cede45560565d353dff2ac906e3c5688dc",
+      "computer.problem.localWaylandBlockedOther": "350a7ad5cba076518d35be7a83a24eb473f6c8316f5204d05951319266b8e147",
+      "computer.linux.waylandOtherDesktop": "3f2dd5c5c584d38fcd9dd39756a9096087a42af246781c13e41cb89c61c9be45"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",

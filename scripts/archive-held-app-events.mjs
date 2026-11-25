@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
-import { mkdir, open, realpath, rmdir, unlink } from "node:fs/promises";
+import { mkdir, open, realpath, rmdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
@@ -64,6 +64,12 @@ async function privateDirectory(folder, setup = false, file = false) {
   } catch { throw Error("Windows private archive ACL could not be established and verified."); }
 }
 
+async function protectedParent(folder) {
+  if (process.platform === "win32") return privateDirectory(folder);
+  const mode = (await stat(folder)).mode;
+  if ((mode & 0o022) && !(mode & 0o1000)) throw Error("Choose a parent directory that is not shared or writable by others.");
+}
+
 async function syncDirectory(folder) {
   if (process.platform === "win32") return;
   const handle = await open(folder, constants.O_RDONLY);
@@ -76,19 +82,22 @@ export async function archiveHeldAppEvents(profile, workspace, output, archive) 
   if ([source, work].some(root => within(root, destination) || within(root, privateArchive)) || within(destination, privateArchive) || within(privateArchive, destination)) {
     throw Error("Choose new recovery and archive directories outside the profile and workspace.");
   }
+  await protectedParent(path.dirname(destination));
+  await protectedParent(path.dirname(privateArchive));
   const [rawLedger, rawHeld] = await Promise.all([regularFile(source, ledger), regularFile(source, sidecar)]);
   const parsed = fileSchema.parse(JSON.parse(rawLedger));
   if (!parsed.cursorScope || !Number.isSafeInteger(parsed.cursor) || parsed.heldEvents.some(entry => typeof entry !== "string")) throw Error("The ledger must have a verified account and no embedded event payloads.");
   const held = new Map();
   parseHeldEvents(JSON.parse(rawHeld), held);
   if (!rawHeld.equals(await regularFile(source, sidecar)) || !rawLedger.equals(await regularFile(source, ledger))) throw Error("The profile copy changed while being read.");
-  if (!held.size || parsed.heldEvents.some(id => !held.has(id))) throw Error("The held event store is incomplete.");
+  const indexed = parsed.heldEvents;
+  if (!held.size || new Set(indexed).size !== indexed.length || indexed.length !== held.size || indexed.some(id => !held.has(id))) throw Error("The held event store does not match its ledger.");
   const rows = [];
   let archived = 0;
   for (const [id, item] of held) {
     if (item.discarded) { rows.push({ id, ...item }); continue; }
     const event = item.event;
-    if (!event || !Number.isSafeInteger(event.seq) || event.seq > parsed.cursor || item.sourceScope !== parsed.cursorScope) throw Error("A held event is not fully checkpointed to the verified account.");
+    if (!event || !Number.isSafeInteger(event.seq) || event.seq <= 0 || event.seq > parsed.cursor || item.sourceScope !== parsed.cursorScope) throw Error("A held event is not fully checkpointed to the verified account.");
     rows.push({ id, reason: item.reason, event: { seq: event.seq, id, kind: event.kind, triggerId: event.triggerId, receivedAt: event.receivedAt, event: {} },
       discarded: true, eventDigest: eventDigest(event), sourceScope: item.sourceScope,
       ...(item.heldBotIds ? { heldBotIds: item.heldBotIds } : {}), ...(item.heldTriggerIds ? { heldTriggerIds: item.heldTriggerIds } : {}) });

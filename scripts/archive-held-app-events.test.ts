@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -11,9 +11,16 @@ import { startBrokerFake } from "../server/testing/broker-fake.ts";
 
 let root = "";
 afterEach(() => { if (root) rmSync(root, { recursive: true, force: true }); });
+function protectFixtureParent(folder: string) {
+  if (process.platform !== "win32") return;
+  const executable = join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const setup = "$sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $a=New-Object System.Security.AccessControl.DirectorySecurity; $a.SetOwner($sid); $a.SetAccessRuleProtection($true,$false); $r=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit, ObjectInherit','None','Allow'); $a.AddAccessRule($r); Set-Acl -LiteralPath $env:ARCHIVE_FIXTURE_PATH -AclObject $a";
+  execFileSync(executable, ["-NoProfile", "-NonInteractive", "-Command", setup], { env: { ...process.env, ARCHIVE_FIXTURE_PATH: folder }, windowsHide: true });
+}
 
 it("archives 100 held events privately and rejects a real broker replay while allowing the next hold", async () => {
   root = mkdtempSync(join(tmpdir(), "held-archive-fixture-"));
+  protectFixtureParent(root);
   const profile = join(root, "profile"), workspace = join(root, "workspace"), output = join(root, "recovery"), archive = join(root, "private");
   mkdirSync(profile); mkdirSync(workspace);
   const broker = await startBrokerFake();
@@ -42,6 +49,12 @@ it("archives 100 held events privately and rejects a real broker replay while al
     const template = held.events[0];
     for (let seq = 2; seq <= 100; seq++) held.events.push({ ...structuredClone(template), id: `fixture-held-${seq}`, event: { ...structuredClone(template.event), id: `fixture-held-${seq}`, seq } });
     ledger.cursor = 100;
+    ledger.heldEvents = held.events.map((row: { id: string }) => row.id);
+    writeFileSync(ledgerPath, JSON.stringify({ ...ledger, heldEvents: ledger.heldEvents.slice(0, -1) }));
+    writeFileSync(heldPath, JSON.stringify(held));
+    await expect(archiveHeldAppEvents(profile, workspace, join(root, "orphan-recovery"), join(root, "orphan-archive"))).rejects.toThrow(/does not match/);
+    writeFileSync(ledgerPath, JSON.stringify({ ...ledger, heldEvents: [...ledger.heldEvents, ledger.heldEvents[0]] }));
+    await expect(archiveHeldAppEvents(profile, workspace, join(root, "duplicate-recovery"), join(root, "duplicate-archive"))).rejects.toThrow(/does not match/);
     writeFileSync(ledgerPath, JSON.stringify(ledger));
     writeFileSync(heldPath, JSON.stringify(held));
     const beforeLedger = readFileSync(ledgerPath), beforeHeld = readFileSync(heldPath);
@@ -50,8 +63,8 @@ it("archives 100 held events privately and rejects a real broker replay while al
       const failedArchive = join(root, "failed-private");
       try {
         process.env.SystemRoot = join(root, "no-security-service");
-        await expect(archiveHeldAppEvents(profile, workspace, join(root, "failed-output"), failedArchive)).rejects.toThrow(/could not be completed/);
-        expect(readdirSync(failedArchive)).toEqual([]);
+        await expect(archiveHeldAppEvents(profile, workspace, join(root, "failed-output"), failedArchive)).rejects.toThrow(/ACL could not be established/);
+        expect(existsSync(failedArchive)).toBe(false);
       } finally { process.env.SystemRoot = originalRoot; }
     }
     const result = await archiveHeldAppEvents(profile, workspace, output, archive);
@@ -59,6 +72,8 @@ it("archives 100 held events privately and rejects a real broker replay while al
     expect(readFileSync(ledgerPath)).toEqual(beforeLedger);
     expect(readFileSync(heldPath)).toEqual(beforeHeld);
     expect(readFileSync(join(archive, "app-triggers.json.held"))).toEqual(beforeHeld);
+    expect(readFileSync(join(archive, "app-triggers.json"))).toEqual(beforeLedger);
+    expect(readFileSync(join(output, "app-triggers.json"))).toEqual(beforeLedger);
     if (process.platform !== "win32") expect(statSync(join(archive, "app-triggers.json.held")).mode & 0o777).toBe(0o600);
     else {
       const windowsPowerShell = join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
@@ -86,31 +101,43 @@ it("archives 100 held events privately and rejects a real broker replay while al
 
 it("refuses unsafe paths and unverified or incomplete event stores without modifying the source", async () => {
   root = mkdtempSync(join(tmpdir(), "held-archive-refusal-"));
+  protectFixtureParent(root);
   const profile = join(root, "profile"), workspace = join(root, "workspace"), output = join(root, "recovery"), archive = join(root, "private");
   mkdirSync(profile); mkdirSync(workspace);
-  const ledger = { version: 1, pollerId: "fixture-poller", cursor: 1, triggers: [], heldEvents: [], cursorScope: "owner" };
+  const ledger = { version: 1, pollerId: "fixture-poller", cursor: 1, triggers: [], heldEvents: ["fixture"], cursorScope: "owner" };
   const event = { seq: 2, id: "fixture", kind: "message", triggerId: "remote", receivedAt: 1, event: { data: { secret: "PRIVATE_FIXTURE" } } };
   const held = { version: 4, events: [{ id: event.id, reason: "unknown", event, sourceScope: "owner" }] };
   writeFileSync(join(profile, "app-triggers.json"), JSON.stringify(ledger));
   writeFileSync(join(profile, "app-triggers.json.held"), JSON.stringify(held));
   await expect(archiveHeldAppEvents(profile, workspace, output, join(workspace, "unsafe"))).rejects.toThrow(/outside/);
+  if (process.platform !== "win32") {
+    const shared = join(root, "shared");
+    mkdirSync(shared); chmodSync(shared, 0o777);
+    await expect(archiveHeldAppEvents(profile, workspace, output, join(shared, "unsafe"))).rejects.toThrow(/shared or writable/);
+  }
   await expect(archiveHeldAppEvents(profile, workspace, output, archive)).rejects.toThrow(/checkpointed/);
   expect(readFileSync(join(profile, "app-triggers.json.held"), "utf8")).toBe(JSON.stringify(held));
   held.events[0]!.event.seq = 1;
   held.events[0]!.sourceScope = "other";
   writeFileSync(join(profile, "app-triggers.json.held"), JSON.stringify(held));
   await expect(archiveHeldAppEvents(profile, workspace, output, archive)).rejects.toThrow(/verified account/);
+  held.events[0]!.sourceScope = "owner";
+  held.events[0]!.event.seq = 0;
+  writeFileSync(join(profile, "app-triggers.json.held"), JSON.stringify(held));
+  await expect(archiveHeldAppEvents(profile, workspace, output, archive)).rejects.toThrow(/checkpointed/);
 });
 
 it("retains all payloads when existing compact receipts already exhaust the byte limit", async () => {
   root = mkdtempSync(join(tmpdir(), "held-archive-full-"));
+  protectFixtureParent(root);
   const profile = join(root, "profile"), workspace = join(root, "workspace"), output = join(root, "recovery"), archive = join(root, "private");
   mkdirSync(profile); mkdirSync(workspace);
-  const ledger = { version: 1, pollerId: "fixture-poller", cursor: 1, triggers: [], heldEvents: [], cursorScope: "owner" };
+  const ledger = { version: 1, pollerId: "fixture-poller", cursor: 1, triggers: [], heldEvents: [] as string[], cursorScope: "owner" };
   const payload = { seq: 1, id: "fixture-active", kind: "message", triggerId: "remote", receivedAt: 1, event: { data: { secret: "PRIVATE_FIXTURE" } } };
   const events = Array.from({ length: 12_000 }, (_, i) => ({ id: `fixture-receipt-${i}`, reason: "unknown", sourceScope: "owner", discarded: true,
     eventDigest: "a".repeat(64), event: { ...payload, id: `fixture-receipt-${i}`, event: {} } }));
   events.push({ id: payload.id, reason: "unknown", sourceScope: "owner", event: payload } as typeof events[number]);
+  ledger.heldEvents = events.map(row => row.id);
   const contents = JSON.stringify({ version: 4, events });
   expect(Buffer.byteLength(contents)).toBeGreaterThan(2_000_000);
   writeFileSync(join(profile, "app-triggers.json"), JSON.stringify(ledger));

@@ -605,6 +605,10 @@ const CLI_OWNER_ROUTE = /^\/api\/auth\/pairing$/;
 
 const DESKTOP_OWNER_HEADER = "x-openmausbot-desktop-owner";
 
+export function hasDesktopOwnerCapability(req: IncomingMessage, token: string | undefined): boolean {
+  return token !== undefined && secureTokenMatch(headerValue(req.headers[DESKTOP_OWNER_HEADER]), token) && fromOwnPage(req);
+}
+
 function mutatingPublicRoute(method: string, path: string): boolean {
   const upper = method.toUpperCase();
   // A legacy GET that syncs upstream state and can resume a paused turn: classify by effect, not verb.
@@ -698,8 +702,7 @@ export function resolveRequestAuth(req: IncomingMessage, options: ResolveOptions
       ) return deny(403, "forbidden: invalid companion request");
       return { auth: { kind: "loopback", scopes: LOOPBACK_SCOPES, companionDevice: headerValue(req.headers["x-openmausbot-companion-device"]) }, status: 401, error: "" };
     }
-    const desktopOwner = options.loopbackMutationToken !== undefined &&
-      secureTokenMatch(headerValue(req.headers[DESKTOP_OWNER_HEADER]), options.loopbackMutationToken) && fromOwnPage(req);
+    const desktopOwner = hasDesktopOwnerCapability(req, options.loopbackMutationToken);
     if (fromBrowser(req) && !desktopOwner && !options.trustLocalBrowser) return deny(401, BROWSER_SIGN_IN);
     if (options.loopbackMutationToken !== undefined && mutatingPublicRoute(method, path) && !desktopOwner) {
       return deny(403, "forbidden: this change must come from the desktop app or a paired device");

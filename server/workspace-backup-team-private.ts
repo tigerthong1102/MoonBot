@@ -4,7 +4,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { fileSchema, parseHeldEvents, retiredEventKey, type HeldEvent } from "./app-trigger-file.ts";
+import { fileSchema, parseHeldEvents, retiredEventKey, type HeldEvent, type StoredTrigger } from "./app-trigger-file.ts";
+import { heldEventMatches, isEventHoldProblem } from "./app-trigger-held.ts";
 import { isLayerId, layerAudience } from "./audience.ts";
 import { CLOUD_NOBODY_KEY, CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts";
 import { routineHome } from "./routine-home.ts";
@@ -229,5 +230,14 @@ export function teamAppEventLedger(main: unknown, sidecar: unknown, privacy: Pic
   }
   const privateIds = new Set([...held.keys()].map(id => id.slice(0, 200)));
   const attempts = parsed.data.attempts.filter(attempt => !privateIds.has(attempt.eventId) && !retired.has(retiredEventKey(scope, attempt.eventId)));
-  return { ...ledger, version: 2, heldEvents: [], retiredReceipts: Object.fromEntries(retired), attempts };
+  const receipts = [...held.values()];
+  const clearResolved = (trigger: Row, stored: StoredTrigger) => {
+    if (!isEventHoldProblem(stored.problem) || !receipts.some(receipt => heldEventMatches(receipt, stored))) return trigger;
+    const { problem: _problem, ...kept } = trigger;
+    return kept;
+  };
+  return { ...ledger, version: 2, heldEvents: [], retiredReceipts: Object.fromEntries(retired), attempts,
+    triggers: rows(ledger.triggers).map((row, i) => clearResolved(row, parsed.data.triggers[i]!)),
+    ...(Array.isArray(ledger.deleted) ? { deleted: rows(ledger.deleted).map((entry, i) => record(entry.trigger) ? { ...entry, trigger: clearResolved(entry.trigger, parsed.data.deleted[i]!.trigger) } : entry) } : {}),
+  };
 }

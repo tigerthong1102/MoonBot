@@ -386,6 +386,7 @@ describe("AppTriggerManager", () => {
       expect(readFileSync(file, "utf8")).not.toContain(id);
       const restored = manager({ ...options, file });
       expect(restored.get(first.id)?.enabled).toBe(false);
+      expect(restored.get(first.id)?.problem).toBeUndefined();
       await restored.update(first.id, { enabled: true });
       broker.harness.d1.db.prepare("DELETE FROM events WHERE installation_id = ? AND event_id = ?").run(owner.id, id);
       await broker.deliver(first.remote.triggerId!, body, id);

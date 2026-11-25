@@ -591,6 +591,7 @@ import { createNoAiNotice } from "./host/no-ai-notice.ts"; import { PASS, ROUTES
 import { inboxBotTextRoutes } from "./routes/inbox-bot-text.ts";
 import { applyDesktopMutationTokenMessage } from "./host/desktop-owner.ts";
 import { createAiTwinStore } from "./ai-twin.ts";
+import { createAiTwinPreview } from "./ai-twin-preview.ts";
 import { createAiTwinRoutes } from "./routes/ai-twin.ts";
 import { createHostedSlackRoutes } from "./routes/hosted-slack.ts";
 import { createBotPresetRoutes } from "./routes/bot-presets.ts"; import { createWorkspaceBannerRoutes, workspaceBannerStore, workspaceBannerSummary } from "./routes/workspace-banner.ts";
@@ -12097,6 +12098,7 @@ const keptAttachments = () => { const routineFiles = routines?.attachmentPaths()
 ROUTES.push(createAiTwinRoutes({
   enabled: DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE && process.env.OMB_AI_TWIN === "1",
   store: createAiTwinStore(DATA_DIR, ENVIRONMENT_ID),
+  preview: createAiTwinPreview({ selection: () => bootSelection, jobs: sideJobs }),
   owner: (req) => hasDesktopOwnerCapability(req, desktopMutationToken),
   blocked: () => workspaceMaintenance.active || moveFreeze.frozen(),
 }));

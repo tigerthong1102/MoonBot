@@ -1,15 +1,17 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
-import { AI_TWIN_PATH, type AiTwinView } from "../shared/ai-twin.ts";
+import { AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, type AiTwinView } from "../shared/ai-twin.ts";
 import { AI_TWIN_PRIVATE_DIR, createAiTwinStore } from "./ai-twin.ts";
 import { createWorkspaceBackupSnapshot, stagedWorkspaceData, stageWorkspaceBackup } from "./workspace-backup.ts";
 
-async function launchTwin(enabled: boolean) {
+async function launchTwin(enabled: boolean, provider: NodeJS.ProcessEnv = {}) {
   const token = randomBytes(32).toString("base64url");
   const fixture = await launchVerificationServer({
+    ...provider,
     OMB_TEST_DESKTOP_OWNER_TOKEN: token,
     OMB_DEV_TRUST_LOCAL_BROWSER: "0",
     OMB_AI_TWIN: enabled ? "1" : "0",
@@ -101,5 +103,57 @@ it("binds the Twin to the desktop owner and workspace, persists edits, excludes 
     expect(persisted).not.toContain(current.style);
   } finally {
     await fixture.close();
+  }
+}, 90_000);
+
+it("only makes a consented, tool-free text preview through the selected provider and keeps it out of the chat", async () => {
+  const scratch = mkdtempSync(join(tmpdir(), "omb-twin-preview-"));
+  const routes = join(scratch, "routes.json");
+  const promptLog = join(scratch, "prompts.jsonl");
+  const question = "PROBE_TWIN: Mời khách đặt lịch trao đổi thế nào?";
+  const sample = "Mời bạn gửi hai khung giờ thuận tiện để trao đổi.";
+  writeFileSync(routes, JSON.stringify({ PROBE_TWIN: sample }));
+
+  try {
+    const { fixture, url, owner, call } = await launchTwin(true, {
+      FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_TEXT_LOG: promptLog, FAKE_CLAUDE_VERSION: "2.1.321",
+    });
+    try {
+      const { creationEpoch } = (await (await call()).json()) as AiTwinView;
+      const made = await call("POST", { name: "Thông AI", creationId: randomUUID(), creationEpoch, createConsent: true });
+      const twin = ((await made.json()) as AiTwinView).twin!;
+      const styled = await call("PATCH", { id: twin.id, revision: twin.revision, paused: false, name: twin.name, style: "Viết lịch sự, ngắn gọn." });
+      expect(styled.status).toBe(200);
+      const current = (await styled.json()) as AiTwinView;
+      expect(current.preview).toMatchObject({ key: expect.any(String), model: expect.any(String) });
+      const version = { id: twin.id, revision: current.twin!.revision };
+      const input = { ...version, key: current.preview!.key, question, useProvider: true };
+      const preview = (data: unknown, headers = owner) => fetch(url + AI_TWIN_PREVIEW_PATH, {
+        method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(data),
+      });
+      const recorded = () => existsSync(promptLog) ? readFileSync(promptLog, "utf8") : "";
+      expect((await preview({ ...input, useProvider: false })).status).toBe(400);
+      expect((await preview({ ...input, key: randomUUID() })).status).toBe(409);
+      expect((await preview(input, { "x-openmausbot-desktop-owner": "wrong" })).status).toBeGreaterThanOrEqual(400);
+      expect(recorded()).not.toContain("PROBE_TWIN");
+
+      const response = await preview(input);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+      expect(await response.json()).toEqual({ draft: sample });
+      expect(recorded()).toContain("Viết lịch sự, ngắn gọn.");
+      expect(recorded().match(/PROBE_TWIN/g)).toHaveLength(1);
+      const archived = readFileSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR, "profile.json"), "utf8");
+      expect(archived).not.toContain("PROBE_TWIN");
+      expect(archived).not.toContain(sample);
+
+      expect((await call("PATCH", { ...version, paused: true, name: twin.name, style: current.twin!.style })).status).toBe(200);
+      expect((await preview(input)).status).toBe(409);
+      expect(recorded().match(/PROBE_TWIN/g)).toHaveLength(1);
+    } finally {
+      await fixture.close();
+    }
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
   }
 }, 90_000);

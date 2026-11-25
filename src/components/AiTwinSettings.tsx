@@ -3,6 +3,7 @@ import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinView } fr
 import { t } from "@/lib/i18n";
 import { randomUuid } from "@/lib/random-uuid";
 import { api, ApiError } from "@/state/api";
+import { AiTwinPreview } from "./AiTwinPreview";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Card, SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 
@@ -41,6 +42,15 @@ export function AiTwinSettings() {
   }, [loadAttempt]);
 
   useEffect(() => { if (editing) nameInput.current?.focus(); }, [editing]);
+
+  async function reload() {
+    try {
+      const result = await api<AiTwinView>(AI_TWIN_PATH, { timeoutMs: 8_000 });
+      if (alive.current) { setView(result); setError(null); }
+    } catch {
+      if (alive.current) setError("load");
+    }
+  }
 
   function begin() {
     setName(twin?.name ?? "");
@@ -131,6 +141,8 @@ export function AiTwinSettings() {
               {t("settings.aiTwin.delete")}
             </button>
           </div>
+          {!twin.paused && <AiTwinPreview key={twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
+            twin={twin} provider={view?.preview} refresh={() => void reload()} />}
           <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={<>
             {t("settings.aiTwin.deleteBody")}
             {writeError && <span role="alert" className="mt-2 block text-danger">{writeError}</span>}

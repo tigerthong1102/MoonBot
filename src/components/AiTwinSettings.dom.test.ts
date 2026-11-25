@@ -116,3 +116,19 @@ it("shows a failed deletion inside the confirmation and allows another attempt",
   expect(document.querySelector('[role="alertdialog"]')).toBeNull();
   expect(button(profile, "Create AI Twin").disabled).toBe(false);
 });
+
+it("exposes a keyboard-button disclosure linked to the preview panel", async () => {
+  apiMock.mockResolvedValueOnce({ creationEpoch: "initial", twin: {
+    id: "test", name: "Example AI", style: "", revision: 1, paused: false, createdAt: 1, updatedAt: 1,
+  } });
+  const profile = await mount();
+  const toggle = button(profile, "Try a reply");
+  const panel = document.getElementById(toggle.getAttribute("aria-controls")!);
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(panel?.hidden).toBe(true);
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(panel?.hidden).toBe(false);
+  await act(async () => toggle.click());
+  expect(panel?.hidden).toBe(true);
+});

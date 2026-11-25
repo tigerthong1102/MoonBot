@@ -92,7 +92,6 @@ export function personalInboxBots(window, page, origin) {
         action: "invite",
         bot: record.id,
         name: bot.name,
-        ...(bot.username ? { username: bot.username } : {}),
         owner: me.id,
       });
       report("inbox-bots-changed");

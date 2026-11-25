@@ -147,8 +147,9 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
   const botRoom = /^\/api\/rooms\/([a-f0-9-]{36})\/bots$/.exec(url.pathname);
   if (botRoom) {
     if (req.method === "POST") {
-      const input = await req.clone().json<{action?:string}>().catch(() => ({} as {action?:string}));
+      const input = await req.clone().json<{action?:string; username?:unknown}>().catch(() => ({} as {action?:string; username?:unknown}));
       if (input?.action === "start") await limit(db,user,"inbox_bot_discussions",8,86400_000);
+      if (input?.action === "challenge" || (input?.action === "invite" && typeof input.username === "string")) await limit(db,user,"inbox_bot_claim",30,60_000);
     }
     return roomBots(req,db,botRoom[1],user);
   }

@@ -21,7 +21,7 @@
  *        redo step 2/3 with corrected strips. Never skip this.
  */
 import "./lib/windows-exe-search.mjs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 
 const N1 = 9,
@@ -64,6 +64,28 @@ function fontOption() {
   const file = FONT_FILES.find((candidate) => existsSync(candidate));
   return file ? `fontfile='${file}':` : "";
 }
+const glyphs = {
+  "0": ["111", "101", "101", "101", "111"], "1": ["010", "110", "010", "010", "111"],
+  "2": ["111", "001", "111", "100", "111"], "3": ["111", "001", "111", "001", "111"],
+  "4": ["101", "101", "111", "001", "001"], "5": ["111", "100", "111", "001", "111"],
+  "6": ["111", "100", "111", "101", "111"], "7": ["111", "001", "010", "010", "010"],
+  "8": ["111", "101", "111", "101", "111"], "9": ["111", "101", "111", "001", "111"],
+};
+const ffmpegFilters = spawnSync("ffmpeg", ["-hide_banner", "-filters"], { encoding: "utf8" });
+const hasDrawtext = ffmpegFilters.status === 0 && /\bdrawtext\b/.test(ffmpegFilters.stdout);
+function labelFilters(label, x, y, fz, font) {
+  if (hasDrawtext) return [`drawtext=${font}text='${label}':x=${x}:y=${y}:fontsize=${fz}:fontcolor=black:box=1:boxcolor=white@0.95:boxborderw=5`];
+  const unit = Math.max(1, Math.floor(fz / 6));
+  const filters = [`drawbox=x=${x - unit}:y=${y - unit}:w=${(label.length * 4 + 1) * unit}:h=${7 * unit}:color=white@0.95:t=fill`];
+  for (const [digit, char] of [...label].entries()) {
+    for (const [row, line] of glyphs[char].entries()) {
+      for (const [column, pixel] of [...line].entries()) {
+        if (pixel === "1") filters.push(`drawbox=x=${x + (digit * 4 + column) * unit}:y=${y + row * unit}:w=${unit}:h=${unit}:color=black:t=fill`);
+      }
+    }
+  }
+  return filters;
+}
 function gridFilters(w, h, n, axis, fz) {
   const F = fontOption(),
     fs = [];
@@ -71,17 +93,13 @@ function gridFilters(w, h, n, axis, fz) {
     for (let i = 1; i < n; i++)
       fs.push(`drawbox=x=${Math.round((i * w) / n)}:y=0:w=2:h=${h}:color=${GREEN}@0.8:t=fill`);
     for (let i = 0; i < n; i++)
-      fs.push(
-        `drawtext=${F}text='${i + 1}':x=${Math.round(((i + 0.5) * w) / n - fz * 0.3)}:y=6:fontsize=${fz}:fontcolor=black:box=1:boxcolor=white@0.95:boxborderw=5`,
-      );
+      fs.push(...labelFilters(String(i + 1), Math.round(((i + 0.5) * w) / n - fz * 0.3), 6, fz, F));
   }
   if (axis === "h" || axis === "both") {
     for (let j = 1; j < n; j++)
       fs.push(`drawbox=x=0:y=${Math.round((j * h) / n)}:w=${w}:h=2:color=${BLUE}@0.8:t=fill`);
     for (let j = 0; j < n; j++)
-      fs.push(
-        `drawtext=${F}text='${j + 1}':x=6:y=${Math.round(((j + 0.5) * h) / n - fz * 0.5)}:fontsize=${fz}:fontcolor=black:box=1:boxcolor=white@0.95:boxborderw=5`,
-      );
+      fs.push(...labelFilters(String(j + 1), 6, Math.round(((j + 0.5) * h) / n - fz * 0.5), fz, F));
   }
   return fs;
 }

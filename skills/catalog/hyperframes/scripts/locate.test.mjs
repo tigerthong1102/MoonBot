@@ -9,9 +9,9 @@ import { fileURLToPath } from "node:url";
 const LOCATE = fileURLToPath(new URL("./locate.mjs", import.meta.url));
 const SHARED_FONT_PATH = "/tmp/locate-font.ttf";
 
-function hasDrawtext() {
+function hasFfmpeg() {
   const filters = spawnSync("ffmpeg", ["-hide_banner", "-filters"], { encoding: "utf8" });
-  return filters.status === 0 && /\bdrawtext\b/.test(filters.stdout);
+  return filters.status === 0;
 }
 
 function sharedFontState() {
@@ -21,7 +21,7 @@ function sharedFontState() {
 
 test(
   "overlay draws its grids without reading or writing a font at a shared /tmp path",
-  { skip: !hasDrawtext() && "ffmpeg without the drawtext filter" },
+  { skip: !hasFfmpeg() && "ffmpeg is unavailable" },
   () => {
     const dir = mkdtempSync(join(tmpdir(), "locate-test-"));
     try {

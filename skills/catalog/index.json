@@ -514,7 +514,8 @@
       "references/types/launch.md",
       "scripts/locate.mjs",
       "scripts/lib/main-module.test.mjs",
-      "scripts/lib/windows-exe-search.test.mjs"
+      "scripts/lib/windows-exe-search.test.mjs",
+      "scripts/locate.test.mjs"
     ],
     "excludedFiles": [],
     "category": "media",

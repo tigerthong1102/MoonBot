@@ -1,4 +1,5 @@
 import { isMentionBoundary, isMentionNameContinuation } from "./mention-boundary.ts";
+import { botUsername } from "./bot-username.ts";
 
 /** The most bot ids one send may carry as picks from the @ list. */
 export const MENTION_PICKS_MAX = 20;
@@ -27,6 +28,15 @@ export function resolveMentions<T extends { id?: string; name: string; hidden?: 
   const ambiguous: T[][] = [];
   for (let at = text.indexOf("@"); at !== -1; at = text.indexOf("@", at + 1)) {
     if (!isMentionBoundary(text, at)) continue;
+    const handle = candidates.find(peer => {
+      if (peer.id === undefined || !picked.includes(peer.id)) return false;
+      const username = botUsername(peer.id);
+      return text.slice(at + 1, at + 1 + username.length).toLowerCase() === username && !isMentionNameContinuation(text.slice(at + 1 + username.length));
+    });
+    if (handle) {
+      if (!bots.includes(handle)) bots.push(handle);
+      continue;
+    }
     const named = (peer: T) => text.slice(at + 1, at + 1 + peer.name.length).toLowerCase() === peer.name.toLowerCase();
     const hit = candidates.find((peer) => named(peer) && !isMentionNameContinuation(text.slice(at + 1 + peer.name.length)));
     if (!hit) continue;

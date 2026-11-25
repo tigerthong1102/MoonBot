@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { mentionChoicesForQuery, mentionClassName, mentionQueryAt, mentionRanges, mentionRowDescription } from "./mentions";
+import { botUsername } from "../../shared/bot-username";
 
 const peers = [{ name: "Atlas" }, { name: "New Bot" }, { name: "New Bot 2" }, { name: "調査担当" }, { name: "Hidden", hidden: true }];
 const matches = (text: string, everyone = false) => mentionRanges(text, peers, everyone).map(({ start, end }) => text.slice(start, end));
 
 describe("mention query at the caret", () => {
+  it("accepts and highlights a bot username longer than a display name", () => {
+    const username = botUsername("00000000-0000-4000-8000-000000000001");
+    const text = `@${username}`;
+    expect(mentionQueryAt(text, text.length)?.query).toBe(username);
+    expect(mentionRanges(text, [{ id: "00000000-0000-4000-8000-000000000001", name: "Scout" }])).toEqual([{ start: 0, end: text.length }]);
+  });
   it.each(["（", "【", "“", "「", "《", "(", "**"])("opens after the shared opening boundary %s", (opening) => {
     const text = `请${opening}@调`;
     expect(mentionQueryAt(text, text.length)).toEqual({ start: text.indexOf("@"), query: "调" });

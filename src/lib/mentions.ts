@@ -1,4 +1,5 @@
 import { t } from "./i18n";
+import { botUsername } from "../../shared/bot-username";
 import { MAUS_COLORS, type MausColor } from "./mascot";
 import { isMentionBoundary, isMentionNameContinuation } from "../../shared/mention-boundary";
 import { personTagAt, personTagNames } from "../../shared/person-mention";
@@ -6,7 +7,7 @@ import { devsTagAt } from "../../shared/devs-mention";
 import { blankCode } from "../../shared/skill-command";
 
 /** A name the @ list offers: a bot's, or (`person`) a teammate's on a Team Cloud. */
-export type MentionPeer = { name: string; hidden?: boolean; color?: MausColor; person?: true };
+export type MentionPeer = { id?: string; name: string; hidden?: boolean; color?: MausColor; person?: true };
 export type MentionRange = { start: number; end: number; color?: string; you?: true; person?: true };
 export type MentionPerson = { profileName?: string | null };
 
@@ -20,14 +21,14 @@ export function mentionQueryAt(text: string, caret: number): { start: number; qu
   if (at === -1) return null;
   if (!isMentionBoundary(upto, at) || blankCode(text)[at] !== "@") return null;
   const query = upto.slice(at + 1);
-  if (query.length > 24 || query.includes("@") || query.includes("\n")) return null;
+  if ((query.length > 24 && !/^bot_[ux][0-9a-f]{0,512}$/i.test(query)) || query.includes("@") || query.includes("\n")) return null;
   return { start: at, query };
 }
 
-export function mentionChoicesForQuery<T extends { name: string }>(pool: readonly T[], query: string): T[] {
+export function mentionChoicesForQuery<T extends { name: string; id?: string; bot?: unknown }>(pool: readonly T[], query: string): T[] {
   const normalized = query.trim().toLowerCase();
   if (query.endsWith(" ") && pool.some((choice) => choice.name.toLowerCase() === normalized)) return [];
-  return pool.filter((choice) => !normalized || choice.name.toLowerCase().includes(normalized));
+  return pool.filter((choice) => !normalized || choice.name.toLowerCase().includes(normalized) || Boolean(choice.bot && choice.id && botUsername(choice.id).includes(normalized)));
 }
 
 export type MentionRowDetail =
@@ -57,7 +58,7 @@ export function mentionRowDescription(detail: MentionRowDetail): string {
 
 export function mentionRanges(text: string, peers: readonly MentionPeer[], everyone = false, person?: MentionPerson): MentionRange[] {
   // The longest name wins; a teammate wins a tie with a bot of the same name, as the server reads it.
-  const candidates = peers.filter((p) => !p.hidden && p.name.trim())
+  const candidates = peers.filter((p) => !p.hidden && p.name.trim()).flatMap(peer => peer.id && !peer.person ? [peer, { ...peer, name: botUsername(peer.id) }] : [peer])
     .sort((a, b) => b.name.length - a.name.length || Number(Boolean(b.person)) - Number(Boolean(a.person)));
   const personNames = person ? personTagNames(person.profileName) : [];
   const botNames = candidates.filter((peer) => !peer.person).map(({ name }) => name);

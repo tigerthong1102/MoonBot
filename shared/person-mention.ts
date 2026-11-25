@@ -1,4 +1,5 @@
 import { isMentionBoundary, isMentionNameContinuation } from "./mention-boundary.ts";
+import { maskPickedBotUsernames } from "./bot-username.ts";
 
 export const PERSON_TAG = "you";
 
@@ -25,12 +26,13 @@ export function personTagAt(rest: string, personNames: readonly string[], botNam
 
 /** `text` with each tag a person takes blanked, offsets kept: the writer's own and every teammate's, a tie with a bot's
  * name included. The tags left are the bots'. */
-export function withoutPersonTags(text: string, personNames: readonly string[], botNames: readonly string[]): string {
+export function withoutPersonTags(text: string, personNames: readonly string[], botNames: readonly string[], pickedBots: readonly string[] = []): string {
   let out = text;
+  const detection = maskPickedBotUsernames(text, pickedBots);
   let at = -1;
-  while ((at = text.indexOf("@", at + 1)) !== -1) {
-    if (!isMentionBoundary(text, at)) continue;
-    const length = personTagAt(text.slice(at + 1), personNames, botNames);
+  while ((at = detection.indexOf("@", at + 1)) !== -1) {
+    if (!isMentionBoundary(detection, at)) continue;
+    const length = personTagAt(detection.slice(at + 1), personNames, botNames);
     if (length === undefined) continue;
     out = `${out.slice(0, at)}${" ".repeat(length + 1)}${out.slice(at + length + 1)}`;
     at += length;
@@ -126,8 +128,8 @@ export function mentionablePeople(people: ReadonlyArray<{ key: string; name: str
 
 /** The teammates a text tags, in prose only (never inside code), each once with the line or paragraph that tags them.
  * Only a longer bot name wins; a tie is the teammate's, as for the person's own tag. */
-export function teammateMentions(text: string, people: readonly MentionablePerson[], botNames: readonly string[] = []): Array<{ key: string; excerpt: string }> {
-  const prose = proseOnly(text);
+export function teammateMentions(text: string, people: readonly MentionablePerson[], botNames: readonly string[] = [], pickedBots: readonly string[] = []): Array<{ key: string; excerpt: string }> {
+  const prose = proseOnly(maskPickedBotUsernames(text, pickedBots));
   const found = new Map<string, string>();
   let at = -1;
   while ((at = prose.indexOf("@", at + 1)) !== -1) {

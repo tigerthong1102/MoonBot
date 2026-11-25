@@ -1,4 +1,5 @@
 import { isMentionBoundary, isMentionNameContinuation } from "../../shared/mention-boundary";
+import { botUsername } from "../../shared/bot-username";
 
 export interface MapComposerBot {
   id: string;
@@ -20,7 +21,7 @@ export type MapTag = { kind: "bot" | "team" | "everyone"; name: string; botIds: 
  * `@everyone`, once each, in the order they were first tagged. A name matches like a chat mention: the longest known
  * name wins and it must not run on into a longer word. `unknown` lists @words that match nobody.
  */
-export function mapMessageTargets(text: string, bots: readonly MapComposerBot[], teams: readonly MapComposerTeam[]): {
+export function mapMessageTargets(text: string, bots: readonly MapComposerBot[], teams: readonly MapComposerTeam[], picked: readonly string[] = []): {
   botIds: string[];
   tags: MapTag[];
   unknown: string[];
@@ -29,6 +30,7 @@ export function mapMessageTargets(text: string, bots: readonly MapComposerBot[],
 } {
   const visible = bots.filter((bot) => !bot.hidden && bot.name.trim());
   const names = [
+    ...visible.filter(bot => picked.includes(bot.id)).map((bot) => ({ name: botUsername(bot.id), tag: { kind: "bot" as const, name: bot.name, botIds: [bot.id] } })),
     ...visible.map((bot) => ({ name: bot.name, tag: { kind: "bot" as const, name: bot.name, botIds: [bot.id] } })),
     ...teams.filter((team) => team.name.trim()).map((team) => ({ name: team.name, tag: {
       kind: "team" as const, name: team.name,

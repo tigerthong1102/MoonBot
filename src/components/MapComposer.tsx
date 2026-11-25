@@ -12,6 +12,7 @@ import { MentionMenu, type MentionChoice } from "./MentionMenu";
 import { MentionTextarea } from "./MentionTextarea";
 import { useMenuMotion } from "./MenuMotion";
 import { randomUuid } from "@/lib/random-uuid";
+import { botUsername } from "../../shared/bot-username";
 
 /** Message bots from the Team map: tag bots, a team or @everyone; each bot it goes to gets it as a normal message in its own
  * chat. @everyone goes to the Chief, which passes it on (mapDelivery). */
@@ -28,13 +29,14 @@ export function MapComposer({ bots, teams, onTagged, onSent }: {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [text, setText] = useState("");
+  const [pickedBots, setPickedBots] = useState<string[]>([]);
   const [caret, setCaret] = useState(0);
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   const [highlight, setHighlight] = useState(0);
   const [sent, setSent] = useState<{ botIds: string[]; expanded: boolean; chiefId?: string } | null>(null);
 
   const visible = useMemo(() => bots.filter((bot) => !bot.hidden), [bots]);
-  const targets = useMemo(() => mapMessageTargets(text, visible, teams), [text, visible, teams]);
+  const targets = useMemo(() => mapMessageTargets(text, visible, teams, pickedBots), [text, visible, teams, pickedBots]);
   // Before sending, a line is taken for what it says; only the server knows a stop when it sees one.
   const preview = useMemo(() => mapDelivery(targets, visible, false), [targets, visible]);
   const targetKey = preview.botIds.join(",");
@@ -60,8 +62,10 @@ export function MapComposer({ bots, teams, onTagged, onSent }: {
 
   const pick = (choice: MentionChoice) => {
     if (!mention) return;
-    const next = `${text.slice(0, mention.start)}@${choice.name} ${text.slice(caret)}`;
-    const nextCaret = mention.start + choice.name.length + 2;
+    const name = choice.bot ? botUsername(choice.id) : choice.name;
+    if (choice.bot) setPickedBots(previous => [...new Set([...previous, choice.id])]);
+    const next = `${text.slice(0, mention.start)}@${name} ${text.slice(caret)}`;
+    const nextCaret = mention.start + name.length + 2;
     setText(next);
     setCaret(nextCaret);
     setDismissedAt(mention.start);
@@ -77,6 +81,7 @@ export function MapComposer({ bots, teams, onTagged, onSent }: {
     const message = text.trim();
     const typed = targets;
     setText("");
+    setPickedBots([]);
     setCaret(0);
     setDismissedAt(null);
     // A stop must reach every bot: when the server can't say, the line goes to every bot as it always did.
@@ -84,7 +89,7 @@ export function MapComposer({ bots, teams, onTagged, onSent }: {
       ? await api<{ stop?: unknown }>("/api/stop-line", { method: "POST", body: JSON.stringify({ text: typed.words }) }).then((answer) => answer.stop === true, () => null)
       : false;
     const delivery = stop === null ? { botIds: typed.botIds } : mapDelivery(typed, visible, stop);
-    for (const botId of delivery.botIds) dispatch({ type: "send", botId, text: delivery.text || message, sendId: randomUuid() });
+    for (const botId of delivery.botIds) dispatch({ type: "send", botId, text: delivery.text || message, sendId: randomUuid(), ...(pickedBots.length ? { mentions: pickedBots } : {}) });
     onSent(delivery.botIds);
     setSent({ botIds: delivery.botIds, expanded: false, ...(delivery.chief ? { chiefId: delivery.chief.id } : {}) });
   };

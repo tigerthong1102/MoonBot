@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MENTION_PICKS_MAX, parseMentionPicks, resolveMentions } from "./room-mentions.ts";
+import { botUsername } from "./bot-username.ts";
 
 const analyst = { id: "quill-analyst", name: "Quill", title: "Analyst" };
 const chief = { id: "quill-chief", name: "quill", chiefOfStaff: true };
@@ -9,6 +10,18 @@ const room = [analyst, chief, scout];
 const ids = (bots: Array<{ id: string }>) => bots.map((bot) => bot.id);
 
 describe("resolveMentions", () => {
+  it("routes unique bot usernames even when display names are identical", () => {
+    expect(resolveMentions(`@${botUsername(chief.id)} please`, room, [chief.id])).toEqual({ bots: [chief], ambiguous: [] });
+    expect(resolveMentions(`@${botUsername(analyst.id)} please`, room, [analyst.id])).toEqual({ bots: [analyst], ambiguous: [] });
+  });
+
+  it("preserves a legacy display name that matches another bot's username unless that bot was explicitly picked", () => {
+    const other = { id: "other", name: botUsername(chief.id) };
+    const text = `@${other.name} please`;
+    expect(resolveMentions(text, [chief, other]).bots).toEqual([other]);
+    expect(resolveMentions(text, [chief, other], [other.id]).bots).toEqual([other]);
+    expect(resolveMentions(text, [chief, other], [chief.id]).bots).toEqual([chief]);
+  });
   it("reaches the picked bot among two that share a name, and only it", () => {
     expect(resolveMentions("@Quill can you check this?", room, [chief.id])).toEqual({ bots: [chief], ambiguous: [] });
     expect(resolveMentions("@Quill can you check this?", room, [analyst.id])).toEqual({ bots: [analyst], ambiguous: [] });

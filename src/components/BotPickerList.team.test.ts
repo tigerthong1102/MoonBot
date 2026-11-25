@@ -5,6 +5,7 @@ import { afterEach, expect, it } from "vitest";
 import type { Bot } from "@/state/store";
 import { setTeamPeople, teamBotName } from "@/state/team-people";
 import { BotPickerList } from "./BotPickerList";
+import { botUsername } from "../../shared/bot-username";
 
 const helper = (id: string, person: string) => ({ id, threadId: `t-${id}`, name: "StartupBot", title: "", description: "", notifications: true, color: "green", unread: false,
   messages: [], modelSelection: { instanceId: "x", model: "x" }, defaultBot: { person } }) as unknown as Bot;
@@ -17,7 +18,7 @@ afterEach(() => setTeamPeople(null));
 it("names each teammate's StartupBot for its person in a picker, and the viewer's own as it is", () => {
   setTeamPeople(team);
   const html = renderToStaticMarkup(createElement(BotPickerList, { bots, picked: new Set<string>(), onToggle: () => {}, emptyHint: "" }));
-  expect(html.match(/role="checkbox" aria-label="[^"]*"/g)?.map((match) => match.slice(match.indexOf("aria-label")))).toEqual(['aria-label="StartupBot"', 'aria-label="StartupBot · Ada"', 'aria-label="StartupBot · Ben"']);
+  expect(html.match(/role="checkbox" aria-label="[^"]*"/g)?.map((match) => match.slice(match.indexOf("aria-label")))).toEqual([`aria-label="StartupBot @${botUsername("mine")}"`, `aria-label="StartupBot · Ada @${botUsername("ada")}"`, `aria-label="StartupBot · Ben @${botUsername("ben")}"`]);
 });
 
 it("names a StartupBot whose person is not in the list by their address", () => {

@@ -767,7 +767,7 @@ const peerSignatures = new WeakMap<readonly MentionPeer[], string>();
 const peerSignature = (peers: readonly MentionPeer[]) => {
   let signature = peerSignatures.get(peers);
   if (signature === undefined) {
-    signature = peers.map((peer) => `${peer.name}\u0001${peer.hidden ? 1 : 0}${peer.person ? 1 : 0}${peer.color ?? ""}`).join("\u0002");
+    signature = peers.map((peer) => `${peer.id ?? ""}\u0001${peer.name}\u0001${peer.hidden ? 1 : 0}${peer.person ? 1 : 0}${peer.color ?? ""}`).join("\u0002");
     peerSignatures.set(peers, signature);
   }
   return signature;
@@ -871,7 +871,7 @@ export function samePeers(previous: readonly MentionPeer[], next: readonly Menti
   if (previous.length !== next.length) return false;
   return previous.every((peer, index) => {
     const other = next[index]!;
-    return peer.name === other.name && peer.hidden === other.hidden && peer.color === other.color && peer.person === other.person;
+    return peer.id === other.id && peer.name === other.name && peer.hidden === other.hidden && peer.color === other.color && peer.person === other.person;
   });
 }
 

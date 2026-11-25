@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import { mentionablePeople, personMentionExcerpt, personMentionRanges, personNameClash, personTagNames, teammateMentions, withoutPersonTags } from "./person-mention.ts";
+import { botUsername } from "./bot-username.ts";
+
+it("does not notify a person whose name matches an explicitly selected bot username", () => {
+  const username = botUsername("fixture-bot");
+  const text = `@${username} private fixture request`;
+  const people = mentionablePeople([{ key: "person", name: username }]);
+  expect(teammateMentions(text, people, [], ["fixture-bot"])).toEqual([]);
+  expect(teammateMentions(text, people).map(hit => hit.key)).toEqual(["person"]);
+  expect(withoutPersonTags(text, [username], [], ["fixture-bot"])).toBe(text);
+  expect(withoutPersonTags(text, [username], [])).not.toContain(`@${username}`);
+});
 
 const tags = (text: string, options = {}) => personMentionRanges(text, options).map(({ start, end }) => text.slice(start, end));
 

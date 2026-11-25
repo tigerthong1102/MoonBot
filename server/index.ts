@@ -7766,6 +7766,7 @@ async function beginTurn(
           ...(opts?.dataContext ? { dataContext: opts.dataContext } : {}), ...(opts?.app?.fromApp ? { fromApp: opts.app.fromApp } : {}), ...(opts?.app?.pointed ? { pointed: opts.app.pointed } : {}),
           peerAsk: opts?.peerAsk,
           sender: opts?.sender,
+          ...(opts?.mentions?.length ? { botMentionIds: opts.mentions } : {}),
           ...spokenLineFields(opts?.via, opts?.callId),
           ...(opts?.relayed ? { relayed: true } : {}), ...(automated ? { automated: true } : {}),
         });
@@ -8358,7 +8359,7 @@ async function beginTurn(
       // "@Bob" is the teammate Bob (or the writer themselves), never a bot that shares the name.
       const tagged = integrations.agents
         ? mentionedBots(withoutPersonTags(providerText, [...personTagNames(cfg.profile?.name), ...teamMessages.people().flatMap((one) => one.tags)],
-          store.bots.filter((one) => !one.hidden).map((one) => one.name)), sectionPeers, opts?.mentions)
+          store.bots.filter((one) => !one.hidden).map((one) => one.name), sectionPeers.filter((one) => opts?.mentions?.includes(one.id)).map((one) => one.id)), sectionPeers, opts?.mentions)
         : [];
       const teamPrompt = chiefLevel(bot)
         ? chiefOfStaffPrompt(bot.id, store.bots, Boolean(integrations.agents), (peer) => personalReach.listed(bot, peer, threadId), store.sections)
@@ -10756,7 +10757,7 @@ function startGroupTurn(
             channelMode: item.mode,
             queueId: item.id,
             via: item.via,
-            sender: item.sender, ...(item.pointed ? { pointed: item.pointed.refs } : {}),
+            sender: item.sender, ...(item.mentions?.length ? { botMentionIds: item.mentions } : {}), ...(item.pointed ? { pointed: item.pointed.refs } : {}),
           });
         }
         const last = queuedGroup[queuedGroup.length - 1]!;
@@ -10770,7 +10771,7 @@ function startGroupTurn(
           channelMode: last.mode,
           queueId: last.id,
           via: last.via,
-          sender: last.sender, ...(last.pointed ? { pointed: last.pointed.refs } : {}),
+          sender: last.sender, ...(last.mentions?.length ? { botMentionIds: last.mentions } : {}), ...(last.pointed ? { pointed: last.pointed.refs } : {}),
         });
       })()
     : store.appendMessage(threadId, {
@@ -10783,7 +10784,7 @@ function startGroupTurn(
         channelMode,
         queueId,
         via: options.via,
-        sender: options.sender, ...(options.pointed ? { pointed: options.pointed.refs } : {}),
+        sender: options.sender, ...(options.mentions?.length ? { botMentionIds: options.mentions } : {}), ...(options.pointed ? { pointed: options.pointed.refs } : {}),
       });
   if (options.trigger) turnTriggers.set(threadId, options.trigger);
   const titled = group.dm ? null : store.titleGroupTaskFromFirstMessage(group.id, text, threadId);
@@ -10983,7 +10984,7 @@ function drainQueuedChannelSendsNow(): void {
       } catch (error) {
         for (const item of items) {
           if (!store.messagesFor(threadId).some((message) => message.queueId === item.id && message.role === "user")) {
-            store.appendMessage(threadId, { role: "user", kind: "text", text: item.text, replyToId: item.replyToId, sendId: item.sendId, channelMode: item.mode, queueId: item.id, via: item.via, sender: item.sender });
+            store.appendMessage(threadId, { role: "user", kind: "text", text: item.text, replyToId: item.replyToId, sendId: item.sendId, channelMode: item.mode, queueId: item.id, via: item.via, sender: item.sender, ...(item.mentions?.length ? { botMentionIds: item.mentions } : {}) });
           }
         }
         store.appendMessage(threadId, {

@@ -4,6 +4,7 @@ import { memberAudience } from "../audience.ts";
 import { ADA, CARL, key, BEN, CLEO, session, teamInbox } from "../testing/team-inbox-fixture.ts";
 import { ASSISTANT_HOURLY } from "./person-inbox.ts";
 import { MESSAGE_PERSON_HOURLY } from "./team-messages.ts";
+import { botUsername } from "../../shared/bot-username.ts";
 
 const fixtures: Array<ReturnType<typeof teamInbox>> = [];
 const fixture = (options: Parameters<typeof teamInbox>[0] = {}) => { const made = teamInbox(options); fixtures.push(made); return made; };
@@ -132,6 +133,21 @@ describe("message_person", () => {
 });
 
 describe("a teammate who shares a bot's name", () => {
+  it("does not notify a teammate again when an old line is copied into a work bot", () => {
+    const f = fixture();
+    f.said("cleo-private", "@Ben synthetic context", CLEO, { workBotCopy: { sourceThreadId: "old", sourceMessageId: "old-line", requestMessageId: "request" } });
+    expect(f.notified).toEqual([]);
+  });
+  it("does not send private text to a person when a matching bot username was explicitly selected", () => {
+    const username = botUsername("scout");
+    const f = fixture({ personNames: { [BEN.email]: username } });
+    const text = `@${username} synthetic private request`;
+    f.said("cleo-private", text, CLEO, { botMentionIds: ["scout"] });
+    expect(f.notified).toEqual([]);
+    f.said("cleo-private", text, CLEO);
+    expect(f.notified).toEqual([expect.objectContaining({ forPerson: key(BEN.email) })]);
+    expect(f.lines(f.inboxOf(BEN).threadId).at(-1)?.text).toBe(text);
+  });
   it("is still the one their tag reaches: a tie is the person's, and their tags are known", () => {
     const f = fixture();
     f.bots.push({ id: "ada-bot", name: "Ada", color: "blue", threadId: "ada-bot-main", tasks: [{ threadId: "ada-bot-main", title: "Ada" }] });

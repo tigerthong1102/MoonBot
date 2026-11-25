@@ -11,6 +11,7 @@ import { ComposerMenuRow } from "./ComposerMenuRow";
 import type { MenuMotion } from "./MenuMotion";
 import { PersonFace } from "./TeamOwner";
 import { DEVS_TAG } from "../../shared/devs-mention";
+import { botUsername } from "../../shared/bot-username";
 
 /** One row of the @ list: a bot, a teammate on a Team Cloud, a whole team, everyone, or the MausBot team (@devs). */
 export type MentionChoice = { id: string; name: string; bot?: Bot; person?: TeamPerson; team?: { count: number }; all?: { count: number }; devs?: true };
@@ -43,7 +44,7 @@ export function MentionMenu({ listRef, motion, choices, highlight, everyoneCount
       className={cn("absolute bottom-full start-2 z-20 mb-2 max-h-72 w-72 overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border border-hairline/40 bg-raised shadow-lg", motion.className, className)} {...motion.exitProps}
     >
       {choices.map((choice, i) => {
-        const description = choice.person ? "" : choice.devs ? t("composer.mention.devsDesc") : mentionRowDescription(choice.bot ? { kind: "bot", title: choice.bot.title.trim() || (choice.bot.chiefOfStaff ? t("chat.chiefOfStaff") : "") }
+        const description = choice.person ? "" : choice.devs ? t("composer.mention.devsDesc") : mentionRowDescription(choice.bot ? { kind: "bot", title: `@${botUsername(choice.id)} ${choice.bot.title.trim() || (choice.bot.chiefOfStaff ? t("chat.chiefOfStaff") : "")}` }
           : choice.team ? { kind: "team", count: choice.team.count }
             : choice.all ? { kind: "all", count: choice.all.count } : { kind: "everyone", count: everyoneCount });
         return (

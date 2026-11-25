@@ -12,6 +12,7 @@ import { ELEVATED_CARD, ELEVATED_FLOAT } from "./elevated";
 import { uploadDraftImage } from "@/lib/composer-uploads";
 import { intakeFilesWithNotice } from "@/lib/attach-notice";
 import { activeLocale, t } from "@/lib/i18n";
+import { botUsername } from "../../shared/bot-username";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { imeComposing, sendKeyLabel, sendsMessage, useSendKey } from "@/lib/send-key";
 import { alternateSend, alternateSendLabel, useFollowUpDefault } from "@/lib/follow-up"; import { followUpChoices, resolveFollowUp, type FollowUp } from "../../shared/follow-up";
@@ -360,9 +361,10 @@ export function Composer({
   const pickMention = (peer: MentionChoice) => {
     if (!mention) return;
     const after = text.slice(caret);
-    const next = `${text.slice(0, mention.start)}@${peer.name} ${after}`;
+    const name = peer.bot ? botUsername(peer.id) : peer.name;
+    const next = `${text.slice(0, mention.start)}@${name} ${after}`;
     picks.pick(peer); editText(next);
-    const newCaret = mention.start + peer.name.length + 2;
+    const newCaret = mention.start + name.length + 2;
     setCaret(newCaret);
     setDismissedAt(mention.start);
     requestAnimationFrame(() => {

@@ -23,7 +23,7 @@ export const session = (email: string) => ({ kind: "session", scopes: ["client"]
 type Task = { threadId: string; title: string; archivedAt?: number; activity?: string; routineRunId?: string };
 type Bot = Partial<Omit<BotRecord, "tasks">> & { id: string; name: string; threadId: string; tasks: Task[] };
 
-export function teamInbox(options: { team?: boolean; representative?: TeamMessagesDeps["inbox"]["representative"]; noChiefFor?: string[]; handed?: Record<string, string>; confined?: string[] } = {}) {
+export function teamInbox(options: { team?: boolean; representative?: TeamMessagesDeps["inbox"]["representative"]; noChiefFor?: string[]; handed?: Record<string, string>; confined?: string[]; personNames?: Record<string, string> } = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), "omb-team-inbox-"));
   const listeners = new Set<(change: StoreChange) => void>();
   const emit = (change: StoreChange) => { for (const listener of listeners) listener(change); };
@@ -83,7 +83,7 @@ export function teamInbox(options: { team?: boolean; representative?: TeamMessag
     activePath: (threadId: string) => threads.get(threadId) ?? [],
     onChange: (listener: (change: StoreChange) => void) => { listeners.add(listener); return () => listeners.delete(listener); },
   };
-  const people: Array<{ email: string; role: "owner" | "admin" | "member"; name: string; leftAt?: number }> = [CLEO, BEN, ADA, CARL];
+  const people: Array<{ email: string; role: "owner" | "admin" | "member"; name: string; leftAt?: number }> = [CLEO, BEN, ADA, CARL].map(person => ({ ...person, name: options.personNames?.[person.email] ?? person.name }));
   const notified: Notification[] = [];
   const continued: Array<{ botId: string; threadId: string; text: string; from: { botId: string; name: string }; relay: Message["relay"] }> = [];
   const audienceOf = (threadId: string): Audience => audiences.get(threadId) ?? (starters.has(threadId) ? memberAudience(starters.get(threadId)!) : "team");

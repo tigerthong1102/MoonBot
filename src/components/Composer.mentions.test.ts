@@ -2,6 +2,7 @@
 // Picking a bot from the @ list sends its id with the words, so the bot picked is the one reached even when another
 // bot has the same name. Typed names carry no ids. The desktop app and the web app share this composer.
 import { createElement } from "react";
+import { botUsername } from "../../shared/bot-username";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -84,9 +85,9 @@ describe("a room's @ list", () => {
     type(drafts[0]!, "@Qu");
     expect(options().map((one) => one.textContent)).toEqual([expect.stringContaining("Analyst"), expect.stringContaining("Chief of Staff")]);
     pick("Quill", "Chief of Staff");
-    expect(input().value).toBe("@Quill ");
+    expect(input().value).toBe(`@${botUsername(chief.id)} `);
     send();
-    expect(sent()).toEqual([expect.objectContaining({ type: "sendGroup", groupId: room.id, text: "@Quill", mentions: [chief.id] })]);
+    expect(sent()).toEqual([expect.objectContaining({ type: "sendGroup", groupId: room.id, text: `@${botUsername(chief.id)}`, mentions: [chief.id] })]);
   });
 
   it("sends a typed name with no ids, and forgets a pick once its line is sent", () => {
@@ -103,7 +104,7 @@ describe("a room's @ list", () => {
     pick("Quill", "Chief of Staff");
     send();
     flushSync(() => sent()[0]!.onError());
-    expect(input().value).toBe("@Quill ");
+    expect(input().value).toBe(`@${botUsername(chief.id)} `);
     send();
     expect(sent().map((action) => action.mentions)).toEqual([[chief.id], [chief.id]]);
   });
@@ -115,6 +116,6 @@ describe("a one-to-one chat's @ list", () => {
     type(drafts[1]!, "ask @Qu");
     pick("Quill", "Analyst");
     send();
-    expect(sent()).toEqual([expect.objectContaining({ type: "send", botId: scout.id, text: "ask @Quill", mentions: [analyst.id] })]);
+    expect(sent()).toEqual([expect.objectContaining({ type: "send", botId: scout.id, text: `ask @${botUsername(analyst.id)}`, mentions: [analyst.id] })]);
   });
 });

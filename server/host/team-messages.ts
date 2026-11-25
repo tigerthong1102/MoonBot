@@ -222,12 +222,14 @@ export function createTeamMessages(deps: TeamMessagesDeps) {
 
   /** A teammate's line tags @Bob: their words reach Bob's inbox, wherever they wrote them; Bob's answer reaches theirs. */
   function personWrote(threadId: string, line: Message) {
+    if (line.workBotCopy || line.workBotHandoffSource) return;
     const writer = byKey(line.sender?.id);
     if (writer) { inbox.seen(writer.key, threadId); inbox.wrote(writer.key, threadId); }
     const at = owner(threadId);
     if (!at || !line.text) return;
     const writerName = writer?.name ?? line.sender?.name ?? "Someone";
-    for (const hit of teammateMentions(line.text, mentionable(), botNames())) {
+    const picked = (line.botMentionIds ?? []).filter(id => Boolean(store.bot(id)) && (!at.group || at.group.memberIds.includes(id)));
+    for (const hit of teammateMentions(line.text, mentionable(), botNames(), picked)) {
       const to = byKey(hit.key);
       if (!to || to.key === writer?.key) continue;
       const shown = deps.sees(to).thread(threadId);

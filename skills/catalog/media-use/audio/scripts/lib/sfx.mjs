@@ -1,7 +1,7 @@
 // sfx.mjs — sound effects for the media audio engine. Each cue is searched on
 // Openverse (CC0 / CC BY only, see openverse.mjs). A cue Openverse cannot answer,
 // and every cue after Openverse is unreachable or rate limited, resolves against
-// the bundled 21-file library (assets/sfx/manifest.json) instead.
+// the bundled 19-file library (assets/sfx/manifest.json) instead.
 //
 // A cue that matches nothing is skipped (recorded as an anomaly); SFX never
 // blocks a render. Every cue sits at volume ~0.35, under voice + BGM.

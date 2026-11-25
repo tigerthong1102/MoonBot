@@ -1,35 +1,5 @@
-# SFX Credits
+# StartupBot replacement sound effects
 
-All sound effects in this directory are sourced from [Pixabay](https://pixabay.com/sound-effects/) and used under the [Pixabay Content License](https://pixabay.com/service/license-summary/).
+The 19 MP3 files in this folder are replacements synthesized for StartupBot with [foleykit](https://github.com/rudqlsdla/foleykit/tree/22d71fec0e99d98b115f41df50bf71e63ff66574). They are not the upstream Pixabay files. The creator dedicates rendered sounds to the public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/legalcode); see [the creator’s sound license](https://github.com/rudqlsdla/foleykit/blob/22d71fec0e99d98b115f41df50bf71e63ff66574/LICENSE-SOUNDS.md). Source code is MIT licensed and was used to synthesize the audio; it is not included here.
 
-The Pixabay license allows free use for commercial and non-commercial purposes without attribution, but attribution is appreciated and given here for transparency.
-
-## Files
-
-The following `.mp3` files are bundled with this skill:
-
-- `chime.mp3`
-- `click.mp3` / `click-soft.mp3`
-- `error.mp3`
-- `glitch-1.mp3` / `glitch-2.mp3` / `glitch-3.mp3`
-- `impact-bass-1.mp3` / `impact-bass-2.mp3`
-- `key-press.mp3`
-- `notification.mp3`
-- `ping.mp3`
-- `pop.mp3`
-- `riser.mp3`
-- `sparkle.mp3`
-- `typing.mp3`
-- `whoosh.mp3` / `whoosh-short.mp3` / `whoosh-cinematic.mp3`
-
-See `manifest.json` for per-file metadata (duration, energy character, recommended use).
-
-## License
-
-All files are distributed under the [Pixabay Content License](https://pixabay.com/service/license-summary/), which permits:
-
-- Commercial and non-commercial use
-- Modification and remixing
-- Redistribution as part of derivative works (such as videos rendered with HyperFrames)
-
-without any attribution requirement.
+`UPSTREAM-CREDITS.md` and `UPSTREAM-manifest.json` preserve the original notices and metadata; they describe different audio files that are not bundled. Details and recipe mapping: `REPLACEMENT-SOURCES.md`.

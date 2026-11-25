@@ -329,3 +329,21 @@ test("findSoundEffect: offline, the skill's own bundled library answers", async 
     );
   });
 });
+
+
+test("every bundled replacement resolves offline into the project", async () => {
+  await withDirs(async ({ projDir }) => {
+    const manifest = JSON.parse(readFileSync(join(BUNDLED_SFX_DIR, "manifest.json"), "utf8"));
+    const cues = Object.keys(manifest).map((name) => ({ id: name, name }));
+    assert.equal(cues.length, 19);
+    const { sfx, anomalies } = await resolveSfx({ cues, hyperframesDir: projDir });
+    assert.deepEqual(anomalies, [UNREACHABLE]);
+    assert.equal(sfx.length, cues.length);
+    for (const result of sfx) {
+      assert.ok(result.duration_s > 0);
+      const original = readFileSync(join(BUNDLED_SFX_DIR, manifest[result.name].file));
+      assert.ok(original.length > 100);
+      assert.deepEqual(readFileSync(join(projDir, result.file)), original);
+    }
+  });
+});

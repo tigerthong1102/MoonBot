@@ -1133,7 +1133,31 @@
     "modified": [
       "SKILL.md",
       "audio/scripts/lib/audio-carve.mjs",
-      "audio/scripts/lib/concurrency.mjs"
+      "audio/scripts/lib/concurrency.mjs",
+      "audio/assets/sfx/CREDITS.md",
+      "audio/assets/sfx/manifest.json",
+      "audio/assets/sfx/chime.mp3",
+      "audio/assets/sfx/click-soft.mp3",
+      "audio/assets/sfx/click.mp3",
+      "audio/assets/sfx/error.mp3",
+      "audio/assets/sfx/glitch-1.mp3",
+      "audio/assets/sfx/glitch-2.mp3",
+      "audio/assets/sfx/glitch-3.mp3",
+      "audio/assets/sfx/impact-bass-1.mp3",
+      "audio/assets/sfx/impact-bass-2.mp3",
+      "audio/assets/sfx/key-press.mp3",
+      "audio/assets/sfx/notification.mp3",
+      "audio/assets/sfx/ping.mp3",
+      "audio/assets/sfx/pop.mp3",
+      "audio/assets/sfx/riser.mp3",
+      "audio/assets/sfx/sparkle.mp3",
+      "audio/assets/sfx/typing.mp3",
+      "audio/assets/sfx/whoosh-cinematic.mp3",
+      "audio/assets/sfx/whoosh-short.mp3",
+      "audio/assets/sfx/whoosh.mp3",
+      "audio/scripts/lib/sfx.mjs",
+      "audio/scripts/lib/sfx.test.mjs",
+      "audio/references/sfx.md"
     ],
     "excludedFiles": [
       ".gitignore",
@@ -1161,6 +1185,6 @@
     "summaryVi": "Tìm và chuẩn bị hình ảnh, cảnh quay, giọng đọc và âm thanh cho video.",
     "summaryZh": "为视频寻找并准备图像、镜头、旁白和声音。",
     "summaryZhTw": "為影片尋找並準備影像、鏡頭、旁白和聲音。",
-    "instructionsSha256": "ac48850cfb2cc6cff224321def514708e86901a0f3619294528fc685891aff8d"
+    "instructionsSha256": "9802e2cbca80df1e7ce2bda20702598aca81189439b6617719bfd3562f7f6d5b"
   }
 ]

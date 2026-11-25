@@ -184,6 +184,9 @@ describe("AppTriggerManager", () => {
     }
     expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(0);
+    triggers = manager();
+    expect(() => triggers.receive([event], 1)).toThrow();
+    expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
     triggers = manager({ linkedBots: links });
     triggers.receive([event], 1);
     triggers.receive([event], 1);

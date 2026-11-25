@@ -609,7 +609,8 @@ export class AppTriggerManager {
     if (this.mutationsInFlight) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
     const allBound = this.bound(event.triggerId);
     const bound = held ? allBound.filter(trigger => held.allowedTriggerIds?.includes(trigger.id)) : allBound;
-    if (held && (!held.allowedTriggerIds || !held.heldBotIds || !this.options.linkedBots)) return;
+    if (held && !this.options.linkedBots) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
+    if (held && (!held.allowedTriggerIds || !held.heldBotIds)) return;
     const candidates = bound.filter(trigger => this.options.runs.receipt(trigger.id, event.id) || (trigger.enabled && this.options.botState(trigger.botId) !== "missing" && matchesFilter(trigger.app, trigger.filter, data)));
     if (this.options.linkedBots) {
       const affected = new Set<StoredTrigger>();

@@ -281,6 +281,8 @@ try {
   const fixtureTitle = `StartupBot Linux saved steps ${process.pid}`;
   const python = `import ctypes\nctypes.CDLL(None).prctl(15,b"omb-gtk-test",0,0,0)\nimport gi\ngi.require_version("Gtk", "3.0")\nfrom gi.repository import Gtk\nw=Gtk.Window(title=${JSON.stringify(fixtureTitle)})\nw.set_default_size(360,180)\nb=Gtk.Button(label="Open report")\nb.connect("clicked", lambda *_: w.set_title("StartupBot Linux destination"))\nw.add(b)\nw.connect("destroy", Gtk.main_quit)\nw.show_all()\nGtk.main()`;
   const startFixture = () => spawn("python3", ["-u", "-c", python], {env:{...process.env,NO_AT_BRIDGE:"0",GTK_MODULES:"gail:atk-bridge"},stdio:["ignore","ignore","pipe"]});
+  const pythonMulti = `import ctypes\nctypes.CDLL(None).prctl(15,b"omb-gtk-test",0,0,0)\nimport gi\ngi.require_version("Gtk", "3.0")\nfrom gi.repository import Gtk\nw=Gtk.Window(title=${JSON.stringify(fixtureTitle)})\nw.set_default_size(360,180)\nb=Gtk.Button(label="Reports")\ndef clicked(button):\n if button.get_label()=="Reports":\n  w.set_title("Reports screen")\n  button.set_label("Open report")\n else:\n  w.set_title("StartupBot Linux destination")\nb.connect("clicked", clicked)\nw.add(b)\nw.connect("destroy", Gtk.main_quit)\nw.show_all()\nGtk.main()`;
+  const startMultiFixture = () => spawn("python3", ["-u", "-c", pythonMulti], {env:{...process.env,NO_AT_BRIDGE:"0",GTK_MODULES:"gail:atk-bridge"},stdio:["ignore","ignore","pipe"]});
   let fixture = startFixture();
   try {
     const fixtureWindow=await until(async()=>{const {stdout}=await execFileAsync("xdotool",["search","--name",`^${fixtureTitle}$`]);return stdout.trim().split(/\s+/)[0]},"GTK fixture",20000);
@@ -340,6 +342,7 @@ try {
     await stop(fixture);
     await until(async () => fixture.exitCode !== null || fixture.signalCode !== null, "GTK fixture to exit before chat", 5000);
     await qualifyLinuxChat({ driver, driverProcess, socketPath, sandbox, fixtureTitle, startFixture, rpc, session, stop, until });
+    await qualifyLinuxChat({ driver, driverProcess, socketPath, sandbox, fixtureTitle, startFixture: startMultiFixture, rpc, session, stop, until, multi: true });
   } finally { fixture.kill("SIGTERM"); }
   const target = {
     session,
@@ -380,4 +383,5 @@ try {
   if (windowManager.exitCode === null && windowManager.signalCode === null) windowManager.kill("SIGTERM");
   rmSync(sandbox, { recursive: true, force: true });
 }
+
 

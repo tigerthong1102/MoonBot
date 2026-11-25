@@ -30,8 +30,8 @@
 1. 編寫後，在首輪和結構變更後執行 `npx hyperframes lint`。
 2. 執行 `npx hyperframes check --json`，修復所有錯誤。存在 lint 錯誤時不會執行佈局和對比度檢查；“0 samples”表示沒有檢查任何內容。對比度錯誤包含 `suggestedColor`。僅出現在一個取樣點的發現（如入場過程）是提示；3 秒以上的影片沒有可見變化會導致 `sweep_static` 失敗。
 3. 執行 `npx hyperframes snapshot` 並檢視 PNG（在 `.hyperframes/artifacts/snapshots/` 中）：這是檢視影片的方法。對於子合成，擷取每個場景的中點；內容很小且無樣式或主體缺失表示掛載有誤（`../hyperframes/references/format.md`）。
-4. 執行 `npx hyperframes preview --background`，檢查 URL 返回 200，向使用者提供專案 URL 並等待，除非使用者要求檔案或不要中斷。僅透過檢查不代表可以渲染。
-5. 滿足第 4 步的渲染條件時，執行 `npx hyperframes render -o out.mp4`。確認檔案非空且 `ffprobe` 時長與根元素 `data-duration` 一致，然後檢視解碼後的幀。
+4. 檢查截圖和動態效果，修復可見缺陷。除非使用者明確要求預覽，否則不要要求使用者開啟 Studio 或專案連結。
+5. 使用者要求影片時，在檢查和審閱後執行 `npx hyperframes render -o out.mp4`。確認檔案非空，`ffprobe` 時長與根 `data-duration` 一致，檢視解碼畫面，並在 StartupBot 對話中返回檔案。
 
 “這個元素”或當前選區：`npx hyperframes preview --context --json --context-fields selection`；`no-selection` 表示要請使用者點選選中。
 

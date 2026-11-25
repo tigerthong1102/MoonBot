@@ -205,7 +205,7 @@ Nếu gặp lỗi liên quan đến model (như `ModelNotOpen`), bạn có thể
 
 ## Xử lý lỗi
 
-- NẾU tập lệnh đưa ra lỗi "PermissionError: ARK_API_KEY hoặc MODEL_VIDEO_API_KEY hoặc MODEL_AGENT_API_KEY không tìm thấy trong các biến môi trường", hãy thông báo cho người dùng rằng họ cần cung cấp biến môi trường `ARK_API_KEY` hoặc `MODEL_VIDEO_API_KEY` hoặc `MODEL_AGENT_API_KEY`. Viết nó vào tệp biến môi trường trong không gian làm việc. Nếu tệp đã tồn tại, hãy thêm nó vào cuối. Đảm bảo định dạng biến môi trường là chính xác, làm cho biến môi trường có hiệu quả và thử lại tác vụ tạo video vừa thất bại.
+- Nếu thiếu khóa API, hướng dẫn người dùng thiết lập `ARK_API_KEY` hoặc `MODEL_VIDEO_API_KEY` hoặc `MODEL_AGENT_API_KEY` bằng cơ chế lưu thông tin xác thực an toàn trong môi trường của họ. Không yêu cầu gửi khóa qua chat, ghi vào tệp dự án hoặc in khóa ra. Chỉ thử lại sau khi người dùng đã cấu hình và cho phép yêu cầu.
 
 ## Ghi chú
 
@@ -217,3 +217,5 @@ Nếu gặp lỗi liên quan đến model (như `ModelNotOpen`), bạn có thể
 - Đa phương thức yêu cầu ít nhất một hình ảnh hoặc video (không hỗ trợ âm thanh)
 - Việc tạo âm thanh chỉ được hỗ trợ bởi Seedance 1.5 pro
 - Nếu bỏ phiếu hết thời gian, hãy sử dụng `--query-task` với task_id được trả về
+
+Script đi kèm cần trình thông dịch Python và `httpx` trong `requirements.txt`; lệnh `--help` vẫn hoạt động khi thiếu `httpx`. Kiểm tra môi trường thực tế để tìm `startupbot-media-python`, `python3`, `python` hoặc `py -3` trên Windows. Nếu thiếu thư viện, dùng môi trường Python riêng cho tác vụ đã được phép và cài phiên bản được ghim từ nguồn tin cậy; không thay đổi Python toàn máy. Nếu thiếu Python, dùng dịch vụ tương thích đã cấu hình hoặc giải thích điều kiện còn thiếu. Tài khoản API ByteDance và quyền phát sinh phí là các điều kiện riêng.

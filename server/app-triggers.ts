@@ -434,7 +434,7 @@ export class AppTriggerManager {
 
   private assertNoDuplicate(trigger: StoredTrigger, checkSameBotWhenDisabled: boolean): void {
     const duplicate = this.triggers.find(existing => existing.id !== trigger.id && existing.enabled && existing.event === trigger.event &&
-      existing.accountId === trigger.accountId && existing.prompt === trigger.prompt && isDeepStrictEqual(existing.config, trigger.config) && isDeepStrictEqual(existing.filter, trigger.filter) &&
+      existing.accountId === trigger.accountId && existing.prompt === trigger.prompt && isDeepStrictEqual(existing.config, trigger.config) &&
       (existing.botId === trigger.botId ? trigger.enabled || checkSameBotWhenDisabled : trigger.enabled && this.options.linkedBots?.(existing.botId, trigger.botId)));
     if (duplicate) throw new AppTriggerError("A matching automation may already be active. Review the existing automation before creating another.", 409);
   }

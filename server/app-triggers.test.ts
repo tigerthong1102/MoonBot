@@ -118,6 +118,16 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns()).toHaveLength(0);
   });
 
+  it("holds an older event if the original automation is paused before the first poll", async () => {
+    const triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_pause_before_poll");
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.update(first.id, { enabled: false });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
   it("does not acknowledge events while the routine receipt store is unreadable", async () => {
     const triggers = manager({ linkedBots: () => false });
     const first = await gmailTrigger(triggers);
@@ -131,8 +141,8 @@ describe("AppTriggerManager", () => {
     routines.close();
     writeFileSync(file, "{}");
     routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
-    await triggers.pollOnce(undefined, 0);
-    expect(routines.listRuns()).toHaveLength(1);
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/Event history or bot links/);
+    expect(routines.listRuns()).toHaveLength(0);
   });
 
   it("does not acknowledge an in-flight event after its last binding disappears and history is unreadable", async () => {
@@ -223,10 +233,12 @@ describe("AppTriggerManager", () => {
     const event = { seq: 100, id: "fixture-event", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     expect(() => triggers.receive([event], 100)).toThrow(/Event history or bot links/);
     linkLookupFails = false;
-    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    expect(() => triggers.receive([event], 100)).toThrow(/Event history or bot links/);
+    const secondEvent = { ...event, id: "second-fixture-event", seq: 101 };
+    expect(() => triggers.receive([secondEvent], 101)).toThrow(/overlapping app automations/);
     expect(routines.listRuns()).toHaveLength(0);
     await triggers.update(first.id, { enabled: true });
-    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    expect(() => triggers.receive([secondEvent], 101)).toThrow(/overlapping app automations/);
     expect(routines.listRuns()).toHaveLength(0);
   });
   it("reports in-flight creation before network validation and until all concurrent calls finish", async () => {

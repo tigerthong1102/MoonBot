@@ -137,7 +137,7 @@ const fileSchema = z.object({
   triggers: z.array(storedSchema),
   attempts: z.array(attemptSchema).default([]),
   deleted: z.array(z.object({ at: z.number(), trigger: storedSchema })).default([]),
-  heldEvents: z.array(z.string()).default([]),
+  heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]) })])).default([]),
 });
 
 export interface AppTriggerInput {
@@ -216,7 +216,7 @@ export class AppTriggerManager {
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
-  private heldEvents = new Set<string>();
+  private heldEvents = new Map<string, "conflict" | "unknown">();
   private stopped = true;
   private abort = new AbortController();
   private nextReconcileAt = 0;
@@ -237,7 +237,7 @@ export class AppTriggerManager {
       this.triggers = parsed.data.triggers;
       this.attemptLog = parsed.data.attempts.slice(-MAX_ATTEMPTS);
       this.deleted = parsed.data.deleted.filter((entry) => entry.at >= this.now() - RESTORE_WINDOW_MS);
-      this.heldEvents = new Set(parsed.data.heldEvents);
+      this.heldEvents = new Map(parsed.data.heldEvents.map(row => typeof row === "string" ? [row, "conflict" as const] : [row.id, row.reason]));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         this.unreadable = true;
@@ -557,7 +557,8 @@ export class AppTriggerManager {
       return;
     }
     const data = event.event.data ?? {};
-    if (this.heldEvents.has(event.id)) throw new LinkedEventConflict(LINKED_EVENT_CONFLICT);
+    const held = this.heldEvents.get(event.id);
+    if (held) throw new LinkedEventConflict(held === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE);
     const bound = this.bound(event.triggerId);
     const candidates = bound.filter(trigger => this.options.runs.receipt(trigger.id, event.id) || (trigger.enabled && this.options.botState(trigger.botId) !== "missing" && matchesFilter(trigger.app, trigger.filter, data)));
     if (this.options.linkedBots) {
@@ -566,10 +567,7 @@ export class AppTriggerManager {
       try {
         if (!this.options.runs.eventRecipients) throw new Error("Event receipt lookup unavailable");
         const previous = this.options.runs.eventRecipients(event.id);
-        candidates.forEach((first, index) => candidates.slice(index + 1).forEach(second => {
-          if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
-        }));
-        if (!candidates.length) bound.forEach((first, index) => bound.slice(index + 1).forEach(second => {
+        bound.forEach((first, index) => bound.slice(index + 1).forEach(second => {
           if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
         }));
         for (const candidate of candidates) {
@@ -578,10 +576,10 @@ export class AppTriggerManager {
       } catch {
         reason = EVENT_HISTORY_UNAVAILABLE;
         for (const trigger of candidates.length ? candidates : bound) affected.add(trigger);
-        if (!affected.size) throw new LinkedEventConflict(reason);
+        if (!affected.size) { this.heldEvents.set(event.id, "unknown"); throw new LinkedEventConflict(reason); }
       }
       if (affected.size) {
-        if (reason === LINKED_EVENT_CONFLICT) this.heldEvents.add(event.id);
+        this.heldEvents.set(event.id, reason === LINKED_EVENT_CONFLICT ? "conflict" : "unknown");
         for (const trigger of affected) if (trigger.problem?.kind !== "error" || trigger.problem.text !== reason) this.setProblem(trigger, { kind: "error", text: reason, at: this.now() });
         throw new LinkedEventConflict(reason);
       }
@@ -897,7 +895,7 @@ export class AppTriggerManager {
     if (this.unreadable) return;
     mkdirSync(dirname(this.file), { recursive: true });
     writeFileAtomic(this.file, JSON.stringify({
-      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents],
+      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents].map(([id, reason]) => ({ id, reason })),
     } satisfies z.input<typeof fileSchema>, null, 2), { mode: 0o600 });
   }
 }

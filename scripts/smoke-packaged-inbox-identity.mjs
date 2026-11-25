@@ -61,7 +61,7 @@ async function connect(url) {
 }
 async function evaluate(cdp, expression) { const result = await cdp.call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true }); if (result.exceptionDetails) throw Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text); return result.result?.value; }
 
-let child, inspector, renderer, inbox, appPort, result, failure, cleanupFailure;
+let child, inspector, renderer, inbox, appPort, result, failure, cleanupFailure, log = "";
 try {
   await new Promise(resolve => cloud.listen(0, "127.0.0.1", resolve)); origin = `https://127.0.0.1:${cloud.address().port}`;
   appPort = await port(); const webhookPort = await port(), debugPort = await port(), inspectPort = await port();
@@ -71,7 +71,7 @@ try {
     OMB_DATA_DIR: data, OMB_SMOKE_HOME: home, OMB_SMOKE_TEST: "1", OMB_SMOKE_KEEP_OPEN: "1", OMB_SMOKE_CUA: "0", OMB_COMPANION_BONJOUR: "0", OMB_PORT: String(appPort), OMB_WEBHOOK_PORT: String(webhookPort), STARTUPBOT_INBOX_ORIGIN: origin,
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot, WINDIR: process.env.SystemRoot } : {}), ...(process.env.TEMP ? { TEMP: process.env.TEMP, TMP: process.env.TEMP } : {}) };
   child = spawn(executable, [`--user-data-dir=${profile}`, `--remote-debugging-port=${debugPort}`, `--inspect=127.0.0.1:${inspectPort}`, `--ignore-certificate-errors-spki-list=${pin}`], { env, cwd: fixture, stdio: ["ignore", "pipe", "pipe"] });
-  let log = ""; child.stdout.on("data", value => { log += value; }); child.stderr.on("data", value => { log += value; });
+  child.stdout.on("data", value => { log += value; }); child.stderr.on("data", value => { log += value; });
   const target = await until(async () => (await fetch(`http://127.0.0.1:${debugPort}/json/list`).then(r => r.json())).find(item => item.type === "page" && item.url === `http://127.0.0.1:${appPort}/`), "fixture renderer");
   renderer = await connect(target.webSocketDebuggerUrl);
   const mainTarget = await until(async () => (await fetch(`http://127.0.0.1:${inspectPort}/json/list`).then(r => r.json()))[0], "main inspector");
@@ -114,6 +114,11 @@ try {
 } catch (error) {
   failure = error;
 } finally {
+  if (failure && process.platform === "win32" && process.env.GITHUB_ACTIONS === "true" && process.env.RUNNER_ENVIRONMENT === "github-hosted" && child?.pid) {
+    try {
+      execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `Add-Type -AssemblyName UIAutomationClient; Add-Type -AssemblyName UIAutomationTypes; $root=[System.Windows.Automation.AutomationElement]::RootElement; $scope=[System.Windows.Automation.TreeScope]::Children; $filter=New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty,[int]$env:STARTUPBOT_FIXTURE_PID); $windows=$root.FindAll($scope,$filter); $out=@(); foreach($window in $windows){$out+=@($window.Current.Name); $out+=@($window.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | Select-Object -First 200 | ForEach-Object {$_.Current.Name})}; $out | ConvertTo-Json | Set-Content -Encoding utf8 $env:STARTUPBOT_FIXTURE_UIA`], { timeout: 15_000, env: { ...process.env, STARTUPBOT_FIXTURE_PID: String(child.pid), STARTUPBOT_FIXTURE_UIA: path.join(evidence, "packaged-inbox-failure-windows.json") }, stdio: "ignore" });
+    } catch {}
+  }
   for (const connection of [inbox, renderer, inspector]) connection?.socket.close();
   if (child && child.exitCode === null && child.signalCode === null) {
     child.kill("SIGTERM"); await Promise.race([new Promise(resolve => child.once("exit", resolve)), new Promise(resolve => setTimeout(resolve, 10_000))]);
@@ -121,6 +126,7 @@ try {
   }
   cloud.closeAllConnections();
   await new Promise(resolve => cloud.close(resolve));
+  writeFileSync(path.join(evidence, "packaged-inbox-identity.log"), log);
   try { rmSync(fixture, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (error) { cleanupFailure = error; failure ??= error; }
 }
 if (failure) {

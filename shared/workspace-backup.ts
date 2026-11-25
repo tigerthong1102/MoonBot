@@ -1,7 +1,8 @@
 /** Full, encrypted workspace snapshots are distinct from additive team copies. */
+export const TEAM_APP_EVENT_OMISSION = "App automations and their event history are not included. Existing app event data stays on the destination; restore only to a workspace without existing app automation definitions or held events.";
 export interface WorkspaceBackupSummary {
   format: "openmaus.workspace-backup";
-  version: 1;
+  version: 1 | 2;
   id: string;
   createdAt: string;
   appVersion: string;

@@ -5,10 +5,11 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { retiredEventKey } from "./app-trigger-file.ts";
+import { readBlockedAppEventRestore, recordBlockedAppEventRestore } from "./workspace-backup-app-events.ts";
 import { CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts";
 import { openRuntimeStore } from "./runtime/store.ts";
 import type { Assignment } from "./runtime/types.ts";
-import { createWorkspaceBackupSnapshot, stagedWorkspaceData, stageWorkspaceBackup } from "./workspace-backup.ts";
+import { applyPendingWorkspaceRestore, commitPendingWorkspaceRestore, createWorkspaceBackupSnapshot, readPendingWorkspaceRestoreMetadata, stagedWorkspaceData, stageWorkspaceBackup } from "./workspace-backup.ts";
 import { ensureMemoryIndex } from "./message-db-memory-index.ts";
 import { omittedAsTeamPrivate, routinesWithoutTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, teamAppEventLedger, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
 
@@ -92,12 +93,14 @@ async function exported(root: string): Promise<{ data: string; warnings: string[
 }
 
 describe("what a Team Cloud's export leaves out (the private sentence: not the Owner, not an admin)", () => {
-  it("refuses a team export rather than exposing or silently dropping held app events", async () => {
+  it("omits malformed held app events from a version 2 Team export with a warning", async () => {
     process.env.OMB_CLOUD_ROLE = "team";
     const root = directory();
     teamData(root);
     file(join(root, "app-triggers.json.held"), JSON.stringify({ version: 1, events: [{ id: "fixture", event: { private: "fixture" } }] }));
-    await expect(createWorkspaceBackupSnapshot(root, { password: PASSWORD, appVersion: "test" })).rejects.toThrow(/held app events/);
+    const { data, warnings } = await exported(root);
+    expect(warnings.some(warning => warning.includes("App automations and their event history are not included"))).toBe(true);
+    expect(existsSync(join(data, "app-triggers.json.held"))).toBe(false);
     expect(existsSync(join(root, "app-triggers.json.held"))).toBe(true);
   }, 60_000);
 
@@ -109,7 +112,7 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
   const attempt = { id: "sample", triggerId: "allowed-trigger", eventId: retired.id, at: 1, outcome: "started", preview: "private fixture preview" };
   const ledger = { version: 1, attempts: [attempt], cursorScope: retired.sourceScope, cursor: 3, pollerId: "test-poller", triggers: [], heldEvents: [retired.id] };
 
-  it("refuses retired event receipts without changing the original", async () => {
+  it("exports Team data without retired event receipts and leaves the original unchanged", async () => {
     process.env.OMB_CLOUD_ROLE = "team";
     const root = directory();
     teamData(root);
@@ -118,7 +121,12 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     json(join(root, "app-triggers.json.held"), receipts);
     const scratch = "app-triggers.json.held.1234.12345678-1234-1234-1234-123456789abc.tmp";
     file(join(root, scratch), "private fixture preview");
-    await expect(exported(root)).rejects.toThrow(/held app events/);
+    const { data, warnings } = await exported(root);
+    expect(JSON.parse(textOf(join(data, "..", "manifest.json"))).summary.version).toBe(2);
+    expect(warnings.some(warning => warning.includes("App automations and their event history are not included"))).toBe(true);
+    expect(existsSync(join(data, "app-triggers.json"))).toBe(false);
+    expect(existsSync(join(data, "app-triggers.json.held"))).toBe(false);
+    expect(existsSync(join(data, scratch))).toBe(false);
     expect(existsSync(join(root, scratch))).toBe(true);
     expect(textOf(join(root, "app-triggers.json"))).toBe(JSON.stringify(ledger));
     expect(textOf(join(root, "app-triggers.json.held"))).toBe(JSON.stringify(receipts));
@@ -130,6 +138,80 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     expect(() => teamAppEventLedger({ ...normal, version: 2, retiredReceipts: { ["a".repeat(64)]: "b".repeat(64) } }, undefined, publicTeam)).toThrow(/held app events/);
   });
 
+  it("restores a Team omission while preserving destination retired receipts and its format marker", async () => {
+    process.env.OMB_CLOUD_ROLE = "team";
+    const source = directory(); teamData(source);
+    json(join(source, "app-triggers.json"), ledger);
+    json(join(source, "app-triggers.json.held"), { version: 4, events: [retired] });
+    const archive = await createWorkspaceBackupSnapshot(source, { password: PASSWORD, appVersion: "test" });
+    expect(archive.summary.version).toBe(2);
+    const target = directory();
+    const local = { version: 2, cursor: 3, cursorScope: "target-scope", pollerId: "target-poller", triggers: [], attempts: [], heldEvents: [], retiredReceipts: { ["a".repeat(64)]: "b".repeat(64) } };
+    json(join(target, "app-triggers.json"), local);
+    json(join(target, "data-format.json"), { format: 2, writtenBy: "test", writtenAt: "" });
+    const before = textOf(join(target, "app-triggers.json")), marker = textOf(join(target, "data-format.json"));
+    const staged = await stageWorkspaceBackup(target, archive.path, { password: PASSWORD });
+    recordBlockedAppEventRestore(target, "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "earlier fixture");
+    commitPendingWorkspaceRestore(target, staged.id);
+    expect(applyPendingWorkspaceRestore(target).restored).toBe(true);
+    expect(readBlockedAppEventRestore(target)).toBeNull();
+    expect(textOf(join(target, "app-triggers.json"))).toBe(before);
+    expect(textOf(join(target, "data-format.json"))).toBe(marker);
+    expect(existsSync(join(target, "bots.json"))).toBe(true);
+  }, 60_000);
+
+  it("cancels a committed Team restore safely if the destination acquires an automation before restart", async () => {
+    process.env.OMB_CLOUD_ROLE = "team";
+    const source = directory(); teamData(source);
+    json(join(source, "app-triggers.json"), ledger);
+    json(join(source, "app-triggers.json.held"), { version: 4, events: [retired] });
+    const archive = await createWorkspaceBackupSnapshot(source, { password: PASSWORD, appVersion: "test" });
+    const target = directory(); json(join(target, "bots.json"), [{ id: "old-bot" }]);
+    const staged = await stageWorkspaceBackup(target, archive.path, { password: PASSWORD });
+    commitPendingWorkspaceRestore(target, staged.id);
+    const trigger = { id: "fixture", name: "Fixture", prompt: "Fixture", botId: "old-bot", runOn: "maus", enabled: true, app: "gmail", appName: "Gmail", event: "FIXTURE", eventName: "Fixture", delivery: "poll", accountId: "fixture", config: {}, remote: { state: "active", triggerId: "fixture-remote" }, received: 0, filtered: 0, createdAt: 1, updatedAt: 1 };
+    const local = { version: 1, cursor: 0, pollerId: "target-poller", triggers: [trigger], attempts: [], heldEvents: [] };
+    json(join(target, "app-triggers.json"), local);
+    const result = applyPendingWorkspaceRestore(target);
+    expect(result).toMatchObject({ restored: false, rolledBack: true, blockedReason: expect.stringMatching(/app automations/) });
+    expect(readBlockedAppEventRestore(target)).toEqual(result);
+    expect(readPendingWorkspaceRestoreMetadata(target)).toBeNull();
+    expect(JSON.parse(textOf(join(target, "bots.json")))).toEqual([{ id: "old-bot" }]);
+    expect(JSON.parse(textOf(join(target, "app-triggers.json")))).toEqual(local);
+    expect(applyPendingWorkspaceRestore(target)).toEqual({ restored: false });
+  }, 60_000);
+
+  it("does not overwrite destination retired receipts with an ordinary version 1 restore", async () => {
+    process.env.OMB_CLOUD_ROLE = "team";
+    const source = directory(); teamData(source);
+    const archive = await createWorkspaceBackupSnapshot(source, { password: PASSWORD, appVersion: "test" });
+    expect(archive.summary.version).toBe(1);
+    const target = directory();
+    const local = { version: 2, cursor: 3, cursorScope: "target-scope", pollerId: "target-poller", triggers: [], attempts: [], heldEvents: [], retiredReceipts: { ["a".repeat(64)]: "b".repeat(64) } };
+    json(join(target, "app-triggers.json"), local);
+    const staged = await stageWorkspaceBackup(target, archive.path, { password: PASSWORD });
+    expect(() => commitPendingWorkspaceRestore(target, staged.id)).toThrow(/retired app event receipts/);
+    expect(readPendingWorkspaceRestoreMetadata(target)).toBeNull();
+    expect(JSON.parse(textOf(join(target, "app-triggers.json")))).toEqual(local);
+  }, 60_000);
+
+  it("cancels a committed version 1 restore when a retired receipt appears before restart", async () => {
+    process.env.OMB_CLOUD_ROLE = "team";
+    const source = directory(); teamData(source);
+    const archive = await createWorkspaceBackupSnapshot(source, { password: PASSWORD, appVersion: "test" });
+    const target = directory(); json(join(target, "bots.json"), [{ id: "old-bot" }]);
+    const staged = await stageWorkspaceBackup(target, archive.path, { password: PASSWORD });
+    commitPendingWorkspaceRestore(target, staged.id);
+    const local = { version: 2, cursor: 3, cursorScope: "target-scope", pollerId: "target-poller", triggers: [], attempts: [], heldEvents: [], retiredReceipts: { ["a".repeat(64)]: "b".repeat(64) } };
+    json(join(target, "app-triggers.json"), local);
+    const result = applyPendingWorkspaceRestore(target);
+    expect(result).toMatchObject({ restored: false, rolledBack: true, blockedReason: expect.stringMatching(/retired app event receipts/) });
+    expect(readBlockedAppEventRestore(target)).toEqual(result);
+    expect(readPendingWorkspaceRestoreMetadata(target)).toBeNull();
+    expect(JSON.parse(textOf(join(target, "bots.json")))).toEqual([{ id: "old-bot" }]);
+    expect(JSON.parse(textOf(join(target, "app-triggers.json")))).toEqual(local);
+  }, 60_000);
+
   it("refuses version 1 private definitions and orphan attempt previews before export", () => {
     const privacy = { bots: new Set(["private-bot"]), threads: new Set(["private-thread"]) };
     const normal = { ...ledger, heldEvents: [], attempts: [], triggers: [{ id: "public-trigger", botId: "public-bot", prompt: "public fixture" }] };
@@ -138,6 +220,30 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     expect(() => teamAppEventLedger({ ...normal, deleted: [{ trigger: { id: "private-trigger", botId: "public-bot", sourceThreadId: "private-thread" } }] }, undefined, privacy)).toThrow(/private app automation/);
     expect(() => teamAppEventLedger({ ...normal, attempts: [{ triggerId: "missing", preview: "private fixture" }] }, undefined, privacy)).toThrow(/attempt owners/);
   });
+
+  it("omits a private version 1 automation from the actual Team archive", async () => {
+    process.env.OMB_CLOUD_ROLE = "team";
+    const root = directory(); teamData(root);
+    const privateLedger = { version: 1, cursor: 0, pollerId: "fixture-poller", heldEvents: [], attempts: [], triggers: [{ id: "private-trigger", botId: "bobs-own", prompt: "PRIVATE_AUTOMATION_FIXTURE" }] };
+    json(join(root, "app-triggers.json"), privateLedger);
+    const { data, warnings } = await exported(root);
+    expect(existsSync(join(data, "app-triggers.json"))).toBe(false);
+    expect(warnings.some(warning => warning.includes("App automations and their event history are not included"))).toBe(true);
+    expect(textOf(join(root, "app-triggers.json"))).toBe(JSON.stringify(privateLedger));
+  }, 60_000);
+
+  it("exports Team data after retirement without copying the version 2 receipt ledger", async () => {
+    process.env.OMB_CLOUD_ROLE = "team";
+    const root = directory(); teamData(root);
+    const local = { version: 2, cursor: 3, cursorScope: "fixture-scope", pollerId: "fixture-poller", triggers: [], attempts: [], heldEvents: [], retiredReceipts: { ["a".repeat(64)]: "b".repeat(64) } };
+    json(join(root, "app-triggers.json"), local);
+    json(join(root, "data-format.json"), { format: 2, writtenBy: "test", writtenAt: "" });
+    const { data, warnings } = await exported(root);
+    expect(JSON.parse(textOf(join(data, "..", "manifest.json"))).summary.version).toBe(2);
+    expect(existsSync(join(data, "app-triggers.json"))).toBe(false);
+    expect(warnings.some(warning => warning.includes("App automations and their event history are not included"))).toBe(true);
+    expect(JSON.parse(textOf(join(root, "app-triggers.json")))).toEqual(local);
+  }, 60_000);
 
   it("rejects a missing, malformed, active, unacknowledged or differently scoped retirement receipt", () => {
     expect(() => teamAppEventLedger(ledger, undefined, publicTeam)).toThrow(/held app events/);
@@ -153,12 +259,14 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     expect(() => teamAppEventLedger(ledger, { version: 4, events: [retired, { id: "still-held", reason: "unknown" }] }, publicTeam)).toThrow(/held app events/);
   });
 
-  it("also refuses a team export with held payloads in the earlier format", async () => {
+  it("omits held payloads in the earlier format from Team export", async () => {
     process.env.OMB_CLOUD_ROLE = "team";
     const root = directory();
     teamData(root);
     json(join(root, "app-triggers.json"), { version: 1, heldEvents: [{ id: "fixture", event: { private: "fixture" } }] });
-    await expect(createWorkspaceBackupSnapshot(root, { password: PASSWORD, appVersion: "test" })).rejects.toThrow(/held app events/);
+    const { data, warnings } = await exported(root);
+    expect(existsSync(join(data, "app-triggers.json"))).toBe(false);
+    expect(warnings.some(warning => warning.includes("App automations and their event history are not included"))).toBe(true);
     expect(existsSync(join(root, "app-triggers.json"))).toBe(true);
   }, 60_000);
   it("knows the private conversations from who opened them: a member's own chats, never the team's, a room's or an outside marker's", () => {

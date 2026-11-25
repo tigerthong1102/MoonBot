@@ -362,7 +362,7 @@ describe("AppTriggerManager", () => {
     expect(() => triggers.receive([{ ...event, event: { data: { text: "different" } } }], event.seq, owner.id)).toThrow(/Conflicting event identity/);
   });
 
-  it("refuses unsafe Team export and retains redelivery receipts in a closed private copy", async () => {
+  it("omits private receipts from Team export and retains them in a closed private copy", async () => {
     vi.stubEnv("OMB_CLOUD_ROLE", "team");
     const target = mkdtempSync(join(tmpdir(), "fixture-restored-app-events-"));
     try {
@@ -378,7 +378,9 @@ describe("AppTriggerManager", () => {
       expect(review?.readyToDiscard).toBe(true);
       original.discardHeldEvent(id, review!.digest);
       const password = "synthetic-test-passphrase";
-      await expect(createWorkspaceBackupSnapshot(dir, { password })).rejects.toThrow(/held app events/);
+      const archive = await createWorkspaceBackupSnapshot(dir, { password });
+      expect(archive.summary.version).toBe(2);
+      expect(archive.summary.warnings.some(warning => warning.includes("App automations and their event history are not included"))).toBe(true);
       copyFileSync(join(dir, "app-triggers.json"), join(target, "app-triggers.json"));
       copyFileSync(join(dir, "app-triggers.json.held"), join(target, "app-triggers.json.held"));
       const file = join(target, "app-triggers.json");

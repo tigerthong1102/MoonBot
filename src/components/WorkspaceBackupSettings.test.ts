@@ -175,6 +175,18 @@ describe("Settings full backups", () => {
     expect(storage.has("omb-pending-workspace-restore")).toBe(false); expect(window.location.reload).toHaveBeenCalledOnce();
   });
 
+  it("shows a blocked restore reason and keeps existing drafts until the person continues", async () => {
+    storage.set("omb-pending-workspace-restore", "stage-id"); storage.set("omb-drafts", "old");
+    fixture.api.mockResolvedValueOnce({ busy: false, restoreBlockedId: "stage-id", restoreBlockedReason: "Existing app automations must be reviewed." });
+    render(true); fixture.effects[0](); await flush();
+    expect(render(true).html).toContain("The restore was canceled because the destination has app automations or held event receipts.");
+    expect(render(true).html).toContain("Continue to existing workspace");
+    expect(render(true).html).not.toContain("This does not undo the installation restore");
+    expect(storage.get("omb-drafts")).toBe("old");
+    expect(storage.get("omb-pending-workspace-restore")).toBe("stage-id");
+    expect(fixture.api).toHaveBeenCalledOnce();
+  });
+
   it("on a server that restarts itself, waits instead of asking to quit, then carries on once the restore is installed", async () => {
     storage.set("omb-pending-workspace-restore", "stage-id");
     fixture.api.mockResolvedValueOnce({ busy: true, pendingRestore: true, restarts: true });

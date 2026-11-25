@@ -11,12 +11,12 @@ import { backup, DatabaseSync } from "node:sqlite";
 import { pipeline } from "node:stream/promises";
 import { Worker } from "node:worker_threads";
 import { writeFileAtomic } from "./atomic.ts";
-import { readDataFormat } from "./data-format.ts";
+import { appEventRoot, assertNoDestinationEventFence, assertOmittedAppEventDestination, assertPortableAppEvents, clearBlockedAppEventRestore, omitTeamAppEvents, prepareOrCancelAppEventRestore, TEAM_APP_EVENT_OMISSION } from "./workspace-backup-app-events.ts";
 import { userErrorFields, userErrorThrown } from "./user-errors.ts";
 import { WORKSPACE_BACKUP_CLIENT_KEYS } from "../shared/workspace-backup-client.ts";
 import { INSTRUCTION_FILE, restorePaths, validRelative } from "./workspace-backup-paths.ts";
 import { cjkSearchText } from "./cjk-search.ts";
-import { ephemeralWorkspaceTokenPath, excludedWorkspaceAuthPath, liveDataEnginePath, managedTaskSkillLink, portableWorkspaceConfig, redownloadedOrgLibraryPath, restoredWorkspaceConfig } from "./workspace-backup-policy.ts";
+import { ephemeralWorkspaceTokenPath, excludedWorkspaceAuthPath, EXCLUSION_NOTES, liveDataEnginePath, managedTaskSkillLink, portableWorkspaceConfig, redownloadedOrgLibraryPath, restoredWorkspaceConfig, RESTORE_WARNING } from "./workspace-backup-policy.ts";
 import { omittedAsTeamPrivate, routinesWithoutTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, teamAppEventLedger, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
 import { flushLaterSaves } from "./save-batch.ts";
 import type { WorkspaceBackupClientState, WorkspaceBackupPrivateMetadata, WorkspaceBackupSummary, WorkspaceLeftBehind } from "../shared/workspace-backup.ts";
@@ -55,16 +55,6 @@ const EXCLUDED = new Set([
   // one that wrote it, it would stop that server on every start; the destination keeps its own.
   "data-format.json",
 ]);
-const EXCLUSION_NOTES = [
-  "Device pairing, server identity, live leases and runtime files (existing destination identities are preserved).",
-  "Saved credentials, provider and MCP connections, managed provider login homes and browser login profiles are not transferred. Destination connections are preserved; reconnect on a new device.",
-  "Downloaded tools and caches (they can be installed again), and recorded browser step screenshots (export them from a conversation to keep them).",
-  "Installed dependency folders (node_modules) and symbolic links inside conversation work folders; reinstall or recreate them in the project.",
-  "External project folders, CLI login homes, browser session homes, OS keychains, companion devices and other servers.",
-  "VM/container disk layers and remote cloud data; durable files inside this workspace are included.",
-  "Waits bots set up: they end within a week, so ask the bot again after restoring.",
-];
-const RESTORE_WARNING = "Restoring pauses routines, webhooks and calendar calls, ends every wait, and does not resume pending delegations, queued chat messages or queued runs. Definitions and historical receipts are retained; review before enabling them again.";
 
 type Entry = { path: string; type: "file" | "directory"; size: number; mode: number; sha256?: string };
 interface Manifest extends WorkspaceBackupPrivateMetadata {
@@ -86,6 +76,7 @@ type CreatedWorkspaceBackup = { id: string; path: string; summary: WorkspaceBack
 export interface WorkspaceRestoreResult {
   restored: boolean;
   rolledBack?: boolean;
+  blockedReason?: string;
   id?: string;
   safetyCopyPath?: string;
   summary?: WorkspaceBackupSummary;
@@ -94,7 +85,6 @@ export interface WorkspaceRestoreResult {
 }
 /** `pathsRewritten`: the source data folder was rewritten in text too, by the restore or by repairMovedWorkspacePaths. */
 export type LastWorkspaceRestore = WorkspaceRestoreResult & { restored: true; id: string; pathsRewritten?: true };
-
 function excluded(name: string): boolean {
   return EXCLUDED.has(name) || excludedWorkspaceAuthPath(name) || name.startsWith("openmausbot-server.lease.") || name.startsWith("box-create-requests.lock.") || /^perm-[A-Za-z0-9_-]+\.sock$/.test(name);
 }
@@ -157,11 +147,6 @@ function privateJson(path: string): unknown {
     if (!stat.isFile() || stat.size > MAX_METADATA_BYTES) throw new Error("Workspace backup metadata is too large or is not a regular file.");
     return JSON.parse(readFileSync(fd, "utf8"));
   } finally { closeSync(fd); }
-}
-function assertPortableAppEvents(data: string, checkMarker: boolean): void {
-  if (checkMarker && (readDataFormat(data, 2)?.format ?? 1) > 1) throw new Error("Workspace backup cannot safely transfer this data format. Keep a protected copy of the closed data folder instead.");
-  const read = (name: string) => { const path = join(data, name); return entryExists(path) ? privateJson(path) : undefined; };
-  teamAppEventLedger(read("app-triggers.json"), read("app-triggers.json.held"), { bots: new Set(), threads: new Set() });
 }
 function writeJson(path: string, value: unknown): void {
   const text = JSON.stringify(value);
@@ -331,7 +316,8 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
   let copiedLinks = 0;
   try {
     const root = realpathSync(dataDir);
-    assertPortableAppEvents(root, true);
+    const teamPrivate = teamPrivateThreads({ starters: join(root, "thread-starters.json"), groups: join(root, "groups.json"), bots: join(root, "bots.json") });
+    const omitAppEvents = omitTeamAppEvents(root, teamPrivate, privateJson);
     for (const [name, snapshotName] of Object.entries(SNAPSHOT_DATABASES)) {
       const sourceDb = join(root, name);
       if (!existsSync(sourceDb)) continue;
@@ -345,21 +331,22 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       const snapshotDb = new DatabaseSync(join(snapshot, snapshotName));
       try { snapshotDb.exec("PRAGMA journal_mode = DELETE"); } finally { snapshotDb.close(); }
     }
-    const teamPrivate = teamPrivateThreads({ starters: join(root, "thread-starters.json"), groups: join(root, "groups.json"), bots: join(root, "bots.json") });
     const privacy = teamPrivate && { ...teamPrivate, attachments: teamPrivateAttachments(root, join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), teamPrivate) };
     const readTeamAppEvents = () => {
       const read = (name: string) => { const path = join(root, name); return entryExists(path) ? privateJson(path) : undefined; };
       return teamAppEventLedger(read("app-triggers.json"), read("app-triggers.json.held"), privacy!);
     };
-    if (privacy) readTeamAppEvents();
+    if (privacy && !omitAppEvents) readTeamAppEvents();
     if (privacy) {
       stripTeamPrivate({ messages: join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), runtime: join(snapshot, SNAPSHOT_DATABASES["runtime.db"]!) }, privacy);
       warnings.push(TEAM_PRIVATE_NOTE);
+      if (omitAppEvents) warnings.push(TEAM_APP_EVENT_OMISSION);
     }
     const walk = (directory: string, prefix = "", chain: string[] = [root]) => {
       for (const name of readdirSync(directory).sort()) {
         if (!prefix && excluded(name)) continue;
         const path = prefix ? `${prefix}/${name}` : name;
+        if (omitAppEvents && !prefix && appEventRoot(name)) continue;
         if (privacy && ["app-triggers.json", "app-triggers.json.held"].includes(path.toLowerCase()) && path !== path.toLowerCase()) throw new Error("Noncanonical Team app event ledger filename.");
         if (privacy && (path === "app-triggers.json.held" || /^app-triggers\.json(?:\.held)?\.\d+\.[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.tmp$/i.test(path))) continue;
         if (excludedWorkspaceAuthPath(path) || ephemeralWorkspaceTokenPath(path) || redownloadedOrgLibraryPath(path) || liveDataEnginePath(path)) continue;
@@ -434,13 +421,13 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       }
     };
     walk(root);
-    if (privacy) readTeamAppEvents();
+    if (privacy && !omitAppEvents) readTeamAppEvents();
     if (skippedLinks) warnings.push(`${skippedLinks} managed skill discovery link(s) were omitted and are recreated by the app.`);
     if (skippedDependencies) warnings.push(`${skippedDependencies} installed dependency folder(s) (node_modules) were omitted; reinstall them in the project after restoring.`);
     if (copiedLinks) warnings.push(`${copiedLinks} symbolic link(s) inside a workspace were saved as copies of what they point to; restoring creates regular files and folders there.`);
     if (skippedWorkLinks) warnings.push(`${skippedWorkLinks} symbolic link(s) in conversation work folders were omitted; what they point to is outside this backup.`);
     const summary: WorkspaceBackupSummary = {
-      format: "openmaus.workspace-backup", version: 1, id: job.id, createdAt: new Date().toISOString(),
+      format: "openmaus.workspace-backup", version: omitAppEvents ? 2 : 1, id: job.id, createdAt: new Date().toISOString(),
       appVersion: options.appVersion ?? "unknown", files: entries.filter((entry) => entry.type === "file").length,
       directories: entries.filter((entry) => entry.type === "directory").length, bytes,
       bots: countJsonArray(join(snapshot, "data", "bots.json")), groups: countJsonArray(join(snapshot, "data", "groups.json")),
@@ -471,7 +458,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
 }
 
 function validateManifest(value: unknown): Manifest {
-  if (!record(value) || !record(value.summary) || value.summary.format !== "openmaus.workspace-backup" || value.summary.version !== 1 ||
+  if (!record(value) || !record(value.summary) || value.summary.format !== "openmaus.workspace-backup" || ![1, 2].includes(value.summary.version as number) ||
     typeof value.summary.id !== "string" || !ID.test(value.summary.id) || typeof value.summary.createdAt !== "string" ||
     !Number.isFinite(Date.parse(value.summary.createdAt)) || typeof value.summary.appVersion !== "string" ||
     typeof value.sourceDataDir !== "string" || !(posix.isAbsolute(value.sourceDataDir) || win32.isAbsolute(value.sourceDataDir)) ||
@@ -490,6 +477,7 @@ function validateManifest(value: unknown): Manifest {
   for (const key of ["exclusions", "warnings"] as const) {
     if (!Array.isArray(value.summary[key]) || !value.summary[key].every((item) => typeof item === "string")) throw new Error("Invalid workspace backup summary.");
   }
+  if (value.summary.version === 2 && !(value.summary.warnings as string[]).includes(TEAM_APP_EVENT_OMISSION)) throw new Error("The backup does not disclose omitted app automations.");
   const names = new Map<string, string>();
   let bytes = 0;
   let files = 0;
@@ -580,6 +568,7 @@ function validateStaged(directory: string, expected?: Map<string, { type: string
   const manifest = validateManifest(privateJson(join(directory, "manifest.json")));
   if (expected && expected.size !== manifest.entries.length + 2) throw new Error("Archive entries do not match the backup manifest.");
   const declared = new Set(manifest.entries.map((entry) => entry.path));
+  if (manifest.summary.version === 2 && manifest.entries.some(entry => !entry.path.includes("/") && appEventRoot(entry.path))) throw new Error("This backup must not include app event data.");
   const inspect = (root: string, prefix = "") => {
     for (const name of readdirSync(root)) {
       const path = prefix ? `${prefix}/${name}` : name;
@@ -604,7 +593,7 @@ function validateStaged(directory: string, expected?: Map<string, { type: string
     chmodSync(path, entry.mode);
   }
   const data = join(directory, "data");
-  assertPortableAppEvents(data, false);
+  assertPortableAppEvents(data, false, privateJson);
   if (countJsonArray(join(data, "bots.json")) !== manifest.summary.bots || countJsonArray(join(data, "groups.json")) !== manifest.summary.groups) throw new Error("The backup roster does not match its summary.");
   if (existsSync(join(data, "config.json"))) {
     const config = privateJson(join(data, "config.json"));
@@ -722,6 +711,8 @@ function rollback(dataDir: string, journal: RestoreJournal): void {
 
 function prepareRestore(dataDir: string, id: string, manifest: Manifest): string {
   assertLocalAuthOutsideSnapshot(dataDir);
+  if (manifest.summary.version === 2) assertOmittedAppEventDestination(dataDir);
+  else assertNoDestinationEventFence(dataDir);
   const job = jobPath(dataDir, id);
   const prepared = join(job, "apply", "data");
   if (existsSync(join(job, "apply"))) rmSync(join(job, "apply"), { recursive: true, force: true });
@@ -913,6 +904,7 @@ function finishRestore(dataDir: string, id: string, consumePending = true): Last
   const result: LastWorkspaceRestore = { restored: true, id, safetyCopyPath: join(root, `safety-${id}`), summary, clientState, pathsRewritten: true,
     ...(existsSync(leftBehind) ? { leftBehind: privateJson(leftBehind) as WorkspaceLeftBehind } : {}) };
   writeJson(join(root, "last-restore.json"), result);
+  clearBlockedAppEventRestore(dataDir);
   if (consumePending) rmSync(join(root, "pending-restore.json"), { force: true });
   return result;
 }
@@ -952,11 +944,17 @@ export function applyPendingWorkspaceRestore(dataDir: string): WorkspaceRestoreR
   }
   const staged = join(jobPath(dataDir, pending.id), "staged");
   const manifest = validateStaged(staged);
-  const prepared = prepareRestore(dataDir, pending.id, manifest);
+  const preparation = prepareOrCancelAppEventRestore(dataDir, pending.id, pendingFile, () => {
+    const prepared = prepareRestore(dataDir, pending.id, manifest);
+    if (manifest.summary.version === 2) assertOmittedAppEventDestination(dataDir); else assertNoDestinationEventFence(dataDir);
+    return prepared;
+  });
+  if ("result" in preparation) return preparation.result;
+  const prepared = preparation.prepared;
   folder(join(safetyCopyPath, "data"));
   const journal: RestoreJournal = {
     id: pending.id, phase: "applying",
-    existing: readdirSync(dataDir).filter((name) => !keptInPlace(name)).sort(),
+    existing: readdirSync(dataDir).filter((name) => !keptInPlace(name) && !(manifest.summary.version === 2 && appEventRoot(name))).sort(),
     incoming: readdirSync(prepared).sort(),
   };
   // Names are checked before any move is recorded; a restored root never traverses an archive-controlled directory.

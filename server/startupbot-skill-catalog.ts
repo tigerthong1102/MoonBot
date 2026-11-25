@@ -8,6 +8,7 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["bf61c65be94d325d24af668418909ca639f1a4e17d2dce2c059d5a508530a778", "byted-text-to-speech"],
   ["f2a06185c507f61a1665bdb27509c1eb9ec1dc95e604e280b669ec178d2663b2", "media-use"],
   ["a757fb78a1e1e543212e70068ec3e5c59beb96758666dae4fac4aad6f146660a", "media-use"],
   ["226eb0a4300ceb9b4b26efec68740cce694bfc13da9153f2da74b6ea7c4a58d1", "hyperframes"],
@@ -76,6 +77,7 @@ const olderInstructions = new Map([
 ]);
 
 const additionalOlderInstructions = new Map([
+  ["byted-text-to-speech", new Set(["d2174024a0058fe89893fab0b70c92d668988c273c645c02c314dd75d7cdc6e1"])],
   ["web-perf", new Set(["1b7adf5eda4c29466fee9a9b4cda2782fa3be821b899b5f9630191541ea2115a"])],
   ["gemini-api", new Set(["218ce9d59ac461078788458a0f5f8f2ef6109d3386d5bd1468a8036ab3471742", "7b7453f9d9db260b4a0a8e20a14c2fab1a10b148952f55fe0b47a1211f7fcf8f"])],
   ["google-ads-api-mcp-setup", new Set(["91131558e35560aafff656d605c0dee78bfd4ac429e1ca4f94c7211e0e982af3"])],

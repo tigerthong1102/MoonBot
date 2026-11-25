@@ -28,6 +28,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
   function bindingKey(records, workspaceId, bot, owner) {
     const primary = JSON.stringify([workspaceId, bot.id]);
     const alternate = JSON.stringify([workspaceId, bot.id, origin, owner]);
+    if (!bot.username && Object.values(records).some(record => record?.workspaceId === workspaceId && record.localBotId === bot.id && (record.owner !== owner || record.origin !== origin) && record.definitiveRejected !== true)) throw Error("identity_pending_other_account");
     if (records[alternate]) return alternate;
     const record = records[primary];
     return record && (record.owner !== owner || record.origin !== origin) && record.definitiveRejected === true && !bot.username ? alternate : primary;

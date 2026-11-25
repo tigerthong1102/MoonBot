@@ -109,6 +109,37 @@ it("does not switch an unconfirmed identity when two windows overlap accounts", 
   expect(anchored).toBe(0); expect(requestsB).toBe(0);
 });
 
+it("blocks a third account while an alternate registration has an ambiguous result", async () => {
+  fixture.home = mkdtempSync(join(tmpdir(), "startupbot-alternate-account-fixture-"));
+  mkdirSync(join(fixture.home, ".startupbot")); fixture.menu = null;
+  const workspaceId = "33333333-3333-4333-8333-333333333333", room = "11111111-1111-4111-8111-111111111111", nonce = "22222222-2222-4222-8222-222222222222";
+  let owner = "account-a", lost = true, requestsC = 0, anchored, firstB;
+  const localFetch = async (endpoint, init) => {
+    if (endpoint.endsWith("bot-identity")) {
+      if (init?.method === "POST") { anchored = JSON.parse(init.body); return { ok: true, json: async () => ({ ok: true }) }; }
+      return { ok: true, json: async () => ({ workspaceId }) };
+    }
+    return { ok: true, json: async () => ({ bots: [{ id: "fixture-bot", name: "Fixture", ...(anchored ? { username: anchored.username } : {}) }] }) };
+  };
+  const workspace = { getURL: () => "http://127.0.0.1:4000", isDestroyed: () => false, executeJavaScript: code => runInNewContext(code, { location: { origin: "http://127.0.0.1:4000" }, fetch: localFetch }) };
+  const page = { isDestroyed: () => false, session: { fetch: async (url, init) => {
+    if (url.endsWith("/me")) return { ok: true, json: async () => ({ id: owner }) };
+    const body = JSON.parse(init.body);
+    if (owner === "account-c") requestsC++;
+    if (body.action === "challenge") return { ok: true, json: async () => ({ nonce }) };
+    if (owner === "account-a") return { ok: false, status: 403 };
+    if (owner === "account-b" && lost) { firstB = body.username; throw Error("fixture response lost"); }
+    expect(body.username).toBe(firstB);
+    return { ok: true, json: async () => ({ ok: true }) };
+  } }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
+  const instance = personalInboxBots({ webContents: workspace }, page, "https://fixture.invalid", localFetch);
+  const open = async () => { fixture.menu = null; instance.invite(room); await vi.waitFor(() => expect(fixture.menu).toHaveLength(1)); };
+  await open(); expect(fixture.menu[0].enabled).toBe(false);
+  owner = "account-b"; await open(); expect(fixture.menu[0].enabled).toBe(false); expect(firstB).toMatch(/^bot_k[a-f0-9]{64}$/);
+  owner = "account-c"; await open(); expect(fixture.menu[0].enabled).toBe(false); expect(requestsC).toBe(0); expect(anchored).toBeUndefined();
+  owner = "account-b"; lost = false; await open(); expect(fixture.menu[0].enabled).toBe(true); expect(anchored.username).toBe(firstB);
+});
+
 it("allows an explicit signed invitation when the preparation quota is full", async () => {
   fixture.home = mkdtempSync(join(tmpdir(), "startupbot-identity-capacity-fixture-"));
   mkdirSync(join(fixture.home, ".startupbot")); fixture.menu = null;

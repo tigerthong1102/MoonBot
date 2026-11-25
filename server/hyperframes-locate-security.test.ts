@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { expect, it } from "vitest";
 
 it("sends a synthetic Gemini key in the header while preserving location results", () => {
@@ -21,7 +22,7 @@ it("sends a synthetic Gemini key in the header while preserving location results
         return new Response(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({box_2d:[100,200,900,800]})}]}}]}));
       };
     `);
-    const output = execFileSync(process.execPath, ["--import", mock, resolve("skills/catalog/hyperframes/scripts/locate.mjs"), "auto", image, "cup"], {
+    const output = execFileSync(process.execPath, ["--import", pathToFileURL(mock).href, resolve("skills/catalog/hyperframes/scripts/locate.mjs"), "auto", image, "cup"], {
       encoding: "utf8",
       env: { ...process.env, NODE_OPTIONS: "", GEMINI_API_KEY: key },
       timeout: 10_000,

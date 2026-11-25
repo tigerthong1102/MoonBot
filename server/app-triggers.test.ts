@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -173,6 +173,43 @@ describe("AppTriggerManager", () => {
     expect(JSON.parse(readFileSync(sidecar, "utf8"))).toEqual(held);
     triggers.receive([event], 1);
     expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+  });
+
+  it("does not acknowledge an event when saving its held payload repeatedly fails", async () => {
+    const triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const sidecar = join(dir, "app-triggers.json.held");
+    mkdirSync(sidecar);
+    const event = { seq: 1, id: "fixture-held-write-error", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    for (let attempt = 0; attempt < 6; attempt++) {
+      expect(() => triggers.receive([event], 1)).toThrow("Held event storage is unavailable");
+      expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
+    }
+    expect(routines.listRuns()).toHaveLength(0);
+    rmSync(sidecar, { recursive: true });
+    triggers.receive([event], 1);
+    expect(heldEvents()[0]?.event?.id).toBe(event.id);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("retains a held payload when notification delivery fails", async () => {
+    let fail = false;
+    let triggers = manager({ linkedBots: () => true, emit: () => { if (fail) throw new Error("fixture notification unavailable"); } });
+    const first = await gmailTrigger(triggers);
+    for (let id = 2; id <= 7; id++) await triggers.create({ botId: `bot-${id}`, name: `Linked ${id}`, prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-notification-error", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    const main = join(dir, "app-triggers.json"), beforeCheckpoint = readFileSync(main, "utf8");
+    fail = true;
+    expect(() => triggers.receive([event], 1)).toThrow();
+    expect(JSON.parse(readFileSync(main, "utf8")).cursor).toBe(0);
+    expect(heldEvents()[0]?.event?.id).toBe(event.id);
+    writeFileSync(main, beforeCheckpoint);
+    fail = false;
+    triggers = manager({ linkedBots: () => true });
+    expect(triggers.list().filter(trigger => trigger.problem?.kind === "error")).toHaveLength(7);
+    triggers.receive([event], 1);
+    expect(routines.listRuns()).toHaveLength(0);
   });
 
   it("replays an independent recipient after a failure between hold and enqueue", async () => {

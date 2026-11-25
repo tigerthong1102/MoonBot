@@ -275,6 +275,10 @@ export class AppTriggerManager {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
     }
     if ([...this.heldEvents.values()].some(value => !value.event)) this.heldUnreadable = true;
+    if (!this.heldUnreadable) for (const held of this.heldEvents.values()) {
+      const reason = held.reason === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE;
+      for (const trigger of this.bound(held.event?.triggerId ?? null)) if (held.heldBotIds?.includes(trigger.botId)) trigger.problem = { kind: "error", text: reason, at: this.now() };
+    }
     if ((embeddedEvents || upgradeHeldStore) && !this.heldUnreadable) {
       try {
         mkdirSync(dirname(this.heldFile), { recursive: true });
@@ -635,9 +639,11 @@ export class AppTriggerManager {
         if (!affected.size) throw new LinkedEventConflict(reason);
       }
       if (affected.size) {
-        for (const trigger of affected) if (trigger.problem?.kind !== "error" || trigger.problem.text !== reason) this.setProblem(trigger, { kind: "error", text: reason, at: this.now() });
         const allowedTriggerIds = candidates.filter(trigger => !affected.has(trigger)).map(trigger => trigger.id);
         this.holdEvent(event, reason === LINKED_EVENT_CONFLICT ? "conflict" : "unknown", allowedTriggerIds, [...affected].map(trigger => trigger.botId));
+        const changed = [...affected].filter(trigger => trigger.problem?.kind !== "error" || trigger.problem.text !== reason);
+        for (const trigger of changed) trigger.problem = { kind: "error", text: reason, at: this.now() };
+        for (const trigger of changed) this.emitTrigger(trigger);
         for (let index = bound.length - 1; index >= 0; index--) if (!allowedTriggerIds.includes(bound[index]!.id)) bound.splice(index, 1);
       }
     }
@@ -905,8 +911,10 @@ export class AppTriggerManager {
     next.set(event.id, { reason: existing?.reason ?? reason, event: structuredClone(event), ...(existing ? (existing.allowedTriggerIds && existing.heldBotIds && allowedTriggerIds && heldBotIds ? { allowedTriggerIds: existing.allowedTriggerIds.filter(id => allowedTriggerIds.includes(id)), heldBotIds: [...new Set([...existing.heldBotIds, ...heldBotIds])] } : {}) : (allowedTriggerIds && heldBotIds ? { allowedTriggerIds, heldBotIds: [...new Set(heldBotIds)] } : {})) });
     const rows = [...next].map(([id, value]) => ({ id, ...value }));
     if (rows.length > MAX_HELD_EVENTS || Buffer.byteLength(JSON.stringify(rows), "utf8") > MAX_HELD_BYTES) throw new RetryAppEvent("Held event storage is full");
-    mkdirSync(dirname(this.heldFile), { recursive: true });
-    writeFileAtomic(this.heldFile, JSON.stringify({ version: 2, events: rows }), { mode: 0o600 });
+    try {
+      mkdirSync(dirname(this.heldFile), { recursive: true });
+      writeFileAtomic(this.heldFile, JSON.stringify({ version: 2, events: rows }), { mode: 0o600 });
+    } catch { throw new RetryAppEvent("Held event storage is unavailable"); }
     this.heldEvents = next;
   }
 

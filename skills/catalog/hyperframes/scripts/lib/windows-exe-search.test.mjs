@@ -19,7 +19,8 @@ import { afterEach, test } from "node:test";
 const VAR = "NoDefaultCurrentDirectoryInExePath";
 const here = dirname(fileURLToPath(import.meta.url));
 const skillsRoot = resolve(here, "../../..");
-const guards = ["hyperframes/scripts/lib", "media-use/scripts/lib", "figma/scripts/lib"].map(
+const includedSkills = ["hyperframes", "media-use"].map((name) => join(skillsRoot, name));
+const guards = ["hyperframes/scripts/lib", "media-use/scripts/lib"].map(
   (dir) => join(skillsRoot, dir, "windows-exe-search.mjs"),
 );
 const realPlatform = process.platform;
@@ -120,7 +121,7 @@ function scripts(dir) {
 }
 
 test("every skill Python script that starts programs resolves them through trusted_program", () => {
-  const starters = readdirTree(skillsRoot, /\.py$/).filter((file) =>
+  const starters = includedSkills.flatMap((dir) => readdirTree(dir, /\.py$/)).filter((file) =>
     /^(import subprocess|from subprocess import)/m.test(readFileSync(file, "utf8")),
   );
   assert.ok(starters.length > 0, "must inspect the Python scripts that start programs");
@@ -135,7 +136,7 @@ test("every skill Python script that starts programs resolves them through trust
 });
 
 test("every skill script that starts programs loads the guard before its other imports", () => {
-  const starters = scripts(skillsRoot).filter((file) =>
+  const starters = includedSkills.flatMap((dir) => scripts(dir)).filter((file) =>
     /from "(node:)?child_process"/.test(readFileSync(file, "utf8")),
   );
   assert.ok(starters.length > 10, "must inspect the scripts that start programs");

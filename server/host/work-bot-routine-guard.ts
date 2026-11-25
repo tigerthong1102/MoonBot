@@ -27,7 +27,7 @@ export function inspectWorkBotRoutineConflict(store: Store, request: Pick<Routin
 export function assertWorkBotRoutineSafe(store: Store, language: (threadId: string) => string | undefined, request: Pick<RoutineRequestCommit, "botId" | "threadId" | "messageId">, routines: readonly Routine[], runs: readonly RoutineRun[], links: (threadId: string, botId: string) => import("../work-bot-message-db.ts").WorkBotLink[] = () => []): void {
   const related = relatedWorkBotRoutines(store, request, links);
   const relatedEntry = (entry: { botId: string; sourceThreadId?: string }) => entry.botId !== request.botId && related.some(link => entry.botId === link.botId || entry.sourceThreadId === link.threadId);
-  if (related.some(link => !link.botId) || routines.some(routine => routine.enabled && relatedEntry(routine)) || runs.some(run => relatedEntry(run) && ["queued", "running", "waiting"].includes(run.status))) {
+  if (related.some(link => !link.botId) || routines.some(routine => (routine.enabled || routine.heldFor !== undefined) && relatedEntry(routine)) || runs.some(run => relatedEntry(run) && ["queued", "running", "waiting"].includes(run.status))) {
     throw Object.assign(new Error(serverLine(language(request.threadId), "server.workBot.scheduleConflict")), { status: 409, code: "work_bot_schedule_conflict" });
   }
 }

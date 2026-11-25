@@ -41,6 +41,7 @@ export interface TypedStop {
   fromApp: boolean;
   /** This thread's turn is running now. */
   busy: boolean;
+  stopHandoff?: () => Promise<void>;
   /** The rest of the person's message row, as the busy branch would have recorded it. */
   row: Pick<Message, "replyToId" | "sendId" | "sender" | "via" | "callId">;
   /** Who typed it. */
@@ -84,14 +85,20 @@ export function createPersonStop(deps: PersonStopDeps) {
       try { deps.assertStopAllowed?.(id); stopping.push(id); }
       catch (error) { if (!everyone) throw error; }
     }
+    if (!everyone && stopping.includes(threadId) && input.stopHandoff) {
+      await input.stopHandoff();
+      stopping.splice(stopping.indexOf(threadId), 1);
+    }
     if (input.personPresent) deps.clearUnattended(threadId);
     const message = store.appendMessage(threadId, { role: "user", kind: "text", text, ...input.row });
     for (const id of stopping) {
-      try { await stopThreadForPerson(botId, id, input.row.sender); }
+      try {
+        await stopThreadForPerson(botId, id, input.row.sender);
+      }
       catch (error) { if (!everyone) throw error; }
     }
     if (everyone) store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: serverLine(deps.language(threadId), "server.workBot.everyoneStopNotice"), ok: true } });
-    else if (!stopping.length) store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: serverLine(deps.language(threadId), "server.stop.nothingRunning"), ok: true } });
+    else if (!stopping.length && !input.stopHandoff) store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: serverLine(deps.language(threadId), "server.stop.nothingRunning"), ok: true } });
     return { ok: true as const, threadId, message };
   }
 

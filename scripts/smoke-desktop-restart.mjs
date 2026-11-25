@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createConnection, createServer } from "node:net";
 import path from "node:path";
 
@@ -40,7 +40,8 @@ export async function waitPortClosed(port, label) {
   }), label, 15_000);
 }
 
-export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, expectedSkin, expectedWorkspace, stablePort }) {
+export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, canceledHandoff, expectedSkin, expectedWorkspace, stablePort }) {
+  if (canceledHandoff && followupText) throw new Error("The handoff and upgrade follow-ups need separate fixtures");
   if (stablePort !== undefined && (!Number.isInteger(stablePort) || stablePort < 1024 || stablePort > 65535)) throw new Error("Invalid saved renderer port");
   if (expectedSkin && stablePort === undefined) throw new Error("Saved renderer port required for appearance verification");
   const port = stablePort ?? await freePort();
@@ -137,6 +138,39 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     assert.equal(readFileSync(prompts, "utf8"), promptsBeforeRestart, "Restart must not issue another provider call");
     await new Promise(resolve => setTimeout(resolve, 3_000));
     assert.equal(readFileSync(prompts, "utf8"), promptsBeforeRestart, "Restart must not replay a pending request");
+    if (canceledHandoff) {
+      const source = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.find(row => row.id === canceledHandoff.sourceId);
+      const target = (await request(`/api/threads/${canceledHandoff.threadId}/messages`)).body.messages.find(row => row.id === canceledHandoff.requestId);
+      assert.equal(source?.workBotRouting?.targetBotId, canceledHandoff.targetId);
+      assert.equal(target?.workBotHandoffSource?.messageId, canceledHandoff.sourceId);
+      assert.equal(target?.requestCancelled, true);
+      assert.equal(existsSync(canceledHandoff.continued), false);
+      assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(canceledHandoff.text)).length, 1);
+      const targetRow = `document.querySelector('[data-sidebar-bot-row="${canceledHandoff.targetId}"]')`;
+      await until(() => evaluate(`Boolean(${targetRow})`), "the canceled handoff bot after restart");
+      await evaluate(`${targetRow}.click()`);
+      await until(() => evaluate(`${targetRow}?.getAttribute('aria-current') === 'page'`), "the canceled conversation after restart");
+      const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
+      await until(() => evaluate(`Boolean(${composer})`), "the canceled conversation composer");
+      await evaluate(`(${composer}).focus()`);
+      await cdp("Input.insertText", { text: canceledHandoff.followup });
+      const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
+      await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
+      await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
+      await until(async () => {
+        const messages = (await request(`/api/threads/${canceledHandoff.threadId}/messages`)).body.messages;
+        const inputs = messages.filter(row => row.role === "user" && row.text === canceledHandoff.followup);
+        return inputs.length === 1 && inputs[0].requestPending === false && messages.some(row => row.role === "bot" && row.turnTerminal && row.turnSucceeded && row.requestMessageId === inputs[0].id && row.text === "Synthetic handoff remains usable.");
+      }, "a new turn after the canceled handoff");
+      assert.equal(existsSync(canceledHandoff.continued), false);
+      const after = readFileSync(prompts, "utf8");
+      assert(after.startsWith(promptsBeforeRestart));
+      const newPrompts = after.slice(promptsBeforeRestart.length).split("\n").filter(Boolean).map(line => JSON.parse(line));
+      assert.equal(newPrompts.length, 1);
+      assert(JSON.stringify(newPrompts[0]).includes(canceledHandoff.followup));
+      assert(!JSON.stringify(newPrompts[0]).includes(canceledHandoff.text), "The follow-up must not replay the canceled request");
+      assert(JSON.stringify(newPrompts[0]).includes("This earlier request was stopped"), "The follow-up must retain the stop marker");
+    }
     if (followupText) {
       const before = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
       assert(!before.some(row => row.role === "user" && row.text === followupText));

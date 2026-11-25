@@ -21,6 +21,7 @@ import { appLabel } from "./app-event-catalog.ts";
 import { eventBlock, eventPreview, eventPrompt, matchesFilter, mergeEventBlock } from "./app-events.ts";
 import { brokerEventSchema, BrokerError, type AppTriggerBroker, type BrokerEvent, type BrokerInventory, type BrokerTriggerType } from "./app-trigger-broker.ts";
 import { writeFileAtomic } from "./atomic.ts";
+import { EVENT_HISTORY_UNAVAILABLE, LINKED_EVENT_CONFLICT, heldEventMatches, isEventHoldProblem } from "./app-trigger-held.ts";
 import { instructionsUpdateRefusal } from "./automation-instructions.ts";
 import { DATA_DIR } from "./config.ts";
 import type { RoutineRunOn } from "./routines.ts";
@@ -39,9 +40,6 @@ const NAME_MAX = 80;
 const PROMPT_MAX = 20_000;
 const MAX_HELD_EVENTS = 100;
 const MAX_HELD_BYTES = 2_000_000;
-const LINKED_EVENT_CONFLICT = "Linked bots have overlapping app automations. Review them before this event can run.";
-const EVENT_HISTORY_UNAVAILABLE = "Event history or bot links cannot be checked. Restore access and review the automation before continuing.";
-const isEventHoldProblem = (problem: StoredTrigger["problem"]) => problem?.kind === "error" && (problem.text === LINKED_EVENT_CONFLICT || problem.text === EVENT_HISTORY_UNAVAILABLE);
 
 class LinkedEventConflict extends Error {}
 class RetryAppEvent extends Error {}
@@ -278,7 +276,7 @@ export class AppTriggerManager {
     if ([...this.heldEvents.values()].some(value => !value.event)) this.heldUnreadable = true;
     if (!this.heldUnreadable) for (const held of this.heldEvents.values()) {
       const reason = held.reason === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE;
-      for (const trigger of this.triggers) if (this.heldEventMatches(held, trigger) && trigger.problem?.kind !== "reconnect") trigger.problem = { kind: "error", text: reason, at: this.now() };
+      for (const trigger of this.triggers) if (heldEventMatches(held, trigger) && trigger.problem?.kind !== "reconnect") trigger.problem = { kind: "error", text: reason, at: this.now() };
     }
     if ((embeddedEvents || upgradeHeldStore) && !this.heldUnreadable) {
       try {
@@ -616,7 +614,7 @@ export class AppTriggerManager {
     if (this.mutationsInFlight) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
     const allBound = this.bound(event.triggerId);
     const bound = held ? allBound.filter(trigger => held.allowedTriggerIds?.includes(trigger.id)) : allBound;
-    if (held) for (const trigger of this.triggers) if (this.heldEventMatches(held, trigger)) this.emitTrigger(trigger);
+    if (held) for (const trigger of this.triggers) if (heldEventMatches(held, trigger)) this.emitTrigger(trigger);
     if (held && !this.options.linkedBots) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
     if (held && (!held.allowedTriggerIds || !held.heldBotIds || !held.heldTriggerIds)) return;
     const candidates = bound.filter(trigger => this.options.runs.receipt(trigger.id, event.id) || (trigger.enabled && this.options.botState(trigger.botId) !== "missing" && matchesFilter(trigger.app, trigger.filter, data)));
@@ -650,7 +648,7 @@ export class AppTriggerManager {
       }
     }
     for (const trigger of bound) {
-      if (isEventHoldProblem(trigger.problem) && !this.hasHeldEvent(trigger)) {
+      if (isEventHoldProblem(trigger.problem) && !this.heldEventFor(trigger)) {
         delete trigger.problem;
         this.emitTrigger(trigger);
       }
@@ -900,17 +898,8 @@ export class AppTriggerManager {
     return triggerId ? this.triggers.filter((trigger) => trigger.remote.triggerId === triggerId) : [];
   }
 
-  private heldEventMatches(held: { event?: BrokerEvent; heldBotIds?: string[]; heldTriggerIds?: string[] }, trigger: StoredTrigger): boolean {
-    if (held.heldTriggerIds) return held.heldTriggerIds.includes(trigger.id) && Boolean(held.heldBotIds?.includes(trigger.botId));
-    return Boolean(held.heldBotIds?.includes(trigger.botId) || (held.event?.triggerId === trigger.remote.triggerId && !held.heldBotIds));
-  }
-
   private heldEventFor(trigger: StoredTrigger) {
-    return [...this.heldEvents.values()].find(held => this.heldEventMatches(held, trigger));
-  }
-
-  private hasHeldEvent(trigger: StoredTrigger): boolean {
-    return Boolean(this.heldEventFor(trigger));
+    return [...this.heldEvents.values()].find(held => heldEventMatches(held, trigger));
   }
 
   private restoreHeldProblem(trigger: StoredTrigger): void {

@@ -349,6 +349,35 @@ it("preserves a customized HyperFrames reference during catalog upgrade", () => 
   }
 });
 
+it("adds upstream guides to verified skills while retaining approvals and customizations", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-upstream-guides-"));
+  try {
+    const catalog = join(root, "catalog"), library = join(root, "library");
+    const names = ["google-ads-api-mcp-setup", "byted-kickart-video-subtitler", "apify-ecommerce", "gemini-api", "generated-ui", "byted-las-pdf-parse-doubao", "byted-las-asr-pro", "producthunt"];
+    mkdirSync(catalog);
+    for (const name of names) {
+      cpSync(join("skills/catalog", name), join(catalog, name), { recursive: true });
+      rmSync(join(catalog, name, "references/upstream.md"));
+      restoreAuditSnapshot(`original-guides-previous/${name}`, join(catalog, name));
+    }
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => names.includes(entry.name));
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: names.length, failed: [] });
+    for (const name of names) expect(setLibrarySkillReviewState(name, "approved", library)).not.toHaveProperty("error");
+    const customized = join(library, "skills/producthunt/SOURCE.md");
+    writeFileSync(customized, readFileSync(customized, "utf8") + "\nUser customization.\n");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize - 1, failed: [] });
+    const result = readSkillLibraryIndex(library);
+    for (const name of names.filter(name => name !== "producthunt")) {
+      expect(result[name].reviewState).toBe("approved");
+      expect(result[name].files).toContain("references/upstream.md");
+    }
+    expect(readFileSync(customized, "utf8")).toContain("User customization.");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it("upgrades ByteDance TTS while preserving approval and customized files", () => {
   const root = mkdtempSync(join(tmpdir(), "startupbot-tts-upgrade-"));
   try {

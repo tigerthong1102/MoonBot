@@ -2,37 +2,36 @@ Dùng không gian làm việc và công cụ đã thiết lập cho tác vụ. C
 
 Các lệnh Studio bên dưới yêu cầu cài đặt Chengfeng hiện có. Giải quyết các đường dẫn plugin bên trong bản cài đặt đó. Chỉ với bản ghi, hãy trả về bảng đánh giá được mã hóa theo thời gian để chỉnh sửa hoặc bản nháp phụ đề và gắn cờ các bước yêu cầu Studio.
 
-# cắt miệng phát sóng
+# Biên tập video nói
 
-Từ video đến sổ cái xóa được xem xét thủ công (Cuts + EDL), không có tệp phương tiện nào được chạm vào. Bảy bước và một dòng:
+Từ video đến danh sách chỉnh sửa xóa được xem xét thủ công (Cuts + EDL), không có tệp phương tiện nào được chạm vào. Bảy bước và một dòng:
 
 ```text
-0  就绪     引用「检查更新」的就绪检查（本 Skill 不带环境逻辑）
-1  建档     真实视频 → 云端逐词转录 → 产品建项目 → 起服务 → 读回状态
-2  修字     词典把字改对（通用一本 + 用户一本）→ 出修字表
-3  删词     读偏好与规则 → 五轮扫描，每轮只找一类，只记行
-4  汇总     删词汇总表 + 重复句子表 → 按表自读校验
-5  审核     全量提交 → 两张表呈给用户 → 打开 Studio 亲自复核
-6  复盘交棒  对比提案与终版 → 归档三抽屉 → 报告四件事
+0  Sẵn sàng    Kiểm tra công cụ và môi trường đã cấu hình
+1  Tạo dự án    Video thật → chép lời được phép → tạo dự án → khởi động dịch vụ → đọc lại trạng thái
+2  Sửa chữ      Áp dụng từ điển chung và từ điển người dùng → lập bảng sửa chữ
+3  Xét từ bỏ    Đọc tùy chọn và quy tắc → rà 5 lượt, mỗi lượt một loại → ghi đề xuất
+4  Tổng hợp     Lập bảng từ bỏ và câu lặp → tự đọc kiểm tra
+5  Duyệt        Gửi đề xuất → trình hai bảng → mở Studio để người dùng duyệt
+6  Tổng kết     So sánh đề xuất và bản cuối → lưu kết quả → báo cáo
 ```
 
-**Không cắt phương tiện**: Phải mất hàng chục mili giây để thay đổi sổ cái và việc cắt nó một lần là một tệp không thể hủy ngang. Khi kết thúc Kỹ năng này,
-Không có video mới trên đĩa. Kỹ năng phán đoán và sắp xếp ngữ nghĩa; sản phẩm Runtime là dự án, Cắt và
-Nhà văn duy nhất của trạng thái Studio.
+**Không cắt tệp media**: Việc sửa danh sách chỉnh sửa nhanh và có thể xem lại; cắt video tạo ra một tệp mới khó đảo ngược. Khi kết thúc Kỹ năng này,
+không có video mới trên đĩa. Skill đưa ra quyết định biên tập; Runtime của sản phẩm là thành phần duy nhất ghi trạng thái dự án, Cuts và Studio.
 
 **Người dùng chỉ phát biểu ở ba nơi**: Chọn tiếp tục hoặc khởi động lại cùng một dự án nguồn (chỉ khi dự án đó bị cắt), đánh giá Studio và xác nhận hoàn thành.
 Tất cả những người khác sẽ được báo cáo theo một hướng và sẽ không ngừng chờ đợi phản hồi. **Tiêu chí hoàn thành của mỗi bước là đầu ra của nó**: Nếu không nằm ngoài bảng tức là chưa hoàn thành.
 
-Trước tiên hãy đọc và thực hiện hợp đồng giai đoạn kinh doanh có trong công cụ đỉnh cao đã được định cấu hình.
+Trước tiên hãy đọc và thực hiện hợp đồng giai đoạn kinh doanh có trong bộ công cụ Chengfeng đã được cấu hình.
 Các bước trong bài viết này tương ứng với giai đoạn hợp đồng: 1=preflight+Xem lại trạng thái sản phẩm, 5=đề xuất+CAS sản phẩm,
 review=ràng buộc đánh giá cấp dự án. Ba giai đoạn cuối cùng của hợp đồng (xác nhận, thực hiện, chấp nhận) thuộc về Kỹ năng xuất khẩu.
 
-Nguồn gốc của mỗi quy tắc đều nằm trong [cuốn sách tai nạn](references/lessons.md) - các quy tắc nằm trong văn bản và câu chuyện ở đó.
+Nguồn gốc của mỗi quy tắc đều nằm trong [các bài học và tình huống](references/lessons.md) - các quy tắc nằm trong văn bản và câu chuyện ở đó.
 
 ## 0. Sẵn sàng
 
 Trước tiên, hãy thực hiện kiểm tra mức độ sẵn sàng cục bộ (chỉ xem các công cụ, dự án và đầu vào đã được định cấu hình, không tải xuống và cài đặt các bản cập nhật) - xem các kỹ năng
-Liệu phiên bản mới nhất và thời gian chạy có được hỗ trợ hay không; **plug-in root** cũng nằm ở đó (`<插件根>` trong các lệnh trong bài viết này đều được thay thế
+Liệu phiên bản mới nhất và thời gian chạy có được hỗ trợ hay không; **plug-in root** cũng nằm ở đó (`<PLUGIN_ROOT>` trong các lệnh trong bài viết này đều được thay thế
 con đường theo nghĩa đen đó). Chỉ tiếp tục khi nhận được "Sẵn sàng"; "Yêu cầu phiên mới" hoặc "Dừng" sẽ được thực thi theo quá trình xử lý của nó
 (Bao gồm việc cấm "cấm các giao diện thay thế tự tạo").
 
@@ -45,13 +44,13 @@ FFmpeg hoặc bắt đầu thời gian chạy thứ hai.
 **Việc cần làm**: Bàn giao bản nháp từng từ trên đám mây và video thực cục bộ của người dùng cho sản phẩm, tạo tệp nguyên tử, khởi động dịch vụ và đọc lại trạng thái.
 
 ```bash
-# 云端逐词转录（生成任务目录内的 transcript 候选）之后：
-node "<插件根>/scripts/videocut-cli.cjs" project create "<项目目录>" --video "<任务目录内的视频文件>" --transcript "<任务目录内的逐词稿>" --json
+# Sau khi tạo bản chép từng từ được phép trong thư mục tác vụ:
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" project create "<PROJECT_DIR>" --video "<TASK_VIDEO>" --transcript "<TASK_TRANSCRIPT>" --json
 
-node "<插件根>/scripts/ensure-running.cjs" --json          # 产品声明式确保常驻服务（5190）
+node "<PLUGIN_ROOT>/scripts/ensure-running.cjs" --json          # Bảo đảm dịch vụ đang chạy trên cổng 5190
 
-node "<插件根>/scripts/videocut-cli.cjs" workflow get "<项目目录>" --json    # Product state readback
-node "<插件根>/scripts/videocut-cli.cjs" cuts get "<项目目录>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" workflow get "<PROJECT_DIR>" --json    # Product state readback
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" cuts get "<PROJECT_DIR>" --json
 ```
 
 Quy tắc:
@@ -81,7 +80,7 @@ Quy tắc:
 Từ nghe nhầm không phải là từ thừa, xóa từ cũng không thể khắc phục được.
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" transcript dictionary "<项目目录>" --dictionary "<插件根>/references/ai-term-dictionary.md" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript dictionary "<PROJECT_DIR>" --dictionary "<PLUGIN_ROOT>/references/ai-term-dictionary.md" --json
 ```
 
 Sử dụng công cụ tệp của bạn để kiểm tra xem `$HOME/.chengfeng-videocut/dictionary.md` có tồn tại hay không; nếu có thì hãy xem lại
@@ -89,7 +88,7 @@ Sử dụng công cụ tệp của bạn để kiểm tra xem `$HOME/.chengfeng-
 Hợp nhất ưu tiên người dùng và các bản phát hành CLI đa từ điển khác):
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" transcript dictionary "<项目目录>" --dictionary "$HOME/.chengfeng-videocut/dictionary.md" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript dictionary "<PROJECT_DIR>" --dictionary "$HOME/.chengfeng-videocut/dictionary.md" --json
 ```
 
 **Đầu ra: Bảng sửa đổi từ** - Kết hợp danh sách `applied` được hai lệnh gọi trả về thành một bảng nhỏ (Từ gốc → được đổi thành →
@@ -99,8 +98,8 @@ Từ điển, không được vá ở nơi khác.
 Chỉ khi từ điển không thể giải quyết được vấn đề và tác giả có sẵn bản thảo thì việc căn chỉnh ngữ cảnh mới được thêm vào:
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" transcript align "<项目目录>" --script "<口播稿文件>" --json   # 只报不改
-node "<插件根>/scripts/videocut-cli.cjs" transcript correct "<项目目录>" --file "<修正文件>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript align "<PROJECT_DIR>" --script "<SCRIPT_FILE>" --json   # Chỉ báo cáo, không sửa
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript correct "<PROJECT_DIR>" --file "<CORRECTIONS_FILE>" --json
 ```
 
 Quy tắc:
@@ -114,7 +113,7 @@ Quy tắc:
 
 **Bản thảo được phân đoạn theo dấu câu**: Mỗi từ trong bản phiên âm đều được chấm câu, bản thảo được chia thành các đoạn bằng dấu phẩy và dòng trên mỗi câu; phụ đề nằm trong cùng một phần.
 Các dấu câu, ngắt câu đều thống nhất ở cả hai bên. 2026-07-28 Dự án cũ trước đó không có dấu câu và chạy
-`node "<插件根>/scripts/videocut-cli.cjs" transcript regroup "<项目目录>" --json` Chỉ cần cắt lại đoạn văn (kiểm tra id/thời gian/văn bản từng chữ)
+`node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript regroup "<PROJECT_DIR>" --json` Chỉ cần cắt lại đoạn văn (kiểm tra id/thời gian/văn bản từng chữ)
 không thay đổi, an toàn cho các mục đã chỉnh sửa); nếu bạn thực sự cần dấu câu, bạn phải dịch lại - dấu câu hoàn toàn không tồn tại trong phiên âm cũ.
 
 ## 3. Xóa từ: Quét năm vòng, mỗi vòng chỉ tìm thấy một danh mục
@@ -125,7 +124,7 @@ Chất lượng phán đoán cao hơn nhiều so với việc xét sáu lần m�
 Tài liệu nên đọc đầu tiên:
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" transcript playback "<项目目录>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript playback "<PROJECT_DIR>" --json
 ```
 
 Sau đó sử dụng công cụ đọc tệp của bạn để đọc `$HOME/.chengfeng-videocut/cut-preferences.md` (tùy chọn người dùng,
@@ -135,11 +134,11 @@ Tiêu chí là [Quy tắc xóa ngữ nghĩa](references/semantic-deletion.md) (n
 Ưu tiên sách giáo khoa: **Tùy chọn người dùng > Trường hợp người dùng > Trường hợp chung**.
 
 ```text
-第 1 轮  重复          句间重复、句内重复（最客观：两遍相同）
-第 2 轮  残句与改口     说一半断掉、换个说法重说
-第 3 轮  口误重说       说错的数字、专名、词，后面重说对的
-第 4 轮  英文卡壳       词头 / 字母 / 音节重复
-第 5 轮  口头禅与语气词  最主观，按用户偏好的密度与容忍度来
+Lượt 1  Lặp              Lặp giữa câu hoặc trong câu
+Lượt 2  Câu dở, nói lại  Dừng giữa câu hoặc đổi cách nói
+Lượt 3  Nói nhầm         Số, tên riêng hoặc từ nói sai rồi sửa lại
+Lượt 4  Vấp tiếng Anh    Lặp đầu từ, chữ cái hoặc âm tiết
+Lượt 5  Từ đệm           Theo mức độ và tùy chọn của người dùng
 ```
 
 Các hành động trong mỗi vòng đều cố định: kiểm tra trường hợp theo loại của vòng này → tìm địa điểm và ghi một dòng (wordIds + type + Risk) →
@@ -160,20 +159,20 @@ Quy tắc:
 **Xóa danh sách từ vựng chung** (quyết định bằng cách xóa từng từ theo từng mục):
 
 ```text
-| # | 时间   | 类型   | 删除              | 剩下读作          | 风险 | 依据      |
+| # | Thời gian | Loại | Xóa | Phần còn lại | Rủi ro | Căn cứ |
 |---|-------|--------|------------------|------------------|-----|----------|
-| 1 | 00:12 | 重复   | 这个功能呢         | 这个功能它其实      | 低  | 判例 R2   |
-| 2 | 02:31 | 改口   | 比如我就让他跟踪    | 比如我让grok跟踪    | 高  | 判例 R5   |
+| 1 | 00:12 | Lặp | chức năng này | chức năng này thực ra | Thấp | Ví dụ R2 |
+| 2 | 02:31 | Nói lại | ví dụ tôi cho nó theo dõi | ví dụ tôi cho Grok theo dõi | Cao | Ví dụ R5 |
 ```
 
 **Danh sách câu lặp lại** (Đối với những câu đã được nói nhiều lần, danh sách từng từ không thể cho biết "đã ghi bao nhiêu lần và lưu lần nào" và đây chính xác là những gì người dùng
 Hầu hết muốn kiểm tra):
 
 ```text
-| 句子（开头）      | 说了几遍 | 保了哪遍        | 删了哪几遍   | 风险            |
+| Câu mở đầu | Số lần | Giữ lần | Xóa lần | Rủi ro |
 |-----------------|--------|---------------|------------|-----------------|
-| 因为今天有什么…   | 3      | 第 3 遍 00:08  | 第 1、2 遍  | 低——三遍基本一致  |
-| 多数Agent能搜…   | 2      | 第 2 遍 04:40  | 第 1 遍     | 高——两遍说法有出入，重点听 |
+| Vì hôm nay có… | 3 | Lần 3 lúc 00:08 | Lần 1, 2 | Thấp: gần như giống nhau |
+| Phần lớn agent có thể tìm… | 2 | Lần 2 lúc 04:40 | Lần 1 | Cao: cách nói khác nhau, cần nghe kỹ |
 ```
 
 Sau đó **Tự đọc**: Đọc toàn văn đã xóa theo thứ tự phát theo bảng, hủy những dòng không đọc được.
@@ -184,8 +183,8 @@ Sau đó **Tự đọc**: Đọc toàn văn đã xóa theo thứ tự phát theo
 **Việc cần làm**: Gửi tất cả các ứng viên, trình bày hai biểu mẫu cho người dùng, sau đó mở trang đánh giá sản phẩm để người dùng trực tiếp xem xét.
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" cuts get "<项目目录>" --json              # 取 Cuts 自己的 revision
-node "<插件根>/scripts/videocut-cli.cjs" cuts set "<项目目录>" --file "<提案文件>" --expected-revision "<Cuts当前revision>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" cuts get "<PROJECT_DIR>" --json              # Lấy revision hiện tại của Cuts
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" cuts set "<PROJECT_DIR>" --file "<PROPOSAL_FILE>" --expected-revision "<CUTS_REVISION>" --json
 ```
 
 Thí sinh chỉ tham khảo ổn định `wordIds`:
@@ -213,16 +212,16 @@ Quy định nộp hồ sơ:
   Quay lại điền số tiền rồi nộp lại; đọc `"unknown"` và cũng xem nó
 - Sau đó ngay lập tức `workflow get` + `cuts get` lại, xác nhận `cut_review_ready` với ba lần sửa đổi;
   Dừng nếu không nhất quán, không bao giờ trực tiếp viết JSON hoặc tự động ghi đè
-- **Để lại `<提案文件>` trong thư mục tác vụ sau khi gửi** - dùng để xem xét ở bước 6 (lý do sau khi người dùng chỉnh sửa
-  Sẽ bị sản phẩm loại bỏ và việc kiểm tra lại từ sổ cái sau đó là không đáng tin cậy)
+- **Để lại `<PROPOSAL_FILE>` trong thư mục tác vụ sau khi gửi** - dùng để xem xét ở bước 6 (lý do sau khi người dùng chỉnh sửa
+  Sẽ bị sản phẩm loại bỏ và việc kiểm tra lại từ danh sách chỉnh sửa sau đó là không đáng tin cậy)
 
 Sau đó **Gửi bảng trước, sau đó mở trang**: Gửi 2 bảng cho người dùng và yêu cầu họ đưa bảng vào Studio để xem xét.
 
 ```bash
-node "<插件根>/scripts/ensure-running.cjs" --json                    # 打开前再次幂等 ensure
-node "<插件根>/scripts/videocut-cli.cjs" open "<项目目录>" --json          # 取产品返回的项目 URL
+node "<PLUGIN_ROOT>/scripts/ensure-running.cjs" --json                    # Bảo đảm dịch vụ đang chạy trước khi mở
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" open "<PROJECT_DIR>" --json          # Lấy URL dự án do ứng dụng trả về
 
-node "<插件根>/scripts/ensure-studio.cjs" --url "<产品项目URL>" --view koubo --json                                  # 能力门禁：确认 5190 注册了 koubo 视图
+node "<PLUGIN_ROOT>/scripts/ensure-studio.cjs" --url "<PROJECT_URL>" --view koubo --json                                  # Kiểm tra dịch vụ có hỗ trợ chế độ koubo
 ```
 
 Quy tắc:
@@ -242,12 +241,12 @@ Quy tắc:
 Sau khi đánh giá của người dùng hoàn tất, hãy đọc lại:
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" workflow get "<项目目录>" --json
-node "<插件根>/scripts/videocut-cli.cjs" cuts get "<项目目录>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" workflow get "<PROJECT_DIR>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" cuts get "<PROJECT_DIR>" --json
 ```
 
 **Review** (Phương pháp chuyển tiếp, thay thế lệnh `cuts diff` của sản phẩm sau khi phát hành): Lấy những gì đã lưu ở bước 5
-`<提案文件>` So sánh với phiên bản cuối cùng đọc lại `cutWordIds`——
+`<PROPOSAL_FILE>` So sánh với phiên bản cuối cùng đọc lại `cutWordIds`——
 
 - **Được người dùng khôi phục** (có trong đề xuất, không có trong phiên bản cuối cùng) = AI đã xóa nhầm. So sánh những gì bạn đã viết trong đề xuất
   Lý do hỏi: Đó là loại lỗi gì?
@@ -271,7 +270,7 @@ Sự khác biệt chính là một câu). Sau đó yêu cầu người dùng ch�
 **Không phát thẻ xác nhận và không thực hiện cắt** - Thẻ xác nhận được cắt vật lý thuộc về Kỹ năng xuất khẩu và thẻ bị đóng băng phải được
 Bản sửa đổi tại thời điểm người dùng nhấn xác nhận.
 
-`return_cut_review`: Đầu tiên là `node "<插件根>/scripts/ensure-running.cjs" --json` một lần nữa, sau đó quay lại Studio tương tự để tiếp tục xem xét;
+`return_cut_review`: Đầu tiên là `node "<PLUGIN_ROOT>/scripts/ensure-running.cjs" --json` một lần nữa, sau đó quay lại Studio tương tự để tiếp tục xem xét;
 Không có quá trình xem xét nào được thực hiện và việc xem xét chỉ được thực hiện một lần ở lần chuyển giao cuối cùng.
 
 Xếp hạng báo cáo: Bản sửa đổi có cấu trúc sản phẩm là **API/ĐẠT đọc lại**; đánh giá khung trình duyệt thực sự là
@@ -285,7 +284,7 @@ Ghi đè phát hiện DOM, ảnh chụp màn hình hoặc phương tiện.
 - `service_identity_mismatch` / `service_port_conflict`: Dừng lại, không quay lại tiền cảnh,
   Không thay đổi cổng hoặc hủy các tiến trình không xác định
 - Trang đã bị đóng nhưng dịch vụ vẫn ở đó: đọc quy trình làm việc và tiếp tục từ trạng thái hiện tại mà không cần tạo dự án mới.
-- Bất kỳ lỗi nào không được nói "sổ cái đã được viết" vì "nó đã bị cắt" - không có tệp phương tiện nào được tạo cho đến đoạn này
+- Bất kỳ lỗi nào không được nói "danh sách chỉnh sửa đã được viết" vì "nó đã bị cắt" - không có tệp phương tiện nào được tạo cho đến đoạn này
 
 Lưu ý: Kỹ năng này chấp nhận **video thực cục bộ** và **bản nháp từng từ trên đám mây** để nhập trực tiếp vào sản phẩm. Đây là một chuyến bay thử nghiệm theo hợp đồng
 yêu cầu; sự tồn tại thực sự của cả hai là điều kiện tiên quyết cho mọi phán đoán.

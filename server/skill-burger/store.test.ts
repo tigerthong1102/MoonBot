@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { WORKFLOW_FILE, type Workflow } from "../../shared/skill-burger/format.ts";
 import { librarySkillDirectory, readSkillLibraryIndex, setLibrarySkillEveryBot, setLibrarySkillOptOut } from "../skill-library.ts";
 import { installSkill, listSkills, setSkillEnabled, skillsSystemPrompt } from "../skills.ts";
-import { findWorkflowSkill, listWorkflowSkills, readWorkflowSkill, removeWorkflowSkill, renameWorkflowSkill, saveWorkflowSkill, setWorkflowEveryChat, workflowSkillsPrompt } from "./store.ts";
+import { findWorkflowSkill, listWorkflowSkills, readWorkflowSkill, removeWorkflowSkill, renameWorkflowSkill, replaceWorkflowSkill, saveWorkflowSkill, setWorkflowEveryChat, workflowSkillsPrompt } from "./store.ts";
 
 const workflow: Workflow = {
   version: 1,
@@ -110,6 +110,26 @@ describe("saved burgers", () => {
     expect(findWorkflowSkill(bot, saved.name, root)).not.toBeNull();
     setSkillEnabled(bot, saved.name, false);
     expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
+  });
+
+  it.skipIf(process.platform === "win32")("leaves a workflow untouched if its recovery location is a symlink", () => {
+    const { root, bot, botIds } = fixture();
+    const saved = saveWorkflowSkill({ workflow, name: "recovery-fixture", place: { botId: bot }, botIds, root });
+    if ("error" in saved) throw new Error(saved.error);
+    symlinkSync(mkdtempSync(join(tmpdir(), "burger-outside-")), join(root, "workflow-recovery"));
+    const changed = { ...workflow, summary: "Changed" };
+    expect(replaceWorkflowSkill({ place: { botId: bot }, name: saved.name, workflow: changed, sha256: saved.sha256, root })).toHaveProperty("error");
+    expect(readWorkflowSkill({ botId: bot }, saved.name, root)?.workflow).toEqual(workflow);
+  });
+
+  it("restores the original if a replacement cannot be saved", () => {
+    const { root, bot, botIds } = fixture();
+    const saved = saveWorkflowSkill({ workflow, name: "restore-fixture", place: { botId: bot }, botIds, root });
+    if ("error" in saved) throw new Error(saved.error);
+    const oversized = { ...workflow, args: { ...workflow.args, large: { default: "x".repeat(300_000) } } };
+    expect(replaceWorkflowSkill({ place: { botId: bot }, name: saved.name, workflow: oversized, sha256: saved.sha256, root })).toHaveProperty("error");
+    expect(readWorkflowSkill({ botId: bot }, saved.name, root)?.workflow).toEqual(workflow);
+    expect(readdirSync(join(root, "workflow-recovery"))).toEqual([]);
   });
 
   it("refuses a taken or malformed name and a workflow that isn't one", () => {

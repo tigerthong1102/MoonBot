@@ -1,4 +1,5 @@
-import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { burgerBotOf, burgerSource, isBurgerSource, type SavedWorkflow } from "../../shared/skill-burger/saved.ts";
@@ -9,6 +10,7 @@ import {
   retireLibrarySkill, setLibrarySkillEveryBot, skillsLibraryRoot,
 } from "../skill-library.ts";
 import { installSkill, listMigratableSkills, listSkills, readSkillFile, removeSkill, setSkillEnabled } from "../skills.ts";
+import { writeFileAtomic } from "../atomic.ts";
 
 export type { SavedWorkflow };
 
@@ -183,11 +185,46 @@ export function replaceWorkflowSkill(input: { place: BurgerPlace; name: string; 
   if (!checked.success) return { error: checked.error.issues.map((issue) => issue.message).join("; ").slice(0, 300) };
   const found = readAt(input.place, input.name, root);
   if (!found || found.sha256 !== input.sha256) return { stale: true };
-  const gone = erase(input.place, input.name, found.sha256, root);
-  if (!("removed" in gone)) return "error" in gone ? gone : { stale: true };
-  const written = write(input.place, input.name, checked.data, found.botId, root);
-  if ("error" in written) write(input.place, input.name, found.workflow, found.botId, root);
-  return written;
+  let backup: string;
+  const recoveryId = randomUUID();
+  try {
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    if (!lstatSync(root).isDirectory()) throw new Error("the library is not a real directory");
+    const directory = join(realpathSync(root), "workflow-recovery");
+    if (!lstatSync(directory, { throwIfNoEntry: false })) mkdirSync(directory, { mode: 0o700 });
+    if (!lstatSync(directory).isDirectory()) throw new Error("the recovery location is not a real directory");
+    backup = join(directory, `${recoveryId}.json`);
+    writeFileAtomic(backup, JSON.stringify({ name: input.name, place: input.place, workflow: found.workflow, sha256: found.sha256, botId: found.botId }), { mode: 0o600 });
+  } catch {
+    return { error: "The workflow could not be backed up, so it was not changed." };
+  }
+  const discard = () => { try { rmSync(backup, { force: true }); } catch {} };
+  const originalIntact = () => {
+    const current = readAt(input.place, input.name, root);
+    return current?.sha256 === found.sha256 && JSON.stringify(current.workflow) === JSON.stringify(found.workflow);
+  };
+  const restore = () => {
+    if (originalIntact()) return true;
+    try {
+      if (readAt(input.place, input.name, root)) return false;
+      write(input.place, input.name, found.workflow, found.botId, root);
+      return originalIntact();
+    } catch { return false; }
+  };
+  try {
+    const gone = erase(input.place, input.name, found.sha256, root);
+    if (!("removed" in gone)) {
+      if (originalIntact()) discard();
+      return "error" in gone ? gone : { stale: true };
+    }
+    const written = write(input.place, input.name, checked.data, found.botId, root);
+    if (!("error" in written)) { discard(); return written; }
+    if (restore()) { discard(); return written; }
+    return { error: `The update failed; the original is in recovery (${recoveryId}).` };
+  } catch {
+    if (restore()) { discard(); return { error: "The update failed; the original workflow was restored." }; }
+    return { error: `The update failed; the original is in recovery (${recoveryId}).` };
+  }
 }
 
 /** Rename: the same burger under a new name in the same place, with its SKILL.md written for that name. */

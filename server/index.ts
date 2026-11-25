@@ -2,7 +2,7 @@
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
 import { assertWorkBotStopAllowed as assertWorkBotStop, cancelWorkBotRoutes, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
 import { createWorkBotTypedStop } from "./host/work-bot-typed-stop.ts";
-import { assertWorkBotRoutineSafe } from "./host/work-bot-routine-guard.ts";
+import { assertWorkBotRoutineSafe, shouldHoldWorkBotHandoff } from "./host/work-bot-routine-guard.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
 import { createProfileModelResponder } from "./host/profile-model-responder.ts";
@@ -9357,6 +9357,7 @@ function offerWorkBot(botId: string, threadId: string, text: string, owner: stri
 const workBotHost = createWorkBotHost({
   store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked: settleTrackedRequest,
   assertAvailable: (botId, threadId) => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); if (botId && threadId) { const paused = botHolds.text(botId, threadLanguage(threadId)) ?? starterCaps.pausedText(botId, threadLanguage(threadId)); if (paused) throw Object.assign(new Error(paused), { status: 409 }); } },
+  shouldHold: (source, thread, target) => shouldHoldWorkBotHandoff({ routines, apps: appTriggers.manager, webhooks, calendarCalls, waits: botWaits }, source, thread, target),
   offerWorkBot, teamPersonFor: person => teamOwners.people?.everyone().find(entry => personKey({ id: "", email: entry.email }) === person),
   sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(),
   teamHost, conversationShares, threadStarters, threadBusy, approvalMode: sourceApprovalMode, startTurn,
@@ -9364,7 +9365,6 @@ const workBotHost = createWorkBotHost({
 const { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets } = workBotHost;
 for (const pending of pendingWorkBotRoutes()) { workBotRouter.recoverDispatch(pending.threadId, pending.message.id); if (pending.message.workBotRouting?.state === "waiting_choice" && pending.message.workBotRouting.requestId) workBotHost.annotateOfferContext(pending.threadId, pending.message.id, pending.message.workBotRouting.requestId); }
 recoverWorkBotTargets();
-
 const resolveAndSendTeamSetup = createTeamSetupResponder({ store,
   workBotChoiceLocks,
   assertAvailable: workBotHost.assertAvailable,

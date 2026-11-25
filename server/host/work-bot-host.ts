@@ -118,7 +118,7 @@ export function createWorkBotHost(deps: {
   threadStarters: { get(threadId: string): string | undefined; setRequired(threadId: string, person: string): void };
   threadBusy(botId: string, threadId: string): boolean;
   approvalMode(botId: string, threadId: string): import("../../shared/approval-mode.ts").ApprovalMode;
-  shouldHold?(sourceBotId: string, sourceThreadId: string, targetBotId: string): boolean;
+  shouldHold(sourceBotId: string, sourceThreadId: string, targetBotId: string): boolean;
   startTurn(botId: string, text: string, opts: { threadId: string; userMessage?: Message; sender?: Message["sender"]; trigger: UsageTrigger; replyTo?: ReplyTarget; dataContext?: Message["dataContext"]; sendId?: string; allowRoomTurnElsewhere: true; workBotRoutingMessageId: string; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredText?: string[]; transferredMessageIds?: string[] } }): Promise<unknown>;
 }) {
   const { store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked, assertAvailable, offerWorkBot, teamPersonFor, sessionFor, cloudTeam, sharedNonTeam, teamHost, conversationShares, threadStarters, threadBusy, startTurn } = deps;
@@ -334,7 +334,7 @@ const workBotRouter = new WorkBotRouter({
           const copied = store.appendWorkBotContext(target.threadId, rows, first ? { claim: { botId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, queueIds, trigger: first.trigger, offerOwner: first.workBotOfferOwner }, afterCommit: () => forgetTransferredWorkBotFollowups(route.sourceBotId!, threadId, messageId, queueIds) } : undefined, { sourceBotId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, targetBotId: target.botId, targetThreadId: target.threadId }, held ? { expectedSourceLeaf: sourceLeaf } : undefined);
           return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}), ...(followups.length ? { transferredText: followups.map(item => item.text), transferredMessageIds: queueIds.map(id => copied.get(id)!.id) } : {}) };
         };
-        if (deps.shouldHold?.(route.sourceBotId, threadId, target.botId)) {
+        if (deps.shouldHold(route.sourceBotId, threadId, target.botId)) {
           prepare(true);
           heldCommitted = true;
           indexWorkBotRouting(threadId, messageId, "held_for_review");

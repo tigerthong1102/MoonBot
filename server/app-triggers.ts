@@ -221,7 +221,7 @@ export class AppTriggerManager {
   }
 
   mutationActivity(): "unreadable" | "changing" | "no-mutation" {
-    return this.unreadable ? "unreadable" : this.mutationsInFlight > 0 ? "changing" : "no-mutation";
+    return this.unreadable || this.heldUnreadable ? "unreadable" : this.mutationsInFlight > 0 ? "changing" : "no-mutation";
   }
 
   private async trackMutation<T>(work: () => Promise<T>): Promise<T> {

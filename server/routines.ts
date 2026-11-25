@@ -6,7 +6,7 @@ import { DATA_DIR } from "./config.ts";
 import type { RuntimeEvent } from "./contracts.ts";
 import { OwnedFile } from "./atomic.ts"; import { saveSoon } from "./save-batch.ts"; import { RunProgressSave } from "./routine-progress-save.ts";
 import { redactSecretsInText } from "./redact.ts";
-import { activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
+import { hasScheduledHandoffWork, activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
@@ -386,10 +386,12 @@ export class RoutineManager {
   /** Files every saved routine and run names, unloaded rows too; null while routines.json is unreadable or a row's attachments are malformed, so nothing can clear them. */
   attachmentPaths(): string[] | null { return this.unreadable || this.malformedAttachments ? null : attachmentPathsOf([...this.routines, ...this.unloadedRoutines, ...this.runs]); }
 
+  hasWorkForHandoff(matches: (row: { botId: string; sourceThreadId?: string; resultsThreadId?: string; threadId?: string }) => boolean): boolean {
+    return this.unreadable || hasScheduledHandoffWork(this.routines, this.unloadedRoutines, this.runs, matches);
+  }
   listRoutines(): Routine[] {
     return this.routines.map(routine => this.routineWithHealth(routine));
   }
-
   clearFrozenResultsThreads(): void {
     if (!this.frozenPending) return;
     for (const routine of this.routines) {

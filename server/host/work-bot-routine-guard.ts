@@ -1,6 +1,6 @@
 import { botMoveMayRestoreWork } from "./work-bot-move-conflict.ts";
 import { serverLine } from "../server-lines.ts";
-import type { Routine, RoutineRequestCommit, RoutineRun } from "../routines.ts";
+import type { Routine, RoutineManager, RoutineRequestCommit, RoutineRun } from "../routines.ts";
 import type { Store } from "../store.ts";
 
 export function assertWorkBotRoutineSafe(store: Store, language: (threadId: string) => string | undefined, request: Pick<RoutineRequestCommit, "botId" | "threadId" | "messageId">, routines: readonly Routine[], runs: readonly RoutineRun[], links: (threadId: string, botId: string) => import("../work-bot-message-db.ts").WorkBotLink[] = () => []): void {
@@ -20,4 +20,24 @@ export function assertWorkBotRoutineSafe(store: Store, language: (threadId: stri
   if (related.some(link => !link.botId || (link.botId !== request.botId && botMoveMayRestoreWork(store.bot?.(link.botId)))) || routines.some(routine => (routine.enabled || routine.heldFor !== undefined) && relatedEntry(routine)) || runs.some(run => relatedEntry(run) && ["queued", "running", "waiting"].includes(run.status))) {
     throw Object.assign(new Error(serverLine(language(request.threadId), "server.workBot.scheduleConflict")), { status: 409, code: "work_bot_schedule_conflict" });
   }
+}
+
+
+type HandoffAutomationSources = {
+  routines: Pick<RoutineManager, "hasWorkForHandoff"> | null;
+  apps: Pick<import("../app-triggers.ts").AppTriggerManager, "mutationActivity" | "list">;
+  webhooks: Pick<import("../webhooks.ts").WebhookManager, "hasWorkForHandoff">;
+  calendarCalls: Pick<import("../calendar-calls.ts").CalendarCallManager, "list"> | null;
+  waits: Pick<import("../waits.ts").WaitManager, "list">;
+};
+
+export function shouldHoldWorkBotHandoff(sources: HandoffAutomationSources, sourceBotId: string, sourceThreadId: string, targetBotId: string): boolean {
+  const owns = (entry: { botId: string; sourceThreadId?: string; resultsThreadId?: string; threadId?: string }) =>
+    entry.botId === targetBotId || entry.sourceThreadId === sourceThreadId || entry.resultsThreadId === sourceThreadId ||
+    entry.threadId === sourceThreadId || (entry.botId === sourceBotId && !entry.sourceThreadId);
+  return !sources.routines || sources.routines.hasWorkForHandoff(owns) ||
+    sources.apps.mutationActivity() !== "no-mutation" || sources.apps.list().some(trigger => trigger.enabled && owns(trigger)) ||
+    sources.webhooks.hasWorkForHandoff(owns) ||
+    Boolean(sources.calendarCalls?.list().some(call => call.nextRunAt != null && (call.botIds.includes(sourceBotId) || call.botIds.includes(targetBotId)))) ||
+    sources.waits.list(sourceBotId).some(wait => wait.threadId === sourceThreadId) || sources.waits.list(targetBotId).length > 0;
 }

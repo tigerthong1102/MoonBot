@@ -1,12 +1,12 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
 
-it("creates one synthetic schedule only in the approved work bot", async () => {
+it.each(["new", "already scheduled"] as const)("runs delegated work once or holds an existing schedule: %s", async scenario => {
   const dir = mkdtempSync(join(tmpdir(), "work-bot-schedule-"));
   const routes = join(dir, "routes.json");
   const prompts = join(dir, "prompts.jsonl");
@@ -38,11 +38,27 @@ it("creates one synthetic schedule only in the approved work bot", async () => {
     const weekday = weekdays[(new Date().getDay() + 3) % 7];
     const plan = join(fixture.info.dataDir, "room-plan.json");
     writeFileSync(plan, JSON.stringify({ [targetId]: { steps: [{ tool: "create_trigger", arguments: { when: "schedule", name: "Synthetic stock fixture", instructions: "Check the synthetic fixture only.", schedule: { type: "weekly", time: "03:01", weekdays: [weekday] } } }], reply: "Synthetic schedule created." } }));
+    if (scenario === "already scheduled") {
+      await api("/api/routines", { botId: main.id, name: "Existing synthetic stock check", prompt: text, target: "bot", enabled: true,
+        schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 86_400_000 }, sameConversation: true });
+    }
     const before = (await api<{ routines: unknown[] }>("/api/routines")).routines.length;
     const answer = () => api<{ result: { bots: Array<{ id: string }> } }>(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior: "allow" });
     const accepted = await answer();
     await answer();
     const worker = (await api<{ bots: BotRecord[] }>("/api/bots?messages=0")).bots.find(bot => bot.id === accepted.result.bots[0]?.id)!;
+    if (scenario === "already scheduled") {
+      const sourceMessageId = card.teamSetupRequest!.workBotOffer!.sourceMessageId;
+      expect((await rows(main.threadId)).find(row => row.id === sourceMessageId)?.workBotRouting?.state).toBe("held_for_review");
+      const held = (await rows(worker.threadId)).filter(row => row.workBotReviewHold && row.workBotHandoffSource?.messageId === sourceMessageId);
+      expect(held.map(row => row.text)).toEqual([text, followUp]);
+      expect(held.every(row => row.requestPending === false)).toBe(true);
+      expect((await api<{ routines: unknown[] }>("/api/routines")).routines).toHaveLength(before);
+      expect(existsSync(plan + ".evidence.jsonl")).toBe(false);
+      const workPrompts = existsSync(prompts) ? readFileSync(prompts, "utf8").trim().split("\n").filter(row => row.includes(text)) : [];
+      expect(workPrompts).toHaveLength(0);
+      return;
+    }
     await expect.poll(async () => (await rows(worker.threadId)).some(row => row.role === "bot" && row.text === "Synthetic schedule created."), { timeout: 30000 }).toBe(true);
     expect((await rows(worker.threadId)).some(row => row.role === "user" && row.text === followUp)).toBe(true);
     const routines = (await api<{ routines: Array<{ name: string; botId: string; sourceThreadId: string }> }>("/api/routines")).routines;

@@ -58,3 +58,12 @@ export function schedulerDueOf<R extends Due>(routines: readonly R[], runs: read
   }
   return at === Infinity ? null : at;
 }
+
+export function hasScheduledHandoffWork(
+  routines: readonly Routine[], unloaded: readonly Routine[], runs: readonly RoutineRun[],
+  matches: (row: Routine | RoutineRun) => boolean,
+): boolean {
+  const mayRun = (routine: Routine) => (routine.enabled || routine.heldFor !== undefined) && matches(routine);
+  return routines.some(mayRun) || unloaded.some(mayRun) ||
+    runs.some(run => (run.status === "queued" || run.status === "running" || run.status === "waiting") && matches(run));
+}

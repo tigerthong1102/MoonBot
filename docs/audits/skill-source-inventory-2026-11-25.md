@@ -72,3 +72,11 @@ This change preserves eight original Apache-2.0 guides for comparison; it does n
 | media-use | 131 | 103 | 27 | 1 |
 
 Further work: review differences within modified instructions, verify dependencies and commercial redistribution rights for each excluded file, implement safe equivalents where feasible, and exercise each workflow with real tools and authorized service accounts. Do not classify all skills as complete from this inventory.
+
+## Additional verification and open gaps
+
+All 62 catalog entries were invoked with GPT-6-Luna in isolated StartupBot server fixtures using synthetic inputs. Those invocations have different scopes: some created simple local artifacts; many only reported missing inputs or service access. They do not establish upstream equivalence, successful external-service integration or production readiness. The Chengfeng transcript-only fallbacks produced draft suggestions; Chengfeng Studio itself was not available. The webapp-testing fixture did not run a browser.
+
+An isolated packaged macOS app containing PR #72 rendered an 11.2-second, 1080×1920 H.264/AAC video with GPT-6-Luna and licensed stock footage. This verifies a specific local workflow, not AI-generated cinematic footage or general creative quality. A clean-home command-discovery fixture did not find HyperFrames, FFmpeg or Node; the packaging and first-run setup for a clean customer machine remain unverified.
+
+The test explicitly requested no network access, but the HyperFrames 0.9.88 `check` log showed downloads of OpenCV.js and two classifiers. Existing instructions are not an enforcement boundary. An experimental macOS outbound-blocking sandbox blocked Internet access and allowed loopback, but the copied project's browser check failed to launch in that setup. Reliable offline execution and cross-platform behavior remain unresolved; do not claim offline operation until the complete process tree is isolated and verified.

@@ -12,3 +12,12 @@ it("tells the person to restart when cleanup could not safely finish", () => {
   expect(html).toContain("server.workBot.restartToRecover");
   expect(html).not.toContain("chat.stop");
 });
+
+it("shows a red review warning for staged work", () => {
+  const message = { id: "fixture", role: "user", kind: "text", text: "fixture", workBotReviewHold: true } as Message;
+  const html = renderToStaticMarkup(createElement(WorkBotRoutingStatus, { message, botId: "bot", threadId: "thread", dispatch: vi.fn() }));
+  expect(html).toContain("text-danger");
+  expect(html).toContain("workBotRouting.held_for_review");
+  const copied = { ...message, workBotCopy: { sourceThreadId: "source", sourceMessageId: "old", requestMessageId: "request" } };
+  expect(renderToStaticMarkup(createElement(WorkBotRoutingStatus, { message: copied, botId: "bot", threadId: "thread", dispatch: vi.fn() }))).toBe("");
+});

@@ -28,8 +28,8 @@ export function routedWorkMarker(m: Pick<Message, "workBotReviewHold" | "workBot
   if (m.workBotRouting?.state === "cancelled" || m.workBotCopy?.status === "cancelled" || (m.requestCancelled && (m.workBotRouting || m.workBotHandoffSource))) return "[This earlier request was stopped. Its execution status may be uncertain. Do not execute or repeat it automatically; check its results and ask before retrying.]";
   if (m.workBotExecutionUncertain || m.workBotRecoveryPending || m.workBotCopy?.status === "unsettled" || (m.requestPending && (m.workBotRouting || m.workBotHandoffSource))) return "[This earlier request may already have started. Do not repeat it automatically; check its results and ask before retrying.]";
   const route = m.workBotRouting;
-  if (!route?.sourceBotId || !route.targetBotId || route.sourceBotId === route.targetBotId || !["dispatching", "dispatched", "interrupted", "held_for_review"].includes(route.state)) return undefined;
-  if (route.state === "held_for_review") return "[This request was sent to another bot and held for review. Do not execute it automatically.]";
+  if (route?.state === "held_for_review") return "[This request was sent to another bot and held for review. Do not execute it automatically.]";
+  if (!route?.sourceBotId || !route.targetBotId || route.sourceBotId === route.targetBotId || !["dispatching", "dispatched", "interrupted"].includes(route.state)) return undefined;
   return route.state === "interrupted"
     ? "[This request was handed to another bot, but its execution status is uncertain. Do not repeat it here; check the assigned bot before any retry.]"
     : "[This request was assigned to another bot. Do not execute or repeat it here; continue the work in the assigned bot.]";

@@ -243,7 +243,7 @@ it("upgrades original catalog folders and keeps their review choices", () => {
       if (["xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech"].includes(name)) {
         cpSync(join("skills/catalog", name), join(catalog, name), { recursive: true });
         rmSync(join(catalog, name, "references"), { recursive: true, force: true });
-        if (name === "pptx") rmSync(join(catalog, name, "scripts"), { recursive: true, force: true });
+        if (["pptx", "byted-text-to-speech"].includes(name)) rmSync(join(catalog, name, "scripts"), { recursive: true, force: true });
       }
       cpSync(join("server/testing/fixtures/startupbot-old-skills", name), join(catalog, name), { recursive: true });
       if (name === "producthunt") {
@@ -344,6 +344,35 @@ it("preserves a customized HyperFrames reference during catalog upgrade", () => 
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize - 1, failed: [] });
     expect(readFileSync(reference, "utf8")).toBe(custom);
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("upgrades ByteDance TTS while preserving approval and customized files", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-tts-upgrade-"));
+  try {
+    const catalog = join(root, "catalog"), library = join(root, "library");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/byted-text-to-speech", join(catalog, "byted-text-to-speech"), { recursive: true });
+    rmSync(join(catalog, "byted-text-to-speech/scripts"), { recursive: true });
+    rmSync(join(catalog, "byted-text-to-speech/references"), { recursive: true });
+    restoreAuditSnapshot("byted-tts-previous", join(catalog, "byted-text-to-speech"));
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => entry.name === "byted-text-to-speech");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("byted-text-to-speech", "approved", library)).not.toHaveProperty("error");
+    expect(readSkillLibraryIndex(library)["byted-text-to-speech"].filesSha256).toBe("bf61c65be94d325d24af668418909ca639f1a4e17d2dce2c059d5a508530a778");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
+    expect(readSkillLibraryIndex(library)["byted-text-to-speech"].reviewState).toBe("approved");
+    expect(readSkillLibraryIndex(library)["byted-text-to-speech"].files).toContain("scripts/synthesize.mjs");
+    const customLibrary = join(root, "custom-library");
+    expect(installStartupBotSkillCatalog({ catalog, root: customLibrary })).toEqual({ installed: 1, failed: [] });
+    const customPath = join(customLibrary, "skills/byted-text-to-speech/SOURCE.md");
+    const customized = readFileSync(customPath, "utf8") + "\nUser customization.\n";
+    writeFileSync(customPath, customized);
+    expect(installStartupBotSkillCatalog({ root: customLibrary })).toEqual({ installed: catalogSize - 1, failed: [] });
+    expect(readFileSync(customPath, "utf8")).toBe(customized);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

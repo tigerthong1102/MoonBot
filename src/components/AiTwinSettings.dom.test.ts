@@ -81,3 +81,19 @@ it("shows the latest profile after a conflicting save before another edit is all
   expect(profile.querySelector("input")?.value).toBe("Latest AI");
   expect(profile.querySelector("textarea")?.value).toBe("Use short paragraphs.");
 });
+
+it("exposes a keyboard-button disclosure linked to the preview panel", async () => {
+  apiMock.mockResolvedValueOnce({ creationEpoch: "initial", twin: {
+    id: "test", name: "Example AI", style: "", revision: 1, paused: false, createdAt: 1, updatedAt: 1,
+  } });
+  const profile = await mount();
+  const toggle = button(profile, "Try a reply");
+  const panel = document.getElementById(toggle.getAttribute("aria-controls")!);
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(panel?.hidden).toBe(true);
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(panel?.hidden).toBe(false);
+  await act(async () => toggle.click());
+  expect(panel?.hidden).toBe(true);
+});

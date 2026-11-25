@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AI_TWIN_PREVIEW_PATH, AI_TWIN_QUESTION_MAX, type AiTwinPreviewProvider, type AiTwinProfile } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
+import { AiTwinDisclosure } from "./AiTwinDisclosure";
 import { SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 
 export function AiTwinPreview({ twin, provider, refresh }: {
@@ -43,18 +44,16 @@ export function AiTwinPreview({ twin, provider, refresh }: {
   }
 
   return (
-    <details open={open} onToggle={(event) => {
-      setOpen(event.currentTarget.open);
-      if (!event.currentTarget.open) {
-        const running = abort.current;
-        running?.abort();
+    <AiTwinDisclosure title={t("settings.aiTwin.preview")} open={open} onToggle={() => {
+      setOpen(!open);
+      if (open) {
+        abort.current?.abort();
         setPending(false);
         setQuestion("");
         setDraft("");
         setError(null);
       }
     }}>
-      <summary className="cursor-pointer text-[13px] font-medium text-ink">{t("settings.aiTwin.preview")}</summary>
       {open && provider ? (
         <form onSubmit={generate} className="mt-3 flex flex-col gap-2">
           <SettingsField label={t("settings.aiTwin.sampleQuestion")} hint={t("settings.aiTwin.previewDisclosure", { provider: provider.name, model: provider.model })}>
@@ -80,6 +79,6 @@ export function AiTwinPreview({ twin, provider, refresh }: {
           )}
         </form>
       ) : open && <p className="mt-2 text-[13px] text-ink-secondary">{t("settings.aiTwin.noPreviewProvider")}</p>}
-    </details>
+    </AiTwinDisclosure>
   );
 }

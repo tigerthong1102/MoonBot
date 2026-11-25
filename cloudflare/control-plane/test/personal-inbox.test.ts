@@ -892,6 +892,17 @@ it("consumes a signed bot claim once and rejects expired or cross-room proofs", 
   expect(await env.INBOX_DB.prepare("SELECT id FROM inbox_bots WHERE id=?").bind(expiredBot).first()).toBeNull();
 });
 
+it("retries an invitation after a lost response without creating a second bot or membership", async () => {
+  const owner = await login("owner@example.test"), room = uuid(), bot = uuid(), key = await botKey();
+  await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" });
+  const first = await signedBotClaim(owner, room, bot, key);
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot, name: "Fixture", ...first })).status).toBe(200);
+  const retry = await signedBotClaim(owner, room, bot, key);
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot, name: "Fixture", ...retry })).status).toBe(200);
+  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_bots WHERE id=?").bind(bot).first()).toEqual({ n: 1 });
+  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_room_bots WHERE room=? AND bot=?").bind(room, bot).first()).toEqual({ n: 1 });
+});
+
 it("rate limits attempts to register bot claims", async () => {
   const owner = await login("owner@example.test"), room = uuid(), bot = uuid();
   await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" });

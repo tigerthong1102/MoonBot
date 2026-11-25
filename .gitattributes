@@ -65,6 +65,7 @@ scripts/sync-phone-protocol.mjs text eol=lf
 skills/** text eol=lf
 skills/catalog/hyperframes/assets/frame-presets/code-editorial/fonts/*.woff2 binary
 server/testing/fixtures/startupbot-old-skills/** text eol=lf
+server/testing/fixtures/hyperframes-in-app-previous/** text eol=lf
 skills/catalog/hyperframes/assets/frame-presets/code-editorial/fonts/*.woff2 binary
 
 shared/settings-places.ts text eol=lf

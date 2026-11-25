@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinView } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
+import { randomUuid } from "@/lib/random-uuid";
 import { api, ApiError } from "@/state/api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Card, SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
@@ -75,7 +76,7 @@ export function AiTwinSettings() {
     if (twin) {
       void write("PATCH", { id: twin.id, revision: twin.revision, name, style, paused: twin.paused });
     } else {
-      requestKey.current ??= crypto.randomUUID();
+      requestKey.current ??= randomUuid();
       void write("POST", { name, creationEpoch: view.creationEpoch, creationId: requestKey.current, createConsent: true });
     }
   }

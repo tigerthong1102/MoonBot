@@ -59,7 +59,7 @@ function refsIn(node: unknown, into = new Set<string>()): Set<string> {
   return into;
 }
 
-const needsOf = (step: WorkflowStep) => [...refsIn({ ...step, id: undefined })].filter((id) => id !== step.id);
+export const needsOf = (step: WorkflowStep) => [...refsIn({ ...step, id: undefined })].filter((id) => id !== step.id);
 
 function detailOf(step: WorkflowStep): string | undefined {
   switch (step.kind) {

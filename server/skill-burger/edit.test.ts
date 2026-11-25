@@ -19,6 +19,16 @@ it("rejects decision rules that point to an unlisted case", () => {
   expect(workflowSchema.safeParse({ ...base, steps: [base.steps[0], { ...decision, rules: undefined, prompt: "Pick", otherwise: "sales" }] }).success).toBe(false);
 });
 
+it("refuses to remove case output or a decision used by another step", () => {
+  const decision = { id: "d1", kind: "decide", label: "Pick", cases: ["support"], prompt: "Pick" };
+  const producer = { id: "c1", kind: "app", app: "linear", tool: "LINEAR_CREATE_ISSUE", label: "Create", args: {}, when: onCase("d1", "support") };
+  for (const source of ["d1", "c1"]) {
+    const dependent = { id: "s2", kind: "app", app: "slack", tool: "SLACK_SEND_MESSAGE", label: "Notify", args: { text: { $step: source, path: "id" } } };
+    const workflow = workflowSchema.parse({ ...base, steps: [base.steps[0], decision, producer, dependent] });
+    expect(applyEdit(workflow, edit({ action: "remove_case", decide: "d1", case: "support" }))).toMatchObject({ error: expect.stringContaining("Notify") });
+  }
+});
+
 it("shows case restrictions and checks for delegated and decision steps", () => {
   const workflow = workflowSchema.parse({ ...base, steps: [base.steps[0], { id: "d1", kind: "decide", label: "Pick", cases: ["support"], prompt: "Pick" }, { id: "s2", kind: "delegate", label: "Ask", tasks: [{ bot: { name: "Rui" }, message: "Inspect" }], when: onCase("d1", "support"), check: { says: "reply exists" } }] });
   expect(renderWorkflowSkillMd("fixture", workflow)).toContain('[only when d1 is "support"] Teammates:');

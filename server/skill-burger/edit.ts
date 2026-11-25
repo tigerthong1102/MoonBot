@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { caseName, caseOf, onCase, workflowStepSchema, type Workflow, type WorkflowStep } from "../../shared/skill-burger/format.ts";
-import { renameArg } from "../../shared/skill-burger/draft-view.ts";
+import { needsOf, renameArg } from "../../shared/skill-burger/draft-view.ts";
 
 const condition = z.object({ $step: z.string(), path: z.string().max(200).optional(), op: z.enum(["eq", "ne", "gt", "lt", "exists"]), value: z.unknown().optional() }).strict();
 
@@ -72,7 +72,10 @@ export function applyEdit(workflow: Workflow, edit: WorkflowEdit): Workflow | { 
     const cases = decide.cases.filter((one) => one !== edit.case);
     const rules = decide.rules?.filter((rule) => rule.case !== edit.case);
     const next = { ...decide, cases, ...(rules ? { rules } : {}), ...(decide.otherwise === edit.case ? { otherwise: undefined } : {}) };
-    return { ...workflow, steps: cases.length ? kept.map((step) => (step.id === edit.decide ? next : step)) : kept.filter((step) => step.id !== edit.decide) };
+    const remaining = cases.length ? kept.map((step) => (step.id === edit.decide ? next : step)) : kept.filter((step) => step.id !== edit.decide);
+    const removed = new Set(steps.filter((step) => !remaining.some((one) => one.id === step.id)).map((step) => step.id));
+    const dependent = remaining.find((step) => needsOf(step).some((id) => removed.has(id)));
+    return dependent ? { error: `The step "${dependent.label}" depends on a step in the removed case.` } : { ...workflow, steps: remaining };
   }
   let decideId = edit.decide.id;
   let at = decideId ? steps.findIndex((step) => step.id === decideId) : -1;

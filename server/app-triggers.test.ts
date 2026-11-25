@@ -983,6 +983,84 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns()).toHaveLength(0);
   });
 
+  it.each(["pause", "delete"] as const)("keeps queued work held and delivers new work after an empty broker poll when the old automation is %s", async action => {
+    const links = () => true;
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, `old-${action}`);
+    if (action === "pause") await triggers.update(first.id, { enabled: false });
+    else await triggers.remove(first.id);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
+    expect(routines.listRuns()).toHaveLength(0);
+    await triggers.pollOnce(undefined, 0);
+    triggers = manager({ linkedBots: links });
+    await broker.deliver(second.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, `new-${action}`);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
+    expect(routines.listRuns().map(run => run.botId)).toEqual([second.botId]);
+  });
+
+  it("does not treat an empty poll as a drain when a mutation overlaps it", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client, linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.update(first.id, { enabled: false });
+    let finish!: (result: { events: BrokerEvent[]; cursor: number }) => void;
+    vi.spyOn(client, "poll").mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const pending = triggers.pollOnce(undefined, 0);
+    await triggers.update(second.id, { name: "Edited fixture" });
+    finish({ events: [], cursor: 0 });
+    await pending;
+    const owners = JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).bindingOwners as Array<{ botId: string }>;
+    expect(owners.map(owner => owner.botId)).toContain(first.botId);
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "mutation-overlap");
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("does not retire a previous owner while another poll overlaps", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client, linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.update(first.id, { enabled: false });
+    const finishes: Array<(result: { events: BrokerEvent[]; cursor: number }) => void> = [];
+    vi.spyOn(client, "poll").mockImplementation(() => new Promise(resolve => { finishes.push(resolve); }));
+    const firstPoll = triggers.pollOnce(undefined, 0);
+    const secondPoll = triggers.pollOnce(undefined, 0);
+    expect(finishes).toHaveLength(2);
+    finishes[0]!({ events: [], cursor: 0 });
+    await firstPoll;
+    finishes[1]!({ events: [], cursor: 0 });
+    await secondPoll;
+    const owners = JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).bindingOwners as Array<{ botId: string }>;
+    expect(owners.map(owner => owner.botId)).toContain(first.botId);
+  });
+
+  it("does not treat an empty poll as a drain if a mutation was already in progress", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client, linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
+    let finishMutation!: () => void;
+    vi.spyOn(client, "setEnabled").mockImplementationOnce(() => new Promise(resolve => { finishMutation = resolve; }));
+    const mutation = triggers.update(first.id, { enabled: false });
+    await vi.waitFor(() => expect(finishMutation).toBeTypeOf("function"));
+    let finishPoll!: (result: { events: BrokerEvent[]; cursor: number }) => void;
+    vi.spyOn(client, "poll").mockImplementationOnce(() => new Promise(resolve => { finishPoll = resolve; }));
+    const pending = triggers.pollOnce(undefined, 0);
+    finishMutation();
+    await mutation;
+    finishPoll({ events: [], cursor: 0 });
+    await pending;
+    const owners = JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).bindingOwners as Array<{ botId: string }>;
+    expect(owners.map(owner => owner.botId)).toContain(first.botId);
+  });
+
   it("does not transfer an older event merely because its original automation was paused", async () => {
     const links = () => true;
     let triggers = manager({ linkedBots: links });

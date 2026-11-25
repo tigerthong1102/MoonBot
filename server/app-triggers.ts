@@ -145,7 +145,7 @@ const fileSchema = z.object({
   attempts: z.array(attemptSchema).default([]),
   deleted: z.array(z.object({ at: z.number(), trigger: storedSchema })).default([]),
   heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })])).default([]),
-  bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).default([]),
+  bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).optional(),
 });
 const heldStoreSchema = z.object({ version: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional(), allowedTriggerIds: z.array(z.string()).optional(), heldBotIds: z.array(z.string()).optional(), heldTriggerIds: z.array(z.string()).optional(), discarded: z.literal(true).optional(), eventDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(), sourceScope: z.string().min(1).max(128).optional() })) });
 type HeldEvent = { reason: "conflict" | "unknown"; event?: BrokerEvent; allowedTriggerIds?: string[]; heldBotIds?: string[]; heldTriggerIds?: string[]; discarded?: true; eventDigest?: string; sourceScope?: string };
@@ -232,6 +232,9 @@ export class AppTriggerManager {
   private cursorReviewTimer: ReturnType<typeof setTimeout> | null = null;
   private unreadable = false;
   private mutationsInFlight = 0;
+  private mutationGeneration = 0;
+  private pollsInFlight = 0;
+  private pollGeneration = 0;
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
@@ -264,8 +267,9 @@ export class AppTriggerManager {
       this.deleted = parsed.data.deleted.filter((entry) => entry.at >= this.now() - RESTORE_WINDOW_MS);
       this.heldEvents = new Map(parsed.data.heldEvents.map(row => typeof row === "string" ? [row, { reason: "conflict" as const }] : [row.id, { reason: row.reason, ...(row.event ? { event: row.event } : {}) }]));
       embeddedEvents = parsed.data.heldEvents.some(row => typeof row !== "string" && row.event !== undefined);
-      for (const owner of parsed.data.bindingOwners) this.rememberBindingOwner(owner.remoteId, owner.botId);
-      for (const trigger of [...parsed.data.triggers, ...parsed.data.deleted.map(entry => entry.trigger)]) {
+      for (const owner of parsed.data.bindingOwners ?? []) this.rememberBindingOwner(owner.remoteId, owner.botId);
+      const previousBindings = parsed.data.bindingOwners ? parsed.data.triggers.filter(trigger => trigger.enabled) : [...parsed.data.triggers, ...parsed.data.deleted.map(entry => entry.trigger)];
+      for (const trigger of previousBindings) {
         if (trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
       }
     } catch (error) {
@@ -355,6 +359,7 @@ export class AppTriggerManager {
 
   private async trackMutation<T>(work: () => Promise<T>): Promise<T> {
     this.mutationsInFlight++;
+    this.mutationGeneration++;
     try { return await work(); }
     finally { this.mutationsInFlight--; }
   }
@@ -724,7 +729,8 @@ export class AppTriggerManager {
         const previous = this.options.runs.eventRecipients(event.id);
         for (const candidate of candidates) if (held?.heldBotIds?.some(bot => bot === candidate.botId || this.options.linkedBots!(bot, candidate.botId))) affected.add(candidate);
         const owners = event.triggerId && event.kind !== "test" ? [...(this.bindingOwners.get(event.triggerId) ?? [])] : [];
-        bound.forEach((first, index) => bound.slice(index + 1).forEach(second => {
+        const possiblyBound = event.kind === "test" ? bound : bound.filter(trigger => owners.includes(trigger.botId));
+        possiblyBound.forEach((first, index) => possiblyBound.slice(index + 1).forEach(second => {
           if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
         }));
         for (const candidate of candidates) {
@@ -824,6 +830,11 @@ export class AppTriggerManager {
 
   /** One long-poll: acks everything handled so far (the cursor) and handles what comes back. */
   async pollOnce(signal?: AbortSignal, waitS = POLL_WAIT_S): Promise<number> {
+    const onlyPoll = this.pollsInFlight++ === 0;
+    const pollGeneration = ++this.pollGeneration;
+    const mutationGeneration = this.mutationGeneration;
+    const mutationFree = this.mutationsInFlight === 0;
+    try {
     this.assertWritable();
     const after = this.cursor;
     const credential = this.options.acknowledgmentScope?.() ?? null;
@@ -843,8 +854,12 @@ export class AppTriggerManager {
     else { if (this.acknowledgedScope !== scope) this.acknowledgedCursor = 0; this.acknowledgedScope = scope; this.acknowledgedCredential = credential; this.acknowledgedCursor = Math.max(this.acknowledgedCursor, after); }
     try { if (response.events.length || response.cursor > this.cursor) this.receive(response.events, response.cursor, scope); }
     catch (error) { if (this.options.linkedBots) this.setCursorReview("event_problem"); throw error; }
+    if (this.options.linkedBots && scope && onlyPoll && mutationFree && this.pollsInFlight === 1 && this.pollGeneration === pollGeneration && this.mutationsInFlight === 0 && this.mutationGeneration === mutationGeneration && !response.events.length && response.cursor === after && this.cursor === after) {
+      this.forgetInactiveBindingOwners();
+    }
     if (this.options.linkedBots) this.setCursorReview(undefined);
     return response.events.length;
+    } finally { this.pollsInFlight--; }
   }
 
   private pollable(): boolean {
@@ -1028,6 +1043,22 @@ export class AppTriggerManager {
     this.bindingOwners.set(remoteId, owners);
   }
 
+  private forgetInactiveBindingOwners(): void {
+    const next = new Map<string, Set<string>>();
+    for (const trigger of this.triggers) if (trigger.enabled && trigger.remote.triggerId) {
+      const owners = next.get(trigger.remote.triggerId) ?? new Set<string>();
+      owners.add(trigger.botId);
+      next.set(trigger.remote.triggerId, owners);
+    }
+    if (next.size === this.bindingOwners.size && [...next].every(([id, owners]) => {
+      const previous = this.bindingOwners.get(id);
+      return previous?.size === owners.size && [...owners].every(owner => previous.has(owner));
+    })) return;
+    const previous = this.bindingOwners;
+    this.bindingOwners = next;
+    try { this.save(); } catch (error) { this.bindingOwners = previous; throw error; }
+  }
+
   private holdEvent(event: BrokerEvent, reason: "conflict" | "unknown", allowedTriggerIds?: string[], heldBotIds?: string[], heldTriggerIds?: string[], sourceScope: string | null = null): void {
     const existing = this.heldEvents.get(event.id);
     if (existing?.event && JSON.stringify(existing.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
@@ -1129,7 +1160,7 @@ export class AppTriggerManager {
   }
 
   private save(overrides: { cursor?: number } = {}): void {
-    for (const trigger of this.triggers) if (trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
+    for (const trigger of this.triggers) if (trigger.enabled && trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
     if (this.unreadable) return;
     if (this.heldUnreadable) throw new RetryAppEvent("Held event storage is unavailable");
     mkdirSync(dirname(this.file), { recursive: true });

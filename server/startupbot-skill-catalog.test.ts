@@ -59,6 +59,74 @@ it("upgrades verified audit snapshots while preserving approvals and customized 
   }
 });
 
+it("upgrades the merged media skill and preserves approval", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-media-security-upgrade-"));
+  try {
+    const catalog = join(root, "catalog");
+    const library = join(root, "library");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/media-use", join(catalog, "media-use"), { recursive: true });
+    restoreAuditSnapshot("media-use-current-previous", join(catalog, "media-use"));
+    restoreAuditSnapshot("media-use-security-previous", join(catalog, "media-use"));
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
+      .filter((entry: { name: string }) => entry.name === "media-use");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("media-use", "approved", library)).not.toHaveProperty("error");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
+    expect(readSkillLibraryIndex(library)["media-use"].reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/media-use/scripts/lib/media-fetch.mjs"), "utf8")).toContain("publicOnlyLookup");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("upgrades the merged HyperFrames skill and preserves approval", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-resolution-upgrade-"));
+  try {
+    const catalog = join(root, "catalog");
+    const library = join(root, "library");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    for (const file of ["scripts/bake-basemap.test.mjs", "scripts/lib/literal-media-input.mjs", "scripts/lib/trusted-package.mjs"]) rmSync(join(catalog, "hyperframes", file));
+    restoreAuditSnapshot("hyperframes-basemap-previous", join(catalog, "hyperframes"));
+    restoreAuditSnapshot("hyperframes-resolution-previous", join(catalog, "hyperframes"));
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8"))
+      .filter((entry: { name: string }) => entry.name === "hyperframes");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
+    expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("--resolution portrait-1440p");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: 0, failed: [] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("upgrades the installed HyperFrames basemap safely and preserves approval", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-basemap-upgrade-"));
+  try {
+    const catalog = join(root, "catalog"), library = join(root, "library");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    for (const file of ["scripts/bake-basemap.test.mjs", "scripts/lib/literal-media-input.mjs", "scripts/lib/trusted-package.mjs"]) rmSync(join(catalog, "hyperframes", file));
+    restoreAuditSnapshot("hyperframes-basemap-previous", join(catalog, "hyperframes"));
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => entry.name === "hyperframes");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("hyperframes", "approved", library)).not.toHaveProperty("error");
+    expect(readSkillLibraryIndex(library).hyperframes.filesSha256).toBe("226eb0a4300ceb9b4b26efec68740cce694bfc13da9153f2da74b6ea7c4a58d1");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
+    expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/hyperframes/scripts/bake-basemap.mjs"), "utf8")).toContain("trustedPackageEntry");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it("upgrades the latest verified catalog without overwriting customized skills", () => {
   const root = mkdtempSync(join(tmpdir(), "startupbot-full-upgrade-"));
   try {
@@ -235,6 +303,26 @@ it("preserves a customized HyperFrames reference during catalog upgrade", () => 
     expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize - 1, failed: [] });
     expect(readFileSync(reference, "utf8")).toBe(custom);
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("updates the installed media skill while preserving approval", () => {
+  const root = mkdtempSync(join(tmpdir(), "startupbot-media-current-upgrade-"));
+  try {
+    const catalog = join(root, "catalog"), library = join(root, "library");
+    mkdirSync(catalog);
+    cpSync("skills/catalog/media-use", join(catalog, "media-use"), { recursive: true });
+    restoreAuditSnapshot("media-use-current-previous", join(catalog, "media-use"));
+    const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => entry.name === "media-use");
+    writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
+    expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 1, failed: [] });
+    expect(setLibrarySkillReviewState("media-use", "approved", library)).not.toHaveProperty("error");
+    expect(readSkillLibraryIndex(library)["media-use"].filesSha256).toBe("a757fb78a1e1e543212e70068ec3e5c59beb96758666dae4fac4aad6f146660a");
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
+    expect(readSkillLibraryIndex(library)["media-use"].reviewState).toBe("approved");
+    expect(readFileSync(join(library, "skills/media-use/scripts/lib/media-fetch.mjs"), "utf8")).not.toContain("Tests replace `fetch`");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

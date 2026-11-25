@@ -8,6 +8,10 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["a757fb78a1e1e543212e70068ec3e5c59beb96758666dae4fac4aad6f146660a", "media-use"],
+  ["226eb0a4300ceb9b4b26efec68740cce694bfc13da9153f2da74b6ea7c4a58d1", "hyperframes"],
+  ["03e73f96b82124f1a13ba82c56d86ed3fa1a09ce4ee1f9bb8b0fbba88c4a9294", "media-use"],
+  ["988fc22ebfebc90afb8e0d6fd03049d52d9c039dd173c9b93dc4b96f785c4f58", "hyperframes"],
   ["1dff97bbde66b5b4af3d14c5aab56499d6742c5c1a23e80c0a88c4c0a2b2e999", "hyperframes"],
   ["759e4397580408711937ca57322c7c35ad026cc070c98b8deb2595ec037065e6", "pptx"],
   ["8826653319762358dc0f9dabe7c67a7bcaeed76731b548ddc23fb5240aef599a", "shopify"],
@@ -80,6 +84,8 @@ const additionalOlderInstructions = new Map([
   ["pptx", new Set(["fe5e12c18ff824da4ec41527e0a0035e4b6825c6dfeba0219b3e9543bb4106ef", "29405467d70f30b2ee3b2ad312bedbe16005061d2dac684eea2c80df0b95abcd"])],
   ["byted-seedream-image-generate", new Set(["6197608c6cca5877c44cafee20f0aca138d3c0ab56acb754809c149a773e35a1"])],
   ["hyperframes", new Set([
+    "08c71637864ffb4f1df7667377505e04cdf2f29986fafdfe8c0b2f822d3b377c",
+    "0a2f50a464c4b81f7ff433ad719a941d482fad10e75073976e4d685c1426ff18",
     "02ed02e7c4aa04cb65cd06630255b73d1e9727b1f6790df6c5d00512a7b91a73",
     "37fe24371f4a1ef2be2c2e6feeb3c7d1d45c177db5a508a83177080d26226dcd",
     "5b3f2384088aae01eaf835ec1588128387432f7ddc112321f80dfa22b3ab7880",
@@ -148,7 +154,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["shopify", "woocommerce", "product-discovery", "pricing-strategy", "business-finance-fundamentals", "team-leadership", "startup-idea", "comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
+        reviewState: ["media-use", "shopify", "woocommerce", "product-discovery", "pricing-strategy", "business-finance-fundamentals", "team-leadership", "startup-idea", "comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

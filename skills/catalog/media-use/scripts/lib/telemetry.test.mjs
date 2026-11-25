@@ -13,6 +13,7 @@ const ENV_KEYS = [
   "USERPROFILE",
   "HYPERFRAMES_CONFIG_DIR",
   "HYPERFRAMES_NO_TELEMETRY",
+  "STARTUPBOT_MEDIA_TELEMETRY",
   "DO_NOT_TRACK",
   "CI",
   "NODE_ENV",
@@ -33,6 +34,7 @@ function writeConfig(contents) {
 test.before(() => {
   for (const key of ENV_KEYS) delete process.env[key];
   process.env.HOME = process.env.USERPROFILE = home;
+  process.env.STARTUPBOT_MEDIA_TELEMETRY = "1";
 });
 
 test.after(() => {
@@ -41,6 +43,13 @@ test.after(() => {
     else process.env[key] = savedEnv[key];
   }
   rmSync(home, { recursive: true, force: true });
+});
+
+test("telemetry is disabled until explicitly enabled", () => {
+  writeConfig(null);
+  delete process.env.STARTUPBOT_MEDIA_TELEMETRY;
+  try { assert.equal(optedOut(), true); }
+  finally { process.env.STARTUPBOT_MEDIA_TELEMETRY = "1"; }
 });
 
 test("optedOut is false with no config and no opt-out env", () => {

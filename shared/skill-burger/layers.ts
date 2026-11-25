@@ -266,7 +266,8 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
   if (COORDINATE.test(tool.name)) {
     const call = delegateCall(input, tool.output);
     if (!call) return [];
-    return [{ ...base, id: message.id, kind: "delegate", tool: "coordinate_bots", words: call.bots.map((bot) => bot.name).join(", "), read: false, replay: clipped ? "ai" : "exact", delegation: { rounds: [[call]], replies: [] } }];
+    const files = Array.isArray(input?.files) && input.files.length > 0;
+    return [{ ...base, id: message.id, kind: "delegate", tool: "coordinate_bots", words: call.bots.map((bot) => bot.name).join(", "), read: false, replay: clipped || files ? "ai" : "exact", ...(files ? { args: input } : {}), delegation: { rounds: [[call]], replies: [] } }];
   }
   if (server && OWN_SERVERS.has(server)) return [];
 
@@ -439,14 +440,14 @@ function joinDelegations(layers: BurgerLayer[], round: Map<string, number>, repl
     const call = layer.delegation.rounds[0]![0]!;
     const ids = call.bots.map((bot) => bot.id ?? bot.name);
     const last = out[out.length - 1];
-    if (last?.kind === "delegate" && last.delegation && round.get(last.id) === round.get(layer.id) && !ids.some((id) => botsOf(last).has(id)) && Boolean(last.delegation.rounds.at(-1)?.[0]?.rework) === Boolean(call.rework)) {
+    if (last?.kind === "delegate" && last.delegation && !last.args?.files && !layer.args?.files && round.get(last.id) === round.get(layer.id) && !ids.some((id) => botsOf(last).has(id)) && Boolean(last.delegation.rounds.at(-1)?.[0]?.rework) === Boolean(call.rework)) {
       const rounds = last.delegation.rounds;
       rounds[rounds.length - 1]!.push(call);
       out[out.length - 1] = { ...last, replay: last.replay === "exact" && layer.replay === "exact" ? "exact" : "ai", words: [...new Set([...last.words.split(", "), ...layer.words.split(", ")])].join(", "), status: last.status === "failed" ? layer.status : last.status };
       round.set(out[out.length - 1]!.id, round.get(layer.id)!);
       continue;
     }
-    const earlier = call.rework ? [...out].reverse().find((one) => one.kind === "delegate" && ids.every((id) => botsOf(one).has(id))) : undefined;
+    const earlier = call.rework && !layer.args?.files ? [...out].reverse().find((one) => one.kind === "delegate" && !one.args?.files && ids.every((id) => botsOf(one).has(id))) : undefined;
     if (earlier?.delegation && round.get(earlier.id) !== round.get(layer.id)) {
       const rounds = earlier.delegation.rounds;
       const lastRoundAt = round.get(`${earlier.id}#last`) ?? round.get(earlier.id);

@@ -184,6 +184,19 @@ describe("a saved delegation", () => {
     expect(t.sent.map((call) => call.botIds[0])).toEqual(["kiwi", "miso"]);
   });
 
+  it("continues when every unavailable teammate is explicitly skipped", async () => {
+    const t = team([]);
+    const h = harness(t.exec);
+    const original = qa();
+    const delegate = original.steps[0]!;
+    if (delegate.kind !== "delegate") throw new Error("expected a delegation");
+    const workflow = { ...original, steps: [{ ...delegate, tasks: [delegate.tasks[0]!] }, ...original.steps.slice(1)] };
+    await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    expect(await h.resume("skip")).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step", step: "s2" } });
+    expect(t.sent).toHaveLength(0);
+    expect(h.events).toContain("skipped s1");
+  });
+
   it("fails the step, names why, and can go on from it once fixed", async () => {
     const t = team();
     let refuse = true;

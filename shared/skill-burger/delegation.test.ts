@@ -19,6 +19,13 @@ const bash = (command: string, extra: Partial<NonNullable<RunMessage["tool"]>> =
 });
 
 describe("a delegation run", () => {
+  it("hands delegated work with attached files to the bot with its transfer context", () => {
+    const call = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
+    const withFile = { ...call, tool: { ...call.tool!, input: JSON.stringify({ ...JSON.parse(call.tool!.input!), files: ["reports/fixture.txt"] }) } };
+    const [layer] = burgerLayers([ask("Summarize the report"), withFile]);
+    expect(layer).toMatchObject({ kind: "delegate", replay: "ai", args: { files: ["reports/fixture.txt"] } });
+    expect(draftFromLayers([layer!], "Summarize the report", "Summarize", { teammate }).steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining("reports/fixture.txt") });
+  });
   it("keeps a merged handoff non-exact if either input was clipped", () => {
     const calls = run.filter((message) => message.tool?.name?.endsWith("coordinate_bots")).slice(0, 2);
     const clipped = { ...calls[1]!, tool: { ...calls[1]!.tool!, input: calls[1]!.tool!.input!.replace("QA round", "[additional data omitted] QA round") } };

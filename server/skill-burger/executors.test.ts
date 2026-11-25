@@ -9,6 +9,12 @@ const folder = () => mkdtempSync(join(tmpdir(), "burger-exec-"));
 const signal = () => new AbortController().signal;
 
 describe("where a Skill Burger's steps run", () => {
+  it("opens a saved browser address using the supported MCP tool", async () => {
+    let called: unknown;
+    const exec = createExecutors({ botId: "b", cwd: folder(), internal: async (_kind, _path, body) => { called = body; return { ok: true, body: { result: { content: [{ type: "text", text: "opened" }] } } }; } });
+    expect(await exec.browser({ url: "https://example.test", signal: signal() })).toMatchObject({ ok: true });
+    expect(called).toMatchObject({ params: { name: "agent_browser_open", arguments: { url: "https://example.test" } } });
+  });
   it("sends an app action through the one multi-execute tool, and a plain app tool by its own name", () => {
     expect(appFrame("GMAIL_SEND_EMAIL", { to: "a" }, "acct-1", 7).frame).toEqual({
       jsonrpc: "2.0", id: 7, method: "tools/call",

@@ -20,7 +20,7 @@ export function checkedExecutors(exec: StepExecutors, guard: WorkflowGuard): Ste
     ...exec,
     shell: (input) => !input.signal.aborted && guard.allowed(input.where === "vm" ? "vm" : "shell", input.tool) ? exec.shell(input) : Promise.resolve(denied),
     app: (input) => !input.signal.aborted && guard.allowed("app", input.tool) ? exec.app(input) : Promise.resolve(denied),
-    browser: (input) => !input.signal.aborted && guard.allowed("browser", "browser_navigate") ? exec.browser(input) : Promise.resolve(denied),
+    browser: (input) => !input.signal.aborted && guard.allowed("browser", "agent_browser_open") ? exec.browser(input) : Promise.resolve(denied),
     file: (input) => !input.signal.aborted && guard.allowed("file") ? exec.file(input) : Promise.resolve(denied),
   };
 }
@@ -32,7 +32,7 @@ export function guardedExecutors(exec: StepExecutors, guard: WorkflowGuard): Ste
     ...exec,
     shell: async (input) => await permits(input.where === "vm" ? "vm" : "shell", input.tool, { command: input.command, cwd: input.cwd, env: input.env, stdin: input.stdin }, input.signal) ? exec.shell(input) : denied,
     app: async (input) => await permits("app", input.tool, { app: input.app, tool: input.tool, account: input.account, args: input.args }, input.signal) ? exec.app(input) : denied,
-    browser: async (input) => await permits("browser", "browser_navigate", { url: input.url }, input.signal) ? exec.browser(input) : denied,
+    browser: async (input) => await permits("browser", "agent_browser_open", { url: input.url }, input.signal) ? exec.browser(input) : denied,
     file: async (input) => await permits("file", undefined, { path: input.path, content: input.content }, input.signal) ? exec.file(input) : denied,
     ...(exec.delegate ? { delegate: async (input: Parameters<NonNullable<StepExecutors["delegate"]>>[0]) => await permits("delegate", "coordinate_bots", { botIds: input.botIds, message: input.message, doneWhen: input.doneWhen, rework: input.rework, consult: input.consult }, input.signal) ? exec.delegate!(input) : { ...denied, definitive: true } } : {}),
   };

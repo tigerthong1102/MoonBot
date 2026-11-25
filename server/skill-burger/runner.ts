@@ -181,7 +181,6 @@ async function timed(ms: number, outer: AbortSignal | undefined, run: (signal: A
   }
 }
 
-/** A check's rule on a step's own output, or null when only the bot can tell. */
 function checkRule(step: WorkflowStep): { says: string; rule?: { path?: string; op: string; value?: unknown } } | null {
   if (!step.check) return null;
   return step.check === true ? { says: "the result looks right for what the request asked" } : step.check;
@@ -241,7 +240,6 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     return envelope({ ok: false, error: { type, message: type === "timeout" ? message : `"${step.label}" failed: ${message}`, step: step.id, ...(resumable ? { resumeToken: id } : {}) } });
   };
 
-  /** Sends a delegate step's first round, or hands the bot the parts whose teammate is gone. */
   const startDelegation = async (step: Extract<WorkflowStep, { kind: "delegate" }>, chosen: DelegationState["who"]): Promise<RunEnvelope> => {
     const exec = deps.exec;
     if (!exec.teammates || !exec.delegate || !exec.assignment) return fail(step, "step_failed", "this bot can't hand work to teammates here");
@@ -252,6 +250,11 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     const { who, missing } = matchTeammates(step, roster, chosen);
     const delegation: NonNullable<RunState["delegation"]> = { step: step.id, round: 1, who, requests: [], replies: {} };
     if (missing.length) return hand(step, "missing_bot", undefined, { prompt: missingPrompt(missing), delegation });
+    if (step.tasks.every((task) => who[task.bot.name] === null)) {
+      end(step, { state: "skipped" });
+      const { delegation: _done, ...rest } = state;
+      return runFrom({ ...rest, results, from: workflow.steps.indexOf(step) + 1 }, deps);
+    }
     const sent = await sendRound(step, delegation, (ref) => resolve(ref, args, results), exec as DelegateExecutors, signal);
     if (!sent.ok) return fail(step, "step_failed", sent.unsafeToRetry ? `Some teammates may already have received work. Check their assignments before trying again: ${clip(redactSecretsInText(sent.error), ERROR_MAX)}` : clip(redactSecretsInText(sent.error), ERROR_MAX), undefined, !sent.unsafeToRetry);
     delegation.requests = sent.requests;
@@ -327,7 +330,6 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
   return envelope({ status: "ok", ...(last ? { output: results[last.id]!.output } : {}) });
 }
 
-/** The case's steps after a decide step at `index`, or the case itself when nobody saved any. */
 function takeCase(workflow: Workflow, index: number, chosen: string): boolean {
   const decide = workflow.steps[index]!.id;
   return !workflow.steps.slice(index + 1).some((step) => { const on = caseOf(step); return on?.decide === decide && on.case === chosen; });

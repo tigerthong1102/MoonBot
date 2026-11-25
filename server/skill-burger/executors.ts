@@ -178,7 +178,7 @@ export function createExecutors(context: ExecutorContext): StepExecutors {
       }
     },
     async browser(input) {
-      const answer = await context.internal("browser", "/api/internal/browser/mcp", { jsonrpc: "2.0", id: rpcId(), method: "tools/call", params: { name: "browser_navigate", arguments: { url: input.url } } }, input.signal);
+      const answer = await context.internal("browser", "/api/internal/browser/mcp", { jsonrpc: "2.0", id: rpcId(), method: "tools/call", params: { name: "agent_browser_open", arguments: { url: input.url } } }, input.signal);
       return answer.ok ? callText(answer.body) : { ok: false, error: errorText(answer.body.error, "the browser isn't available") };
     },
     async file(input) {

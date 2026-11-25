@@ -31,7 +31,7 @@ export function createWorkflowHost(deps: WorkflowHostDeps) {
           const scope = deps.scope(turn.botId);
           if (action === "shell") return !narrowsNativeTools(scope);
           if (action === "vm" || action === "delegate" || action === "edit") return allowsTool(scope, { kind: "mcp", server: "agents", name: action === "vm" ? "vm_exec" : action === "edit" ? "workflow_edit" : "coordinate_bots" });
-          if (action === "browser") return allowsTool(scope, { kind: "mcp", server: "browser", name: "browser_navigate" });
+          if (action === "browser") return allowsTool(scope, { kind: "mcp", server: "browser", name: "agent_browser_open" });
           return Boolean(name && allowsTool(scope, { kind: "mcp", server: "composio", name }) && allowsTool(scope, { kind: "mcp", server: "composio", name: "COMPOSIO_MULTI_EXECUTE_TOOL" }));
         } catch { return false; }
       },

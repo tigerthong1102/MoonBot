@@ -40,6 +40,7 @@ export type SideJob = "work-bot-offer" | "compaction" | "memory" | "skill-review
 
 export type SideJobInstance = Pick<ProviderInstance, "instanceId" | "driverKind" | "enabled" | "generateText" | "generateMemoryText" | "models" | "quickModelsUsable"> & {
   adapter: { capabilities: Pick<ProviderAdapter["capabilities"], "agentsMcp"> };
+  displayName?: string;
 };
 
 export interface SideJobBot {
@@ -76,6 +77,11 @@ export interface SideJobsDeps {
 export interface SideJobs {
   /** Null when nobody can write it and the job keeps its fallback. `at.instance`: the conversation's engine, for the summary. */
   text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null;
+  twinPreview(selection: { instanceId: string; model: string }, twinId: string): {
+    instance: SideJobInstance;
+    name: string;
+    generateText: SideJobText["generateText"];
+  } | null;
 }
 
 type TextCall = (prompt: string, options?: TextGenerationOptions) => Promise<string>;
@@ -134,7 +140,7 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     };
 
   /** Every call checks the spend limit: one upkeep pass makes several in a row. */
-  const booked = (job: SideJob, bot: SideJobBot, instance: SideJobInstance, call: TextCall, trigger: UsageTrigger, fixed: () => TextGenerationOptions): SideJobText["generateText"] =>
+  const booked = (job: SideJob | "ai-twin-preview", bot: SideJobBot, instance: SideJobInstance, call: TextCall, trigger: UsageTrigger, fixed: () => TextGenerationOptions): SideJobText["generateText"] =>
     async (prompt, options) => {
       deps.assertWithinBudget();
       const threadId = `${job}-${randomUUID()}`;
@@ -230,5 +236,18 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
   }
   return {
     text: (job, botId, at = {}) => queued(job, find(job, botId, at)),
+    twinPreview(selection, twinId) {
+      const instance = deps.instance(selection.instanceId);
+      if (!instance?.enabled || !instance.generateText || !selection.model || deps.refusal(instance)) return null;
+      if (instance.driverKind !== "claudeAgent" && instance.driverKind !== "openai-compat") return null;
+      if (deps.modelAllowed && !deps.modelAllowed(selection)) return null;
+      const twin = { id: twinId, name: "AI Twin", threadId: "", modelSelection: selection };
+      return {
+        instance,
+        name: instance.displayName ?? (instance.driverKind === "claudeAgent" ? "Claude Code" : "OpenAI-compatible AI"),
+        generateText: booked("ai-twin-preview", twin, instance, instance.generateText.bind(instance),
+          { kind: "bot", botId: twinId }, () => ({ model: selection.model, requireIsolatedText: true })),
+      };
+    },
   };
 }

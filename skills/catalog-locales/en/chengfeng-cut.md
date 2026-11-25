@@ -2,37 +2,36 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 
 The Studio commands below require an existing Chengfeng installation. Resolve plugin paths inside that installation. With only a transcript, return a time-coded review table for editing or a subtitle draft and flag the steps that require Studio.
 
-# cut mouth broadcast
+# Edit spoken video
 
 From a video to a manually reviewed deletion ledger (Cuts + EDL), no media files are touched. Seven steps and one line:
 
 ```text
-0  就绪     引用「检查更新」的就绪检查（本 Skill 不带环境逻辑）
-1  建档     真实视频 → 云端逐词转录 → 产品建项目 → 起服务 → 读回状态
-2  修字     词典把字改对（通用一本 + 用户一本）→ 出修字表
-3  删词     读偏好与规则 → 五轮扫描，每轮只找一类，只记行
-4  汇总     删词汇总表 + 重复句子表 → 按表自读校验
-5  审核     全量提交 → 两张表呈给用户 → 打开 Studio 亲自复核
-6  复盘交棒  对比提案与终版 → 归档三抽屉 → 报告四件事
+0  Ready      Check configured tools and environment
+1  Project    Real video → authorized transcription → create project → start service → read back state
+2  Correct    Apply general and user dictionaries → produce corrections table
+3  Review     Read preferences and rules → five passes, one category each → record proposals
+4  Summarize  Produce deletion and repeated-sentence tables → read back and check
+5  Review     Submit proposals → show both tables → open Studio for user review
+6  Handoff    Compare proposal with final result → archive → report
 ```
 
-**No media cutting**: It takes dozens of milliseconds to change the ledger, and cutting it once is an irrevocable file. By the end of this Skill,
-There are no new videos on disk. Skill does semantic judgment and arrangement; product Runtime is the project, Cuts and
-The only writer of Studio status.
+**Do not cut media**: Editing the deletion list is quick and reviewable; cutting video creates a separate output that is harder to undo. By the end of this Skill,
+there are no new videos on disk. The skill makes editorial decisions; the product Runtime is the sole writer of project, Cuts, and Studio state.
 
 **Users only speak in three places**: Choose to continue or restart the same source project (only if it is cut), Studio review, and completion confirmation.
 All others will be reported in one direction and will not stop waiting for a reply. **The completion criterion of each step is its output**: If it is not out of the table, it is not completed.
 
-First read and execute the business stage contract included in the configured peak tool.
+First read and execute the business stage contract included in the configured Chengfeng tools.
 The steps in this article correspond to the contract stage: 1=preflight+Product state readback, 5=proposal+Product CAS,
 review=project-level review binding. The last three stages of the contract (confirmation, execution, acceptance) belong to the export Skill.
 
-The origin of each rule is in the [accident book](references/lessons.md) - the rules are in the text, and the story is over there.
+The origin of each rule is in the [lessons and cases](references/lessons.md) - the rules are in the text, and the story is over there.
 
 ## 0. Ready
 
 First perform a local readiness check (only view configured tools, projects and inputs, do not download and install updates) - whether skills
-Whether the latest and runtime are supported; the **plug-in root** is also located there (`<插件根>` in the commands in this article are all substituted
+Whether the latest and runtime are supported; the **plug-in root** is also located there (`<PLUGIN_ROOT>` in the commands in this article are all substituted
 that literal path). Only continue when "Ready" is obtained; "New session required" or "Stop" will be executed according to its processing
 (Including the prohibition of "prohibiting self-made alternative interfaces").
 
@@ -45,19 +44,18 @@ FFmpeg, or start a second runtime.
 **What to do**: Hand over the user's local real video and cloud word-for-word draft to the product, create files atomically, start the service, and read back the status.
 
 ```bash
-# 云端逐词转录（生成任务目录内的 transcript 候选）之后：
-node "<插件根>/scripts/videocut-cli.cjs" project create "<项目目录>" --video "<任务目录内的视频文件>" --transcript "<任务目录内的逐词稿>" --json
+# After authorized word-level transcription in the task directory:
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" project create "<PROJECT_DIR>" --video "<TASK_VIDEO>" --transcript "<TASK_TRANSCRIPT>" --json
 
-node "<插件根>/scripts/ensure-running.cjs" --json          # 产品声明式确保常驻服务（5190）
+node "<PLUGIN_ROOT>/scripts/ensure-running.cjs" --json          # Ensure the service is running on port 5190
 
-node "<插件根>/scripts/videocut-cli.cjs" workflow get "<项目目录>" --json    # Product state readback
-node "<插件根>/scripts/videocut-cli.cjs" cuts get "<项目目录>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" workflow get "<PROJECT_DIR>" --json    # Product state readback
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" cuts get "<PROJECT_DIR>" --json
 ```
 
 Rules:
 
-- Only accept real oral videos or existing real projects given by users; stop if there is no real media, and use examples,
-  placeholder video replacement
+- Accept only real spoken-video footage or existing projects supplied by the user. If real media is missing, stop; do not substitute examples or placeholder video.
 - Transcription only uses **cloud ASR** approved for the current environment; disables fallback to local ASR; reports when no cloud ASR is available
   `missing_cloud_transcription_adapter`, do not open Studio, do not forge transcript
 - `--video` / `--transcript` must be real files in the task directory; do not upload the frame ratio - the product will
@@ -81,7 +79,7 @@ Rules:
 The misheard word is not a redundant word, and deleting the word cannot fix it.
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" transcript dictionary "<项目目录>" --dictionary "<插件根>/references/ai-term-dictionary.md" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript dictionary "<PROJECT_DIR>" --dictionary "<PLUGIN_ROOT>/references/ai-term-dictionary.md" --json
 ```
 
 Use your file tool to check if `$HOME/.chengfeng-videocut/dictionary.md` exists; if it does, go through it again
@@ -89,7 +87,7 @@ Use your file tool to check if `$HOME/.chengfeng-videocut/dictionary.md` exists;
 User priority merge and other multi-dictionary CLI releases):
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" transcript dictionary "<项目目录>" --dictionary "$HOME/.chengfeng-videocut/dictionary.md" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript dictionary "<PROJECT_DIR>" --dictionary "$HOME/.chengfeng-videocut/dictionary.md" --json
 ```
 
 **Output: Word modification table** - Combine the `applied` lists returned by the two calls into a small table (the original word → is changed to →
@@ -99,8 +97,8 @@ Dictionary, not patched elsewhere.
 Only when the dictionary cannot solve the problem and the author has a manuscript on hand, context alignment is added:
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" transcript align "<项目目录>" --script "<口播稿文件>" --json   # 只报不改
-node "<插件根>/scripts/videocut-cli.cjs" transcript correct "<项目目录>" --file "<修正文件>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript align "<PROJECT_DIR>" --script "<SCRIPT_FILE>" --json   # Report only; do not change
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript correct "<PROJECT_DIR>" --file "<CORRECTIONS_FILE>" --json
 ```
 
 Rules:
@@ -110,11 +108,11 @@ Rules:
 - If there is no dictionary and the manuscript cannot confirm it, **no guessing** is allowed: the report will be reported and left to others to make up the dictionary. Put in a made-up name
   Worse than leaving a misheard name
 - The spoken Chinese is retained as it is in the original text: saying "cross" and "big model" are what he said
-- The dictionary is a gate that must be passed every time you transcribe it (the same audio piece will be translated twice and the result will be different, see the accident book)
+- The dictionary is a gate that must be passed every time you transcribe it (the same audio piece will be translated twice and the result will be different, see the lessons and cases)
 
 **The manuscript is segmented according to punctuation**: Each word in the transcription is punctuated, and the manuscript is divided into paragraphs with commas and lines per sentence; the subtitles are in the same portion.
 Punctuation, sentence breaks are consistent on both sides. 2026-07-28 The previous old project had no punctuation and ran
-`node "<插件根>/scripts/videocut-cli.cjs" transcript regroup "<项目目录>" --json` Just re-cut the paragraph (check id/time/text word by word)
+`node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript regroup "<PROJECT_DIR>" --json` Just re-cut the paragraph (check id/time/text word by word)
 unchanged, safe for edited items); if you really need punctuation, you have to re-translate it - the punctuation does not exist at all in the old transcription.
 
 ## 3. Delete words: Five rounds of scanning, each round only finds one category
@@ -125,7 +123,7 @@ The judgment quality is much higher than taking six at a time; the output per ro
 Materials to read first:
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" transcript playback "<项目目录>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" transcript playback "<PROJECT_DIR>" --json
 ```
 
 Then use your file reading tool to read `$HOME/.chengfeng-videocut/cut-preferences.md` (user preference,
@@ -135,11 +133,11 @@ The criterion is [Semantic Deletion Rule](references/semantic-deletion.md) (prin
 Textbook priority: **User Preferences > User Cases > General Cases**.
 
 ```text
-第 1 轮  重复          句间重复、句内重复（最客观：两遍相同）
-第 2 轮  残句与改口     说一半断掉、换个说法重说
-第 3 轮  口误重说       说错的数字、专名、词，后面重说对的
-第 4 轮  英文卡壳       词头 / 字母 / 音节重复
-第 5 轮  口头禅与语气词  最主观，按用户偏好的密度与容忍度来
+Pass 1  Repetition       Repeated words or sentences
+Pass 2  Restarts         Incomplete sentences or rephrasing
+Pass 3  Corrections      Incorrect numbers, names or words corrected later
+Pass 4  English stumbles Repeated word beginnings, letters or syllables
+Pass 5  Filler words     Follow the person’s preference and tolerance
 ```
 
 The actions in each round are fixed: check the case according to the type of this round → find a place and record a line (wordIds + type + risk) →
@@ -148,7 +146,7 @@ The actions in each round are fixed: check the case according to the type of thi
 Rules:
 
 - **Only use the playback order of `transcript playback` for judgment, and you are not allowed to play from `transcript.json`**——
-  "I said it twice" depends on the broadcast. If you spell it yourself, you will read the skipped number as missing content and mistakenly reject it (see the accident book)
+  "I said it twice" depends on the broadcast. If you spell it yourself, you will read the skipped number as missing content and mistakenly reject it (see the lessons and cases)
 - Deletion only has two states: "deleted/not deleted"; AI reasons do not form a third state of "recommended deletion"
 - Slips of the tongue, repetitions, and broken sentences will be deleted by default without leaving the last; long sentences, entire sentences, and bifurcations must be reviewed at high risk.
 - Ordinary pauses are not calculated by Skill: adjacent silence merging with `natural-pause-v2` is performed deterministically by the product
@@ -160,20 +158,20 @@ Rules:
 **Delete the general list of vocabulary** (decided by deleting words item by item):
 
 ```text
-| # | 时间   | 类型   | 删除              | 剩下读作          | 风险 | 依据      |
+| # | Time | Type | Remove | Remaining text | Risk | Basis |
 |---|-------|--------|------------------|------------------|-----|----------|
-| 1 | 00:12 | 重复   | 这个功能呢         | 这个功能它其实      | 低  | 判例 R2   |
-| 2 | 02:31 | 改口   | 比如我就让他跟踪    | 比如我让grok跟踪    | 高  | 判例 R5   |
+| 1 | 00:12 | Repetition | this feature | this feature actually | Low | Example R2 |
+| 2 | 02:31 | Restart | for example I ask it to track | for example I ask Grok to track | High | Example R5 |
 ```
 
 **Repeated Sentence List** (For sentences that have been said many times, the word-by-word list cannot tell "how many times have been recorded and which times have been saved", and this is exactly what the user
 Most want to check):
 
 ```text
-| 句子（开头）      | 说了几遍 | 保了哪遍        | 删了哪几遍   | 风险            |
+| Sentence opening | Takes | Kept | Removed | Risk |
 |-----------------|--------|---------------|------------|-----------------|
-| 因为今天有什么…   | 3      | 第 3 遍 00:08  | 第 1、2 遍  | 低——三遍基本一致  |
-| 多数Agent能搜…   | 2      | 第 2 遍 04:40  | 第 1 遍     | 高——两遍说法有出入，重点听 |
+| Because today... | 3 | Take 3 at 00:08 | Takes 1 and 2 | Low: substantially identical |
+| Most agents can search... | 2 | Take 2 at 04:40 | Take 1 | High: wording differs; listen closely |
 ```
 
 Then **Self-reading**: Read the deleted full text in the order of playback according to the table, and cancel the lines that cannot be read.
@@ -184,8 +182,8 @@ This is the definition of review: the AI ​​reads it again by itself, rather 
 **What to do**: Submit all candidates, present the two forms to the user, and then open the product review page for the user to review in person.
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" cuts get "<项目目录>" --json              # 取 Cuts 自己的 revision
-node "<插件根>/scripts/videocut-cli.cjs" cuts set "<项目目录>" --file "<提案文件>" --expected-revision "<Cuts当前revision>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" cuts get "<PROJECT_DIR>" --json              # Read the current Cuts revision
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" cuts set "<PROJECT_DIR>" --file "<PROPOSAL_FILE>" --expected-revision "<CUTS_REVISION>" --json
 ```
 
 Candidates refer only to stable `wordIds`:
@@ -213,16 +211,16 @@ Submission rules:
   Go back and complete the amount and resubmit; read `"unknown"` and also see it
 - Then immediately `workflow get` + `cuts get` again, confirming `cut_review_ready` with three revisions;
   Stop if inconsistent, never directly write JSON or automatically overwrite
-- **Leave `<提案文件>` in the task directory after submission** - used for review in step 6 (reasons after user editing
+- **Leave `<PROPOSAL_FILE>` in the task directory after submission** - used for review in step 6 (reasons after user editing
   Will be eliminated by the product, and checking back from the ledger afterwards is unreliable)
 
 Then **Submit the table first, then open the page**: Send the two tables to the user and ask him to take the table into Studio for review.
 
 ```bash
-node "<插件根>/scripts/ensure-running.cjs" --json                    # 打开前再次幂等 ensure
-node "<插件根>/scripts/videocut-cli.cjs" open "<项目目录>" --json          # 取产品返回的项目 URL
+node "<PLUGIN_ROOT>/scripts/ensure-running.cjs" --json                    # Ensure the service is running before opening
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" open "<PROJECT_DIR>" --json          # Read the project URL returned by the app
 
-node "<插件根>/scripts/ensure-studio.cjs" --url "<产品项目URL>" --view koubo --json                                  # 能力门禁：确认 5190 注册了 koubo 视图
+node "<PLUGIN_ROOT>/scripts/ensure-studio.cjs" --url "<PROJECT_URL>" --view koubo --json                                  # Check that the service supports the koubo view
 ```
 
 Rules:
@@ -242,12 +240,12 @@ Rules:
 After the user review is completed, read back:
 
 ```bash
-node "<插件根>/scripts/videocut-cli.cjs" workflow get "<项目目录>" --json
-node "<插件根>/scripts/videocut-cli.cjs" cuts get "<项目目录>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" workflow get "<PROJECT_DIR>" --json
+node "<PLUGIN_ROOT>/scripts/videocut-cli.cjs" cuts get "<PROJECT_DIR>" --json
 ```
 
 **Review** (Transitional approach, replace the product's `cuts diff` command after it is released): Take what was saved in step 5
-`<提案文件>` Comparison with the final version read back `cutWordIds`——
+`<PROPOSAL_FILE>` Comparison with the final version read back `cutWordIds`——
 
 - **Restored by the user** (present in the proposal, not in the final version) = AI deleted it by mistake. Compare what you wrote in the proposal
   reason asked: What kind of error is it?
@@ -271,7 +269,7 @@ The main difference is one sentence). Then tell the user to run the export next.
 **Do not play the confirmation card and do not perform cutting** - The confirmation card that is physically cut belongs to the export Skill, and the card that is frozen must be
 The revision at the moment the user presses confirm.
 
-`return_cut_review`: First `node "<插件根>/scripts/ensure-running.cjs" --json` again, then return to the same Studio to continue review;
+`return_cut_review`: First `node "<PLUGIN_ROOT>/scripts/ensure-running.cjs" --json` again, then return to the same Studio to continue review;
 No review is triggered, and the review is only done once at the final handover.
 
 Report rating: Product structured revision is **API/readback PASS**; real browser frame review is

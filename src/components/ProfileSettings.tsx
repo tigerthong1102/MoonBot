@@ -7,6 +7,7 @@ import { IMAGE_MAX_BYTES, imageAttachmentFromFile, isImageFile } from "@/lib/com
 import type { LocaleKey } from "@/locales";
 import { botAvatarUrlFromStoredPath } from "../../shared/bot-avatar";
 import { AboutMeSettings } from "./AboutMeSettings";
+import { AiTwinSettings } from "./AiTwinSettings";
 import { EveryBotRules } from "./EveryBotRules";
 import { SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 import { profileInitials } from "./SidebarProfileMenu";
@@ -201,6 +202,7 @@ export function ProfileFields() {
         />
       </SettingsField>
       <AboutMeSettings />
+      {!team && !state.config?.cloudHome && window.ogb?.platform && !window.ogb.remoteClient?.active && <AiTwinSettings />}
       <EveryBotRules />
     </div>
   );

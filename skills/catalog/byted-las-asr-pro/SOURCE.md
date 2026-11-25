@@ -13,3 +13,5 @@ Replaced credential setup with the configured service.
 The optional `@volcengine/las-cli` runtime is distributed separately and is not included in this catalog. Its npm metadata for version 0.3.8 reported `UNLICENSED` when checked on 2026-11-24; verify distribution and service rights independently.
 
 Included upstream notices: upstream-notices/LICENSE, NOTICE.
+
+Preserved the unmodified upstream SKILL.md as references/upstream.md for feature comparison. It may refer to tools, setup or integrations not included in StartupBot.

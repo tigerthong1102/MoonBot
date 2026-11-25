@@ -18,7 +18,12 @@ export function backgroundCallArgs(input: {
   supports: (flag: BackgroundFlag) => boolean;
   /** False while OMB_CLAUDE_INHERIT_USER_CONFIG asks for the person's own setup. */
   isolated: boolean;
+  requireIsolatedText?: true;
 }): string[] {
+  if (input.requireIsolatedText && (!input.isolated || !input.supports("--tools") || !input.supports("--no-session-persistence") ||
+    !input.supports("--strict-mcp-config") || !input.supports("--setting-sources"))) {
+    throw new Error("Claude cannot run an isolated text preview with the active settings.");
+  }
   const args = ["-p", "--model", input.model, "--output-format", input.outputFormat, "--settings", BACKGROUND_SETTINGS];
   if (input.supports("--tools")) args.push("--tools", "");
   if (input.supports("--no-session-persistence")) args.push("--no-session-persistence");

@@ -1,10 +1,15 @@
-import { test } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { appendRecord } from "../../../scripts/lib/manifest.mjs";
 import { BUNDLED_SFX_DIR, findSoundEffect, resolveSfx } from "./sfx.mjs";
+
+import { mediaTransport } from "../../../scripts/lib/media-fetch.mjs";
+const originalMediaFetch = mediaTransport.fetch;
+beforeEach(() => { mediaTransport.fetch = (url, init) => globalThis.fetch(url, init); });
+afterEach(() => { mediaTransport.fetch = originalMediaFetch; });
 
 // No real network: each test serves Openverse's answers; by default it is unreachable.
 const offline = async () => {

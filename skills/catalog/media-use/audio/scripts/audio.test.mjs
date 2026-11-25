@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert";
-import { test } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import {
   mkdtempSync,
   mkdirSync,
@@ -19,6 +19,11 @@ import { resolveSfx } from "./lib/sfx.mjs";
 // Proves the relocated engine (skills/media-use/audio/) still resolves its
 // bundled SFX library from the moved location — the path most likely to break
 // on a subtree move. Openverse is unreachable unless a test serves it.
+import { mediaTransport } from "../../scripts/lib/media-fetch.mjs";
+const originalMediaFetch = mediaTransport.fetch;
+beforeEach(() => { mediaTransport.fetch = (url, init) => globalThis.fetch(url, init); });
+afterEach(() => { mediaTransport.fetch = originalMediaFetch; });
+
 const offline = async () => {
   throw new TypeError("fetch failed");
 };

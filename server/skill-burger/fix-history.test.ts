@@ -16,7 +16,7 @@ import { runText } from "../drivers/agents-workflow-tool.ts";
 const wf = (steps: unknown[]): Workflow => workflowSchema.parse({ version: 1, summary: "Make the csv", args: {}, steps });
 let n = 0;
 const bash = (command: string): RunMessage => ({ id: `m${++n}`, role: "bot", kind: "activity", tool: { name: "Bash", ok: true, itemId: `t${n}`, input: JSON.stringify({ command }), summary: command } });
-const runCall = (output: string): RunMessage => ({ id: `m${++n}`, role: "bot", kind: "activity", tool: { name: "mcp__agents__run_workflow", ok: true, itemId: `t${n}`, input: "{}", output } });
+const runCall = (output: string, input: unknown = {}): RunMessage => ({ id: `m${++n}`, role: "bot", kind: "activity", tool: { name: "mcp__agents__run_workflow", ok: true, itemId: `t${n}`, input: JSON.stringify(input), output } });
 
 describe("keeping a fix", () => {
   it("retains and renames captured inputs that collide with existing inputs", () => {
@@ -42,7 +42,7 @@ describe("keeping a fix", () => {
       runCall('The Skill Burger stopped: "Convert" failed: in2csv: command not found.\nWorkflow failure: {"step":"s1"}\nOnce the cause is fixed, call run_workflow with resume "run-1"'),
       bash("python3 -m venv .venv && .venv/bin/pip install csvkit"),
       bash(".venv/bin/in2csv a.json > done.csv"),
-      runCall("The Skill Burger ran: …"),
+      runCall("The Skill Burger ran: …", { resume: "run-1" }),
     ] as RunMessage[];
     const layers = fixLayers(messages, "run-1", "s1");
     expect(layers.map((layer) => layer.kind)).toEqual(["shell", "shell"]);
@@ -67,9 +67,10 @@ describe("keeping a fix", () => {
   });
 
   it("captures the repair belonging to the requested failure", () => {
-    const messages = [runCall('The Skill Burger stopped. Workflow failure: {"step":"s1"} resume "run-1"'), bash("echo first > first.txt"), runCall("resumed"), runCall(JSON.stringify([{ type: "text", text: 'The Skill Burger stopped. Workflow failure: {"step":"s2"} resume "run-1"' }])), bash("echo second > second.txt"), runCall("resumed")];
+    const messages = [runCall('The Skill Burger stopped. Workflow failure: {"step":"s1"} resume "run-1"'), bash("echo first > first.txt"), runCall("resumed", { resume: "run-1" }), runCall(JSON.stringify([{ type: "text", text: 'The Skill Burger stopped. Workflow failure: {"step":"s2"} resume "run-1"' }])), bash("echo second > second.txt"), runCall("resumed", { args: { resume: "run-1" } })];
     expect(JSON.stringify(fixLayers(messages, "run-1", "s2"))).toContain("second.txt");
     expect(JSON.stringify(fixLayers(messages, "run-1", "s2"))).not.toContain("first.txt");
+    expect(fixLayers([...messages.slice(0, -1), runCall("another workflow", { resume: "run-2" })], "run-1", "s2")).toEqual([]);
   });
 });
 

@@ -81,7 +81,12 @@ export function fixLayers(messages: readonly RunMessage[], run: string, step: st
   if (stopped < 0) return [];
   const after = messages.slice(stopped + 1);
   const resumed = after.findIndex(isRunCall);
-  return burgerLayers(resumed < 0 ? [] : after.slice(0, resumed)).filter((layer) => layer.status === "done");
+  if (resumed < 0) return [];
+  let input: { resume?: unknown; args?: { resume?: unknown } } | null;
+  try { input = JSON.parse(after[resumed]?.tool?.input ?? "{}"); } catch { return []; }
+  if (!input || typeof input !== "object" || Array.isArray(input)) return [];
+  if ((input.resume ?? input.args?.resume) !== run) return [];
+  return burgerLayers(after.slice(0, resumed)).filter((layer) => layer.status === "done");
 }
 
 export function createStandaloneSkillBurgerRoutes(

@@ -293,6 +293,9 @@ try {
     const routine = await request("/api/routines", { name: "Synthetic paused reminder", prompt: "Fixture only", botId: helper.id, enabled: false, schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 86_400_000 } });
     assert.equal(routine.status, 201, JSON.stringify(routine.body));
     assert.equal(routine.body.routine.enabled, false);
+    const legacyGroup = await request("/api/groups", { name: "Synthetic baseline group", memberIds: [helper.id] });
+    assert.equal(legacyGroup.status, 201, JSON.stringify(legacyGroup.body));
+    assert.deepEqual(legacyGroup.body.group.memberIds, [helper.id]);
     writeFileSync(path.join(home, "synthetic-old-file.txt"), "baseline fixture file");
     assert.deepEqual(rendererErrors, [], "The baseline renderer reported an uncaught exception or crash");
     if (mac) { socket.close(); child.kill("SIGTERM"); }
@@ -304,7 +307,7 @@ try {
     mkdirSync(destination);
     try {
       for (const entry of readdirSync(fixture)) cpSync(path.join(fixture, entry), path.join(destination, entry), { recursive: true, errorOnExist: true, force: false });
-      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id, expectedSkin: "daylight", expectedWorkspace: "home", stablePort: port, legacyOffer }));
+      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id, expectedSkin: "daylight", expectedWorkspace: "home", stablePort: port, legacyOffer, usernameGroup: { groupId: legacyGroup.body.group.id, botId: helper.id } }));
     } catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
     report = { ...report, status: "PASS", baselineFixture: destination };
   } else {

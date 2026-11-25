@@ -4,9 +4,10 @@ import { join } from "node:path";
 import { z } from "zod";
 import { AI_TWIN_NAME_MAX, AI_TWIN_STYLE_MAX, type AiTwinProfile, type AiTwinView } from "../shared/ai-twin.ts";
 import { writeFileAtomic } from "./atomic.ts";
+import { MAX_TWIN_LESSONS, storedTwinLesson, twinLessonFields, twinLessonKey, twinLessonLookupFields } from "./ai-twin-lessons.ts";
 
 export const AI_TWIN_PRIVATE_DIR = "ai-twin";
-const MAX_FILE_BYTES = 16_384;
+const MAX_FILE_BYTES = 256 * 1024;
 const id = z.uuid();
 const revision = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const style = z.string().trim().max(AI_TWIN_STYLE_MAX);
@@ -16,8 +17,16 @@ const epoch = z.union([z.literal("initial"), id]);
 export const createTwinInput = z.strictObject({ name, creationEpoch: epoch, creationId: id, createConsent: z.literal(true) });
 export const twinVersionInput = z.strictObject({ id, revision });
 export const updateTwinInput = twinVersionInput.extend({ name, style, paused: z.boolean() });
+export const saveTwinLessonInput = twinVersionInput.extend({
+  ...twinLessonFields,
+  lessonId: id.optional(),
+  saveAsLesson: z.literal(true),
+});
+export const deleteTwinLessonInput = twinVersionInput.extend({ lessonId: id });
+export const lookupTwinLessonInput = twinVersionInput.extend(twinLessonLookupFields);
 
 const storedTwin = updateTwinInput.extend({
+  lessons: z.array(storedTwinLesson).max(MAX_TWIN_LESSONS).optional(),
   creationId: id,
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
@@ -33,6 +42,14 @@ const storedState = z.strictObject({
 type StoredState = z.infer<typeof storedState>;
 
 export class TwinConflict extends Error {}
+export class TwinLessonConflict extends Error {
+  readonly code: "twin_lesson_duplicate" | "twin_lessons_full" | "twin_lesson_empty";
+
+  constructor(code: TwinLessonConflict["code"]) {
+    super(code);
+    this.code = code;
+  }
+}
 
 export function createAiTwinStore(dataDir: string, workspace: string) {
   const directory = join(dataDir, AI_TWIN_PRIVATE_DIR);
@@ -81,7 +98,7 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
 
   function view(state: StoredState): AiTwinView {
     const { twin, creationEpoch } = state;
-    return { twin: twin ? publicProfile(twin) : null, creationEpoch };
+    return { twin: twin ? publicProfile(twin) : null, creationEpoch, ...(twin ? { lessons: twin.lessons ?? [] } : {}) };
   }
 
   function save(state: StoredState): AiTwinView {
@@ -125,6 +142,40 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
         ...state,
         twin: { ...twin, name: input.name, style: input.style, paused: input.paused, revision: twin.revision + 1, updatedAt: Date.now() },
       });
+    },
+    saveLesson(input: z.infer<typeof saveTwinLessonInput>): AiTwinView {
+      const state = read();
+      const twin = matching(state, input);
+      const lessons = twin.lessons ?? [];
+      const existing = input.lessonId ? lessons.find((entry) => entry.id === input.lessonId) : undefined;
+      if (input.lessonId && !existing) throw new TwinConflict("Lesson changed");
+      if (!existing && lessons.length === MAX_TWIN_LESSONS) throw new TwinLessonConflict("twin_lessons_full");
+      const key = twinLessonKey(input.question);
+      if (!/[\p{L}\p{N}]/u.test(key)) throw new TwinLessonConflict("twin_lesson_empty");
+      if (lessons.some((entry) => entry.id !== existing?.id && twinLessonKey(entry.question) === key)) {
+        throw new TwinLessonConflict("twin_lesson_duplicate");
+      }
+      const updatedAt = Date.now();
+      const lesson = storedTwinLesson.parse({
+        id: existing?.id ?? randomUUID(), question: input.question, answer: input.answer, source: "owner", updatedAt,
+      });
+      const next = existing ? lessons.map((entry) => entry.id === existing.id ? lesson : entry) : [...lessons, lesson];
+      return save({ ...state, twin: { ...twin, lessons: next, revision: twin.revision + 1, updatedAt } });
+    },
+    forgetLesson(input: z.infer<typeof deleteTwinLessonInput>): AiTwinView {
+      const state = read();
+      const twin = matching(state, input);
+      const lessons = twin.lessons ?? [];
+      const remaining = lessons.filter((entry) => entry.id !== input.lessonId);
+      if (remaining.length === lessons.length) throw new TwinConflict("Lesson changed");
+      return save({ ...state, twin: { ...twin, lessons: remaining, revision: twin.revision + 1, updatedAt: Date.now() } });
+    },
+    lookupLesson(input: z.infer<typeof lookupTwinLessonInput>) {
+      const twin = matching(read(), input);
+      if (twin.paused) throw new TwinConflict("Twin paused");
+      const key = twinLessonKey(input.question);
+      if (!key) return null;
+      return twin.lessons?.find((entry) => twinLessonKey(entry.question) === key) ?? null;
     },
     delete(input: z.infer<typeof twinVersionInput>): AiTwinView {
       const state = read();

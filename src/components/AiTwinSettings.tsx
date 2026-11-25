@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinView } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
+import { AiTwinLessons } from "./AiTwinLessons";
 import { AiTwinPreview } from "./AiTwinPreview";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Card, SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
@@ -130,6 +131,8 @@ export function AiTwinSettings() {
               {t("settings.aiTwin.delete")}
             </button>
           </div>
+          <AiTwinLessons key={twin.id} twin={twin} lessons={view?.lessons ?? []}
+            changed={setView} refresh={() => void reload()} />
           {!twin.paused && <AiTwinPreview key={twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
             twin={twin} provider={view?.preview} refresh={() => void reload()} />}
           <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={t("settings.aiTwin.deleteBody")}

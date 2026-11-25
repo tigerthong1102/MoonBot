@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { AI_TWIN_PREVIEW_PATH, AI_TWIN_QUESTION_MAX, type AiTwinPreviewProvider, type AiTwinProfile } from "../../shared/ai-twin";
+import { AI_TWIN_LOOKUP_PATH, AI_TWIN_PREVIEW_PATH, AI_TWIN_QUESTION_MAX, type AiTwinLesson, type AiTwinPreviewProvider, type AiTwinProfile } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
 import { SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
@@ -12,26 +12,35 @@ export function AiTwinPreview({ twin, provider, refresh }: {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [draft, setDraft] = useState("");
+  const [lesson, setLesson] = useState<AiTwinLesson | null | undefined>(undefined);
   const [error, setError] = useState<"retry" | "changed" | null>(null);
   const [pending, setPending] = useState(false);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => () => abort.current?.abort(), []);
 
-  async function generate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!provider || !question.trim() || abort.current) return;
+  async function run(action: "lookup" | "generate") {
+    if (!question.trim() || abort.current || (action === "generate" && !provider)) return;
     const request = new AbortController();
     abort.current = request;
     setPending(true);
     setDraft("");
+    setLesson(undefined);
     setError(null);
     try {
-      const answer = await api<{ draft: string }>(AI_TWIN_PREVIEW_PATH, {
-        method: "POST", timeoutMs: 24_000, signal: request.signal,
-        body: JSON.stringify({ id: twin.id, revision: twin.revision, key: provider.key, question, useProvider: true }),
-      });
-      if (!request.signal.aborted) setDraft(answer.draft);
+      const base = { id: twin.id, revision: twin.revision, question };
+      if (action === "generate" && provider) {
+        const answer = await api<{ draft: string }>(AI_TWIN_PREVIEW_PATH, {
+          method: "POST", timeoutMs: 24_000, signal: request.signal,
+          body: JSON.stringify({ ...base, key: provider.key, useProvider: true }),
+        });
+        if (!request.signal.aborted) setDraft(answer.draft);
+      } else {
+        const answer = await api<{ lesson: AiTwinLesson | null }>(AI_TWIN_LOOKUP_PATH, {
+          method: "POST", timeoutMs: 8_000, signal: request.signal, body: JSON.stringify(base),
+        });
+        if (!request.signal.aborted) setLesson(answer.lesson);
+      }
     } catch (problem) {
       if (!request.signal.aborted) {
         setError(problem instanceof ApiError && (problem.body?.error === "twin_preview_changed" || problem.body?.error === "twin_changed") ? "changed" : "retry");
@@ -40,6 +49,11 @@ export function AiTwinPreview({ twin, provider, refresh }: {
       abort.current = null;
       if (!request.signal.aborted) setPending(false);
     }
+  }
+
+  function lookup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void run("lookup");
   }
 
   return (
@@ -51,21 +65,33 @@ export function AiTwinPreview({ twin, provider, refresh }: {
         setPending(false);
         setQuestion("");
         setDraft("");
+        setLesson(undefined);
         setError(null);
       }
     }}>
       <summary className="cursor-pointer text-[13px] font-medium text-ink">{t("settings.aiTwin.preview")}</summary>
-      {open && provider ? (
-        <form onSubmit={generate} className="mt-3 flex flex-col gap-2">
-          <SettingsField label={t("settings.aiTwin.sampleQuestion")} hint={t("settings.aiTwin.previewDisclosure", { provider: provider.name, model: provider.model })}>
+      {open && (
+        <form onSubmit={lookup} className="mt-3 flex flex-col gap-2">
+          <SettingsField label={t("settings.aiTwin.sampleQuestion")}>
             <textarea dir="auto" className={`${SETTINGS_INPUT} h-auto min-h-20 py-1.5`} rows={3} maxLength={AI_TWIN_QUESTION_MAX}
-              value={question} onChange={(event) => { setQuestion(event.target.value); setDraft(""); }} disabled={pending} required />
+              value={question} onChange={(event) => { setQuestion(event.target.value); setDraft(""); setLesson(undefined); }} disabled={pending} required />
           </SettingsField>
-          <div>
+          <div className="flex flex-wrap gap-2">
             <button type="submit" className="ui-button ui-button-primary" disabled={pending || !question.trim() || error === "changed"}>
-              {t(pending ? "settings.aiTwin.generating" : "settings.aiTwin.generateDraft")}
+              {t("settings.aiTwin.lookupLesson")}
             </button>
+            {provider && <button type="button" className="ui-button" disabled={pending || !question.trim() || error === "changed"}
+              onClick={() => void run("generate")}>{t("settings.aiTwin.generateDraft")}</button>}
           </div>
+          {provider && <p className="text-[12px] text-ink-secondary">{t("settings.aiTwin.previewDisclosure", { provider: provider.name, model: provider.model })}</p>}
+          {pending && <p role="status" className="text-[12px] text-ink-secondary">{t("settings.aiTwin.generating")}</p>}
+          {lesson === null && <p role="status" className="text-[13px] text-ink-secondary">{t("settings.aiTwin.lessonMissing")}</p>}
+          {lesson && (
+            <div role="status" className="flex flex-col gap-1 text-[13px]">
+              <span className="font-medium text-ink">{t("settings.aiTwin.lessonSource")}</span>
+              <p dir="auto" className="whitespace-pre-wrap break-words text-ink-secondary">{lesson.answer}</p>
+            </div>
+          )}
           {error && (
             <p role="alert" className="text-[12px] text-danger">
               {t(error === "changed" ? "settings.aiTwin.previewChanged" : "settings.aiTwin.previewError")}{" "}
@@ -79,7 +105,7 @@ export function AiTwinPreview({ twin, provider, refresh }: {
             </div>
           )}
         </form>
-      ) : open && <p className="mt-2 text-[13px] text-ink-secondary">{t("settings.aiTwin.noPreviewProvider")}</p>}
+      )}
     </details>
   );
 }

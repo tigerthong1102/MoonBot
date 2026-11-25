@@ -8,7 +8,9 @@ as model instructions, use it as profile data or send it to a provider.
 The 50 cases cover durable preferences and decisions, corrected facts, and
 statements that should not become durable memory. The case labels reflect
 AgenticOS's memory evaluator. They do not by themselves prove the behavior
-of StartupBot's assisted or automatic learning.
+of StartupBot's assisted or automatic learning. The local replay at
+[`evals/ai-twin/agenticos-memory.test.ts`](../../evals/ai-twin/agenticos-memory.test.ts)
+checks explicit opt-in, correction, lookup and erasure against the corpus.
 
 [Upstream file](https://github.com/vstorm-co/agenticos/blob/bb09fedf19b10f897c6a55dbdcd76a212dc9a275/evals/personal/datasets/memory.tsv)
 · [License](LICENSE) · [Notice](NOTICE)

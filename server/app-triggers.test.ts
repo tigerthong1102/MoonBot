@@ -393,6 +393,110 @@ describe("AppTriggerManager", () => {
     expect((await client.inventory()).triggers).toEqual(before);
   });
 
+  it("keeps the local automation and its queued run when the account changes during an update or a waiting delete", async () => {
+    const other = await broker.install();
+    let selected = owner;
+    const client = brokerClient(() => ({ url: broker.url, token: selected.token }));
+    const triggers = manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => selected.id });
+    const first = await gmailTrigger(triggers);
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "fixture-update-account-switch");
+    await drain(triggers);
+    const before = triggers.get(first.id);
+    const runsBefore = routines.listRuns();
+    expect(runsBefore).toHaveLength(1);
+    let release!: () => void;
+    let entered!: () => void;
+    const enteredCall = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "setEnabled").mockImplementationOnce(async () => { entered(); await gate; });
+    const update = triggers.update(first.id, { enabled: false });
+    await enteredCall;
+    expect(triggers.get(first.id)).toEqual(before);
+    const remove = triggers.remove(first.id);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    selected = other;
+    release();
+    await expect(update).rejects.toThrow(/account changed/);
+    await expect(remove).rejects.toThrow(/account changed/);
+    expect(triggers.get(first.id)).toEqual(before);
+    expect(routines.listRuns()).toEqual(runsBefore);
+    selected = owner;
+    expect(manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => selected.id }).get(first.id)).toEqual(before);
+  });
+
+  it("keeps the local automation and queued run when the account changes during remote deletion", async () => {
+    const other = await broker.install();
+    let selected = owner;
+    const client = brokerClient(() => ({ url: broker.url, token: selected.token }));
+    const triggers = manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => selected.id });
+    const first = await gmailTrigger(triggers);
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "fixture-delete-account-switch");
+    await drain(triggers);
+    const before = triggers.get(first.id);
+    const runsBefore = routines.listRuns();
+    expect(runsBefore).toHaveLength(1);
+    let release!: () => void;
+    let entered!: () => void;
+    const enteredCall = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "remove").mockImplementationOnce(async () => { entered(); await gate; });
+    const pending = triggers.remove(first.id);
+    await enteredCall;
+    selected = other;
+    release();
+    await expect(pending).rejects.toThrow(/account changed/);
+    expect(triggers.get(first.id)).toEqual(before);
+    expect(routines.listRuns()).toEqual(runsBefore);
+    selected = owner;
+    expect(manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => selected.id }).get(first.id)).toEqual(before);
+  });
+
+  it("does not restore a deleted local automation when its account changes while binding", async () => {
+    const other = await broker.install();
+    let selected = owner;
+    const client = brokerClient(() => ({ url: broker.url, token: selected.token }));
+    const triggers = manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => selected.id });
+    const first = await gmailTrigger(triggers);
+    await triggers.remove(first.id);
+    const before = readFileSync(join(dir, "app-triggers.json"), "utf8");
+    let release!: () => void;
+    let entered!: () => void;
+    const enteredCall = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "create").mockImplementationOnce(async () => { entered(); await gate; return { triggerId: "fixture-remote-binding" }; });
+    const restore = triggers.restore(first.id);
+    await enteredCall;
+    selected = other;
+    release();
+    await expect(restore).rejects.toThrow(/account changed/);
+    expect(triggers.get(first.id)).toBeNull();
+    expect(readFileSync(join(dir, "app-triggers.json"), "utf8")).toBe(before);
+  });
+
+  it("restores the in-memory automation if the account changes during reconciliation", async () => {
+    const other = await broker.install();
+    let selected = owner;
+    const client = brokerClient(() => ({ url: broker.url, token: selected.token }));
+    const triggers = manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => selected.id });
+    const first = await gmailTrigger(triggers);
+    const inventory = await client.inventory();
+    vi.spyOn(client, "inventory").mockResolvedValueOnce({ ...inventory, triggers: [] });
+    let release!: () => void;
+    let entered!: () => void;
+    const enteredCall = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "create").mockImplementationOnce(async () => { entered(); await gate; return { triggerId: "fixture-rebound" }; });
+    const pending = triggers.reconcile();
+    await enteredCall;
+    expect(triggers.get(first.id)).toEqual(first);
+    selected = other;
+    release();
+    await expect(pending).rejects.toThrow(/account changed/);
+    expect(triggers.get(first.id)).toEqual(first);
+    selected = owner;
+    expect(manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => selected.id }).get(first.id)).toEqual(first);
+  });
+
   it("never sends one installation's saved cursor to another installation", async () => {
     const other = await broker.install();
     const otherAccount = broker.account(other.userId, "gmail", "other-fixture");

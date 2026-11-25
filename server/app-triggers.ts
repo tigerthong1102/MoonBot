@@ -2,6 +2,7 @@
 // step without the person (reconciliation), and the long-poll that turns each queued event into a routine run. One
 // path on desktop, headless and Cloud: Composio posts to the service, this server collects from it.
 import { randomBytes, randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -76,6 +77,7 @@ export interface AppTriggerManagerOptions {
 }
 
 export class AppTriggerManager {
+  private readonly mutationCredential = new AsyncLocalStorage<{ credential: string | null }>();
   private readonly file: string;
   private readonly heldFile: string;
   private readonly now: () => number;
@@ -218,17 +220,22 @@ export class AppTriggerManager {
     this.mutationsInFlight++;
     this.mutationGeneration++;
     try {
+      const credential = this.options.acknowledgmentScope?.() ?? null;
       if (this.options.linkedBots) {
         this.assertWritable();
         if (this.cursorReview === "unverified" || this.cursorReview === "changed" || this.options.service().available) {
-          const credential = this.options.acknowledgmentScope?.() ?? null;
           const scope = this.options.installationScope ? await this.readInstallationScope() : credential;
           this.assertCredential(credential);
           this.assertCursorScope(scope);
         }
       }
-      return await (this.options.broker.withCurrentAccount?.(work) ?? work());
+      return await this.mutationCredential.run({ credential }, () => this.options.broker.withCurrentAccount?.(work) ?? work());
     } finally { this.mutationsInFlight--; }
+  }
+
+  private assertMutationCredential(): void {
+    const current = this.mutationCredential.getStore();
+    if (this.options.linkedBots && current) this.assertCredential(current.credential);
   }
 
   get(id: string): AppTrigger | null {
@@ -282,16 +289,19 @@ export class AppTriggerManager {
       received: 0, filtered: 0, createdAt: now, updatedAt: now,
     };
     await this.exclusive(async () => {
+      this.assertMutationCredential();
       if (this.triggers.some((candidate) => candidate.id === trigger.id)) throw new AppTriggerError("An automation with this id already exists.", 409);
       this.assertNoDuplicate(trigger, true);
       try {
         await this.bind(trigger);
         await this.applyEnabled(trigger.remote.triggerId, trigger.enabled);
       } catch (error) {
+        this.assertMutationCredential();
         // Composio refused this config: nothing to save. Anything else is retried by reconciliation.
         if (error instanceof BrokerError && !error.transient && error.status !== 403) throw new AppTriggerError(error.message, 400);
         this.markRemoteFailure(trigger, error);
       }
+      this.assertMutationCredential();
       this.triggers.unshift(trigger);
       this.save();
     });
@@ -331,8 +341,9 @@ export class AppTriggerManager {
 
   private async updateTracked(id: string, patch: AppTriggerPatch, options: { protectInstructions?: boolean }): Promise<AppTrigger | null> {
     this.assertWritable();
-    const trigger = this.triggers.find((candidate) => candidate.id === id);
-    if (!trigger) return null;
+    const found = this.triggers.find((candidate) => candidate.id === id);
+    if (!found) return null;
+    const trigger: StoredTrigger = found;
     const updateBaseline = structuredClone({ app: trigger.app, event: trigger.event, config: trigger.config, filter: trigger.filter });
     const name = patch.name === undefined ? trigger.name : patch.name.trim().slice(0, NAME_MAX);
     if (!name) throw new AppTriggerError("An automation needs a name.");
@@ -348,6 +359,7 @@ export class AppTriggerManager {
       config = triggerConfig(type, Object.fromEntries(Object.entries(base).filter(([, value]) => value !== undefined)), filter);
     }
     await this.exclusive(async () => {
+      this.assertMutationCredential();
       if (!this.triggers.includes(trigger)) throw new AppTriggerError("This automation was removed. Refresh and try again.", 409);
       const effectiveConfig = reconfigure ? config : trigger.config;
       const effectiveFilter = patch.filter === undefined ? trigger.filter : filter;
@@ -361,30 +373,35 @@ export class AppTriggerManager {
       }
       const previous = trigger.remote.triggerId;
       const previousConfig = JSON.stringify(trigger.config);
-      Object.assign(trigger, {
-        name: patch.name === undefined ? trigger.name : name,
-        prompt: patch.prompt === undefined ? trigger.prompt : patch.prompt.trim(),
-        runOn: patch.runOn ?? trigger.runOn,
-        enabled: patch.enabled ?? trigger.enabled,
+      const staged = structuredClone(trigger);
+      Object.assign(staged, {
+        name: patch.name === undefined ? staged.name : name,
+        prompt: patch.prompt === undefined ? staged.prompt : patch.prompt.trim(),
+        runOn: patch.runOn ?? staged.runOn,
+        enabled: patch.enabled ?? staged.enabled,
         config: effectiveConfig,
         updatedAt: this.now(),
       });
-      if (effectiveFilter) trigger.filter = effectiveFilter;
-      else delete trigger.filter;
-      if (patch.sameConversation === true) trigger.sameConversation = true;
-      else if (patch.sameConversation === false) delete trigger.sameConversation;
-      if (patch.enabled === false) this.options.runs.cancelQueued(trigger.id, "The automation was paused before this event's run started");
+      if (effectiveFilter) staged.filter = effectiveFilter;
+      else delete staged.filter;
+      if (patch.sameConversation === true) staged.sameConversation = true;
+      else if (patch.sameConversation === false) delete staged.sameConversation;
       try {
         if (reconfigure && (!previous || JSON.stringify(config) !== previousConfig)) {
-          trigger.remote = { state: "pending" };
-          await this.bind(trigger);
-          await this.release(previous);
+          staged.remote = { state: "pending" };
+          await this.bind(staged);
+          await this.syncReplacementBinding(previous, trigger, staged);
         }
-        await this.applyEnabled(trigger.remote.triggerId);
+        await this.syncReplacementBinding(staged.remote.triggerId, trigger, staged);
       } catch (error) {
-        this.markRemoteFailure(trigger, error);
+        this.assertMutationCredential();
+        this.markRemoteFailure(staged, error);
       }
+      this.assertMutationCredential();
+      for (const key of Object.keys(trigger)) delete (trigger as Record<string, unknown>)[key];
+      Object.assign(trigger, staged);
       this.save();
+      if (patch.enabled === false) this.options.runs.cancelQueued(trigger.id, "The automation was paused before this event's run started");
     });
     this.emitTrigger(trigger);
     this.wake();
@@ -400,15 +417,28 @@ export class AppTriggerManager {
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return false;
     await this.exclusive(async () => {
+      this.assertMutationCredential();
+      if (!this.triggers.includes(trigger)) throw new AppTriggerError("This automation was removed. Refresh and try again.", 409);
+      let releaseFailed = false;
+      const remoteId = trigger.remote.triggerId;
+      try {
+        if (remoteId && !this.serviceOutOfReach()) {
+          const remaining = this.triggers.filter(candidate => candidate !== trigger && candidate.remote.triggerId === remoteId);
+          if (remaining.length) await this.options.broker.setEnabled(remoteId, remaining.some(candidate => candidate.enabled));
+          else await this.options.broker.remove(remoteId);
+        } else if (remoteId) releaseFailed = true;
+      } catch (error) {
+        this.assertMutationCredential();
+        this.log(`could not remove ${remoteId ?? id} from the connected-apps service yet: ${String(error)}`);
+        releaseFailed = true;
+      }
+      this.assertMutationCredential();
       this.triggers = this.triggers.filter((candidate) => candidate !== trigger);
       this.deleted = [...this.deleted.filter((entry) => entry.at >= this.now() - RESTORE_WINDOW_MS && entry.trigger.id !== id),
         { at: this.now(), trigger: structuredClone(trigger) }].slice(-MAX_DELETED);
-      this.options.runs.cancelQueued(id, "The automation was deleted before this event's run started");
       this.save();
-      try {
-        await this.release(trigger.remote.triggerId);
-      } catch (error) {
-        this.log(`could not remove ${trigger.remote.triggerId ?? id} from the connected-apps service yet: ${String(error)}`);
+      this.options.runs.cancelQueued(id, "The automation was deleted before this event's run started");
+      if (releaseFailed) {
         this.releasePending = true;
         this.nextReconcileAt = this.now();
       }
@@ -425,13 +455,15 @@ export class AppTriggerManager {
   private async restoreTracked(id: string): Promise<AppTrigger | null> {
     this.assertWritable();
     return this.exclusive(async () => {
+      this.assertMutationCredential();
       const entry = this.deleted.find((candidate) => candidate.trigger.id === id && candidate.at >= this.now() - RESTORE_WINDOW_MS);
       if (!entry || this.triggers.some((trigger) => trigger.id === id)) return null;
       if (this.options.botState(entry.trigger.botId) === "missing") throw new AppTriggerError("The assigned bot no longer exists.", 410);
       const trigger: StoredTrigger = { ...structuredClone(entry.trigger), remote: { state: "pending" }, updatedAt: this.now() };
       if (trigger.enabled) this.assertNoDuplicate(trigger, false);
       try { await this.bind(trigger); await this.applyEnabled(trigger.remote.triggerId, trigger.enabled); }
-      catch (error) { this.markRemoteFailure(trigger, error); }
+      catch (error) { this.assertMutationCredential(); this.markRemoteFailure(trigger, error); }
+      this.assertMutationCredential();
       this.deleted = this.deleted.filter((candidate) => candidate !== entry);
       this.triggers.unshift(trigger);
       this.save();
@@ -508,7 +540,22 @@ export class AppTriggerManager {
   reconcile(): Promise<void> {
     return this.trackMutation(() => {
       this.assertWritable();
-      return this.exclusive(() => { this.assertWritable(); return this.reconcileNow(); });
+      return this.exclusive(async () => {
+        this.assertWritable();
+        this.assertMutationCredential();
+        const before = this.triggers.map(trigger => ({ trigger, value: structuredClone(trigger) }));
+        try { await this.reconcileNow(); }
+        catch (error) {
+          const context = this.mutationCredential.getStore();
+          if (this.options.linkedBots && context && context.credential !== (this.options.acknowledgmentScope?.() ?? null)) {
+            for (const { trigger, value } of before) {
+              for (const key of Object.keys(trigger)) delete (trigger as Record<string, unknown>)[key];
+              Object.assign(trigger, value);
+            }
+          }
+          throw error;
+        }
+      });
     });
   }
 
@@ -762,15 +809,18 @@ export class AppTriggerManager {
     const changed = new Set<StoredTrigger>();
     for (const trigger of this.triggers) {
       const before = JSON.stringify(trigger);
+      const staged = structuredClone(trigger);
       try {
         this.assertCredential(credential);
-        await this.reconcileOne(trigger, bindings, accounts, credential);
+        await this.reconcileOne(staged, bindings, accounts, credential);
       } catch (error) {
         this.assertCredential(credential);
-        this.markRemoteFailure(trigger, error);
+        this.markRemoteFailure(staged, error);
       }
       this.assertCredential(credential);
-      noteDrops(this.now(), trigger, trigger.remote.triggerId ? bindings.get(trigger.remote.triggerId)?.dropped : undefined);
+      noteDrops(this.now(), staged, staged.remote.triggerId ? bindings.get(staged.remote.triggerId)?.dropped : undefined);
+      for (const key of Object.keys(trigger)) delete (trigger as Record<string, unknown>)[key];
+      Object.assign(trigger, staged);
       if (JSON.stringify(trigger) !== before) changed.add(trigger);
     }
     const wanted = new Set(this.triggers.map((trigger) => trigger.remote.triggerId).filter((id): id is string => Boolean(id)));
@@ -827,22 +877,18 @@ export class AppTriggerManager {
     if (trigger.problem?.kind === "error") delete trigger.problem;
   }
 
-  /** Several automations with the same settings share one service copy; it goes only when the last one does. */
-  private async release(triggerId: string | undefined): Promise<void> {
-    if (!triggerId) return;
-    if (this.triggers.some((trigger) => trigger.remote.triggerId === triggerId)) {
-      await this.applyEnabled(triggerId);
-      return;
-    }
-    if (this.serviceOutOfReach()) {
-      this.releasePending = true;
-      return;
-    }
-    await this.options.broker.remove(triggerId);
-  }
-
   private async applyEnabled(triggerId: string | undefined, alsoEnabled = false): Promise<void> {
     if (triggerId && !this.serviceOutOfReach()) await this.options.broker.setEnabled(triggerId, alsoEnabled || this.wantsEnabled(triggerId));
+  }
+
+  private async syncReplacementBinding(triggerId: string | undefined, previous: StoredTrigger, next: StoredTrigger): Promise<void> {
+    if (!triggerId) return;
+    const bindings = this.triggers.filter(trigger => trigger !== previous && trigger.remote.triggerId === triggerId);
+    if (next.remote.triggerId === triggerId) bindings.push(next);
+    if (!bindings.length) {
+      if (this.serviceOutOfReach()) this.releasePending = true;
+      else await this.options.broker.remove(triggerId);
+    } else if (!this.serviceOutOfReach()) await this.options.broker.setEnabled(triggerId, bindings.some(trigger => trigger.enabled));
   }
 
   /** The owner's own key, or the service switched off. A service merely not reached yet still gets its calls and retries. */

@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronUp, FileText, Globe, Monitor, Plug, Plus, Sparkles, Terminal, X, XCircle } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, FileText, Globe, Monitor, Plug, Plus, Signpost, Sparkles, Terminal, X, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent } from "react";
 
 import { appLabel, BARE_READ } from "../../../shared/skill-burger/apps";
@@ -10,7 +10,7 @@ import { burgerStartsFolded, rememberSavedRun, removeBurger, saveBurger, savedRu
 import { EveryChatToggle } from "./EveryChatToggle";
 
 export function LayerIcon({ kind }: { kind: BurgerLayer["kind"] }) {
-  const Icon = kind === "app" ? Plug : kind === "shell" ? Terminal : kind === "file" ? FileText : kind === "browser" ? Globe : kind === "computer" ? Monitor : Sparkles;
+  const Icon = kind === "app" ? Plug : kind === "shell" ? Terminal : kind === "file" ? FileText : kind === "browser" ? Globe : kind === "computer" ? Monitor : kind === "decide" ? Signpost : Sparkles;
   return <Icon size={16} aria-hidden="true" className={cn("shrink-0", kind === "ai" ? "text-accent-text" : "text-ink-secondary")} />;
 }
 

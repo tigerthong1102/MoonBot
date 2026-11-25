@@ -5,7 +5,8 @@ import { ACP_SHELL_DIRECTORY_KEYS, parseRunCommand } from "../run-command.ts";
 import { nameIsCommand } from "../tool-name.ts";
 import { PLAIN_APP_TOOL } from "./apps.ts";
 
-export type LayerKind = "shell" | "app" | "browser" | "file" | "computer" | "ai";
+export type LayerKind = "shell" | "app" | "browser" | "file" | "computer" | "ai" | "decide";
+/** Where a step happens: a connected app, the browser, the bot's own computer, a cloud computer (VM), or the person's own computer. */
 export type LayerWhere = "app" | "browser" | "bot" | "vm" | "yourComputer";
 export type LayerStatus = "running" | "done" | "failed";
 
@@ -102,6 +103,11 @@ function appLayer(base: Omit<BurgerLayer, "kind" | "app" | "tool" | "words" | "r
   };
 }
 
+/** The marker in a Skill Burger run's step rows: their input is {"skillBurgerRun": run, "name": …, "step": …}. */
+export const RUN_STEP_MARK = "skillBurgerRun";
+export const isRunStep = (input: string | undefined): boolean => Boolean(input?.includes(`"${RUN_STEP_MARK}"`));
+
+/** The layers one tool message stands for: none, one, or one per app of a multi-app call. */
 export function layersOf(message: RunMessage, live: ReadonlySet<string> = new Set()): BurgerLayer[] {
   const { server, bare } = splitName(message.tool?.name ?? "");
   return layersIn(message, live).map((layer) => ({ ...layer, where: layer.where ?? whereOf(layer, server, bare) }));
@@ -121,6 +127,8 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
   const tool = message.tool;
   if (message.kind !== "activity" || !tool?.name) return [];
   if (STATUS_ROW.test(tool.name)) return [];
+  // A saved run's own steps are the burger already, not new steps to save.
+  if (isRunStep(tool.input)) return [];
   const status: LayerStatus = tool.ok === false ? "failed" : tool.ok === undefined && live.has(message.id) ? "running" : "done";
   const base = { messageId: message.id, status, ...(tool.output ? { output: tool.output } : {}) };
   const input = parse(tool.input);

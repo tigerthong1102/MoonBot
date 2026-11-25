@@ -5,7 +5,7 @@
 import { Check, ChevronRight, Users } from "lucide-react";
 import { useState, type KeyboardEvent } from "react";
 
-import { dependents, type DraftStepView, type DraftView } from "../../../shared/skill-burger/draft-view";
+import { dependents, writerOf, type DraftStepView, type DraftView } from "../../../shared/skill-burger/draft-view";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { LayerIcon } from "./SkillBurger";
@@ -106,11 +106,15 @@ export function DraftSteps({ steps, skipped, onSkip, disabled }: {
 }) {
   const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set());
   // A write step the AI composes and the file step it feeds read as one step on the card.
-  const shown = steps.filter((step) => !step.id.endsWith("_write") || !steps.some((other) => `${other.id}_write` === step.id));
+  const shown = steps.filter((step) => !writerOf(step.id) || !steps.some((other) => other.id === writerOf(step.id)));
   const toggle = (step: DraftStepView) => {
     const next = new Set(skipped);
     const linked = [step.id, ...dependents(steps, step.id)];
-    if (skipped.has(step.id)) { next.delete(step.id); for (const need of step.needs) next.delete(need); } else for (const id of linked) next.add(id);
+    if (skipped.has(step.id)) {
+      const visited = new Set<string>();
+      const restore = (id: string) => { if (visited.has(id)) return; visited.add(id); next.delete(id); for (const need of steps.find((one) => one.id === id)?.needs ?? []) restore(need); };
+      restore(step.id);
+    } else for (const id of linked) next.add(id);
     onSkip(next);
   };
   return (
@@ -119,7 +123,7 @@ export function DraftSteps({ steps, skipped, onSkip, disabled }: {
         const line = draftLine(step);
         const kept = !skipped.has(step.id);
         const expanded = open.has(step.id);
-        const judged = !step.exact || steps.some((other) => other.id === `${step.id}_write` && !other.exact);
+        const judged = !step.exact || steps.some((other) => writerOf(other.id) === step.id && !other.exact);
         return (
           <li key={step.id} data-burger-layer={step.kind} data-kept={kept ? "true" : "false"}
             className={cn("burger-layer burger-open flex min-w-0 flex-col rounded-[8px] bg-card px-2 py-1.5 text-[13px] shadow-sm", !kept && "opacity-50")}>

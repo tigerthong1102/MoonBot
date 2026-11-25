@@ -9,7 +9,6 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { burgerStartsFolded, rememberSavedRun, removeBurger, saveBurger, savedRun, type DraftView, type SavedWorkflow } from "@/lib/skill-burger";
 import { DraftInputs, DraftSteps, replayLine, type InputChoices } from "./DraftSteps";
 import { EveryChatToggle } from "./EveryChatToggle";
-import { WorkflowShareConfirm } from "./WorkflowShareConfirm";
 
 export function LayerIcon({ kind }: { kind: BurgerLayer["kind"] }) {
   const Icon = kind === "app" ? Plug : kind === "shell" ? Terminal : kind === "file" ? FileText : kind === "browser" ? Globe : kind === "computer" ? Monitor : kind === "decide" ? Signpost : kind === "delegate" ? Users : Sparkles;
@@ -67,7 +66,6 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
   const [field, setField] = useState<{ summary: string; name: string } | null>(null);
   const advanced = useAdvancedMode();
   const [saving, setSaving] = useState<Saving>(() => { const skill = savedRun(run); return skill ? { state: "saved", skill } : { state: "idle" }; });
-  const [confirmShare, setConfirmShare] = useState(false);
   useEffect(() => { rememberSavedRun(run, saving.state === "saved" ? saving.skill : null); }, [run, saving]);
   const summaryField = useRef<HTMLInputElement>(null);
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
@@ -188,8 +186,8 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
       <div className="burger-fold" data-folded={folded ? "true" : "false"} inert={folded} aria-hidden={folded || undefined}>
       {draft && !live ? (
         <div className="flex min-w-0 flex-col gap-[3px]">
-          <DraftInputs inputs={draft.inputs} choices={inputs} disabled={Boolean(saved)} onChange={(name, choice) => setInputs((current) => ({ ...current, [name]: choice }))} />
-          <DraftSteps steps={draft.steps} skipped={skipped} onSkip={setSkipped} disabled={Boolean(saved)} />
+          <DraftInputs inputs={draft.inputs} choices={inputs} disabled={Boolean(saved) || saving.state === "saving"} onChange={(name, choice) => setInputs((current) => ({ ...current, [name]: choice }))} />
+          <DraftSteps steps={draft.steps} skipped={skipped} onSkip={setSkipped} disabled={Boolean(saved) || saving.state === "saving"} />
           {draft.outcome && (
             <details className="burger-layer burger-open min-w-0 rounded-[8px] bg-card px-3 py-1.5 text-[12px] text-ink-secondary shadow-sm" data-burger-outcome>
               <summary className="cursor-pointer truncate outline-none focus-visible:ring-2 focus-visible:ring-accent/60"><span className="text-ink-tertiary">{t("skillBurger.draft.outcome")}</span>{" · "}{draft.outcome.split("\n", 1)[0]!.replace(/[*_`#]+/g, "").trim()}</summary>
@@ -236,12 +234,12 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
         ) : (
           <button
             type="button"
-            onClick={() => { if (team) setConfirmShare(true); else void save(); }}
+            onClick={() => void save()}
             disabled={!canSave || live || saving.state === "saving"}
             title={live ? t("skillBurger.waitForRun") : undefined}
             className="flex h-10 w-full items-center justify-center gap-1.5 rounded-b-[18px] rounded-t-[8px] text-[13px] font-medium text-accent-text outline-none transition-colors hover:bg-ink/[0.05] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-default disabled:text-ink-tertiary disabled:hover:bg-transparent motion-reduce:transition-none"
           >
-            {saving.state === "saving" ? t("skillBurger.saving") : <><Plus size={14} aria-hidden="true" />{t("skillBurger.add")}</>}
+            {saving.state === "saving" ? t("skillBurger.saving") : <><Plus size={14} aria-hidden="true" />{t(team ? "skillBurger.share.confirm" : "skillBurger.add")}</>}
           </button>
         )}
       </div>
@@ -250,7 +248,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
           {saving.state === "error" ? saving.message : t("skillBurger.undone")}
         </p>
       )}
-      <WorkflowShareConfirm open={confirmShare} onCancel={() => setConfirmShare(false)} onConfirm={() => { setConfirmShare(false); void save(); }} />
+      {team && !saved && <p className="px-3 text-[12px] text-ink-secondary">{t("skillBurger.share.botBody")}</p>}
     </section>
   );
 }

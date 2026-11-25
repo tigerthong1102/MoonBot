@@ -95,6 +95,10 @@ export const workflowSchema = z.object({
   for (const step of workflow.steps) {
     if (seen.has(step.id)) issue.addIssue({ code: "custom", message: `step id ${step.id} is used twice` });
     if (step.kind === "decide" && !step.rules?.length && !step.prompt) issue.addIssue({ code: "custom", message: `decide step ${step.id} needs rules or a prompt` });
+    if (step.kind === "decide") {
+      for (const rule of step.rules ?? []) if (!step.cases.includes(rule.case)) issue.addIssue({ code: "custom", message: `decide step ${step.id} has a rule for an unknown case` });
+      if (step.otherwise && !step.cases.includes(step.otherwise)) issue.addIssue({ code: "custom", message: `decide step ${step.id} has an unknown otherwise case` });
+    }
     const fork = caseOf(step);
     if (fork) {
       const decide = seen.get(fork.decide);
@@ -143,24 +147,25 @@ export function textLine(value: WorkflowText): string {
 }
 
 function stepLine(step: WorkflowStep, args: Workflow["args"]): string {
+  const fork = caseOf(step);
+  const prefix = fork ? `[only when ${fork.decide} is "${fork.case}"] ` : "";
+  const done = step.check && typeof step.check === "object" ? ` (done when: ${step.check.says.replace(/\s+/g, " ").slice(0, 200)})` : "";
   if (step.kind === "delegate") {
-    const done = [...new Set(step.tasks.map((task) => task.doneWhen).filter(Boolean))];
-    return [
+    const taskDone = [...new Set(step.tasks.map((task) => task.doneWhen).filter(Boolean))];
+    return prefix + [
       `Teammates: ${teammateNames(step.tasks)} each get their part at once (coordinate_bots); wait for every reply${argsUsed(step, args)}`,
       ...step.tasks.map((task) => `   - ${task.bot.name}: ${textLine(task.message).replace(/\s+/g, " ").slice(0, 300)}`),
-      ...(done.length ? [`   Done when: ${done.join(" / ")}`] : []),
+      ...(taskDone.length ? [`   Done when: ${taskDone.join(" / ")}`] : []),
       ...(step.review ? [`   A reply that falls short goes back, up to ${step.review.rounds} more round${step.review.rounds > 1 ? "s" : ""}${step.review.example ? `; last time: ${step.review.example.replace(/\s+/g, " ").slice(0, 200)}` : ""}`] : []),
-    ].join("\n");
+    ].join("\n") + done;
   }
-  if (step.kind === "decide") return `Decide: ${step.label} (${step.cases.map((one) => `"${one}"`).join(", ")})${step.prompt ? " (your judgement)" : ""}`;
+  if (step.kind === "decide") return `${prefix}Decide: ${step.label} (${step.cases.map((one) => `"${one}"`).join(", ")})${step.prompt ? " (your judgement)" : ""}${done}`;
   const where = step.kind === "app" ? appLabel(step.app) : step.kind === "ai" ? "AI" : step.kind === "shell" ? "Command" : step.kind === "file" ? "File" : "Browser";
   const used = Object.keys(args).filter((name) => JSON.stringify(step).includes(`"$arg":"${name}"`) || (step.kind === "shell" && step.run.includes(`OMB_ARG_${name.toUpperCase()}`)));
   const detail = used.map((name) => `${args[name]!.label ?? name}: ${name}${args[name]!.default === undefined ? "" : `, default ${JSON.stringify(args[name]!.default)}`}`);
   const what = step.kind === "shell" ? ` \`${step.run.split("\n", 1)[0]!.slice(0, 120)}\`` : step.kind === "app" ? ` (${step.tool})` : "";
   const place = step.where && PLACE[step.where] && !(step.kind === "browser" && step.where === "browser") ? ` ${PLACE[step.where]}` : "";
-  const fork = caseOf(step);
-  const done = step.check && typeof step.check === "object" ? ` (done when: ${step.check.says.replace(/\s+/g, " ").slice(0, 200)})` : "";
-  return `${fork ? `[only when ${fork.decide} is "${fork.case}"] ` : ""}${where}${place}: ${step.label}${what}${detail.length ? ` (${detail.join("; ")})` : ""}${step.kind === "ai" ? " (your judgement)" : ""}${done}`;
+  return `${prefix}${where}${place}: ${step.label}${what}${detail.length ? ` (${detail.join("; ")})` : ""}${step.kind === "ai" ? " (your judgement)" : ""}${done}`;
 }
 
 export function renderWorkflowSkillMd(name: string, workflow: Workflow): string {

@@ -23,15 +23,16 @@ describe("where a Skill Burger's steps run", () => {
     expect(await exec.file({ path: "notes/a.md", content: "hi", signal: signal() })).toMatchObject({ ok: true });
     expect(readFileSync(join(cwd, "notes/a.md"), "utf8")).toBe("hi");
     expect(await exec.file({ path: "../escape.md", content: "x", signal: signal() })).toMatchObject({ ok: false });
-    symlinkSync(tmpdir(), join(cwd, "out"));
+    symlinkSync(tmpdir(), join(cwd, "out"), "junction");
     expect(await exec.file({ path: "out/escape.md", content: "x", signal: signal() })).toMatchObject({ ok: false });
   });
 
-  it("refuses to follow a final symlink to a file outside the conversation", async () => {
+  it("refuses to follow a final symlink to a file outside the conversation", async (context) => {
     const cwd = folder();
     const outside = join(folder(), "outside.txt");
     writeFileSync(outside, "original");
-    symlinkSync(outside, join(cwd, "linked.txt"));
+    try { symlinkSync(outside, join(cwd, "linked.txt")); }
+    catch (error) { if (process.platform === "win32" && (error as NodeJS.ErrnoException).code === "EPERM") context.skip(); else throw error; }
     const exec = createExecutors({ botId: "b", cwd, internal: async () => ({ ok: false, body: {} }) });
     expect(await exec.file({ path: "linked.txt", content: "modified", signal: signal() })).toMatchObject({ ok: false });
     expect(readFileSync(outside, "utf8")).toBe("original");
@@ -40,7 +41,7 @@ describe("where a Skill Burger's steps run", () => {
   it("does not create parent directories outside the conversation through a symlink", async () => {
     const cwd = folder();
     const outside = folder();
-    symlinkSync(outside, join(cwd, "linked"));
+    symlinkSync(outside, join(cwd, "linked"), "junction");
     const exec = createExecutors({ botId: "b", cwd, internal: async () => ({ ok: false, body: {} }) });
     expect(await exec.file({ path: "linked/new/report.txt", content: "data", signal: signal() })).toMatchObject({ ok: false });
     expect(existsSync(join(outside, "new"))).toBe(false);
@@ -65,6 +66,12 @@ describe("where a Skill Burger's steps run", () => {
       const exec = createExecutors({ botId: "b", cwd: folder(), internal: async () => ({ ok: true, body: { result: { content: [{ type: "text", text: JSON.stringify(body) }] } } }) });
       expect(await exec.app({ tool: "GMAIL_SEND_EMAIL", app: "gmail", args: {}, signal: signal(), maxBytes: 10_000 })).toMatchObject({ ok: false, error: "denied" });
     }
+  });
+
+  it("retains response wrappers used by references in recorded workflows", async () => {
+    const body = { successful: true, data: { results: [{ tool_slug: "GMAIL_FETCH_EMAILS", response: { successful: true, data: { messages: [{ id: "fixture" }] } } }] } };
+    const exec = createExecutors({ botId: "b", cwd: folder(), internal: async () => ({ ok: true, body: { result: { content: [{ type: "text", text: JSON.stringify(body) }] } } }) });
+    expect(await exec.app({ tool: "GMAIL_FETCH_EMAILS", app: "gmail", args: {}, signal: signal(), maxBytes: 10_000 })).toEqual({ ok: true, output: body });
   });
 
   it("preserves the message from a JSON-RPC error", async () => {

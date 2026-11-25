@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyDecisions, parseDecisions } from "../../shared/skill-burger/decisions.ts";
-import { caseOf, workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
+import { caseOf, onCase, renderWorkflowSkillMd, workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
 import { applyEdit, createEditUndo, editSchema } from "./edit.ts";
 
 const base: Workflow = workflowSchema.parse({
@@ -12,6 +12,18 @@ const base: Workflow = workflowSchema.parse({
   ],
 });
 const edit = (value: unknown) => editSchema.parse(value);
+
+it("rejects decision rules that point to an unlisted case", () => {
+  const decision = { id: "d1", kind: "decide", label: "Pick", cases: ["support"], rules: [{ $step: "s1", op: "exists", case: "sales" }] };
+  expect(workflowSchema.safeParse({ ...base, steps: [base.steps[0], decision] }).success).toBe(false);
+  expect(workflowSchema.safeParse({ ...base, steps: [base.steps[0], { ...decision, rules: undefined, prompt: "Pick", otherwise: "sales" }] }).success).toBe(false);
+});
+
+it("shows case restrictions and checks for delegated and decision steps", () => {
+  const workflow = workflowSchema.parse({ ...base, steps: [base.steps[0], { id: "d1", kind: "decide", label: "Pick", cases: ["support"], prompt: "Pick" }, { id: "s2", kind: "delegate", label: "Ask", tasks: [{ bot: { name: "Rui" }, message: "Inspect" }], when: onCase("d1", "support"), check: { says: "reply exists" } }] });
+  expect(renderWorkflowSkillMd("fixture", workflow)).toContain('[only when d1 is "support"] Teammates:');
+  expect(renderWorkflowSkillMd("fixture", workflow)).toContain("done when: reply exists");
+});
 
 it("keeps undo tokens scoped to the skill location and expires them", () => {
   let now = 1_000;
@@ -27,6 +39,10 @@ it("keeps undo tokens scoped to the skill location and expires them", () => {
 });
 
 describe("changing a saved Skill Burger's steps", () => {
+  it("refuses to add a ninth case", () => {
+    const workflow = workflowSchema.parse({ ...base, steps: [base.steps[0], { id: "d1", kind: "decide", label: "Choose", cases: ["one", "two", "three", "four", "five", "six", "seven", "eight"], prompt: "Choose" }] });
+    expect(applyEdit(workflow, edit({ action: "add_case", decide: { id: "d1" }, case: "nine", steps: [] }))).toMatchObject({ error: expect.stringContaining("8 cases") });
+  });
   it("adds a case in words: a new fork after a step, with its steps tagged for the case and their refs renumbered", () => {
     const next = applyEdit(base, edit({
       action: "add_case", decide: { after: "s1", label: "Is it support?", prompt: "Is this email a support request?", input: { $step: "s1" } }, case: "support",

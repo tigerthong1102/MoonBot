@@ -108,16 +108,58 @@ it("shows a burger the turn changed, with that change's Undo", async () => {
   expect(host.textContent).toContain("Change undone");
 });
 
-it("asks before adding conversation-derived steps to a team's workflow", async () => {
+it("keeps the edit Undo available after a workflow run", async () => {
+  const edit: RunMessage = { id: "e2", role: "bot", kind: "activity", tool: { name: "mcp__agents__workflow_edit", ok: true, input: JSON.stringify({ name: "files-new-support-email", action: "add_case" }), output: 'undo "0f0e0d0c-0b0a-4908-8706-050403020100"' } };
+  await render([ask, step("s1", "done"), edit]);
+  expect(card()?.dataset.skillBurger).toBe("edited");
+  expect(button("Undo")).toBeDefined();
+});
+
+it("keeps the path Undo available when the first undo request fails", async () => {
+  const handed: RunMessage = { id: "call-1", role: "bot", kind: "activity", tool: { name: "mcp__agents__run_workflow", ok: true, input: "{}", output: 'resume "run-1"' } };
+  let refused = true;
+  fixture.api.mockImplementation(async (path: string, init?: { method?: string }) => {
+    if (path.includes("?runner=")) return { workflow, everyChat: false };
+    if (path.endsWith("/paths")) return { skill: {}, undo: "u-1" };
+    if (init?.method === "PATCH" && refused) throw new Error("Temporary failure");
+    return {};
+  });
+  await render([ask, step("s1", "done"), step("d1", "done", { case: "spam" }), handed]);
+  await act(async () => button("Add the “spam” path")!.click());
+  await act(async () => button("Undo")!.click());
+  expect(host.textContent).toContain("Temporary failure");
+  expect(button("Undo")).toBeDefined();
+  refused = false;
+  await act(async () => button("Undo")!.click());
+  expect(host.textContent).toContain("Path removed");
+});
+
+it("offers Undo after keeping a workflow fix", async () => {
+  const { RunHistory } = await import("./RunExtras");
+  fixture.api.mockImplementation(async (path: string, init?: { method?: string }) => {
+    if (path.endsWith("/runs")) return { runs: [{ run: "r1", threadId: "t1", status: "ok", fixedBy: "s1", at: Date.now() }] };
+    if (path.endsWith("/fix")) return { undo: "fix-undo" };
+    if (init?.method === "PATCH") return {};
+    return {};
+  });
+  await act(async () => root.render(createElement(RunHistory, { name: "fixture", everyChat: false, botId: "scout", threadId: "t1", refreshKey: "r1", team: true })));
+  await act(async () => { await Promise.resolve(); });
+  const keep = host.querySelector<HTMLButtonElement>("[data-burger-keep-fix]");
+  expect(keep).not.toBeNull();
+  await act(async () => keep!.click());
+  expect(button("Undo")).toBeDefined();
+  await act(async () => button("Undo")!.click());
+  expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers/fixture", { method: "PATCH", body: JSON.stringify({ undo: "fix-undo", botId: "scout" }) });
+});
+
+it("shows the audience when adding conversation-derived steps to a team's workflow", async () => {
   const handed: RunMessage = { id: "call-1", role: "bot", kind: "activity", tool: { name: "mcp__agents__run_workflow", ok: true, input: "{}", output: 'resume "run-1"' } };
   const messages = [ask, step("s1", "done"), step("d1", "done", { case: "spam" }), handed];
   fixture.api.mockImplementation(async (path: string) => path.includes("?runner=") ? { workflow, everyChat: false } : path.endsWith("/paths") ? { skill: {}, undo: "u-1" } : {});
   await render(messages, false, true);
-  await act(async () => button("Add the “spam” path")!.click());
+  expect(host.textContent).toContain("People who can view this bot can see it");
   expect(fixture.api.mock.calls.some(([path]) => String(path).endsWith("/paths"))).toBe(false);
-  const confirm = [...document.body.querySelectorAll("button")].find((node) => node.textContent?.includes("Share workflow"));
-  expect(confirm).toBeDefined();
-  await act(async () => confirm!.click());
+  await act(async () => button("Add the “spam” path")!.click());
   expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers/files-new-support-email/paths", {
     method: "POST", body: JSON.stringify({ runBotId: "scout", threadId: "t1", run: "run-1", decide: "d1", case: "spam", shareConsent: true, botId: "scout" }),
   });

@@ -183,7 +183,8 @@ export function useRunnable(name: string | null, botId: string): { workflow: Wor
   useEffect(() => {
     if (!name) return;
     let current = true;
-    const read = () => { void fetchRunnable(name, botId).then((value) => { if (current) setFound({ key: `${botId}:${name}`, value }); }); };
+    let generation = 0;
+    const read = () => { const request = ++generation; void fetchRunnable(name, botId).then((value) => { if (current && request === generation) setFound({ key: `${botId}:${name}`, value }); }); };
     read();
     window.addEventListener(CHANGED, read);
     return () => { current = false; window.removeEventListener(CHANGED, read); };

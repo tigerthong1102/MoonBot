@@ -169,6 +169,24 @@ describe("a saved delegation", () => {
     expect(await h.resume("fixed")).toMatchObject({ requiresInput: { type: "teammates" } });
   });
 
+  it("retries only a refused review handoff and keeps earlier replies", async () => {
+    const t = team();
+    let refuse = true;
+    const exec: StepExecutors = { ...t.exec, delegate: async (input) => input.rework && refuse ? { ok: false, error: "refused", definitive: true } : t.exec.delegate!(input) };
+    const h = harness(exec);
+    await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: qa(1) }, h.deps);
+    for (const bot of ["kiwi", "rio", "miso"]) t.reply(bot, `${bot} result`);
+    await h.resume("back");
+    const failed = await h.resume('{"redo":{"Rio":"check again"}}');
+    expect(failed.error?.resumeToken).toBeDefined();
+    expect(t.sent).toHaveLength(3);
+    refuse = false;
+    expect(await h.resume("retry")).toMatchObject({ requiresInput: { type: "teammates" } });
+    expect(t.sent).toHaveLength(4);
+    expect(t.sent[3]!.botIds).toEqual(["rio"]);
+    expect(h.saved.at(-1)?.delegation?.replies).toMatchObject({ Kiwi: { text: "kiwi result" }, Miso: { text: "miso result" } });
+  });
+
   it("does not offer a retry when earlier hand-offs were accepted before a later refusal", async () => {
     const t = team();
     let count = 0;

@@ -24,6 +24,14 @@ describe("a delegation run", () => {
     const workflow = draftFromLayers([{ ...layer, replay: "ai" }], "Inspect the fixture", "Inspect", { teammate });
     expect(workflow.steps[0]).toMatchObject({ kind: "ai", deterministic: false });
   });
+
+  it("keeps a new task for the same teammate after an intervening write", () => {
+    const first = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
+    const reply = run.find((message) => message.roomRequest?.phase === "result")!;
+    const second = { ...first, id: "independent", tool: { ...first.tool!, input: JSON.stringify({ ...JSON.parse(first.tool!.input!), message: "Publish the completed brief", rework: false }) } };
+    const layers = burgerLayers([ask("Research and publish"), first, reply, bash("echo brief > brief.md"), second]);
+    expect(layers.map((layer) => layer.kind)).toEqual(["delegate", "shell", "delegate"]);
+  });
   it("never makes a step of the app's own rows about teammates", () => {
     const rows = run.filter((message) => message.kind === "activity" && !message.tool?.itemId);
     expect(rows.map((message) => message.tool!.name)).toEqual(expect.arrayContaining(["Sent to Kiwi", "Kiwi replied", "Resumed with Kiwi, Rio, Miso results, reviewing"]));
@@ -139,8 +147,13 @@ describe("a step's place and the run's own leftovers", () => {
   });
 
   it("keeps the try that worked when a file is written again", () => {
-    const layers = burgerLayers([ask("make the csv"), bash("curl -sf https://example.com/a.json -o a.json"), bash("in2csv a.json > done.csv"), bash("in2csv -I a.json > done.csv")]);
+    const layers = burgerLayers([ask("make the csv"), bash("curl -sf https://example.com/a.json -o a.json"), bash("in2csv a.json > done.csv", { ok: false }), bash("in2csv -I a.json > done.csv")]);
     expect(layers.map((layer) => [layerLabel(layer), layer.tries ?? 0])).toEqual([["Run curl -sf https://example.com/a.json -o a.json", 0], ["Run in2csv -I a.json > done.csv", 1]]);
+  });
+
+  it("retains successful writes even when later writes target the same basename", () => {
+    const layers = burgerLayers([ask("make the logs"), bash("echo header > a/log.txt"), bash("echo row >> a/log.txt"), bash("echo other > b/log.txt")]);
+    expect(layers).toHaveLength(3);
   });
 
   it("writes text the AI composed after a read again from what it reads, not last time's words", () => {

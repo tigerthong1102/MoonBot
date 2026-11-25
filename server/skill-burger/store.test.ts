@@ -133,6 +133,22 @@ describe("saved burgers", () => {
     expect(readdirSync(join(root, "workflow-recovery"))).toEqual([]);
   });
 
+  it("preserves an assigned-only audience after replacement and rollback", () => {
+    const { root, bot, botIds } = fixture();
+    const saved = saveWorkflowSkill({ workflow, name: "assigned-only", place: { everyChat: true }, botIds, root });
+    if ("error" in saved) throw new Error(saved.error);
+    setLibrarySkillEveryBot(saved.name, false, root);
+    const latest = listWorkflowSkills(botIds, root).find((skill) => skill.name === saved.name)!;
+    const changed = replaceWorkflowSkill({ place: { everyChat: true }, name: saved.name, workflow: { ...workflow, summary: "Changed" }, sha256: latest.sha256, root });
+    if ("error" in changed || "stale" in changed) throw new Error("replace failed");
+    expect(readSkillLibraryIndex(root)[saved.name]?.everyBot).not.toBe(true);
+    expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
+    const oversized = { ...workflow, args: { large: { default: "x".repeat(300_000) } } };
+    expect(replaceWorkflowSkill({ place: { everyChat: true }, name: saved.name, workflow: oversized, sha256: changed.sha256, root })).toHaveProperty("error");
+    expect(readSkillLibraryIndex(root)[saved.name]?.everyBot).not.toBe(true);
+    expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
+  });
+
   it("rejects edits and removals after workflow content changes without changing its rendered skill", () => {
     const { root, botIds } = fixture();
     const original = { version: 1 as const, summary: "Fixture", args: {}, steps: [{ id: "s1", kind: "shell" as const, label: "Run", run: `printf first\n${"x".repeat(150)} old` }] };

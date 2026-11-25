@@ -1,7 +1,7 @@
 // Run for a saved burger that has inputs: one compact form with each input, filled with the value it was saved with, so
 // the person sees what the run will use and changes what differs this time. A burger without inputs runs at once.
 import { CirclePlay } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import type { Workflow } from "../../../shared/skill-burger/format";
 import { cn } from "@/lib/cn";
@@ -19,11 +19,22 @@ export function RunWithInputs({ skill, onRun, className, iconOnly, panelAction }
   panelAction?: string;
 }) {
   const [values, setValues] = useState<Record<string, string> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const pending = useRef(false);
+  const generation = useRef(0);
+  useEffect(() => { setLoading(false); setValues(null); return () => { generation.current += 1; pending.current = false; }; }, [skill.name, skill.botId, skill.everyChat]);
   const open = async () => {
+    if (pending.current) return;
     if (!skill.args.length) { onRun({}); return; }
     if (values) { setValues(null); return; }
+    pending.current = true;
+    setLoading(true);
+    const request = ++generation.current;
     let saved: Workflow["args"] = {};
     try { saved = ((await readBurgerWorkflow(skill)) as Workflow | null)?.args ?? {}; } catch { /* run with empty fields */ }
+    if (request !== generation.current) return;
+    pending.current = false;
+    setLoading(false);
     setValues(Object.fromEntries(skill.args.map((name) => [name, typeof saved[name]?.default === "string" ? saved[name]!.default as string : saved[name]?.default === undefined ? "" : JSON.stringify(saved[name]!.default)])));
   };
   const submit = (event: FormEvent) => {
@@ -34,9 +45,9 @@ export function RunWithInputs({ skill, onRun, className, iconOnly, panelAction }
   };
   return (
     <>
-      <button type="button" onClick={() => void open()} aria-expanded={skill.args.length ? Boolean(values) : undefined}
+      <button type="button" onClick={() => void open()} disabled={loading} aria-busy={loading} aria-expanded={skill.args.length ? Boolean(values) : undefined}
         aria-label={t("skillBurger.runName", { name: skill.summary })} title={t("skillBurger.run.button")} data-run-burger={skill.name} {...(panelAction ? { "data-panel-action": panelAction } : {})} className={className}>
-        <CirclePlay size={14} aria-hidden="true" />{iconOnly ? null : t("skillBurger.run.button")}
+        <CirclePlay size={14} aria-hidden="true" />{loading ? t("history.loading") : iconOnly ? null : t("skillBurger.run.button")}
       </button>
       {values && (
         <form onSubmit={submit} className="flex w-full basis-full flex-col gap-1.5 rounded-lg bg-ink/[0.03] p-2" data-burger-run-inputs>

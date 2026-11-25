@@ -72,15 +72,12 @@ it("saves in one click, then Undo takes back the exact copy", async () => {
   expect(button("Add Skill Burger")).toBeDefined();
 });
 
-it("asks before sharing a conversation-derived workflow with a team", async () => {
+it("shows the audience when sharing a conversation-derived workflow with a team", async () => {
   fixture.api.mockImplementation(async (path: string) => path === "/api/skill-burgers" ? { skill: saved } : { draft: null });
   await render([ask, app("m1", "GOOGLESHEETS_BATCH_GET"), app("m2", "GMAIL_SEND_EMAIL")], [], false, true);
-  await act(async () => button("Add Skill Burger")!.click());
   expect(document.body.textContent).toContain("People who can view this bot can see it");
   expect(fixture.api.mock.calls.some(([path]) => path === "/api/skill-burgers")).toBe(false);
-  const confirm = [...document.body.querySelectorAll("button")].find((node) => node.textContent?.includes("Share workflow"));
-  expect(confirm).toBeDefined();
-  await act(async () => confirm!.click());
+  await act(async () => button("Share workflow")!.click());
   expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers", { method: "POST", body: JSON.stringify({ botId: "scout", threadId: "t1", summary: "Email the sales sheet to Priya", shareConsent: true }) });
 });
 
@@ -174,8 +171,8 @@ it("leaving a step out leaves out the steps that use its output", async () => {
     goal: "Fetch and write", inputs: [],
     steps: [
       { id: "s1", kind: "shell", label: "Fetch example.com", exact: true, needs: [] },
-      { id: "s2_write", kind: "ai", label: "Write top.md", exact: false, needs: ["s1"] },
-      { id: "s2", kind: "file", label: "Write top.md", exact: true, needs: ["s2_write"] },
+      { id: "s2_write_2", kind: "ai", label: "Write top.md", exact: false, needs: ["s1"] },
+      { id: "s2", kind: "file", label: "Write top.md", exact: true, needs: ["s2_write_2"] },
     ],
   };
   fixture.api.mockImplementation(async (path: string) => (path === "/api/skill-burger-draft" ? { draft } : {}));
@@ -185,4 +182,6 @@ it("leaving a step out leaves out the steps that use its output", async () => {
   expect([...host.querySelectorAll("[data-burger-layer]")].map((row) => row.textContent)).toEqual([expect.stringContaining("Fetch example.com"), expect.stringContaining("Write top.md")]);
   await act(async () => host.querySelector<HTMLInputElement>('input[aria-label="Keep “Fetch example.com”"]')!.click());
   expect([...host.querySelectorAll("[data-burger-layer]")].map((row) => row.getAttribute("data-kept"))).toEqual(["false", "false"]);
+  await act(async () => host.querySelector<HTMLInputElement>('input[aria-label="Keep “Write top.md”"]')!.click());
+  expect([...host.querySelectorAll("[data-burger-layer]")].map((row) => row.getAttribute("data-kept"))).toEqual(["true", "true"]);
 });

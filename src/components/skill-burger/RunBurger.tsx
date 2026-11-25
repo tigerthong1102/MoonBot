@@ -6,7 +6,6 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { addBurgerPath, undoBurgerEdit } from "@/lib/skill-burger";
 import { RowExtra, RunHistory } from "./RunExtras";
-import { WorkflowShareConfirm } from "./WorkflowShareConfirm";
 import { LayerIcon } from "./SkillBurger";
 
 const SHEEN_PERIOD_MS = 2000;
@@ -88,8 +87,8 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
 }) {
   const [folded, setFolded] = useState(false);
   const [offer, setOffer] = useState<Offer>({ state: "idle" });
+  const [undoError, setUndoError] = useState("");
   const [editUndone, setEditUndone] = useState(false);
-  const [confirmShare, setConfirmShare] = useState(false);
   const live = view.rows.some((row) => row.state === "running");
   const failed = view.rows.some((row) => row.state === "failed");
   // The case offered stays named after its path is added, so its Undo stays in reach.
@@ -110,11 +109,12 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
     }
   };
   const undo = async (id: string, after: () => void) => {
+    setUndoError("");
     try {
       await undoBurgerEdit({ name: view.name, everyChat, botId, undo: id });
       after();
     } catch (cause) {
-      fail(cause);
+      setUndoError(cause instanceof Error && cause.message ? cause.message : t("skillBurger.run.addPathFailed"));
     }
   };
 
@@ -175,7 +175,7 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
           ) : (
             <button
               type="button"
-              onClick={() => { if (team) setConfirmShare(true); else void addPath(); }}
+              onClick={() => void addPath()}
               disabled={offer.state === "adding"}
               className="flex h-10 w-full items-center justify-center gap-1.5 rounded-b-[18px] rounded-t-[8px] text-[13px] font-medium text-accent-text outline-none transition-colors hover:bg-ink/[0.05] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-default disabled:text-ink-tertiary motion-reduce:transition-none"
             >
@@ -185,7 +185,8 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
         </div>
       )}
       {offer.state === "error" && <p role="alert" className="px-3 text-[12px] text-danger">{offer.message}</p>}
-      <WorkflowShareConfirm open={confirmShare} wholeTeam={everyChat} onCancel={() => setConfirmShare(false)} onConfirm={() => { setConfirmShare(false); void addPath(); }} />
+      {undoError && <p role="alert" className="px-3 text-[12px] text-danger">{undoError}</p>}
+      {team && missing && offer.state !== "added" && <p className="px-3 text-[12px] text-ink-secondary">{t(everyChat ? "skillBurger.share.teamBody" : "skillBurger.share.botBody")}</p>}
     </section>
   );
 }

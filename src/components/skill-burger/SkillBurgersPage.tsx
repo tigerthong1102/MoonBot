@@ -17,7 +17,7 @@ function BurgerCard({ skill, onRemove }: { skill: SavedWorkflow; onRemove: () =>
   const dispatch = useStoreDispatch();
   const bot = useStoreSelector((state) => (skill.botId ? state.bots.find((candidate) => candidate.id === skill.botId) : undefined));
   /** Where Run sends it: the bot it came from, else (one used in every chat whose bot is gone) the first bot. */
-  const runner = useStoreSelector((state) => bot ?? state.bots.find((candidate) => !candidate.hidden));
+  const runner = useStoreSelector((state) => bot ?? (skill.everyChat ? state.bots.find((candidate) => !candidate.hidden) : undefined));
   const [renaming, setRenaming] = useState<string | null>(null);
   const [problem, setProblem] = useState("");
   const field = useRef<HTMLInputElement>(null);

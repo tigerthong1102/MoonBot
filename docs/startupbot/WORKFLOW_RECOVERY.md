@@ -19,3 +19,9 @@ initiating member's edit authority can be verified for the active turn. Use the
 workflow controls with an account that can edit the bot. Sharing a workflow
 requires explicit consent. These controls have been exercised with isolated
 fixtures; production Team Cloud connectivity has not been verified.
+
+Saved VM command steps are handed to the bot's normal VM tool instead of being
+replayed automatically. The internal VM execution endpoint does not currently
+prove that an aborted request stops its command, so automatic replay cannot
+report a safe stop. The bot must report the actual result and must not retry an
+uncertain command automatically.

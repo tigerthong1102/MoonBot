@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { onCase, workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
 import { createRunStates } from "./run-state.ts";
 import { argEnv, resolve, resumeRun, runArgs, startRun, type ExecResult, type RunDeps, type RunState, type StepExecutors } from "./runner.ts";
+import { createExecutors } from "./executors.ts";
 
 const app = (id: string, tool: string, args: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ id, kind: "app" as const, app: tool.split("_")[0]!.toLowerCase(), tool, label: tool, args, ...extra });
 const wf = (steps: unknown[], args: Workflow["args"] = {}): Workflow => {
@@ -35,6 +36,40 @@ function harness(handlers: Partial<StepExecutors> = {}) {
 }
 
 describe("running a Skill Burger", () => {
+  it("passes a recorded nested app result into a later app action", async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const exec = createExecutors({ botId: "fixture", cwd: tmpdir(), internal: async (_kind, _path, raw) => {
+      const frame = raw as { params: { arguments: { tools: Array<{ tool_slug: string; arguments: Record<string, unknown> }> } } };
+      const call = frame.params.arguments.tools[0]!;
+      sent.push(call.arguments);
+      const data = call.tool_slug === "GMAIL_FETCH_EMAILS" ? { messages: [{ id: "fixture-id" }] } : { sent: true };
+      return { ok: true, body: { result: { content: [{ type: "text", text: JSON.stringify({ successful: true, data: { results: [{ tool_slug: call.tool_slug, response: { successful: true, data } }] } }) }] } } };
+    } });
+    const h = harness({ app: exec.app });
+    const workflow = wf([app("s1", "GMAIL_FETCH_EMAILS", {}), app("s2", "GMAIL_FORWARD_MESSAGE", { message_id: { $step: "s1", path: "data.results.0.response.data.messages.0.id" } })]);
+    expect(await h.start(workflow)).toMatchObject({ status: "ok" });
+    expect(sent[1]).toEqual({ message_id: "fixture-id" });
+  });
+  it("retains a checked step's output for the following step", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const h = harness({ app: async (input) => { calls.push(input.args); return { ok: true, output: { id: "fixture-id" } }; } });
+    const workflow = wf([app("s1", "GMAIL_FETCH_EMAILS", {}, { check: true }), app("s2", "GMAIL_SEND_EMAIL", { message_id: { $step: "s1", path: "id" } })]);
+    const paused = await h.start(workflow);
+    expect(paused.requiresInput?.type).toBe("check");
+    const state = h.saved.at(-1)!;
+    const done = await resumeRun(state, "pass", h.deps);
+    expect(done).toMatchObject({ status: "ok" });
+    expect(state.results.s1?.output).toEqual({ id: "fixture-id" });
+    expect(calls[1]).toEqual({ message_id: "fixture-id" });
+  });
+
+  it("hands VM commands to the normal bot tools rather than starting an uncancellable replay", async () => {
+    const h = harness();
+    const result = await h.start(wf([{ id: "s1", kind: "shell", label: "VM step", where: "vm", run: 'printf %s "$OMB_ARG_SITE"' }], { site: { default: "example.test" } }));
+    expect(result).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step", step: "s1" } });
+    expect(result.requiresInput?.input).toContain("example.test");
+    expect(h.calls).toHaveLength(0);
+  });
   it("starts the step timeout only after the person approves the action", async () => {
     vi.useFakeTimers();
     try {
@@ -47,7 +82,7 @@ describe("running a Skill Burger", () => {
       expect(h.calls).toHaveLength(1);
     } finally { vi.useRealTimers(); }
   });
-  it("runs each step where it ran, pipes values forward and fills args, with OMB_ARG_ env for commands", async () => {
+  it("pipes app results and fills command arguments", async () => {
     const h = harness({
       app: async (input) => {
         h.calls.push({ kind: "app", input });
@@ -57,14 +92,14 @@ describe("running a Skill Burger", () => {
     const workflow = wf([
       app("s1", "GMAIL_FETCH_EMAILS", { query: { $arg: "query" } }),
       app("s2", "GMAIL_FORWARD_MESSAGE", { message_id: { $step: "s1", path: "messages.0.id" }, to: { $arg: "to" } }),
-      { id: "s3", kind: "shell", label: "Archive", run: 'echo "$OMB_ARG_TO"', where: "vm" },
+      { id: "s3", kind: "shell", label: "Archive", run: 'echo "$OMB_ARG_TO"', where: "bot" },
     ], { query: { default: "invoice" }, to: { default: "a@example.com" } });
     const result = await h.start(workflow, { to: "priya@example.com", nope: "ignored" });
     expect(result).toMatchObject({ ok: true, status: "ok" });
     expect(h.calls.map((call) => call.kind)).toEqual(["app", "app", "shell"]);
     expect(h.calls[0]!.input).toMatchObject({ tool: "GMAIL_FETCH_EMAILS", args: { query: "invoice" } });
     expect(h.calls[1]!.input).toMatchObject({ args: { message_id: "m-42", to: "priya@example.com" } });
-    expect(h.calls[2]!.input).toMatchObject({ command: 'echo "$OMB_ARG_TO"', where: "vm", env: { OMB_ARG_QUERY: "invoice", OMB_ARG_TO: "priya@example.com" } });
+    expect(h.calls[2]!.input).toMatchObject({ command: 'echo "$OMB_ARG_TO"', where: "bot", env: { OMB_ARG_QUERY: "invoice", OMB_ARG_TO: "priya@example.com" } });
     expect(h.events).toEqual(["start s1", "done s1", "start s2", "done s2", "start s3", "done s3"]);
   });
 

@@ -165,7 +165,10 @@ export function createExecutors(context: ExecutorContext): StepExecutors {
       if (!answer.ok) return { ok: false, error: errorText(answer.body.error, "the app call was refused") };
       if (Buffer.byteLength(JSON.stringify(answer.body)) > input.maxBytes) return tooLarge(input.maxBytes);
       try {
-        return { ok: true, output: toolData(slug, answer.body) };
+        toolData(slug, answer.body);
+        const result = record(answer.body.result);
+        const text = (Array.isArray(result?.content) ? result.content : []).map(record).find((part) => typeof part?.text === "string")?.text;
+        return { ok: true, output: JSON.parse(String(text)) };
       } catch (error) {
         const plain = callText(answer.body);
         if (plain.ok && typeof plain.output === "string") {

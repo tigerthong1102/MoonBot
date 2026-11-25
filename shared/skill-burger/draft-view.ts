@@ -51,7 +51,7 @@ export interface DraftChoices {
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
-const writerOf = (id: string) => /^(.*)_write(?:_\d+)?$/.exec(id)?.[1];
+export const writerOf = (id: string) => /^(.*)_write(?:_\d+)?$/.exec(id)?.[1];
 
 /** The steps whose output `node` uses. */
 function refsIn(node: unknown, into = new Set<string>()): Set<string> {

@@ -6,8 +6,7 @@ import { useEffect, useState } from "react";
 import type { RowDetail } from "../../../shared/skill-burger/run-view";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
-import { fetchBurgerRuns, keepBurgerFix, type BurgerRunRecord } from "@/lib/skill-burger";
-import { WorkflowShareConfirm } from "./WorkflowShareConfirm";
+import { fetchBurgerRuns, keepBurgerFix, undoBurgerEdit, type BurgerRunRecord } from "@/lib/skill-burger";
 
 const QUIET = "text-[11px] text-ink-tertiary";
 
@@ -54,7 +53,9 @@ const ago = (at: number) => {
 export function RunHistory({ name, everyChat, botId, threadId, refreshKey, team = false }: { name: string; everyChat: boolean; botId: string; threadId: string; refreshKey: string; team?: boolean }) {
   const [runs, setRuns] = useState<BurgerRunRecord[] | null>(null);
   const [kept, setKept] = useState<"idle" | "saving" | "done" | "error">("idle");
-  const [confirmShare, setConfirmShare] = useState(false);
+  const [undo, setUndo] = useState<string | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const [undoError, setUndoError] = useState(false);
   useEffect(() => {
     let current = true;
     void fetchBurgerRuns(name).then((found) => { if (current) setRuns(found); });
@@ -66,23 +67,33 @@ export function RunHistory({ name, everyChat, botId, threadId, refreshKey, team 
     if (!fixed?.fixedBy || kept === "saving") return;
     setKept("saving");
     try {
-      await keepBurgerFix({ name, everyChat, runBotId: botId, threadId, run: fixed.run, step: fixed.fixedBy, ...(team ? { shareConsent: true as const } : {}) });
+      const result = await keepBurgerFix({ name, everyChat, runBotId: botId, threadId, run: fixed.run, step: fixed.fixedBy, ...(team ? { shareConsent: true as const } : {}) });
+      setUndo(result.undo);
       setKept("done");
     } catch {
       setKept("error");
     }
   };
+  const undoFix = async () => {
+    if (!undo || undoing) return;
+    setUndoing(true); setUndoError(false);
+    try { await undoBurgerEdit({ name, everyChat, botId, undo }); setUndo(null); setKept("idle"); }
+    catch { setUndoError(true); }
+    finally { setUndoing(false); }
+  };
   return (
     <div className="flex flex-col gap-[3px]">
       {fixed && kept !== "done" && (
-        <button type="button" onClick={() => { if (team) setConfirmShare(true); else void keep(); }} disabled={kept === "saving"} data-burger-keep-fix
+        <button type="button" onClick={() => void keep()} disabled={kept === "saving"} data-burger-keep-fix
           className="burger-layer burger-open flex min-h-8 items-center justify-center rounded-[8px] bg-card px-3 text-[12px] font-medium text-accent-text shadow-sm outline-none hover:bg-ink/[0.04] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:text-ink-tertiary">
           {t("skillBurger.run.keepFix")}
         </button>
       )}
       {kept === "done" && <p className="px-3 text-[12px] text-ink-secondary">{t("skillBurger.run.fixKept")}</p>}
+      {kept === "done" && undo && <button type="button" disabled={undoing} onClick={() => void undoFix()}>{t("common.undo")}</button>}
+      {undoError && <p role="alert" className="px-3 text-[12px] text-danger">{t("skillBurger.run.addPathFailed")}</p>}
       {kept === "error" && <p role="alert" className="px-3 text-[12px] text-danger">{t("skillBurger.run.addPathFailed")}</p>}
-      <WorkflowShareConfirm open={confirmShare} wholeTeam={everyChat} onCancel={() => setConfirmShare(false)} onConfirm={() => { setConfirmShare(false); void keep(); }} />
+      {team && fixed && kept !== "done" && <p className="px-3 text-[12px] text-ink-secondary">{t(everyChat ? "skillBurger.share.teamBody" : "skillBurger.share.botBody")}</p>}
       <details className="burger-layer burger-open rounded-[8px] bg-card px-3 py-1.5 text-[12px] shadow-sm" data-burger-history>
         <summary className="cursor-pointer text-ink-secondary outline-none focus-visible:ring-2 focus-visible:ring-accent/60">{t("skillBurger.run.history")}</summary>
         <ul className="mt-1 flex flex-col gap-0.5">

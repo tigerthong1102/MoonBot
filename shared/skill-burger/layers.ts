@@ -377,13 +377,6 @@ function joinDesktop(layers: BurgerLayer[]): BurgerLayer[] {
   return out;
 }
 
-/** The file a layer writes, when it writes one: a later write of the same file is the try that counts. */
-function writesTo(layer: BurgerLayer): string | null {
-  if (layer.kind === "file" && typeof layer.args?.path === "string") return layer.args.path.split(/[\\/]/).pop() ?? null;
-  if (layer.kind === "shell" && typeof layer.args?.command === "string") return redirectTarget(layer.args.command)?.split(/[\\/]/).pop() ?? null;
-  return null;
-}
-
 /** A read the run made that leaves no layer: a page looked at, a file or listing read. */
 function looked(message: RunMessage): boolean {
   const tool = message.tool;
@@ -411,7 +404,7 @@ export function burgerLayers(messages: readonly RunMessage[], live: ReadonlySet<
     if (found.some((layer) => layer.read)) read = true;
   }
   const kept: BurgerLayer[] = [];
-  const replaced = (layer: BurgerLayer, later: BurgerLayer) => (later.status !== "failed" && sameStep(layer, later) && layer.status === "failed") || (writesTo(layer) !== null && writesTo(layer) === writesTo(later) && later.status !== "failed");
+  const replaced = (layer: BurgerLayer, later: BurgerLayer) => later.status !== "failed" && sameStep(layer, later) && layer.status === "failed";
   layers.forEach((layer, index) => {
     if (layers.slice(index + 1).some((later) => replaced(layer, later))) return;
     const tries = layers.slice(0, index).filter((earlier) => replaced(earlier, layer)).length;
@@ -444,16 +437,16 @@ function joinDelegations(layers: BurgerLayer[], round: Map<string, number>, repl
   for (const layer of layers) {
     if (layer.kind !== "delegate" || !layer.delegation) { out.push(layer); continue; }
     const call = layer.delegation.rounds[0]![0]!;
+    const ids = call.bots.map((bot) => bot.id ?? bot.name);
     const last = out[out.length - 1];
-    if (last?.kind === "delegate" && last.delegation && round.get(last.id) === round.get(layer.id)) {
+    if (last?.kind === "delegate" && last.delegation && round.get(last.id) === round.get(layer.id) && !ids.some((id) => botsOf(last).has(id)) && Boolean(last.delegation.rounds.at(-1)?.[0]?.rework) === Boolean(call.rework)) {
       const rounds = last.delegation.rounds;
       rounds[rounds.length - 1]!.push(call);
       out[out.length - 1] = { ...last, words: [...new Set([...last.words.split(", "), ...layer.words.split(", ")])].join(", "), status: last.status === "failed" ? layer.status : last.status };
       round.set(out[out.length - 1]!.id, round.get(layer.id)!);
       continue;
     }
-    const ids = call.bots.map((bot) => bot.id ?? bot.name);
-    const earlier = [...out].reverse().find((one) => one.kind === "delegate" && ids.every((id) => botsOf(one).has(id)));
+    const earlier = call.rework ? [...out].reverse().find((one) => one.kind === "delegate" && ids.every((id) => botsOf(one).has(id))) : undefined;
     if (earlier?.delegation && round.get(earlier.id) !== round.get(layer.id)) {
       const rounds = earlier.delegation.rounds;
       const lastRoundAt = round.get(`${earlier.id}#last`) ?? round.get(earlier.id);

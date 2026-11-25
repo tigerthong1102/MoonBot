@@ -17,6 +17,7 @@ export interface DelegationState {
   who: Record<string, { id: string; name: string } | null>;
   requests: Array<{ part: string; botId: string; name: string; requestId: string }>;
   replies: Record<string, { name: string; ok: boolean; text: string; round: number }>;
+  pendingRedo?: Record<string, string>;
 }
 
 export interface DelegateExecutors {

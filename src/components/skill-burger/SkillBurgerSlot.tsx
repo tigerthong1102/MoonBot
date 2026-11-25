@@ -33,8 +33,9 @@ export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liv
   team?: boolean;
 }) {
   const seen = useMemo(() => latestRun(messages, liveTools), [messages, liveTools]);
-  const edit = useMemo(() => (seen ? null : editIn(messages)), [seen, messages]);
-  const runnable = useRunnable(seen?.name ?? edit?.name ?? null, botId);
+  const edit = useMemo(() => editIn(messages), [messages]);
+  const shownRun = seen && (!edit || seen.name === edit.name) ? seen : null;
+  const runnable = useRunnable(edit?.name ?? seen?.name ?? null, botId);
   const layers = useMemo(() => burgerLayers(messages, liveTools), [messages, liveTools]);
   const [closed, setClosed] = useState<ReadonlyMap<string, string>>(() => new Map());
   const [drafts, setDrafts] = useState<ReadonlyMap<string, DraftView | null>>(() => new Map());
@@ -53,9 +54,9 @@ export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liv
 
   const close = (key: string) => () => setClosed((current) => new Map(current).set(transcriptKey, key));
   if (seen || edit) {
-    const key = seen ? `run:${seen.run}` : `edit:${edit!.id}`;
+    const key = edit ? `edit:${edit.id}` : `run:${seen!.run}`;
     if (!runnable || closed.get(transcriptKey) === key) return null;
-    const view = runView(runnable.workflow, seen, seen?.name ?? edit!.name);
+    const view = runView(runnable.workflow, shownRun, edit?.name ?? seen!.name);
     return (
       <div className="flex justify-end px-4 pb-2">
         <RunBurger key={key} view={view} summary={runnable.workflow.summary} everyChat={runnable.everyChat} botId={botId} threadId={threadId} busy={busy} team={team}

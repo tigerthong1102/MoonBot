@@ -38,7 +38,7 @@ function parsed(path: string | null): Workflow | null {
   }
 }
 
-const workflowHash = (skillHash: string, workflow: Workflow) => createHash("sha256").update(skillHash).update("\0").update(JSON.stringify(workflow)).digest("hex");
+const workflowHash = (skillHash: string, workflow: Workflow, audience = "private") => createHash("sha256").update(skillHash).update("\0").update(audience).update("\0").update(JSON.stringify(workflow)).digest("hex");
 
 function readAt(place: BurgerPlace, name: string, root: string): { workflow: Workflow; sha256: string; fileSha256: string; botId?: string } | null {
   if (!isSkillName(name)) return null;
@@ -46,7 +46,7 @@ function readAt(place: BurgerPlace, name: string, root: string): { workflow: Wor
     const entry = readSkillLibraryIndex(root)[name];
     if (!entry?.tags?.includes(WORKFLOW_TAG) || !listLibrarySkills(root, (skill) => skill.name === name).some((skill) => skill.enabled)) return null;
     const workflow = parsed(join(librarySkillDirectory(root, name), WORKFLOW_FILE));
-    return workflow ? { workflow, sha256: workflowHash(entry.sha256, workflow), fileSha256: entry.sha256, botId: entry.workflowOriginBot ?? burgerBotOf(entry.source) } : null;
+    return workflow ? { workflow, sha256: workflowHash(entry.sha256, workflow, entry.everyBot ? "all" : "assigned"), fileSha256: entry.sha256, botId: entry.workflowOriginBot ?? burgerBotOf(entry.source) } : null;
   }
   const entry = listMigratableSkills(place.botId).find((skill) => skill.name === name && skill.intact && isBurgerSource(skill.source));
   const workflow = parsed(entry?.directory ? join(entry.directory, WORKFLOW_FILE) : null);
@@ -91,7 +91,7 @@ function taken(botIds: readonly string[], root: string): Set<string> {
   return new Set([...Object.keys(readSkillLibraryIndex(root)), ...botIds.flatMap((botId) => listSkills(botId).map((skill) => skill.name))]);
 }
 
-function write(place: BurgerPlace, name: string, workflow: Workflow, origin: string | undefined, root: string): SavedWorkflow | Failure {
+function write(place: BurgerPlace, name: string, workflow: Workflow, origin: string | undefined, root: string, everyBot = true): SavedWorkflow | Failure {
   const body = `${JSON.stringify(workflow, null, 2)}\n`;
   if (Buffer.byteLength(body, "utf8") > WORKFLOW_MAX_BYTES) return { error: "This run is too large to save as a skill." };
   const files = [{ path: "SKILL.md", content: renderWorkflowSkillMd(name, workflow) }, { path: WORKFLOW_FILE, content: body }];
@@ -100,8 +100,8 @@ function write(place: BurgerPlace, name: string, workflow: Workflow, origin: str
   if ("everyChat" in place) {
     const installed = installLibrarySkill({ name, instructions: files[0]!.content, source, ...(botId ? { workflowOriginBot: botId } : {}), tags: [WORKFLOW_TAG], reviewState: "approved", files: [files[1]!], root });
     if ("error" in installed) return { error: installed.error };
-    const everyBot = setLibrarySkillEveryBot(name, true, root);
-    if ("error" in everyBot) return { error: everyBot.error };
+    const audience = setLibrarySkillEveryBot(name, everyBot, root);
+    if ("error" in audience) return { error: audience.error };
   } else {
     const installed = installSkill(place.botId, source, files);
     if ("error" in installed) return { error: installed.error };
@@ -188,6 +188,7 @@ export function replaceWorkflowSkill(input: { place: BurgerPlace; name: string; 
   if (!checked.success) return { error: checked.error.issues.map((issue) => issue.message).join("; ").slice(0, 300) };
   const found = readAt(input.place, input.name, root);
   if (!found || found.sha256 !== input.sha256) return { stale: true };
+  const everyBot = "everyChat" in input.place ? readSkillLibraryIndex(root)[input.name]?.everyBot === true : true;
   let backup: string;
   const recoveryId = randomUUID();
   try {
@@ -197,20 +198,20 @@ export function replaceWorkflowSkill(input: { place: BurgerPlace; name: string; 
     if (!lstatSync(directory, { throwIfNoEntry: false })) mkdirSync(directory, { mode: 0o700 });
     if (!lstatSync(directory).isDirectory()) throw new Error("the recovery location is not a real directory");
     backup = join(directory, `${recoveryId}.json`);
-    writeFileAtomic(backup, JSON.stringify({ name: input.name, place: input.place, workflow: found.workflow, sha256: found.sha256, botId: found.botId }), { mode: 0o600 });
+    writeFileAtomic(backup, JSON.stringify({ name: input.name, place: input.place, workflow: found.workflow, sha256: found.sha256, botId: found.botId, everyBot }), { mode: 0o600 });
   } catch {
     return { error: "The workflow could not be backed up, so it was not changed." };
   }
   const discard = () => { try { rmSync(backup, { force: true }); } catch {} };
   const originalIntact = () => {
     const current = readAt(input.place, input.name, root);
-    return current?.sha256 === found.sha256 && JSON.stringify(current.workflow) === JSON.stringify(found.workflow);
+    return current?.sha256 === found.sha256 && JSON.stringify(current.workflow) === JSON.stringify(found.workflow) && (!("everyChat" in input.place) || (readSkillLibraryIndex(root)[input.name]?.everyBot === true) === everyBot);
   };
   const restore = () => {
     if (originalIntact()) return true;
     try {
       if (readAt(input.place, input.name, root)) return false;
-      write(input.place, input.name, found.workflow, found.botId, root);
+      write(input.place, input.name, found.workflow, found.botId, root, everyBot);
       return originalIntact();
     } catch { return false; }
   };
@@ -220,7 +221,7 @@ export function replaceWorkflowSkill(input: { place: BurgerPlace; name: string; 
       if (originalIntact()) discard();
       return "error" in gone ? gone : { stale: true };
     }
-    const written = write(input.place, input.name, checked.data, found.botId, root);
+    const written = write(input.place, input.name, checked.data, found.botId, root, everyBot);
     if (!("error" in written)) { discard(); return written; }
     if (restore()) { discard(); return written; }
     return { error: `The update failed; the original is in recovery (${recoveryId}).` };

@@ -5,7 +5,6 @@ import { t } from "@/lib/i18n";
 import { setBurgerEveryChat, type SavedWorkflow } from "@/lib/skill-burger";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { Switch } from "../SettingsPrimitives";
-import { WorkflowShareConfirm } from "./WorkflowShareConfirm";
 
 export function EveryChatToggle({ skill, onMoved, compact = false, className, team = false }: {
   skill: SavedWorkflow;
@@ -17,7 +16,6 @@ export function EveryChatToggle({ skill, onMoved, compact = false, className, te
   const admin = useOwnerOrAdmin() !== false;
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
-  const [confirmShare, setConfirmShare] = useState(false);
   const flip = async () => {
     if (busy) return;
     setBusy(true);
@@ -38,14 +36,14 @@ export function EveryChatToggle({ skill, onMoved, compact = false, className, te
           checked={skill.everyChat}
           disabled={!admin || busy}
           aria-label={t("skillBurger.everyChat")}
-          onClick={() => { if (team && !skill.everyChat) setConfirmShare(true); else void flip(); }}
+          onClick={() => void flip()}
           data-every-chat={skill.everyChat ? "on" : "off"}
         />
         <span className="min-w-0 truncate">{t("skillBurger.everyChat")}</span>
       </label>
       {!admin && !compact && <span className="mt-0.5 text-[12px] text-ink-tertiary">{t("settings.adminOnly.change")}</span>}
       {problem && <span role="alert" className="mt-0.5 text-[12px] text-danger">{problem}</span>}
-      <WorkflowShareConfirm open={confirmShare} wholeTeam onCancel={() => setConfirmShare(false)} onConfirm={() => { setConfirmShare(false); void flip(); }} />
+      {team && !skill.everyChat && <span className="mt-0.5 text-[12px] text-ink-tertiary">{t("skillBurger.share.teamBody")}</span>}
     </div>
   );
 }

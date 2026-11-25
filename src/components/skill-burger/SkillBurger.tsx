@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronUp, FileText, Globe, Monitor, Plug, Plus, Signpost, Sparkles, Terminal, X, XCircle } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, FileText, Globe, Monitor, Plug, Plus, Signpost, Sparkles, Terminal, Users, X, XCircle } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent } from "react";
 
 import { appLabel, BARE_READ } from "../../../shared/skill-burger/apps";
@@ -6,18 +6,23 @@ import type { BurgerLayer } from "../../../shared/skill-burger/layers";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
-import { burgerStartsFolded, rememberSavedRun, removeBurger, saveBurger, savedRun, type SavedWorkflow } from "@/lib/skill-burger";
+import { burgerStartsFolded, rememberSavedRun, removeBurger, saveBurger, savedRun, type DraftView, type SavedWorkflow } from "@/lib/skill-burger";
+import { DraftInputs, DraftSteps, replayLine, type InputChoices } from "./DraftSteps";
 import { EveryChatToggle } from "./EveryChatToggle";
 
 export function LayerIcon({ kind }: { kind: BurgerLayer["kind"] }) {
-  const Icon = kind === "app" ? Plug : kind === "shell" ? Terminal : kind === "file" ? FileText : kind === "browser" ? Globe : kind === "computer" ? Monitor : kind === "decide" ? Signpost : Sparkles;
+  const Icon = kind === "app" ? Plug : kind === "shell" ? Terminal : kind === "file" ? FileText : kind === "browser" ? Globe : kind === "computer" ? Monitor : kind === "decide" ? Signpost : kind === "delegate" ? Users : Sparkles;
   return <Icon size={16} aria-hidden="true" className={cn("shrink-0", kind === "ai" ? "text-accent-text" : "text-ink-secondary")} />;
 }
 
 const capital = (words: string) => (words ? words[0]!.toUpperCase() + words.slice(1) : words);
 
-export function layerLine(layer: Pick<BurgerLayer, "kind" | "words" | "app"> & { where?: BurgerLayer["where"] }): string {
-  const line = layer.kind === "shell" ? t("skillBurger.layer.run", { what: layer.words })
+/** The line a layer reads as, in the person's language where the words are ours. */
+export function layerLine(layer: Pick<BurgerLayer, "kind" | "words" | "app"> & { where?: BurgerLayer["where"]; read?: boolean; review?: true }): string {
+  const line = layer.review ? t("skillBurger.layer.review")
+    : layer.kind === "delegate" ? t("skillBurger.layer.ask", { who: layer.words })
+    : layer.kind === "shell" && layer.read ? t("skillBurger.layer.fetch", { site: layer.words })
+    : layer.kind === "shell" ? t("skillBurger.layer.run", { what: layer.words })
     : layer.kind === "file" ? t("skillBurger.layer.write", { name: layer.words })
     : layer.kind === "browser" ? t("skillBurger.layer.open", { site: layer.words })
     : layer.kind === "app" && layer.app && BARE_READ.test(layer.words) ? t("skillBurger.layer.readFrom", { app: appLabel(layer.app) })
@@ -43,9 +48,12 @@ const FIELD = "w-full min-w-0 rounded-md border border-hairline/60 bg-card px-1.
 
 type Saving = { state: "idle" } | { state: "saving" } | { state: "saved"; skill: SavedWorkflow } | { state: "undone" } | { state: "error"; message: string };
 
-export function SkillBurger({ run, layers, summary: initialSummary, canSave, botId, threadId, onDismiss }: {
+export function SkillBurger({ run, layers, draft, summary: initialSummary, canSave, botId, threadId, onDismiss }: {
+  /** The run this card is for, so a save is remembered when the card comes back. */
   run: string;
   layers: BurgerLayer[];
+  /** The finished run as it would be saved: shown in place of the live layers once it arrives. */
+  draft?: DraftView | null;
   summary: string;
   canSave: boolean;
   botId: string;
@@ -59,6 +67,8 @@ export function SkillBurger({ run, layers, summary: initialSummary, canSave, bot
   const [saving, setSaving] = useState<Saving>(() => { const skill = savedRun(run); return skill ? { state: "saved", skill } : { state: "idle" }; });
   useEffect(() => { rememberSavedRun(run, saving.state === "saved" ? saving.skill : null); }, [run, saving]);
   const summaryField = useRef<HTMLInputElement>(null);
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
+  const [inputs, setInputs] = useState<InputChoices>({});
   const summary = own.summary ?? initialSummary;
   const name = own.name;
   const editing = field !== null;
@@ -91,7 +101,11 @@ export function SkillBurger({ run, layers, summary: initialSummary, canSave, bot
     setField(null);
     setSaving({ state: "saving" });
     try {
-      const skill = await saveBurger({ botId, threadId, summary: words.summary.trim() || undefined, name: words.name || undefined });
+      const changedInputs = Object.fromEntries(Object.entries(inputs).filter(([, choice]) => choice.name !== undefined || choice.value !== undefined));
+      const skill = await saveBurger({
+        botId, threadId, summary: words.summary.trim() || undefined, name: words.name || undefined,
+        ...(skipped.size ? { skip: [...skipped] } : {}), ...(Object.keys(changedInputs).length ? { inputs: changedInputs } : {}),
+      });
       setSaving({ state: "saved", skill });
     } catch (cause) {
       setSaving({ state: "error", message: cause instanceof Error && cause.message ? cause.message : t("skillBurger.saveFailed") });
@@ -108,7 +122,8 @@ export function SkillBurger({ run, layers, summary: initialSummary, canSave, bot
   };
 
   const toggleLabel = folded ? t("skillBurger.expand") : t("skillBurger.collapse");
-  const count = layers.length === 1 ? t("skillBurger.layersOne") : t("skillBurger.layersMany", { count: layers.length });
+  const stepCount = draft ? draft.steps.filter((step) => !step.id.endsWith("_write") || !draft.steps.some((other) => `${other.id}_write` === step.id)).length : layers.length;
+  const count = [stepCount === 1 ? t("skillBurger.layersOne") : t("skillBurger.layersMany", { count: stepCount }), draft && !saved ? replayLine(draft.steps, skipped) : ""].filter(Boolean).join(" · ");
   return (
     <section
       aria-label={t("skillBurger.aria")}
@@ -167,6 +182,18 @@ export function SkillBurger({ run, layers, summary: initialSummary, canSave, bot
       </div>
 
       <div className="burger-fold" data-folded={folded ? "true" : "false"} inert={folded} aria-hidden={folded || undefined}>
+      {draft && !live ? (
+        <div className="flex min-w-0 flex-col gap-[3px]">
+          <DraftInputs inputs={draft.inputs} choices={inputs} disabled={Boolean(saved)} onChange={(name, choice) => setInputs((current) => ({ ...current, [name]: choice }))} />
+          <DraftSteps steps={draft.steps} skipped={skipped} onSkip={setSkipped} disabled={Boolean(saved)} />
+          {draft.outcome && (
+            <details className="burger-layer burger-open min-w-0 rounded-[8px] bg-card px-3 py-1.5 text-[12px] text-ink-secondary shadow-sm" data-burger-outcome>
+              <summary className="cursor-pointer truncate outline-none focus-visible:ring-2 focus-visible:ring-accent/60"><span className="text-ink-tertiary">{t("skillBurger.draft.outcome")}</span>{" · "}{draft.outcome.split("\n", 1)[0]!.replace(/[*_`#]+/g, "").trim()}</summary>
+              <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap">{draft.outcome}</p>
+            </details>
+          )}
+        </div>
+      ) : (
       <ol aria-label={t("skillBurger.layers")} className="burger-layers flex max-h-60 min-h-0 flex-col gap-[3px] overflow-y-auto">
         {layers.map((layer) => {
           const line = layerLine(layer);
@@ -190,6 +217,7 @@ export function SkillBurger({ run, layers, summary: initialSummary, canSave, bot
           );
         })}
       </ol>
+      )}
       </div>
 
       <div className="burger-bun burger-bun-bottom flex min-h-10 items-center rounded-b-[18px] rounded-t-[8px] bg-raised shadow-sm">

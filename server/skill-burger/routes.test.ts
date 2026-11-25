@@ -58,6 +58,7 @@ it("does not read conversations or saved workflows when the installation disable
   const messages = vi.fn(() => thread);
   const { api, bot } = await serve({ available: () => false, messages });
   expect((await api("/api/skill-burgers")).status).toBe(404);
+  expect((await api("/api/skill-burger-draft", send("POST", { botId: bot, threadId: "t1" }))).status).toBe(404);
   expect((await api("/api/skill-burgers", send("POST", { botId: bot, threadId: "t1" }))).status).toBe(404);
   expect(messages).not.toHaveBeenCalled();
 });
@@ -113,4 +114,15 @@ it("lets a Team member save and remove a burger on a bot they can edit, and keep
   expect((await api(`/api/skill-burgers/${name}?botId=${bot}`)).status).toBe(404);
   access = "edit";
   expect((await api(`/api/skill-burgers/${name}?botId=${bot}`, { method: "DELETE" })).status).toBe(200);
+});
+
+it("shows workflow history only for conversations the viewer can read", async () => {
+  const history = { list: vi.fn(() => [
+    { run: "visible", name: "workflow", botId: "visible-bot", threadId: "t1", startedAt: 1, at: 1, status: "ok" as const, steps: [] },
+    { run: "private", name: "workflow", botId: "visible-bot", threadId: "t2", startedAt: 1, at: 1, status: "ok" as const, steps: [] },
+  ]) };
+  const { api } = await serve({ history, levelOf: () => "view" }, ["client"]);
+  const result = await api("/api/skill-burgers/workflow/runs");
+  expect(result.status).toBe(200);
+  expect(result.body.runs.map((entry: { run: string }) => entry.run)).toEqual(["visible"]);
 });

@@ -3998,7 +3998,7 @@ const botLink = createBotLinkHost({ roomLine: (threadId, key, params) => serverL
       const sender = parent ? store.bot(parent.botId) : undefined;
       const brief = composed.text;
       const liveRoster = resumed ? undefined : coordinationLiveRosterBlock(bot);
-      const turnText = liveRoster ? `${brief}\n\n${liveRoster}` : brief;
+      const turnText = [brief, liveRoster, resumed ? skillBurgerRuns.waitingNote(node.threadId, coordinator.children(node.id).map((child) => child.id)) : null].filter(Boolean).join("\n\n");
       const systemInstructions = node.parentId ? coordinationSystemInstructions() : "";
       const request = coordinator.sharedRequest(node);
       if (!resumed && !store.messagesFor(node.threadId).some(m => m.roomRequest?.id === request.id && m.roomRequest.phase === "request")) {

@@ -252,7 +252,7 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
   // Desktop mode: the owner capability the app would hand the server.
   if (parentEnv.OMB_TEST_DESKTOP_OWNER_TOKEN) {
     childEnv.OMB_TEST_DESKTOP_OWNER_TOKEN = parentEnv.OMB_TEST_DESKTOP_OWNER_TOKEN;
-    if (parentEnv.OMB_AI_TWIN === "1") childEnv.OMB_AI_TWIN = "1";
+    if (parentEnv.OMB_AI_TWIN === "0") childEnv.OMB_AI_TWIN = "0";
     childEnv.OMB_DESKTOP_PARENT = "1";
     if (parentEnv.OMB_TEST_DESKTOP_PAGES_ACCESS) childEnv.OMB_TEST_DESKTOP_PAGES_ACCESS = parentEnv.OMB_TEST_DESKTOP_PAGES_ACCESS;
     if (parentEnv.OMB_TEST_DESKTOP_TAILNET_SHARE) childEnv.OMB_TEST_DESKTOP_TAILNET_SHARE = parentEnv.OMB_TEST_DESKTOP_TAILNET_SHARE;

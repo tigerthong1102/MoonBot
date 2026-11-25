@@ -1,4 +1,5 @@
 import { openUserSignIn } from "@/lib/user-sign-in";
+import { localAiTwinAvailable } from "@/lib/ai-twin";
 import { ArrowUpRight } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { CLOUD_PLAN_URL } from "@/lib/app-links";
@@ -9,6 +10,7 @@ import { InertRow, useSwitchToComputer } from "../inert";
 import { PlaceBadge, YouAvatar } from "../SettingsNav";
 import { SignOutConfirm } from "../SignOutConfirm";
 import { CloudAccountSettings } from "../../CloudAccountSettings";
+import { AiTwinSettings } from "../../AiTwinSettings";
 import { useCloudUsageSettings } from "../../CloudUsageMeter";
 import { OrganizationSettings } from "../../OrganizationSettings";
 import { PlacesTogetherSwitch } from "../../PlacesTogetherSwitch";
@@ -42,6 +44,7 @@ export function AccountPage() {
           : <SettingsLinkRow title={t("settings.account.nameRow")} badge={<PlaceBadge place={place} size={14} />} value={profileLabel(profile)} onClick={() => go("bots", "about-you")} data={{ "data-account-name-row": "" }} />}
       </SettingsRows>
     </SettingsGroup>
+    {localAiTwinAvailable(state.config) && <SettingsGroup block="ai-twin"><AiTwinSettings /></SettingsGroup>}
     {personal && <SettingsGroup label={t("settings.account.mausbot", { app: productName() })} block="mausbot-account">
       <SettingsRows><SettingRow title={summary.email ?? t("cloudBuy.signIn.email")} leading={<YouAvatar size={32} />}>
         {summary.email

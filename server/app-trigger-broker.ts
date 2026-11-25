@@ -74,6 +74,7 @@ export type BrokerEvent = z.infer<typeof brokerEventSchema>;
 const pollSchema = z.object({ events: z.array(z.unknown()), cursor: z.number() });
 
 export interface AppTriggerBroker {
+  identity?(signal?: AbortSignal): Promise<string>;
   triggerTypes(apps: string[]): Promise<Record<string, { types?: BrokerTriggerType[]; error?: string }>>;
   triggerType(slug: string): Promise<BrokerTriggerType | null>;
   create(input: { slug: string; connectedAccountId: string; config: Record<string, unknown> }): Promise<{ triggerId: string }>;
@@ -123,6 +124,10 @@ export function brokerClient(access: () => BrokerAccess | null, fetchImpl: typeo
   }
   const json = async (response: Response) => response.json() as Promise<unknown>;
   return {
+    async identity(signal) {
+      const body = z.object({ installationId: z.string().uuid() }).parse(await json(await call("/v1/me", { signal })));
+      return body.installationId;
+    },
     async triggerTypes(apps) {
       const response = await call(`/v1/trigger-types?${new URLSearchParams({ toolkits: apps.join(",") })}`);
       return typesSchema.parse(await json(response)).toolkits;

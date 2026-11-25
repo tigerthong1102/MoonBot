@@ -1,5 +1,6 @@
 // Wires app-event automations into the server: the manager over the managed connected-apps service, the routes the
 // app and the bot tools use, and the chat receipts. index.ts builds it once and hands it what it needs.
+import { createHash } from "node:crypto";
 import type { ServerResponse } from "node:http";
 
 import { botMayWatchApp, type AppEventCatalog } from "../shared/app-triggers.ts";
@@ -77,6 +78,14 @@ export function createAppTriggerHost(deps: AppTriggerHostDeps) {
     connectedApps: deps.connectedApps,
     botState: deps.botState,
     linkedBots: deps.linkedBots,
+    acknowledgmentScope: () => { const access = deps.access(); return access ? createHash("sha256").update(JSON.stringify([access.url, access.token])).digest("hex") : null; },
+    ...(deps.linkedBots ? { installationScope: async (signal?: AbortSignal) => {
+      const before = deps.access();
+      if (!before || !broker.identity) return null;
+      const installationId = await broker.identity(signal), after = deps.access();
+      if (!after || before.url !== after.url || before.token !== after.token) return null;
+      return createHash("sha256").update(JSON.stringify([before.url, installationId])).digest("hex");
+    } } : {}),
     runs: {
       enqueue: (input) => deps.routines().enqueueWebhook(input),
       merge: (triggerId, eventId, sameConversation, merge) => deps.routines().mergeIntoQueuedRun(triggerId, eventId, sameConversation, merge),

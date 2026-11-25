@@ -1,7 +1,7 @@
 // App-event automations: the store (DATA_DIR/app-triggers.json), their copies on the connected-apps service kept in
 // step without the person (reconciliation), and the long-poll that turns each queued event into a routine run. One
 // path on desktop, headless and Cloud: Composio posts to the service, this server collects from it.
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
@@ -66,6 +66,8 @@ export interface AppTriggerManagerOptions {
   connectedApps: () => Promise<ConnectedApps>;
   botState: (botId: string) => "ready" | "busy" | "missing";
   linkedBots?: (first: string, second: string) => boolean;
+  acknowledgmentScope?: () => string | null;
+  installationScope?: (signal?: AbortSignal) => Promise<string | null>;
   runs: {
     enqueue(input: { webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number; eventSource: "app"; sameConversation?: boolean }): { id: string };
     merge(triggerId: string, eventId: string, sameConversation: boolean, merge: (prompt: string) => string | null): { id: string } | null;
@@ -135,13 +137,16 @@ const fileSchema = z.object({
   version: z.literal(1),
   pollerId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
   cursor: z.number().int().nonnegative(),
+  cursorScope: z.string().min(1).max(128).optional(),
   triggers: z.array(storedSchema),
   attempts: z.array(attemptSchema).default([]),
   deleted: z.array(z.object({ at: z.number(), trigger: storedSchema })).default([]),
   heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })])).default([]),
   bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).default([]),
 });
-const heldStoreSchema = z.object({ version: z.union([z.literal(1), z.literal(2), z.literal(3)]), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional(), allowedTriggerIds: z.array(z.string()).optional(), heldBotIds: z.array(z.string()).optional(), heldTriggerIds: z.array(z.string()).optional() })) });
+const heldStoreSchema = z.object({ version: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional(), allowedTriggerIds: z.array(z.string()).optional(), heldBotIds: z.array(z.string()).optional(), heldTriggerIds: z.array(z.string()).optional(), discarded: z.literal(true).optional(), eventDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(), sourceScope: z.string().min(1).max(128).optional() })) });
+type HeldEvent = { reason: "conflict" | "unknown"; event?: BrokerEvent; allowedTriggerIds?: string[]; heldBotIds?: string[]; heldTriggerIds?: string[]; discarded?: true; eventDigest?: string; sourceScope?: string };
+const eventDigest = (event: BrokerEvent) => createHash("sha256").update(JSON.stringify(event)).digest("hex");
 
 export interface AppTriggerInput {
   botId: string;
@@ -215,12 +220,16 @@ export class AppTriggerManager {
   private deleted: Array<{ at: number; trigger: StoredTrigger }> = [];
   private pollerId = randomBytes(16).toString("base64url");
   private cursor = 0;
+  private cursorScope: string | undefined;
+  private acknowledgedCursor = 0;
+  private acknowledgedScope: string | null = null;
+  private acknowledgedCredential: string | null = null;
   private unreadable = false;
   private mutationsInFlight = 0;
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
-  private heldEvents = new Map<string, { reason: "conflict" | "unknown"; event?: BrokerEvent; allowedTriggerIds?: string[]; heldBotIds?: string[]; heldTriggerIds?: string[] }>();
+  private heldEvents = new Map<string, HeldEvent>();
   private heldUnreadable = false;
   private bindingOwners = new Map<string, Set<string>>();
   private stopped = true;
@@ -243,6 +252,7 @@ export class AppTriggerManager {
       if (!parsed.success) throw parsed.error;
       this.pollerId = parsed.data.pollerId;
       this.cursor = parsed.data.cursor;
+      this.cursorScope = parsed.data.cursorScope;
       this.triggers = parsed.data.triggers;
       this.attemptLog = parsed.data.attempts.slice(-MAX_ATTEMPTS);
       this.deleted = parsed.data.deleted.filter((entry) => entry.at >= this.now() - RESTORE_WINDOW_MS);
@@ -260,34 +270,75 @@ export class AppTriggerManager {
     }
     try {
       const stored = heldStoreSchema.parse(JSON.parse(readFileSync(this.heldFile, "utf8")));
-      upgradeHeldStore = stored.version !== 3;
+      upgradeHeldStore = stored.version < 3;
       if (new Set(stored.events.map(row => row.id)).size !== stored.events.length) throw new Error("Duplicate held event IDs");
       for (const row of stored.events) {
         if (row.event && row.event.id !== row.id) throw new Error("Mismatched held event ID");
+        if ((row.discarded || row.sourceScope) && stored.version !== 4) throw new Error("Invalid held event version");
+        if (row.discarded && (!row.event || !row.eventDigest || !row.sourceScope)) throw new Error("Invalid discarded event receipt");
         if (row.heldTriggerIds && (!row.heldTriggerIds.length || !row.heldBotIds?.length || row.heldTriggerIds.some(id => row.allowedTriggerIds?.includes(id)))) throw new Error("Conflicting held recipient IDs");
         const existing = this.heldEvents.get(row.id);
-        if (existing?.event && row.event && JSON.stringify(existing.event) !== JSON.stringify(row.event)) throw new Error("Conflicting held event copies");
+        if (existing?.event && row.event && JSON.stringify(existing.event) !== JSON.stringify(row.event) && (!row.discarded || eventDigest(existing.event) !== row.eventDigest)) throw new Error("Conflicting held event copies");
         const event = row.event ?? existing?.event;
-        this.heldEvents.set(row.id, { reason: row.reason, ...(event ? { event } : {}), ...(row.allowedTriggerIds ? { allowedTriggerIds: row.allowedTriggerIds } : {}), ...(row.heldBotIds ? { heldBotIds: row.heldBotIds } : {}), ...(row.heldTriggerIds ? { heldTriggerIds: row.heldTriggerIds } : {}) });
+        this.heldEvents.set(row.id, { reason: row.reason, ...(event ? { event } : {}), ...(row.allowedTriggerIds ? { allowedTriggerIds: row.allowedTriggerIds } : {}), ...(row.heldBotIds ? { heldBotIds: row.heldBotIds } : {}), ...(row.heldTriggerIds ? { heldTriggerIds: row.heldTriggerIds } : {}), ...(row.sourceScope ? { sourceScope: row.sourceScope } : {}), ...(row.discarded ? { discarded: true as const, eventDigest: row.eventDigest } : {}) });
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
     }
     if ([...this.heldEvents.values()].some(value => !value.event)) this.heldUnreadable = true;
     if (!this.heldUnreadable) for (const held of this.heldEvents.values()) {
+      if (held.discarded) continue;
       const reason = held.reason === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE;
       for (const trigger of this.triggers) if (heldEventMatches(held, trigger) && trigger.problem?.kind !== "reconnect") trigger.problem = { kind: "error", text: reason, at: this.now() };
+    }
+    if (!this.heldUnreadable) for (const trigger of this.triggers) {
+      if (isEventHoldProblem(trigger.problem) && !this.heldEventFor(trigger) && [...this.heldEvents.values()].some(held => held.discarded && heldEventMatches(held, trigger))) delete trigger.problem;
     }
     if ((embeddedEvents || upgradeHeldStore) && !this.heldUnreadable) {
       try {
         mkdirSync(dirname(this.heldFile), { recursive: true });
-        writeFileAtomic(this.heldFile, JSON.stringify({ version: 3, events: [...this.heldEvents].map(([id, value]) => ({ id, ...value })) }), { mode: 0o600 });
+        writeFileAtomic(this.heldFile, JSON.stringify({ version: [...this.heldEvents.values()].some(value => value.discarded || value.sourceScope) ? 4 : 3, events: [...this.heldEvents].map(([id, value]) => ({ id, ...value })) }), { mode: 0o600 });
+        if (embeddedEvents) this.save();
       } catch { this.heldUnreadable = true; }
     }
   }
 
   list(): AppTrigger[] {
     return this.triggers.map(publicTrigger);
+  }
+
+  heldEventReviews(): Array<{ id: string; digest: string; reason: "conflict" | "unknown"; readyToDiscard: boolean }> {
+    this.assertWritable();
+    const scope = this.options.acknowledgmentScope?.() ?? null;
+    return [...this.heldEvents].flatMap(([id, held]) => held.event && !held.discarded ? [{ id, digest: eventDigest(held.event), reason: held.reason, readyToDiscard: scope !== null && scope === this.acknowledgedCredential && held.sourceScope === this.acknowledgedScope && held.event.seq <= this.acknowledgedCursor }] : []);
+  }
+
+  discardHeldEvent(id: string, digest: string): void {
+    this.assertWritable();
+    const held = this.heldEvents.get(id);
+    if (held?.discarded) {
+      if (held.eventDigest !== digest) throw new AppTriggerError("This held event changed or is not ready for review.", 409);
+      this.publishDiscardedEvent(held);
+      return;
+    }
+    const scope = this.options.acknowledgmentScope?.() ?? null;
+    if (!held?.event || eventDigest(held.event) !== digest || held.event.seq > this.cursor || !scope || scope !== this.acknowledgedCredential || !held.sourceScope || held.sourceScope !== this.acknowledgedScope || held.event.seq > this.acknowledgedCursor || this.mutationsInFlight) throw new AppTriggerError("This held event changed or is not ready for review.", 409);
+    const { seq, kind, triggerId, receivedAt } = held.event;
+    const next = new Map(this.heldEvents);
+    const discarded: HeldEvent = { reason: held.reason, event: { id, seq, kind, triggerId, receivedAt, event: {} }, discarded: true, eventDigest: digest, sourceScope: held.sourceScope,
+      ...(held.heldBotIds ? { heldBotIds: held.heldBotIds } : {}), ...(held.heldTriggerIds ? { heldTriggerIds: held.heldTriggerIds } : {}) };
+    next.set(id, discarded);
+    try { writeFileAtomic(this.heldFile, JSON.stringify({ version: 4, events: [...next].map(([key, value]) => ({ id: key, ...value })) }), { mode: 0o600 }); }
+    catch { throw new AppTriggerError("Held event storage is unavailable.", 503); }
+    this.heldEvents = next;
+    this.publishDiscardedEvent(discarded);
+  }
+
+  private publishDiscardedEvent(held: HeldEvent): void {
+    for (const trigger of this.triggers) if (heldEventMatches(held, trigger)) {
+      if (isEventHoldProblem(trigger.problem) && !this.heldEventFor(trigger)) delete trigger.problem;
+      this.emitTrigger(trigger);
+    }
   }
 
   mutationActivity(): "unreadable" | "changing" | "no-mutation" {
@@ -565,18 +616,19 @@ export class AppTriggerManager {
 
   /** Handles one batch in order. The cursor (the service's ack) moves only after the runs and this file are saved:
    *  a crash before that brings the same events back, and each event's run receipt stops a second run. */
-  receive(events: BrokerEvent[], cursor: number): void {
+  receive(events: BrokerEvent[], cursor: number, sourceScope: string | null = this.options.acknowledgmentScope?.() ?? null): void {
     this.assertWritable();
     if (this.heldUnreadable) throw new RetryAppEvent("Held event storage is unavailable");
+    this.assertCursorScope(sourceScope);
     let next = this.cursor;
     try {
       for (const event of events) {
         try {
-          this.handle(event);
+          this.handle(event, sourceScope);
         } catch (error) {
           if (error instanceof RetryAppEvent) throw error;
           if (error instanceof LinkedEventConflict) {
-            this.holdEvent(event, error.message === LINKED_EVENT_CONFLICT ? "conflict" : "unknown");
+            this.holdEvent(event, error.message === LINKED_EVENT_CONFLICT ? "conflict" : "unknown", undefined, undefined, undefined, sourceScope);
             next = event.seq;
             continue;
           }
@@ -598,7 +650,7 @@ export class AppTriggerManager {
     }
   }
 
-  private handle(event: BrokerEvent): void {
+  private handle(event: BrokerEvent, sourceScope: string | null): void {
     if (event.kind === "account_expired") {
       const accountId = event.event.data?.connected_account_id;
       for (const trigger of this.triggers.filter((candidate) => candidate.accountId === accountId)) this.setProblem(trigger, { kind: "reconnect", at: this.now() });
@@ -610,6 +662,11 @@ export class AppTriggerManager {
     }
     const data = event.event.data ?? {};
     const held = this.heldEvents.get(event.id);
+    if (held?.discarded) {
+      if (held.sourceScope !== sourceScope || held.eventDigest !== eventDigest(event)) throw new RetryAppEvent("Conflicting event identity");
+      return;
+    }
+    if (held?.sourceScope && sourceScope !== held.sourceScope) throw new RetryAppEvent("Conflicting event source");
     if (held?.event && JSON.stringify(held.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
     if (this.mutationsInFlight) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
     const allBound = this.bound(event.triggerId);
@@ -640,7 +697,7 @@ export class AppTriggerManager {
       }
       if (affected.size) {
         const allowedTriggerIds = candidates.filter(trigger => !affected.has(trigger)).map(trigger => trigger.id);
-        this.holdEvent(event, reason === LINKED_EVENT_CONFLICT ? "conflict" : "unknown", allowedTriggerIds, [...affected].map(trigger => trigger.botId), [...affected].map(trigger => trigger.id));
+        this.holdEvent(event, reason === LINKED_EVENT_CONFLICT ? "conflict" : "unknown", allowedTriggerIds, [...affected].map(trigger => trigger.botId), [...affected].map(trigger => trigger.id), sourceScope);
         const changed = [...affected].filter(trigger => trigger.problem?.kind !== "reconnect" && (trigger.problem?.kind !== "error" || trigger.problem.text !== reason));
         for (const trigger of changed) trigger.problem = { kind: "error", text: reason, at: this.now() };
         for (const trigger of changed) this.emitTrigger(trigger);
@@ -727,9 +784,18 @@ export class AppTriggerManager {
   /** One long-poll: acks everything handled so far (the cursor) and handles what comes back. */
   async pollOnce(signal?: AbortSignal, waitS = POLL_WAIT_S): Promise<number> {
     this.assertWritable();
-    const { events, cursor } = await this.options.broker.poll({ after: this.cursor, waitS, poller: this.pollerId, signal });
+    const after = this.cursor;
+    const credential = this.options.acknowledgmentScope?.() ?? null;
+    const scope = this.options.installationScope ? await this.options.installationScope(signal) : credential;
+    if (credential !== (this.options.acknowledgmentScope?.() ?? null)) throw new RetryAppEvent("Connected-app account changed during identity verification");
+    this.assertCursorScope(scope);
+    const { events, cursor } = await this.options.broker.poll({ after, waitS, poller: this.pollerId, signal });
     if (signal?.aborted) return 0;
-    if (events.length || cursor > this.cursor) this.receive(events, cursor);
+    const currentCredential = this.options.acknowledgmentScope?.() ?? null;
+    if (credential !== currentCredential) { this.acknowledgedScope = null; this.acknowledgedCredential = null; this.acknowledgedCursor = 0; throw new RetryAppEvent("Connected-app account changed during polling"); }
+    if (!scope) { this.acknowledgedScope = null; this.acknowledgedCredential = null; this.acknowledgedCursor = 0; }
+    else { if (this.acknowledgedScope !== scope) this.acknowledgedCursor = 0; this.acknowledgedScope = scope; this.acknowledgedCredential = credential; this.acknowledgedCursor = Math.max(this.acknowledgedCursor, after); }
+    if (events.length || cursor > this.cursor) this.receive(events, cursor, scope);
     return events.length;
   }
 
@@ -899,7 +965,7 @@ export class AppTriggerManager {
   }
 
   private heldEventFor(trigger: StoredTrigger) {
-    return [...this.heldEvents.values()].find(held => heldEventMatches(held, trigger));
+    return [...this.heldEvents.values()].find(held => !held.discarded && heldEventMatches(held, trigger));
   }
 
   private restoreHeldProblem(trigger: StoredTrigger): void {
@@ -914,16 +980,16 @@ export class AppTriggerManager {
     this.bindingOwners.set(remoteId, owners);
   }
 
-  private holdEvent(event: BrokerEvent, reason: "conflict" | "unknown", allowedTriggerIds?: string[], heldBotIds?: string[], heldTriggerIds?: string[]): void {
+  private holdEvent(event: BrokerEvent, reason: "conflict" | "unknown", allowedTriggerIds?: string[], heldBotIds?: string[], heldTriggerIds?: string[], sourceScope: string | null = null): void {
     const existing = this.heldEvents.get(event.id);
     if (existing?.event && JSON.stringify(existing.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
     const next = new Map(this.heldEvents);
-    next.set(event.id, { reason: existing?.reason ?? reason, event: structuredClone(event), ...(existing ? (existing.allowedTriggerIds && existing.heldBotIds && allowedTriggerIds && heldBotIds ? { allowedTriggerIds: existing.allowedTriggerIds.filter(id => allowedTriggerIds.includes(id)), heldBotIds: [...new Set([...existing.heldBotIds, ...heldBotIds])], ...(existing.heldTriggerIds && heldTriggerIds ? { heldTriggerIds: [...new Set([...existing.heldTriggerIds, ...heldTriggerIds])] } : {}) } : {}) : (allowedTriggerIds && heldBotIds && heldTriggerIds ? { allowedTriggerIds, heldBotIds: [...new Set(heldBotIds)], heldTriggerIds: [...new Set(heldTriggerIds)] } : {})) });
+    next.set(event.id, { reason: existing?.reason ?? reason, event: structuredClone(event), ...(existing?.sourceScope ? { sourceScope: existing.sourceScope } : !existing && sourceScope ? { sourceScope } : {}), ...(existing ? (existing.allowedTriggerIds && existing.heldBotIds && allowedTriggerIds && heldBotIds ? { allowedTriggerIds: existing.allowedTriggerIds.filter(id => allowedTriggerIds.includes(id)), heldBotIds: [...new Set([...existing.heldBotIds, ...heldBotIds])], ...(existing.heldTriggerIds && heldTriggerIds ? { heldTriggerIds: [...new Set([...existing.heldTriggerIds, ...heldTriggerIds])] } : {}) } : {}) : (allowedTriggerIds && heldBotIds && heldTriggerIds ? { allowedTriggerIds, heldBotIds: [...new Set(heldBotIds)], heldTriggerIds: [...new Set(heldTriggerIds)] } : {})) });
     const rows = [...next].map(([id, value]) => ({ id, ...value }));
-    if (rows.length > MAX_HELD_EVENTS || Buffer.byteLength(JSON.stringify(rows), "utf8") > MAX_HELD_BYTES) throw new RetryAppEvent("Held event storage is full");
+    if (rows.filter(row => !row.discarded).length > MAX_HELD_EVENTS || Buffer.byteLength(JSON.stringify(rows), "utf8") > MAX_HELD_BYTES) throw new RetryAppEvent("Held event storage is full");
     try {
       mkdirSync(dirname(this.heldFile), { recursive: true });
-      writeFileAtomic(this.heldFile, JSON.stringify({ version: 3, events: rows }), { mode: 0o600 });
+      writeFileAtomic(this.heldFile, JSON.stringify({ version: rows.some(row => row.discarded || row.sourceScope) ? 4 : 3, events: rows }), { mode: 0o600 });
     } catch { throw new RetryAppEvent("Held event storage is unavailable"); }
     this.heldEvents = next;
   }
@@ -968,6 +1034,16 @@ export class AppTriggerManager {
     if (this.heldUnreadable) throw new AppTriggerError("Held app events could not be read. Restore the held event store before changing automations.", 503);
   }
 
+  private assertCursorScope(scope: string | null): void {
+    if (!this.options.linkedBots) return;
+    if (!scope || (this.cursorScope && this.cursorScope !== scope)) throw new RetryAppEvent("Connected-app account changed; review the saved event cursor before continuing.");
+    if (this.cursorScope) return;
+    if (this.cursor !== 0 || this.heldEvents.size) throw new RetryAppEvent("The saved event cursor has no verified account; review it before continuing.");
+    this.cursorScope = scope;
+    try { this.save(); }
+    catch (error) { this.cursorScope = undefined; throw error; }
+  }
+
   private emitTrigger(trigger: StoredTrigger): void {
     this.options.emit?.({ kind: "app-trigger", botId: trigger.botId, trigger: publicTrigger(trigger) });
   }
@@ -992,7 +1068,7 @@ export class AppTriggerManager {
     if (this.heldUnreadable) throw new RetryAppEvent("Held event storage is unavailable");
     mkdirSync(dirname(this.file), { recursive: true });
     writeFileAtomic(this.file, JSON.stringify({
-      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents.keys()], bindingOwners: [...this.bindingOwners].flatMap(([remoteId, owners]) => [...owners].map(botId => ({ remoteId, botId }))),
+      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, ...(this.cursorScope ? { cursorScope: this.cursorScope } : {}), triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents.keys()], bindingOwners: [...this.bindingOwners].flatMap(([remoteId, owners]) => [...owners].map(botId => ({ remoteId, botId }))),
     } satisfies z.input<typeof fileSchema>, null, 2), { mode: 0o600 });
   }
 }

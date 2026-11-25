@@ -15,6 +15,9 @@ it("checks existing source schedules at commit without exposing their contents",
   expect(() => check([{ botId: "other", sourceThreadId: "source-thread", enabled: true }])).toThrow("may overlap");
   expect(() => check([{ botId: "source-bot", enabled: false }], [{ botId: "source-bot", status: "running" }])).toThrow("may overlap");
   expect(() => check([{ botId: "source-bot", enabled: false }])).not.toThrow();
+  for (const heldFor of ["no_engine", "no_connections", "plan_cancelled"] as const) {
+    expect(() => check([{ botId: "source-bot", enabled: false, heldFor }])).toThrow("may overlap");
+  }
   const steered = { id: "steered", role: "user", kind: "text", at: 3 } as Message;
   const ambiguousCard = { ...card, requestMessageId: undefined };
   const steeredStore = { messagesFor: () => [root, steered, ambiguousCard], activePath: () => [root, steered, ambiguousCard], botByThread: () => null } as unknown as Store;

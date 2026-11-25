@@ -7810,6 +7810,8 @@
   "settings.account.free": "無料",
   "settings.account.fromHere": "{place} からサインアウトまたはアカウントを切り替え",
   "settings.account.mausbot": "{app} アカウント",
+  "settings.aiTwin.title": "AI Twin",
+  "settings.aiTwin.menuHint": "自分の言葉で書いた回答を保存",
   "settings.account.nameRow": "名前・写真・あなたについて",
   "settings.account.notSignedIn": "サインインしていません",
   "settings.account.onThisDevice": "このデバイス",

@@ -8322,6 +8322,8 @@
   "settings.account.free": "免费",
   "settings.account.fromHere": "在 {place} 退出登录或切换账号",
   "settings.account.mausbot": "{app} 账号",
+  "settings.aiTwin.title": "AI Twin",
+  "settings.aiTwin.menuHint": "用自己的话保存回答",
   "settings.account.nameRow": "你的名字、照片和关于你",
   "settings.account.notSignedIn": "未登录",
   "settings.account.onThisDevice": "在这台设备上",

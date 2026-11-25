@@ -3,11 +3,12 @@ import { spawn, execFileSync } from "node:child_process";
 import { createHash, createPublicKey, randomUUID, verify, X509Certificate } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpsServer } from "node:https";
-import { createServer as createTcpServer } from "node:net";
+import { createConnection, createServer as createTcpServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { smokeWindowsQuit } from "./smoke-windows-quit.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), scope = "00000000-0000-4000-8000-000000000000";
 const { values } = parseArgs({ options: { app: { type: "string" }, output: { type: "string" } } });
@@ -60,10 +61,10 @@ async function connect(url) {
 }
 async function evaluate(cdp, expression) { const result = await cdp.call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true }); if (result.exceptionDetails) throw Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text); return result.result?.value; }
 
-let child, inspector, renderer, inbox;
+let child, inspector, renderer, inbox, appPort, result, failure, cleanupFailure;
 try {
   await new Promise(resolve => cloud.listen(0, "127.0.0.1", resolve)); origin = `https://127.0.0.1:${cloud.address().port}`;
-  const appPort = await port(), webhookPort = await port(), debugPort = await port(), inspectPort = await port();
+  appPort = await port(); const webhookPort = await port(), debugPort = await port(), inspectPort = await port();
   writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", profile: { name: "Fixture Owner" }, features: { smartSetupChoices: false }, instances: { claude: { driver: "claudeAgent", displayName: "Fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") }, environment: {} } } }));
   const mac = process.platform === "darwin", executable = mac ? path.join(path.resolve(values.app), "Contents", "MacOS", "StartupBot") : path.resolve(values.app);
   const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"),
@@ -104,15 +105,29 @@ try {
   assert.equal(inventory.bots.filter(bot => bot.username === username).length, 1);
   assert.equal([...members].filter(id => registered.get(id) === username).length, 1);
   assert.equal(counts.unsignedInvites, 0); assert.equal(counts.invalidProofs, 0);
-  writeFileSync(path.join(evidence, "packaged-inbox-identity.json"), JSON.stringify({ status: "PASS", fixture: "loopback TLS fake Cloud", sameNameBots: 2, distinctVerifiedUsernames: true, signedInvites: counts.signedInvites, roomMembers: members.size, unsignedInvites: counts.unsignedInvites, invalidProofs: counts.invalidProofs, nativeMenuSelection: "Electron main debugger invoked the built MenuItem click; physical keyboard not tested", scope: "no legacy Cloud-room upgrade" }, null, 2) + "\n");
-  console.log(JSON.stringify({ status: "PASS", evidence }));
+  result = { status: "PASS", fixture: "loopback TLS fake Cloud", sameNameBots: 2, distinctVerifiedUsernames: true, signedInvites: counts.signedInvites, roomMembers: members.size, unsignedInvites: counts.unsignedInvites, invalidProofs: counts.invalidProofs, nativeMenuSelection: "Electron main debugger invoked the built MenuItem click; physical keyboard not tested", scope: "no legacy Cloud-room upgrade" };
+  if (process.platform === "win32") await smokeWindowsQuit({ inspect: inspectPort, evaluate: expression => evaluate(renderer, expression), expectedPid: child.pid });
+  else await evaluate(inspector, "(()=>{const e=process.getBuiltinModule('module').createRequire(process.resourcesPath+'/app.asar/package.json')('electron');setTimeout(()=>e.app.quit(),10);return true})()");
+  await until(() => child.exitCode !== null || child.signalCode !== null, "fixture application shutdown", 45_000);
+  assert.equal(child.exitCode, 0, "Fixture application must exit cleanly"); assert.equal(child.signalCode, null);
+  await until(() => new Promise(resolve => { const socket = createConnection({ host: "127.0.0.1", port: appPort }); socket.setTimeout(500); socket.once("connect", () => { socket.destroy(); resolve(false); }); socket.once("timeout", () => { socket.destroy(); resolve(false); }); socket.once("error", error => { socket.destroy(); resolve(error.code === "ECONNREFUSED"); }); }), "fixture server shutdown", 15_000);
 } catch (error) {
-  writeFileSync(path.join(evidence, "packaged-inbox-identity.json"), JSON.stringify({ status: "FAIL", fixture: "loopback TLS fake Cloud", reason: error.message, counts }, null, 2) + "\n");
-  console.error(JSON.stringify({ status: "FAIL", reason: error.message, counts }));
-  throw error;
+  failure = error;
 } finally {
   for (const connection of [inbox, renderer, inspector]) connection?.socket.close();
-  if (child && child.exitCode === null) { child.kill("SIGTERM"); await Promise.race([new Promise(resolve => child.once("exit", resolve)), new Promise(resolve => setTimeout(resolve, 10_000))]); if (child.exitCode === null) child.kill("SIGKILL"); }
+  if (child && child.exitCode === null && child.signalCode === null) {
+    child.kill("SIGTERM"); await Promise.race([new Promise(resolve => child.once("exit", resolve)), new Promise(resolve => setTimeout(resolve, 10_000))]);
+    if (child.exitCode === null && child.signalCode === null) { child.kill("SIGKILL"); await Promise.race([new Promise(resolve => child.once("exit", resolve)), new Promise(resolve => setTimeout(resolve, 10_000))]); }
+  }
   cloud.closeAllConnections();
-  await new Promise(resolve => cloud.close(resolve)); rmSync(fixture, { recursive: true, force: true });
+  await new Promise(resolve => cloud.close(resolve));
+  try { rmSync(fixture, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch (error) { cleanupFailure = error; failure ??= error; }
 }
+if (failure) {
+  const report = { status: "FAIL", fixture: "loopback TLS fake Cloud", reason: failure.message, ...(cleanupFailure ? { cleanupFailure: cleanupFailure.message } : {}), counts };
+  writeFileSync(path.join(evidence, "packaged-inbox-identity.json"), JSON.stringify(report, null, 2) + "\n");
+  console.error(JSON.stringify(report));
+  throw failure;
+}
+writeFileSync(path.join(evidence, "packaged-inbox-identity.json"), JSON.stringify(result, null, 2) + "\n");
+console.log(JSON.stringify({ status: "PASS", evidence }));

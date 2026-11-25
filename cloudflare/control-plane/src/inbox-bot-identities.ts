@@ -32,13 +32,16 @@ export async function botIdentities(req: Request, db: D1Database, owner: string)
   try {
     const [, registered] = await db.batch([
       db.prepare(`DELETE FROM inbox_bot_identity_claims WHERE nonce=? AND owner=? AND bot=? AND expires>${dbNow}`).bind(proof.nonce, owner, input.bot),
-      db.prepare(`INSERT INTO inbox_bots(id,owner,name,username) SELECT ?1,?2,?3,?4 WHERE changes()=1
-        AND ((SELECT count(*) FROM inbox_bots WHERE owner=?2)<50 OR EXISTS(SELECT 1 FROM inbox_bots WHERE id=?1 AND owner=?2))
+      db.prepare(`INSERT INTO inbox_bots(id,owner,name,username,prepared_only) SELECT ?1,?2,?3,?4,1 WHERE changes()=1
+        AND ((SELECT count(*) FROM inbox_bots WHERE owner=?2 AND prepared_only=1)<50 OR EXISTS(SELECT 1 FROM inbox_bots WHERE id=?1 AND owner=?2))
         ON CONFLICT(id) DO UPDATE SET username=COALESCE(inbox_bots.username,excluded.username)
         WHERE owner=?2 AND (inbox_bots.username IS NULL OR inbox_bots.username=excluded.username COLLATE NOCASE)`)
         .bind(input.bot, owner, "Bot", input.username),
     ]);
-    if (!registered.meta.changes) throw new HTTPError(409, "unavailable");
+    if (!registered.meta.changes) {
+      const capacity = await db.prepare("SELECT count(*) AS n FROM inbox_bots WHERE owner=? AND prepared_only=1").bind(owner).first<{ n: number }>();
+      throw new HTTPError(409, (capacity?.n ?? 0) >= 50 ? "identity_capacity" : "unavailable");
+    }
   } catch (error) {
     if (error instanceof Error && error.message.includes("UNIQUE constraint failed: inbox_bots.username")) throw new HTTPError(409, "username_unavailable");
     throw error;

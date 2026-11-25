@@ -849,21 +849,52 @@ it("registers bot identity without joining any room and rejects replay and anoth
   expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_room_bots WHERE bot=?").bind(bot).first()).toEqual({ n: 0 });
 });
 
-it("keeps the existing 50-bot account limit for independent identity registration", async () => {
+it("keeps prepared identities bounded while allowing an explicit signed invite", async () => {
   const owner = await login("owner@example.test"), ids = Array.from({ length: 50 }, () => uuid());
-  await env.INBOX_DB.batch(ids.map(id => env.INBOX_DB.prepare("INSERT INTO inbox_bots(id,owner,name) VALUES (?,?,?)").bind(id, owner.id, "Fixture")));
-  const register = async (bot: string) => {
+  await env.INBOX_DB.batch(ids.map(id => env.INBOX_DB.prepare("INSERT INTO inbox_bots(id,owner,name,prepared_only) VALUES (?,?,?,1)").bind(id, owner.id, "Fixture")));
+  const register = async (bot: string, pair?: CryptoKeyPair) => {
+    pair ??= await botKey();
     const response = await call("bot-identities", owner.cookie, { action: "challenge", bot });
-    const { nonce } = await response.json<{ nonce: string }>(), pair = await botKey();
+    const { nonce } = await response.json<{ nonce: string }>();
     const key = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
     const hex = (value: Uint8Array) => Array.from(value, byte => byte.toString(16).padStart(2, "0")).join("");
     const signature = new Uint8Array(await crypto.subtle.sign("Ed25519", pair.privateKey, new Uint8Array(botClaimBytes({ origin, owner: owner.id, bot, room: "00000000-0000-4000-8000-000000000000", nonce }))));
     return call("bot-identities", owner.cookie, { action: "register", bot, name: "Fixture", username: await proofUsername(key), proof: { nonce, publicKey: hex(key), signature: hex(signature) } });
   };
-  expect((await register(ids[0]!)).status).toBe(200);
+  const existingKey = await botKey();
+  expect((await register(ids[0]!, existingKey)).status).toBe(200);
   expect(await env.INBOX_DB.prepare("SELECT name FROM inbox_bots WHERE id=?").bind(ids[0]!).first()).toEqual({ name: "Fixture" });
-  expect((await register(uuid())).status).toBe(409);
+  const selected = uuid(), refused = await register(selected);
+  expect(refused.status).toBe(409); expect(await refused.json()).toEqual({ error: "identity_capacity" });
   expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_room_bots").first()).toEqual({ n: 0 });
+  const room = uuid();
+  expect((await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" })).status).toBe(200);
+  expect(await (await call(`rooms/${room}/bots?available=1`, owner.cookie)).json()).toEqual({ bots: [] });
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "add", bot: ids[0] })).status).toBe(409);
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot: ids[0], name: "Renamed" })).status).toBe(409);
+  const stranger = await login("member@example.test");
+  expect((await call(`rooms/${room}/bots`, stranger.cookie, { action: "add", bot: ids[0] })).status).toBe(409);
+  expect((await call(`rooms/${room}/bots`, stranger.cookie, { action: "invite", owner: owner.id, bot: ids[0], name: "Renamed" })).status).toBe(403);
+  expect(await env.INBOX_DB.prepare("SELECT name,prepared_only FROM inbox_bots WHERE id=?").bind(ids[0]).first()).toEqual({ name: "Fixture", prepared_only: 1 });
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot: ids[0], name: "Chosen", ...await signedBotClaim(owner, room, ids[0]!, existingKey) })).status).toBe(200);
+  expect(await env.INBOX_DB.prepare("SELECT name,prepared_only FROM inbox_bots WHERE id=?").bind(ids[0]).first()).toEqual({ name: "Chosen", prepared_only: 0 });
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot: selected, name: "Selected", ...await signedBotClaim(owner, room, selected, await botKey()) })).status).toBe(200);
+  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_room_bots WHERE room=? AND bot=?").bind(room, selected).first()).toEqual({ n: 1 });
+});
+
+it("enforces the invited-bot limit atomically without charging again for another room", async () => {
+  const owner = await login("owner@example.test"), rooms = Array.from({ length: 6 }, () => uuid()), bots = Array.from({ length: 51 }, () => uuid());
+  for (const id of rooms) expect((await call("rooms", owner.cookie, { id, kind: "group", title: "Fixture" })).status).toBe(200);
+  await env.INBOX_DB.batch(bots.map((id, index) => env.INBOX_DB.prepare("INSERT INTO inbox_bots(id,owner,name,prepared_only) VALUES (?,?,?,?)").bind(id, owner.id, "Fixture", index < 49 ? 0 : 1)));
+  await env.INBOX_DB.batch(bots.slice(0, 49).map((bot, index) => env.INBOX_DB.prepare("INSERT INTO inbox_room_bots(room,bot,owner) VALUES (?,?,?)").bind(rooms[Math.floor(index / 10)], bot, owner.id)));
+  const candidates = bots.slice(49), claims = await Promise.all(candidates.map(async bot => signedBotClaim(owner, rooms[5]!, bot, await botKey())));
+  const responses = await Promise.all(candidates.map((bot, index) => call(`rooms/${rooms[5]}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot, name: "Fixture", ...claims[index] })));
+  expect(responses.map(response => response.status).sort()).toEqual([200, 409]);
+  const rejected = bots[49 + responses.findIndex(response => response.status === 409)]!;
+  expect((await call(`rooms/${rooms[5]}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot: rejected, name: "Fixture", ...await signedBotClaim(owner, rooms[5]!, rejected, await botKey()) })).status).toBe(409);
+  expect(await env.INBOX_DB.prepare("SELECT count(DISTINCT bot) AS n FROM inbox_room_bots WHERE owner=?").bind(owner.id).first()).toEqual({ n: 50 });
+  expect((await call(`rooms/${rooms[5]}/bots`, owner.cookie, { action: "add", bot: bots[0] })).status).toBe(200);
+  expect(await env.INBOX_DB.prepare("SELECT count(DISTINCT bot) AS n FROM inbox_room_bots WHERE owner=?").bind(owner.id).first()).toEqual({ n: 50 });
 });
 
 it("routes desktop owned-bot challenge and signed invite through the real worker", async () => {
@@ -932,7 +963,7 @@ it("keeps bot usernames unique and owner-bound when inviting to groups", async (
   expect((await call(`rooms/${otherRoom}/bots`, member.cookie, { action: "add", bot })).status).toBe(409);
 });
 
-it("allows existing bots at the registration limit without allowing a new bot", async () => {
+it("preserves the 50-bot limit for legacy registered bots", async () => {
   const owner = await login("owner@example.test"), room = uuid();
   await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" });
   const ids = Array.from({ length: 50 }, () => uuid());

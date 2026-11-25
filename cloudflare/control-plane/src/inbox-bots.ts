@@ -41,6 +41,8 @@ const actions = z.discriminatedUnion("action", [
 const active =
   "EXISTS(SELECT 1 FROM inbox_members WHERE room=?1 AND person=?2 AND state='active')";
 const canInvite = `EXISTS(${canPost}) AND EXISTS(SELECT 1 FROM inbox_rooms WHERE id=?1 AND kind='group')`;
+const withinBotLimit = `(EXISTS(SELECT 1 FROM inbox_bots WHERE id=?3 AND owner=?2 AND prepared_only=0)
+  OR (SELECT count(*) FROM inbox_bots WHERE owner=?2 AND prepared_only=0)<50)`;
 const speaking = "CASE q.step WHEN 0 THEN q.first_bot ELSE q.second_bot END";
 const writable = (
   person: string,
@@ -54,7 +56,7 @@ function changed(n: number) {
 function addOwnedBot(db: D1Database, room: string, user: string, bot: string, afterRegistration = false) {
   return db.prepare(
     `INSERT OR IGNORE INTO inbox_room_bots(room,bot,owner) SELECT ?1,id,?2 FROM inbox_bots
-    WHERE id=?3 AND owner=?2 AND ${canInvite} AND (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12 ${afterRegistration ? "AND changes()=1" : ""}`,
+    WHERE id=?3 AND owner=?2 AND prepared_only=0 AND ${canInvite} AND (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12 ${afterRegistration ? "AND changes()=1" : ""}`,
   ).bind(room, user, bot);
 }
 export async function pendingBotTurns(db: D1Database, user: string) {
@@ -77,7 +79,7 @@ export async function roomBots(
   if (req.method === "GET") {
     if (new URL(req.url).searchParams.get("available") === "1") {
       const rows = await db.prepare(
-        `SELECT b.id,b.name,b.username FROM inbox_bots b WHERE b.owner=?2 AND ${canInvite}
+        `SELECT b.id,b.name,b.username FROM inbox_bots b WHERE b.owner=?2 AND b.prepared_only=0 AND ${canInvite}
         AND NOT EXISTS(SELECT 1 FROM inbox_room_bots rb WHERE rb.room=?1 AND rb.bot=b.id)
         ORDER BY b.name,b.id`,
       ).bind(room, user).all<BotRow>();
@@ -135,12 +137,14 @@ export async function roomBots(
       ...(a.proof ? [db.prepare(`DELETE FROM inbox_bot_claims WHERE nonce=? AND owner=? AND bot=? AND room=? AND expires>${dbNow}`).bind(a.proof.nonce, user, a.bot, room)] : []),
       db
         .prepare(
-          `INSERT INTO inbox_bots(id,owner,name,username) SELECT ?3,?2,?4,?5 WHERE ${canInvite}
+          `INSERT INTO inbox_bots(id,owner,name,username,prepared_only) SELECT ?3,?2,?4,?5,0 WHERE ${canInvite}
         ${a.proof ? "AND changes()=1" : ""}
         AND (EXISTS(SELECT 1 FROM inbox_room_bots WHERE room=?1 AND bot=?3 AND owner=?2)
           OR (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12)
-        AND ((SELECT count(*) FROM inbox_bots WHERE owner=?2)<50 OR EXISTS(SELECT 1 FROM inbox_bots WHERE id=?3 AND owner=?2)) ON CONFLICT(id) DO UPDATE SET name=excluded.name, username=COALESCE(inbox_bots.username,excluded.username)
-        WHERE owner=?2 AND (excluded.username IS NULL OR inbox_bots.username IS NULL OR inbox_bots.username=excluded.username COLLATE NOCASE)`,
+        AND ${withinBotLimit}
+        ON CONFLICT(id) DO UPDATE SET name=excluded.name, username=COALESCE(inbox_bots.username,excluded.username), prepared_only=0
+        WHERE owner=?2 AND (inbox_bots.prepared_only=0 OR excluded.username IS NOT NULL)
+        AND (excluded.username IS NULL OR inbox_bots.username IS NULL OR inbox_bots.username=excluded.username COLLATE NOCASE)`,
         )
         .bind(room, user, a.bot, a.name, a.username ?? null),
       addOwnedBot(db, room, user, a.bot, true),

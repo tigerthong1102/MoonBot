@@ -1,5 +1,5 @@
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { app, dialog, Menu, safeStorage } from "electron";
 import { jsonFile } from "./desktop-prefs.mjs";
 import { startupBotDataDir } from "./startupbot-identity.mjs";
@@ -24,6 +24,16 @@ export function personalInboxBots(window, page, origin, localRequest, language =
       if (e.code === "ENOENT") return {};
       throw e;
     }
+  }
+  function bindingKey(records, workspaceId, bot, owner) {
+    const primary = JSON.stringify([workspaceId, bot.id]);
+    const alternate = JSON.stringify([workspaceId, bot.id, origin, owner]);
+    if (records[alternate]) return alternate;
+    const record = records[primary];
+    return record && (record.owner !== owner || record.origin !== origin) && record.definitiveRejected === true && !bot.username ? alternate : primary;
+  }
+  function identityNamespace(record) {
+    return record.accountScoped ? `account:${createHash("sha256").update(JSON.stringify([record.workspaceId, record.origin, record.owner])).digest("hex")}` : record.workspaceId;
   }
   function current() {
     return (
@@ -60,7 +70,11 @@ export function personalInboxBots(window, page, origin, localRequest, language =
           }
         : {}),
     });
-    if (!response.ok) throw Object.assign(Error("unavailable"), { status: response.status });
+    if (!response.ok) {
+      let code;
+      if (response.status === 409) { try { code = (await response.json()).error; } catch {} }
+      throw Object.assign(Error("unavailable"), { status: response.status, code });
+    }
     return response.json();
   }
   const claims = createPersonalInboxClaims(cloud);
@@ -83,15 +97,15 @@ export function personalInboxBots(window, page, origin, localRequest, language =
         .catch(() => {});
   }
   async function prepareIdentity(bot, owner, workspaceId) {
-    const key = JSON.stringify([origin, owner, workspaceId, bot.id]);
+    const key = JSON.stringify([origin, workspaceId, bot.id]);
     if (preparations.has(key)) return preparations.get(key);
     const pending = (async () => {
       if (!(await encryption.available())) throw Error("identity_storage_unavailable");
-      const bindingKey = JSON.stringify([workspaceId, bot.id]);
-      const records = bindings(), record = records[bindingKey] ?? { id: randomUUID(), owner, origin, workspaceId, localBotId: bot.id };
+      const records = bindings(), key = bindingKey(records, workspaceId, bot, owner);
+      const record = records[key] ?? { id: randomUUID(), owner, origin, workspaceId, localBotId: bot.id, accountScoped: true, registrationState: "fresh" };
       if (record.owner !== owner || record.origin !== origin || record.workspaceId !== workspaceId) throw Error("account_changed");
-      records[bindingKey] = record; file.write(records);
-      const identities = createBotWorkspaceIdentities({ workspaceId, publicDirectory: path.join(app.getPath("userData"), "bot-public-identities"), privateDirectory: path.join(app.getPath("userData"), "bot-private-identities"), encryption, current: scope => current() && scope.workspaceId === workspaceId });
+      records[key] = record; file.write(records);
+      const identities = createBotWorkspaceIdentities({ workspaceId, namespace: identityNamespace(record), publicDirectory: path.join(app.getPath("userData"), "bot-public-identities"), privateDirectory: path.join(app.getPath("userData"), "bot-private-identities"), encryption, current: scope => current() && scope.workspaceId === workspaceId });
       let signed;
       const registration = createBotIdentityRegistration({ ...identities,
         loadIdentity: async scope => {
@@ -106,7 +120,21 @@ export function personalInboxBots(window, page, origin, localRequest, language =
           return identity.workspaceId === scope.workspaceId && inventory.bots.some(item => item.id === scope.localBotId);
         },
         challenge: claims.identityChallenge,
-        invite: async request => { await claims.registerIdentity(request); signed = request; },
+        invite: async request => {
+          const before = bindings(), candidate = before[key];
+          const canMarkRejected = candidate?.id === record.id && candidate.accountScoped === true && ["fresh", "rejected"].includes(candidate.registrationState);
+          if (canMarkRejected) { before[key] = { ...candidate, definitiveRejected: false, registrationState: "pending" }; file.write(before); }
+          try { await claims.registerIdentity(request); signed = request; }
+          catch (error) {
+            if (canMarkRejected && error?.status === 403) {
+              const fresh = bindings(), saved = fresh[key];
+              if (saved?.id === record.id && saved.owner === owner && saved.origin === origin && saved.workspaceId === workspaceId) {
+                fresh[key] = { ...saved, definitiveRejected: true, registrationState: "rejected" }; file.write(fresh);
+              }
+            }
+            throw error;
+          }
+        },
       });
       await registration.register({ workspaceId, localBotId: bot.id, bindingId: record.id, owner, room: identityScope, origin, name: "Bot" });
       if (!signed || (await cloud("me")).id !== owner) throw Error("account_changed");
@@ -126,7 +154,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
       while (cursor < pending.length) {
         const bot = pending[cursor++];
         try { await prepareIdentity(bot, owner, workspaceId); preparationRetryAt.delete(JSON.stringify([workspaceId, bot.id])); }
-        catch (error) { if (error?.status === 404 || error?.status === 405) unsupported.add(bot.id); preparationRetryAt.set(JSON.stringify([workspaceId, bot.id]), Date.now() + 30_000); }
+        catch (error) { if (error?.status === 404 || error?.status === 405 || error?.code === "identity_capacity") unsupported.add(bot.id); preparationRetryAt.set(JSON.stringify([workspaceId, bot.id]), Date.now() + 30_000); }
       }
     }));
   }
@@ -170,9 +198,9 @@ export function personalInboxBots(window, page, origin, localRequest, language =
         if (answer.response !== 1) return;
         if ((await cloud("me")).id !== me.id || (await local(undefined, identityEndpoint)).workspaceId !== identity.workspaceId) throw Error("workspace_changed");
       }
-      const records = bindings(), key = JSON.stringify([identity.workspaceId, bot.id]), existing = records[key];
+      const records = bindings(), key = bindingKey(records, identity.workspaceId, bot, me.id), existing = records[key];
       if (oldBinding && (existing || records[bot.id]?.id !== oldBinding.id || records[bot.id]?.owner !== oldBinding.owner || records[bot.id]?.origin !== oldBinding.origin || records[bot.id]?.workspaceId)) throw Error("identity_changed");
-      const record = existing ?? (oldBinding ? { ...oldBinding, workspaceId: identity.workspaceId, localBotId: bot.id } : { id: randomUUID(), owner: me.id, origin, workspaceId: identity.workspaceId, localBotId: bot.id });
+      const record = existing ?? (oldBinding ? { ...oldBinding, workspaceId: identity.workspaceId, localBotId: bot.id } : { id: randomUUID(), owner: me.id, origin, workspaceId: identity.workspaceId, localBotId: bot.id, accountScoped: true });
       if (record.owner !== me.id || record.origin !== origin)
         throw Error("account_changed");
       if (record.workspaceId && record.workspaceId !== identity.workspaceId) throw Error("workspace_changed");
@@ -184,7 +212,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
         await claims.inviteLegacy(input);
       } else {
         const { workspaceId } = identity;
-        const identities = createBotWorkspaceIdentities({ workspaceId, publicDirectory: path.join(app.getPath("userData"), "bot-public-identities"), privateDirectory: path.join(app.getPath("userData"), "bot-private-identities"), encryption, current: scope => current() && scope.workspaceId === workspaceId });
+        const identities = createBotWorkspaceIdentities({ workspaceId, namespace: identityNamespace(record), publicDirectory: path.join(app.getPath("userData"), "bot-public-identities"), privateDirectory: path.join(app.getPath("userData"), "bot-private-identities"), encryption, current: scope => current() && scope.workspaceId === workspaceId });
         let signed;
         const registration = createBotIdentityRegistration({ ...identities,
           loadIdentity: async scope => {

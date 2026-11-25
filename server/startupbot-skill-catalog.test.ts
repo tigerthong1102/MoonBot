@@ -93,6 +93,9 @@ it("upgrades the in-app video guides while preserving approval and custom change
     for (const name of names) {
       cpSync(`skills/catalog/${name}`, join(catalog, name), { recursive: true });
       cpSync(`server/testing/fixtures/hyperframes-in-app-previous/${name}.md`, join(catalog, name, "SKILL.md"));
+      if (name === "hyperframes") {
+        cpSync("server/testing/fixtures/hyperframes-in-app-previous/story.md", join(catalog, name, "references/story.md"));
+      }
       if (name === "hyperframes-cli") {
         cpSync("server/testing/fixtures/hyperframes-in-app-previous/cli-references", join(catalog, name, "references"), { recursive: true });
       }
@@ -123,6 +126,7 @@ it("upgrades the merged HyperFrames skill and preserves approval", () => {
     const library = join(root, "library");
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    cpSync("server/testing/fixtures/hyperframes-in-app-previous/story.md", join(catalog, "hyperframes/references/story.md"));
     for (const file of ["scripts/bake-basemap.test.mjs", "scripts/lib/literal-media-input.mjs", "scripts/lib/trusted-package.mjs"]) rmSync(join(catalog, "hyperframes", file));
     restoreAuditSnapshot("hyperframes-basemap-previous", join(catalog, "hyperframes"));
     restoreAuditSnapshot("hyperframes-resolution-previous", join(catalog, "hyperframes"));
@@ -146,6 +150,7 @@ it("upgrades the installed HyperFrames basemap safely and preserves approval", (
     const catalog = join(root, "catalog"), library = join(root, "library");
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    cpSync("server/testing/fixtures/hyperframes-in-app-previous/story.md", join(catalog, "hyperframes/references/story.md"));
     for (const file of ["scripts/bake-basemap.test.mjs", "scripts/lib/literal-media-input.mjs", "scripts/lib/trusted-package.mjs"]) rmSync(join(catalog, "hyperframes", file));
     restoreAuditSnapshot("hyperframes-basemap-previous", join(catalog, "hyperframes"));
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => entry.name === "hyperframes");
@@ -293,6 +298,7 @@ it.each(["hyperframes-v2", "hyperframes-v3", "hyperframes-v4", "hyperframes-v5",
     const oldSkill = join(catalog, "hyperframes");
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", oldSkill, { recursive: true });
+    cpSync("server/testing/fixtures/hyperframes-in-app-previous/story.md", join(oldSkill, "references/story.md"));
     rmSync(join(oldSkill, "assets"), { recursive: true, force: true });
     rmSync(join(oldSkill, "scripts"), { recursive: true, force: true });
     for (const name of ["plugin-installation.md", "skill-lifecycle.md"]) rmSync(join(oldSkill, "references", name), { force: true });
@@ -323,6 +329,7 @@ it("preserves a customized HyperFrames reference during catalog upgrade", () => 
     const library = join(root, "library");
     mkdirSync(catalog);
     cpSync("skills/catalog/hyperframes", join(catalog, "hyperframes"), { recursive: true });
+    cpSync("server/testing/fixtures/hyperframes-in-app-previous/story.md", join(catalog, "hyperframes/references/story.md"));
     rmSync(join(catalog, "hyperframes/assets"), { recursive: true, force: true });
     writeFileSync(join(catalog, "hyperframes/references/look.md"), Buffer.from(auditSnapshot["hyperframes/references/look.md"], "base64"));
     cpSync("server/testing/fixtures/startupbot-old-skills/hyperframes-v4", join(catalog, "hyperframes"), { recursive: true });

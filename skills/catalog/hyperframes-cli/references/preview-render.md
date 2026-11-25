@@ -99,7 +99,7 @@ Validation runs before any server boots, so an invalid value exits cleanly witho
 
 ## render
 
-> Render after the user has reviewed in `preview` and approved, or when they asked for the file or to work without stopping. Passing checks alone is not a reason to render.
+> For a video request, review representative frames and motion, fix visible defects, then render and return the file in the conversation. If the person explicitly requests a preview for approval first, wait for that approval. Passing checks alone is not a substitute for visual review.
 
 ```bash
 npx hyperframes render                                # standard MP4 from cwd

@@ -513,6 +513,8 @@
       "references/look.md",
       "references/types/launch.md",
       "scripts/bake-basemap.mjs",
+      "scripts/plugin-cli.mjs",
+      "scripts/plugin-cli.test.mjs",
       "scripts/locate.mjs",
       "scripts/lib/main-module.test.mjs",
       "scripts/lib/windows-exe-search.test.mjs",

@@ -36,7 +36,7 @@ it("sends a synthetic Gemini key in the header while preserving location results
 
 it("rejects FFmpeg patterns in the image and output paths", () => {
   const script = resolve("skills/catalog/hyperframes/scripts/locate.mjs");
-  for (const args of [["overlay", "image%d.png"], ["overlay", "image.png", "--out", "out%03d"]]) {
+  for (const args of [["overlay", "image%d.png"], ["overlay", "image.png", "--out", "out%03d"], ["overlay", "C:\\media\\image%d.png"]]) {
     const result = spawnSync(process.execPath, [script, ...args], { encoding: "utf8", timeout: 10_000 });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("pattern of other files");

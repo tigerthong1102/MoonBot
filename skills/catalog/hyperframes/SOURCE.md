@@ -10,7 +10,7 @@ Included the upstream preset design documents, caption skins, showcase HTML, hel
 
 Added bounded retries for non-blocking warnings after a subscription-backed desktop test repeatedly restructured a video before export.
 
-Restored the basemap package-loading and literal-path protections from upstream commit 559ad7b6d9569bd286cd4a0e5fb895610d02c220, with their helper modules and basemap tests. Applied the same literal-path guard to locate and raised the standalone CLI security floor to 0.9.80, retaining StartupBot's Gemini authentication and font fallbacks.
+Restored the basemap package-loading and literal-path protections from upstream commit 559ad7b6d9569bd286cd4a0e5fb895610d02c220, with their helper modules and basemap tests. Applied the same literal-path guard to locate and raised the standalone CLI security floor to 0.9.80, retaining StartupBot's Gemini authentication and font fallbacks. Updated the literal-path guard to upstream commit 66aba4c7a0b7475d964d22ae2491d22d7e89fb48 for Windows drive paths.
 
 In scripts/lib/main-module.test.mjs and scripts/lib/windows-exe-search.test.mjs, replaced test-file suffix regular expressions with equivalent string suffix checks for supported skill file paths. The guard and CLI-entry tests check the included HyperFrames and media-use directories, rather than assuming the unrelated upstream figma skill, CLI source tree, and repository-wide layout are present.
 

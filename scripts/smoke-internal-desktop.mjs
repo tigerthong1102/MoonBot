@@ -765,6 +765,71 @@ try {
   assert.equal(readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(cancelWork)).length, 1);
   const canceledHandoff = { sourceId: cancelOffer.source.id, targetId: cancelBotId, threadId: cancelBot.threadId, requestId: cancelRequest.id, text: cancelWork, followup: cancelFollowup, continued: cancelContinued };
   writeFileSync(path.join(evidence, "work-bot-stop.json"), JSON.stringify({ ...canceledHandoff, continued: false }, null, 2) + "\n");
+  const heldWork = "Theo dõi tiến độ đơn hàng giả mỗi tuần trong fixture giữ việc.";
+  const heldFollowup = "Cho tôi biết bot mới đã sẵn sàng nhận việc giả chưa.";
+  const routinesBeforeHold = await request("/api/routines");
+  assert.equal(routinesBeforeHold.status, 200);
+  const createdRoutine = await request("/api/routines", { name: "Synthetic future handoff routine", prompt: "Check synthetic orders only.", botId: helper.id, enabled: true, sameConversation: true, schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 86_400_000 } });
+  assert.equal(createdRoutine.status, 201, JSON.stringify(createdRoutine.body));
+  const sourceRoutine = createdRoutine.body.routine;
+  assert.equal(sourceRoutine.botId, helper.id);
+  assert.equal(sourceRoutine.enabled, true);
+  assert.equal(sourceRoutine.sameConversation, true);
+  assert(sourceRoutine.nextRunAt > Date.now(), "The synthetic routine must not run during the smoke");
+  writeFileSync(textRoutes, JSON.stringify({ [heldWork]: JSON.stringify({ name: "Đơn hàng giả", icon: "calendar" }) }));
+  await evaluate(`${helperRow}.click()`);
+  await until(() => evaluate(`${helperRow}?.getAttribute('aria-current') === 'page'`), "the helper before held handoff");
+  await until(async () => !(await roster()).find(row => row.id === helper.id)?.busy, "the helper to be idle before held handoff");
+  await send(heldWork);
+  const heldOffer = await until(async () => {
+    const rows = (await request(`/api/threads/${helper.threadId}/messages`)).body.messages;
+    const source = rows.find(row => row.role === "user" && row.text === heldWork);
+    const card = rows.find(row => row.card?.teamSetupRequest?.workBotOffer?.sourceMessageId === source?.id && !row.card.answered)?.card;
+    return source && card && { source, card };
+  }, "the held handoff offer");
+  const heldBotId = heldOffer.card.teamSetupRequest.operations.find(operation => operation.action === "create")?.botId;
+  assert(heldBotId);
+  const heldPlan = JSON.parse(readFileSync(plan, "utf8"));
+  heldPlan[heldBotId] = { script: [
+    { key: "held-initial", match: [heldWork], reply: "Held synthetic work must not execute." },
+    { key: "held-followup", match: [heldFollowup], reply: "Synthetic bot is ready for fresh instructions." },
+  ] };
+  writeFileSync(plan, JSON.stringify(heldPlan));
+  const heldPrompts = () => readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(heldWork));
+  assert.equal(heldPrompts().length, 0);
+  const heldConsent = `[...document.querySelectorAll('[data-work-bot-offer]')].find(card => card.innerText.includes(${JSON.stringify(heldOffer.card.title)}))?.querySelector('button')`;
+  await until(() => evaluate(`Boolean((${heldConsent})?.getClientRects().length)`), "the held handoff consent");
+  await evaluate(`(${heldConsent}).click()`);
+  const heldBot = await until(async () => (await roster()).find(row => row.id === heldBotId), "the held handoff bot");
+  await until(() => evaluate(`document.querySelector('[data-sidebar-bot-row="${heldBotId}"]')?.getAttribute('aria-current') === 'page'`), "automatic navigation to the held bot");
+  const heldRows = () => request(`/api/threads/${heldBot.threadId}/messages`).then(result => result.body.messages);
+  const heldCopy = await until(async () => (await heldRows()).find(row => row.role === "user" && row.workBotHandoffSource?.messageId === heldOffer.source.id), "the held copy with its source ID");
+  assert.deepEqual(heldCopy.workBotHandoffSource, { threadId: helper.threadId, messageId: heldOffer.source.id, botId: helper.id });
+  assert.equal(heldCopy.workBotReviewHold, true);
+  assert.equal(heldCopy.requestPending, false);
+  const heldWarningText = JSON.parse(readFileSync(path.join(root, "src", "locales", "en.json"), "utf8"))["workBotRouting.held_for_review"];
+  const heldWarning = `[...document.querySelectorAll('[role="status"].text-danger')].find(element => element.textContent.trim() === ${JSON.stringify(heldWarningText)} && element.getClientRects().length && getComputedStyle(element).visibility === 'visible')`;
+  await until(() => evaluate(`Boolean(${heldWarning})`), "the visible red held-work warning");
+  writeFileSync(path.join(evidence, "work-bot-held-warning.png"), Buffer.from((await cdp("Page.captureScreenshot", { format: "png" })).data, "base64"));
+  await new Promise(resolve => setTimeout(resolve, 1_000));
+  assert.equal(heldPrompts().length, 0, "Held work must not reach the provider");
+  assert(!(await roster()).find(row => row.id === heldBotId)?.busy, "The held bot must not start work");
+  await send(heldFollowup);
+  const heldFollowupCompletion = await until(() => completedRequest(heldBot.threadId, heldFollowup), "a fresh followup in the held bot");
+  await until(async () => !(await roster()).find(row => row.id === heldBotId)?.busy, "the held bot to settle after the fresh followup");
+  await new Promise(resolve => setTimeout(resolve, 1_000));
+  assert.equal(heldPrompts().length, 0, "A fresh message must not replay or leak held work to the provider");
+  const followupPrompts = readFileSync(prompts, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line)).filter(prompt => JSON.stringify(prompt).includes(heldFollowup));
+  assert.equal(followupPrompts.length, 1, "The fresh followup must run exactly once");
+  assert((await heldRows()).some(row => row.id === heldCopy.id && row.workBotReviewHold === true && row.requestPending === false));
+  const routinesAfterHold = await request("/api/routines");
+  assert.equal(routinesAfterHold.status, 200);
+  assert.deepEqual(routinesAfterHold.body.routines.find(row => row.id === sourceRoutine.id), sourceRoutine, "The original routine must stay unchanged");
+  assert.equal(routinesAfterHold.body.routines.length, routinesBeforeHold.body.routines.length + 1, "Handoff must not create duplicate routines");
+  assert(!routinesAfterHold.body.routines.some(row => row.botId === heldBotId), "The new bot must not receive a duplicate routine");
+  assert.deepEqual(routinesAfterHold.body.runs, routinesBeforeHold.body.runs, "The future routine must not run during handoff");
+  const heldHandoff = { sourceId: heldOffer.source.id, copiedId: heldCopy.id, botId: heldBotId, threadId: heldBot.threadId, routineId: sourceRoutine.id, heldProviderRuns: 0, followup: heldFollowupCompletion, routineCountChange: 1 };
+  writeFileSync(path.join(evidence, "work-bot-held-handoff.json"), JSON.stringify(heldHandoff, null, 2) + "\n");
   const unauthenticated = await fetch(new URL("/api/auth/stream-ticket", target.url), { method: "POST", signal: AbortSignal.timeout(5_000) });
   assert([401, 403].includes(unauthenticated.status), "An external process must not inherit the renderer's mutation capability");
   assert.equal(createHash("sha256").update(readFileSync(sentinel)).digest("hex"), sentinelHash);
@@ -790,6 +855,7 @@ try {
   await waitPortClosed(port, "the first server to stop");
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, canceledHandoff, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
+  assert.equal(heldPrompts().length, 0, "Restart must not replay held work");
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion, compactedContext: "PASS (blocked transfer; one source run with summary)" },
     artifactPreview: "PASS (synthetic Markdown opened from its conversation)",
@@ -798,6 +864,7 @@ try {
     reconnect: { status: "PASS", reconnectCompletion, oldStreamClosed: true, retryHandshakeFailed: true, replacementStreamOpened: true, notificationRecords: "at most one new record for fixture thread" },
     stopAfterNavigation: "PASS (synthetic turn canceled; no fake continuation observed for one second after a follow-up)",
     stopAfterHandoff: "PASS (target request canceled and checked again after restart)",
+    heldHandoff,
     computerPanelNavigation: disposableDesktop ? "PASS (opened and closed on disposable runner; no desktop control)" : "NOT RUN (requires disposable desktop)",
     appCommands: "PASS (direct rename and Vietnamese discovery-driven bot creation, verified actual title and roster)",
     clearMessages: "PASS (confirmed in packaged renderer; bot, thread and file retained; fresh reply)", dataIsolation: "PASS", remoteOnlyPhoneLink: "PASS", rendererMutationBoundary: "PASS", welcomeAndHelperBranding: "PASS (real packaged renderer)", capabilities,

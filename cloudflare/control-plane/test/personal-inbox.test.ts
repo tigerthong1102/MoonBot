@@ -845,7 +845,7 @@ it("registers bot identity without joining any room and rejects replay and anoth
   expect((await call("bot-identities", other.cookie, claim)).status).toBe(409);
   expect((await call("bot-identities", owner.cookie, claim)).status).toBe(200);
   expect((await call("bot-identities", owner.cookie, claim)).status).toBe(409);
-  expect(await env.INBOX_DB.prepare("SELECT id,owner,username FROM inbox_bots WHERE id=?").bind(bot).first()).toEqual({ id: bot, owner: owner.id, username });
+  expect(await env.INBOX_DB.prepare("SELECT id,owner,name,username FROM inbox_bots WHERE id=?").bind(bot).first()).toEqual({ id: bot, owner: owner.id, name: "Bot", username });
   expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_room_bots WHERE bot=?").bind(bot).first()).toEqual({ n: 0 });
 });
 
@@ -861,6 +861,7 @@ it("keeps the existing 50-bot account limit for independent identity registratio
     return call("bot-identities", owner.cookie, { action: "register", bot, name: "Fixture", username: await proofUsername(key), proof: { nonce, publicKey: hex(key), signature: hex(signature) } });
   };
   expect((await register(ids[0]!)).status).toBe(200);
+  expect(await env.INBOX_DB.prepare("SELECT name FROM inbox_bots WHERE id=?").bind(ids[0]!).first()).toEqual({ name: "Fixture" });
   expect((await register(uuid())).status).toBe(409);
   expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_room_bots").first()).toEqual({ n: 0 });
 });

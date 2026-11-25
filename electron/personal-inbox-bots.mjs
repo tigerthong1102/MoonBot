@@ -9,8 +9,9 @@ import { createBotIdentityRegistration } from "./bot-identity-registration.mjs";
 import { createBotWorkspaceIdentities } from "./bot-workspace-identities.mjs";
 
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+const preparations = new Map();
 
-export function personalInboxBots(window, page, origin, localRequest, language = "en") {
+export function personalInboxBots(window, page, origin, localRequest, language = "en", { identityOnly = false } = {}) {
   const workspace = window.webContents;
   const localOrigin = new URL(workspace.getURL()).origin;
   if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(localOrigin)) return null;
@@ -64,7 +65,6 @@ export function personalInboxBots(window, page, origin, localRequest, language =
   }
   const claims = createPersonalInboxClaims(cloud);
   const picksInFlight = new Set();
-  const preparations = new Map();
   const preparationRetryAt = new Map();
   let identityRegistrationUnavailable = false;
   const identityEndpoint = "/api/personal-inbox/bot-identity";
@@ -78,13 +78,14 @@ export function personalInboxBots(window, page, origin, localRequest, language =
         .catch(() => {});
   }
   async function prepareIdentity(bot, owner, workspaceId) {
-    const key = JSON.stringify([workspaceId, bot.id]);
+    const key = JSON.stringify([origin, owner, workspaceId, bot.id]);
     if (preparations.has(key)) return preparations.get(key);
     const pending = (async () => {
       if (!(await encryption.available())) throw Error("identity_storage_unavailable");
-      const records = bindings(), record = records[key] ?? { id: randomUUID(), owner, origin, workspaceId, localBotId: bot.id };
+      const bindingKey = JSON.stringify([workspaceId, bot.id]);
+      const records = bindings(), record = records[bindingKey] ?? { id: randomUUID(), owner, origin, workspaceId, localBotId: bot.id };
       if (record.owner !== owner || record.origin !== origin || record.workspaceId !== workspaceId) throw Error("account_changed");
-      records[key] = record; file.write(records);
+      records[bindingKey] = record; file.write(records);
       const identities = createBotWorkspaceIdentities({ workspaceId, publicDirectory: path.join(app.getPath("userData"), "bot-public-identities"), privateDirectory: path.join(app.getPath("userData"), "bot-private-identities"), encryption, current: scope => current() && scope.workspaceId === workspaceId });
       let signed;
       const registration = createBotIdentityRegistration({ ...identities,
@@ -105,7 +106,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
         },
         invite: async request => { await claims.registerIdentity(request); signed = request; },
       });
-      await registration.register({ workspaceId, localBotId: bot.id, bindingId: record.id, owner, room: identityScope, origin, name: bot.name });
+      await registration.register({ workspaceId, localBotId: bot.id, bindingId: record.id, owner, room: identityScope, origin, name: "Bot" });
       if (!signed || (await cloud("me")).id !== owner) throw Error("account_changed");
       if (!current() || typeof localRequest !== "function") throw Error("workspace_closed");
       const response = await localRequest(identityEndpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: bot.id, workspaceId, username: signed.username, publicKey: signed.proof.publicKey }) });
@@ -240,6 +241,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
       const inventory = await local();
       const pending = inventory.bots.filter(item => !item.username);
       if (!pending.length) { nextPreparation = Date.now() + 60_000; return; }
+      if (identityOnly && !(await page.session.cookies.get({ url: origin })).length) { nextPreparation = Date.now() + 60_000; return; }
       const [me, identity] = await Promise.all([cloud("me"), local(undefined, identityEndpoint)]);
       const legacy = bindings();
       for (let i = pending.length - 1; i >= 0; i--) if (legacy[pending[i].id] && !legacy[pending[i].id].workspaceId && legacy[pending[i].id].owner === me.id && legacy[pending[i].id].origin === origin) pending.splice(i, 1);
@@ -303,7 +305,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
     }
   }
   const timer = setInterval(() => {
-    void poll().catch(() => {});
+    if (!identityOnly) void poll().catch(() => {});
     void retryPreparation();
   }, 8000);
   page.once("destroyed", () => clearInterval(timer));

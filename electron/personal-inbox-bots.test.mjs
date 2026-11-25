@@ -35,6 +35,8 @@ it("registers same-name bots before selection without joining a room", async () 
     const body = JSON.parse(init.body);
     if (body.action === "challenge") return { ok: true, json: async () => ({ nonce }) };
     expect(["register", "invite"]).toContain(body.action);
+    if (body.action === "register") expect(body.name).toBe("Bot");
+    else expect(body.name).toBe("Fixture");
     const key = createPublicKey({ key: Buffer.from(`302a300506032b6570032100${body.proof.publicKey}`, "hex"), format: "der", type: "spki" });
     const scope = body.action === "register" ? "00000000-0000-4000-8000-000000000000" : room;
     const payload = Buffer.from(JSON.stringify(["startupbot-inbox-bot-claim-v1", origin, owner, body.bot, scope, nonce]));
@@ -185,7 +187,7 @@ it("retries identity registration after offline recovery without joining a group
   fixture.home = mkdtempSync(join(tmpdir(), "startupbot-identity-retry-fixture-"));
   mkdirSync(join(fixture.home, ".startupbot"));
   const workspaceId = "33333333-3333-4333-8333-333333333333", nonce = "22222222-2222-4222-8222-222222222222";
-  let offline = true, anchored, registered = 0, invited = 0;
+  let offline = true, anchored, registered = 0, invited = 0, polls = 0;
   const localFetch = async (endpoint, init) => {
     if (endpoint.endsWith("bot-identity")) {
       if (init?.method === "POST") { anchored = JSON.parse(init.body); return { ok: true, json: async () => ({ ok: true }) }; }
@@ -194,17 +196,17 @@ it("retries identity registration after offline recovery without joining a group
     return { ok: true, json: async () => ({ bots: [{ id: "fixture-bot", name: "Fixture", ...(anchored ? { username: anchored.username } : {}) }] }) };
   };
   const workspace = { getURL: () => "http://127.0.0.1:4000", isDestroyed: () => false, executeJavaScript: code => runInNewContext(code, { location: { origin: "http://127.0.0.1:4000" }, fetch: localFetch }) };
-  const page = { isDestroyed: () => false, session: { fetch: async (url, init) => {
+  const page = { isDestroyed: () => false, session: { cookies: { get: async () => [{ name: "fixture" }] }, fetch: async (url, init) => {
     if (offline) throw Error("fixture_offline");
     if (url.endsWith("/me")) return { ok: true, json: async () => ({ id: "owner-fixture" }) };
-    if (url.endsWith("/bot-turns")) return { ok: true, json: async () => ({ jobs: [] }) };
+    if (url.endsWith("/bot-turns")) { polls++; return { ok: true, json: async () => ({ jobs: [] }) }; }
     const input = JSON.parse(init.body);
     if (input.action === "challenge") return { ok: true, json: async () => ({ nonce }) };
     if (input.action === "register") registered++; else invited++;
     return { ok: true, json: async () => ({ ok: true }) };
   } }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
   vi.useFakeTimers();
-  personalInboxBots({ webContents: workspace }, page, "https://fixture.invalid", (endpoint, init) => localFetch(endpoint, init));
+  personalInboxBots({ webContents: workspace }, page, "https://fixture.invalid", (endpoint, init) => localFetch(endpoint, init), "en", { identityOnly: true });
   await vi.advanceTimersByTimeAsync(8000);
   expect(registered).toBe(0);
   offline = false;
@@ -212,6 +214,19 @@ it("retries identity registration after offline recovery without joining a group
   expect(registered).toBe(1);
   expect(anchored?.username).toMatch(/^bot_k[a-f0-9]{64}$/);
   expect(invited).toBe(0);
+  expect(polls).toBe(0);
+});
+
+it("does not contact the cloud in the identity-only watcher without an inbox session", async () => {
+  fixture.home = mkdtempSync(join(tmpdir(), "startupbot-identity-signed-out-fixture-"));
+  mkdirSync(join(fixture.home, ".startupbot"));
+  let requests = 0;
+  const workspace = { getURL: () => "http://127.0.0.1:4000", isDestroyed: () => false, executeJavaScript: code => runInNewContext(code, { location: { origin: "http://127.0.0.1:4000" }, fetch: async () => ({ ok: true, json: async () => ({ bots: [{ id: "fixture", name: "Fixture" }] }) }) }) };
+  const page = { isDestroyed: () => false, session: { cookies: { get: async () => [] }, fetch: async () => { requests++; throw Error("unexpected request"); } }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
+  vi.useFakeTimers();
+  personalInboxBots({ webContents: workspace }, page, "https://fixture.invalid", async () => ({ ok: true }), "en", { identityOnly: true });
+  await vi.advanceTimersByTimeAsync(80_000);
+  expect(requests).toBe(0);
 });
 
 it("continues registering later bots when the first bot has a permanent conflict", async () => {

@@ -1975,7 +1975,7 @@ function createWindow({ deferNavigation = false } = {}) {
         ...(app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`, ...(linuxSoftwareRendering ? [SOFTWARE_RENDERING_ARG] : [])],
     },
   });
-  mainWindow = win; hiddenStart = false; chromeRail.attach(win);
+  mainWindow = win; hiddenStart = false; chromeRail.attach(win); inbox.watchIdentities(win);
   win.on("show", () => desktopTray?.windowShown(win));
   win.on("focus", () => { if (cloudAccount?.checkoutPending()) void cloudAccount.refresh().catch(() => {}); });
   win.on("close", (event) => {

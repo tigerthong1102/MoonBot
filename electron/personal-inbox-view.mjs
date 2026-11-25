@@ -1,4 +1,5 @@
 import { personalAccountUpdates } from "./personal-account-updates.mjs";
+import { watchInboxIdentities } from "./personal-inbox-identity-watch.mjs";
 import { cleanEmail } from "./cloud-signin.mjs";
 import { personalInboxBots } from "./personal-inbox-bots.mjs";
 import path from "node:path";
@@ -153,6 +154,9 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
     return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
       jsonFile(path.join(app.getPath("userData"), "inbox-service.json")).read);
   }
+  function watchIdentities(win) {
+    watchInboxIdentities({ win, origin, isLocal, inboxSession: () => session.fromPartition(partition), localRequest, locale, startBots: personalInboxBots });
+  }
   async function requestSignIn(win, inbox) {
     await waitForWorkspace(win);
     if (!isLocal(win)) {
@@ -280,5 +284,5 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
       void page.executeJavaScript('window.dispatchEvent(new CustomEvent("inbox-language", { detail: ' + tag + ' }))').catch(() => {});
     }
   }
-  return { open, origin, install, applySkin, applyLanguage };
+  return { open, origin, install, applySkin, applyLanguage, watchIdentities };
 }

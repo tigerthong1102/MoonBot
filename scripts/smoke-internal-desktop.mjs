@@ -11,6 +11,7 @@ import { parseArgs } from "node:util";
 import { desktopSmokeNetwork } from "./desktop-smoke-network.mjs";
 import { smokeDesktopRestart, waitPortClosed } from "./smoke-desktop-restart.mjs";
 import { smokeGroupUsernames } from "./smoke-group-usernames.mjs";
+import { smokeWindowsQuit } from "./smoke-windows-quit.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({ options: { app: { type: "string" }, output: { type: "string" }, "create-upgrade-fixture": { type: "string" } } });
@@ -97,6 +98,7 @@ async function until(read, label, ms = 90_000) {
 const port = await freePort();
 const webhook = await freePortExcept([port]);
 const debug = await freePortExcept([port, webhook]);
+const inspect = process.platform === "win32" ? await freePortExcept([port, webhook, debug]) : null;
 const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERPROFILE: home,
   APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"),
   XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
@@ -106,6 +108,7 @@ const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERP
   ...(process.env.TEMP ? { TEMP: process.env.TEMP, TMP: process.env.TEMP } : {}),
 };
 const args = [`--user-data-dir=${profile}`, `--remote-debugging-port=${debug}`, "--remote-debugging-address=127.0.0.1", "--no-first-run"];
+if (inspect) args.push(`--inspect=127.0.0.1:${inspect}`);
 const netLog = path.join(fixture, "chromium-netlog.json");
 if (mac) args.push(`--log-net-log=${netLog}`);
 const child = spawn(executable, args, { cwd: fixture, env, stdio: ["ignore", "pipe", "pipe"] });
@@ -298,7 +301,8 @@ try {
     assert.deepEqual(legacyGroup.body.group.memberIds, [helper.id]);
     writeFileSync(path.join(home, "synthetic-old-file.txt"), "baseline fixture file");
     assert.deepEqual(rendererErrors, [], "The baseline renderer reported an uncaught exception or crash");
-    if (mac) { socket.close(); child.kill("SIGTERM"); }
+    if (inspect) await smokeWindowsQuit({ inspect, evaluate, cdp });
+    else if (mac) { socket.close(); child.kill("SIGTERM"); }
     else await cdp("Browser.close").catch(() => {});
     await until(() => child.exitCode !== null || child.signalCode !== null, "the baseline application shutdown", 45_000);
     await waitPortClosed(port, "the baseline server shutdown");
@@ -792,7 +796,8 @@ try {
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   const botIds = (await roster()).map(row => row.id);
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
-  if (mac) { socket.close(); child.kill("SIGTERM"); }
+  if (inspect) await smokeWindowsQuit({ inspect, evaluate, cdp });
+  else if (mac) { socket.close(); child.kill("SIGTERM"); }
   else await cdp("Browser.close").catch(() => {});
   await until(() => child.exitCode !== null || child.signalCode !== null, "the first application shutdown", 45_000);
   await waitPortClosed(port, "the first server to stop");

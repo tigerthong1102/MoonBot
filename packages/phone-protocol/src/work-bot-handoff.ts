@@ -7,7 +7,7 @@ export interface WorkBotMessageFields {
   workBotRecoveryPending?: true;
   workBotHandoffSource?: { threadId: string; messageId: string; botId?: string };
   workBotRouting?: {
-    state: "classifying" | "waiting_choice" | "dispatching" | "interrupted" | "dispatched" | "cancelled";
+    state: "classifying" | "waiting_choice" | "dispatching" | "interrupted" | "dispatched" | "cancelled" | "held_for_review";
     requestId?: string;
     sourceBotId?: string;
     ownerKey?: string;

@@ -159,6 +159,11 @@ describe("live startup context", () => {
     ]);
   });
 
+  it("does not give held work to the live voice when the person starts a call", () => {
+    const history = liveHistoryFrom([{ role: "user", kind: "text", text: "HELD_PRIVATE_WORK", workBotReviewHold: true }]);
+    expect(history).toEqual([{ role: "user", text: "[This work is held for review. Do not execute it automatically.]" }]);
+  });
+
   it("writes one-line instructions from the bot's own profile", () => {
     const text = liveInstructions({ name: "  Rigel\n", title: "QA", description: "Line one\nline two" });
     expect(text.split("\n")[0]).toBe("You are Rigel, QA, an AI agent that runs in StartupBot on the user's own computer. Line one line two");

@@ -5,6 +5,7 @@
   "server.workBot.pendingUnavailable": "Some queued messages cannot be transferred safely. Remove them from the queue or choose to continue here.",
   "workBotRouting.classifying": "Reviewing where to send this work…",
   "workBotRouting.waiting_choice": "Waiting for your choice.",
+  "workBotRouting.held_for_review": "Check the existing automations, then tell the new bot what to do.",
   "workBotRouting.dispatching": "Sending the work…",
   "workBotRouting.interrupted": "The handoff was interrupted and may have run. Check the result before sending again.",
   "server.workBot.restartToRecover": "The handoff could not be safely closed. Restart StartupBot, then check the result before sending again.",

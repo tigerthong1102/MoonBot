@@ -5,6 +5,7 @@
   "server.workBot.pendingUnavailable": "Một số tin nhắn đang chờ chưa thể chuyển an toàn. Hãy xóa chúng khỏi hàng chờ hoặc chọn tiếp tục tại đây.",
   "workBotRouting.classifying": "Đang xem nơi giao việc…",
   "workBotRouting.waiting_choice": "Đang chờ bạn lựa chọn.",
+  "workBotRouting.held_for_review": "Hãy kiểm tra lịch và việc đang chạy, sau đó nhắn cho bot mới biết cần làm gì.",
   "workBotRouting.dispatching": "Đang chuyển việc…",
   "workBotRouting.interrupted": "Việc bàn giao bị gián đoạn và có thể đã chạy. Hãy kiểm tra kết quả trước khi gửi lại.",
   "server.workBot.restartToRecover": "Chưa thể đóng lượt bàn giao an toàn. Hãy khởi động lại StartupBot, rồi kiểm tra kết quả trước khi gửi lại.",

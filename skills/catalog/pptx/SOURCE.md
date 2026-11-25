@@ -8,13 +8,14 @@ StartupBot modified SKILL.md on 2026-11-19 to supply local execution guidance. O
 
 Excluded third-party OOXML schemas and their dependent helpers.
 
+The upstream `scripts/slide_text.py` is included for read-only extraction with a compatible Python interpreter and `python-pptx`. StartupBot modified upstream `scripts/apply_theme.js` to remove the same XML-invalid control characters without a control-character regular expression. The script is included for decks created by a compatible PptxGenJS installation; its `pptxgenjs` and `jszip` dependencies are not bundled. StartupBot added `scripts/package.json` to preserve the upstream CommonJS module format regardless of the containing project.
+
 Included upstream notices: THIRD_PARTY_NOTICES.md.
 
 ## Excluded upstream files
 
 - scripts/__init__.py
 - scripts/add_slide.py
-- scripts/apply_theme.js
 - scripts/clean.py
 - scripts/office/helpers/__init__.py
 - scripts/office/helpers/pptx_chart.py
@@ -66,7 +67,6 @@ Included upstream notices: THIRD_PARTY_NOTICES.md.
 - scripts/office/validators/docx.py
 - scripts/office/validators/pptx.py
 - scripts/office/validators/redlining.py
-- scripts/slide_text.py
 - scripts/thumbnail.py
 
 Included the upstream SKILL.md as references/upstream.md and expanded the local document workflow.

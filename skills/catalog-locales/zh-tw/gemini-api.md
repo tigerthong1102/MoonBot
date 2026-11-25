@@ -10,3 +10,5 @@
 產生新影片前，確認提示詞、畫面比例、長度及要傳送的來源素材。透過已設定的服務確認目前可用的影片生成模型，提交請求，必要時輪詢非同步工作，並從同一服務取回結果。將影片儲存在工作區，開啟檢查並回報長度及畫面或音訊問題。無法生成時說明缺少的權限；適當時可提供本機 HyperFrames 製作動畫影片，但不要聲稱它等同生成式實拍畫面。
 
 查閱目前官方 Gemini 影片生成文件，確認支援的模型、限制及請求格式。預覽模型可能停用，不要寫死舊版 Veo 預覽仍可使用。使用 Google Cloud Agent Platform 時，使用已設定的專案、區域及憑證，傳送資料前檢查權限。切勿將密鑰放入聊天、原始碼、記錄或 URL。未經使用者授權，不要啟用服務、傳送私人素材或產生費用。
+
+需要實作細節時，只閱讀對應的固定版本上游資料：`references/text_and_multimodal.md` 文字及多模態；`references/structured_and_tools.md` 結構化輸出及函式呼叫；`references/media_generation.md` 產生圖片、影片、語音或音樂；`references/embeddings.md` 嵌入；`references/bounding_box.md` 空間結果；`references/live_api.md` 即時工作階段；`references/advanced_features.md` 進階功能；`references/safety.md` 安全控制；或 `references/model_tuning.md` 模型微調。範例和模型 ID 屬於固定快照，不保證目前仍可用。執行前核對最新官方文件、端點、帳戶權限和價格；未經使用者要求不要啟用使用歸因或遙測。

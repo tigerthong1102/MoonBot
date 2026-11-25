@@ -1,6 +1,6 @@
 # Compare and batch rendering
 
-Use these commands for deliberate visual comparison or variable-driven template output. They do not replace `lint`, `check`, final preview approval, or output verification.
+Use these commands for deliberate visual comparison or variable-driven template output. They do not replace `lint`, `check`, visual review, or output verification.
 
 ## Contents
 

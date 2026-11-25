@@ -68,9 +68,9 @@ Studio chỉnh sửa chính các thẻ bạn viết.
 ## Quy trình
 
 - Dự án có sẵn: `npx hyperframes timeline --json` cho biết nội dung phát khi nào; trước khi sửa, `npx hyperframes history --since mine --who <you>` cho thấy những gì người dùng đã thay đổi kể từ lượt trước; tiếp tục dựa trên đó (`/hyperframes-cli`).
-- Phim kể chuyện mới dài hơn khoảng 15 giây: đọc tệp theo loại bên dưới rồi `references/story.md`; đề xuất ba cốt truyện khác nhau bằng chữ để người dùng chọn, trừ khi họ yêu cầu tệp ngay hoặc không dừng. Sau đó tạo `SPEC.md` (`references/spec.md`): định lượng từng tính từ, nêu các mặc định bị cấm và mô tả cảnh theo khung hình.
+- Phim kể chuyện mới dài hơn khoảng 15 giây: đọc tệp theo loại bên dưới rồi `references/story.md`; tự xây dựng cốt truyện phù hợp với yêu cầu; đưa ra các lựa chọn khi người dùng muốn chọn. Sau đó tạo `SPEC.md` (`references/spec.md`): định lượng từng tính từ, nêu các mặc định bị cấm và mô tả cảnh theo khung hình.
 - Sau lần sửa cuối: `npx hyperframes check --json`; sửa mọi lỗi, cân nhắc từng cảnh báo. Với phim: xem các khung hình đại diện và điểm chuyển cảnh bằng `npx hyperframes snapshot --at <seconds>` và `references/review.md`, kết thúc bằng `REVIEW.md`. Dùng `npx hyperframes snapshot --review` khi hữu ích; nếu lệnh bị treo, dừng tiến trình do mình tạo và dùng ảnh chụp có chọn lọc, không bỏ qua bước xem hình. Với chỉnh sửa nhỏ: chụp phần đã đổi (`--at`, `--range`, `--composition`) và xem trước khi trả lời.
-- Kết xuất khi người dùng duyệt bản xem trước Studio, yêu cầu tệp hoặc yêu cầu không dừng, sau khi kiểm tra và rà soát đạt; nếu không, dừng ở bản xem trước và chờ.
+- Khi người dùng yêu cầu tạo hoặc sửa video, hoàn thành kiểm tra và xem lại hình ảnh, kết xuất video rồi trả tệp trong cuộc trò chuyện StartupBot. Không yêu cầu người dùng mở Studio hoặc URL dự án. Chỉ dùng Studio hoặc gửi liên kết xem trước khi người dùng yêu cầu rõ ràng.
 
 ## Tài liệu cần đọc
 

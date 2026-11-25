@@ -66,9 +66,9 @@ Studio 编辑你编写的标签。
 ## 工作流程
 
 - 已有项目：`npx hyperframes timeline --json` 显示播放时序；修改前用 `npx hyperframes history --since mine --who <you>` 查看用户自上轮以来的更改，并在其基础上继续（`/hyperframes-cli`）。
-- 超过约 15 秒的新叙事影片：先读下表对应类型的文件，再读 `references/story.md`；仅用文字提出三个不同故事方案，让用户选择，除非用户要求直接交付或不停止。然后创建 `SPEC.md`（`references/spec.md`）：量化每个形容词，明确禁止的默认值，并按帧描述镜头。
+- 超过约 15 秒的新叙事影片：先读下表对应类型的文件，再读 `references/story.md`；根据需求制定合适的故事；用户要求选择时再提供备选方案。然后创建 `SPEC.md`（`references/spec.md`）：量化每个形容词，明确禁止的默认值，并按帧描述镜头。
 - 最后一次编辑后运行 `npx hyperframes check --json`；修复所有错误并评估每个警告。影片使用 `npx hyperframes snapshot --at <seconds>` 检查代表性画面及转场，参考 `references/review.md` 并完成 `REVIEW.md`。有用时运行 `npx hyperframes snapshot --review`；如果卡住，停止自己启动的进程并改用定点截图，不得跳过画面检查。小改动则为修改部分截图（`--at`、`--range`、`--composition`），回复前查看。
-- 用户批准 Studio 预览、要求文件或要求不中断时，在检查和审阅通过后渲染；否则停在预览并等待。
+- 用户要求制作或编辑视频时，完成检查和视觉审阅后渲染，并在 StartupBot 对话中返回文件。不要要求用户打开 Studio 或项目链接；仅在用户明确要求时使用 Studio 或分享预览链接。
 
 ## 需要阅读的资料
 

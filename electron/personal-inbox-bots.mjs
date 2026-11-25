@@ -66,6 +66,7 @@ export function personalInboxBots(window, page, origin, localRequest) {
   const picksInFlight = new Set();
   const preparations = new Map();
   const preparationRetryAt = new Map();
+  let identityRegistrationUnavailable = false;
   const identityEndpoint = "/api/personal-inbox/bot-identity";
   const encryption = { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value) };
   function report(type) {
@@ -98,7 +99,10 @@ export function personalInboxBots(window, page, origin, localRequest) {
           const [identity, inventory] = await Promise.all([local(undefined, identityEndpoint), local()]);
           return identity.workspaceId === scope.workspaceId && inventory.bots.some(item => item.id === scope.localBotId);
         },
-        challenge: claims.identityChallenge,
+        challenge: async request => {
+          try { const result = await claims.identityChallenge(request); identityRegistrationUnavailable = false; return result; }
+          catch (error) { if (error?.status === 404 || error?.status === 405) identityRegistrationUnavailable = true; throw error; }
+        },
         invite: async request => { await claims.registerIdentity(request); signed = request; },
       });
       await registration.register({ workspaceId, localBotId: bot.id, bindingId: record.id, owner, room: identityScope, origin, name: bot.name });
@@ -130,6 +134,7 @@ export function personalInboxBots(window, page, origin, localRequest) {
     const [currentIdentity, account, currentInventory] = await Promise.all([local(undefined, identityEndpoint), cloud("me"), local()]);
     if (currentIdentity.workspaceId !== identity.workspaceId || account.id !== me.id) throw Error("workspace_changed");
     const choices = currentInventory.bots;
+    const canSignFallback = identityRegistrationUnavailable && await encryption.available().catch(() => false);
     if (!choices.length) {
       report("inbox-bots-empty");
       return;
@@ -142,7 +147,7 @@ export function personalInboxBots(window, page, origin, localRequest) {
       const canEncrypt = await encryption.available().catch(() => false);
       const selectedIdentity = await local(undefined, identityEndpoint);
       const selected = (await local()).bots.find(item => item.id === bot.id);
-      if (selectedIdentity.workspaceId !== identity.workspaceId || !bot.username || selected?.username !== bot.username) throw Error("workspace_changed");
+      if (selectedIdentity.workspaceId !== identity.workspaceId || (!bot.username && !canSignFallback) || selected?.username !== bot.username) throw Error("workspace_changed");
       const records = bindings(), key = JSON.stringify([identity.workspaceId, bot.id]), existing = records[key];
       const record = existing ?? { id: randomUUID(), owner: me.id, origin, workspaceId: identity.workspaceId, localBotId: bot.id };
       if (record.owner !== me.id || record.origin !== origin)
@@ -152,7 +157,7 @@ export function personalInboxBots(window, page, origin, localRequest) {
       file.write(records);
       const input = { room, bot: record.id, name: bot.name, owner: me.id };
       if (!canEncrypt) {
-        if (bot.username) throw Error("identity_storage_unavailable");
+        if (bot.username || canSignFallback) throw Error("identity_storage_unavailable");
         if ((await cloud("me")).id !== me.id || (await local(undefined, identityEndpoint)).workspaceId !== identity.workspaceId || !(await local()).bots.some(item => item.id === bot.id)) throw Error("workspace_changed");
         await claims.inviteLegacy(input);
       } else {
@@ -195,8 +200,8 @@ export function personalInboxBots(window, page, origin, localRequest) {
     }
     Menu.buildFromTemplate(
       choices.map((bot) => ({
-        label: bot.username ? inboxBotLabel(bot) : `${bot.name} (…)`,
-        enabled: Boolean(bot.username),
+        label: bot.username ? inboxBotLabel(bot) : canSignFallback ? `${bot.name} (ID: ${bot.id})` : `${bot.name} (…)`,
+        enabled: Boolean(bot.username) || canSignFallback,
         click: () => {
           void pick(bot).catch(() => report("inbox-bots-error"));
         },

@@ -144,6 +144,42 @@ it("does not present a fabricated username when the cloud cannot register it", a
   expect(anchored).toBe(0);
 });
 
+it("uses an honest local ID to select a bot when the older cloud supports only signed invitations", async () => {
+  fixture.home = mkdtempSync(join(tmpdir(), "startupbot-old-cloud-fixture-"));
+  mkdirSync(join(fixture.home, ".startupbot")); fixture.menu = null;
+  const room = "11111111-1111-4111-8111-111111111111", workspaceId = "33333333-3333-4333-8333-333333333333", nonce = "22222222-2222-4222-8222-222222222222";
+  let anchored, sent = 0;
+  const localFetch = async (endpoint, init) => {
+    if (endpoint.endsWith("bot-identity")) {
+      if (init?.method === "POST") { anchored = JSON.parse(init.body); return { ok: true, json: async () => ({ ok: true }) }; }
+      return { ok: true, json: async () => ({ workspaceId }) };
+    }
+    return { ok: true, json: async () => ({ bots: [{ id: "fixture-bot", name: "Fixture", ...(anchored ? { username: anchored.username } : {}) }] }) };
+  };
+  const workspace = { getURL: () => "http://127.0.0.1:4000", isDestroyed: () => false, executeJavaScript: code => runInNewContext(code, { location: { origin: "http://127.0.0.1:4000" }, fetch: localFetch }) };
+  const origin = "https://fixture.invalid", owner = "owner-fixture";
+  const page = { isDestroyed: () => false, session: { fetch: async (url, init) => {
+    if (url.endsWith("/me")) return { ok: true, json: async () => ({ id: owner }) };
+    if (url.endsWith("/bot-identities")) return { ok: false, status: 404 };
+    const input = JSON.parse(init.body);
+    if (input.action === "challenge") return { ok: true, json: async () => ({ nonce }) };
+    expect(input.action).toBe("invite");
+    const key = createPublicKey({ key: Buffer.from(`302a300506032b6570032100${input.proof.publicKey}`, "hex"), format: "der", type: "spki" });
+    const payload = Buffer.from(JSON.stringify(["startupbot-inbox-bot-claim-v1", origin, owner, input.bot, room, nonce]));
+    expect(verify(null, payload, key, Buffer.from(input.proof.signature, "hex"))).toBe(true);
+    sent++; return { ok: true, json: async () => ({ ok: true }) };
+  } }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
+  const instance = personalInboxBots({ webContents: workspace }, page, origin, (endpoint, init) => localFetch(endpoint, init));
+  instance.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  expect(fixture.menu[0].label).toBe("Fixture (ID: fixture-bot)");
+  expect(fixture.menu[0].enabled).toBe(true);
+  expect(sent).toBe(0);
+  fixture.menu[0].click();
+  await vi.waitFor(() => expect(anchored?.username).toMatch(/^bot_k[a-f0-9]{64}$/));
+  expect(sent).toBe(1);
+});
+
 it("retries identity registration after offline recovery without joining a group", async () => {
   fixture.home = mkdtempSync(join(tmpdir(), "startupbot-identity-retry-fixture-"));
   mkdirSync(join(fixture.home, ".startupbot"));

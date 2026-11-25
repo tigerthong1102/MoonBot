@@ -12,6 +12,7 @@ const actions = z.discriminatedUnion("action", [
     owner: z.string().min(1).max(128),
     bot: uuid,
     name: z.string().trim().min(1).max(80),
+    username: z.string().regex(/^bot_[ux][a-f0-9]{1,512}$/).optional(),
   }),
   z.object({ action: z.literal("add"), bot: uuid }),
   z.object({ action: z.literal("remove"), bot: uuid }),
@@ -46,10 +47,10 @@ function changed(n: number) {
   if (!n) throw new HTTPError(409, "unavailable");
   return json({ ok: true });
 }
-function addOwnedBot(db: D1Database, room: string, user: string, bot: string) {
+function addOwnedBot(db: D1Database, room: string, user: string, bot: string, afterRegistration = false) {
   return db.prepare(
     `INSERT OR IGNORE INTO inbox_room_bots(room,bot,owner) SELECT ?1,id,?2 FROM inbox_bots
-    WHERE id=?3 AND owner=?2 AND ${canInvite} AND (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12`,
+    WHERE id=?3 AND owner=?2 AND ${canInvite} AND (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12 ${afterRegistration ? "AND changes()=1" : ""}`,
   ).bind(room, user, bot);
 }
 export async function pendingBotTurns(db: D1Database, user: string) {
@@ -72,16 +73,16 @@ export async function roomBots(
   if (req.method === "GET") {
     if (new URL(req.url).searchParams.get("available") === "1") {
       const rows = await db.prepare(
-        `SELECT b.id,b.name FROM inbox_bots b WHERE b.owner=?2 AND ${canInvite}
+        `SELECT b.id,b.name,b.username FROM inbox_bots b WHERE b.owner=?2 AND ${canInvite}
         AND NOT EXISTS(SELECT 1 FROM inbox_room_bots rb WHERE rb.room=?1 AND rb.bot=b.id)
         ORDER BY b.name,b.id`,
       ).bind(room, user).all<BotRow>();
-      return json({ bots: rows.results });
+      return json({ bots: rows.results.map(({ username, ...row }) => username === null ? row : { ...row, username }) });
     }
     const [members, rounds] = await db.batch<BotRow>([
       db
         .prepare(
-          `SELECT b.id,b.name,u.email AS owner FROM inbox_room_bots rb JOIN inbox_bots b ON b.id=rb.bot
+          `SELECT b.id,b.name,b.username,u.email AS owner FROM inbox_room_bots rb JOIN inbox_bots b ON b.id=rb.bot
         JOIN "user" u ON u.id=b.owner WHERE rb.room=?1 AND ${active} ORDER BY b.name,b.id`,
         )
         .bind(room, user),
@@ -94,7 +95,7 @@ export async function roomBots(
         )
         .bind(room, user, Date.now()),
     ]);
-    return json({ bots: members.results, round: rounds.results[0] ?? null });
+    return json({ bots: members.results.map(({ username, ...row }) => username === null ? row : { ...row, username }), round: rounds.results[0] ?? null });
   }
   const parsed = actions.safeParse(await readBoundedJSON(req));
   if (!parsed.success) throw new HTTPError(400, "invalid_request");
@@ -103,16 +104,26 @@ export async function roomBots(
   if (a.action === "add") return changed((await addOwnedBot(db, room, user, a.bot).run()).meta.changes);
   if (a.action === "invite") {
     if (a.owner !== user) throw new HTTPError(403, "unavailable");
-    const [, result] = await db.batch<BotRow>([
+    let registered: D1Result<BotRow>, members: D1Result<BotRow>;
+    try {
+    [registered, , members] = await db.batch<BotRow>([
       db
         .prepare(
-          `INSERT INTO inbox_bots(id,owner,name) SELECT ?3,?2,?4 WHERE ${canInvite}
-        AND (SELECT count(*) FROM inbox_bots WHERE owner=?2)<50 ON CONFLICT(id) DO UPDATE SET name=excluded.name WHERE owner=?2`,
+          `INSERT INTO inbox_bots(id,owner,name,username) SELECT ?3,?2,?4,?5 WHERE ${canInvite}
+        AND (EXISTS(SELECT 1 FROM inbox_room_bots WHERE room=?1 AND bot=?3 AND owner=?2)
+          OR (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12)
+        AND ((SELECT count(*) FROM inbox_bots WHERE owner=?2)<50 OR EXISTS(SELECT 1 FROM inbox_bots WHERE id=?3 AND owner=?2)) ON CONFLICT(id) DO UPDATE SET name=excluded.name, username=COALESCE(inbox_bots.username,excluded.username)
+        WHERE owner=?2 AND (excluded.username IS NULL OR inbox_bots.username IS NULL OR inbox_bots.username=excluded.username COLLATE NOCASE)`,
         )
-        .bind(room, user, a.bot, a.name),
-      addOwnedBot(db, room, user, a.bot),
+        .bind(room, user, a.bot, a.name, a.username ?? null),
+      addOwnedBot(db, room, user, a.bot, true),
+      db.prepare(`SELECT bot FROM inbox_room_bots WHERE room=?1 AND bot=?3 AND owner=?2 AND ${canInvite}`).bind(room, user, a.bot),
     ]);
-    return changed(result.meta.changes);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("UNIQUE constraint failed: inbox_bots.username")) throw new HTTPError(409, "username_unavailable");
+      throw error;
+    }
+    return changed(registered.meta.changes && members.results.length ? 1 : 0);
   }
   if (a.action === "remove")
     return changed(

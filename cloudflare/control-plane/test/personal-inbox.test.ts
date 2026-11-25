@@ -817,6 +817,83 @@ it("offers only the caller's registered bots for groups where they can post", as
   });
 });
 
+it("keeps bot usernames unique and owner-bound when inviting to groups", async () => {
+  const owner = await login("owner@example.test"), member = await login("member@example.test");
+  const roomId = uuid(), otherRoom = uuid(), bot = uuid(), otherBot = uuid();
+  for (const id of [roomId, otherRoom]) {
+    await call("rooms", owner.cookie, { id, kind: "group", title: "Fixture" });
+    await call(`rooms/${id}/invite`, owner.cookie, { email: member.email });
+    await call(`rooms/${id}/accept`, member.cookie, {});
+  }
+  const invite = (who: typeof owner, room: string, botId: string, username: string, name = "Fixture") =>
+    call(`rooms/${room}/bots`, who.cookie, { action: "invite", owner: who.id, bot: botId, name, username });
+  const username = "bot_u0123456789abcdef";
+  expect((await invite(owner, roomId, bot, username)).status).toBe(200);
+  expect((await invite(member, roomId, otherBot, username)).status).toBe(409);
+  expect((await invite(member, otherRoom, bot, username)).status).toBe(409);
+  expect((await invite(owner, otherRoom, bot, "bot_uffffff", "Changed")).status).toBe(409);
+  expect(await (await call(`rooms/${roomId}/bots`, member.cookie)).json()).toMatchObject({ bots: [{ id: bot, name: "Fixture", username, owner: owner.email }] });
+  expect(await (await call(`rooms/${otherRoom}/bots?available=1`, owner.cookie)).json()).toEqual({ bots: [{ id: bot, name: "Fixture", username }] });
+  expect((await call(`rooms/${otherRoom}/bots`, member.cookie, { action: "add", bot })).status).toBe(409);
+});
+
+it("allows existing bots at the registration limit without allowing a new bot", async () => {
+  const owner = await login("owner@example.test"), room = uuid();
+  await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" });
+  const ids = Array.from({ length: 50 }, () => uuid());
+  await env.INBOX_DB.batch(ids.map(id => env.INBOX_DB.prepare("INSERT INTO inbox_bots(id,owner,name) VALUES (?,?,?)").bind(id, owner.id, "Fixture")));
+  const invite = (bot: string, username?: string) => call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot, name: "Fixture", ...(username ? { username } : {}) });
+  expect((await invite(ids[0]!)).status).toBe(200);
+  expect((await invite(ids[1]!, "bot_u1234")).status).toBe(200);
+  expect((await invite(uuid(), "bot_u5678")).status).toBe(409);
+});
+
+it("registers at most one bot when two owners concurrently claim a username", async () => {
+  const a = await login("owner@example.test"), b = await login("member@example.test"), room = uuid();
+  await call("rooms", a.cookie, { id: room, kind: "group", title: "Fixture" });
+  await call(`rooms/${room}/invite`, a.cookie, { email: b.email });
+  await call(`rooms/${room}/accept`, b.cookie, {});
+  const claim = (who: typeof a) => call(`rooms/${room}/bots`, who.cookie, { action: "invite", owner: who.id, bot: uuid(), name: "Fixture", username: "bot_uabcdef" });
+  const responses = await Promise.all([claim(a), claim(b)]);
+  expect(responses.map(response => response.status).sort()).toEqual([200, 409]);
+});
+
+it("adds a username to a legacy bot already in the target group", async () => {
+  const owner = await login("owner@example.test"), room = uuid(), bot = uuid();
+  await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" });
+  const input = { action: "invite", owner: owner.id, bot, name: "Fixture" };
+  expect((await call(`rooms/${room}/bots`, owner.cookie, input)).status).toBe(200);
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { ...input, username: "bot_u1234" })).status).toBe(200);
+  expect(await env.INBOX_DB.prepare("SELECT username FROM inbox_bots WHERE id=?").bind(bot).first()).toEqual({ username: "bot_u1234" });
+  const retries = await Promise.all([call(`rooms/${room}/bots`, owner.cookie, { ...input, username: "bot_u1234" }), call(`rooms/${room}/bots`, owner.cookie, { ...input, username: "bot_u1234" })]);
+  expect(retries.map(response => response.status)).toEqual([200, 200]);
+});
+
+it("does not update a bot when its owner is muted in the group", async () => {
+  const owner = await login("owner@example.test"), member = await login("member@example.test"), room = uuid(), bot = uuid();
+  await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" });
+  await call(`rooms/${room}/invite`, owner.cookie, { email: member.email });
+  await call(`rooms/${room}/accept`, member.cookie, {});
+  const input = { action: "invite", owner: member.id, bot, name: "Fixture" };
+  expect((await call(`rooms/${room}/bots`, member.cookie, input)).status).toBe(200);
+  await call(`rooms/${room}/moderate`, owner.cookie, { action: "mute", person: member.id });
+  expect((await call(`rooms/${room}/bots`, member.cookie, { ...input, username: "bot_u1234" })).status).toBe(409);
+  expect(await env.INBOX_DB.prepare("SELECT username FROM inbox_bots WHERE id=?").bind(bot).first()).toEqual({ username: null });
+});
+
+it("does not register a new username when the group is full", async () => {
+  const owner = await login("owner@example.test"), room = uuid();
+  await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" });
+  const existing = uuid();
+  for (let index = 0; index < 12; index++) {
+    expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot: index === 0 ? existing : uuid(), name: "Fixture" })).status).toBe(200);
+  }
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot: existing, name: "Fixture", username: "bot_u9999" })).status).toBe(200);
+  const bot = uuid();
+  expect((await call(`rooms/${room}/bots`, owner.cookie, { action: "invite", owner: owner.id, bot, name: "Fixture", username: "bot_u1234" })).status).toBe(409);
+  expect(await env.INBOX_DB.prepare("SELECT id FROM inbox_bots WHERE id=?").bind(bot).first()).toBeNull();
+});
+
 it("keeps explicit email-update choices with the verified account across devices", async () => {
   const email = "a@example.test";
   const { cookie: first } = await login(email);

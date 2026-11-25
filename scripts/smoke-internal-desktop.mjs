@@ -805,7 +805,8 @@ try {
   }
 } catch (error) {
   report.error = error.stack;
-  await captureFailure().catch(failure => { report.diagnosticsError = failure.message; });
+  if (socket?.readyState === WebSocket.OPEN) await captureFailure().catch(failure => { report.diagnosticsError = failure.message; });
+  else report.diagnosticsSkipped = "Renderer debugging connection is not open";
   throw error;
 } finally {
   for (const gate of [stoppedGateToRelease, reconnectGateToRelease]) {

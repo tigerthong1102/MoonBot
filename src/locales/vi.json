@@ -7984,7 +7984,7 @@
   "automations.held.conflict": "Sự kiện đang tạm giữ. Hãy kiểm tra các tác vụ tự động bên dưới trước khi tự giao việc.",
   "automations.held.unknown": "Chưa xác minh được lịch sử sự kiện. Hãy kiểm tra các tác vụ tự động và lịch sử chạy trước khi tự giao việc.",
   "automations.held.open": "Mở {name} · {bot}",
-  "automations.cursorReview.unverified": "Sự kiện từ ứng dụng đang tạm dừng vì chưa xác minh được vị trí đã lưu. Cần kiểm tra trước khi tiếp tục an toàn.",
+  "automations.cursorReview.unverified": "Đã giữ nguyên cấu hình tự động hóa cũ. StartupBot đang tạm dừng nhận sự kiện vì chưa xác định được tài khoản kết nối ban đầu. Hãy kiểm tra tài khoản và bản sao lưu trước khi tạo lại kết nối. Bạn vẫn có thể dùng chat và tệp như thường lệ.",
   "automations.cursorReview.changed": "Sự kiện từ ứng dụng đang tạm dừng vì kết nối ứng dụng đã đổi. Cần kiểm tra trước khi tiếp tục an toàn.",
   "automations.cursorReview.unavailable": "Sự kiện từ ứng dụng đang tạm dừng vì không xác minh được kết nối. Hãy kiểm tra kết nối và thử lại.",
   "automations.cursorReview.eventProblem": "Sự kiện từ ứng dụng đang tạm dừng vì có sự kiện chưa thể xử lý an toàn. Cần kiểm tra trước khi tiếp tục.",

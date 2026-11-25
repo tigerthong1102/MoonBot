@@ -377,6 +377,22 @@ describe("AppTriggerManager", () => {
     expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
   });
 
+  it("keeps an in-flight operation from writing to the newly selected account", async () => {
+    const other = await broker.install();
+    let selected = owner;
+    const client = brokerClient(() => ({ url: broker.url, token: selected.token }));
+    const first = await gmailTrigger(manager({ broker: client, linkedBots: () => false }));
+    const before = (await client.inventory()).triggers;
+    await expect(client.withCurrentAccount!(async () => {
+      await client.inventory();
+      selected = other;
+      await client.remove(first.remote.triggerId!);
+    })).rejects.toThrow(/account changed/);
+    expect((await client.inventory()).triggers).toEqual([]);
+    selected = owner;
+    expect((await client.inventory()).triggers).toEqual(before);
+  });
+
   it("never sends one installation's saved cursor to another installation", async () => {
     const other = await broker.install();
     const otherAccount = broker.account(other.userId, "gmail", "other-fixture");
@@ -395,6 +411,10 @@ describe("AppTriggerManager", () => {
     expect(saved.cursor).toBeGreaterThan(0);
     expect(saved.cursorScope).toBe(owner.id);
     access = { url: broker.url, token: other.token }; scope = other.id;
+    const remove = vi.spyOn(client, "remove");
+    await expect(triggers.reconcile()).rejects.toThrow(/account changed/);
+    expect(remove).not.toHaveBeenCalled();
+    expect((await otherClient.inventory()).triggers.some(row => row.triggerId === otherTrigger.remote.triggerId)).toBe(true);
     await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/account changed/);
     expect(triggers.snapshot().service.cursorReview).toBe("changed");
     triggers = manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => scope });
@@ -442,16 +462,22 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns()).toHaveLength(0);
   });
 
-  it("does not poll an old unverified cursor or change its saved state", async () => {
+  it.each([0, 42])("does not poll an old unverified cursor or change its saved state (cursor %i)", async cursor => {
     const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
     let triggers = manager({ broker: client, linkedBots: () => false });
     await gmailTrigger(triggers);
     const file = join(dir, "app-triggers.json"), saved = JSON.parse(readFileSync(file, "utf8"));
-    saved.cursor = 42; delete saved.cursorScope;
+    saved.cursor = cursor; delete saved.cursorScope;
     const original = JSON.stringify(saved);
     writeFileSync(file, original);
     const poll = vi.spyOn(client, "poll");
+    const inventory = vi.spyOn(client, "inventory");
     triggers = manager({ broker: client, linkedBots: () => false });
+    await expect(triggers.reconcile()).rejects.toThrow(/no verified account/);
+    const id = saved.triggers[0].id;
+    await expect(triggers.remove(id)).rejects.toThrow(/no verified account/);
+    await expect(triggers.runNow(id)).rejects.toThrow(/no verified account/);
+    expect(inventory).not.toHaveBeenCalled();
     expect(triggers.snapshot().service.cursorReview).toBe("unverified");
     await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/no verified account/);
     expect(triggers.snapshot().service.cursorReview).toBe("unverified");
@@ -566,16 +592,12 @@ describe("AppTriggerManager", () => {
   it("reports a cursor write failure before contacting the broker", async () => {
     const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
     const triggers = manager({ broker: client, linkedBots: () => true });
-    await gmailTrigger(triggers);
-    const file = join(dir, "app-triggers.json"), backup = `${file}.fixture-backup`;
-    renameSync(file, backup);
+    const file = join(dir, "app-triggers.json");
     mkdirSync(file);
     const poll = vi.spyOn(client, "poll");
-    try {
-      await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow();
-      expect(poll).not.toHaveBeenCalled();
-      expect(triggers.snapshot().service.cursorReview).toBe("event_problem");
-    } finally { rmSync(file, { recursive: true }); renameSync(backup, file); }
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow();
+    expect(poll).not.toHaveBeenCalled();
+    expect(triggers.snapshot().service.cursorReview).toBe("event_problem");
   });
 
   it.each([false, true])("waits for app-event polling to stop and resumes after backup failure=%s", async fail => {
@@ -602,7 +624,7 @@ describe("AppTriggerManager", () => {
   });
   it("keeps a shared event held after a pause and restart", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
-    let triggers = manager();
+    let triggers = manager({ linkedBots: () => false });
     const first = await gmailTrigger(triggers);
     const second = await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     expect(second.remote.triggerId).toBe(first.remote.triggerId);
@@ -637,7 +659,7 @@ describe("AppTriggerManager", () => {
   it("holds an event that matches different local filters for linked bots", async () => {
     const slack = broker.account(owner.userId, "slack");
     connected.slack = { connected: true, accounts: [{ id: slack, status: "ACTIVE" }] };
-    let triggers = manager();
+    let triggers = manager({ linkedBots: () => false });
     const create = (botId: string, text: string) => triggers.create({ botId, name: "Fixture", prompt: "Summarize matching updates", app: "slack", event: "SLACK_CHANNEL_MESSAGE_RECEIVED", filter: { text } });
     const first = await create("source", "warehouse");
     const second = await create("target", "sales");
@@ -650,7 +672,7 @@ describe("AppTriggerManager", () => {
   });
 
   it("holds legacy same-bot automations that would run the same instructions twice", async () => {
-    const triggers = manager();
+    const triggers = manager({ linkedBots: () => false });
     const first = await gmailTrigger(triggers);
     const other = await triggers.create({ botId: first.botId, name: "Legacy second watcher", prompt: "Old separate work", app: first.app, event: first.event, filter: first.filter });
     const file = join(dir, "app-triggers.json");
@@ -729,7 +751,7 @@ describe("AppTriggerManager", () => {
 
   it("retains a held payload when notification delivery fails", async () => {
     let fail = false;
-    let triggers = manager();
+    let triggers = manager({ linkedBots: () => false });
     const first = await gmailTrigger(triggers);
     for (let id = 2; id <= 7; id++) await triggers.create({ botId: `bot-${id}`, name: `Linked ${id}`, prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     triggers = manager({ linkedBots: () => true, emit: () => { if (fail) throw new Error("fixture notification unavailable"); } });

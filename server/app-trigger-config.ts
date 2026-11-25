@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { APP_FILTER_MAX, GMAIL_APP, gmailSearchQuery, type AppTriggerFilter } from "../shared/app-triggers.ts";
 import { appLabel } from "./app-event-catalog.ts";
 import type { BrokerTriggerType } from "./app-trigger-broker.ts";
@@ -90,4 +91,9 @@ export async function resolveAccount(connectedApps: () => Promise<ConnectedApps>
     throw new AppTriggerError(`The person has ${accounts.length} ${label} accounts (${accounts.map((account) => account.alias ?? account.id).join(", ")}). Ask which one, then pass account.`);
   }
   return accounts[0]!;
+}
+
+export async function waitForAppEvents(ms: number, signal: AbortSignal): Promise<void> {
+  try { await delay(ms, undefined, { signal, ref: false }); }
+  catch (error) { if (!signal.aborted) throw error; }
 }

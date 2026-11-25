@@ -5824,7 +5824,7 @@
   "automations.held.conflict": "This event is on hold. Check the automations below before setting up work manually.",
   "automations.held.unknown": "The event history could not be verified. Check your automations and run history before setting up work manually.",
   "automations.held.open": "Open {name} · {bot}",
-  "automations.cursorReview.unverified": "App events are paused because their saved position could not be verified. Review is needed before they can continue safely.",
+  "automations.cursorReview.unverified": "Your saved automations are preserved. App events are paused because StartupBot could not identify the original connected account. Check the original account and your backup before setting up a new connection. Chats and files remain available.",
   "automations.cursorReview.changed": "App events are paused because the connected-app installation changed. Review is needed before they can continue safely.",
   "automations.cursorReview.unavailable": "App events are paused because the connected-app installation could not be verified. Check the connection and try again.",
   "automations.cursorReview.eventProblem": "App events are paused because an event could not be processed safely. Review is needed before they can continue.",

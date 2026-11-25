@@ -16,14 +16,14 @@ import {
   type AppTriggerService,
   type AppTriggersSnapshot,
 } from "../shared/app-triggers.ts";
-import { AppTriggerError, active, cleanFilter, resolveAccount, triggerConfig, type AppTriggerInput, type AppTriggerPatch, type ConnectedApps } from "./app-trigger-config.ts";
+import { AppTriggerError, active, cleanFilter, resolveAccount, triggerConfig, waitForAppEvents, type AppTriggerInput, type AppTriggerPatch, type ConnectedApps } from "./app-trigger-config.ts";
 import { countQueueLimit, eventDigest, fileSchema, noteDrops, publicTrigger, readHeldEvents, type HeldEvent, type StoredTrigger } from "./app-trigger-file.ts";
 export { AppTriggerError, type AppTriggerInput, type AppTriggerPatch } from "./app-trigger-config.ts";
 import { appLabel } from "./app-event-catalog.ts";
 import { eventBlock, eventPreview, eventPrompt, matchesFilter, mergeEventBlock } from "./app-events.ts";
 import { BrokerError, type AppTriggerBroker, type BrokerEvent, type BrokerInventory } from "./app-trigger-broker.ts";
 import { writeFileAtomic } from "./atomic.ts";
-import { EVENT_HISTORY_UNAVAILABLE, LINKED_EVENT_CONFLICT, heldEventMatches, isEventHoldProblem } from "./app-trigger-held.ts";
+import { EVENT_HISTORY_UNAVAILABLE, LINKED_EVENT_CONFLICT, heldEventMatches, isEventHoldProblem, summarizeHeldEvents, activeBindingOwners, rememberBindingOwner } from "./app-trigger-held.ts";
 import { instructionsUpdateRefusal } from "./automation-instructions.ts";
 import { DATA_DIR } from "./config.ts";
 import type { RoutineRunOn } from "./routines.ts";
@@ -103,6 +103,7 @@ export class AppTriggerManager {
   private heldEvents = new Map<string, HeldEvent>();
   private heldUnreadable = false;
   private bindingOwners = new Map<string, Set<string>>();
+  private readonly sleep: typeof waitForAppEvents;
   private stopped = true;
   private abort = new AbortController();
   private nextReconcileAt = 0;
@@ -113,6 +114,7 @@ export class AppTriggerManager {
 
   constructor(options: AppTriggerManagerOptions) {
     this.options = options;
+    this.sleep = options.sleep ?? waitForAppEvents;
     this.file = options.file ?? join(DATA_DIR, "app-triggers.json");
     this.heldFile = `${this.file}.held`;
     this.now = options.now ?? Date.now;
@@ -129,10 +131,10 @@ export class AppTriggerManager {
       this.deleted = parsed.data.deleted.filter((entry) => entry.at >= this.now() - RESTORE_WINDOW_MS);
       this.heldEvents = new Map(parsed.data.heldEvents.map(row => typeof row === "string" ? [row, { reason: "conflict" as const }] : [row.id, { reason: row.reason, ...(row.event ? { event: row.event } : {}) }]));
       embeddedEvents = parsed.data.heldEvents.some(row => typeof row !== "string" && row.event !== undefined);
-      for (const owner of parsed.data.bindingOwners ?? []) this.rememberBindingOwner(owner.remoteId, owner.botId);
+      for (const owner of parsed.data.bindingOwners ?? []) rememberBindingOwner(this.bindingOwners, owner.remoteId, owner.botId);
       const previousBindings = parsed.data.bindingOwners ? parsed.data.triggers.filter(trigger => trigger.enabled) : [...parsed.data.triggers, ...parsed.data.deleted.map(entry => entry.trigger)];
       for (const trigger of previousBindings) {
-        if (trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
+        if (trigger.remote.triggerId) rememberBindingOwner(this.bindingOwners, trigger.remote.triggerId, trigger.botId);
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -146,7 +148,7 @@ export class AppTriggerManager {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
     }
     if ([...this.heldEvents.values()].some(value => !value.event)) this.heldUnreadable = true;
-    if (this.options.linkedBots && !this.cursorScope && (this.cursor !== 0 || this.heldEvents.size)) this.cursorReview = "unverified";
+    if (this.options.linkedBots && !this.cursorScope && (this.cursor !== 0 || this.heldEvents.size || this.triggers.length || this.deleted.length)) this.cursorReview = "unverified";
     if (!this.heldUnreadable) for (const held of this.heldEvents.values()) {
       if (held.discarded) continue;
       const reason = held.reason === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE;
@@ -177,19 +179,7 @@ export class AppTriggerManager {
 
   heldEventSummaries(visible: (trigger: AppTrigger) => boolean): HeldAppEventReview[] {
     if (this.unreadable || this.heldUnreadable) return [];
-    const summaries: HeldAppEventReview[] = [];
-    for (const held of this.heldEvents.values()) {
-      if (!held.event || held.discarded) continue;
-      const triggers = this.triggers.filter(trigger => heldEventMatches(held, trigger));
-      if (triggers.some(trigger => !visible(trigger))) continue;
-      summaries.push({
-        key: eventDigest(held.event),
-        receivedAt: held.event.receivedAt,
-        reason: held.reason,
-        triggers: triggers.map(trigger => ({ id: trigger.id, botId: trigger.botId, name: trigger.name })),
-      });
-    }
-    return summaries.sort((a, b) => b.receivedAt - a.receivedAt);
+    return summarizeHeldEvents(this.heldEvents.values(), this.triggers, visible);
   }
 
   discardHeldEvent(id: string, digest: string): void {
@@ -227,8 +217,18 @@ export class AppTriggerManager {
   private async trackMutation<T>(work: () => Promise<T>): Promise<T> {
     this.mutationsInFlight++;
     this.mutationGeneration++;
-    try { return await work(); }
-    finally { this.mutationsInFlight--; }
+    try {
+      if (this.options.linkedBots) {
+        this.assertWritable();
+        if (this.cursorReview === "unverified" || this.cursorReview === "changed" || this.options.service().available) {
+          const credential = this.options.acknowledgmentScope?.() ?? null;
+          const scope = this.options.installationScope ? await this.readInstallationScope() : credential;
+          this.assertCredential(credential);
+          this.assertCursorScope(scope);
+        }
+      }
+      return await (this.options.broker.withCurrentAccount?.(work) ?? work());
+    } finally { this.mutationsInFlight--; }
   }
 
   get(id: string): AppTrigger | null {
@@ -708,11 +708,9 @@ export class AppTriggerManager {
     this.assertWritable();
     const after = this.cursor;
     const credential = this.options.acknowledgmentScope?.() ?? null;
-    let scope: string | null;
-    try { scope = this.options.installationScope ? await this.options.installationScope(signal) : credential; }
-    catch (error) { if (this.options.linkedBots && !signal?.aborted) this.setCursorUnavailable(); throw error; }
+    const scope = this.options.installationScope ? await this.readInstallationScope(signal) : credential;
     if (signal?.aborted) return 0;
-    if (credential !== (this.options.acknowledgmentScope?.() ?? null)) { if (this.options.linkedBots) this.setCursorUnavailable(); throw new RetryAppEvent("Connected-app account changed during identity verification"); }
+    this.assertCredential(credential);
     this.assertCursorScope(scope);
     let response: Awaited<ReturnType<AppTriggerBroker["poll"]>>;
     try { response = await this.options.broker.poll({ after, waitS, poller: this.pollerId, signal }); }
@@ -732,29 +730,52 @@ export class AppTriggerManager {
     } finally { this.pollsInFlight--; }
   }
 
+  private assertCredential(credential: string | null): void {
+    if (credential === (this.options.acknowledgmentScope?.() ?? null)) return;
+    if (this.options.linkedBots) this.setCursorUnavailable();
+    throw new RetryAppEvent("Connected-app account changed during identity verification");
+  }
+
+  private async readInstallationScope(signal?: AbortSignal): Promise<string | null> {
+    try { return await this.options.installationScope!(signal); }
+    catch (error) { if (!signal?.aborted) this.setCursorUnavailable(); throw error; }
+  }
+
   private pollable(): boolean {
     return this.options.service().available && this.triggers.some((trigger) => trigger.enabled && trigger.remote.triggerId);
   }
 
   private async reconcileNow(): Promise<void> {
     if (!this.options.service().available) return;
+    const credential = this.options.acknowledgmentScope?.() ?? null;
+    if (this.options.linkedBots) {
+      const scope = this.options.installationScope ? await this.readInstallationScope() : credential;
+      this.assertCredential(credential);
+      this.assertCursorScope(scope);
+    }
     const inventory = await this.options.broker.inventory();
+    this.assertCredential(credential);
     this.usage = { plan: inventory.limits.plan, eventsPerDay: inventory.limits.eventsPerDay, eventsToday: inventory.usage.eventsToday };
     const accounts = await this.options.connectedApps().catch(() => null);
+    this.assertCredential(credential);
     const bindings = new Map(inventory.triggers.map((binding) => [binding.triggerId, binding]));
     const changed = new Set<StoredTrigger>();
     for (const trigger of this.triggers) {
       const before = JSON.stringify(trigger);
       try {
-        await this.reconcileOne(trigger, bindings, accounts);
+        this.assertCredential(credential);
+        await this.reconcileOne(trigger, bindings, accounts, credential);
       } catch (error) {
+        this.assertCredential(credential);
         this.markRemoteFailure(trigger, error);
       }
+      this.assertCredential(credential);
       noteDrops(this.now(), trigger, trigger.remote.triggerId ? bindings.get(trigger.remote.triggerId)?.dropped : undefined);
       if (JSON.stringify(trigger) !== before) changed.add(trigger);
     }
     const wanted = new Set(this.triggers.map((trigger) => trigger.remote.triggerId).filter((id): id is string => Boolean(id)));
     for (const triggerId of wanted) {
+      this.assertCredential(credential);
       const binding = bindings.get(triggerId);
       const desired = this.wantsEnabled(triggerId);
       if (binding && (binding.enabled !== desired || (desired && binding.remote?.state === "disabled"))) {
@@ -765,18 +786,20 @@ export class AppTriggerManager {
       .filter((triggerId) => !wanted.has(triggerId));
     let removed = true;
     for (const triggerId of new Set(orphans)) {
+      this.assertCredential(credential);
       await this.options.broker.remove(triggerId).catch((error) => {
         removed = false;
         this.log(`could not remove ${triggerId}: ${String(error)}`);
       });
     }
+    this.assertCredential(credential);
     if (removed && inventory.unbound !== null) this.releasePending = false;
     this.save();
     for (const trigger of changed) this.emitTrigger(trigger);
     this.options.emit?.({ kind: "app-trigger.service", service: this.service() });
   }
 
-  private async reconcileOne(trigger: StoredTrigger, bindings: Map<string, BrokerInventory["triggers"][number]>, accounts: ConnectedApps | null): Promise<void> {
+  private async reconcileOne(trigger: StoredTrigger, bindings: Map<string, BrokerInventory["triggers"][number]>, accounts: ConnectedApps | null, credential: string | null): Promise<void> {
     // Its bot is gone: paused here, so Composio stops sending what no one would run.
     if (trigger.enabled && this.options.botState(trigger.botId) === "missing") trigger.enabled = false;
     const account = accounts?.[trigger.app]?.accounts.find((candidate) => candidate.id === trigger.accountId);
@@ -789,6 +812,7 @@ export class AppTriggerManager {
     if (!binding || binding.remote?.state === "missing") {
       trigger.remote = { state: "pending" };
       await this.bind(trigger);
+      this.assertCredential(credential);
       if (!trigger.enabled && trigger.remote.triggerId) await this.options.broker.setEnabled(trigger.remote.triggerId, false);
       return;
     }
@@ -864,23 +888,9 @@ export class AppTriggerManager {
     trigger.problem = { kind: "error", text: held.reason === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE, at: this.now() };
   }
 
-  private rememberBindingOwner(remoteId: string, botId: string): void {
-    const owners = this.bindingOwners.get(remoteId) ?? new Set<string>();
-    owners.add(botId);
-    this.bindingOwners.set(remoteId, owners);
-  }
-
   private forgetInactiveBindingOwners(): void {
-    const next = new Map<string, Set<string>>();
-    for (const trigger of this.triggers) if (trigger.enabled && trigger.remote.triggerId) {
-      const owners = next.get(trigger.remote.triggerId) ?? new Set<string>();
-      owners.add(trigger.botId);
-      next.set(trigger.remote.triggerId, owners);
-    }
-    if (next.size === this.bindingOwners.size && [...next].every(([id, owners]) => {
-      const previous = this.bindingOwners.get(id);
-      return previous?.size === owners.size && [...owners].every(owner => previous.has(owner));
-    })) return;
+    const next = activeBindingOwners(this.triggers);
+    if (isDeepStrictEqual(next, this.bindingOwners)) return;
     const previous = this.bindingOwners;
     this.bindingOwners = next;
     try { this.save(); } catch (error) { this.bindingOwners = previous; throw error; }
@@ -945,7 +955,7 @@ export class AppTriggerManager {
     if (!scope) { this.setCursorUnavailable(); throw new RetryAppEvent("The connected-app account could not be verified."); }
     if (this.cursorScope && this.cursorScope !== scope) { this.setCursorReview("changed"); throw new RetryAppEvent("Connected-app account changed; review the saved event cursor before continuing."); }
     if (this.cursorScope) return;
-    if (this.cursor !== 0 || this.heldEvents.size) { this.setCursorReview("unverified"); throw new RetryAppEvent("The saved event cursor has no verified account; review it before continuing."); }
+    if (this.cursorReview === "unverified" || this.cursor !== 0 || this.heldEvents.size) { this.setCursorReview("unverified"); throw new RetryAppEvent("The saved event cursor has no verified account; review it before continuing."); }
     this.cursorScope = scope;
     try { this.save(); }
     catch (error) { this.cursorScope = undefined; this.setCursorReview("event_problem"); throw error; }
@@ -972,22 +982,12 @@ export class AppTriggerManager {
     this.options.emit?.({ kind: "app-trigger", botId: trigger.botId, trigger: publicTrigger(trigger) });
   }
 
-  private sleep(ms: number, signal: AbortSignal): Promise<void> {
-    if (this.options.sleep) return this.options.sleep(ms, signal);
-    return new Promise((resolve) => {
-      if (signal.aborted) return resolve();
-      const timer = setTimeout(resolve, ms);
-      timer.unref?.();
-      signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
-    });
-  }
-
   private log(line: string): void {
     (this.options.log ?? ((text) => console.warn(`app events: ${text}`)))(line);
   }
 
   private save(overrides: { cursor?: number } = {}): void {
-    for (const trigger of this.triggers) if (trigger.enabled && trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
+    for (const trigger of this.triggers) if (trigger.enabled && trigger.remote.triggerId) rememberBindingOwner(this.bindingOwners, trigger.remote.triggerId, trigger.botId);
     if (this.unreadable) return;
     if (this.heldUnreadable) throw new RetryAppEvent("Held event storage is unavailable");
     mkdirSync(dirname(this.file), { recursive: true });

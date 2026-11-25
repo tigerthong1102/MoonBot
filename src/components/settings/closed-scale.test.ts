@@ -14,7 +14,6 @@ const FILES = [
   "src/components/AboutMeSettings.tsx",
   "src/components/AccountMenu.tsx",
   "src/components/ActivitySection.tsx",
-  "src/components/AiTwinDisclosure.tsx",
   "src/components/AiTwinPreview.tsx",
   "src/components/AiTwinSettings.tsx",
   "src/components/AppSettingsRows.tsx",

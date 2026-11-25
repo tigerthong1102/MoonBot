@@ -13,6 +13,7 @@ afterEach(async () => {
   await act(async () => { for (const root of renders.splice(0)) root.unmount(); });
   document.body.replaceChildren();
   apiMock.mockReset();
+  vi.unstubAllGlobals();
 });
 
 async function mount() {
@@ -35,7 +36,7 @@ it("is absent when the desktop does not enable the feature", async () => {
   expect((await mount()).textContent).toBe("");
 });
 
-it("keeps setup opt-in, updates the profile on acknowledgment, and cancels deletion", async () => {
+it("keeps setup opt-in without crypto.randomUUID, updates the profile on acknowledgment, and cancels deletion", async () => {
   apiMock.mockResolvedValueOnce({ twin: null, creationEpoch: "initial" });
   const profile = await mount();
   expect(apiMock.mock.calls.map((call) => call[1]?.method ?? "GET")).toEqual(["GET"]);
@@ -49,9 +50,11 @@ it("keeps setup opt-in, updates the profile on acknowledgment, and cancels delet
   apiMock.mockResolvedValueOnce({ creationEpoch: "initial", twin: {
     id: "fake", name: "Thông AI", style: "", revision: 1, paused: false, createdAt: 1, updatedAt: 1,
   } });
+  vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
   await act(async () => button(profile, "Create AI Twin").click());
   expect(JSON.parse(String(apiMock.mock.calls[1]![1]?.body))).toMatchObject({
-    name: "Thông AI", createConsent: true, creationEpoch: "initial", creationId: expect.any(String),
+    name: "Thông AI", createConsent: true, creationEpoch: "initial",
+    creationId: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
   });
   expect(profile.textContent).toContain("Thông AI");
   await act(async () => button(profile, "Delete AI Twin").click());

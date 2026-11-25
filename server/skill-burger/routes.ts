@@ -16,6 +16,7 @@ export const SKILL_BURGER_DRAFT_PATH = "/api/skill-burger-draft";
 
 export interface SkillBurgerRouteDeps {
   available?(auth: RequestAuth): boolean;
+  requiresShareConsent?(auth: RequestAuth): boolean;
   messages(threadId: string): readonly RunMessage[];
   owns(botId: string, threadId: string): boolean;
   sees(auth: RequestAuth, threadId: string): boolean;
@@ -23,7 +24,7 @@ export interface SkillBurgerRouteDeps {
   assignedSkills?(botId: string): readonly string[] | undefined;
   levelOf?(auth: RequestAuth, botId: string): "none" | "view" | "chat" | "edit";
   /** A teammate a run handed work to, by the id or name it used: its name and role now. */
-  teammate?(idOrName: string): { id?: string; name: string; role?: string } | undefined;
+  teammate?(auth: RequestAuth, idOrName: string): { id?: string; name: string; role?: string } | undefined;
   /** Each burger's recent runs. */
   history?: Pick<RunHistory, "list">;
   root?: string;
@@ -41,20 +42,20 @@ const choices = {
   inputs: z.record(z.string().max(40), z.object({ name: z.string().max(40).optional(), value: z.string().max(2_000).optional() }).strict()).optional(),
 };
 const saveBody = z.union([
-  z.object({ botId: id, threadId: z.string().min(1).max(200), summary: z.string().max(160).optional(), name: z.string().max(64).optional(), ...choices }).strict(),
+  z.object({ botId: id, threadId: z.string().min(1).max(200), summary: z.string().max(160).optional(), name: z.string().max(64).optional(), shareConsent: z.literal(true).optional(), ...choices }).strict(),
   // Undo of a removal: the workflow the list read before removing it, put back where it was under its name.
-  z.object({ workflow: z.unknown(), name: z.string().max(64), botId: id.optional(), everyChat: z.boolean().optional() }).strict(),
+  z.object({ workflow: z.unknown(), name: z.string().max(64), botId: id.optional(), everyChat: z.boolean().optional(), shareConsent: z.literal(true).optional() }).strict(),
 ]);
 const patchBody = z.union([
-  z.object({ everyChat: z.boolean(), botId: id.optional(), sha256: z.string().max(64).optional() }).strict(),
+  z.object({ everyChat: z.boolean(), botId: id.optional(), sha256: z.string().max(64).optional(), shareConsent: z.literal(true).optional() }).strict(),
   z.object({ rename: z.string().min(1).max(64), botId: id.optional(), sha256: z.string().max(64).optional() }).strict(),
   // Undo of a change to the steps: the id that change returned.
   z.object({ undo: z.string().min(1).max(64), botId: id.optional() }).strict(),
 ]);
 /** "Update the burger with this fix": what the bot did to get past a failed step goes in just before that step. */
-const fixBody = z.object({ botId: id.optional(), runBotId: id, threadId: z.string().min(1).max(200), run: z.string().min(1).max(64), step: z.string().min(1).max(48) }).strict();
+const fixBody = z.object({ botId: id.optional(), runBotId: id, threadId: z.string().min(1).max(200), run: z.string().min(1).max(64), step: z.string().min(1).max(48), shareConsent: z.literal(true).optional() }).strict();
 /** One tap's "Add the path": the steps the bot did by judgement for a case nobody had saved, after the run handed it over. */
-const pathBody = z.object({ botId: id.optional(), runBotId: id, threadId: z.string().min(1).max(200), run: z.string().min(1).max(64), decide: z.string().min(1).max(40), case: caseName }).strict();
+const pathBody = z.object({ botId: id.optional(), runBotId: id, threadId: z.string().min(1).max(200), run: z.string().min(1).max(64), decide: z.string().min(1).max(40), case: caseName, shareConsent: z.literal(true).optional() }).strict();
 
 /** The tool rows of the bot's own steps between the run handing over `run` and the run going on: what it did by judgement. */
 export function judgementLayers(messages: readonly RunMessage[], run: string) {
@@ -96,10 +97,11 @@ export function createStandaloneSkillBurgerRoutes(
 export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandler {
   const placeOf = (botId: string | null | undefined): BurgerPlace => (botId ? { botId } : { everyChat: true });
   const admin = (auth: RequestAuth) => auth.scopes.includes("admin");
-  const level = (auth: RequestAuth, botId: string) => (admin(auth) ? "edit" : deps.levelOf?.(auth, botId) ?? "none");
+  const level = (auth: RequestAuth, botId: string) => deps.levelOf ? deps.levelOf(auth, botId) : admin(auth) ? "edit" : "none";
   const refusal = (auth: RequestAuth, botId: string | null | undefined): string | null =>
     botId ? (level(auth, botId) === "edit" ? null : NOT_YOURS) : admin(auth) ? null : EVERY_CHAT_ADMIN_ONLY;
-  const drafted = (messages: readonly RunMessage[], summary?: string) => draftWorkflow(messages, { ...(summary ? { summary } : {}), ...(deps.teammate ? { teammate: deps.teammate } : {}) });
+  const teammateFor = (auth: RequestAuth) => deps.teammate ? (name: string) => deps.teammate!(auth, name) : undefined;
+  const drafted = (auth: RequestAuth, messages: readonly RunMessage[], summary?: string) => draftWorkflow(messages, { ...(summary ? { summary } : {}), ...(deps.teammate ? { teammate: teammateFor(auth) } : {}) });
   return async ({ req, res, url, path, method, auth, json, readBody }) => {
     if (path === SKILL_BURGER_DRAFT_PATH) {
       if (deps.available && !deps.available(auth)) return json(res, 404, { error: "No such route." });
@@ -110,7 +112,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const { botId, threadId } = body.data;
       if (!deps.owns(botId, threadId) || !deps.sees(auth, threadId)) return json(res, 404, { error: "No such conversation." });
       const messages = deps.messages(threadId);
-      const draft = drafted(messages);
+      const draft = drafted(auth, messages);
       return json(res, 200, { draft: draft ? draftView(draft.workflow, draft.layers, messages) : null });
     }
     if (path !== SKILL_BURGERS_PATH && !path.startsWith(`${SKILL_BURGERS_PATH}/`)) return PASS;
@@ -118,7 +120,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
     const botIds = deps.botIds();
     if (path === SKILL_BURGERS_PATH) {
       if (method === "GET") {
-        const visible = admin(auth) ? botIds : botIds.filter((botId) => level(auth, botId) !== "none");
+        const visible = botIds.filter((botId) => level(auth, botId) !== "none");
         const skills = listWorkflowSkills(visible, deps.root).filter((skill) => admin(auth) || !skill.everyChat || visible.some((botId) => {
           const found = findWorkflowSkill(botId, skill.name, deps.root, deps.assignedSkills?.(botId));
           return found && "everyChat" in found.place;
@@ -128,6 +130,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       if (method !== "POST") return json(res, 405, { error: "Use GET or POST." });
       const body = saveBody.safeParse(await readBody(req));
       if (!body.success) return json(res, 400, { error: "Send botId and threadId." });
+      if (deps.requiresShareConsent?.(auth) && !body.data.shareConsent) return json(res, 403, { error: "Confirm that this workflow may be shared with people who can see the bot." });
       let saved;
       if ("workflow" in body.data) {
         const { workflow, name, botId, everyChat } = body.data;
@@ -140,7 +143,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
         if (!deps.owns(botId, threadId) || !deps.sees(auth, threadId)) return json(res, 404, { error: "No such conversation." });
         const refused = refusal(auth, botId);
         if (refused) return json(res, 403, { error: refused });
-        const draft = drafted(deps.messages(threadId), summary);
+        const draft = drafted(auth, deps.messages(threadId), summary);
         if (!draft) return json(res, 422, { error: "This run has nothing to save yet." });
         const chosen = applyChoices(draft.workflow, { ...(skip ? { skip } : {}), ...(inputs ? { inputs } : {}) });
         if ("error" in chosen) return json(res, 422, { error: chosen.error });
@@ -154,6 +157,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
     if (method === "POST" && name.endsWith("/fix")) {
       const body = fixBody.safeParse(await readBody(req));
       if (!body.success) return json(res, 400, { error: "Send the run and the step it fixed." });
+      if (deps.requiresShareConsent?.(auth) && !body.data.shareConsent) return json(res, 403, { error: "Confirm that this change may be shared with people who can see the bot." });
       const { botId, runBotId, threadId, run, step } = body.data;
       const burger = name.slice(0, -"/fix".length);
       if (!deps.owns(runBotId, threadId) || !deps.sees(auth, threadId)) return json(res, 404, { error: "No such conversation." });
@@ -164,7 +168,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       if (!found || !sha256) return json(res, 404, { error: "No such skill." });
       const layers = fixLayers(deps.messages(threadId), run);
       if (!layers.length) return json(res, 422, { error: "The bot did nothing to fix it that could be saved." });
-      const fix = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary, deps.teammate ? { teammate: deps.teammate } : {}).steps;
+      const fix = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary, deps.teammate ? { teammate: teammateFor(auth) } : {}).steps;
       const next = insertFix(found.workflow, step, fix);
       if ("error" in next) return json(res, 422, next);
       const saved = replaceWorkflowSkill({ place: placeOf(botId), name: burger, workflow: next, sha256, root: deps.root });
@@ -175,6 +179,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
     if (method === "POST" && name.endsWith("/paths")) {
       const body = pathBody.safeParse(await readBody(req));
       if (!body.success) return json(res, 400, { error: "Send the run, its decide step and the case." });
+      if (deps.requiresShareConsent?.(auth) && !body.data.shareConsent) return json(res, 403, { error: "Confirm that this change may be shared with people who can see the bot." });
       const { botId, runBotId, threadId, run, decide, case: chosen } = body.data;
       const burger = name.slice(0, -"/paths".length);
       if (!deps.owns(runBotId, threadId) || !deps.sees(auth, threadId)) return json(res, 404, { error: "No such conversation." });
@@ -185,7 +190,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       if (!found || !sha256) return json(res, 404, { error: "No such skill." });
       const layers = judgementLayers(deps.messages(threadId), run);
       if (!layers.length) return json(res, 422, { error: "The bot did nothing for this case that could be saved." });
-      const steps = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary).steps;
+      const steps = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary, deps.teammate ? { teammate: teammateFor(auth) } : {}).steps;
       const next = applyEdit(found.workflow, { action: "add_case", decide: { id: decide }, case: chosen, steps });
       if ("error" in next) return json(res, 422, next);
       const saved = replaceWorkflowSkill({ place: placeOf(botId), name: burger, workflow: next, sha256, root: deps.root });
@@ -196,7 +201,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
     if (method === "GET" && name.endsWith("/runs")) {
       // A burger's recent runs, by the bots this person can see.
       const burger = name.slice(0, -"/runs".length);
-      const visible = new Set(admin(auth) ? botIds : botIds.filter((botId) => level(auth, botId) !== "none"));
+      const visible = new Set(botIds.filter((botId) => level(auth, botId) !== "none"));
       const runs = deps.history?.list(burger, visible).filter((run) => deps.sees(auth, run.threadId)) ?? [];
       return json(res, 200, { runs });
     }
@@ -220,6 +225,7 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
     if (method === "PATCH") {
       const body = patchBody.safeParse(await readBody(req));
       if (!body.success) return json(res, 400, { error: "Send everyChat or rename." });
+      if ("everyChat" in body.data && body.data.everyChat && deps.requiresShareConsent?.(auth) && !body.data.shareConsent) return json(res, 403, { error: "Confirm that this workflow may be shared with the whole team." });
       const refused = "everyChat" in body.data ? (admin(auth) ? null : EVERY_CHAT_ADMIN_ONLY) : refusal(auth, body.data.botId);
       if (refused) return json(res, 403, { error: refused });
       if ("undo" in body.data) {

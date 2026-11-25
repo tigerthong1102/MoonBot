@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -129,9 +129,31 @@ it("shows workflow history only for conversations the viewer can read", async ()
   expect(result.body.runs.map((entry: { run: string }) => entry.run)).toEqual(["visible"]);
 });
 
+it("does not let an admin bypass a private bot's access level", async () => {
+  let level: "none" | "edit" = "edit";
+  const h = await serve({ levelOf: () => level });
+  const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
+  const name = saved.body.skill.name as string;
+  level = "none";
+  expect(await names(h.api)).toEqual([]);
+  expect((await h.api(`/api/skill-burgers/${name}?botId=${h.bot}`)).status).toBe(404);
+  expect((await h.api(`/api/skill-burgers/${name}?botId=${h.bot}`, { method: "DELETE" })).status).toBe(403);
+});
+
+it("requires explicit consent before saving or sharing conversation-derived workflows on a team", async () => {
+  const h = await serve({ requiresShareConsent: () => true, levelOf: () => "edit" });
+  const body = { botId: h.bot, threadId: "t1" };
+  expect((await h.api("/api/skill-burgers", send("POST", body))).status).toBe(403);
+  const saved = await h.api("/api/skill-burgers", send("POST", { ...body, shareConsent: true }));
+  expect(saved.status).toBe(201);
+  const name = saved.body.skill.name as string;
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(403);
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true, shareConsent: true }))).status).toBe(200);
+});
+
 it("does not expose a shared workflow to a member whose visible bot cannot use it", async () => {
   let assigned: string[] = [];
-  const h = await serve({ levelOf: () => "view", assignedSkills: () => assigned });
+  const h = await serve({ levelOf: (auth) => auth.scopes.includes("admin") ? "edit" : "view", assignedSkills: () => assigned });
   const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
   const name = saved.body.skill.name as string;
   expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { everyChat: true, botId: h.bot }))).status).toBe(200);
@@ -144,4 +166,14 @@ it("does not expose a shared workflow to a member whose visible bot cannot use i
   expect(await names(h.api)).toEqual([[name, true]]);
   expect((await h.api(`/api/skill-burgers/${name}`)).status).toBe(200);
   expect((await h.api(`/api/skill-burgers/${name}?runner=${h.bot}`)).status).toBe(200);
+});
+
+it("resolves workflow teammates in the requesting member's context", async () => {
+  const messages = JSON.parse(readFileSync(new URL("../../shared/skill-burger/fixtures/qa-delegation-run.json", import.meta.url), "utf8")) as RunMessage[];
+  const teammate = vi.fn((_auth: RequestAuth, name: string) => ({ name }));
+  const { api, bot } = await serve({ levelOf: () => "edit", messages: () => messages, teammate }, ["client"]);
+  const draft = await api("/api/skill-burger-draft", send("POST", { botId: bot, threadId: "t1" }));
+  expect(draft.status).toBe(200);
+  expect(teammate).toHaveBeenCalled();
+  expect(teammate.mock.calls.every(([auth]) => auth.scopes.includes("client") && !auth.scopes.includes("admin"))).toBe(true);
 });

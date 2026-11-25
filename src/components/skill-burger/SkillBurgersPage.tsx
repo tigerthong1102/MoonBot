@@ -99,7 +99,8 @@ function BurgerCard({ skill, onRemove }: { skill: SavedWorkflow; onRemove: () =>
 export function SkillBurgersPage() {
   const dispatch = useStoreDispatch();
   const { skills, error, refresh } = useSavedBurgers();
-  const { removed, problem, remove, undo } = useBurgerRemoval();
+  const team = useStoreSelector((state) => Boolean(state.config?.team));
+  const { removed, problem, remove, undo } = useBurgerRemoval(team);
   const back = useRef<HTMLButtonElement>(null);
   useEffect(() => { back.current?.focus({ preventScroll: true }); }, []);
 

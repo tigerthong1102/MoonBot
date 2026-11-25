@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { addBurgerPath, undoBurgerEdit } from "@/lib/skill-burger";
 import { RowExtra, RunHistory } from "./RunExtras";
+import { WorkflowShareConfirm } from "./WorkflowShareConfirm";
 import { LayerIcon } from "./SkillBurger";
 
 const SHEEN_PERIOD_MS = 2000;
@@ -73,13 +74,14 @@ type Offer = { state: "idle" } | { state: "adding" } | { state: "added"; undo: s
 
 /** The burger card while a saved Skill Burger runs: its steps cook and stack as the run goes, and a case nobody saved steps
  * for ends with a quiet one-tap offer to keep what the bot did. */
-export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onDismiss, edited }: {
+export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onDismiss, edited, team = false }: {
   view: RunView;
   summary: string;
   everyChat: boolean;
   botId: string;
   threadId: string;
   busy: boolean;
+  team?: boolean;
   onDismiss: () => void;
   /** Set when the turn changed the burger's steps: its Undo. */
   edited?: { undo: string };
@@ -87,6 +89,7 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
   const [folded, setFolded] = useState(false);
   const [offer, setOffer] = useState<Offer>({ state: "idle" });
   const [editUndone, setEditUndone] = useState(false);
+  const [confirmShare, setConfirmShare] = useState(false);
   const live = view.rows.some((row) => row.state === "running");
   const failed = view.rows.some((row) => row.state === "failed");
   // The case offered stays named after its path is added, so its Undo stays in reach.
@@ -100,7 +103,7 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
     if (!missing || offer.state === "adding") return;
     setOffer({ state: "adding" });
     try {
-      const { undo } = await addBurgerPath({ name: view.name, everyChat, runBotId: botId, threadId, run: view.run, decide: missing.decide, case: missing.case });
+      const { undo } = await addBurgerPath({ name: view.name, everyChat, runBotId: botId, threadId, run: view.run, decide: missing.decide, case: missing.case, ...(team ? { shareConsent: true as const } : {}) });
       setOffer({ state: "added", undo });
     } catch (cause) {
       fail(cause);
@@ -144,7 +147,7 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
         <ol aria-label={t("skillBurger.layers")} className="burger-layers flex max-h-72 min-h-0 flex-col gap-[3px] overflow-y-auto">
           {view.rows.map((row) => <Row key={row.id} row={row} />)}
         </ol>
-        {view.name && !live && <div className="mt-[3px]"><RunHistory name={view.name} everyChat={everyChat} botId={botId} threadId={threadId} refreshKey={`${view.run}:${failed}:${busy}`} /></div>}
+        {view.name && !live && <div className="mt-[3px]"><RunHistory name={view.name} everyChat={everyChat} botId={botId} threadId={threadId} team={team} refreshKey={`${view.run}:${failed}:${busy}`} /></div>}
       </div>
 
       {(edited || (missing && !busy && !live)) && (
@@ -172,7 +175,7 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
           ) : (
             <button
               type="button"
-              onClick={() => void addPath()}
+              onClick={() => { if (team) setConfirmShare(true); else void addPath(); }}
               disabled={offer.state === "adding"}
               className="flex h-10 w-full items-center justify-center gap-1.5 rounded-b-[18px] rounded-t-[8px] text-[13px] font-medium text-accent-text outline-none transition-colors hover:bg-ink/[0.05] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-default disabled:text-ink-tertiary motion-reduce:transition-none"
             >
@@ -182,6 +185,7 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
         </div>
       )}
       {offer.state === "error" && <p role="alert" className="px-3 text-[12px] text-danger">{offer.message}</p>}
+      <WorkflowShareConfirm open={confirmShare} wholeTeam={everyChat} onCancel={() => setConfirmShare(false)} onConfirm={() => { setConfirmShare(false); void addPath(); }} />
     </section>
   );
 }

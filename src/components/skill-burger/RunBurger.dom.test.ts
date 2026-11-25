@@ -34,8 +34,8 @@ const step = (id: string, state?: string, extra: Record<string, unknown> = {}): 
   tool: { name: id, input: JSON.stringify({ [RUN_STEP_MARK]: "run-1", name: "files-new-support-email", step: id }), ...(state ? { ok: state !== "failed", output: JSON.stringify({ state, ...extra }) } : {}) },
 });
 
-const render = async (messages: RunMessage[], busy = false) => {
-  await act(async () => root.render(createElement(SkillBurgerSlot, { botId: "scout", threadId: "t1", busy, canWrite: true, messages, liveTools: new Set<string>(), transcriptKey: "scout:t1" })));
+const render = async (messages: RunMessage[], busy = false, team = false) => {
+  await act(async () => root.render(createElement(SkillBurgerSlot, { botId: "scout", threadId: "t1", busy, canWrite: true, messages, liveTools: new Set<string>(), transcriptKey: "scout:t1", team })));
   await act(async () => { await Promise.resolve(); });
 };
 const card = () => host.querySelector<HTMLElement>("[data-skill-burger]");
@@ -106,6 +106,21 @@ it("shows a burger the turn changed, with that change's Undo", async () => {
   await act(async () => button("Undo")!.click());
   expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers/files-new-support-email", { method: "PATCH", body: JSON.stringify({ undo: "0f0e0d0c-0b0a-4908-8706-050403020100", botId: "scout" }) });
   expect(host.textContent).toContain("Change undone");
+});
+
+it("asks before adding conversation-derived steps to a team's workflow", async () => {
+  const handed: RunMessage = { id: "call-1", role: "bot", kind: "activity", tool: { name: "mcp__agents__run_workflow", ok: true, input: "{}", output: 'resume "run-1"' } };
+  const messages = [ask, step("s1", "done"), step("d1", "done", { case: "spam" }), handed];
+  fixture.api.mockImplementation(async (path: string) => path.includes("?runner=") ? { workflow, everyChat: false } : path.endsWith("/paths") ? { skill: {}, undo: "u-1" } : {});
+  await render(messages, false, true);
+  await act(async () => button("Add the “spam” path")!.click());
+  expect(fixture.api.mock.calls.some(([path]) => String(path).endsWith("/paths"))).toBe(false);
+  const confirm = [...document.body.querySelectorAll("button")].find((node) => node.textContent?.includes("Share workflow"));
+  expect(confirm).toBeDefined();
+  await act(async () => confirm!.click());
+  expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers/files-new-support-email/paths", {
+    method: "POST", body: JSON.stringify({ runBotId: "scout", threadId: "t1", run: "run-1", decide: "d1", case: "spam", shareConsent: true, botId: "scout" }),
+  });
 });
 
 it("asks for a burger's inputs in one form, filled with the saved values, and runs with what the person gave", async () => {

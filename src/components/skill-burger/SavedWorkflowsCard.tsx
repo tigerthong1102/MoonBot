@@ -13,7 +13,7 @@ import { LayerIcon } from "./SkillBurger";
 
 export const usedBy = (botId: string) => (skill: SavedWorkflow) => skill.everyChat || skill.botId === botId;
 
-export function useBurgerRemoval() {
+export function useBurgerRemoval(team = false) {
   const [removed, setRemoved] = useState<{ skill: SavedWorkflow; workflow: unknown } | null>(null);
   const [problem, setProblem] = useState("");
   const fail = (cause: unknown, fallback: LocaleKey) => setProblem(cause instanceof Error && cause.message ? cause.message : t(fallback));
@@ -30,7 +30,7 @@ export function useBurgerRemoval() {
   const undo = async () => {
     if (!removed) return;
     try {
-      await restoreBurger(removed.skill, removed.workflow);
+      await restoreBurger(removed.skill, removed.workflow, team ? true : undefined);
       setRemoved(null);
     } catch (cause) {
       fail(cause, "skillBurger.undoFailed");
@@ -39,13 +39,13 @@ export function useBurgerRemoval() {
   return { removed, problem, remove, undo };
 }
 
-export function SavedWorkflowsCard({ botId, threadId }: { botId: string; threadId: string }) {
+export function SavedWorkflowsCard({ botId, threadId, team = false }: { botId: string; threadId: string; team?: boolean }) {
   const { skills: all, error } = useSavedBurgers();
   const dispatch = useStoreDispatch();
   const advanced = useAdvancedMode();
   const skills = all?.filter(usedBy(botId)) ?? null;
   const [open, setOpen] = useState<string | null>(null);
-  const { removed, problem, remove, undo } = useBurgerRemoval();
+  const { removed, problem, remove, undo } = useBurgerRemoval(team);
 
   return (
     <Card label={t("skillBurger.list.title")} anchor="skill-burgers">
@@ -72,7 +72,7 @@ export function SavedWorkflowsCard({ botId, threadId }: { botId: string; threadI
                   <span dir="auto" className="line-clamp-2 text-[14px] font-medium leading-[18px] text-ink">{skill.summary}</span>
                   {advanced && <span className="mt-px block truncate font-mono text-[11px] text-ink-tertiary">{skill.name}</span>}
                 </button>
-                <EveryChatToggle compact skill={skill} />
+                <EveryChatToggle compact skill={skill} team={team} />
               </div>
               <RunWithInputs skill={skill} iconOnly panelAction={`run-skill-burger:${skill.name}`} onRun={(inputs) => runBurgerIn(dispatch, { id: botId, threadId }, skill.name, inputs)}
                 className="flex size-7 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-ink/[0.05] hover:text-ink" />

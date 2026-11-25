@@ -22,7 +22,7 @@ export function editIn(messages: readonly RunMessage[]): { id: string; name: str
 
 /** The chat dock's burger. While a saved Skill Burger runs (or right after the turn changed one), its steps as the run
  * goes; else the run since the person's last ask, once it has two real steps, ready to save. Either stays until closed. */
-export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liveTools, transcriptKey }: {
+export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liveTools, transcriptKey, team = false }: {
   botId: string;
   threadId: string;
   busy: boolean;
@@ -30,6 +30,7 @@ export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liv
   messages: readonly RunMessage[];
   liveTools: ReadonlySet<string>;
   transcriptKey: string;
+  team?: boolean;
 }) {
   const seen = useMemo(() => latestRun(messages, liveTools), [messages, liveTools]);
   const edit = useMemo(() => (seen ? null : editIn(messages)), [seen, messages]);
@@ -57,7 +58,7 @@ export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liv
     const view = runView(runnable.workflow, seen, seen?.name ?? edit!.name);
     return (
       <div className="flex justify-end px-4 pb-2">
-        <RunBurger key={key} view={view} summary={runnable.workflow.summary} everyChat={runnable.everyChat} botId={botId} threadId={threadId} busy={busy}
+        <RunBurger key={key} view={view} summary={runnable.workflow.summary} everyChat={runnable.everyChat} botId={botId} threadId={threadId} busy={busy} team={team}
           onDismiss={close(key)} {...(edit ? { edited: { undo: edit.undo } } : {})} />
       </div>
     );
@@ -75,6 +76,7 @@ export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liv
         canSave={canWrite && !busy}
         botId={botId}
         threadId={threadId}
+        team={team}
         onDismiss={close(run)}
       />
     </div>

@@ -11501,5 +11501,9 @@
   "skillBurger.layer.ask": "Pedir a {who}",
   "skillBurger.run.historyOk": "Concluída",
   "skillBurger.draft.round": "rodada {round}",
-  "skillBurger.run.checkFailed": "Verificação falhou: {why}"
+  "skillBurger.run.checkFailed": "Verificação falhou: {why}",
+  "skillBurger.share.title": "Compartilhar este fluxo?",
+  "skillBurger.share.botBody": "Este fluxo pode conter informações desta conversa. Pessoas que podem ver este bot poderão vê-lo. Revise as etapas e entradas antes de compartilhar.",
+  "skillBurger.share.teamBody": "Este fluxo e suas entradas salvas ficarão disponíveis para toda a equipe. Revise-os antes de compartilhar.",
+  "skillBurger.share.confirm": "Compartilhar fluxo"
 }

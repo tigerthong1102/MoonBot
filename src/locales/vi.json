@@ -11501,5 +11501,9 @@
   "skillBurger.layer.ask": "Giao việc cho {who}",
   "skillBurger.run.historyOk": "Đã hoàn thành",
   "skillBurger.draft.round": "lượt {round}",
-  "skillBurger.run.checkFailed": "Kiểm tra không đạt: {why}"
+  "skillBurger.run.checkFailed": "Kiểm tra không đạt: {why}",
+  "skillBurger.share.title": "Chia sẻ quy trình này?",
+  "skillBurger.share.botBody": "Quy trình có thể chứa thông tin từ cuộc trò chuyện này. Những người có quyền xem bot có thể xem quy trình. Hãy kiểm tra các bước và đầu vào trước khi chia sẻ.",
+  "skillBurger.share.teamBody": "Quy trình và các đầu vào đã lưu sẽ được chia sẻ với cả nhóm. Hãy kiểm tra trước khi chia sẻ.",
+  "skillBurger.share.confirm": "Chia sẻ quy trình"
 }

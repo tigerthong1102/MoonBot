@@ -37555,7 +37555,11 @@
       "skillBurger.layer.ask": "edd5566a64700928906bb16dfb25c32cdec9dd2f42ea37708bda5ac5a007e98f",
       "skillBurger.run.historyOk": "7804f7a79a9eee323b6e89d3f8287c7d36076f4d76291646295f435b0dec736e",
       "skillBurger.draft.round": "58a9ff061cec63b10d0dd3003bc225b436f551341a9c5ac2b9d4d6b2bc4bf913",
-      "skillBurger.run.checkFailed": "14f279fd6cdce410e8c9e743649073c5f0458ea3c99eff31b525f9506a76b08d"
+      "skillBurger.run.checkFailed": "14f279fd6cdce410e8c9e743649073c5f0458ea3c99eff31b525f9506a76b08d",
+      "skillBurger.share.title": "f718b1aa56d12b852a98ba3e5bf6211d6a319a1f17dc80f66a5b83ddcfb2be4b",
+      "skillBurger.share.botBody": "dd907caf0451d5ae8211965eeae6e747ed426b6db4f1b2d829a7eba20c1b6b71",
+      "skillBurger.share.teamBody": "58e0d9d11b51ab8a89a00cb45caf3b09104e4e0841fc2cf940cd6b18932fddc4",
+      "skillBurger.share.confirm": "5384205688190b15b1e488c803da80fc6914a1ef7783e47e8aee12f441261563"
     },
     "zh": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -73624,7 +73628,11 @@
       "skillBurger.layer.ask": "edd5566a64700928906bb16dfb25c32cdec9dd2f42ea37708bda5ac5a007e98f",
       "skillBurger.run.historyOk": "7804f7a79a9eee323b6e89d3f8287c7d36076f4d76291646295f435b0dec736e",
       "skillBurger.draft.round": "58a9ff061cec63b10d0dd3003bc225b436f551341a9c5ac2b9d4d6b2bc4bf913",
-      "skillBurger.run.checkFailed": "14f279fd6cdce410e8c9e743649073c5f0458ea3c99eff31b525f9506a76b08d"
+      "skillBurger.run.checkFailed": "14f279fd6cdce410e8c9e743649073c5f0458ea3c99eff31b525f9506a76b08d",
+      "skillBurger.share.title": "f718b1aa56d12b852a98ba3e5bf6211d6a319a1f17dc80f66a5b83ddcfb2be4b",
+      "skillBurger.share.botBody": "dd907caf0451d5ae8211965eeae6e747ed426b6db4f1b2d829a7eba20c1b6b71",
+      "skillBurger.share.teamBody": "58e0d9d11b51ab8a89a00cb45caf3b09104e4e0841fc2cf940cd6b18932fddc4",
+      "skillBurger.share.confirm": "5384205688190b15b1e488c803da80fc6914a1ef7783e47e8aee12f441261563"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",

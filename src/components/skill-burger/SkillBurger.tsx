@@ -9,6 +9,7 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { burgerStartsFolded, rememberSavedRun, removeBurger, saveBurger, savedRun, type DraftView, type SavedWorkflow } from "@/lib/skill-burger";
 import { DraftInputs, DraftSteps, replayLine, type InputChoices } from "./DraftSteps";
 import { EveryChatToggle } from "./EveryChatToggle";
+import { WorkflowShareConfirm } from "./WorkflowShareConfirm";
 
 export function LayerIcon({ kind }: { kind: BurgerLayer["kind"] }) {
   const Icon = kind === "app" ? Plug : kind === "shell" ? Terminal : kind === "file" ? FileText : kind === "browser" ? Globe : kind === "computer" ? Monitor : kind === "decide" ? Signpost : kind === "delegate" ? Users : Sparkles;
@@ -48,7 +49,7 @@ const FIELD = "w-full min-w-0 rounded-md border border-hairline/60 bg-card px-1.
 
 type Saving = { state: "idle" } | { state: "saving" } | { state: "saved"; skill: SavedWorkflow } | { state: "undone" } | { state: "error"; message: string };
 
-export function SkillBurger({ run, layers, draft, summary: initialSummary, canSave, botId, threadId, onDismiss }: {
+export function SkillBurger({ run, layers, draft, summary: initialSummary, canSave, botId, threadId, onDismiss, team = false }: {
   /** The run this card is for, so a save is remembered when the card comes back. */
   run: string;
   layers: BurgerLayer[];
@@ -58,6 +59,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
   canSave: boolean;
   botId: string;
   threadId: string;
+  team?: boolean;
   onDismiss: () => void;
 }) {
   const [folded, setFolded] = useState(burgerStartsFolded);
@@ -65,6 +67,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
   const [field, setField] = useState<{ summary: string; name: string } | null>(null);
   const advanced = useAdvancedMode();
   const [saving, setSaving] = useState<Saving>(() => { const skill = savedRun(run); return skill ? { state: "saved", skill } : { state: "idle" }; });
+  const [confirmShare, setConfirmShare] = useState(false);
   useEffect(() => { rememberSavedRun(run, saving.state === "saved" ? saving.skill : null); }, [run, saving]);
   const summaryField = useRef<HTMLInputElement>(null);
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
@@ -104,6 +107,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
       const changedInputs = Object.fromEntries(Object.entries(inputs).filter(([, choice]) => choice.name !== undefined || choice.value !== undefined));
       const skill = await saveBurger({
         botId, threadId, summary: words.summary.trim() || undefined, name: words.name || undefined,
+        ...(team ? { shareConsent: true as const } : {}),
         ...(skipped.size ? { skip: [...skipped] } : {}), ...(Object.keys(changedInputs).length ? { inputs: changedInputs } : {}),
       });
       setSaving({ state: "saved", skill });
@@ -171,7 +175,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
             </button>
           )}
           <span role="status" aria-live="polite" aria-atomic="true" className="truncate text-[12px] text-ink-secondary">{count}</span>
-          {saved && <EveryChatToggle compact skill={saved} onMoved={(skill) => setSaving({ state: "saved", skill })} className="mt-1" />}
+          {saved && <EveryChatToggle compact team={team} skill={saved} onMoved={(skill) => setSaving({ state: "saved", skill })} className="mt-1" />}
         </div>
         <button type="button" onClick={() => setFolded((value) => !value)} aria-expanded={!folded} aria-label={toggleLabel} title={toggleLabel} className={ICON_BUTTON}>
           {folded ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronUp size={14} aria-hidden="true" />}
@@ -232,7 +236,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
         ) : (
           <button
             type="button"
-            onClick={() => void save()}
+            onClick={() => { if (team) setConfirmShare(true); else void save(); }}
             disabled={!canSave || live || saving.state === "saving"}
             title={live ? t("skillBurger.waitForRun") : undefined}
             className="flex h-10 w-full items-center justify-center gap-1.5 rounded-b-[18px] rounded-t-[8px] text-[13px] font-medium text-accent-text outline-none transition-colors hover:bg-ink/[0.05] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:cursor-default disabled:text-ink-tertiary disabled:hover:bg-transparent motion-reduce:transition-none"
@@ -246,6 +250,7 @@ export function SkillBurger({ run, layers, draft, summary: initialSummary, canSa
           {saving.state === "error" ? saving.message : t("skillBurger.undone")}
         </p>
       )}
+      <WorkflowShareConfirm open={confirmShare} onCancel={() => setConfirmShare(false)} onConfirm={() => { setConfirmShare(false); void save(); }} />
     </section>
   );
 }

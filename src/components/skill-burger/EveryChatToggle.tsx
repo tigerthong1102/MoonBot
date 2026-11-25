@@ -5,22 +5,25 @@ import { t } from "@/lib/i18n";
 import { setBurgerEveryChat, type SavedWorkflow } from "@/lib/skill-burger";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { Switch } from "../SettingsPrimitives";
+import { WorkflowShareConfirm } from "./WorkflowShareConfirm";
 
-export function EveryChatToggle({ skill, onMoved, compact = false, className }: {
+export function EveryChatToggle({ skill, onMoved, compact = false, className, team = false }: {
   skill: SavedWorkflow;
   onMoved?: (skill: SavedWorkflow) => void;
   compact?: boolean;
   className?: string;
+  team?: boolean;
 }) {
   const admin = useOwnerOrAdmin() !== false;
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
+  const [confirmShare, setConfirmShare] = useState(false);
   const flip = async () => {
     if (busy) return;
     setBusy(true);
     setProblem("");
     try {
-      const moved = await setBurgerEveryChat(skill, !skill.everyChat);
+      const moved = await setBurgerEveryChat(skill, !skill.everyChat, team && !skill.everyChat ? true : undefined);
       onMoved?.(moved);
     } catch (cause) {
       setProblem(cause instanceof Error && cause.message ? cause.message : t("skillBurger.everyChatFailed"));
@@ -35,13 +38,14 @@ export function EveryChatToggle({ skill, onMoved, compact = false, className }: 
           checked={skill.everyChat}
           disabled={!admin || busy}
           aria-label={t("skillBurger.everyChat")}
-          onClick={() => void flip()}
+          onClick={() => { if (team && !skill.everyChat) setConfirmShare(true); else void flip(); }}
           data-every-chat={skill.everyChat ? "on" : "off"}
         />
         <span className="min-w-0 truncate">{t("skillBurger.everyChat")}</span>
       </label>
       {!admin && !compact && <span className="mt-0.5 text-[12px] text-ink-tertiary">{t("settings.adminOnly.change")}</span>}
       {problem && <span role="alert" className="mt-0.5 text-[12px] text-danger">{problem}</span>}
+      <WorkflowShareConfirm open={confirmShare} wholeTeam onCancel={() => setConfirmShare(false)} onConfirm={() => { setConfirmShare(false); void flip(); }} />
     </div>
   );
 }

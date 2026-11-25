@@ -21,9 +21,9 @@ const app = (id: string, slug: string, live = false): RunMessage => ({
 });
 const saved = { name: "email-the-sales-sheet-to-priya", summary: "Email the sales sheet to Priya", sha256: "f".repeat(64), savedAt: "2026-11-23T00:00:00.000Z", layers: [], args: [] };
 
-const render = async (messages: RunMessage[], live: string[] = [], busy = false) => {
+const render = async (messages: RunMessage[], live: string[] = [], busy = false, team = false) => {
   await act(async () => root.render(createElement(SkillBurgerSlot, {
-    botId: "scout", threadId: "t1", busy, canWrite: true, messages, liveTools: new Set(live), transcriptKey: "scout:t1",
+    botId: "scout", threadId: "t1", busy, canWrite: true, messages, liveTools: new Set(live), transcriptKey: team ? "team:scout:t1" : "scout:t1", team,
   })));
 };
 const burger = () => host.querySelector<HTMLElement>("[data-skill-burger]");
@@ -70,6 +70,18 @@ it("saves in one click, then Undo takes back the exact copy", async () => {
   expect(fixture.api).toHaveBeenLastCalledWith(`/api/skill-burgers/${saved.name}?sha256=${saved.sha256}`, { method: "DELETE" });
   expect(host.textContent).toContain("Removed from your skills.");
   expect(button("Add Skill Burger")).toBeDefined();
+});
+
+it("asks before sharing a conversation-derived workflow with a team", async () => {
+  fixture.api.mockImplementation(async (path: string) => path === "/api/skill-burgers" ? { skill: saved } : { draft: null });
+  await render([ask, app("m1", "GOOGLESHEETS_BATCH_GET"), app("m2", "GMAIL_SEND_EMAIL")], [], false, true);
+  await act(async () => button("Add Skill Burger")!.click());
+  expect(document.body.textContent).toContain("People who can view this bot can see it");
+  expect(fixture.api.mock.calls.some(([path]) => path === "/api/skill-burgers")).toBe(false);
+  const confirm = [...document.body.querySelectorAll("button")].find((node) => node.textContent?.includes("Share workflow"));
+  expect(confirm).toBeDefined();
+  await act(async () => confirm!.click());
+  expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers", { method: "POST", body: JSON.stringify({ botId: "scout", threadId: "t1", summary: "Email the sales sheet to Priya", shareConsent: true }) });
 });
 
 it("edits the summary in place: Escape puts it back, Enter keeps it", async () => {

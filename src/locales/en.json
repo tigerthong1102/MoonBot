@@ -11501,5 +11501,9 @@
   "skillBurger.layer.ask": "Ask {who}",
   "skillBurger.run.historyOk": "Finished",
   "skillBurger.draft.round": "round {round}",
-  "skillBurger.run.checkFailed": "Check failed: {why}"
+  "skillBurger.run.checkFailed": "Check failed: {why}",
+  "skillBurger.share.title": "Share this workflow?",
+  "skillBurger.share.botBody": "This workflow can include details from this conversation. People who can view this bot can see it. Review its steps and inputs before sharing.",
+  "skillBurger.share.teamBody": "This workflow and its saved inputs will be available to the whole team. Review them before sharing.",
+  "skillBurger.share.confirm": "Share workflow"
 }

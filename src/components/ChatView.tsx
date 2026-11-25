@@ -1226,8 +1226,8 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
       <div ref={setPagePane} data-page-pane-slot className="contents" style={{ "--page-pane-bottom": `${composerDock.height}px` } as CSSProperties} />
 
       <div ref={composerDockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] chat-column-dock">
-      {!state.config?.cloudHome && !state.config?.team && !remoteClient && canWrite && !(advanced && showRunCard) && (
-        <SkillBurgerSlot botId={bot.id} threadId={bot.threadId} busy={Boolean(bot.busy)} canWrite={canWrite} messages={messages} liveTools={liveTools} transcriptKey={transcriptKey} />
+      {(!state.config?.cloudHome || state.config?.team) && (!remoteClient || state.config?.team) && canWrite && !(advanced && showRunCard) && (
+        <SkillBurgerSlot botId={bot.id} threadId={bot.threadId} busy={Boolean(bot.busy)} canWrite={canWrite} messages={messages} liveTools={liveTools} transcriptKey={transcriptKey} team={Boolean(state.config?.team)} />
       )}
       {advanced && lastRunStep && showRun(recordedRun) && showRunCard && runDismissed.get(transcriptKey) !== lastRunStep.id && (
         <div className="flex justify-end px-5 pb-2">

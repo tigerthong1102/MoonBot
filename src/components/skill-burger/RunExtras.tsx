@@ -7,6 +7,7 @@ import type { RowDetail } from "../../../shared/skill-burger/run-view";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { fetchBurgerRuns, keepBurgerFix, type BurgerRunRecord } from "@/lib/skill-burger";
+import { WorkflowShareConfirm } from "./WorkflowShareConfirm";
 
 const QUIET = "text-[11px] text-ink-tertiary";
 
@@ -50,9 +51,10 @@ const ago = (at: number) => {
 
 /** The burger's last runs (newest first), and "Update the burger with this fix" when the newest one in this chat went on
  * from a failed step after the bot fixed it. */
-export function RunHistory({ name, everyChat, botId, threadId, refreshKey }: { name: string; everyChat: boolean; botId: string; threadId: string; refreshKey: string }) {
+export function RunHistory({ name, everyChat, botId, threadId, refreshKey, team = false }: { name: string; everyChat: boolean; botId: string; threadId: string; refreshKey: string; team?: boolean }) {
   const [runs, setRuns] = useState<BurgerRunRecord[] | null>(null);
   const [kept, setKept] = useState<"idle" | "saving" | "done" | "error">("idle");
+  const [confirmShare, setConfirmShare] = useState(false);
   useEffect(() => {
     let current = true;
     void fetchBurgerRuns(name).then((found) => { if (current) setRuns(found); });
@@ -64,7 +66,7 @@ export function RunHistory({ name, everyChat, botId, threadId, refreshKey }: { n
     if (!fixed?.fixedBy || kept === "saving") return;
     setKept("saving");
     try {
-      await keepBurgerFix({ name, everyChat, runBotId: botId, threadId, run: fixed.run, step: fixed.fixedBy });
+      await keepBurgerFix({ name, everyChat, runBotId: botId, threadId, run: fixed.run, step: fixed.fixedBy, ...(team ? { shareConsent: true as const } : {}) });
       setKept("done");
     } catch {
       setKept("error");
@@ -73,13 +75,14 @@ export function RunHistory({ name, everyChat, botId, threadId, refreshKey }: { n
   return (
     <div className="flex flex-col gap-[3px]">
       {fixed && kept !== "done" && (
-        <button type="button" onClick={() => void keep()} disabled={kept === "saving"} data-burger-keep-fix
+        <button type="button" onClick={() => { if (team) setConfirmShare(true); else void keep(); }} disabled={kept === "saving"} data-burger-keep-fix
           className="burger-layer burger-open flex min-h-8 items-center justify-center rounded-[8px] bg-card px-3 text-[12px] font-medium text-accent-text shadow-sm outline-none hover:bg-ink/[0.04] focus-visible:ring-2 focus-visible:ring-accent/60 disabled:text-ink-tertiary">
           {t("skillBurger.run.keepFix")}
         </button>
       )}
       {kept === "done" && <p className="px-3 text-[12px] text-ink-secondary">{t("skillBurger.run.fixKept")}</p>}
       {kept === "error" && <p role="alert" className="px-3 text-[12px] text-danger">{t("skillBurger.run.addPathFailed")}</p>}
+      <WorkflowShareConfirm open={confirmShare} wholeTeam={everyChat} onCancel={() => setConfirmShare(false)} onConfirm={() => { setConfirmShare(false); void keep(); }} />
       <details className="burger-layer burger-open rounded-[8px] bg-card px-3 py-1.5 text-[12px] shadow-sm" data-burger-history>
         <summary className="cursor-pointer text-ink-secondary outline-none focus-visible:ring-2 focus-visible:ring-accent/60">{t("skillBurger.run.history")}</summary>
         <ul className="mt-1 flex flex-col gap-0.5">

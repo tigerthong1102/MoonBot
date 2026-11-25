@@ -22,7 +22,7 @@ function changed(): void {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(CHANGED));
 }
 
-export async function saveBurger(input: { botId: string; threadId: string; summary?: string; name?: string } & DraftChoices): Promise<SavedWorkflow> {
+export async function saveBurger(input: { botId: string; threadId: string; summary?: string; name?: string; shareConsent?: true } & DraftChoices): Promise<SavedWorkflow> {
   const { skill } = await api<{ skill: SavedWorkflow }>("/api/skill-burgers", { method: "POST", body: JSON.stringify(input) });
   changed();
   return skill;
@@ -39,9 +39,9 @@ export async function removeBurger(skill: Pick<SavedWorkflow, "name" | "sha256" 
   changed();
 }
 
-export async function setBurgerEveryChat(skill: Pick<SavedWorkflow, "name" | "sha256" | "everyChat" | "botId">, everyChat: boolean): Promise<SavedWorkflow> {
+export async function setBurgerEveryChat(skill: Pick<SavedWorkflow, "name" | "sha256" | "everyChat" | "botId">, everyChat: boolean, shareConsent?: true): Promise<SavedWorkflow> {
   const { skill: moved } = await api<{ skill: SavedWorkflow }>(`/api/skill-burgers/${encodeURIComponent(skill.name)}`, {
-    method: "PATCH", body: JSON.stringify({ everyChat, sha256: skill.sha256, ...(skill.everyChat || !skill.botId ? {} : { botId: skill.botId }) }),
+    method: "PATCH", body: JSON.stringify({ everyChat, sha256: skill.sha256, ...(shareConsent ? { shareConsent } : {}), ...(skill.everyChat || !skill.botId ? {} : { botId: skill.botId }) }),
   });
   changed();
   return moved;
@@ -76,9 +76,9 @@ export async function readBurgerWorkflow(skill: Pick<SavedWorkflow, "name" | "ev
   return workflow;
 }
 
-export async function restoreBurger(skill: Pick<SavedWorkflow, "name" | "everyChat" | "botId">, workflow: unknown): Promise<SavedWorkflow> {
+export async function restoreBurger(skill: Pick<SavedWorkflow, "name" | "everyChat" | "botId">, workflow: unknown, shareConsent?: true): Promise<SavedWorkflow> {
   const { skill: restored } = await api<{ skill: SavedWorkflow }>("/api/skill-burgers", {
-    method: "POST", body: JSON.stringify({ name: skill.name, workflow, ...(skill.botId ? { botId: skill.botId } : {}), ...(skill.everyChat ? { everyChat: true } : {}) }),
+    method: "POST", body: JSON.stringify({ name: skill.name, workflow, ...(shareConsent ? { shareConsent } : {}), ...(skill.botId ? { botId: skill.botId } : {}), ...(skill.everyChat ? { everyChat: true } : {}) }),
   });
   changed();
   return restored;
@@ -127,7 +127,7 @@ export async function fetchBurgerRuns(name: string): Promise<BurgerRunRecord[]> 
 }
 
 /** "Update the burger with this fix": the steps the bot took to get past a failed step replace that step. */
-export async function keepBurgerFix(input: { name: string; everyChat: boolean; runBotId: string; threadId: string; run: string; step: string }): Promise<{ skill: SavedWorkflow; undo: string }> {
+export async function keepBurgerFix(input: { name: string; everyChat: boolean; runBotId: string; threadId: string; run: string; step: string; shareConsent?: true }): Promise<{ skill: SavedWorkflow; undo: string }> {
   const { name, everyChat, ...rest } = input;
   const result = await api<{ skill: SavedWorkflow; undo: string }>(`/api/skill-burgers/${encodeURIComponent(name)}/fix`, {
     method: "POST", body: JSON.stringify({ ...rest, ...(everyChat ? {} : { botId: input.runBotId }) }),
@@ -161,7 +161,7 @@ export const runCommand = (name: string, inputs: Record<string, string> = {}) =>
 };
 
 /** One tap's "Add the path": the steps the bot did by judgement for a case nobody had saved become that case's steps. */
-export async function addBurgerPath(input: { name: string; everyChat: boolean; runBotId: string; threadId: string; run: string; decide: string; case: string }): Promise<{ skill: SavedWorkflow; undo: string }> {
+export async function addBurgerPath(input: { name: string; everyChat: boolean; runBotId: string; threadId: string; run: string; decide: string; case: string; shareConsent?: true }): Promise<{ skill: SavedWorkflow; undo: string }> {
   const { name, everyChat, ...rest } = input;
   const result = await api<{ skill: SavedWorkflow; undo: string }>(`/api/skill-burgers/${encodeURIComponent(name)}/paths`, {
     method: "POST", body: JSON.stringify({ ...rest, ...(everyChat ? {} : { botId: input.runBotId }) }),

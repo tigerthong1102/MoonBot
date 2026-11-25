@@ -595,7 +595,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
         onTeamMap: () => dispatch({ type: "showTeamMap" }),
         onFiles: filesReady ? () => dispatch({ type: "showFiles" }) : undefined,
         onPublishedApps: () => dispatch({ type: "showPublishedApps" }),
-        onSkillBurgers: !state.config?.cloudHome && !state.config?.team ? () => dispatch({ type: "showSkillBurgers" }) : undefined,
+        onSkillBurgers: !state.config?.cloudHome || state.config?.team ? () => dispatch({ type: "showSkillBurgers" }) : undefined,
         archived: account?.archived,
       }),
     } } : {}),

@@ -108,10 +108,10 @@ describe("burger layers", () => {
 });
 
 describe("Git commands in saved runs", () => {
-  it("hands quoted heredocs to the bot without parameterizing their literal bodies", () => {
-    const command = "cat <<'EOF' > out.txt\nVisit https://example.org\nEOF";
+  it.each(["'EOF'", '"EOF"', "EOF", "\\EOF"])("hands heredocs with delimiter %s to the bot without changing their bodies", (delimiter) => {
+    const command = `cat <<${delimiter} > out.txt\nVisit https://example.org\nEOF`;
     const { workflow } = draftWorkflow([ask("Write https://example.org to a file"), tool("Bash", { command }), tool("Bash", { command: "cp out.txt archive.txt" })])!;
-    expect(workflow.steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining("quoted heredoc") });
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining("heredoc's expansion") });
     expect(JSON.stringify(workflow.steps[0])).toContain("https://example.org");
   });
   it.each(["/projects/customer-a/notes.md", "C:\\projects\\customer-a\\notes.md"])("does not save an unscoped absolute destination %s as an exact file step", (path) => {

@@ -317,8 +317,8 @@ class Drafter {
         prompt: `Write ${target} again from what this run reads now, for the request: ${this.request(400)}. Match the example's shape; don't copy its values. Last time the command was: ${redactSecretsInText(command.replace(CONVERSATION_FOLDER, ".").split("\n", 1)[0]!).slice(0, 300)}`,
         example: redactSecretsInText(heredoc[3]!).slice(0, EXAMPLE_MAX),
       });
-    } else if (layer.kind === "shell" && /(?:^|[^<])<<-?\s*['"\\]/.test(command)) {
-      this.steps.push(this.ai(id, layer, label, " Its quoted heredoc is literal; preserve that quoting when adapting its contents."));
+    } else if (layer.kind === "shell" && /(?:^|[^<])<<-?(?!<)\s*\S/.test(command)) {
+      this.steps.push(this.ai(id, layer, label, " Preserve the heredoc's expansion and quoting when adapting its contents."));
     } else if (layer.kind === "shell") {
       const cwd = typeof layer.args.cwd === "string" ? layer.args.cwd.replace(CONVERSATION_FOLDER, ".") : undefined;
       const shell = layer.args.shell === "bash" || layer.args.shell === "unknown" ? layer.args.shell : undefined;

@@ -267,7 +267,7 @@ const workBotRouter = new WorkBotRouter({
       if (sharedNonTeam() || (cloudTeam && audienceMember(teamHost.audienceOf(threadId)))) throw new Error("This conversation cannot be handed off safely");
       if (threadBusy(target.botId, target.threadId)) throw new Error("The target conversation is already in use");
       workBotTargetLocks.set(target.threadId, { sourceThreadId: threadId, messageId });
-      let admitted = false, heldCommitted = false;
+      let admitted = false, heldCommitted = false, cleanupError: unknown;
       try {
         if (store.messagesFor(target.threadId).some(row => row.role === "user" || row.workBotCopy)) throw new Error("The target conversation is already in use");
         const sourceAudience = teamHost.audienceOf(threadId);
@@ -339,10 +339,10 @@ const workBotRouter = new WorkBotRouter({
           heldCommitted = true;
           indexWorkBotRouting(threadId, messageId, "held_for_review");
           admitted = true;
-          return "held" as const;
+        } else {
+          await startTurn(target.botId, source.text, { threadId: target.threadId, sendId: `workbot-${messageId}`, sender: source.sender, trigger, dataContext: source.dataContext, allowRoomTurnElsewhere: true, workBotRoutingMessageId: messageId, prepareWorkBotContext: () => prepare(false) });
+          admitted = true;
         }
-        await startTurn(target.botId, source.text, { threadId: target.threadId, sendId: `workbot-${messageId}`, sender: source.sender, trigger, dataContext: source.dataContext, allowRoomTurnElsewhere: true, workBotRoutingMessageId: messageId, prepareWorkBotContext: () => prepare(false) });
-        admitted = true;
       } catch (error) {
         const lock = workBotTargetLocks.get(target.threadId);
         if (lock?.messageId === messageId && (error as { workBotCleanupFailed?: boolean })?.workBotCleanupFailed) lock.cleanupFailed = true;
@@ -352,12 +352,15 @@ const workBotRouter = new WorkBotRouter({
         catch (error) {
           if (heldCommitted) {
             indexWorkBotRouting(threadId, messageId, "dispatching");
-            throw Object.assign(error instanceof Error ? error : new Error("Held work cleanup failed"), { workBotCleanupFailed: true, workBotHeldCommitted: true });
+            cleanupError = Object.assign(error instanceof Error ? error : new Error("Held work cleanup failed"), { workBotCleanupFailed: true, workBotHeldCommitted: true });
+          } else {
+            cleanupError = error;
           }
-          throw error;
         }
         queueMicrotask(drainQueuedSends);
       }
+      if (cleanupError) throw cleanupError;
+      if (heldCommitted) return "held" as const;
     }
   },
   report: error => console.warn("Work bot routing could not complete", error instanceof Error ? error.name : "unknown error"),

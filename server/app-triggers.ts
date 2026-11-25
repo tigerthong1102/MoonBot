@@ -626,6 +626,7 @@ export class AppTriggerManager {
           if (previous.some(bot => bot === null || (bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId))) || owners.some(bot => bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId))) affected.add(candidate);
         }
       } catch {
+        if (held) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
         reason = EVENT_HISTORY_UNAVAILABLE;
         for (const trigger of candidates.length ? candidates : bound) affected.add(trigger);
         if (!affected.size) throw new LinkedEventConflict(reason);

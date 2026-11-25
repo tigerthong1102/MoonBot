@@ -190,6 +190,24 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
   });
 
+  it("does not discard an independent recipient when relationship lookup fails on retry", async () => {
+    let unavailable = false;
+    const links = (first: string, second: string) => { if (unavailable) throw new Error("fixture graph unavailable"); return [first, second].sort().join(":") === "bot-1:bot-2"; };
+    const triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-3", name: "Independent", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-graph-error", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    failNextEnqueue = "before-save";
+    expect(() => triggers.receive([event], 1)).toThrow();
+    unavailable = true;
+    expect(() => triggers.receive([event], 1)).toThrow();
+    expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
+    unavailable = false;
+    triggers.receive([event], 1);
+    expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+  });
+
   it("does not replay a held event to a bot that was paused at capture", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     const triggers = manager({ linkedBots: links });

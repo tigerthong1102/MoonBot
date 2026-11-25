@@ -31,3 +31,5 @@ The upstream `audio/assets/sfx/CREDITS.md` identifies Pixabay as the source of t
 - audio/assets/sfx/whoosh.mp3
 
 StartupBot defaults media-use telemetry to off. It can be enabled with STARTUPBOT_MEDIA_TELEMETRY=1, subject to upstream opt-outs.
+
+Restored upstream private staging and terminal-safety protections for dither and transcription from commit 559ad7b6d9569bd286cd4a0e5fb895610d02c220, with the Windows literal-path update from 66aba4c7a0b7475d964d22ae2491d22d7e89fb48. Non-contract comments were trimmed.

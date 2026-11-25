@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { desktopSmokeNetwork } from "./desktop-smoke-network.mjs";
 import { smokeDesktopRestart, waitPortClosed } from "./smoke-desktop-restart.mjs";
+import { smokeGroupUsernames } from "./smoke-group-usernames.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({ options: { app: { type: "string" }, output: { type: "string" }, "create-upgrade-fixture": { type: "string" } } });
@@ -473,6 +474,7 @@ try {
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
   assert(bot?.id, "Bot creation did not return its identity");
+  await smokeGroupUsernames({ bot, evaluate, until, cdp, evidence });
   const first = "Please answer this internal package fixture.";
   assert.equal((await request("/api/sidebar-sections", { name: "Package fixture", botIds: [bot.id] })).status, 200);
   assert.equal((await request(`/api/bots/${bot.id}`, { chiefOfStaff: true, approvalMode: "full" }, "PATCH")).status, 200);

@@ -12,7 +12,7 @@ function readId(file) {
     fd = openSync(file, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     const value = JSON.parse(readFileSync(fd, "utf8"));
     if (value?.version !== 1 || typeof value.id !== "string" || !uuid.test(value.id)) throw new Error("Workspace identity is invalid");
-    return value.id;
+    return value.id.toLowerCase();
   } catch (error) {
     if (error?.code === "ENOENT") return null;
     throw error;

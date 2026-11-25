@@ -15,6 +15,16 @@ test("keeps a new workspace identity on restart", () => {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test("normalizes an existing UUID so casing cannot change the workspace namespace", () => {
+  const directory = mkdtempSync(join(tmpdir(), "startupbot-workspace-id-fixture-"));
+  try {
+    const id = "aabbccdd-1111-4111-8111-aabbccddeeff";
+    writeFileSync(join(directory, "bot-workspace-identity.json"), JSON.stringify({ version: 1, id: id.toUpperCase() }));
+    const store = createBotWorkspaceIdStore({ directory, acquireOwnerGuard: () => ({ held: true, release: () => {} }), hasAnchoredBots: () => true });
+    assert.equal(store.loadOrCreate(), id);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("does not replace a missing or corrupt workspace identity when bots are anchored", () => {
   const directory = mkdtempSync(join(tmpdir(), "startupbot-workspace-id-fixture-"));
   try {

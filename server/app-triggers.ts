@@ -443,7 +443,7 @@ export class AppTriggerManager {
 
   private assertNoDuplicate(trigger: StoredTrigger, checkSameBotWhenDisabled: boolean): void {
     const duplicate = this.triggers.find(existing => existing.id !== trigger.id && existing.enabled && existing.event === trigger.event &&
-      existing.accountId === trigger.accountId && existing.prompt === trigger.prompt && isDeepStrictEqual(existing.config, trigger.config) && isDeepStrictEqual(existing.filter, trigger.filter) &&
+      existing.accountId === trigger.accountId && existing.prompt === trigger.prompt && isDeepStrictEqual(existing.config, trigger.config) &&
       (existing.botId === trigger.botId ? trigger.enabled || checkSameBotWhenDisabled : trigger.enabled && this.options.linkedBots?.(existing.botId, trigger.botId)));
     if (duplicate) throw new AppTriggerError("A matching automation may already be active. Review the existing automation before creating another.", 409);
   }
@@ -598,7 +598,10 @@ export class AppTriggerManager {
         const owners = event.triggerId && event.kind !== "test" ? [...(this.bindingOwners.get(event.triggerId) ?? [])] : [];
         const possiblyBound = event.kind === "test" ? bound : bound.filter(trigger => owners.includes(trigger.botId));
         possiblyBound.forEach((first, index) => possiblyBound.slice(index + 1).forEach(second => {
-          if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
+          const conflict = first.botId === second.botId
+            ? first.prompt === second.prompt && candidates.includes(first) && candidates.includes(second)
+            : this.options.linkedBots!(first.botId, second.botId);
+          if (conflict) { affected.add(first); affected.add(second); }
         }));
         for (const candidate of candidates) {
           if (previous.some(bot => bot === null || (bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId))) || owners.some(bot => bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId))) affected.add(candidate);

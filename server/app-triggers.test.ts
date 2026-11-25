@@ -117,13 +117,18 @@ describe("AppTriggerManager", () => {
     expect(triggers.get(active.id)).toBeNull();
   });
 
-  it("allows linked automations with different local filters on the same event", async () => {
+  it("prevents an event matching two local filters from running the same work twice", async () => {
     const slack = broker.account(owner.userId, "slack");
     connected.slack = { connected: true, accounts: [{ id: slack, status: "ACTIVE" }] };
-    const triggers = manager({ linkedBots: () => true });
+    const triggers = manager({ linkedBots: (a, b) => [a, b].every(bot => bot === "source" || bot === "target") });
     const create = (botId: string, text: string) => triggers.create({ botId, name: "Fixture", prompt: "Summarize matching updates", app: "slack", event: "SLACK_CHANNEL_MESSAGE_RECEIVED", filter: { text } });
-    await create("source", "warehouse");
-    await expect(create("target", "sales")).resolves.toMatchObject({ botId: "target" });
+    const first = await create("source", "warehouse");
+    await expect(create("source", "sales")).rejects.toMatchObject({ status: 409 });
+    await expect(create("target", "sales")).rejects.toMatchObject({ status: 409 });
+    await broker.deliver(first.remote.triggerId!, { text: "warehouse sales" }, "overlap");
+    await drain(triggers);
+    expect(routines.listRuns()).toMatchObject([{ botId: "source", deliveryId: "overlap" }]);
+    await expect(create("independent", "sales")).resolves.toMatchObject({ botId: "independent" });
   });
 
   it("delivers a queued Run now only to the selected bot even after another bot binds and the manager restarts", async () => {
@@ -632,15 +637,31 @@ describe("AppTriggerManager", () => {
   it("holds an event that matches different local filters for linked bots", async () => {
     const slack = broker.account(owner.userId, "slack");
     connected.slack = { connected: true, accounts: [{ id: slack, status: "ACTIVE" }] };
-    const triggers = manager({ linkedBots: () => true });
+    let triggers = manager();
     const create = (botId: string, text: string) => triggers.create({ botId, name: "Fixture", prompt: "Summarize matching updates", app: "slack", event: "SLACK_CHANNEL_MESSAGE_RECEIVED", filter: { text } });
     const first = await create("source", "warehouse");
     const second = await create("target", "sales");
+    triggers = manager({ linkedBots: () => true });
     expect(first.remote.triggerId).toBe(second.remote.triggerId);
     await broker.deliver(first.remote.triggerId!, { text: "warehouse sales" }, "overlap-fixture");
     await triggers.pollOnce(undefined, 0);
     expect(routines.listRuns()).toHaveLength(0);
     expect(heldEvents()).toMatchObject([{ id: "overlap-fixture", reason: "conflict" }]);
+  });
+
+  it("holds legacy same-bot automations that would run the same instructions twice", async () => {
+    const triggers = manager();
+    const first = await gmailTrigger(triggers);
+    const other = await triggers.create({ botId: first.botId, name: "Legacy second watcher", prompt: "Old separate work", app: first.app, event: first.event, filter: first.filter });
+    const file = join(dir, "app-triggers.json");
+    const profile = JSON.parse(readFileSync(file, "utf8"));
+    profile.triggers.find((trigger: { id: string }) => trigger.id === other.id).prompt = first.prompt;
+    writeFileSync(file, JSON.stringify(profile));
+    const upgraded = manager({ linkedBots: () => false });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "fixture@acme.com" }, "legacy-double");
+    await drain(upgraded);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(upgraded.heldEventSummaries(() => true)[0]?.triggers.map(trigger => trigger.id).sort()).toEqual([first.id, other.id].sort());
   });
 
   it("persists a conflicted event while allowing the following unrelated event to run", async () => {

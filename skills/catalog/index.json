@@ -1163,6 +1163,7 @@
       "audio/references/sfx.md",
       "scripts/lib/media-fetch.mjs",
       "scripts/dither.mjs",
+      "scripts/lib/terminal-text.mjs",
       "scripts/dither.test.mjs",
       "scripts/transcribe.mjs",
       "scripts/transcribe.test.mjs",

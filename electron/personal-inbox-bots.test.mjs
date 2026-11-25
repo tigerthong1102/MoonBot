@@ -151,7 +151,7 @@ it("uses an honest local ID to select a bot when the older cloud supports only s
   fixture.home = mkdtempSync(join(tmpdir(), "startupbot-old-cloud-fixture-"));
   mkdirSync(join(fixture.home, ".startupbot")); fixture.menu = null;
   const room = "11111111-1111-4111-8111-111111111111", workspaceId = "33333333-3333-4333-8333-333333333333", nonce = "22222222-2222-4222-8222-222222222222";
-  let anchored, sent = 0;
+  let anchored, sent = 0, identityStatus = 404, challengeStatus = 200, errors = 0;
   const localFetch = async (endpoint, init) => {
     if (endpoint.endsWith("bot-identity")) {
       if (init?.method === "POST") { anchored = JSON.parse(init.body); return { ok: true, json: async () => ({ ok: true }) }; }
@@ -163,21 +163,32 @@ it("uses an honest local ID to select a bot when the older cloud supports only s
   const origin = "https://fixture.invalid", owner = "owner-fixture";
   const page = { isDestroyed: () => false, session: { fetch: async (url, init) => {
     if (url.endsWith("/me")) return { ok: true, json: async () => ({ id: owner }) };
-    if (url.endsWith("/bot-identities")) return { ok: false, status: 404 };
+    if (url.endsWith("/bot-identities")) return { ok: false, status: identityStatus };
     const input = JSON.parse(init.body);
-    if (input.action === "challenge") return { ok: true, json: async () => ({ nonce }) };
+    if (input.action === "challenge") return challengeStatus === 200 ? { ok: true, json: async () => ({ nonce }) } : { ok: false, status: challengeStatus };
     expect(input.action).toBe("invite");
     const key = createPublicKey({ key: Buffer.from(`302a300506032b6570032100${input.proof.publicKey}`, "hex"), format: "der", type: "spki" });
     const payload = Buffer.from(JSON.stringify(["startupbot-inbox-bot-claim-v1", origin, owner, input.bot, room, nonce]));
     expect(verify(null, payload, key, Buffer.from(input.proof.signature, "hex"))).toBe(true);
     sent++; return { ok: true, json: async () => ({ ok: true }) };
-  } }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
+  } }, executeJavaScript: async text => { if (text.includes("inbox-bots-error")) errors++; }, once: (_event, cb) => { fixture.destroyed = cb; } };
   const instance = personalInboxBots({ webContents: workspace }, page, origin, (endpoint, init) => localFetch(endpoint, init));
   instance.invite(room);
   await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
   expect(fixture.menu[0].label).toBe("Fixture (ID: fixture-bot)");
   expect(fixture.menu[0].enabled).toBe(true);
   expect(sent).toBe(0);
+  identityStatus = 403; fixture.menu = null; instance.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  expect(fixture.menu[0].enabled).toBe(false);
+  expect(fixture.menu[0].label).toBe("Fixture (…)");
+  identityStatus = 404; fixture.menu = null; instance.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  challengeStatus = 400; fixture.menu[0].click();
+  await vi.waitFor(() => expect(errors).toBe(1));
+  expect(sent).toBe(0);
+  expect(anchored).toBeUndefined();
+  challengeStatus = 200;
   fixture.menu[0].click();
   await vi.waitFor(() => expect(anchored?.username).toMatch(/^bot_k[a-f0-9]{64}$/));
   expect(sent).toBe(1);
@@ -292,7 +303,7 @@ it("reconnects a legacy bot only after explicit confirmation and keeps its cloud
   let workspaceId = "66666666-6666-4666-8666-666666666666";
   const otherRoom = "55555555-5555-4555-8555-555555555555", members = new Map([[room, new Set([bot, "person-fixture-a"])], [otherRoom, new Set([bot, "person-fixture-b"])]]);
   const old = { "fixture-bot": { id: bot, owner, origin } }; writeFileSync(file, JSON.stringify(old));
-  let anchored, invited = 0, autoRegistered = 0, anchorFailure = true, changeOwner = true, errors = 0, present = true;
+  let anchored, invited = 0, autoRegistered = 0, anchorFailure = true, changeOwner = true, errors = 0, present = true, account = "other-owner";
   const claimedNames = [];
   const localFetch = async (endpoint, init) => {
     if (endpoint.endsWith("bot-identity")) {
@@ -303,7 +314,7 @@ it("reconnects a legacy bot only after explicit confirmation and keeps its cloud
   };
   const workspace = { getURL: () => "http://127.0.0.1:4000", isDestroyed: () => false, executeJavaScript: code => runInNewContext(code, { location: { origin: "http://127.0.0.1:4000" }, fetch: localFetch }) };
   const page = { isDestroyed: () => false, session: { fetch: async (url, init) => {
-    if (url.endsWith("/me")) return { ok: true, json: async () => ({ id: owner }) };
+    if (url.endsWith("/me")) return { ok: true, json: async () => ({ id: account }) };
     if (url.endsWith("/bot-identities")) { autoRegistered++; return { ok: false, status: 500 }; }
     const body = JSON.parse(init.body);
     expect(body.bot).toBe(bot);
@@ -318,6 +329,11 @@ it("reconnects a legacy bot only after explicit confirmation and keeps its cloud
   };
   const instance = personalInboxBots({ webContents: workspace }, page, origin, anchor);
   instance.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  expect(fixture.menu[0].enabled).toBe(false);
+  expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(old);
+  expect(autoRegistered).toBe(0);
+  account = owner; fixture.menu = null; instance.invite(room);
   await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
   present = false; fixture.menu[0].click();
   await vi.waitFor(() => expect(errors).toBe(1));

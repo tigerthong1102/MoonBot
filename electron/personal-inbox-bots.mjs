@@ -66,7 +66,6 @@ export function personalInboxBots(window, page, origin, localRequest, language =
   const claims = createPersonalInboxClaims(cloud);
   const picksInFlight = new Set();
   const preparationRetryAt = new Map();
-  let identityRegistrationUnavailable = false;
   const identityEndpoint = "/api/personal-inbox/bot-identity";
   const encryption = { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value) };
   function report(type) {
@@ -100,10 +99,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
           const [identity, inventory] = await Promise.all([local(undefined, identityEndpoint), local()]);
           return identity.workspaceId === scope.workspaceId && inventory.bots.some(item => item.id === scope.localBotId);
         },
-        challenge: async request => {
-          try { const result = await claims.identityChallenge(request); identityRegistrationUnavailable = false; return result; }
-          catch (error) { if (error?.status === 404 || error?.status === 405) identityRegistrationUnavailable = true; throw error; }
-        },
+        challenge: claims.identityChallenge,
         invite: async request => { await claims.registerIdentity(request); signed = request; },
       });
       await registration.register({ workspaceId, localBotId: bot.id, bindingId: record.id, owner, room: identityScope, origin, name: "Bot" });
@@ -116,28 +112,30 @@ export function personalInboxBots(window, page, origin, localRequest, language =
     preparations.set(key, pending);
     return pending;
   }
-  async function prepareInventory(bots, owner, workspaceId) {
+  async function prepareInventory(bots, owner, workspaceId, unsupported) {
     let cursor = 0;
     const legacy = bindings();
-    const pending = bots.filter(bot => !bot.username && !(legacy[bot.id] && !legacy[bot.id].workspaceId && legacy[bot.id].owner === owner && legacy[bot.id].origin === origin));
+    const pending = bots.filter(bot => !bot.username && !(legacy[bot.id] && !legacy[bot.id].workspaceId));
     await Promise.all(Array.from({ length: Math.min(4, pending.length) }, async () => {
       while (cursor < pending.length) {
         const bot = pending[cursor++];
         try { await prepareIdentity(bot, owner, workspaceId); preparationRetryAt.delete(JSON.stringify([workspaceId, bot.id])); }
-        catch { preparationRetryAt.set(JSON.stringify([workspaceId, bot.id]), Date.now() + 30_000); }
+        catch (error) { if (error?.status === 404 || error?.status === 405) unsupported.add(bot.id); preparationRetryAt.set(JSON.stringify([workspaceId, bot.id]), Date.now() + 30_000); }
       }
     }));
   }
   async function invite(room) {
     if (!uuid.test(room)) return;
     const [me, inventory, identity] = await Promise.all([cloud("me"), local(), local(undefined, identityEndpoint)]);
-    const registrations = prepareInventory(inventory.bots, me.id, identity.workspaceId);
+    const unsupported = new Set();
+    const registrations = prepareInventory(inventory.bots, me.id, identity.workspaceId, unsupported);
     await Promise.race([registrations, new Promise(resolve => setTimeout(resolve, 1500))]);
     const [currentIdentity, account, currentInventory] = await Promise.all([local(undefined, identityEndpoint), cloud("me"), local()]);
     if (currentIdentity.workspaceId !== identity.workspaceId || account.id !== me.id) throw Error("workspace_changed");
     const choices = currentInventory.bots;
     const canEncrypt = await encryption.available().catch(() => false);
-    const canSignFallback = identityRegistrationUnavailable && canEncrypt;
+    const fallbackIds = new Set(unsupported);
+    const canSignFallback = bot => canEncrypt && fallbackIds.has(bot.id);
     const legacy = bindings();
     const legacyFor = bot => {
       const record = legacy[bot.id];
@@ -156,7 +154,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
       const selectedIdentity = await local(undefined, identityEndpoint);
       const selected = (await local()).bots.find(item => item.id === bot.id);
       const oldBinding = legacyFor(bot);
-      if (selectedIdentity.workspaceId !== identity.workspaceId || !selected || (!bot.username && !canSignFallback && !oldBinding) || selected.username !== bot.username) throw Error("workspace_changed");
+      if (selectedIdentity.workspaceId !== identity.workspaceId || !selected || (!bot.username && !canSignFallback(bot) && !oldBinding) || selected.username !== bot.username) throw Error("workspace_changed");
       if (oldBinding) {
         if (!canEncrypt) throw Error("identity_storage_unavailable");
         const vi = /^vi(?:-|$)/i.test(language);
@@ -175,7 +173,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
       if (!oldBinding) { records[key] = record; file.write(records); }
       const input = { room, bot: record.id, name: bot.name, owner: me.id };
       if (!canEncrypt) {
-        if (bot.username || canSignFallback) throw Error("identity_storage_unavailable");
+        if (bot.username || canSignFallback(bot)) throw Error("identity_storage_unavailable");
         if ((await cloud("me")).id !== me.id || (await local(undefined, identityEndpoint)).workspaceId !== identity.workspaceId || !(await local()).bots.some(item => item.id === bot.id)) throw Error("workspace_changed");
         await claims.inviteLegacy(input);
       } else {
@@ -202,7 +200,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
         });
         try { await registration.register({ workspaceId, localBotId: bot.id, bindingId: record.id, owner: me.id, room, origin, name: bot.name }); }
         catch (error) {
-          if (error?.message !== "legacy_service" || bot.username || oldBinding) throw error;
+          if (error?.message !== "legacy_service" || bot.username || oldBinding || canSignFallback(bot)) throw error;
           if ((await cloud("me")).id !== me.id || (await local(undefined, identityEndpoint)).workspaceId !== workspaceId || !(await local()).bots.some(item => item.id === bot.id)) throw Error("workspace_changed");
           await claims.inviteLegacy(input);
         }
@@ -224,8 +222,8 @@ export function personalInboxBots(window, page, origin, localRequest, language =
     }
     Menu.buildFromTemplate(
       choices.map((bot) => ({
-        label: bot.username ? inboxBotLabel(bot) : canSignFallback || legacyFor(bot) ? `${bot.name} (ID: ${bot.id})` : `${bot.name} (…)`,
-        enabled: Boolean(bot.username) || canSignFallback || Boolean(legacyFor(bot) && canEncrypt),
+        label: bot.username ? inboxBotLabel(bot) : canSignFallback(bot) || legacyFor(bot) ? `${bot.name} (ID: ${bot.id})` : `${bot.name} (…)`,
+        enabled: Boolean(bot.username) || canSignFallback(bot) || Boolean(legacyFor(bot) && canEncrypt),
         click: () => {
           void pick(bot).catch(() => report("inbox-bots-error"));
         },
@@ -244,7 +242,7 @@ export function personalInboxBots(window, page, origin, localRequest, language =
       if (identityOnly && !(await page.session.cookies.get({ url: origin })).length) { nextPreparation = Date.now() + 60_000; return; }
       const [me, identity] = await Promise.all([cloud("me"), local(undefined, identityEndpoint)]);
       const legacy = bindings();
-      for (let i = pending.length - 1; i >= 0; i--) if (legacy[pending[i].id] && !legacy[pending[i].id].workspaceId && legacy[pending[i].id].owner === me.id && legacy[pending[i].id].origin === origin) pending.splice(i, 1);
+      for (let i = pending.length - 1; i >= 0; i--) if (legacy[pending[i].id] && !legacy[pending[i].id].workspaceId) pending.splice(i, 1);
       if (!pending.length) { nextPreparation = Date.now() + 60_000; return; }
       const index = pending.findIndex((item, offset) => offset >= preparationCursor % pending.length && Date.now() >= (preparationRetryAt.get(JSON.stringify([identity.workspaceId, item.id])) ?? 0));
       const fallback = pending.findIndex(item => Date.now() >= (preparationRetryAt.get(JSON.stringify([identity.workspaceId, item.id])) ?? 0));

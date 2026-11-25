@@ -4811,7 +4811,7 @@ function memberFrame(client: StreamView, seq: number, payload: Record<string, un
   const order = clientFrame === null ? null : botOrders?.streamFrame(client, payload); if (order) { payload = order; clientFrame = `id: ${STREAM_ID}:${seq}\ndata: ${JSON.stringify({ ...order, seq })}\n\n`; }
   const visible = visibleTo(client.viewer);
   if (clientFrame === null || (client.viewer.kind === "all" && !visible.filtersThreads)) return clientFrame;
-  if (visible.everything) {
+  if (visible.everything && !(visible.member && payload.kind === "app-trigger.service")) {
     noteSeen(payload, client.seen);
     return clientFrame;
   }

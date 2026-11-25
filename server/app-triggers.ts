@@ -224,6 +224,9 @@ export class AppTriggerManager {
   private acknowledgedCursor = 0;
   private acknowledgedScope: string | null = null;
   private acknowledgedCredential: string | null = null;
+  private cursorReview: AppTriggerService["cursorReview"];
+  private cursorReviewUnannounced = false;
+  private cursorReviewTimer: ReturnType<typeof setTimeout> | null = null;
   private unreadable = false;
   private mutationsInFlight = 0;
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
@@ -286,6 +289,7 @@ export class AppTriggerManager {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
     }
     if ([...this.heldEvents.values()].some(value => !value.event)) this.heldUnreadable = true;
+    if (this.options.linkedBots && !this.cursorScope && (this.cursor !== 0 || this.heldEvents.size)) this.cursorReview = "unverified";
     if (!this.heldUnreadable) for (const held of this.heldEvents.values()) {
       if (held.discarded) continue;
       const reason = held.reason === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE;
@@ -301,6 +305,7 @@ export class AppTriggerManager {
         if (embeddedEvents) this.save();
       } catch { this.heldUnreadable = true; }
     }
+    if (this.options.linkedBots && (this.unreadable || this.heldUnreadable)) this.cursorReview = "event_problem";
   }
 
   list(): AppTrigger[] {
@@ -362,8 +367,9 @@ export class AppTriggerManager {
 
   service(): AppTriggerService {
     const service = this.options.service();
-    if (!service.available) return { available: false, reason: service.reason };
-    return { available: true, ...this.usage };
+    const review = this.cursorReview ? { cursorReview: this.cursorReview } : {};
+    if (!service.available) return { available: false, reason: service.reason, ...review };
+    return { available: true, ...this.usage, ...review };
   }
 
   snapshot(): AppTriggersSnapshot {
@@ -584,6 +590,7 @@ export class AppTriggerManager {
   start(): void {
     if (!this.stopped) return;
     this.stopped = false;
+    if (this.cursorReviewUnannounced) this.setCursorReview(this.cursorReview);
     this.abort = new AbortController();
     this.nextReconcileAt = 0;
     this.loop = this.run(++this.runVersion).catch((error) => this.log(`app events stopped: ${error instanceof Error ? error.message : String(error)}`));
@@ -592,6 +599,8 @@ export class AppTriggerManager {
   async stop(): Promise<void> {
     const loop = this.loop;
     this.stopped = true;
+    if (this.cursorReviewTimer) clearTimeout(this.cursorReviewTimer);
+    this.cursorReviewTimer = null;
     this.runVersion += 1;
     this.abort.abort();
     await loop;
@@ -786,17 +795,24 @@ export class AppTriggerManager {
     this.assertWritable();
     const after = this.cursor;
     const credential = this.options.acknowledgmentScope?.() ?? null;
-    const scope = this.options.installationScope ? await this.options.installationScope(signal) : credential;
-    if (credential !== (this.options.acknowledgmentScope?.() ?? null)) throw new RetryAppEvent("Connected-app account changed during identity verification");
+    let scope: string | null;
+    try { scope = this.options.installationScope ? await this.options.installationScope(signal) : credential; }
+    catch (error) { if (this.options.linkedBots && !signal?.aborted) this.setCursorUnavailable(); throw error; }
+    if (signal?.aborted) return 0;
+    if (credential !== (this.options.acknowledgmentScope?.() ?? null)) { if (this.options.linkedBots) this.setCursorUnavailable(); throw new RetryAppEvent("Connected-app account changed during identity verification"); }
     this.assertCursorScope(scope);
-    const { events, cursor } = await this.options.broker.poll({ after, waitS, poller: this.pollerId, signal });
+    let response: Awaited<ReturnType<AppTriggerBroker["poll"]>>;
+    try { response = await this.options.broker.poll({ after, waitS, poller: this.pollerId, signal }); }
+    catch (error) { if (this.options.linkedBots && !signal?.aborted) this.setCursorUnavailable(); throw error; }
     if (signal?.aborted) return 0;
     const currentCredential = this.options.acknowledgmentScope?.() ?? null;
-    if (credential !== currentCredential) { this.acknowledgedScope = null; this.acknowledgedCredential = null; this.acknowledgedCursor = 0; throw new RetryAppEvent("Connected-app account changed during polling"); }
+    if (credential !== currentCredential) { this.acknowledgedScope = null; this.acknowledgedCredential = null; this.acknowledgedCursor = 0; if (this.options.linkedBots) this.setCursorUnavailable(); throw new RetryAppEvent("Connected-app account changed during polling"); }
     if (!scope) { this.acknowledgedScope = null; this.acknowledgedCredential = null; this.acknowledgedCursor = 0; }
     else { if (this.acknowledgedScope !== scope) this.acknowledgedCursor = 0; this.acknowledgedScope = scope; this.acknowledgedCredential = credential; this.acknowledgedCursor = Math.max(this.acknowledgedCursor, after); }
-    if (events.length || cursor > this.cursor) this.receive(events, cursor, scope);
-    return events.length;
+    try { if (response.events.length || response.cursor > this.cursor) this.receive(response.events, response.cursor, scope); }
+    catch (error) { if (this.options.linkedBots) this.setCursorReview("event_problem"); throw error; }
+    if (this.options.linkedBots) this.setCursorReview(undefined);
+    return response.events.length;
   }
 
   private pollable(): boolean {
@@ -1030,18 +1046,36 @@ export class AppTriggerManager {
   }
 
   private assertWritable(): void {
-    if (this.unreadable) throw new AppTriggerError("Saved app automations could not be read. Repair app-triggers.json before changing them.", 503);
-    if (this.heldUnreadable) throw new AppTriggerError("Held app events could not be read. Restore the held event store before changing automations.", 503);
+    if (this.unreadable) { if (this.options.linkedBots) this.setCursorReview("event_problem"); throw new AppTriggerError("Saved app automations could not be read. Repair app-triggers.json before changing them.", 503); }
+    if (this.heldUnreadable) { if (this.options.linkedBots) this.setCursorReview("event_problem"); throw new AppTriggerError("Held app events could not be read. Restore the held event store before changing automations.", 503); }
   }
 
   private assertCursorScope(scope: string | null): void {
     if (!this.options.linkedBots) return;
-    if (!scope || (this.cursorScope && this.cursorScope !== scope)) throw new RetryAppEvent("Connected-app account changed; review the saved event cursor before continuing.");
+    if (!scope) { this.setCursorUnavailable(); throw new RetryAppEvent("The connected-app account could not be verified."); }
+    if (this.cursorScope && this.cursorScope !== scope) { this.setCursorReview("changed"); throw new RetryAppEvent("Connected-app account changed; review the saved event cursor before continuing."); }
     if (this.cursorScope) return;
-    if (this.cursor !== 0 || this.heldEvents.size) throw new RetryAppEvent("The saved event cursor has no verified account; review it before continuing.");
+    if (this.cursor !== 0 || this.heldEvents.size) { this.setCursorReview("unverified"); throw new RetryAppEvent("The saved event cursor has no verified account; review it before continuing."); }
     this.cursorScope = scope;
     try { this.save(); }
-    catch (error) { this.cursorScope = undefined; throw error; }
+    catch (error) { this.cursorScope = undefined; this.setCursorReview("event_problem"); throw error; }
+  }
+
+  private setCursorUnavailable(): void {
+    this.setCursorReview(this.cursorReview && this.cursorReview !== "unavailable" ? this.cursorReview : "unavailable");
+  }
+
+  private setCursorReview(issue: AppTriggerService["cursorReview"]): void {
+    if (this.cursorReview === issue && !this.cursorReviewUnannounced) return;
+    this.cursorReview = issue;
+    try { this.options.emit?.({ kind: "app-trigger.service", service: this.service() }); this.cursorReviewUnannounced = false; }
+    catch {
+      this.cursorReviewUnannounced = true;
+      if (!this.stopped && !this.cursorReviewTimer) {
+        this.cursorReviewTimer = setTimeout(() => { this.cursorReviewTimer = null; if (this.cursorReviewUnannounced) this.setCursorReview(this.cursorReview); }, 1_000);
+        this.cursorReviewTimer.unref?.();
+      }
+    }
   }
 
   private emitTrigger(trigger: StoredTrigger): void {

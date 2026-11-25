@@ -122,7 +122,9 @@ export function createAppTriggerHost(deps: AppTriggerHostDeps) {
         const snapshot = manager.snapshot();
         const shown = snapshot.triggers.filter((trigger) => deps.visibleBot(auth, trigger.botId));
         const ids = new Set(shown.map((trigger) => trigger.id));
-        return json(res, 200, { ...snapshot, triggers: shown, attempts: snapshot.attempts.filter((attempt) => ids.has(attempt.triggerId)) });
+        const canReview = auth.kind === "loopback" ? auth.trust !== "service" : auth.scopes.includes("admin");
+        const { cursorReview: _cursorReview, ...limitedService } = snapshot.service;
+        return json(res, 200, { ...snapshot, service: canReview ? snapshot.service : limitedService, triggers: shown, attempts: snapshot.attempts.filter((attempt) => ids.has(attempt.triggerId)) });
       }
       if (path === "/api/app-triggers/events" && method === "GET") {
         const bot = deps.store.bot(url.searchParams.get("botId") ?? "");

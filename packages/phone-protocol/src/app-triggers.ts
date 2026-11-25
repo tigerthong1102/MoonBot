@@ -87,6 +87,7 @@ export interface AppTriggerService {
   plan?: "desktop" | "cloud";
   eventsPerDay?: number;
   eventsToday?: number;
+  cursorReview?: "unverified" | "changed" | "unavailable" | "event_problem";
 }
 
 export interface AppTriggersSnapshot {

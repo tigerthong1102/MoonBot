@@ -180,8 +180,10 @@ describe("AppTriggerManager", () => {
     expect(saved.cursorScope).toBe(owner.id);
     access = { url: broker.url, token: other.token }; scope = other.id;
     await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/account changed/);
+    expect(triggers.snapshot().service.cursorReview).toBe("changed");
     triggers = manager({ broker: client, linkedBots: () => false, acknowledgmentScope: () => scope });
     await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/account changed/);
+    expect(triggers.snapshot().service.cursorReview).toBe("changed");
     const pending = await otherClient.poll({ after: 0, waitS: 0, poller: "fixture-other-poller" });
     expect(pending.events).toHaveLength(1);
     expect(pending.events[0]?.triggerId).toBe(otherTrigger.remote.triggerId);
@@ -234,9 +236,130 @@ describe("AppTriggerManager", () => {
     writeFileSync(file, original);
     const poll = vi.spyOn(client, "poll");
     triggers = manager({ broker: client, linkedBots: () => false });
+    expect(triggers.snapshot().service.cursorReview).toBe("unverified");
     await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/no verified account/);
+    expect(triggers.snapshot().service.cursorReview).toBe("unverified");
     expect(poll).not.toHaveBeenCalled();
     expect(readFileSync(file, "utf8")).toBe(original);
+  });
+
+  it("keeps the unverified cursor warning while installation verification is offline", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    let triggers = manager({ broker: client, linkedBots: () => false });
+    await gmailTrigger(triggers);
+    const file = join(dir, "app-triggers.json"), saved = JSON.parse(readFileSync(file, "utf8"));
+    saved.cursor = 42; delete saved.cursorScope;
+    writeFileSync(file, JSON.stringify(saved));
+    let offline = true;
+    triggers = manager({ broker: client, linkedBots: () => false, installationScope: async () => {
+      if (offline) throw new Error("fixture offline");
+      return owner.id;
+    } });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow("fixture offline");
+    expect(triggers.snapshot().service.cursorReview).toBe("unverified");
+    offline = false;
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/no verified account/);
+    expect(triggers.snapshot().service.cursorReview).toBe("unverified");
+  });
+
+  it("retries a missed warning and clears it after polling succeeds", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    vi.spyOn(client, "poll").mockRejectedValueOnce(new Error("fixture offline")).mockRejectedValueOnce(new Error("fixture offline"));
+    const frames: Array<string | undefined> = [];
+    let failEmit = true;
+    const triggers = manager({ broker: client, linkedBots: () => false, emit: frame => {
+      if (frame.kind !== "app-trigger.service") return;
+      if (failEmit) { failEmit = false; throw new Error("fixture emit failure"); }
+      frames.push(frame.service.cursorReview);
+    } });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow("fixture offline");
+    expect(triggers.snapshot().service.cursorReview).toBe("unavailable");
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow("fixture offline");
+    expect(frames).toEqual(["unavailable"]);
+    await triggers.pollOnce(undefined, 0);
+    expect(triggers.snapshot().service.cursorReview).toBeUndefined();
+    expect(frames).toEqual(["unavailable", undefined]);
+  });
+
+  it("retries the account-change warning when verification later goes offline", async () => {
+    let scope = owner.id, offline = false, failEmit = true;
+    const frames: Array<string | undefined> = [];
+    const triggers = manager({ linkedBots: () => false, acknowledgmentScope: () => scope,
+      installationScope: async () => { if (offline) throw new Error("fixture offline"); return scope; },
+      emit: frame => {
+        if (frame.kind !== "app-trigger.service") return;
+        if (failEmit) { failEmit = false; throw new Error("fixture emit failure"); }
+        frames.push(frame.service.cursorReview);
+      } });
+    await triggers.pollOnce(undefined, 0);
+    scope = "other-installation";
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/account changed/);
+    expect(triggers.snapshot().service.cursorReview).toBe("changed");
+    expect(frames).toEqual([]);
+    offline = true;
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow("fixture offline");
+    expect(triggers.snapshot().service.cursorReview).toBe("changed");
+    expect(frames).toEqual(["changed"]);
+  });
+
+  it("republishes a missed warning even while the poll loop is idle", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    vi.spyOn(client, "poll").mockRejectedValueOnce(new Error("fixture offline"));
+    const frames: Array<string | undefined> = [];
+    let failEmit = true;
+    const triggers = manager({ broker: client, linkedBots: () => false, service: () => ({ available: false, reason: "off" }), emit: frame => {
+      if (frame.kind !== "app-trigger.service") return;
+      if (failEmit) { failEmit = false; throw new Error("fixture emit failure"); }
+      frames.push(frame.service.cursorReview);
+    } });
+    triggers.start();
+    try {
+      await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow("fixture offline");
+      await vi.waitFor(() => expect(frames).toEqual(["unavailable"]), { timeout: 3_000 });
+    } finally { await triggers.stop(); }
+  });
+
+  it("keeps an event-processing warning until the held event is saved", async () => {
+    const triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "fixture-warning-storage");
+    const sidecar = join(dir, "app-triggers.json.held");
+    mkdirSync(sidecar);
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/Held event storage is unavailable/);
+    expect(triggers.snapshot().service.cursorReview).toBe("event_problem");
+    expect(routines.listRuns()).toHaveLength(0);
+    rmSync(sidecar, { recursive: true });
+    await triggers.pollOnce(undefined, 0);
+    expect(triggers.snapshot().service.cursorReview).toBeUndefined();
+    expect(heldEvents()).toHaveLength(1);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("reports an unreadable held-event file without exposing its contents", async () => {
+    let triggers = manager({ linkedBots: () => true });
+    await gmailTrigger(triggers);
+    writeFileSync(join(dir, "app-triggers.json.held"), "PRIVATE_INVALID_FIXTURE{");
+    triggers = manager({ linkedBots: () => true });
+    expect(triggers.snapshot().service.cursorReview).toBe("event_problem");
+    expect(JSON.stringify(triggers.snapshot())).not.toContain("PRIVATE_INVALID_FIXTURE");
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/Held app events could not be read/);
+    expect(triggers.snapshot().service.cursorReview).toBe("event_problem");
+  });
+
+  it("reports a cursor write failure before contacting the broker", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client, linkedBots: () => true });
+    await gmailTrigger(triggers);
+    const file = join(dir, "app-triggers.json"), backup = `${file}.fixture-backup`;
+    renameSync(file, backup);
+    mkdirSync(file);
+    const poll = vi.spyOn(client, "poll");
+    try {
+      await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow();
+      expect(poll).not.toHaveBeenCalled();
+      expect(triggers.snapshot().service.cursorReview).toBe("event_problem");
+    } finally { rmSync(file, { recursive: true }); renameSync(backup, file); }
   });
 
   it.each([false, true])("waits for app-event polling to stop and resumes after backup failure=%s", async fail => {
@@ -1169,6 +1292,29 @@ describe("appEventCatalog", () => {
 });
 
 describe("createAppTriggerHost", () => {
+  it("exposes the app event review warning only to an administrator or local owner", async () => {
+    const { createAppTriggerHost } = await import("./app-trigger-host.ts");
+    const host = createAppTriggerHost({
+      file: join(dir, "visibility-app-triggers.json"),
+      store: { bot: () => undefined } as never,
+      connectionMode: () => "managed", access: () => ({ url: broker.url, token: owner.token }),
+      connectedApps: async () => connected, routines: () => routines, webhooks: { list: () => [] } as never,
+      webhookBase: () => "http://127.0.0.1:8800", botState: () => "ready", timeZone: () => "UTC", visibleBot: () => true,
+      emit: () => {}, audit: () => {},
+    });
+    const snapshot = host.manager.snapshot();
+    vi.spyOn(host.manager, "snapshot").mockReturnValue({ ...snapshot, service: { ...snapshot.service, cursorReview: "unverified" } });
+    const call = async (auth: unknown) => {
+      let body: any;
+      await host.routes({ path: "/api/app-triggers", method: "GET", auth, json: (_res: unknown, _status: number, value: unknown) => { body = value; } } as never);
+      return body.service;
+    };
+    expect(await call({ kind: "session", scopes: ["client"] })).not.toHaveProperty("cursorReview");
+    expect(await call({ kind: "loopback", trust: "service", scopes: ["client"] })).not.toHaveProperty("cursorReview");
+    expect(await call({ kind: "session", scopes: ["admin", "client"] })).toMatchObject({ cursorReview: "unverified" });
+    expect(await call({ kind: "loopback", scopes: ["admin", "client"] })).toMatchObject({ cursorReview: "unverified" });
+  });
+
   it("refuses a guest-driven Cloud turn and an app outside the bot's grants; otherwise applies with one receipt and Undo", async () => {
     const { createAppTriggerHost } = await import("./app-trigger-host.ts");
     const messages = new Map<string, Array<{ id: string; card?: any }>>();

@@ -36,6 +36,22 @@ it("is absent when the desktop does not enable the feature", async () => {
   expect((await mount()).textContent).toBe("");
 });
 
+it("retries a transient profile load in place and disables retry while loading", async () => {
+  apiMock.mockRejectedValueOnce(new ApiError("temporary", 503));
+  const profile = await mount();
+  expect(profile.querySelector('[role="alert"]')?.textContent).toBe("Couldn’t load AI Twin.");
+  let finish: (view: { twin: null; creationEpoch: string }) => void = () => {};
+  apiMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  await act(async () => button(profile, "Try again").click());
+  expect(button(profile, "Try again").disabled).toBe(true);
+  expect(profile.querySelector('[aria-busy="true"]')).not.toBeNull();
+  await act(async () => button(profile, "Try again").click());
+  expect(apiMock).toHaveBeenCalledTimes(2);
+  await act(async () => finish({ twin: null, creationEpoch: "initial" }));
+  expect(profile.querySelector('[role="alert"]')).toBeNull();
+  expect(button(profile, "Create AI Twin").disabled).toBe(false);
+});
+
 it("keeps setup opt-in without crypto.randomUUID, updates the profile on acknowledgment, and cancels deletion", async () => {
   apiMock.mockResolvedValueOnce({ twin: null, creationEpoch: "initial" });
   const profile = await mount();
@@ -83,4 +99,20 @@ it("shows the latest profile after a conflicting save before another edit is all
   await act(async () => button(profile, "Edit profile").click());
   expect(profile.querySelector("input")?.value).toBe("Latest AI");
   expect(profile.querySelector("textarea")?.value).toBe("Use short paragraphs.");
+});
+
+it("shows a failed deletion inside the confirmation and allows another attempt", async () => {
+  const twin = { id: "same", name: "Thông AI", style: "", revision: 1, paused: false, createdAt: 1, updatedAt: 1 };
+  apiMock.mockResolvedValueOnce({ twin, creationEpoch: "initial" });
+  const profile = await mount();
+  await act(async () => button(profile, "Delete AI Twin").click());
+  const dialog = document.querySelector('[role="alertdialog"]')!;
+  apiMock.mockRejectedValueOnce(new ApiError("temporary", 503));
+  await act(async () => button(dialog, "Delete AI Twin").click());
+  expect(dialog.querySelector('[role="alert"]')?.textContent).toBe("Couldn’t save your changes. Try again.");
+  expect(profile.querySelector('[role="alert"]')).toBeNull();
+  apiMock.mockResolvedValueOnce({ twin: null, creationEpoch: "next" });
+  await act(async () => button(dialog, "Delete AI Twin").click());
+  expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  expect(button(profile, "Create AI Twin").disabled).toBe(false);
 });

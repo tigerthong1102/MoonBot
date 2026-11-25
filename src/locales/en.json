@@ -1949,7 +1949,7 @@
   "settings.aiTwin.deleteBody": "This removes your Twin profile and its writing preferences from this computer.",
   "settings.aiTwin.saving": "Saving…",
   "settings.aiTwin.conflict": "Your Twin changed in another window. Review the latest profile before trying again.",
-  "settings.aiTwin.loadError": "Couldn’t load AI Twin. Reopen your profile to try again.",
+  "settings.aiTwin.loadError": "Couldn’t load AI Twin.",
   "settings.aiTwin.saveError": "Couldn’t save your changes. Try again.",
   "settings.profile.aboutMe": "About me",
   "settings.profile.aboutMeHelp": "Shared with every bot in private and group chats. Saved automatically.",

@@ -1087,7 +1087,7 @@
   "settings.aiTwin.deleteBody": "Hồ sơ AI Twin và thiết lập cách viết sẽ bị xóa khỏi máy này.",
   "settings.aiTwin.saving": "Đang lưu…",
   "settings.aiTwin.conflict": "AI Twin đã thay đổi ở cửa sổ khác. Hãy xem hồ sơ mới nhất rồi thử lại.",
-  "settings.aiTwin.loadError": "Không tải được AI Twin. Hãy mở lại hồ sơ để thử lại.",
+  "settings.aiTwin.loadError": "Không tải được AI Twin.",
   "settings.aiTwin.saveError": "Không lưu được thay đổi. Hãy thử lại.",
   "settings.profile.aboutMe": "Giới thiệu về tôi",
   "settings.profile.aboutMeHelp": "Được chia sẻ với mọi bot trong cuộc trò chuyện riêng tư và group chat. Tự động lưu.",

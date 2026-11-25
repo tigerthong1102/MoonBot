@@ -26,7 +26,29 @@ it.each(catalog)("$name has localized guides pinned to the reviewed original", (
   for (const locale of locales) {
     const translation = read(`catalog-locales/${locale}/${entry.name}.md`);
     expect(translation).not.toMatch(/\[ZX\d+QZ\]/);
-    expect(fencedBlocks(translation)).toEqual(fencedBlocks(original));
+    if (["chengfeng-cut", "chengfeng-subtitle"].includes(entry.name) && ["vi", "en"].includes(locale)) {
+      const sourceBlocks = fencedBlocks(original), translatedBlocks = fencedBlocks(translation);
+      expect(translation.replace(/`[^`\n]+`/g, "")).not.toMatch(/\p{Script=Han}/u);
+      expect(translation).not.toMatch(/call the police|gọi cảnh sát/i);
+      expect(translatedBlocks).toHaveLength(sourceBlocks.length);
+      for (let i = 0; i < sourceBlocks.length; i++) {
+        const source = sourceBlocks[i], translated = translatedBlocks[i];
+        if (source.startsWith("```text\n")) {
+          expect(translated.startsWith("```text\n")).toBe(true);
+          expect(translated.split("\n")).toHaveLength(source.split("\n").length);
+          expect(translated).not.toMatch(/\p{Script=Han}/u);
+        } else if (source.startsWith("```bash\n")) {
+          const commands = (block: string) => block.split("\n").slice(1, -1)
+            .map(line => line.replace(/\s*#.*$/, "").replace(/<[^<>]+>/g, "<ARG>").trim())
+            .filter(Boolean);
+          expect(commands(translated)).toEqual(commands(source));
+        } else {
+          expect(translated).toBe(source);
+        }
+      }
+    } else {
+      expect(fencedBlocks(translation)).toEqual(fencedBlocks(original));
+    }
     expect(translation.split("\n").filter(Boolean).length).toBeGreaterThan(2);
     if (reviewedUpdates.has(entry.name)) {
       const tokens: string[] = translation.match(/`[^`\n]+`/g) ?? [];

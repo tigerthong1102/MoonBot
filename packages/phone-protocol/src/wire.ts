@@ -254,6 +254,8 @@ export const helperModelAllowed = (bot: { helperModel?: unknown }): boolean => b
 /** A bot as a client may see it. avatarUrl is always present (null when the
  * bot has none). */
 export interface WireBot extends DefaultBotFields, BotAccessFields {
+  /** Public identifier for group invitations, when assigned. */
+  groupUsername?: string;
   waitingForTeammates?: boolean;
   id: string;
   /** The task selected in the UI; running turns keep their own thread id. */

@@ -109,7 +109,7 @@ import { DataFailure } from "./data/types.ts";
 import { TeamComputers, teamComputerOwner, type TeamComputerRecord } from "./team-computers.ts";
 import { isEffortLevel, type AuthPairResponse, type CardAnswerer, type LoopbackSessionResponse, type SignedInSessionResponse, type PairResponse, type ResolvedSender, type ServerFrame, type SignInRequestCardData, type WireBot, type WireGroup, type WireTask } from "../shared/wire.ts";
 import { isPersistentQuestionCard, shouldSettleRequestCard } from "../shared/ask-question.ts";
-import { parseToolScope } from "../shared/tool-scope.ts";
+import { allowsTool, narrowsNativeTools, parseToolScope } from "../shared/tool-scope.ts";
 import type { TeamComputersPayload } from "../shared/team-computer.ts";
 import { boatCreateRecoverySnapshot } from "./boat-create-idempotency.ts";
 import { boatDeletionSnapshot } from "./boat-delete-journal.ts";
@@ -323,6 +323,9 @@ import { createDecider, deciderReady, describeDecider } from "./decider/index.ts
 import { createStopLineRoutes } from "./routes/stop-line.ts"; import { createStandaloneSkillBurgerRoutes } from "./skill-burger/routes.ts"; import { decideRoomResponder } from "./decider/room-routing.ts"; import { roomRoutingInput } from "./host/room-routing-input.ts";
 import { findWorkflowSkill, listWorkflowSkills } from "./skill-burger/store.ts";
 import { createSkillBurgerRuns } from "./skill-burger/runs.ts";
+import { createWorkflowApprovals } from "./skill-burger/approval.ts";
+import type { CallingTurn } from "./skill-burger/turn-host.ts";
+import type { WorkflowGuard } from "./skill-burger/guarded-executors.ts";
 import { autoRoomDefault, roomTurnMembers } from "./room-routing-members.ts";
 import { liveHistoryFrom, LiveSessionError, type LiveBot, type LiveHistoryMessage } from "./live-call.ts";
 import { LiveCallController, LiveCallSignedOutError } from "./live-call-controller.ts"; import { liveSessionWiring } from "./live-session-wiring.ts";
@@ -4783,6 +4786,10 @@ onSteeredQueueChange(() => broadcast({ kind: "bot.queued", queues: publicBotQueu
 // Keyed by threadId: provider item and request ids are unique only within a thread.
 const toolMessageByItem = new Map<string, string>();
 const askMessageByRequest = new Map<string, string>();
+const workflowApprovals = createWorkflowApprovals((threadId, event) => {
+  const engine = runningTurnEngines.get(threadId);
+  bus.publish({ ...event, eventId: newId(), createdAt: new Date().toISOString(), threadId, provider: engine?.driverKind ?? "harness", providerInstanceId: engine?.instanceId });
+});
 const unansweredApprovals = new UnansweredApprovals(); const approvalAsk = (botId: string | undefined, threadId: string, turnId: string | undefined): { approvalAsk?: string } => { const asked = botId ? unansweredApprovals.ask(threadId, turnId, store.bot(botId)?.name ?? "A teammate", threadLanguage(threadId)) : undefined; return asked ? { approvalAsk: asked } : {}; };
 // Only native, live permission metadata becomes a remembered grant, never an imported transcript or display summary.
 const pendingCommandRules = new Map<string, { botId: string; candidate: CommandAllowlistCandidate }>();
@@ -4817,7 +4824,9 @@ async function answerRequest(
   // The live turn owns this question, as it owns Stop and steer.
   const instance = runningTurnEngines.get(threadId) ?? registry.get(instanceId);
   let outcome: RequestOutcome = "unavailable";
-  if (instance) {
+  if (workflowApprovals.has(threadId, requestId)) {
+    outcome = workflowApprovals.answer(threadId, requestId, behavior);
+  } else if (instance) {
     try {
       // Only a card that offered "Allow for this session" can keep one: never a guest's turn, a sandbox widening or the person's own computer.
       outcome = await instance.adapter.respondToRequest(threadId, requestId, { behavior, message, always: always && behavior === "allow" && card?.allowSession === true });
@@ -6486,7 +6495,7 @@ bus.subscribe((event: RuntimeEvent) => {
       const permission = event.requestType === "permission" && !event.questions?.length;
       // The provider's own mode already ran; only Full access, an exact saved command or an exact remembered MCP read tool answers here.
       const asker = bot ?? (speaker ? store.bot(speaker.botId) : undefined);
-      if (asker && proactive.fence.answers(event, asker, pushMessage)) break;
+      if (asker && !(event.requestId && workflowApprovals.has(event.threadId, event.requestId)) && proactive.fence.answers(event, asker, pushMessage)) break;
       const unattended = permission && asker && event.requestId ? isUnattended(asker.id, event.threadId) : false;
       // No command the owner saved answers for a guest-driven turn.
       const guestDriven = cloudGuestDriven(event.threadId) || botApiThread(event.threadId);
@@ -6509,7 +6518,7 @@ bus.subscribe((event: RuntimeEvent) => {
       const toolAllowKey = configuredMcp === undefined
         ? null
         : providerToolAllowKey(providerInstanceId, event.tool, configuredMcp);
-      const verdict = permission && asker && event.requestId
+      const verdict = permission && asker && event.requestId && !workflowApprovals.has(event.threadId, event.requestId)
         ? heldAtSafetyFloor(event, autoVerdict(effectiveApprovalMode, event.tool, {
           requiresExplicitApproval: event.requiresExplicitApproval,
           commandAllowed: Boolean(command && commandAllowlist.matches(asker.id, command)),
@@ -12067,7 +12076,24 @@ const cloudMoveRoutes = createCloudMoveRoutes();
 ROUTES.push(inboxBotTextRoutes({ desktop: DESKTOP_MANAGED, bots: () => store.bots, held: id => Boolean(botHolds.held(id)), jobs: sideJobs }));
 ROUTES.push(createHostedSlackRoutes({ bot: (id) => store.bot(id), hostedReady: () => Boolean(workspaceAccess) && entitled("admin") })); ROUTES.push(createStopLineRoutes());
 
-const skillBurgerRuns = createSkillBurgerRuns({ dataDir: DATA_DIR, host: { available: () => !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership(), assignedSkills: (botId) => store.bot(botId)?.assignedSkills, port: PORT, cwd: (botId, threadId) => store.taskByThread(botId, threadId)?.cwd || store.bot(botId)?.cwd || workspaceDir(botId), mint: (turn, kind) => mintInternalCapability({ ...(turn as unknown as InternalCapability), kind, depth: 0, skillAuthoring: false, createdBots: 0, openedThreads: 0 }), browser: async (turn) => { const bot = store.bot(turn.botId); return bot ? ((await browserIntegration(bot.id, bot.browserProfile, { threadId: turn.threadId, generation: turn.generation }))?.integration as { env?: Record<string, string | undefined> } | undefined) ?? null : null; }, publish: (threadId, event) => { const engine = runningTurnEngines.get(threadId); bus.publish({ ...event, provider: engine?.driverKind, providerInstanceId: engine?.instanceId } as unknown as RuntimeEvent); }, mayEditEveryChat: () => !CLOUD_TEAM } });
+function workflowGuard(turn: CallingTurn): WorkflowGuard {
+  const active = () => internalCapabilityIsActive(turn as InternalCapability) && !cloudGuestDriven(turn.threadId) && !outsideDrivenThread(turn.threadId) && !botApiThread(turn.threadId);
+  return {
+    allowed(action, name) {
+      if (!active() || action === "file") return false;
+      try {
+        const scope = toolScopeForTurn(turn.botId);
+        if (action === "shell") return !narrowsNativeTools(scope);
+        if (action === "vm" || action === "delegate" || action === "edit") return allowsTool(scope, { kind: "mcp", server: "agents", name: action === "vm" ? "vm_exec" : action === "edit" ? "workflow_edit" : "coordinate_bots" });
+        if (action === "browser") return allowsTool(scope, { kind: "mcp", server: "browser", name: "browser_navigate" });
+        return Boolean(name && allowsTool(scope, { kind: "mcp", server: "composio", name }) && allowsTool(scope, { kind: "mcp", server: "composio", name: "COMPOSIO_MULTI_EXECUTE_TOOL" }));
+      } catch { return false; }
+    },
+    approve: (action, summary, signal) => workflowApprovals.ask({ threadId: turn.threadId, tool: `Workflow: ${action}`, summary, signal, active }),
+  };
+}
+
+const skillBurgerRuns = createSkillBurgerRuns({ dataDir: DATA_DIR, host: { available: () => !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership(), guard: workflowGuard, assignedSkills: (botId) => store.bot(botId)?.assignedSkills, port: PORT, cwd: (botId, threadId) => store.taskByThread(botId, threadId)?.cwd || store.bot(botId)?.cwd || workspaceDir(botId), mint: (turn, kind) => mintInternalCapability({ ...(turn as unknown as InternalCapability), kind, depth: 0, skillAuthoring: false, createdBots: 0, openedThreads: 0 }), browser: async (turn) => { const bot = store.bot(turn.botId); return bot ? ((await browserIntegration(bot.id, bot.browserProfile, { threadId: turn.threadId, generation: turn.generation }))?.integration as { env?: Record<string, string | undefined> } | undefined) ?? null : null; }, publish: (threadId, event) => { const engine = runningTurnEngines.get(threadId); bus.publish({ ...event, provider: engine?.driverKind, providerInstanceId: engine?.instanceId } as unknown as RuntimeEvent); }, mayEditEveryChat: () => !CLOUD_TEAM } });
 ROUTES.push(createStandaloneSkillBurgerRoutes(store, (auth, id) => visibleTo(viewerFor(auth)).thread(id), () => !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership(), {
   history: skillBurgerRuns.history,
   teammate: (idOrName) => {

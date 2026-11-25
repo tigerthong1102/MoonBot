@@ -9,6 +9,7 @@ import type { WorkflowStep } from "../../shared/skill-burger/format.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
 import { applyEdit, editSchema, editUndo, undoScope } from "./edit.ts";
 import { createExecutors, type ExecutorContext } from "./executors.ts";
+import { authorizeWorkflowAction, guardedExecutors, type WorkflowGuard } from "./guarded-executors.ts";
 import { createRunHistory } from "./history.ts";
 import { createRunStates } from "./run-state.ts";
 import { resumeRun, startRun, type RunDeps, type RunEnvelope, type StepExecutors, type StepResult } from "./runner.ts";
@@ -36,6 +37,7 @@ export interface BurgerTurn extends Pick<ExecutorContext, "internal"> {
   cwd: string;
   signal?: AbortSignal;
   assignedSkills?: readonly string[];
+  guard?: WorkflowGuard;
   publish(event: StepEvent): void;
   /** A burger used in every chat belongs to the whole place: whether this turn may change one. */
   mayEditEveryChat: boolean;
@@ -80,10 +82,11 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   const history = createRunHistory(join(deps.dataDir, "skill-burger-runs"));
   const open = new Map<string, Set<string>>();
   const runDeps = (turn: BurgerTurn): RunDeps => ({
-    exec: deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, cwd: turn.cwd, internal: turn.internal }),
+    exec: turn.guard ? guardedExecutors(deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, cwd: turn.cwd, internal: turn.internal }), turn.guard) : deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, cwd: turn.cwd, internal: turn.internal }),
     events: stepEvents(turn, open),
     save: (state) => states.save(state),
     signal: turn.signal,
+    fileViaBot: Boolean(turn.guard),
   });
   const finished = (turn: BurgerTurn, name: string | undefined, envelope: RunEnvelope) => {
     if (envelope.status !== "needs_input") open.delete(envelope.run);
@@ -94,6 +97,9 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   const internalRoutes = (turn: BurgerTurn): RouteHandler => async ({ req, res, path, method, json, readBody }) => {
     if (method !== "POST" || ![RUN_PATH, RESUME_PATH, EDIT_PATH, UNDO_PATH].includes(path)) return PASS;
     const body = await readBody(req);
+    if ((path === EDIT_PATH || path === UNDO_PATH) && turn.guard && !await authorizeWorkflowAction(turn.guard, "edit", "workflow_edit", body, turn.signal ?? new AbortController().signal)) {
+      return json(res, 403, { error: "Permission denied, unavailable, or expired; the workflow was not changed." });
+    }
     if (path === RUN_PATH) {
       const parsed = runBody.safeParse(body);
       if (!parsed.success) return json(res, 400, { error: "run_workflow needs the Skill Burger's name." });
@@ -141,7 +147,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   /** The routes for one agents tool call: `authorization` is the bearer it came with. */
   const routesFor = (calling: CallingTurn, authorization: string | undefined, signal?: AbortSignal): RouteHandler => (ctx) => {
     if (ctx.method !== "POST" || ![RUN_PATH, RESUME_PATH, EDIT_PATH, UNDO_PATH].includes(ctx.path) || !deps.host) return Promise.resolve(PASS);
-    if (!deps.host.available()) return Promise.resolve(ctx.json(ctx.res, 404, { error: "No such route." }));
+    if (!deps.host.available() || !deps.host.guard) return Promise.resolve(ctx.json(ctx.res, 404, { error: "No such route." }));
     return internalRoutes(burgerTurn(deps.host, calling, authorization, signal))(ctx);
   };
 

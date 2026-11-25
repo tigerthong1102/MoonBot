@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 
 import { workflowSchema } from "../../shared/skill-burger/format.ts";
 import { RUN_STEP_MARK } from "../../shared/skill-burger/layers.ts";
@@ -12,6 +12,8 @@ import { json, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { dispatchRoutes, type RouteContext } from "../routes/table.ts";
 import { createSkillBurgerRuns, type BurgerTurn, type StepEvent } from "./runs.ts";
+import { createWorkflowApprovals } from "./approval.ts";
+import type { WorkflowGuard } from "./guarded-executors.ts";
 import type { StepExecutors } from "./runner.ts";
 import { saveWorkflowSkill } from "./store.ts";
 
@@ -20,7 +22,7 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise((done) => server.close(done))));
 });
 
-async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"] } = {}) {
+async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]; guard?: WorkflowGuard } = {}) {
   const root = mkdtempSync(join(tmpdir(), "burger-runs-"));
   const bot = `run-burger-${Math.random().toString(36).slice(2, 10)}`;
   const events: StepEvent[] = [];
@@ -41,7 +43,7 @@ async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]
       shell: async () => ({ ok: true, output: "" }), browser: async () => ({ ok: true, output: "" }), file: async () => ({ ok: true, output: "" }),
     }),
   });
-  const turnFor = (botId: string): BurgerTurn => ({ botId, threadId: "t1", cwd: root, mayEditEveryChat: false, signal: options.signal, internal: async () => ({ ok: false, body: {} }), publish: (event) => events.push(event) });
+  const turnFor = (botId: string): BurgerTurn => ({ botId, threadId: "t1", cwd: root, mayEditEveryChat: false, signal: options.signal, guard: options.guard, internal: async () => ({ ok: false, body: {} }), publish: (event) => events.push(event) });
   let as = bot;
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -92,6 +94,29 @@ it("aborts an in-flight workflow action when the owning turn is revoked", async 
   finish();
   await request;
   expect(aborted).toBe(true);
+});
+
+it("waits for the conversation's approval before running a saved app step", async () => {
+  let opened!: (id: string) => void;
+  const card = new Promise<string>((resolve) => { opened = resolve; });
+  const approvals = createWorkflowApprovals((_thread, event) => { if (event.type === "request.opened") opened(event.requestId); });
+  const app = vi.fn(async () => ({ ok: true as const, output: { rows: [[1]] } }));
+  const guard: WorkflowGuard = { allowed: () => true, approve: (action, summary, signal) => approvals.ask({ threadId: "t1", tool: action, summary, signal, active: () => true }) };
+  const h = await serve({ guard, app });
+  const running = h.post("/api/internal/skill-burgers/run", { name: "email-the-sheet" });
+  const id = await card;
+  expect(app).not.toHaveBeenCalled();
+  expect(approvals.answer("other-thread", id, "allow")).toBe("unavailable");
+  expect(approvals.answer("t1", id, "allow")).toBe("allowed-once");
+  expect(await running).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step" } });
+  expect(app).toHaveBeenCalledTimes(1);
+});
+
+it("does not change a saved workflow when editing is refused", async () => {
+  const h = await serve({ guard: { allowed: () => false, approve: async () => true } });
+  const changed = await h.post("/api/internal/skill-burgers/edit", { name: "email-the-sheet", action: "set_when", step: "s3", when: { $step: "s1", op: "exists" } });
+  expect(changed).toHaveProperty("error");
+  expect(changed).not.toHaveProperty("undo");
 });
 
 it("refuses internal workflow calls when the host has disabled the feature", async () => {

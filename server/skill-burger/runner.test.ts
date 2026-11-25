@@ -73,6 +73,19 @@ describe("running a Skill Burger", () => {
     expect(h.saved).toHaveLength(0);
   });
 
+  it("hands file writes to the bot's normal tools when a run requires guarded actions", async () => {
+    const h = harness();
+    h.deps.fileViaBot = true;
+    const result = await h.start(wf([{ id: "s1", kind: "file", label: "Write notes", path: "notes/a.txt", content: "fixture data" }]));
+    expect(result).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step", step: "s1" } });
+    expect(result.requiresInput?.prompt).toContain("normal file-writing tool");
+    expect(result.requiresInput?.input).toContain("fixture data");
+    expect(h.calls).toEqual([]);
+    const escape = await h.start(wf([{ id: "s1", kind: "file", label: "Escape", path: "../outside.txt", content: "data" }]));
+    expect(escape).toMatchObject({ ok: false, error: { type: "step_failed" } });
+    expect(h.calls).toEqual([]);
+  });
+
   it("stops a step past its time limit, and a step whose output is too large", async () => {
     vi.useFakeTimers();
     try {

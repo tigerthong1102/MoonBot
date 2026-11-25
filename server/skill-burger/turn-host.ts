@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { harnessMcpTokenEnv } from "../harness-mcp-token.ts";
 import type { BurgerTurn, StepEvent } from "./runs.ts";
+import type { WorkflowGuard } from "./guarded-executors.ts";
 
 /** The calling turn, as the agents capability names it. */
 export interface CallingTurn { botId: string; threadId: string; generation: string; [field: string]: unknown }
@@ -13,6 +14,7 @@ export interface BurgerHostDeps {
   port: number;
   cwd(botId: string, threadId: string): string;
   assignedSkills?(botId: string): readonly string[] | undefined;
+  guard?(turn: CallingTurn): WorkflowGuard;
   /** A bearer of `kind` for the same turn. */
   mint(turn: CallingTurn, kind: "connectors" | "computer"): string;
   /** The bot's browser for this turn, as the turn's browser tools would get it; null while it has none. */
@@ -41,6 +43,7 @@ export function burgerTurn(host: BurgerHostDeps, turn: CallingTurn, authorizatio
     signal,
     cwd: host.cwd(turn.botId, turn.threadId),
     assignedSkills: host.assignedSkills?.(turn.botId),
+    guard: host.guard?.(turn),
     mayEditEveryChat: host.mayEditEveryChat(),
     publish: (event: StepEvent) => host.publish(turn.threadId, { eventId: randomUUID(), createdAt: new Date().toISOString(), threadId: turn.threadId, itemType: "tool", ...event }),
     async internal(kind, path, body, signal) {

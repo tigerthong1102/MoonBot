@@ -23,12 +23,13 @@ it.each(["none", "unlock", "sync"] as const)("stages without starting the bot; c
   const pending = new Map<string, Set<string>>([[source.threadId, new Set([message.id])]]);
   const locks = new Map<string, { sourceThreadId: string; messageId: string; cleanupFailed?: boolean }>();
   const startTurn = vi.fn(async () => {});
+  const drainSnapshots: Array<{ pending: boolean; locked: boolean }> = [];
   const originalPatch = store.patchMessage.bind(store);
   const patch = vi.spyOn(store, "patchMessage").mockImplementation((threadId, messageId, value, command) => failure === "sync" && value.workBotRouting?.state === "held_for_review" ? null : originalPatch(threadId, messageId, value, command));
   const host = createWorkBotHost({
     store, pendingWorkBotIds: pending, workBotTargetLocks: locks,
     indexWorkBotRouting: (threadId, messageId, state) => updateWorkBotRoutingIndex(pending, threadId, messageId, state),
-    drainQueuedSends: () => {}, targetUnlocked: () => { if (failure === "unlock") throw new Error("fixture unlock failure"); }, assertAvailable: () => {}, offerWorkBot: () => undefined,
+    drainQueuedSends: () => { drainSnapshots.push({ pending: pending.has(source.threadId), locked: locks.has(target.threadId) }); }, targetUnlocked: () => { if (failure === "unlock") throw new Error("fixture unlock failure"); }, assertAvailable: () => {}, offerWorkBot: () => undefined,
     teamPersonFor: () => undefined, sessionFor: () => undefined, cloudTeam: false, sharedNonTeam: () => false,
     teamHost: { audienceOf: () => "team" }, conversationShares: { isShareKey: () => false },
     threadStarters: { get: () => undefined, setRequired: () => {} }, threadBusy: () => false, approvalMode: () => "full",
@@ -36,6 +37,7 @@ it.each(["none", "unlock", "sync"] as const)("stages without starting the bot; c
   });
   const destination = { botId: target.id, threadId: target.threadId };
   expect(await host.workBotRouter.choose(source.threadId, message.id, "fixture-choice", destination)).toBe(failure === "none" ? "accepted" : "interrupted");
+  expect(drainSnapshots).toEqual([{ pending: failure !== "none", locked: failure !== "none" }]);
   expect(startTurn).not.toHaveBeenCalled();
   expect(store.messagesFor(source.threadId).find(row => row.id === message.id)?.workBotRouting?.state).toBe(failure === "sync" ? "dispatching" : "held_for_review");
   if (failure !== "sync") {

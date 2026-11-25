@@ -7,6 +7,7 @@ import { onCase, workflowSchema, type Workflow } from "../../shared/skill-burger
 import { createRunStates } from "./run-state.ts";
 import { argEnv, resolve, resumeRun, runArgs, startRun, type ExecResult, type RunDeps, type RunState, type StepExecutors } from "./runner.ts";
 import { createExecutors } from "./executors.ts";
+import { runText } from "../drivers/agents-workflow-tool.ts";
 
 const app = (id: string, tool: string, args: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ id, kind: "app" as const, app: tool.split("_")[0]!.toLowerCase(), tool, label: tool, args, ...extra });
 const wf = (steps: unknown[], args: Workflow["args"] = {}): Workflow => {
@@ -29,7 +30,7 @@ function harness(handlers: Partial<StepExecutors> = {}) {
   const deps: RunDeps = {
     exec,
     events: { started: (_run, _name, step) => events.push(`start ${step.id}`), ended: (_run, _name, step, result) => events.push(`${result.state} ${step.id}`) },
-    save: (state) => saved.push(structuredClone(state)),
+    save: (state) => { saved.push(structuredClone(state)); },
   };
   const start = (workflow: Workflow, args?: Record<string, unknown>) => startRun({ name: "test-burger", botId: "bot-1", threadId: "t1", sha256: "x", workflow, ...(args ? { args } : {}) }, deps);
   return { calls, events, saved, deps, start };
@@ -69,6 +70,15 @@ describe("running a Skill Burger", () => {
     expect(result).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step", step: "s1" } });
     expect(result.requiresInput?.input).toContain("example.test");
     expect(h.calls).toHaveLength(0);
+  });
+
+  it("identifies the chosen case after a handed decision", async () => {
+    const h = harness();
+    const workflow = wf([{ id: "d1", kind: "decide", label: "Pick", cases: ["support", "sales"], prompt: "Choose" }]);
+    await h.start(workflow);
+    const result = await resumeRun(h.saved.at(-1)!, "support", h.deps);
+    expect(result).toMatchObject({ requiresInput: { type: "missing_case", step: "d1" }, steps: [{ id: "d1", case: "support" }] });
+    expect(runText(JSON.parse(JSON.stringify(result)))).toContain('Workflow case: {"step":"d1","case":"support"}');
   });
 
   it.each(["vm", "yourComputer"])("opens a %s desktop browser in its original environment", async (where) => {

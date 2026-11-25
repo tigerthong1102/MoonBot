@@ -69,7 +69,7 @@ export const WORKFLOW_TOOL_DEFINITIONS = [
       properties: {
         name: { type: "string", maxLength: 64 },
         args: { type: "object", description: "By arg name; omitted ones keep their saved defaults." },
-        resume: { type: "string", maxLength: 64, description: "A paused run's token." },
+        resume: { type: "string", maxLength: 100, description: "A paused run's token." },
         response: { type: "string", maxLength: 20_000, description: "With resume: your output, the case you chose, or a note of what you did." },
       },
     },

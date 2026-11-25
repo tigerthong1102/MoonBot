@@ -38,6 +38,7 @@ export interface RunState {
   botId: string;
   threadId: string;
   sha256: string;
+  pauseToken?: string;
   workflow: Workflow;
   args: Record<string, unknown>;
   results: Record<string, StepResult>;
@@ -96,7 +97,7 @@ export interface RunDeps {
   authorizationExec?: StepExecutors;
   actionExec?: StepExecutors;
   events: StepEvents;
-  save(state: RunState): void;
+  save(state: RunState, preserve?: boolean): string | void;
   now?: () => number;
   signal?: AbortSignal;
   fileViaBot?: boolean;
@@ -220,13 +221,13 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     if (type !== "teammates" && type !== "review") results[step.id] = { ...(type === "check" ? results[step.id] : {}), state: "handed", ...(missing ? { case: missing.case, output: { case: missing.case } } : {}) };
     if (type !== "missing_case") deps.events.started(id, name, step);
     const { delegation: _old, ...rest } = state as typeof state & { delegation?: unknown };
-    deps.save({ ...rest, results, waiting: { step: step.id, type }, ...(extra.delegation ? { delegation: extra.delegation } : {}), createdAt: now() });
+    const token = deps.save({ ...rest, results, waiting: { step: step.id, type }, ...(extra.delegation ? { delegation: extra.delegation } : {}), createdAt: now() }) || id;
     const input = step.kind === "ai" || step.kind === "decide" ? step.input : undefined;
     const value = extra.input ?? (input ? resolve(input, args, results) : undefined);
     return envelope({
       status: "needs_input",
       requiresInput: {
-        type, step: step.id, label: step.label, prompt: fillPrompt(extra.prompt ?? handedPrompt(step, type, missing), args), resumeToken: id,
+        type, step: step.id, label: step.label, prompt: fillPrompt(type === "teammates" ? (extra.prompt ?? "").replace(JSON.stringify(id), JSON.stringify(token)) : extra.prompt ?? handedPrompt(step, type, missing), args), resumeToken: token,
         ...(value !== undefined ? { input: clip(redactSecretsInText(asText(value)), HANDED_INPUT_MAX) } : {}),
         ...(step.kind === "ai" && step.example ? { example: step.example } : {}),
         ...(step.kind === "decide" && type === "decide" ? { cases: step.cases } : {}),
@@ -236,8 +237,8 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
   /** A failed step stops the run, and the run can go on from it once the bot has fixed the cause. Nothing is retried by itself. */
   const fail = (step: WorkflowStep, type: NonNullable<RunEnvelope["error"]>["type"], message: string, detail?: StepDetail, resumable = true): RunEnvelope => {
     end(step, { state: "failed", error: message, ...(detail ? { detail } : {}) });
-    if (resumable) deps.save({ ...state, results, waiting: { step: step.id, type: "failed" }, createdAt: now() });
-    return envelope({ ok: false, error: { type, message: type === "timeout" ? message : `"${step.label}" failed: ${message}`, step: step.id, ...(resumable ? { resumeToken: id } : {}) } });
+    const token = resumable ? deps.save({ ...state, results, waiting: { step: step.id, type: "failed" }, createdAt: now() }) || id : undefined;
+    return envelope({ ok: false, error: { type, message: type === "timeout" ? message : `"${step.label}" failed: ${message}`, step: step.id, ...(token ? { resumeToken: token } : {}) } });
   };
 
   const startDelegation = async (step: Extract<WorkflowStep, { kind: "delegate" }>, chosen: DelegationState["who"]): Promise<RunEnvelope> => {
@@ -381,8 +382,9 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
   if (!step) return refused(state, "This run's saved steps changed; start it again.");
   const goOn = (from: number) => runFrom({ ...state, results, from }, deps);
   const ask = (type: HandedType, prompt: string, extra: Partial<RunState> = {}, input?: string): RunEnvelope => {
-    deps.save({ ...state, results, ...extra, waiting: { step: step.id, type }, createdAt: Date.now() });
-    return { protocolVersion: 1, ok: true, status: "needs_input", run: state.id, steps: [], requiresInput: { type, step: step.id, label: step.label, prompt, resumeToken: state.id, ...(input ? { input: clip(redactSecretsInText(input), HANDED_INPUT_MAX) } : {}) } };
+    const token = deps.save({ ...state, results, ...extra, waiting: { step: step.id, type }, createdAt: Date.now() }) || state.id;
+    const chosen = results[step.id]?.case;
+    return { protocolVersion: 1, ok: true, status: "needs_input", run: state.id, steps: chosen ? [{ id: step.id, label: step.label, state: results[step.id]!.state, case: chosen }] : [], requiresInput: { type, step: step.id, label: step.label, prompt: type === "teammates" ? prompt.replace(JSON.stringify(state.id), JSON.stringify(token)) : prompt, resumeToken: token, ...(input ? { input: clip(redactSecretsInText(input), HANDED_INPUT_MAX) } : {}) } };
   };
   const afterChecked = () => {
     const chosen = results[step.id]?.case;
@@ -469,8 +471,8 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
       const error = sent.unsafeToRetry ? `Some teammates may already have received work. Check their assignments before trying again: ${clip(redactSecretsInText(sent.error), ERROR_MAX)}` : clip(redactSecretsInText(sent.error), ERROR_MAX);
       results[step.id] = { state: "failed", error };
       deps.events.ended(state.id, state.name, step, results[step.id]!);
-      if (!sent.unsafeToRetry) deps.save({ ...state, results, delegation: { ...delegation, pendingRedo: redo }, waiting: { step: step.id, type: "failed" }, createdAt: Date.now() });
-      return { protocolVersion: 1, ok: false, run: state.id, steps: [], error: { type: "step_failed", message: `"${step.label}" couldn't send the work back: ${error}`, step: step.id, ...(!sent.unsafeToRetry ? { resumeToken: state.id } : {}) } };
+      const token = !sent.unsafeToRetry ? deps.save({ ...state, results, delegation: { ...delegation, pendingRedo: redo }, waiting: { step: step.id, type: "failed" }, createdAt: Date.now() }) || state.id : undefined;
+      return { protocolVersion: 1, ok: false, run: state.id, steps: [], error: { type: "step_failed", message: `"${step.label}" couldn't send the work back: ${error}`, step: step.id, ...(token ? { resumeToken: token } : {}) } };
     }
     const { pendingRedo: _pendingRedo, ...prior } = delegation;
     const next = { ...prior, round: delegation.round + 1, requests: sent.requests };
@@ -481,7 +483,7 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
   if (waiting.type === "decide" && step.kind === "decide") {
     const chosen = step.cases.find((one) => one.toLowerCase() === response.trim().replace(/^["']|["']$/g, "").toLowerCase());
     if (!chosen) {
-      deps.save(state);
+      deps.save(state, true);
       return refused(state, `Answer with one of: ${step.cases.map((one) => JSON.stringify(one)).join(", ")}.`, step.id);
     }
     return finishResult({ state: "done", case: chosen, output: { case: chosen } });

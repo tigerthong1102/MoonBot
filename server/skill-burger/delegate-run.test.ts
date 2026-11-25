@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
 import { runText } from "../drivers/agents-workflow-tool.ts";
 import { readReview } from "./delegate-step.ts";
+import { createRunStates } from "./run-state.ts";
 import { resumeRun, startRun, type RunDeps, type RunEnvelope, type RunState, type StepExecutors } from "./runner.ts";
 
 const wf = (steps: unknown[], args: Workflow["args"] = {}): Workflow => {
@@ -46,12 +50,21 @@ function team(roster: Array<{ id: string; name: string; title?: string }> = [{ i
 function harness(exec: StepExecutors) {
   const saved: RunState[] = [];
   const events: string[] = [];
-  const deps: RunDeps = { exec, save: (state) => saved.push(structuredClone(state)), events: { started: (_r, _n, step) => events.push(`start ${step.id}`), ended: (_r, _n, step, result) => events.push(`${result.state} ${step.id}`) } };
+  const deps: RunDeps = { exec, save: (state) => { saved.push(structuredClone(state)); }, events: { started: (_r, _n, step) => events.push(`start ${step.id}`), ended: (_r, _n, step, result) => events.push(`${result.state} ${step.id}`) } };
   const last = () => saved[saved.length - 1]!;
   return { deps, saved, events, last, resume: (response: string) => resumeRun(last(), response, deps) };
 }
 
 describe("a saved delegation", () => {
+  it("places the current single-use token in the teammate handoff prompt", async () => {
+    const t = team();
+    const h = harness(t.exec);
+    const states = createRunStates(mkdtempSync(join(tmpdir(), "workflow-token-")));
+    h.deps.save = (state) => states.save(state);
+    const result = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: qa() }, h.deps);
+    expect(result.requiresInput?.resumeToken).not.toBe(result.run);
+    expect(result.requiresInput?.prompt).toContain(JSON.stringify(result.requiresInput!.resumeToken));
+  });
   it.each(["failed", "cancelled"])("stops before the next step when a teammate is %s", async (outcome) => {
     const t = team();
     const h = harness(t.exec);

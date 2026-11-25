@@ -2,13 +2,14 @@
 // file is moved aside before the run goes on, so two resumes of one pause never both run its side effects), only by the
 // bot that started it, and only within a day.
 import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 import { writeFileAtomic } from "../atomic.ts";
 import type { RunState } from "./runner.ts";
 
 export const RUN_STATE_TTL_MS = 24 * 60 * 60_000;
-const ID = /^[0-9a-f-]{36}$/;
+const ID = /^[0-9a-f-]{36}(?:\.[0-9a-f-]{36})?$/;
 
 export function createRunStates(dir: string, now: () => number = Date.now) {
   const file = (id: string) => join(dir, `${id}.json`);
@@ -22,10 +23,12 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
     }
   };
   return {
-    save(state: RunState): void {
+    save(state: RunState, preserve = false): string {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
-      writeFileAtomic(file(state.id), JSON.stringify(state), { mode: 0o600 });
+      const token = preserve && state.pauseToken ? state.pauseToken : `${state.id}.${randomUUID()}`;
+      writeFileAtomic(file(token), JSON.stringify({ ...state, pauseToken: token }), { mode: 0o600 });
       sweep();
+      return token;
     },
     /** The newest run in `threadId` paused on the teammates' replies to `handoffs`, if any: the turn those replies resume
      * is pointed back into it. A run waiting on other hand-offs, or abandoned, is never named. */

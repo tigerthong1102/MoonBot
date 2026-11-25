@@ -24,12 +24,12 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise((done) => server.close(done))));
 });
 
-async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]; guard?: WorkflowGuard; mayEditBot?: () => boolean } = {}) {
+async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]; guard?: WorkflowGuard; mayEditBot?: () => boolean; workflow?: unknown } = {}) {
   const root = mkdtempSync(join(tmpdir(), "burger-runs-"));
   const bot = `run-burger-${Math.random().toString(36).slice(2, 10)}`;
   const events: StepEvent[] = [];
   const calls: string[] = [];
-  const workflow = workflowSchema.parse({
+  const workflow = workflowSchema.parse(options.workflow ?? {
     version: 1, summary: "Email the sheet", args: { to: { default: "a@example.com" } },
     steps: [
       { id: "s1", kind: "app", app: "googlesheets", tool: "GOOGLESHEETS_BATCH_GET", label: "Read the sheet", args: {} },
@@ -58,6 +58,24 @@ async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]
   return { post, events, calls, bot, actAs: (id: string) => { as = id; } };
 }
 
+it("rejects duplicate resumes without consuming the next pause", async () => {
+  const h = await serve({ workflow: { version: 1, summary: "Email the sheet", args: {}, steps: [
+    { id: "s1", kind: "ai", deterministic: false, label: "First", prompt: "First" },
+    { id: "s2", kind: "ai", deterministic: false, label: "Second", prompt: "Second" },
+    { id: "s3", kind: "app", app: "gmail", tool: "GMAIL_SEND_EMAIL", label: "Send", args: {} },
+  ] } });
+  const paused = await h.post("/api/internal/skill-burgers/run", { name: "email-the-sheet" });
+  const token = paused.requiresInput.resumeToken;
+  const replies = await Promise.all([h.post("/api/internal/skill-burgers/resume", { run: token, response: "first" }), h.post("/api/internal/skill-burgers/resume", { run: token, response: "first" })]);
+  const next = replies.find((reply) => reply.status === "needs_input");
+  expect(next?.requiresInput.step).toBe("s2");
+  expect(next?.requiresInput.resumeToken).not.toBe(token);
+  expect(replies.filter((reply) => reply.error)).toHaveLength(1);
+  expect(h.calls).toHaveLength(0);
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: next!.requiresInput.resumeToken, response: "second" })).toMatchObject({ status: "ok" });
+  expect(h.calls).toHaveLength(1);
+});
+
 it("runs a bot's Skill Burger, hands its AI step back, and goes on once the bot resumes it", async () => {
   const h = await serve();
   const paused = await h.post("/api/internal/skill-burgers/run", { name: "email-the-sheet", args: { to: "priya@example.com" } });
@@ -69,13 +87,13 @@ it("runs a bot's Skill Burger, hands its AI step back, and goes on once the bot 
   expect(JSON.parse(h.events[0]!.input!)).toEqual({ [RUN_STEP_MARK]: paused.run, name: "email-the-sheet", step: "s1" });
 
   h.actAs("another-bot");
-  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "x" })).toHaveProperty("error");
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.requiresInput.resumeToken, response: "x" })).toHaveProperty("error");
   h.actAs(h.bot);
-  const done = await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "One row." });
+  const done = await h.post("/api/internal/skill-burgers/resume", { run: paused.requiresInput.resumeToken, response: "One row." });
   expect(done).toMatchObject({ ok: true, status: "ok" });
   expect(h.calls.at(-1)).toBe('GMAIL_SEND_EMAIL {"to":"priya@example.com","body":"One row."}');
   expect(h.events.filter((event) => event.type === "item.started").map((event) => event.title)).toEqual(["Read the sheet", "Write the body", "Send email"]);
-  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "again" })).toHaveProperty("error");
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.requiresInput.resumeToken, response: "again" })).toHaveProperty("error");
 });
 
 it("does not resume a workflow while that skill is disabled", async () => {
@@ -83,10 +101,10 @@ it("does not resume a workflow while that skill is disabled", async () => {
   const paused = await h.post("/api/internal/skill-burgers/run", { name: "email-the-sheet" });
   expect(paused.status).toBe("needs_input");
   setSkillEnabled(h.bot, "email-the-sheet", false);
-  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "fixture" })).toHaveProperty("error");
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.requiresInput.resumeToken, response: "fixture" })).toHaveProperty("error");
   expect(h.calls).toHaveLength(1);
   setSkillEnabled(h.bot, "email-the-sheet", true);
-  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "fixture" })).toMatchObject({ status: "ok" });
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.requiresInput.resumeToken, response: "fixture" })).toMatchObject({ status: "ok" });
 });
 
 it("aborts an in-flight workflow action when the owning turn is revoked", async () => {

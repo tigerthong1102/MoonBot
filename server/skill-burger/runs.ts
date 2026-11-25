@@ -43,7 +43,7 @@ export interface BurgerTurn extends Pick<ExecutorContext, "internal"> {
 }
 
 const runBody = z.object({ name: z.string().min(1).max(64), args: z.record(z.string(), z.unknown()).optional() }).strict();
-const resumeBody = z.object({ run: z.string().min(1).max(64), response: z.string().max(20_000) }).strict();
+const resumeBody = z.object({ run: z.string().min(1).max(100), response: z.string().max(20_000) }).strict();
 const undoBody = z.object({ undo: z.string().min(1).max(64) }).strict();
 
 const DETAIL_MAX = 6_000;
@@ -87,7 +87,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     exec: turn.guard ? guardedExecutors(exec, turn.guard) : exec,
     ...(turn.guard ? { authorizationExec: guardedExecutors(noop, turn.guard), actionExec: checkedExecutors(exec, turn.guard) } : {}),
     events: stepEvents(turn, open),
-    save: (state) => states.save(state),
+    save: (state, preserve) => states.save(state, preserve),
     signal: turn.signal,
     fileViaBot: Boolean(turn.guard),
     };
@@ -119,7 +119,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
       if (!state) return json(res, 404, { error: "That run can't be resumed: it finished, was resumed already, or is more than a day old." });
       const current = findWorkflowSkill(turn.botId, state.name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
       if (!current || current.sha256 !== state.sha256) {
-        states.save(state);
+        states.save(state, true);
         return json(res, 409, { error: "This workflow is unavailable or changed since it paused; review it before starting again." });
       }
       return json(res, 200, finished(turn, state.name, await resumeRun(state, parsed.data.response, runDeps(turn))));
@@ -165,7 +165,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   /** For a turn the teammates' replies resume: the line that sends it back into the run it paused for them. */
   const waitingNote = (threadId: string, handoffs: readonly string[]): string | null => {
     const waiting = states.waitingIn(threadId, handoffs);
-    return waiting ? `These replies are for the Skill Burger "${waiting.name}": first call run_workflow with resume ${JSON.stringify(waiting.id)} and response "back", then do what it says.` : null;
+    return waiting ? `These replies are for the Skill Burger "${waiting.name}": first call run_workflow with resume ${JSON.stringify(waiting.pauseToken ?? waiting.id)} and response "back", then do what it says.` : null;
   };
 
   return { internalRoutes, routesFor, history, waitingNote };

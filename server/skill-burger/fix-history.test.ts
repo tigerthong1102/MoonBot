@@ -99,8 +99,9 @@ describe("a turn resumed by teammates' replies", () => {
       id: "0d5c3a52-9a2e-4b55-8f1e-1d4c6f7a8b9c", name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: wf([{ id: "s1", kind: "shell", label: "x", run: "true" }]), args: {}, results: {},
       waiting: { step: "s1", type: "teammates" }, delegation: { step: "s1", round: 1, who: {}, replies: {}, requests: [{ part: "Kiwi", botId: "kiwi", name: "Kiwi", requestId: "h-1" }] }, createdAt: Date.now(),
     } as RunState;
-    states.save(state);
+    const token = states.save(state);
     expect(states.waitingIn("t1", ["h-1", "h-9"])?.id).toBe(state.id);
+    expect(states.waitingIn("t1", ["h-1"])?.pauseToken).toBe(token);
     // Replies to other hand-offs in the same chat are not this run's.
     expect(states.waitingIn("t1", ["h-9"])).toBeNull();
     expect(states.waitingIn("t2", ["h-1"])).toBeNull();

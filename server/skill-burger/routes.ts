@@ -85,7 +85,8 @@ export function fixLayers(messages: readonly RunMessage[], run: string, step: st
   let input: { resume?: unknown; args?: { resume?: unknown } } | null;
   try { input = JSON.parse(after[resumed]?.tool?.input ?? "{}"); } catch { return []; }
   if (!input || typeof input !== "object" || Array.isArray(input)) return [];
-  if ((input.resume ?? input.args?.resume) !== run) return [];
+  const token = input.resume ?? input.args?.resume;
+  if (typeof token !== "string" || (token !== run && !token.startsWith(`${run}.`))) return [];
   return burgerLayers(after.slice(0, resumed)).filter((layer) => layer.status === "done");
 }
 

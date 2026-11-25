@@ -16,7 +16,7 @@ import { WORKSPACE_BACKUP_CLIENT_KEYS } from "../shared/workspace-backup-client.
 import { INSTRUCTION_FILE, restorePaths, validRelative } from "./workspace-backup-paths.ts";
 import { cjkSearchText } from "./cjk-search.ts";
 import { ephemeralWorkspaceTokenPath, excludedWorkspaceAuthPath, liveDataEnginePath, managedTaskSkillLink, portableWorkspaceConfig, redownloadedOrgLibraryPath, restoredWorkspaceConfig } from "./workspace-backup-policy.ts";
-import { omittedAsTeamPrivate, routinesWithoutTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
+import { omittedAsTeamPrivate, routinesWithoutTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, teamAppEventLedger, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
 import { flushLaterSaves } from "./save-batch.ts";
 import type { WorkspaceBackupClientState, WorkspaceBackupPrivateMetadata, WorkspaceBackupSummary, WorkspaceLeftBehind } from "../shared/workspace-backup.ts";
 
@@ -339,15 +339,11 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
     }
     const teamPrivate = teamPrivateThreads({ starters: join(root, "thread-starters.json"), groups: join(root, "groups.json"), bots: join(root, "bots.json") });
     const privacy = teamPrivate && { ...teamPrivate, attachments: teamPrivateAttachments(root, join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), teamPrivate) };
-    const assertNoTeamHeldEvents = () => {
-      if (!privacy) return;
-      const main = join(root, "app-triggers.json");
-      if (existsSync(join(root, "app-triggers.json.held"))) throw new Error("Team backup cannot safely include held app events. Review and resolve them before exporting.");
-      if (!existsSync(main)) return;
-      const appEvents = privateJson(main);
-      if (!record(appEvents) || ("heldEvents" in appEvents && (!Array.isArray(appEvents.heldEvents) || appEvents.heldEvents.length))) throw new Error("Team backup cannot safely include held app events. Review and resolve them before exporting.");
+    const readTeamAppEvents = () => {
+      const read = (name: string) => { const path = join(root, name); return entryExists(path) ? privateJson(path) : undefined; };
+      return teamAppEventLedger(read("app-triggers.json"), read("app-triggers.json.held"));
     };
-    assertNoTeamHeldEvents();
+    if (privacy) readTeamAppEvents();
     if (privacy) {
       stripTeamPrivate({ messages: join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), runtime: join(snapshot, SNAPSHOT_DATABASES["runtime.db"]!) }, privacy);
       warnings.push(TEAM_PRIVATE_NOTE);
@@ -356,7 +352,8 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       for (const name of readdirSync(directory).sort()) {
         if (!prefix && excluded(name)) continue;
         const path = prefix ? `${prefix}/${name}` : name;
-        if (privacy && path === "app-triggers.json.held") throw new Error("Team backup cannot safely include held app events. Review and resolve them before exporting.");
+        if (privacy && ["app-triggers.json", "app-triggers.json.held"].includes(path.toLowerCase()) && path !== path.toLowerCase()) throw new Error("Noncanonical Team app event ledger filename.");
+        if (privacy && path === "app-triggers.json.held") continue;
         if (excludedWorkspaceAuthPath(path) || ephemeralWorkspaceTokenPath(path) || redownloadedOrgLibraryPath(path) || liveDataEnginePath(path)) continue;
         if (privacy && omittedAsTeamPrivate(path, privacy)) continue;
         // Reject noncanonical spellings: a case-sensitive host must not export auth paths active on Windows/Mac.
@@ -408,9 +405,10 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
           walk(source, path, [...chain, source]);
         } else if (stat.isFile()) {
           let copied: { size: number; mode: number; sha256: string };
-          if (path === "config.json" || path === "webhooks.json" || (privacy && (path === "bots.json" || path === "routines.json"))) {
-            const value = privateJson(source);
-            if (path === "config.json") writeJson(destination, portableWorkspaceConfig(value));
+          if (path === "config.json" || path === "webhooks.json" || (privacy && (path === "bots.json" || path === "routines.json" || path === "app-triggers.json"))) {
+            const value = path === "app-triggers.json" ? readTeamAppEvents() : privateJson(source);
+            if (path === "app-triggers.json") writeJson(destination, value);
+            else if (path === "config.json") writeJson(destination, portableWorkspaceConfig(value));
             else if (path === "bots.json") writeJson(destination, withoutTeamPrivate(value, privacy!));
             else if (path === "routines.json") writeJson(destination, routinesWithoutTeamPrivate(value, privateJson(join(root, "bots.json")), privacy!));
             else {
@@ -428,7 +426,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       }
     };
     walk(root);
-    assertNoTeamHeldEvents();
+    if (privacy) readTeamAppEvents();
     if (skippedLinks) warnings.push(`${skippedLinks} managed skill discovery link(s) were omitted and are recreated by the app.`);
     if (skippedDependencies) warnings.push(`${skippedDependencies} installed dependency folder(s) (node_modules) were omitted; reinstall them in the project after restoring.`);
     if (copiedLinks) warnings.push(`${copiedLinks} symbolic link(s) inside a workspace were saved as copies of what they point to; restoring creates regular files and folders there.`);

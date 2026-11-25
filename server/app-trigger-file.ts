@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { APP_FILTER_MAX, type AppTrigger } from "../shared/app-triggers.ts";
 import { brokerEventSchema, type BrokerEvent } from "./app-trigger-broker.ts";
@@ -76,8 +75,8 @@ export function publicTrigger(stored: StoredTrigger): AppTrigger {
   return structuredClone(trigger);
 }
 
-export function readHeldEvents(file: string, heldEvents: Map<string, HeldEvent>): { upgrade: boolean } {
-  const stored = heldStoreSchema.parse(JSON.parse(readFileSync(file, "utf8")));
+export function parseHeldEvents(value: unknown, heldEvents: Map<string, HeldEvent>): { upgrade: boolean } {
+  const stored = heldStoreSchema.parse(value);
   if (new Set(stored.events.map(row => row.id)).size !== stored.events.length) throw new Error("Duplicate held event IDs");
   for (const row of stored.events) {
     if (row.event && row.event.id !== row.id) throw new Error("Mismatched held event ID");

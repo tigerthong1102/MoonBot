@@ -19,7 +19,7 @@ import {
 } from "../shared/app-triggers.ts";
 import { AppTriggerError, cleanFilter, resolveAccount, triggerConfig, waitForAppEvents, type AppTriggerInput, type AppTriggerPatch, type ConnectedApps } from "./app-trigger-config.ts";
 import { reconcileTrigger, replaceTrigger, stageTriggerUpdate, syncReplacementBinding } from "./app-trigger-mutation.ts";
-import { countQueueLimit, eventDigest, fileSchema, noteDrops, publicTrigger, readHeldEvents, type HeldEvent, type StoredTrigger } from "./app-trigger-file.ts";
+import { countQueueLimit, eventDigest, fileSchema, noteDrops, publicTrigger, parseHeldEvents, type HeldEvent, type StoredTrigger } from "./app-trigger-file.ts";
 export { AppTriggerError, type AppTriggerInput, type AppTriggerPatch } from "./app-trigger-config.ts";
 import { appLabel } from "./app-event-catalog.ts";
 import { eventBlock, eventPreview, eventPrompt, matchesFilter, mergeEventBlock } from "./app-events.ts";
@@ -146,7 +146,7 @@ export class AppTriggerManager {
       }
     }
     try {
-      upgradeHeldStore = readHeldEvents(this.heldFile, this.heldEvents).upgrade;
+      upgradeHeldStore = parseHeldEvents(JSON.parse(readFileSync(this.heldFile, "utf8")), this.heldEvents).upgrade;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
     }

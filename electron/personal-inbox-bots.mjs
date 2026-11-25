@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { app, Menu } from "electron";
 import { jsonFile } from "./desktop-prefs.mjs";
 import { startupBotDataDir } from "./startupbot-identity.mjs";
+import { inboxBotLabel } from "./inbox-bot-label.mjs";
 
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -97,7 +98,7 @@ export function personalInboxBots(window, page, origin) {
     }
     Menu.buildFromTemplate(
       choices.map((bot) => ({
-        label: bot.name,
+        label: inboxBotLabel(bot),
         click: () => {
           void pick(bot).catch(() => report("inbox-bots-error"));
         },

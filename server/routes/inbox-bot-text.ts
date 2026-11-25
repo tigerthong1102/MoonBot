@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { SideJobs } from "../side-jobs.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 import { redactSecretsInText } from "../../shared/redact.ts";
+import { botUsername } from "../../shared/bot-username.ts";
 
 interface InboxBot {
   id: string;
@@ -36,7 +37,7 @@ export function inboxBotTextRoutes(deps: Deps): RouteHandler {
       return void json(res, 200, {
         bots: bots
           .filter((b) => deps.jobs.text("inbox-discussion", b.id))
-          .map((b) => ({ id: b.id, name: b.name })),
+          .map((b) => ({ id: b.id, name: b.name, username: botUsername(b.id) })),
       });
     if (method !== "POST")
       return void json(res, 405, { error: "method_not_allowed" });

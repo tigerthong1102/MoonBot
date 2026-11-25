@@ -16,7 +16,7 @@ export function assertWorkBotRoutineSafe(store: Store, language: (threadId: stri
   });
   related.push(...links(request.threadId, request.botId).map(link => (link.sourceBotId === request.botId || (link.targetBotId !== request.botId && link.sourceThreadId === request.threadId)) ? { botId: link.targetBotId, threadId: link.targetThreadId } : { botId: link.sourceBotId, threadId: link.sourceThreadId }));
   const relatedEntry = (entry: { botId: string; sourceThreadId?: string }) => entry.botId !== request.botId && related.some(link => entry.botId === link.botId || entry.sourceThreadId === link.threadId);
-  if (related.some(link => !link.botId) || routines.some(routine => routine.enabled && relatedEntry(routine)) || runs.some(run => relatedEntry(run) && ["queued", "running", "waiting"].includes(run.status))) {
+  if (related.some(link => !link.botId) || routines.some(routine => (routine.enabled || routine.heldFor !== undefined) && relatedEntry(routine)) || runs.some(run => relatedEntry(run) && ["queued", "running", "waiting"].includes(run.status))) {
     throw Object.assign(new Error(serverLine(language(request.threadId), "server.workBot.scheduleConflict")), { status: 409, code: "work_bot_schedule_conflict" });
   }
 }

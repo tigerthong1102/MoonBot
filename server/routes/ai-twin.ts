@@ -1,7 +1,10 @@
 import type { IncomingMessage } from "node:http";
 import { z } from "zod";
-import { AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, AI_TWIN_QUESTION_MAX, type AiTwinView } from "../../shared/ai-twin.ts";
-import { createTwinInput, twinVersionInput, updateTwinInput, TwinConflict, type createAiTwinStore } from "../ai-twin.ts";
+import { AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH, AI_TWIN_QUESTION_MAX, type AiTwinView } from "../../shared/ai-twin.ts";
+import {
+  createTwinInput, deleteTwinLessonInput, lookupTwinLessonInput, saveTwinLessonInput,
+  twinVersionInput, updateTwinInput, TwinConflict, TwinLessonConflict, type createAiTwinStore,
+} from "../ai-twin.ts";
 import { TwinPreviewError, type createAiTwinPreview } from "../ai-twin-preview.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -20,7 +23,9 @@ export function createAiTwinRoutes(deps: {
 }): RouteHandler {
   return async ({ req, res, path, method, auth, json, readBody }) => {
     const preview = path === AI_TWIN_PREVIEW_PATH;
-    if (path !== AI_TWIN_PATH && !preview) return PASS;
+    const teaching = path === AI_TWIN_LESSONS_PATH;
+    const lookup = path === AI_TWIN_LOOKUP_PATH;
+    if (path !== AI_TWIN_PATH && !preview && !teaching && !lookup) return PASS;
     res.setHeader("cache-control", "private, no-store");
     const authorized = () => deps.enabled && auth.kind === "loopback" && auth.trust !== "service" && !auth.companionDevice && deps.owner(req);
     if (!authorized()) return json(res, 404, { error: "not_found" });
@@ -31,10 +36,10 @@ export function createAiTwinRoutes(deps: {
     }
 
     try {
-      if (method === "GET" && !preview) return replyProfile(200, deps.store.get());
-      const allowed = preview ? method === "POST" : method === "POST" || method === "PATCH" || method === "DELETE";
-      if (!allowed) {
-        res.setHeader("allow", preview ? "POST" : "GET, POST, PATCH, DELETE");
+      if (method === "GET" && path === AI_TWIN_PATH) return replyProfile(200, deps.store.get());
+      const allowed = preview || lookup ? ["POST"] : teaching ? ["POST", "DELETE"] : ["GET", "POST", "PATCH", "DELETE"];
+      if (!allowed.includes(method)) {
+        res.setHeader("allow", allowed.join(", "));
         return json(res, 405, { error: "method_not_allowed" });
       }
       if (!/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) {
@@ -43,6 +48,18 @@ export function createAiTwinRoutes(deps: {
       const body = await readBody(req, 8_192);
       if (!authorized()) return json(res, 404, { error: "not_found" });
       if (deps.blocked()) return json(res, 409, { error: "twin_workspace_busy" });
+      if (teaching) {
+        const next = method === "POST" ? saveTwinLessonInput.safeParse(body) : deleteTwinLessonInput.safeParse(body);
+        if (!next.success) return json(res, 400, { error: "invalid_twin" });
+        const view = "saveAsLesson" in next.data ? deps.store.saveLesson(next.data) : deps.store.forgetLesson(next.data);
+        deps.preview.cancel();
+        return replyProfile(200, view);
+      }
+      if (lookup) {
+        const input = lookupTwinLessonInput.safeParse(body);
+        if (!input.success) return json(res, 400, { error: "invalid_twin" });
+        return json(res, 200, { lesson: deps.store.lookupLesson(input.data) });
+      }
       if (preview) {
         const input = previewInput.safeParse(body);
         if (!input.success) return json(res, 400, { error: "invalid_twin" });
@@ -89,6 +106,7 @@ export function createAiTwinRoutes(deps: {
       return replyProfile(200, deleted);
     } catch (error) {
       if (error instanceof TwinConflict) return json(res, 409, { error: "twin_changed" });
+      if (error instanceof TwinLessonConflict) return json(res, error.code === "twin_lesson_empty" ? 400 : 409, { error: error.code });
       const status = (error as { status?: unknown })?.status;
       if (status === 400 || status === 413) return json(res, status, { error: "invalid_twin" });
       return json(res, 503, { error: "twin_store_unavailable" });

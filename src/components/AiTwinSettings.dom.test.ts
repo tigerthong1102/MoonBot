@@ -132,3 +132,20 @@ it("exposes a keyboard-button disclosure linked to the preview panel", async () 
   await act(async () => toggle.click());
   expect(panel?.hidden).toBe(true);
 });
+
+it("links the private lessons disclosure to its hidden panel", async () => {
+  apiMock.mockResolvedValueOnce({ creationEpoch: "initial", twin: {
+    id: "twin", name: "Example AI", style: "", revision: 1, paused: false, createdAt: 1, updatedAt: 1,
+  } });
+  const profile = await mount();
+  const toggle = button(profile, "Private lessons");
+  const panel = document.getElementById(toggle.getAttribute("aria-controls")!);
+  expect(toggle.getAttribute("aria-expanded")).toBe("false");
+  expect(panel?.hidden).toBe(true);
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  expect(panel?.hidden).toBe(false);
+  expect(button(panel!, "Teach a lesson")).toBeDefined();
+  await act(async () => toggle.click());
+  expect(panel?.hidden).toBe(true);
+});

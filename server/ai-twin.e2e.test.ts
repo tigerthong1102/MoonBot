@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
-import { AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, type AiTwinView } from "../shared/ai-twin.ts";
+import { AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH, AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, type AiTwinView } from "../shared/ai-twin.ts";
 import { AI_TWIN_PRIVATE_DIR, createAiTwinStore } from "./ai-twin.ts";
 import { createWorkspaceBackupSnapshot, stagedWorkspaceData, stageWorkspaceBackup } from "./workspace-backup.ts";
 
@@ -155,5 +155,47 @@ it("only makes a consented, tool-free text preview through the selected provider
     }
   } finally {
     rmSync(scratch, { recursive: true, force: true });
+  }
+}, 90_000);
+
+it("stores only explicitly approved owner lessons and looks them up offline with source metadata", async () => {
+  const { fixture, url, owner, call } = await launchTwin(true);
+  try {
+    const { creationEpoch } = (await (await call()).json()) as AiTwinView;
+    const made = await call("POST", { name: "Thông AI", creationId: randomUUID(), creationEpoch, createConsent: true });
+    const twin = ((await made.json()) as AiTwinView).twin!;
+    const withVersion = { id: twin.id, revision: twin.revision };
+    const question = "Số dư -10 nghĩa là gì?";
+    const answer = "Hồ sơ giả lập đang thiếu 10.";
+    const request = (path: string, method: string, data: object, headers: Record<string, string> = owner) =>
+      fetch(url + path, { method, headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(data) });
+    const teach = { ...withVersion, question, answer, saveAsLesson: true };
+    expect((await request(AI_TWIN_LESSONS_PATH, "POST", { ...teach, saveAsLesson: false })).status).toBe(400);
+    expect((await request(AI_TWIN_LESSONS_PATH, "POST", { ...teach, source: "model" })).status).toBe(400);
+    expect((await request(AI_TWIN_LESSONS_PATH, "POST", teach, {})).status).toBeGreaterThanOrEqual(400);
+
+    const saved = await request(AI_TWIN_LESSONS_PATH, "POST", teach);
+    expect(saved.status).toBe(200);
+    const next = await saved.json() as AiTwinView;
+    const learned = next.lessons![0]!;
+    const version = { id: twin.id, revision: next.twin!.revision };
+    expect(learned).toMatchObject({ question, answer, source: "owner", id: expect.any(String) });
+    expect((await request(AI_TWIN_LESSONS_PATH, "POST", { ...teach, ...version, question: "SỐ DƯ -10 NGHĨA LÀ GÌ" })).status).toBe(409);
+    const lookup = { ...version, question: question.toUpperCase() };
+    const recalled = await request(AI_TWIN_LOOKUP_PATH, "POST", lookup);
+    expect(recalled.headers.get("cache-control")).toBe("private, no-store");
+    expect(await recalled.json()).toEqual({ lesson: learned });
+    expect(await (await request(AI_TWIN_LOOKUP_PATH, "POST", { ...lookup, question: "Số dư 10 nghĩa là gì?" })).json()).toEqual({ lesson: null });
+    expect((await request(AI_TWIN_LOOKUP_PATH, "POST", lookup, {})).status).toBeGreaterThanOrEqual(400);
+
+    const removed = await request(AI_TWIN_LESSONS_PATH, "DELETE", { ...version, lessonId: learned.id });
+    expect(removed.status).toBe(200);
+    const replaced = (await removed.json()) as AiTwinView;
+    expect(replaced.lessons).toEqual([]);
+    expect((await request(AI_TWIN_LOOKUP_PATH, "POST", lookup)).status).toBe(409);
+    expect(await (await request(AI_TWIN_LOOKUP_PATH, "POST", { ...lookup, revision: replaced.twin!.revision })).json()).toEqual({ lesson: null });
+    expect(readFileSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR, "profile.json"), "utf8")).not.toContain(answer);
+  } finally {
+    await fixture.close();
   }
 }, 90_000);

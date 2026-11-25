@@ -164,13 +164,14 @@ describe("AppTriggerManager", () => {
     expect(heldEvents()).toHaveLength(1);
     const sidecar = join(dir, "app-triggers.json.held");
     const held = JSON.parse(readFileSync(sidecar, "utf8"));
-    expect(held.version).toBe(2);
-    writeFileSync(sidecar, JSON.stringify({ ...held, version: 1 }));
+    expect(held.version).toBe(3);
+    const legacy = { ...held, version: 2, events: held.events.map(({ heldTriggerIds: _removed, ...row }: Record<string, unknown>) => row) };
+    writeFileSync(sidecar, JSON.stringify(legacy));
     writeFileSync(main, beforeCheckpoint);
     routines.close();
     routines = new RoutineManager({ file: join(dir, "routines.json"), botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
     triggers = manager({ linkedBots: links });
-    expect(JSON.parse(readFileSync(sidecar, "utf8"))).toEqual(held);
+    expect(JSON.parse(readFileSync(sidecar, "utf8"))).toEqual({ ...legacy, version: 3 });
     triggers.receive([event], 1);
     expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
   });
@@ -210,6 +211,122 @@ describe("AppTriggerManager", () => {
     expect(triggers.list().filter(trigger => trigger.problem?.kind === "error")).toHaveLength(7);
     triggers.receive([event], 1);
     expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("republishes every held warning after a notification failure without restart", async () => {
+    let failing = false;
+    const notified: string[] = [];
+    const triggers = manager({ linkedBots: () => true, emit: frame => {
+      if (frame.kind !== "app-trigger") return;
+      if (failing) { failing = false; throw new Error("fixture emit failure"); }
+      notified.push(frame.botId);
+    } });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    notified.length = 0;
+    const event = { seq: 1, id: "fixture-notify-retry", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    failing = true;
+    expect(() => triggers.receive([event], 1)).toThrow();
+    triggers.receive([event], 1);
+    expect(new Set(notified)).toEqual(new Set(["bot-1", "bot-2"]));
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("republishes a held warning after the original automation is rebound", async () => {
+    let failing = false;
+    const notified: string[] = [];
+    const triggers = manager({ linkedBots: () => true, emit: frame => {
+      if (frame.kind !== "app-trigger") return;
+      if (failing) { failing = false; throw new Error("fixture emit failure"); }
+      notified.push(frame.botId);
+    } });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-notify-rebind", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    failing = true;
+    expect(() => triggers.receive([event], 1)).toThrow();
+    const changed = await triggers.update(first.id, { filter: { from: "new.example", subject: "order" } });
+    expect(changed?.remote.triggerId).not.toBe(first.remote.triggerId);
+    notified.length = 0;
+    triggers.receive([event], 1);
+    expect(notified).toContain("bot-1");
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("keeps an earlier held warning after a later unrelated delivery", async () => {
+    let unavailable = true;
+    const triggers = manager({ linkedBots: () => { if (unavailable) throw new Error("fixture lookup failure"); return false; } });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Other", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-earlier-held", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    triggers.receive([event], 1);
+    expect(triggers.get(first.id)?.problem?.kind).toBe("error");
+    unavailable = false;
+    triggers.receive([{ ...event, seq: 2, id: "fixture-later" }], 2);
+    expect(triggers.get(first.id)?.problem?.kind).toBe("error");
+    triggers.receive([{ ...event, seq: 3, id: "fixture-disconnected", kind: "trigger_disabled" as const, event: { data: {} } }], 3);
+    expect(triggers.get(first.id)?.problem?.kind).toBe("reconnect");
+    triggers.receive([{ ...event, seq: 4, id: "fixture-after-reconnect" }], 4);
+    expect(triggers.get(first.id)?.problem?.kind).toBe("error");
+  });
+
+  it("preserves reconnect status while a conflicting event is held and after restart", async () => {
+    let triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-disabled", kind: "trigger_disabled" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: {} } };
+    triggers.receive([event], 1);
+    expect(triggers.get(first.id)?.problem?.kind).toBe("reconnect");
+    triggers.receive([{ ...event, seq: 2, id: "fixture-held-after-disabled", kind: "message" as const, event: { data: { subject: "Order fixture", sender: "person@acme.com" } } }], 2);
+    expect(triggers.get(first.id)?.problem?.kind).toBe("reconnect");
+    triggers = manager({ linkedBots: () => true });
+    expect(triggers.get(first.id)?.problem?.kind).toBe("reconnect");
+    expect(heldEvents()).toHaveLength(1);
+    await triggers.reconcile();
+    expect(triggers.get(first.id)?.problem?.kind).toBe("error");
+    expect(heldEvents()).toHaveLength(1);
+  });
+
+  it("rejects a held store with the same recipient allowed and held", async () => {
+    let triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-invalid-recipients", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    triggers.receive([event], 1);
+    const sidecar = join(dir, "app-triggers.json.held"), saved = JSON.parse(readFileSync(sidecar, "utf8"));
+    saved.events[0].allowedTriggerIds = [first.id];
+    writeFileSync(sidecar, JSON.stringify(saved));
+    triggers = manager({ linkedBots: () => true });
+    expect(() => triggers.receive([event], 1)).toThrow();
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("migrates a v1 held event without recipient metadata conservatively", async () => {
+    let triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-v1-held", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    triggers.receive([event], 1);
+    const sidecar = join(dir, "app-triggers.json.held");
+    writeFileSync(sidecar, JSON.stringify({ version: 1, events: [{ id: event.id, reason: "conflict", event }] }));
+    triggers = manager({ linkedBots: () => true });
+    expect(JSON.parse(readFileSync(sidecar, "utf8")).version).toBe(3);
+    expect(triggers.get(first.id)?.problem?.kind).toBe("error");
+    triggers.receive([event], 1);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("restores the warning to the original automation after it changes remote binding", async () => {
+    let triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const event = { seq: 1, id: "fixture-held-rebind", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    triggers.receive([event], 1);
+    const updated = await triggers.update(first.id, { filter: { from: "new.example", subject: "order" } });
+    expect(updated?.remote.triggerId).not.toBe(first.remote.triggerId);
+    triggers = manager({ linkedBots: () => true });
+    expect(triggers.get(first.id)?.problem?.kind).toBe("error");
+    expect(heldEvents()[0]?.event?.id).toBe(event.id);
   });
 
   it("replays an independent recipient after a failure between hold and enqueue", async () => {

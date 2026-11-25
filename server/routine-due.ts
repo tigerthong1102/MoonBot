@@ -1,6 +1,7 @@
 // When routines next need this machine: the desktop's keep-awake (`wakeHold`) and a Cloud home's sleep check
 // (server/cloud-power.ts). Pure over RoutineManager's routines and runs.
 import type { Routine, RoutineRun } from "./routines.ts";
+import { cloneRun } from "./routine-attachments.ts";
 import { runLimitAt } from "./routine-bounds.ts";
 
 type Due = Pick<Routine, "enabled" | "nextRunAt" | "checks" | "wakeAt" | "checkedAt">;
@@ -66,4 +67,10 @@ export function hasScheduledHandoffWork(
   const mayRun = (routine: Routine) => (routine.enabled || routine.heldFor !== undefined) && matches(routine);
   return routines.some(mayRun) || unloaded.some(mayRun) ||
     runs.some(run => (run.status === "queued" || run.status === "running" || run.status === "waiting") && matches(run));
+}
+
+export function activeRunFor(runs: readonly RoutineRun[], botId: string, target?: RoutineRun["target"]): RoutineRun | null {
+  const run = runs.find(candidate => candidate.botId === botId && (!target || candidate.target === target) &&
+    (candidate.status === "running" || candidate.status === "waiting"));
+  return run ? cloneRun(run) : null;
 }

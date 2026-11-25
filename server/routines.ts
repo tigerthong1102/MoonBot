@@ -6,7 +6,7 @@ import { DATA_DIR } from "./config.ts";
 import type { RuntimeEvent } from "./contracts.ts";
 import { OwnedFile } from "./atomic.ts"; import { saveSoon } from "./save-batch.ts"; import { RunProgressSave } from "./routine-progress-save.ts";
 import { redactSecretsInText } from "./redact.ts";
-import { hasScheduledHandoffWork, activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
+import { hasScheduledHandoffWork, activeRunFor, activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
@@ -84,6 +84,7 @@ export interface Routine extends RoutineTroubleCode {
   warning?: string;
   heldFor?: RoutineHoldCause;
   sourceThreadId?: string;
+  delegatedFromMessageId?: string;
   resultsThreadId?: string;
   installedPackage?: RoutinePackageStamp;
   nextRunAt: number | null;
@@ -456,19 +457,11 @@ export class RoutineManager {
   }
 
   activeRunForBot(botId: string): RoutineRun | null {
-    const run = this.runs.find(
-      (candidate) => candidate.botId === botId && ["running", "waiting"].includes(candidate.status),
-    );
-    return run ? cloneRun(run) : null;
+    return activeRunFor(this.runs, botId);
   }
 
   activeBotRunForBot(botId: string): RoutineRun | null {
-    const run = this.runs.find(
-      (candidate) => candidate.target === "bot" &&
-        candidate.botId === botId &&
-        ["running", "waiting"].includes(candidate.status),
-    );
-    return run ? cloneRun(run) : null;
+    return activeRunFor(this.runs, botId, "bot");
   }
 
   routineRequestReceipt(requestId: string): RoutineRequestReceipt | null {
@@ -543,7 +536,7 @@ export class RoutineManager {
     this.options.beforeHandoffRoutineCommit?.(request, [...this.routines, ...this.unloadedRoutines], this.runs);
   }
 
-  create(input: RoutineInput, request?: RoutineRequestCommitFor<"create">): Routine {
+  create(input: RoutineInput, request?: RoutineRequestCommitFor<"create"> & { delegatedFromMessageId?: string }): Routine {
     this.assertWritable();
     if (request) {
       const receipt = this.matchingRoutineRequestReceipt(request);
@@ -567,6 +560,7 @@ export class RoutineManager {
       ...clean,
       // Only a confirmed chat card supplies `request`: the calendar API cannot pick an arbitrary transcript.
       sourceThreadId: request?.threadId,
+      ...(request?.delegatedFromMessageId && request.botId !== clean.botId ? { delegatedFromMessageId: request.delegatedFromMessageId } : {}),
       nextRunAt,
       createdAt: at,
       updatedAt: at,

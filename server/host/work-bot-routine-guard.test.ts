@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { Routine, RoutineRequestCommit, RoutineRun } from "../routines.ts";
 import type { Message, Store } from "../store.ts";
-import { assertWorkBotRoutineSafe, shouldHoldWorkBotHandoff } from "./work-bot-routine-guard.ts";
+import { assertWorkBotRoutineSafe, inspectWorkBotRoutineConflict, shouldHoldWorkBotHandoff } from "./work-bot-routine-guard.ts";
 
 it("checks existing source schedules at commit without exposing their contents", () => {
   const root = { id: "root", role: "user", kind: "text", at: 1, workBotRecoveryPending: true, workBotHandoffSource: { threadId: "source-thread", messageId: "source-message", botId: "source-bot" } } as Message;
@@ -67,6 +67,19 @@ it("refuses scheduling while a linked bot may restore routines after a move", ()
   expect(() => check("source-thread", "target-bot", "target-bot")).not.toThrow();
   expect(() => check("target-thread", "source-bot", "target-bot")).toThrow("may overlap");
   expect(() => check("independent-thread", "other-bot", "source-bot")).not.toThrow();
+});
+
+it("reports and fingerprints a linked bot move in the conflict snapshot", () => {
+  let moving = false;
+  const link = { sourceBotId: "source-bot", sourceThreadId: "source-thread", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target-thread" };
+  const store = { messagesFor: () => [], activePath: () => [], botByThread: () => null, bot: (id: string) => id === "target-bot" && moving ? { movedTo: { state: "moving", team: { id: "fixture", name: "Fixture" }, at: 1 } } : { id } } as unknown as Store;
+  const request = { threadId: "source-thread", botId: "source-bot", messageId: "card" } as RoutineRequestCommit;
+  const before = inspectWorkBotRoutineConflict(store, request, [], [], () => [link]);
+  moving = true;
+  const after = inspectWorkBotRoutineConflict(store, request, [], [], () => [link]);
+  expect(before.conflict).toBe(false);
+  expect(after.conflict).toBe(true);
+  expect(after.fingerprint).not.toBe(before.fingerprint);
 });
 
 it.each([

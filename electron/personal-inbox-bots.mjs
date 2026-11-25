@@ -25,8 +25,14 @@ export function personalInboxBots(window, page, origin, localRequest, language =
       throw e;
     }
   }
+  function recoveryReason(records, workspaceId, bot, owner) {
+    if (bot.username) return null;
+    const legacy = records[bot.id];
+    if (legacy && !legacy.workspaceId && (legacy.owner !== owner || legacy.origin !== origin)) return "legacy";
+    return Object.values(records).some(record => record?.workspaceId === workspaceId && record.localBotId === bot.id && (record.owner !== owner || record.origin !== origin) && record.registrationState !== "fresh" && record.definitiveRejected !== true) ? "pending" : null;
+  }
   function assertNoOtherPending(records, workspaceId, bot, owner) {
-    if (!bot.username && Object.values(records).some(record => record?.workspaceId === workspaceId && record.localBotId === bot.id && (record.owner !== owner || record.origin !== origin) && record.registrationState !== "fresh" && record.definitiveRejected !== true)) throw Error("identity_pending_other_account");
+    if (recoveryReason(records, workspaceId, bot, owner)) throw Error("identity_pending_other_account");
   }
   function bindingKey(records, workspaceId, bot, owner) {
     const primary = JSON.stringify([workspaceId, bot.id]);
@@ -281,15 +287,38 @@ export function personalInboxBots(window, page, origin, localRequest, language =
       report("inbox-bots-changed");
       } finally { picksInFlight.delete(bot.id); }
     }
-    Menu.buildFromTemplate(
-      choices.map((bot) => ({
-        label: bot.username ? inboxBotLabel(bot) : canSignFallback(bot) || legacyFor(bot) ? `${bot.name} (ID: ${bot.id})` : `${bot.name} (…)`,
-        enabled: Boolean(bot.username) || canSignFallback(bot) || Boolean(legacyFor(bot) && canEncrypt),
-        click: () => {
-          void pick(bot).catch(() => report("inbox-bots-error"));
-        },
-      })),
-    ).popup({ window });
+    const items = await Promise.all(choices.map(async bot => {
+      let reason = recoveryReason(legacy, identity.workspaceId, bot, me.id);
+      if (bot.username && !legacyFor(bot)) {
+        const saved = legacy[bindingKey(legacy, identity.workspaceId, bot, me.id)];
+        if (!saved) reason = Object.values(legacy).some(record => record?.workspaceId === identity.workspaceId && record.localBotId === bot.id && (record.owner !== me.id || record.origin !== origin)) ? "legacy" : "unverified";
+        else if (saved.owner !== me.id || saved.origin !== origin) reason = "legacy";
+        else {
+          try {
+            const identities = createBotWorkspaceIdentities({ workspaceId: identity.workspaceId, namespace: identityNamespace(saved), publicDirectory: path.join(app.getPath("userData"), "bot-public-identities"), privateDirectory: path.join(app.getPath("userData"), "bot-private-identities"), encryption, current: scope => current() && scope.workspaceId === identity.workspaceId });
+            const stored = await identities.loadIdentity({ workspaceId: identity.workspaceId, localBotId: bot.id });
+            if (stored.kind !== "existing" || stored.username !== bot.username) reason = "unverified";
+          } catch { reason = "unverified"; }
+        }
+      }
+      if (!reason && !canEncrypt && (bot.username || legacyFor(bot))) reason = "storage";
+      const vi = /^vi(?:-|$)/i.test(language);
+      const guidance = reason === "legacy"
+        ? vi ? "Bot gắn với tài khoản hoặc dịch vụ khác; đăng nhập lại tài khoản và dịch vụ gốc" : "Bot is linked to another account or service; sign in to the original"
+        : reason === "unverified"
+          ? vi ? "Không xác minh được định danh; khôi phục khóa và dữ liệu bot" : "Identity could not be verified; restore the bot key and data"
+          : reason === "storage"
+            ? vi ? "Kho khóa hệ thống chưa sẵn sàng; mở khóa hoặc bật lại rồi thử lại" : "System key store unavailable; unlock or enable it and retry"
+          : vi ? "Chưa rõ kết quả trước; đăng nhập lại tài khoản và dịch vụ gốc" : "Previous result is unknown; sign in to the original account and service";
+      return {
+        label: reason ? `${bot.name} (${guidance})` : bot.username ? inboxBotLabel(bot) : canSignFallback(bot) || legacyFor(bot) ? `${bot.name} (ID: ${bot.id})` : `${bot.name} (…)`,
+        enabled: !reason && (Boolean(bot.username) || canSignFallback(bot) || Boolean(legacyFor(bot) && canEncrypt)),
+        click: () => { void pick(bot).catch(() => report("inbox-bots-error")); },
+      };
+    }));
+    const [finalIdentity, finalAccount, finalInventory] = await Promise.all([local(undefined, identityEndpoint), cloud("me"), local()]);
+    if (finalIdentity.workspaceId !== identity.workspaceId || finalAccount.id !== me.id || choices.some(bot => !finalInventory.bots.some(item => item.id === bot.id && item.username === bot.username))) throw Error("workspace_changed");
+    Menu.buildFromTemplate(items).popup({ window });
   }
   let busy = false;
   let preparing = false, nextPreparation = 0, preparationCursor = 0;

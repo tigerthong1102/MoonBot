@@ -34,7 +34,7 @@ it("shows a disabled choice when the operating system key store does not answer"
   expect(probe).toHaveBeenCalledTimes(1);
 });
 
-it.each([["rejected", "short"], ["response lost", "short"], ["challenge failed", "short"], ["rejected", "long"]])('keeps the original account binding after %s with %s scope', async (failure, size) => {
+it.each([["rejected", "short"], ["response lost", "short"], ["response lost", "vietnamese"], ["challenge failed", "short"], ["rejected", "long"]])('keeps the original account binding after %s with %s scope', async (failure, size) => {
   fixture.home = mkdtempSync(join(tmpdir(), "startupbot-account-retry-fixture-"));
   mkdirSync(join(fixture.home, ".startupbot")); fixture.menu = null;
   const workspaceId = size === "long" ? "w".repeat(512) : "33333333-3333-4333-8333-333333333333", origin = size === "long" ? `https://${Array(4).fill("a".repeat(50)).join(".")}.test` : "https://fixture.invalid", room = "11111111-1111-4111-8111-111111111111", nonce = "22222222-2222-4222-8222-222222222222";
@@ -55,7 +55,7 @@ it.each([["rejected", "short"], ["response lost", "short"], ["challenge failed",
     if (owner === "account-a") { rejected++; firstUsername = body.username; if (failure === "response lost") throw Error("fixture response lost"); return { ok: false, status: 403 }; }
     accepted++; return { ok: true, json: async () => ({ ok: true }) };
   } }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
-  const instance = personalInboxBots({ webContents: workspace }, page, origin, localFetch);
+  const instance = personalInboxBots({ webContents: workspace }, page, origin, localFetch, size === "vietnamese" ? "vi" : "en");
   instance.invite(room);
   await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
   expect(rejected).toBe(failure === "challenge failed" ? 0 : 1); expect(fixture.menu[0].enabled).toBe(false);
@@ -64,7 +64,9 @@ it.each([["rejected", "short"], ["response lost", "short"], ["challenge failed",
   await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
   const after = JSON.parse(readFileSync(file, "utf8"));
   if (failure === "response lost") {
-    expect(fixture.menu[0].enabled).toBe(false); expect(accepted).toBe(0); expect(anchored).toBeUndefined(); expect(after).toEqual(before);
+    expect(fixture.menu[0].enabled).toBe(false);
+    expect(fixture.menu[0].label).toContain(size === "vietnamese" ? "Chưa rõ kết quả trước; đăng nhập lại tài khoản và dịch vụ gốc" : "Previous result is unknown; sign in to the original account and service");
+    expect(accepted).toBe(0); expect(anchored).toBeUndefined(); expect(after).toEqual(before);
     return;
   }
   expect(fixture.menu[0].enabled).toBe(true);
@@ -287,6 +289,41 @@ it("registers same-name bots before selection without joining a room", async () 
   fixture.menu[0].click();
   await vi.waitFor(() => expect(sent).toBe(1));
   expect(anchored.get("fixture-bot").workspaceId).toBe(workspaceId);
+});
+
+it("explains an anchored identity belongs to another account or cannot be verified", async () => {
+  fixture.home = mkdtempSync(join(tmpdir(), "startupbot-anchored-owner-fixture-"));
+  mkdirSync(join(fixture.home, ".startupbot")); fixture.menu = null;
+  const workspaceId = "33333333-3333-4333-8333-333333333333", room = "11111111-1111-4111-8111-111111111111", nonce = "22222222-2222-4222-8222-222222222222";
+  let owner = "account-a", anchored, invites = 0;
+  const localFetch = async (endpoint, init) => {
+    if (endpoint.endsWith("bot-identity")) {
+      if (init?.method === "POST") { anchored = JSON.parse(init.body); return { ok: true, json: async () => ({ ok: true }) }; }
+      return { ok: true, json: async () => ({ workspaceId }) };
+    }
+    return { ok: true, json: async () => ({ bots: [{ id: "fixture-bot", name: "Fixture", ...(anchored ? { username: anchored.username } : {}) }] }) };
+  };
+  const workspace = { getURL: () => "http://127.0.0.1:4000", isDestroyed: () => false, executeJavaScript: code => runInNewContext(code, { location: { origin: "http://127.0.0.1:4000" }, fetch: localFetch }) };
+  const page = { isDestroyed: () => false, session: { fetch: async (url, init) => {
+    if (url.endsWith("/me")) return { ok: true, json: async () => ({ id: owner }) };
+    const body = JSON.parse(init.body);
+    if (body.action === "challenge") return { ok: true, json: async () => ({ nonce }) };
+    if (body.action === "invite") invites++;
+    return { ok: true, json: async () => ({ ok: true }) };
+  } }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
+  const instance = personalInboxBots({ webContents: workspace }, page, "https://fixture.invalid", localFetch, "vi");
+  const open = async () => { fixture.menu = null; instance.invite(room); await vi.waitFor(() => expect(fixture.menu).toHaveLength(1)); };
+  await open(); expect(fixture.menu[0].enabled).toBe(true); expect(fixture.menu[0].label).toContain(anchored.username);
+  const unavailable = vi.spyOn(safeStorage, "isAsyncEncryptionAvailable").mockResolvedValue(false);
+  await open(); expect(fixture.menu[0].enabled).toBe(false); expect(fixture.menu[0].label).toContain("Kho khóa hệ thống chưa sẵn sàng");
+  unavailable.mockRestore();
+  owner = "account-b"; await open();
+  expect(fixture.menu[0].enabled).toBe(false); expect(fixture.menu[0].label).toContain("Bot gắn với tài khoản hoặc dịch vụ khác"); expect(invites).toBe(0);
+  owner = "account-a"; await open(); expect(fixture.menu[0].enabled).toBe(true);
+  rmSync(join(fixture.home, "bot-public-identities"), { recursive: true, force: true });
+  await open(); expect(fixture.menu[0].enabled).toBe(false); expect(fixture.menu[0].label).toContain("Không xác minh được định danh"); expect(invites).toBe(0);
+  rmSync(join(fixture.home, ".startupbot", "personal-inbox-bots.json"));
+  await open(); expect(fixture.menu[0].enabled).toBe(false); expect(fixture.menu[0].label).toContain("Không xác minh được định danh"); expect(invites).toBe(0);
 });
 
 it("does not invite the same bot ID from a different workspace after the menu opens", async () => {
@@ -562,6 +599,7 @@ it("reconnects a legacy bot only after explicit confirmation and keeps its cloud
   instance.invite(room);
   await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
   expect(fixture.menu[0].enabled).toBe(false);
+  expect(fixture.menu[0].label).toContain("Bot is linked to another account or service; sign in to the original");
   expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(old);
   expect(autoRegistered).toBe(0);
   account = owner; fixture.menu = null; instance.invite(room);

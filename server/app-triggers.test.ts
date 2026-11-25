@@ -418,6 +418,20 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns()).toHaveLength(2);
   });
 
+  it("holds an event that matches different local filters for linked bots", async () => {
+    const slack = broker.account(owner.userId, "slack");
+    connected.slack = { connected: true, accounts: [{ id: slack, status: "ACTIVE" }] };
+    const triggers = manager({ linkedBots: () => true });
+    const create = (botId: string, text: string) => triggers.create({ botId, name: "Fixture", prompt: "Summarize matching updates", app: "slack", event: "SLACK_CHANNEL_MESSAGE_RECEIVED", filter: { text } });
+    const first = await create("source", "warehouse");
+    const second = await create("target", "sales");
+    expect(first.remote.triggerId).toBe(second.remote.triggerId);
+    await broker.deliver(first.remote.triggerId!, { text: "warehouse sales" }, "overlap-fixture");
+    await triggers.pollOnce(undefined, 0);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(heldEvents()).toMatchObject([{ id: "overlap-fixture", reason: "conflict" }]);
+  });
+
   it("persists a conflicted event while allowing the following unrelated event to run", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let triggers = manager({ linkedBots: links });

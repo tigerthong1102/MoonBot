@@ -27,7 +27,12 @@ import sys
 import re
 from typing import Dict, List, Tuple
 
-import httpx
+try:
+    import httpx
+except ModuleNotFoundError as error:
+    if error.name != "httpx":
+        raise
+    httpx = None
 
 # Configuration constants
 API_KEY = (
@@ -41,6 +46,21 @@ API_BASE = (
     or "https://ark.cn-beijing.volces.com/api/v3"
 ).rstrip("/")
 API_BASE = re.sub(r"/api/coding/(?:lite/|pro/)?v3$", "/api/v3", API_BASE)
+
+
+def _redact(value):
+    if isinstance(value, str):
+        return value.replace(API_KEY, "[redacted]") if API_KEY else value
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    if isinstance(value, dict):
+        return {_redact(key): _redact(item) for key, item in value.items()}
+    return value
+
+
+def _require_httpx():
+    if httpx is None:
+        raise RuntimeError("Missing httpx; install the skill's requirements in a task-local Python environment.")
 
 
 # Model names for each version
@@ -87,7 +107,7 @@ SUPPORTED_FIELDS = {
 VERSION_DESCRIPTIONS = {
     "4.0": "Seedream 4.0 - Stable and reliable for daily use, fast response (does not support tools and output_format)",
     "4.5": "Seedream 4.5 - Better detail performance, improved complex scene handling (does not support tools and output_format)",
-    "5.0": "Seedream 5.0 - The strongest version currently available! Breakthrough creative expression and ultra-high quality details! The only version that supports tools and output_format!",
+    "5.0": "Seedream 5.0 - Supports tools and output_format in this integration.",
 }
 
 def _get_headers() -> dict:
@@ -137,6 +157,7 @@ async def _call_image_api(item: dict, model_name: str, version: str, timeout: in
     url = f"{API_BASE}/images/generations"
     body = _build_request_body(item, model_name, version)
     
+    _require_httpx()
     async with httpx.AsyncClient(timeout=float(timeout)) as client:
         response = await client.post(url, headers=_get_headers(), json=body)
         response.raise_for_status()
@@ -170,7 +191,7 @@ async def handle_single_task(
                         {
                             "task_idx": idx,
                             "image_name": image_name,
-                            "error": image_data.get("error"),
+                            "error": _redact(image_data.get("error")),
                         }
                     )
                     continue
@@ -198,16 +219,16 @@ async def handle_single_task(
                         )
         else:
             # API returned error
-            error_info = response.get("error", {})
+            error_info = _redact(response.get("error", {}))
             error_list.append(f"task_{idx}")
             error_detail_list.append({"task_idx": idx, "error": error_info})
 
     except Exception as e:
         # Handle exception
         error_list.append(f"task_{idx}")
-        error_detail_list.append({"task_idx": idx, "error": str(e)})
+        error_detail_list.append({"task_idx": idx, "error": _redact(str(e))})
 
-    return success_list, error_list, error_detail_list
+    return _redact(success_list), _redact(error_list), _redact(error_detail_list)
 
 async def seedream_generate(
     tasks: List[dict],
@@ -266,7 +287,7 @@ async def seedream_generate(
     for res in results:
         if isinstance(res, Exception):
             error_list.append("unknown_task_exception")
-            error_detail_list.append({"error": str(res)})
+            error_detail_list.append({"error": _redact(str(res))})
             continue
         s, e, ed = res
         success_list.extend(s)
@@ -379,6 +400,10 @@ def main():
         list_versions()
         sys.exit(0)
 
+    if httpx is None:
+        print("Missing httpx; install the skill's requirements in a task-local Python environment.", file=sys.stderr)
+        sys.exit(2)
+
     # Check if prompt is provided
     if not args.prompt:
         print("  Error: Please provide --prompt parameter (image description)")
@@ -467,8 +492,6 @@ def main():
     if result["status"] == "success":
         print(f"\n {args.version} version generation successful!")
         print(f"  Generated {len(result['success_list'])} images")
-        if args.version == "5.0":
-            print(f"  Great choice! 5.0 is the strongest version currently, and it even supports tools and output_format!")
     else:
         print(f"\n😢 Generation failed")
         print(f"  Don't worry, let me help you check the error information: {result['error_list']}")

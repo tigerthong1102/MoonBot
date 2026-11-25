@@ -1,7 +1,9 @@
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { launchVerificationServer, type VerificationServer } from "../scripts/control-omb.ts";
+
+const catalogEntries: { name: string }[] = JSON.parse(readFileSync(new URL("../skills/catalog/index.json", import.meta.url), "utf8"));
 
 const SKILL_MD = [
   "---",
@@ -54,7 +56,8 @@ describe("skills library routes through an isolated HTTP fixture", () => {
     expect((await api("PATCH", "/api/config", { features: { skillsLibrary: true } })).status).toBe(200);
 
     const catalog = (await api("GET", "/api/skills-library")).body.skills;
-    expect(catalog).toHaveLength(61);
+    expect(catalog).toHaveLength(catalogEntries.length);
+    expect(catalog.map((skill: { name: string }) => skill.name).sort()).toEqual(catalogEntries.map(({ name }) => name).sort());
     expect(catalog.every((skill: { enabled: boolean }) => !skill.enabled)).toBe(true);
 
     const imported = await api("POST", "/api/skills-library", { text: SKILL_MD });

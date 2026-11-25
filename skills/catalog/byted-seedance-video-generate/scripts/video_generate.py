@@ -7,7 +7,12 @@ import sys
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-import httpx
+try:
+    import httpx
+except ModuleNotFoundError as error:
+    if error.name != "httpx":
+        raise
+    httpx = None
 
 API_KEY = (
     os.getenv("ARK_API_KEY")
@@ -22,6 +27,21 @@ API_BASE = (
 API_BASE = API_BASE.replace("/api/coding/v3", "/api/v3")
 
 DEFAULT_MODEL = "doubao-seedance-2-5-260628"
+
+
+def _redact(value):
+    if isinstance(value, str):
+        return value.replace(API_KEY, "[redacted]") if API_KEY else value
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    if isinstance(value, dict):
+        return {_redact(key): _redact(item) for key, item in value.items()}
+    return value
+
+
+def _require_httpx():
+    if httpx is None:
+        raise RuntimeError("Missing httpx; install the skill's requirements in a task-local Python environment.")
 
 
 @dataclass
@@ -172,6 +192,7 @@ async def _create_video_task(
     url = f"{API_BASE}/contents/generations/tasks"
     body = _build_request_body(prompt, config, model_name)
 
+    _require_httpx()
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(url, headers=_get_headers(), json=body)
         response.raise_for_status()
@@ -181,6 +202,7 @@ async def _create_video_task(
 async def _get_task_status(task_id: str) -> dict:
     url = f"{API_BASE}/contents/generations/tasks/{task_id}"
 
+    _require_httpx()
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.get(url, headers=_get_headers())
         response.raise_for_status()
@@ -220,24 +242,17 @@ async def _process_single_item(item: dict, model_name: str) -> VideoTaskResult:
             status="created",
             execution_expires_after=task_data.get("execution_expires_after"),
         )
-    except httpx.HTTPStatusError as e:
-        error_text = e.response.text if e.response else str(e)
-        error_detail = None
-        try:
-            error_detail = json.loads(error_text)
-        except Exception:
-            error_detail = {"raw_error": error_text}
+    except Exception as e:
+        if httpx is not None and isinstance(e, httpx.HTTPStatusError):
+            status_code = e.response.status_code
+            error_text = f"Video provider returned HTTP {status_code}"
+            error_detail = {"http_status": status_code}
+            return VideoTaskResult(video_name=video_name, error=error_text, error_detail=error_detail, status="failed")
+        error_text = _redact(str(e))
         return VideoTaskResult(
             video_name=video_name,
             error=error_text,
-            error_detail=error_detail,
-            status="failed",
-        )
-    except Exception as e:
-        return VideoTaskResult(
-            video_name=video_name,
-            error=str(e),
-            error_detail={"raw_error": str(e)},
+            error_detail={"raw_error": error_text},
             status="failed",
         )
 
@@ -253,7 +268,9 @@ async def _poll_task_status(
     for poll in range(max_polls + 1):
         try:
             result = await _get_task_status(task_id)
-        except (httpx.HTTPError, ValueError):
+        except Exception as error:
+            if not isinstance(error, ValueError) and not (httpx is not None and isinstance(error, httpx.HTTPError)):
+                raise
             return VideoTaskResult(
                 video_name=video_name,
                 task_id=task_id,
@@ -273,7 +290,7 @@ async def _poll_task_status(
             )
 
         if status == "failed":
-            error = result.get("error", {})
+            error = _redact(result.get("error", {}))
             return VideoTaskResult(
                 video_name=video_name,
                 task_id=task_id,
@@ -284,7 +301,7 @@ async def _poll_task_status(
             )
 
         if poll < max_polls:
-            print(f"Video {video_name} status: {status}, waiting...")
+            print(_redact(f"Video {video_name} status: {status}, waiting..."))
             await asyncio.sleep(poll_interval)
 
     return VideoTaskResult(
@@ -315,7 +332,7 @@ async def video_task_query(task_id: str) -> Dict:
     elif status == "failed":
         response["error"] = result.get("error")
 
-    return response
+    return _redact(response)
 
 
 async def video_generate(
@@ -362,7 +379,7 @@ async def video_generate(
         for result in poll_results:
             if result.status == "succeeded":
                 success_list.append({result.video_name: result.video_url})
-                print(f"Video {result.video_name} completed: {result.video_url}")
+                print(_redact(f"Video {result.video_name} completed: {result.video_url}"))
             elif result.status == "failed":
                 error_list.append(result.video_name)
                 error_details.append(
@@ -371,7 +388,7 @@ async def video_generate(
                         "error": result.error_detail,
                     }
                 )
-                print(f"Video {result.video_name} failed: {result.error}")
+                print(_redact(f"Video {result.video_name} failed: {result.error}"))
             elif result.status == "pending":
                 pending_list.append(
                     {
@@ -390,13 +407,13 @@ async def video_generate(
     else:
         status = "error"
 
-    return {
+    return _redact({
         "status": status,
         "success_list": success_list,
         "error_list": error_list,
         "error_details": error_details,
         "pending_list": pending_list,
-    }
+    })
 
 
 def main():
@@ -475,13 +492,21 @@ def main():
 
     args = parser.parse_args()
 
+    if httpx is None:
+        print("Missing httpx; install the skill's requirements in a task-local Python environment.", file=sys.stderr)
+        sys.exit(2)
+
     if not API_KEY:
         raise PermissionError(
             "ARK_API_KEY or MODEL_VIDEO_API_KEY or MODEL_AGENT_API_KEY not found in environment variables."
         )
 
     if args.query_task:
-        result = asyncio.run(video_task_query(args.query_task))
+        try:
+            result = asyncio.run(video_task_query(args.query_task))
+        except Exception as error:
+            print(f"Error querying task: {_redact(str(error))}", file=sys.stderr)
+            sys.exit(1)
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return
 

@@ -165,12 +165,12 @@
     "licenseSource": "https://github.com/anthropics/skills/blob/e4bb5d960d87126ff3b3a8af1a104b7db67560ba/skills/pptx/LICENSE.txt",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/apply_theme.js"
     ],
     "excludedFiles": [
       "scripts/__init__.py",
       "scripts/add_slide.py",
-      "scripts/apply_theme.js",
       "scripts/clean.py",
       "scripts/office/helpers/__init__.py",
       "scripts/office/helpers/pptx_chart.py",
@@ -222,12 +222,11 @@
       "scripts/office/validators/docx.py",
       "scripts/office/validators/pptx.py",
       "scripts/office/validators/redlining.py",
-      "scripts/slide_text.py",
       "scripts/thumbnail.py"
     ],
     "category": "office",
     "summaryVi": "Thiết kế và kiểm tra bài trình chiếu PowerPoint.",
-    "instructionsSha256": "fe5e12c18ff824da4ec41527e0a0035e4b6825c6dfeba0219b3e9543bb4106ef",
+    "instructionsSha256": "29405467d70f30b2ee3b2ad312bedbe16005061d2dac684eea2c80df0b95abcd",
     "summaryZh": "设计和测试 PowerPoint 演示文稿。",
     "summaryZhTw": "設計和測試 PowerPoint 簡報。"
   },
@@ -420,9 +419,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "references/skill-feedback.md"
-    ],
+    "excludedFiles": [],
     "category": "web",
     "summaryVi": "Đo tốc độ tải và tìm nguyên nhân website chậm.",
     "instructionsSha256": "1b7adf5eda4c29466fee9a9b4cda2782fa3be821b899b5f9630191541ea2115a",
@@ -470,7 +467,7 @@
     "excludedFiles": [],
     "category": "finance",
     "summaryVi": "So sánh định giá với các doanh nghiệp cùng ngành.",
-    "instructionsSha256": "a6dad79f70eac93dffde0a3b09f7ee009f2e37035668d0818022fbc499b42698",
+    "instructionsSha256": "0c4e9dcd82aefa12de942e35ee732c0fdd61ef47c70370f4dd97695b27a0560e",
     "summaryZh": "与同行业的企业进行估值比较。",
     "summaryZhTw": "與同行業的企業進行估值比較。"
   },
@@ -514,72 +511,16 @@
       "SKILL.md",
       "references/film.md",
       "references/look.md",
-      "references/types/launch.md"
-    ],
-    "excludedFiles": [
-      "assets/frame-presets/biennale-yellow/FRAME.md",
-      "assets/frame-presets/biennale-yellow/caption-skin.html",
-      "assets/frame-presets/biennale-yellow/frame-showcase.html",
-      "assets/frame-presets/blockframe/FRAME.md",
-      "assets/frame-presets/blockframe/caption-skin.html",
-      "assets/frame-presets/blockframe/frame-showcase.html",
-      "assets/frame-presets/blue-professional/FRAME.md",
-      "assets/frame-presets/blue-professional/caption-skin.html",
-      "assets/frame-presets/blue-professional/frame-showcase.html",
-      "assets/frame-presets/bold-poster/FRAME.md",
-      "assets/frame-presets/bold-poster/caption-skin.html",
-      "assets/frame-presets/bold-poster/frame-showcase.html",
-      "assets/frame-presets/broadside/FRAME.md",
-      "assets/frame-presets/broadside/caption-skin.html",
-      "assets/frame-presets/broadside/frame-showcase.html",
-      "assets/frame-presets/capsule/FRAME.md",
-      "assets/frame-presets/capsule/caption-skin.html",
-      "assets/frame-presets/capsule/frame-showcase.html",
-      "assets/frame-presets/cartesian/FRAME.md",
-      "assets/frame-presets/cartesian/caption-skin.html",
-      "assets/frame-presets/cartesian/frame-showcase.html",
-      "assets/frame-presets/cobalt-grid/FRAME.md",
-      "assets/frame-presets/cobalt-grid/caption-skin.html",
-      "assets/frame-presets/cobalt-grid/frame-showcase.html",
-      "assets/frame-presets/code-editorial/FRAME.md",
-      "assets/frame-presets/code-editorial/caption-skin.html",
-      "assets/frame-presets/code-editorial/fonts/EBGaramond-400.woff2",
-      "assets/frame-presets/code-editorial/fonts/EBGaramond-700.woff2",
-      "assets/frame-presets/code-editorial/fonts/Inter-400.woff2",
-      "assets/frame-presets/code-editorial/fonts/Inter-700.woff2",
-      "assets/frame-presets/code-editorial/fonts/JetBrainsMono-400.woff2",
-      "assets/frame-presets/code-editorial/fonts/JetBrainsMono-700.woff2",
-      "assets/frame-presets/code-editorial/fonts/OFL-eb-garamond.txt",
-      "assets/frame-presets/code-editorial/fonts/OFL-inter.txt",
-      "assets/frame-presets/code-editorial/fonts/OFL-jetbrains-mono.txt",
-      "assets/frame-presets/code-editorial/frame-showcase.html",
-      "assets/frame-presets/coral/FRAME.md",
-      "assets/frame-presets/coral/caption-skin.html",
-      "assets/frame-presets/coral/frame-showcase.html",
-      "assets/frame-presets/creative-mode/FRAME.md",
-      "assets/frame-presets/creative-mode/caption-skin.html",
-      "assets/frame-presets/creative-mode/frame-showcase.html",
-      "assets/frame-presets/daisy-days/FRAME.md",
-      "assets/frame-presets/daisy-days/caption-skin.html",
-      "assets/frame-presets/daisy-days/frame-showcase.html",
-      "assets/frame-presets/editorial-forest/FRAME.md",
-      "assets/frame-presets/editorial-forest/caption-skin.html",
-      "assets/frame-presets/editorial-forest/frame-showcase.html",
-      "scripts/bake-basemap.mjs",
-      "scripts/lib/main-module.mjs",
-      "scripts/lib/main-module.test.mjs",
-      "scripts/lib/windows-exe-search.mjs",
-      "scripts/lib/windows-exe-search.test.mjs",
+      "references/types/launch.md",
       "scripts/locate.mjs",
-      "scripts/locate.test.mjs",
-      "scripts/plugin-cli.mjs",
-      "scripts/plugin-cli.test.mjs",
-      "references/plugin-installation.md",
-      "references/skill-lifecycle.md"
+      "scripts/lib/main-module.test.mjs",
+      "scripts/lib/windows-exe-search.test.mjs",
+      "scripts/locate.test.mjs"
     ],
+    "excludedFiles": [],
     "category": "media",
     "summaryVi": "Dựng video từ HTML với HyperFrames.",
-    "instructionsSha256": "37fe24371f4a1ef2be2c2e6feeb3c7d1d45c177db5a508a83177080d26226dcd",
+    "instructionsSha256": "0a2f50a464c4b81f7ff433ad719a941d482fad10e75073976e4d685c1426ff18",
     "summaryZh": "使用 HyperFrames 从 HTML 构建视频。",
     "summaryZhTw": "使用 HyperFrames 從 HTML 建立影片。"
   },
@@ -606,21 +547,10 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "references/advanced_features.md",
-      "references/attribution.md",
-      "references/bounding_box.md",
-      "references/embeddings.md",
-      "references/live_api.md",
-      "references/media_generation.md",
-      "references/model_tuning.md",
-      "references/safety.md",
-      "references/structured_and_tools.md",
-      "references/text_and_multimodal.md"
-    ],
+    "excludedFiles": [],
     "category": "media",
     "summaryVi": "Tạo video bằng Gemini hoặc Veo qua kết nối đã cấu hình.",
-    "instructionsSha256": "218ce9d59ac461078788458a0f5f8f2ef6109d3386d5bd1468a8036ab3471742",
+    "instructionsSha256": "7b7453f9d9db260b4a0a8e20a14c2fab1a10b148952f55fe0b47a1211f7fcf8f",
     "summaryZh": "通过配置的连接使用 Gemini 或 Veo 创建视频。",
     "summaryZhTw": "透過配置的連接使用 Gemini 或 Veo 創建視訊。"
   },
@@ -692,12 +622,10 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "references/tools.md"
-    ],
+    "excludedFiles": [],
     "category": "marketing",
     "summaryVi": "Kiểm tra kết nối MCP của Google Ads.",
-    "instructionsSha256": "91131558e35560aafff656d605c0dee78bfd4ac429e1ca4f94c7211e0e982af3",
+    "instructionsSha256": "981480360247332218b1f621339844b53d5b374abc73ef0b1ee74905c846b517",
     "summaryZh": "测试您的 Google Ads MCP 连接。",
     "summaryZhTw": "測試您的 Google Ads MCP 連線。"
   },
@@ -739,9 +667,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "commerce",
     "summaryVi": "Làm việc với cửa hàng và dữ liệu Shopify.",
     "instructionsSha256": "d06ed22e1cb49822edc0a4eb1e0d22d4c819fefb1b671fd1503451191efef859",
@@ -756,9 +682,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "commerce",
     "summaryVi": "Làm việc với cửa hàng và dữ liệu WooCommerce.",
     "instructionsSha256": "ca58f402e54573383839190f2c9fff1147700ad7d595d0ef479bed20635602c6",
@@ -777,7 +701,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Tạo video bằng mô hình Seedance của ByteDance.",
-    "instructionsSha256": "0ad5a085009ba9da06229c0e19f6383e2092cf17439d0a6b3a7bce9642149189",
+    "instructionsSha256": "6c074a83ae1269e24e84d45018d0049eab46fcb6855220ef784cee1247afe4f9",
     "summaryZh": "使用字节跳动的 Seedance 模型创建视频。",
     "summaryZhTw": "使用位元組跳動的 Seedance 模型建立影片。"
   },
@@ -793,7 +717,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Tạo hình ảnh bằng Seedream của ByteDance.",
-    "instructionsSha256": "6197608c6cca5877c44cafee20f0aca138d3c0ab56acb754809c149a773e35a1",
+    "instructionsSha256": "e0af4f71bdb364c98319972461f69723e745015c7aab4c4bcb7b77936b39a7ef",
     "summaryZh": "使用 ByteDance 的 Seedream 创建图像。",
     "summaryZhTw": "使用 ByteDance 的 Seedream 建立圖像。"
   },
@@ -829,7 +753,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Chuyển giọng nói thành văn bản bằng dịch vụ nhận dạng âm thanh.",
-    "instructionsSha256": "e8b30070e07dbe4ffd2dfb4ccc499d64fd52c64cfb2ae70bdf85e8d28d51a530",
+    "instructionsSha256": "f148752a4b9725b0e6258474b43c747cfabff837269800d9523fcb31f7abc4c3",
     "summaryZh": "使用音频识别服务将语音转换为文本。",
     "summaryZhTw": "使用音訊辨識服務將語音轉換為文字。"
   },
@@ -877,7 +801,7 @@
     "excludedFiles": [],
     "category": "office",
     "summaryVi": "Trích xuất nội dung PDF bằng dịch vụ Doubao.",
-    "instructionsSha256": "9b7b9bfa212311a356999d9e00db4e46c6e218f05af10fe00bf773e867a8c677",
+    "instructionsSha256": "eb23b981cc0c07c113ed2c2d52f3cc8db9f11f09a3504bde783ed54b78f6231f",
     "summaryZh": "使用豆宝服务提取PDF内容。",
     "summaryZhTw": "使用豆寶服務擷取PDF內容。"
   },
@@ -892,7 +816,7 @@
     "excludedFiles": [],
     "category": "web",
     "summaryVi": "Tạo bảng so sánh hoặc công cụ tính toán tương tác trong StartupBot.",
-    "instructionsSha256": "ee2543eb7ddbe3fda74a9d60dca4f66e18583024ac82d08793843b1df4446812",
+    "instructionsSha256": "449072fec2d2a4b16e98ca0575200b51f3b03777715e920b60f0d17ee11de251",
     "summaryZh": "在 StartupBot 中创建比较表或交互式计算器。",
     "summaryZhTw": "在 StartupBot 中建立比較表或互動式計算器。"
   },
@@ -966,9 +890,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "evals/evals.json"
-    ],
+    "excludedFiles": [],
     "category": "startup",
     "summaryVi": "Đánh giá ý tưởng khởi nghiệp và giả định cần kiểm chứng.",
     "instructionsSha256": "68f83211a9f8cedc27560c529c9d84ee3ac58fe505368106fde9ba5e971de139",
@@ -983,9 +905,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "startup",
     "summaryVi": "Khám phá nhu cầu khách hàng và cơ hội sản phẩm.",
     "instructionsSha256": "703c0587b4e674ba5f5c94addde931f4f1d4e20142615be8e3a47e5cfd5a29e9",
@@ -1030,9 +950,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "startup",
     "summaryVi": "Xây dựng chiến lược định giá sản phẩm.",
     "instructionsSha256": "6b7d23841c1462740ee69bde9e7a10181699b926aeeb48e3fab4f7e255a13fec",
@@ -1047,9 +965,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "finance",
     "summaryVi": "Tính và hiểu các chỉ số tài chính khi vận hành công ty.",
     "instructionsSha256": "30996f7e4462b3c41888de4fcacc9f2dcde9afd9c48a1c258d11e9e8e43d3664",
@@ -1062,7 +978,8 @@
     "licenseSource": "https://github.com/ReScienceLab/opc-skills/blob/0c44a6a6e654c38cfd3c8aceda86d7d8de40a183/LICENSE",
     "license": "Apache-2.0",
     "modified": [
-      "SKILL.md"
+      "SKILL.md",
+      "scripts/producthunt_api.py"
     ],
     "excludedFiles": [
       ".claude-plugin/plugin.json"
@@ -1141,9 +1058,7 @@
     "modified": [
       "SKILL.md"
     ],
-    "excludedFiles": [
-      "_scores.json"
-    ],
+    "excludedFiles": [],
     "category": "startup",
     "summaryVi": "Quản lý đội ngũ và phát triển kỹ năng lãnh đạo.",
     "instructionsSha256": "976c3040f63ab51f024cd9a81f087f1afa40309971aa4e3330c3f6a98075a36b",
@@ -1209,5 +1124,67 @@
     "instructionsSha256": "51f605076f16fbf2c205566f93804b55e2a0635450054a6136435cae2b1d3c9b",
     "summaryZh": "使用 Google Forms 表单和回复。",
     "summaryZhTw": "使用 Google Forms 表單和回覆。"
+  },
+  {
+    "name": "media-use",
+    "source": "https://github.com/heygen-com/hyperframes/tree/77ea9d80cfc8b347ccca966487a8ff902ce28320/skills/media-use",
+    "licenseSource": "https://github.com/heygen-com/hyperframes/blob/77ea9d80cfc8b347ccca966487a8ff902ce28320/LICENSE",
+    "license": "Apache-2.0",
+    "modified": [
+      "SKILL.md",
+      "audio/scripts/lib/audio-carve.mjs",
+      "audio/scripts/lib/concurrency.mjs",
+      "audio/assets/sfx/CREDITS.md",
+      "audio/assets/sfx/manifest.json",
+      "audio/assets/sfx/chime.mp3",
+      "audio/assets/sfx/click-soft.mp3",
+      "audio/assets/sfx/click.mp3",
+      "audio/assets/sfx/error.mp3",
+      "audio/assets/sfx/glitch-1.mp3",
+      "audio/assets/sfx/glitch-2.mp3",
+      "audio/assets/sfx/glitch-3.mp3",
+      "audio/assets/sfx/impact-bass-1.mp3",
+      "audio/assets/sfx/impact-bass-2.mp3",
+      "audio/assets/sfx/key-press.mp3",
+      "audio/assets/sfx/notification.mp3",
+      "audio/assets/sfx/ping.mp3",
+      "audio/assets/sfx/pop.mp3",
+      "audio/assets/sfx/riser.mp3",
+      "audio/assets/sfx/sparkle.mp3",
+      "audio/assets/sfx/typing.mp3",
+      "audio/assets/sfx/whoosh-cinematic.mp3",
+      "audio/assets/sfx/whoosh-short.mp3",
+      "audio/assets/sfx/whoosh.mp3",
+      "audio/scripts/lib/sfx.mjs",
+      "audio/scripts/lib/sfx.test.mjs",
+      "audio/references/sfx.md"
+    ],
+    "excludedFiles": [
+      ".gitignore",
+      "audio/assets/sfx/chime.mp3",
+      "audio/assets/sfx/click-soft.mp3",
+      "audio/assets/sfx/click.mp3",
+      "audio/assets/sfx/error.mp3",
+      "audio/assets/sfx/glitch-1.mp3",
+      "audio/assets/sfx/glitch-2.mp3",
+      "audio/assets/sfx/glitch-3.mp3",
+      "audio/assets/sfx/impact-bass-1.mp3",
+      "audio/assets/sfx/impact-bass-2.mp3",
+      "audio/assets/sfx/key-press.mp3",
+      "audio/assets/sfx/notification.mp3",
+      "audio/assets/sfx/ping.mp3",
+      "audio/assets/sfx/pop.mp3",
+      "audio/assets/sfx/riser.mp3",
+      "audio/assets/sfx/sparkle.mp3",
+      "audio/assets/sfx/typing.mp3",
+      "audio/assets/sfx/whoosh-cinematic.mp3",
+      "audio/assets/sfx/whoosh-short.mp3",
+      "audio/assets/sfx/whoosh.mp3"
+    ],
+    "category": "media",
+    "summaryVi": "Tìm và chuẩn bị hình ảnh, cảnh quay, giọng đọc và âm thanh cho video.",
+    "summaryZh": "为视频寻找并准备图像、镜头、旁白和声音。",
+    "summaryZhTw": "為影片尋找並準備影像、鏡頭、旁白和聲音。",
+    "instructionsSha256": "9802e2cbca80df1e7ce2bda20702598aca81189439b6617719bfd3562f7f6d5b"
   }
 ]

@@ -205,7 +205,7 @@ python scripts/video_generate.py -p "A beautiful landscape" --no-watermark
 
 ## 错误处理
 
-- 如果脚本引发错误“PermissionError：在环境变量中未找到 ARK_API_KEY 或 MODEL_VIDEO_API_KEY 或 MODEL_AGENT_API_KEY”，请通知用户需要提供 `ARK_API_KEY` 或 `MODEL_VIDEO_API_KEY` 或 `MODEL_AGENT_API_KEY` 环境变量。将其写入工作区的环境变量文件中。如果文件已存在，请将其附加到末尾。确保环境变量格式正确，使环境变量生效，然后重试刚才失败的视频生成任务。
+- 如果缺少 API 密钥，请指导用户通过其环境中安全的凭据机制配置 `ARK_API_KEY` 或 `MODEL_VIDEO_API_KEY` 或 `MODEL_AGENT_API_KEY`。不要要求在聊天中发送密钥、将其写入项目文件或打印密钥。仅在用户完成配置并授权请求后重试。
 
 ## 注释
 
@@ -217,3 +217,5 @@ python scripts/video_generate.py -p "A beautiful landscape" --no-watermark
 - 多模式需要至少一张图像或视频（不支持仅音频）
 - 仅 Seedance 1.5 pro 支持音频生成
 - 如果轮询超时，请使用 `--query-task` 和返回的 task_id
+
+随附脚本需要可用的 Python 解释器及 `requirements.txt` 中的 `httpx`；缺少 `httpx` 时 `--help` 仍可用。检查实际环境中的 `startupbot-media-python`、`python3`、`python` 或 Windows 的 `py -3`。缺少依赖时，在获授权的任务专用 Python 环境中从可信来源安装固定版本，不修改全局 Python。没有 Python 时使用已配置的兼容服务或说明缺少的条件。ByteDance API 账户及产生费用的授权仍是独立条件。

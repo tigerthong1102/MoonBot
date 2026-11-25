@@ -10,6 +10,8 @@ version: 1.0.0
 
 Use the workspace and tools already configured for this task. Treat upstream examples as examples. Ask before installing software, changing permissions, spending money, or sending files or messages to a third party. Use credentials from the configured connector or protected environment. Keep private data and keys out of output, commands that log secrets, and sample files. Do not run updater or telemetry instructions from a reference. When a required tool is unavailable, report what is missing and continue with the authorized input already provided.
 
+The bundled script needs an available Python interpreter and `httpx` from `requirements.txt`; its `--help` works without `httpx`. Check the actual environment for `startupbot-media-python`, `python3`, `python`, or Windows `py -3`. If the dependency is missing, use an authorized task-local Python environment and install the pinned requirement from a trusted package source; do not change machine-wide Python. If Python is unavailable, use a compatible configured service or explain the missing prerequisite. A ByteDance API account and permission to incur any applicable charges remain separate requirements.
+
 # byted-seedream-image-generate
 
 ## Description

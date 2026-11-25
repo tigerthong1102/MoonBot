@@ -1,23 +1,23 @@
 ---
 name: comps-analysis
 description: "Build institutional-grade comparable company analyses with operating metrics, valuation multiples, and statistical benchmarking in Excel/spreadsheet format."
-
-  **Perfect for:**
-  - Public company valuation (M&A, investment analysis)
-  - Benchmarking performance vs. industry peers
-  - Pricing IPOs or funding rounds
-  - Identifying valuation outliers (over/under-valued)
-  - Supporting investment committee presentations
-  - Creating sector overview reports
-
-  **Not ideal for:**
-  - Private companies without comparable public peers
-  - Highly diversified conglomerates
-  - Distressed/bankrupt companies
-  - Pre-revenue startups
-  - Companies with unique business models
 license: Apache-2.0
 ---
+
+**Perfect for:**
+- Public company valuation (M&A, investment analysis)
+- Benchmarking performance vs. industry peers
+- Pricing IPOs or funding rounds
+- Identifying valuation outliers (over/under-valued)
+- Supporting investment committee presentations
+- Creating sector overview reports
+
+**Not ideal for:**
+- Private companies without comparable public peers
+- Highly diversified conglomerates
+- Distressed/bankrupt companies
+- Pre-revenue startups
+- Companies with unique business models
 
 **StartupBot adaptation, 2026-11-19.** Source and changes are recorded in SOURCE.md.
 
@@ -43,7 +43,7 @@ This skill teaches Claude to build institutional-grade comparable company analys
 
 **Reference Material & Contextualization:**
 
-An example comparable company analysis is provided in `examples/comps_example.xlsx`. When using this or other example files in this skill directory, use them intelligently:
+When the user provides an example comparable company analysis, use it intelligently:
 
 **DO use examples for:**
 - Understanding structural hierarchy (how sections flow)

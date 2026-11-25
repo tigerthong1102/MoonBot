@@ -15,7 +15,7 @@ npx hyperframes preview --context --json  # print compact agent context from Stu
 
 Hot-reloads on file changes. Opens Studio in the browser automatically — the full timeline editor, where the user can play the video and edit anything by hand before rendering. This is the review surface, not just a viewer.
 
-When handing a project back to the user, use the Studio project URL, not the source `index.html` path:
+When the user explicitly requests Studio, use the Studio project URL, not the source `index.html` path:
 
 ```text
 http://localhost:<port>/#project/<project-name>

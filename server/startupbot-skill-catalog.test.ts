@@ -93,6 +93,9 @@ it("upgrades the in-app video guides while preserving approval and custom change
     for (const name of names) {
       cpSync(`skills/catalog/${name}`, join(catalog, name), { recursive: true });
       cpSync(`server/testing/fixtures/hyperframes-in-app-previous/${name}.md`, join(catalog, name, "SKILL.md"));
+      if (name === "hyperframes-cli") {
+        cpSync("server/testing/fixtures/hyperframes-in-app-previous/cli-references", join(catalog, name, "references"), { recursive: true });
+      }
     }
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => names.includes(entry.name));
     writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));

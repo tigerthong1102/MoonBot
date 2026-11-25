@@ -180,7 +180,7 @@ describe("Settings full backups", () => {
     fixture.api.mockResolvedValueOnce({ busy: false, restoreBlockedId: "stage-id", restoreBlockedReason: "Existing app automations must be reviewed." });
     render(true); fixture.effects[0](); await flush();
     expect(render(true).html).toContain("The restore was canceled because the destination has app automations or held event receipts.");
-    expect(render(true).html).toContain("Continue to existing workspace");
+    expect(render(true).html).toContain("Return to this installation");
     expect(render(true).html).not.toContain("This does not undo the installation restore");
     expect(storage.get("omb-drafts")).toBe("old");
     expect(storage.get("omb-pending-workspace-restore")).toBe("stage-id");

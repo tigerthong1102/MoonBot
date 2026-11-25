@@ -34,7 +34,7 @@ type HandoffAutomationSources = {
 export function shouldHoldWorkBotHandoff(sources: HandoffAutomationSources, sourceBotId: string, sourceThreadId: string, targetBotId: string): boolean {
   const owns = (entry: { botId: string; sourceThreadId?: string; resultsThreadId?: string; threadId?: string }) =>
     entry.botId === targetBotId || entry.sourceThreadId === sourceThreadId || entry.resultsThreadId === sourceThreadId ||
-    entry.threadId === sourceThreadId || (entry.botId === sourceBotId && !entry.sourceThreadId);
+    entry.threadId === sourceThreadId || (entry.botId === sourceBotId && !entry.sourceThreadId && !entry.resultsThreadId && !entry.threadId);
   return !sources.routines || sources.routines.hasWorkForHandoff(owns) ||
     sources.apps.mutationActivity() !== "no-mutation" || sources.apps.list().some(trigger => trigger.enabled && owns(trigger)) ||
     sources.webhooks.hasWorkForHandoff(owns) ||

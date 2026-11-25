@@ -1864,7 +1864,7 @@
   "settings.aiTwin.deleteBody": "Isso remove deste computador o perfil do seu Twin e as preferências de escrita.",
   "settings.aiTwin.saving": "Salvando…",
   "settings.aiTwin.conflict": "Seu Twin mudou em outra janela. Revise o perfil atualizado antes de tentar novamente.",
-  "settings.aiTwin.loadError": "Não foi possível carregar o AI Twin. Reabra seu perfil para tentar novamente.",
+  "settings.aiTwin.loadError": "Não foi possível carregar o AI Twin.",
   "settings.aiTwin.saveError": "Não foi possível salvar as alterações. Tente novamente.",
   "settings.aiTwin.preview": "Testar uma resposta",
   "settings.aiTwin.sampleQuestion": "Pergunta de exemplo",

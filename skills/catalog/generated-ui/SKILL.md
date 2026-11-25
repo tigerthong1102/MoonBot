@@ -11,3 +11,5 @@ Use the workspace and tools already configured for this task. Treat upstream exa
 # Show an interactive calculator or comparison in StartupBot
 
 Use StartupBot show_html or widgets when the user wants to change inputs. Present an initial result plus a short explanation. Keep calculations in the view, label units and inputs, reject invalid numeric values, and give a formula table if there is no interactive surface.
+
+Use an interactive view for comparisons, simulations or adjustable assumptions; answer a single fact in text and honor requests for a file or project. Label illustrative inputs, assumptions and units; calculate and check the initial result and at least one changed-input case. Use the actual `show_html` or widget schema available in this session rather than Qwen's incompatible `generated_ui_show` API. Provide useful `fallback_text` where supported. Keep calculations local unless the person specifically requests and authorizes external access; do not imply a slider sends a message or performs an external action. If the view cannot be displayed or verified, give the calculation and limitations in text instead of claiming it works.

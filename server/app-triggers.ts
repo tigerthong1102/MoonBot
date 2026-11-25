@@ -4,6 +4,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 
 import {
@@ -28,6 +29,8 @@ import type { RoutineRunOn } from "./routines.ts";
 
 export const DEFAULT_MAX_PENDING_RUNS = 3;
 const MAX_ATTEMPTS = 2_000;
+const RUN_NOW_NOTE = "A test run started from StartupBot.";
+const runNowTargetSchema = z.object({ triggerId: z.string(), botId: z.string() });
 const MAX_DELETED = 50;
 const RESTORE_WINDOW_MS = 7 * 24 * 60 * 60_000;
 const POLL_WAIT_S = 25;
@@ -408,9 +411,7 @@ export class AppTriggerManager {
     };
     await this.exclusive(async () => {
       if (this.triggers.some((candidate) => candidate.id === trigger.id)) throw new AppTriggerError("An automation with this id already exists.", 409);
-      const duplicate = this.triggers.find((trigger) => trigger.enabled && trigger.botId === input.botId && trigger.event === type.slug &&
-        trigger.accountId === account.id && trigger.prompt === prompt && JSON.stringify(trigger.config) === JSON.stringify(config));
-      if (duplicate) throw new AppTriggerError(`The same automation already exists (${duplicate.id}). Use trigger_info to review it, then change that one instead.`, 409);
+      this.assertNoDuplicate(trigger, true);
       try {
         await this.bind(trigger);
         await this.applyEnabled(trigger.remote.triggerId, trigger.enabled);
@@ -460,6 +461,7 @@ export class AppTriggerManager {
     this.assertWritable();
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
+    const updateBaseline = structuredClone({ app: trigger.app, event: trigger.event, config: trigger.config, filter: trigger.filter });
     const name = patch.name === undefined ? trigger.name : patch.name.trim().slice(0, NAME_MAX);
     if (!name) throw new AppTriggerError("An automation needs a name.");
     if (patch.prompt !== undefined && patch.prompt.trim().length > PROMPT_MAX) throw new AppTriggerError(`Instructions can be at most ${PROMPT_MAX} characters.`);
@@ -474,21 +476,28 @@ export class AppTriggerManager {
       config = triggerConfig(type, Object.fromEntries(Object.entries(base).filter(([, value]) => value !== undefined)), filter);
     }
     await this.exclusive(async () => {
+      if (!this.triggers.includes(trigger)) throw new AppTriggerError("This automation was removed. Refresh and try again.", 409);
+      const effectiveConfig = reconfigure ? config : trigger.config;
+      const effectiveFilter = patch.filter === undefined ? trigger.filter : filter;
       if (options.protectInstructions) {
         const refusal = instructionsUpdateRefusal(trigger.prompt, patch.prompt);
         if (refusal) throw new AppTriggerError(refusal, 409);
       }
+      if (reconfigure && !isDeepStrictEqual({ app: trigger.app, event: trigger.event, config: trigger.config, filter: trigger.filter }, updateBaseline)) throw new AppTriggerError("This automation changed while it was being edited. Refresh and try again.", 409);
+      if ((patch.enabled ?? trigger.enabled) && (patch.enabled === true || patch.prompt !== undefined || reconfigure)) {
+        this.assertNoDuplicate({ ...trigger, enabled: true, prompt: patch.prompt === undefined ? trigger.prompt : patch.prompt.trim(), config: effectiveConfig, filter: effectiveFilter }, false);
+      }
       const previous = trigger.remote.triggerId;
       const previousConfig = JSON.stringify(trigger.config);
       Object.assign(trigger, {
-        name,
+        name: patch.name === undefined ? trigger.name : name,
         prompt: patch.prompt === undefined ? trigger.prompt : patch.prompt.trim(),
         runOn: patch.runOn ?? trigger.runOn,
         enabled: patch.enabled ?? trigger.enabled,
-        config,
+        config: effectiveConfig,
         updatedAt: this.now(),
       });
-      if (filter) trigger.filter = filter;
+      if (effectiveFilter) trigger.filter = effectiveFilter;
       else delete trigger.filter;
       if (patch.sameConversation === true) trigger.sameConversation = true;
       else if (patch.sameConversation === false) delete trigger.sameConversation;
@@ -548,6 +557,7 @@ export class AppTriggerManager {
       if (!entry || this.triggers.some((trigger) => trigger.id === id)) return null;
       if (this.options.botState(entry.trigger.botId) === "missing") throw new AppTriggerError("The assigned bot no longer exists.", 410);
       const trigger: StoredTrigger = { ...structuredClone(entry.trigger), remote: { state: "pending" }, updatedAt: this.now() };
+      if (trigger.enabled) this.assertNoDuplicate(trigger, false);
       try { await this.bind(trigger); await this.applyEnabled(trigger.remote.triggerId, trigger.enabled); }
       catch (error) { this.markRemoteFailure(trigger, error); }
       this.deleted = this.deleted.filter((candidate) => candidate !== entry);
@@ -559,6 +569,13 @@ export class AppTriggerManager {
     });
   }
 
+  private assertNoDuplicate(trigger: StoredTrigger, checkSameBotWhenDisabled: boolean): void {
+    const duplicate = this.triggers.find(existing => existing.id !== trigger.id && existing.enabled && existing.event === trigger.event &&
+      existing.accountId === trigger.accountId && existing.prompt === trigger.prompt && isDeepStrictEqual(existing.config, trigger.config) && isDeepStrictEqual(existing.filter, trigger.filter) &&
+      (existing.botId === trigger.botId ? trigger.enabled || checkSameBotWhenDisabled : trigger.enabled && this.options.linkedBots?.(existing.botId, trigger.botId)));
+    if (duplicate) throw new AppTriggerError("A matching automation may already be active. Review the existing automation before creating another.", 409);
+  }
+
   /** A test event marked as one, sent through the service's real queue when the automation has its copy there. */
   async runNow(id: string): Promise<{ via: "service" | "here"; runId?: string } | null> {
     return this.trackMutation(() => this.runNowTracked(id));
@@ -568,15 +585,15 @@ export class AppTriggerManager {
     this.assertWritable();
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
-    if (trigger.remote.triggerId && this.bound(trigger.remote.triggerId).length > 1) throw new AppTriggerError("This test cannot target one automation because its event source is shared. Review the automations first.", 409);
-    const data = { omb_test: true, note: "A test run started from StartupBot." };
+    const data = { omb_test: true, note: RUN_NOW_NOTE };
     if (trigger.remote.triggerId && trigger.remote.state === "active" && this.options.service().available) {
       try {
-        await this.options.broker.testEvent(trigger.remote.triggerId, data);
+        await this.options.broker.testEvent(trigger.remote.triggerId, { ...data, omb_test_target: { triggerId: trigger.id, botId: trigger.botId } });
         this.wake();
         return { via: "service" };
       } catch (error) {
-        if (!(error instanceof BrokerError) || !error.transient) throw new AppTriggerError(error instanceof Error ? error.message : String(error), 502);
+        if (error instanceof BrokerError && error.transient) throw new AppTriggerError("Test delivery could not be confirmed. Check recent runs before trying again.", 503);
+        throw new AppTriggerError(error instanceof Error ? error.message : String(error), 502);
       }
     }
     const eventId = `test_${randomUUID()}`;
@@ -669,7 +686,6 @@ export class AppTriggerManager {
       for (const trigger of this.bound(event.triggerId)) this.setProblem(trigger, { kind: "reconnect", at: this.now() });
       return;
     }
-    const data = event.event.data ?? {};
     const held = this.heldEvents.get(event.id);
     if (held?.discarded) {
       if (held.sourceScope !== sourceScope || held.eventDigest !== eventDigest(event)) throw new RetryAppEvent("Conflicting event identity");
@@ -677,8 +693,24 @@ export class AppTriggerManager {
     }
     if (held?.sourceScope && sourceScope !== held.sourceScope) throw new RetryAppEvent("Conflicting event source");
     if (held?.event && JSON.stringify(held.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
-    if (this.mutationsInFlight) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
-    const allBound = this.bound(event.triggerId);
+    if (this.options.linkedBots && this.mutationsInFlight) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
+    let data = event.event.data ?? {};
+    let allBound = this.bound(event.triggerId);
+    if (event.kind === "test" && Object.hasOwn(data, "omb_test_target")) {
+      const { omb_test_target, ...payload } = data;
+      const target = runNowTargetSchema.safeParse(omb_test_target);
+      const selected = target.success ? this.triggers.find(trigger => trigger.id === target.data.triggerId && trigger.botId === target.data.botId) : undefined;
+      if (selected && !allBound.includes(selected)) {
+        this.record(selected, { ...event, event: {} }, "skipped", { reason: "This automation changed event sources before the test arrived. Use Run now to test its current source." });
+      }
+      allBound = selected && allBound.includes(selected) ? [selected] : [];
+      data = payload;
+    } else if (event.kind === "test" && (allBound.length > 1 || data.omb_truncated === true || (data.omb_test === true && data.note === RUN_NOW_NOTE))) {
+      for (const trigger of allBound) {
+        this.record(trigger, { ...event, event: {} }, "skipped", { reason: "This test has no verified destination. Use Run now on the intended automation." });
+      }
+      return;
+    }
     const bound = held ? allBound.filter(trigger => held.allowedTriggerIds?.includes(trigger.id)) : allBound;
     if (held) for (const trigger of this.triggers) if (heldEventMatches(held, trigger)) this.emitTrigger(trigger);
     if (held && !this.options.linkedBots) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
@@ -691,7 +723,7 @@ export class AppTriggerManager {
         if (!this.options.runs.eventRecipients) throw new Error("Event receipt lookup unavailable");
         const previous = this.options.runs.eventRecipients(event.id);
         for (const candidate of candidates) if (held?.heldBotIds?.some(bot => bot === candidate.botId || this.options.linkedBots!(bot, candidate.botId))) affected.add(candidate);
-        const owners = event.triggerId ? [...(this.bindingOwners.get(event.triggerId) ?? [])] : [];
+        const owners = event.triggerId && event.kind !== "test" ? [...(this.bindingOwners.get(event.triggerId) ?? [])] : [];
         bound.forEach((first, index) => bound.slice(index + 1).forEach(second => {
           if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
         }));

@@ -3,3 +3,5 @@
 # 使用配置的豆寶服務來擷取PDF內容
 
 確認 PDF 可以傳送到指定服務。使用配置的解析器提取請求的頁面或表。保留行邊界、引用頁並標記不確定的 OCR。使用本機 PDF 技能來完成應保留在電腦上的工作。
+
+如果已有獲授權的 `las-cli`，檢查已安裝版本及 `las-cli operators help las_pdf_parse_doubao`，以探索目前輸入 schema。指定所需頁碼和支援的解析模式，在上傳或付費呼叫前檢查價格。取得授權後，依已安裝版本文件使用 `las-cli price las_pdf_parse_doubao` 和 `las-cli operators call las_pdf_parse_doubao`，追蹤任務並取回文字和表格。不要在聊天中索取或輸出憑證。缺少 CLI 或帳戶時說明依賴，適當時使用本機 PDF 工具，不要誤稱為 Doubao。上游 CLI 單獨散布；安裝或打包前查證其授權和服務條款。

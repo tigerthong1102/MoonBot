@@ -10,6 +10,7 @@ import type { ComputerCaller } from "./resolve.ts";
 import { personTextRequest, recipeFitsRequest, stepLabel, windowButtonClick, type Recipe } from "./rules.ts";
 import type { RecipeStore } from "./store.ts";
 import { expectedWindowsDestination } from "./windows-destination.ts";
+import { expectedLinuxDestinations } from "./linux-navigation.ts";
 
 export interface EngineSlots { get(threadId: string): ProviderInstance | undefined; set(threadId: string, engine: ProviderInstance): void }
 export interface ReplayRequest {
@@ -182,7 +183,8 @@ export class SavedStepsDispatch {
       ? (this.deps.platform === "win32" ? step.element?.uiaWindowChild === true : step.element?.linuxWindowChild === true)
         && windowButtonClick(step.tool, step.args)
       : !step.element?.uiaWindowChild && !step.element?.linuxWindowChild);
-    return supported && (!guarded || expectedWindowsDestination(recipe) !== undefined) && toolsAllowed(recipe, toolScope);
+    return supported && (!guarded || (this.deps.platform === "linux" ? expectedLinuxDestinations(recipe) : expectedWindowsDestination(recipe)) !== undefined)
+      && toolsAllowed(recipe, toolScope);
   }
 
   private replayHolds(request: ReplayRequest, input: SendTurnInput): boolean {
@@ -344,4 +346,5 @@ function toolsAllowed(recipe: Recipe, toolScope: unknown): boolean {
 }
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
 

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppTriggerRequestService } from "./app-trigger-requests.ts";
 import { appEventCatalog } from "./app-event-catalog.ts";
 import { eventCount } from "./app-events.ts";
-import { brokerClient, type BrokerEvent } from "./app-trigger-broker.ts";
+import { BrokerError, brokerClient, type BrokerEvent } from "./app-trigger-broker.ts";
 import { AppTriggerManager, type AppTriggerManagerOptions } from "./app-triggers.ts";
 import { RoutineManager } from "./routines.ts";
 import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
@@ -77,13 +77,207 @@ async function gmailTrigger(triggers: AppTriggerManager, filter = { from: "acme.
 }
 
 describe("AppTriggerManager", () => {
+  it("refuses matching concurrent automations for linked bots before creating a second remote binding", async () => {
+    const triggers = manager({ linkedBots: (first, second) => new Set([first, second]).size === 2 && [first, second].every(id => ["source", "target"].includes(id)) });
+    const create = (botId: string) => triggers.create({ botId, name: "Fixture", prompt: "Draft a fixture reply", app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE", filter: { from: "fixture.test" } });
+    const results = await Promise.allSettled([create("source"), create("target")]);
+    const created = results.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
+    expect(created).toHaveLength(1);
+    expect(results.filter(result => result.status === "rejected")).toMatchObject([{ reason: { status: 409 } }]);
+    expect(triggers.list()).toHaveLength(1);
+    expect(broker.harness.composio.instances.size).toBe(1);
+    await broker.deliver(created[0]!.remote.triggerId!, { sender: "person@fixture.test" }, "linked-fixture-event");
+    await triggers.pollOnce(undefined, 0);
+    expect(routines.listRuns()).toHaveLength(1);
+    const restored = manager({ linkedBots: () => true });
+    await expect(restored.create({ botId: "target", name: "Fixture", prompt: "Draft a fixture reply", app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE", filter: { from: "fixture.test" } })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("keeps independent tasks available to unlinked bots and allows distinct instructions", async () => {
+    const triggers = manager({ linkedBots: (first, second) => [first, second].every(id => ["source", "target"].includes(id)) });
+    const create = (botId: string, prompt: string) => triggers.create({ botId, name: "Fixture", prompt, app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE", filter: { from: "fixture.test" } });
+    await create("source", "Draft a fixture reply");
+    await expect(create("other", "Draft a fixture reply")).resolves.toMatchObject({ botId: "other" });
+    await expect(create("target", "Record the fixture order")).resolves.toMatchObject({ botId: "target" });
+  });
+
+  it("checks enabling, editing and restoring linked automations before any remote mutation", async () => {
+    const triggers = manager({ linkedBots: () => true });
+    const create = (botId: string, prompt: string, enabled = true) => triggers.create({ botId, name: "Fixture", prompt, enabled, app: "gmail", event: "GMAIL_NEW_GMAIL_MESSAGE", filter: { from: "fixture.test" } });
+    const active = await create("source", "Draft a fixture reply");
+    const paused = await create("target", "Draft a fixture reply", false);
+    await expect(triggers.update(paused.id, { enabled: true })).rejects.toMatchObject({ status: 409 });
+    expect(triggers.get(paused.id)?.enabled).toBe(false);
+    const distinct = await create("target", "Record the fixture order");
+    await expect(triggers.update(distinct.id, { prompt: active.prompt })).rejects.toMatchObject({ status: 409 });
+    expect(triggers.get(distinct.id)?.prompt).toBe("Record the fixture order");
+    await triggers.remove(active.id);
+    await triggers.update(paused.id, { enabled: true });
+    await expect(triggers.restore(active.id)).rejects.toMatchObject({ status: 409 });
+    expect(triggers.get(active.id)).toBeNull();
+  });
+
+  it("allows linked automations with different local filters on the same event", async () => {
+    const slack = broker.account(owner.userId, "slack");
+    connected.slack = { connected: true, accounts: [{ id: slack, status: "ACTIVE" }] };
+    const triggers = manager({ linkedBots: () => true });
+    const create = (botId: string, text: string) => triggers.create({ botId, name: "Fixture", prompt: "Summarize matching updates", app: "slack", event: "SLACK_CHANNEL_MESSAGE_RECEIVED", filter: { text } });
+    await create("source", "warehouse");
+    await expect(create("target", "sales")).resolves.toMatchObject({ botId: "target" });
+  });
+
+  it("delivers a queued Run now only to the selected bot even after another bot binds and the manager restarts", async () => {
+    const triggers = manager();
+    const selected = await gmailTrigger(triggers);
+    await expect(triggers.runNow(selected.id)).resolves.toEqual({ via: "service" });
+    const other = await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: selected.app, event: selected.event, filter: selected.filter });
+    expect(other.remote.triggerId).toBe(selected.remote.triggerId);
+    await drain(manager());
+    expect(routines.listRuns()).toMatchObject([{ botId: selected.botId, routineId: selected.id }]);
+    expect(runsOf(selected.id)[0]!.prompt).not.toContain("omb_test_target");
+  });
+
+  it("reports a pre-upgrade manual test without a destination and still dispatches ordinary messages", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const first = await gmailTrigger(triggers);
+    const legacy = { omb_test: true, note: "A test run started from StartupBot." };
+    await client.testEvent(first.remote.triggerId!, legacy);
+    const other = await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: first.app, event: first.event, filter: first.filter });
+    const restarted = manager();
+    await drain(restarted);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(restarted.attempts()).toHaveLength(2);
+    expect(restarted.attempts().every(attempt => attempt.outcome === "skipped" && attempt.reason?.includes("Run now"))).toBe(true);
+    await broker.deliver(first.remote.triggerId!, { ...legacy, omb_test_target: { triggerId: other.id, botId: other.botId } }, "ordinary-message");
+    await drain(restarted);
+    expect(routines.listRuns().map(run => run.botId).sort()).toEqual([first.botId, other.botId].sort());
+  });
+
+  it("does not broadcast a test when the broker truncates its destination", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: first.app, event: first.event, filter: first.filter });
+    await client.testEvent(first.remote.triggerId!, { omb_test_target: { triggerId: first.id, botId: first.botId }, text: "x".repeat(70 * 1024) });
+    await drain(triggers);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(triggers.attempts().map(attempt => attempt.outcome)).toEqual(["skipped", "skipped"]);
+  });
+
+  it("records a missed test against the selected automation after it changes source", async () => {
+    const triggers = manager();
+    const selected = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: selected.app, event: selected.event, filter: selected.filter });
+    await triggers.runNow(selected.id);
+    await triggers.update(selected.id, { filter: { subject: "changed" } });
+    await drain(triggers);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(triggers.attempts()).toMatchObject([{ triggerId: selected.id, outcome: "skipped", reason: expect.stringContaining("changed event sources") }]);
+  });
+
+  it("does not redirect a queued test when its selected automation was deleted", async () => {
+    const triggers = manager();
+    const selected = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Other", prompt: "Archive orders", app: selected.app, event: selected.event, filter: selected.filter });
+    await triggers.runNow(selected.id);
+    await triggers.remove(selected.id);
+    await drain(manager());
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("does not queue a local fallback when the broker accepted the test but the response was lost", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const selected = await gmailTrigger(triggers);
+    const send = client.testEvent.bind(client);
+    vi.spyOn(client, "testEvent").mockImplementationOnce(async (id, data) => {
+      await send(id, data);
+      throw new BrokerError("fixture connection closed after accept", 0);
+    });
+    await expect(triggers.runNow(selected.id)).rejects.toMatchObject({ status: 503 });
+    expect(routines.listRuns()).toHaveLength(0);
+    await drain(triggers);
+    expect(routines.listRuns()).toMatchObject([{ botId: selected.botId, routineId: selected.id }]);
+  });
+
+  it("keeps a concurrent rename while applying a reconfiguration", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const saved = await gmailTrigger(triggers);
+    const type = await client.triggerType(saved.event);
+    let entered!: () => void, release!: () => void;
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "triggerType").mockImplementation(async () => { entered(); await gate; return type; });
+    const changing = triggers.update(saved.id, { filter: { from: "new.example" } });
+    await waiting;
+    await triggers.update(saved.id, { name: "New name" });
+    release();
+    await expect(changing).resolves.toMatchObject({ name: "New name", filter: { from: "new.example" } });
+    expect(triggers.get(saved.id)).toMatchObject({ name: "New name", filter: { from: "new.example" } });
+  });
+
+  it("rejects a stale filter edit after a different filter was committed", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const saved = await gmailTrigger(triggers);
+    const type = await client.triggerType(saved.event);
+    let entered!: () => void, release!: () => void;
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "triggerType").mockImplementationOnce(async () => { entered(); await gate; return type; }).mockResolvedValue(type);
+    const stale = triggers.update(saved.id, { filter: { from: "first.example" } });
+    await waiting;
+    await triggers.update(saved.id, { filter: { from: "second.example" } });
+    release();
+    await expect(stale).rejects.toMatchObject({ status: 409 });
+    expect(triggers.get(saved.id)?.filter).toEqual({ from: "second.example" });
+  });
+
+  it("keeps an event received while a filter edit is waiting for the catalog", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const saved = await gmailTrigger(triggers);
+    const type = await client.triggerType(saved.event);
+    let entered!: () => void, release!: () => void;
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "triggerType").mockImplementationOnce(async () => { entered(); await gate; return type; });
+    const changing = triggers.update(saved.id, { filter: { from: "new.example" } });
+    await waiting;
+    await broker.deliver(saved.remote.triggerId!, { sender: "person@acme.com", subject: "order" }, "concurrent-fixture");
+    await triggers.pollOnce(undefined, 0);
+    expect(triggers.get(saved.id)?.received).toBe(1);
+    release();
+    await expect(changing).resolves.toMatchObject({ received: 1, filter: { from: "new.example" } });
+    expect(routines.listRuns()).toHaveLength(1);
+  });
+
+  it("does not restore a removed automation when its filter edit finishes late", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const triggers = manager({ broker: client });
+    const saved = await gmailTrigger(triggers);
+    const type = await client.triggerType(saved.event);
+    let entered!: () => void, release!: () => void;
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(client, "triggerType").mockImplementationOnce(async () => { entered(); await gate; return type; });
+    const changing = triggers.update(saved.id, { filter: { from: "new.example" } });
+    await waiting;
+    await triggers.remove(saved.id);
+    release();
+    await expect(changing).rejects.toMatchObject({ status: 409 });
+    expect(triggers.get(saved.id)).toBeNull();
+  });
+
   it("discards only a reviewed held event and never redelivers it after restart", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let failNotification = false;
     let scope = owner.id;
     let triggers = manager({ linkedBots: links, acknowledgmentScope: () => scope, emit: () => { if (failNotification) throw new Error("synthetic notification failure"); } });
     const first = await gmailTrigger(triggers);
-    const second = await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const second = await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.create({ botId: "bot-3", name: "Independent fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com", text: "PRIVATE_SYNTHETIC_PAYLOAD" }, "fixture-reviewed");
     await triggers.pollOnce(undefined, 0);
@@ -148,7 +342,7 @@ describe("AppTriggerManager", () => {
     const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
     const triggers = manager({ broker: client, linkedBots: () => true, acknowledgmentScope: () => scope });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-account-change", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     let release!: (result: { events: BrokerEvent[]; cursor: number }) => void;
     vi.spyOn(client, "poll").mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
@@ -196,7 +390,7 @@ describe("AppTriggerManager", () => {
     expect(await client.identity?.()).toBe(owner.id);
     const triggers = manager({ linkedBots: () => true, acknowledgmentScope: () => credential, installationScope: async () => owner.id });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "fixture-rotated-token");
     await triggers.pollOnce(undefined, 0);
     await triggers.pollOnce(undefined, 0);
@@ -322,7 +516,7 @@ describe("AppTriggerManager", () => {
   it("keeps an event-processing warning until the held event is saved", async () => {
     const triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "fixture-warning-storage");
     const sidecar = join(dir, "app-triggers.json.held");
     mkdirSync(sidecar);
@@ -386,11 +580,11 @@ describe("AppTriggerManager", () => {
   });
   it("keeps a shared event held after a pause and restart", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
-    let triggers = manager({ linkedBots: links });
+    let triggers = manager();
     const first = await gmailTrigger(triggers);
     const second = await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     expect(second.remote.triggerId).toBe(first.remote.triggerId);
-    await expect(triggers.runNow(first.id)).rejects.toMatchObject({ status: 409 });
+    triggers = manager({ linkedBots: links });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_linked_conflict");
     await triggers.pollOnce(undefined, 0);
     expect(heldEvents()).toHaveLength(1);
@@ -412,7 +606,7 @@ describe("AppTriggerManager", () => {
   it("keeps fan-out for independent bots sharing a remote event", async () => {
     const triggers = manager({ linkedBots: () => false });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Other fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Other fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_independent");
     await triggers.pollOnce(undefined, 0);
     expect(routines.listRuns()).toHaveLength(2);
@@ -436,7 +630,7 @@ describe("AppTriggerManager", () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const other = await triggers.create({ botId: "bot-3", name: "Independent fixture", prompt: "Other", app: "gmail", event: first.event, filter: { from: "other.example" } });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_conflict_first");
     await broker.deliver(other.remote.triggerId!, { sender: "person@other.example" }, "msg_independent_second");
@@ -454,7 +648,7 @@ describe("AppTriggerManager", () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const third = await triggers.create({ botId: "bot-3", name: "Independent", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     expect(third.remote.triggerId).toBe(first.remote.triggerId);
     await triggers.pollOnce(undefined, 0);
@@ -480,7 +674,7 @@ describe("AppTriggerManager", () => {
   it("does not acknowledge an event when saving its held payload repeatedly fails", async () => {
     const triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const sidecar = join(dir, "app-triggers.json.held");
     mkdirSync(sidecar);
     const event = { seq: 1, id: "fixture-held-write-error", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
@@ -497,9 +691,10 @@ describe("AppTriggerManager", () => {
 
   it("retains a held payload when notification delivery fails", async () => {
     let fail = false;
-    let triggers = manager({ linkedBots: () => true, emit: () => { if (fail) throw new Error("fixture notification unavailable"); } });
+    let triggers = manager();
     const first = await gmailTrigger(triggers);
     for (let id = 2; id <= 7; id++) await triggers.create({ botId: `bot-${id}`, name: `Linked ${id}`, prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    triggers = manager({ linkedBots: () => true, emit: () => { if (fail) throw new Error("fixture notification unavailable"); } });
     await triggers.pollOnce(undefined, 0);
     const event = { seq: 1, id: "fixture-notification-error", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     const main = join(dir, "app-triggers.json"), beforeCheckpoint = readFileSync(main, "utf8");
@@ -524,7 +719,7 @@ describe("AppTriggerManager", () => {
       notified.push(frame.botId);
     } });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     notified.length = 0;
     const event = { seq: 1, id: "fixture-notify-retry", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     failing = true;
@@ -543,7 +738,7 @@ describe("AppTriggerManager", () => {
       notified.push(frame.botId);
     } });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-notify-rebind", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     failing = true;
     expect(() => triggers.receive([event], 1)).toThrow();
@@ -559,7 +754,7 @@ describe("AppTriggerManager", () => {
     let unavailable = true;
     const triggers = manager({ linkedBots: () => { if (unavailable) throw new Error("fixture lookup failure"); return false; } });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Other", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Other", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-earlier-held", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     triggers.receive([event], 1);
     expect(triggers.get(first.id)?.problem?.kind).toBe("error");
@@ -575,7 +770,7 @@ describe("AppTriggerManager", () => {
   it("preserves reconnect status while a conflicting event is held and after restart", async () => {
     let triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-disabled", kind: "trigger_disabled" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: {} } };
     triggers.receive([event], 1);
     expect(triggers.get(first.id)?.problem?.kind).toBe("reconnect");
@@ -592,7 +787,7 @@ describe("AppTriggerManager", () => {
   it("rejects a held store with the same recipient allowed and held", async () => {
     let triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-invalid-recipients", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     triggers.receive([event], 1);
     const sidecar = join(dir, "app-triggers.json.held"), saved = JSON.parse(readFileSync(sidecar, "utf8"));
@@ -606,7 +801,7 @@ describe("AppTriggerManager", () => {
   it("migrates a v1 held event without recipient metadata conservatively", async () => {
     let triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-v1-held", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     triggers.receive([event], 1);
     const sidecar = join(dir, "app-triggers.json.held");
@@ -621,7 +816,7 @@ describe("AppTriggerManager", () => {
   it("restores the warning to the original automation after it changes remote binding", async () => {
     let triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-held-rebind", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     triggers.receive([event], 1);
     const updated = await triggers.update(first.id, { filter: { from: "new.example", subject: "order" } });
@@ -635,7 +830,7 @@ describe("AppTriggerManager", () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.create({ botId: "bot-3", name: "Independent", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-before-enqueue", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     for (let attempt = 0; attempt < 6; attempt++) {
@@ -659,7 +854,7 @@ describe("AppTriggerManager", () => {
     const links = (first: string, second: string) => { if (unavailable) throw new Error("fixture graph unavailable"); return [first, second].sort().join(":") === "bot-1:bot-2"; };
     const triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.create({ botId: "bot-3", name: "Independent", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-graph-error", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     failNextEnqueue = "before-save";
@@ -676,7 +871,7 @@ describe("AppTriggerManager", () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     const triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Linked", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const third = await triggers.create({ botId: "bot-3", name: "Paused", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     await triggers.update(third.id, { enabled: false });
     const event = { seq: 1, id: "fixture-paused", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
@@ -690,7 +885,7 @@ describe("AppTriggerManager", () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const other = await triggers.create({ botId: "bot-3", name: "Independent fixture", prompt: "Other", app: "gmail", event: first.event, filter: { from: "other.example" } });
     await triggers.pollOnce(undefined, 0);
     const main = join(dir, "app-triggers.json"), beforeCheckpoint = readFileSync(main, "utf8");
@@ -714,7 +909,7 @@ describe("AppTriggerManager", () => {
     const links = () => true;
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_downgrade_fixture");
     await triggers.pollOnce(undefined, 0);
     const held = heldEvents()[0]!;
@@ -755,7 +950,7 @@ describe("AppTriggerManager", () => {
     const links = () => true;
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_missing_hold");
     await triggers.pollOnce(undefined, 0);
     const main = join(dir, "app-triggers.json"), before = readFileSync(main, "utf8");
@@ -778,7 +973,7 @@ describe("AppTriggerManager", () => {
   it("does not acknowledge a conflicted event when held-event storage reaches its limit", async () => {
     const triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);
-    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const events = Array.from({ length: 101 }, (_, index) => ({ seq: index + 1, id: `fixture-${index}`, kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } }));
     expect(() => triggers.receive(events, 101)).toThrow(/storage is full/);
     const saved = JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8"));
@@ -793,7 +988,7 @@ describe("AppTriggerManager", () => {
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_before_second_bot");
-    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.pollOnce(undefined, 0);
     await triggers.update(first.id, { enabled: false });
     triggers = manager({ linkedBots: links });
@@ -806,7 +1001,7 @@ describe("AppTriggerManager", () => {
     const triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_pause_before_poll");
-    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.update(first.id, { enabled: false });
     await triggers.pollOnce(undefined, 0);
     expect(heldEvents()).toHaveLength(1);
@@ -818,7 +1013,7 @@ describe("AppTriggerManager", () => {
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_remove_before_poll");
-    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.remove(first.id);
     triggers = manager({ linkedBots: links });
     await triggers.pollOnce(undefined, 0);
@@ -831,7 +1026,7 @@ describe("AppTriggerManager", () => {
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_rebind_before_poll");
-    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.update(first.id, { filter: { from: "other.example" } });
     triggers = manager({ linkedBots: links });
     await triggers.pollOnce(undefined, 0);
@@ -908,7 +1103,7 @@ describe("AppTriggerManager", () => {
     await broker.deliver(first.remote.triggerId!, data, "msg_already_delivered");
     await triggers.pollOnce(undefined, 0);
     const delivery = routines.listRuns()[0]!.deliveryId!;
-    const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.update(first.id, { enabled: false });
     const event = { seq: 100, id: delivery, kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data } };
     triggers.receive([event], 100);
@@ -928,7 +1123,7 @@ describe("AppTriggerManager", () => {
     await broker.deliver(first.remote.triggerId!, data, "msg_deleted_owner");
     await triggers.pollOnce(undefined, 0);
     const delivery = routines.listRuns()[0]!.deliveryId!;
-    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.remove(first.id);
     routines.close();
     routines = new RoutineManager({ file: join(dir, "routines.json"), botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
@@ -943,7 +1138,7 @@ describe("AppTriggerManager", () => {
     let linkLookupFails = true;
     const triggers = manager({ linkedBots: () => { if (linkLookupFails) throw new Error("fixture DB unavailable"); return true; } });
     const first = await gmailTrigger(triggers);
-    const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     await triggers.update(first.id, { enabled: false });
     await triggers.update(second.id, { enabled: false });
     const event = { seq: 100, id: "fixture-event", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };

@@ -39,8 +39,8 @@ A `--json` result may carry `_meta.updateNotice`: a newer HyperFrames release is
 1. Write, then `npx hyperframes lint` after the first pass and after structural changes.
 2. `npx hyperframes check --json` and fix every error. While a lint error remains the layout and contrast audits don't run; "0 samples" means nothing was checked. Contrast failures carry a `suggestedColor`. A finding at a single sample (an entrance in flight) is info; a 3 s+ video with no visible change fails `sweep_static`.
 3. `npx hyperframes snapshot` and read the PNGs (under `.hyperframes/artifacts/snapshots/`): that is how you see the video. With sub-compositions, snapshot a midpoint of every scene; tiny unstyled content or a missing hero is a mount defect (`../hyperframes/references/format.md`).
-4. `npx hyperframes preview --background`, check the URL answers 200, give the person the project URL and wait, unless they asked for the file or for no stops. Passing checks alone is not a reason to render.
-5. Time to render (step 4): `npx hyperframes render -o out.mp4`. Confirm the file is non-empty and its `ffprobe` duration matches the root `data-duration`, then look at decoded frames.
+4. Review the snapshots and motion, then fix visible defects. Do not send the person to Studio or a project URL unless they explicitly ask for a preview.
+5. For a video request, run `npx hyperframes render -o out.mp4` after the checks and review. Confirm the file is non-empty and its `ffprobe` duration matches the root `data-duration`, inspect decoded frames, and return the file in the StartupBot conversation.
 
 "This element" or the current selection: `npx hyperframes preview --context --json --context-fields selection`; `no-selection` means ask them to click it.
 

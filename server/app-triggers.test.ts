@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +11,7 @@ import { eventCount } from "./app-events.ts";
 import { BrokerError, brokerClient, type BrokerEvent } from "./app-trigger-broker.ts";
 import { AppTriggerManager, type AppTriggerManagerOptions } from "./app-triggers.ts";
 import { RoutineManager } from "./routines.ts";
-import { applyPendingWorkspaceRestore, commitPendingWorkspaceRestore, createWorkspaceBackupSnapshot, stageWorkspaceBackup } from "./workspace-backup.ts";
+import { createWorkspaceBackupSnapshot } from "./workspace-backup.ts";
 import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
 import { startBrokerFake, type BrokerFake } from "./testing/broker-fake.ts";
 
@@ -362,14 +362,14 @@ describe("AppTriggerManager", () => {
     expect(() => triggers.receive([{ ...event, event: { data: { text: "different" } } }], event.seq, owner.id)).toThrow(/Conflicting event identity/);
   });
 
-  it("retains an ambiguous redelivery across a Team export, restore and broker queue expiry", async () => {
+  it("refuses unsafe Team export and retains redelivery receipts in a closed private copy", async () => {
     vi.stubEnv("OMB_CLOUD_ROLE", "team");
     const target = mkdtempSync(join(tmpdir(), "fixture-restored-app-events-"));
     try {
       const options = { linkedBots: (a: string, b: string) => a !== b };
       const original = manager(options);
       const first = await gmailTrigger(original);
-      await original.create({ botId: "bot-2", name: "Related", prompt: "Separate fixture", app: first.app, event: first.event, filter: first.filter });
+      const second = await original.create({ botId: "bot-2", name: "Related", prompt: "Separate fixture", app: first.app, event: first.event, filter: first.filter });
       const body = { subject: "Order fixture", sender: "test@acme.com" };
       const id = "fixture-after-retention";
       await broker.deliver(first.remote.triggerId!, body, id);
@@ -378,26 +378,24 @@ describe("AppTriggerManager", () => {
       expect(review?.readyToDiscard).toBe(true);
       original.discardHeldEvent(id, review!.digest);
       const password = "synthetic-test-passphrase";
-      const archive = await createWorkspaceBackupSnapshot(dir, { password });
-      const staged = await stageWorkspaceBackup(target, archive.path, { password });
-      commitPendingWorkspaceRestore(target, staged.id);
-      expect(applyPendingWorkspaceRestore(target).restored).toBe(true);
+      await expect(createWorkspaceBackupSnapshot(dir, { password })).rejects.toThrow(/held app events/);
+      copyFileSync(join(dir, "app-triggers.json"), join(target, "app-triggers.json"));
+      copyFileSync(join(dir, "app-triggers.json.held"), join(target, "app-triggers.json.held"));
       const file = join(target, "app-triggers.json");
-      expect(readFileSync(file, "utf8")).not.toContain(id);
       const restored = manager({ ...options, file });
-      expect(restored.get(first.id)?.enabled).toBe(false);
+      expect(restored.get(first.id)?.enabled).toBe(true);
       expect(restored.get(first.id)?.problem).toBeUndefined();
-      await restored.update(first.id, { enabled: true });
+      await restored.update(second.id, { enabled: false });
+      await drain(restored);
       broker.harness.d1.db.prepare("DELETE FROM events WHERE installation_id = ? AND event_id = ?").run(owner.id, id);
       await broker.deliver(first.remote.triggerId!, body, id);
-      await drain(restored);
-      expect(restored.heldEventReviews()).toMatchObject([{ id, reason: "unknown" }]);
+      await expect(drain(restored)).rejects.toThrow(/Conflicting event identity/);
       expect(routines.listRuns()).toHaveLength(0);
       const reopened = manager({ ...options, file });
-      expect(reopened.heldEventReviews()).toHaveLength(1);
+      expect(reopened.heldEventReviews()).toHaveLength(0);
       await broker.deliver(first.remote.triggerId!, body, "fixture-independent-delivery");
-      await drain(reopened);
-      expect(routines.listRuns().map(run => run.botId)).toEqual([first.botId]);
+      await expect(drain(reopened)).rejects.toThrow(/Conflicting event identity/);
+      expect(routines.listRuns()).toHaveLength(0);
     } finally {
       vi.unstubAllEnvs();
       rmSync(target, { recursive: true, force: true });

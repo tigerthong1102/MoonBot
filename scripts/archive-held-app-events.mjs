@@ -1,11 +1,13 @@
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
-import { mkdir, open, realpath, rmdir, stat, unlink } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
 import { eventDigest, fileSchema, parseHeldEvents, retiredEventKey } from "../server/app-trigger-file.ts";
 import { heldEventMatches, isEventHoldProblem } from "../server/app-trigger-held.ts";
+import { DATA_FORMAT_FILE, readDataFormat } from "../server/data-format.ts";
+import { renameWithRetry } from "../server/atomic.ts";
 
 const ledger = "app-triggers.json";
 const sidecar = `${ledger}.held`;
@@ -84,17 +86,48 @@ async function syncDirectory(folder) {
   try { await handle.sync(); } finally { await handle.close(); }
 }
 
+async function assertRegularTree(folder) {
+  const info = await lstat(folder);
+  if (info.isSymbolicLink() || (!info.isDirectory() && !info.isFile())) throw Error("The profile copy contains a link or special file. Make an independent closed copy without these entries.");
+  if (info.isDirectory()) for (const name of await readdir(folder)) await assertRegularTree(path.join(folder, name));
+}
+
+async function syncRegularTree(folder) {
+  const info = await lstat(folder);
+  if (info.isDirectory()) {
+    for (const name of await readdir(folder)) await syncRegularTree(path.join(folder, name));
+    await syncDirectory(folder);
+    return;
+  }
+  if (!info.isFile() || info.isSymbolicLink()) throw Error("The recovery copy contains a link or special file.");
+  const handle = await open(folder, process.platform === "win32" ? "r+" : "r");
+  try { await handle.sync(); } finally { await handle.close(); }
+}
+
 /** Archives processed held payloads without changing the closed source or replaying any event. */
-export async function archiveHeldAppEvents(profile, workspace, output, archive) {
+export async function archiveHeldAppEvents(profile, workspace, output, archive, copy = cp) {
   const [source, work, destination, privateArchive] = await Promise.all([realpath(profile), realpath(workspace), newPath(output), newPath(archive)]);
   if ([source, work].some(root => within(root, destination) || within(root, privateArchive)) || within(destination, privateArchive) || within(privateArchive, destination)) {
     throw Error("Choose new recovery and archive directories outside the profile and workspace.");
   }
   await protectedParent(path.dirname(destination));
   await protectedParent(path.dirname(privateArchive));
+  try { await lstat(destination); throw Error("The recovery directory already exists."); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+  await assertRegularTree(source);
   const [rawLedger, rawHeld] = await Promise.all([regularFile(source, ledger), regularFile(source, sidecar)]);
   const document = JSON.parse(rawLedger);
   const parsed = fileSchema.parse(document);
+  const sourceMarker = readDataFormat(source, 2);
+  if (sourceMarker && sourceMarker.format > 2) throw Error("The profile copy was written by a newer format.");
+  if (parsed.version === 2 && sourceMarker?.format !== 2) throw Error("A format 2 ledger requires its original format marker.");
+  const pending = path.join(source, ".backups", "pending-restore.json");
+  try { await readFile(pending); throw Error("Finish the pending workspace restore before making a recovery copy."); }
+  catch (error) { if (error.code !== "ENOENT") throw error; }
+  try {
+    const journal = JSON.parse(await readFile(path.join(source, ".backups", "restore-journal.json"), "utf8"));
+    if (journal.phase === "applying") throw Error("Finish the interrupted workspace restore before making a recovery copy.");
+  } catch (error) { if (error.code !== "ENOENT") throw error; }
   if (!parsed.cursorScope || !Number.isSafeInteger(parsed.cursor) || parsed.heldEvents.some(entry => typeof entry !== "string")) throw Error("The ledger must have a verified account and no embedded event payloads.");
   const held = new Map();
   parseHeldEvents(JSON.parse(rawHeld), held);
@@ -130,22 +163,30 @@ export async function archiveHeldAppEvents(profile, workspace, output, archive) 
     await privateDirectory(privateArchive);
     await syncDirectory(privateArchive);
     await syncDirectory(path.dirname(privateArchive));
-    await mkdir(destination, { mode: 0o700 });
-    try {
-      await privateDirectory(destination, true);
-      await durableFile(path.join(destination, ledger), JSON.stringify(recovered));
-      await privateDirectory(destination);
-      await durableFile(path.join(destination, sidecar), JSON.stringify({ version: 4, events: [] }));
-      await privateDirectory(destination);
-      await syncDirectory(destination);
-      await syncDirectory(path.dirname(destination));
-    } catch (error) {
-      await Promise.allSettled([unlink(path.join(destination, ledger)), unlink(path.join(destination, sidecar))]);
-      await rmdir(destination).catch(() => {});
-      throw error;
-    }
+    const staging = await mkdtemp(path.join(path.dirname(destination), ".startupbot-recovery-incomplete-"));
+    await privateDirectory(staging, true);
+    const version = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")).version;
+    const marker = path.join(staging, DATA_FORMAT_FILE);
+    await durableFile(marker, JSON.stringify({ format: 2_147_483_647, writtenBy: version, writtenAt: new Date().toISOString() }));
+    await syncDirectory(staging);
+    const excluded = new Set([ledger, sidecar, DATA_FORMAT_FILE].map(name => path.join(source, name)));
+    await copy(source, staging, { recursive: true, dereference: false, filter: from => !excluded.has(from) });
+    await assertRegularTree(staging);
+    await syncRegularTree(staging);
+    await privateDirectory(staging);
+    await durableFile(path.join(staging, ledger), JSON.stringify(recovered));
+    await privateDirectory(staging);
+    await durableFile(path.join(staging, sidecar), JSON.stringify({ version: 4, events: [] }));
+    await privateDirectory(staging);
+    await syncDirectory(staging);
+    await rename(staging, destination);
+    await syncDirectory(path.dirname(destination));
+    const ready = path.join(destination, `${DATA_FORMAT_FILE}.ready`);
+    await durableFile(ready, JSON.stringify({ format: 2, writtenBy: version, writtenAt: new Date().toISOString() }));
+    renameWithRetry(ready, path.join(destination, DATA_FORMAT_FILE));
+    await syncDirectory(destination);
   } catch (error) {
-    throw new Error(`Recovery could not be completed. A private archive may remain at ${privateArchive}.`, { cause: error });
+    throw new Error(`Recovery could not be completed. A private archive or incomplete recovery copy may remain at the requested paths. Do not open the incomplete copy.`, { cause: error });
   }
   return { archived: held.size, archive: privateArchive, recovery: destination };
 }

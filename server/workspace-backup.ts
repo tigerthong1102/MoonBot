@@ -11,6 +11,7 @@ import { backup, DatabaseSync } from "node:sqlite";
 import { pipeline } from "node:stream/promises";
 import { Worker } from "node:worker_threads";
 import { writeFileAtomic } from "./atomic.ts";
+import { readDataFormat } from "./data-format.ts";
 import { userErrorFields, userErrorThrown } from "./user-errors.ts";
 import { WORKSPACE_BACKUP_CLIENT_KEYS } from "../shared/workspace-backup-client.ts";
 import { INSTRUCTION_FILE, restorePaths, validRelative } from "./workspace-backup-paths.ts";
@@ -156,6 +157,11 @@ function privateJson(path: string): unknown {
     if (!stat.isFile() || stat.size > MAX_METADATA_BYTES) throw new Error("Workspace backup metadata is too large or is not a regular file.");
     return JSON.parse(readFileSync(fd, "utf8"));
   } finally { closeSync(fd); }
+}
+function assertPortableAppEvents(data: string, checkMarker: boolean): void {
+  if (checkMarker && (readDataFormat(data, 2)?.format ?? 1) > 1) throw new Error("Workspace backup cannot safely transfer this data format. Keep a protected copy of the closed data folder instead.");
+  const read = (name: string) => { const path = join(data, name); return entryExists(path) ? privateJson(path) : undefined; };
+  teamAppEventLedger(read("app-triggers.json"), read("app-triggers.json.held"), { bots: new Set(), threads: new Set() });
 }
 function writeJson(path: string, value: unknown): void {
   const text = JSON.stringify(value);
@@ -325,6 +331,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
   let copiedLinks = 0;
   try {
     const root = realpathSync(dataDir);
+    assertPortableAppEvents(root, true);
     for (const [name, snapshotName] of Object.entries(SNAPSHOT_DATABASES)) {
       const sourceDb = join(root, name);
       if (!existsSync(sourceDb)) continue;
@@ -597,6 +604,7 @@ function validateStaged(directory: string, expected?: Map<string, { type: string
     chmodSync(path, entry.mode);
   }
   const data = join(directory, "data");
+  assertPortableAppEvents(data, false);
   if (countJsonArray(join(data, "bots.json")) !== manifest.summary.bots || countJsonArray(join(data, "groups.json")) !== manifest.summary.groups) throw new Error("The backup roster does not match its summary.");
   if (existsSync(join(data, "config.json"))) {
     const config = privateJson(join(data, "config.json"));

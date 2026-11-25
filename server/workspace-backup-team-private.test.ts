@@ -109,7 +109,7 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
   const attempt = { id: "sample", triggerId: "allowed-trigger", eventId: retired.id, at: 1, outcome: "started", preview: "private fixture preview" };
   const ledger = { version: 1, attempts: [attempt], cursorScope: retired.sourceScope, cursor: 3, pollerId: "test-poller", triggers: [], heldEvents: [retired.id] };
 
-  it("exports the scoped cursor after retirement and leaves the private receipts in the original", async () => {
+  it("refuses retired event receipts without changing the original", async () => {
     process.env.OMB_CLOUD_ROLE = "team";
     const root = directory();
     teamData(root);
@@ -118,14 +118,26 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
     json(join(root, "app-triggers.json.held"), receipts);
     const scratch = "app-triggers.json.held.1234.12345678-1234-1234-1234-123456789abc.tmp";
     file(join(root, scratch), "private fixture preview");
-    const { data } = await exported(root);
-    expect(JSON.parse(textOf(join(data, "app-triggers.json")))).toEqual({ ...ledger, version: 2, attempts: [], heldEvents: [], retiredReceipts: { [retiredEventKey(retired.sourceScope, retired.id)]: retired.eventDigest } });
-    expect(existsSync(join(data, scratch))).toBe(false);
+    await expect(exported(root)).rejects.toThrow(/held app events/);
     expect(existsSync(join(root, scratch))).toBe(true);
-    expect(existsSync(join(data, "app-triggers.json.held"))).toBe(false);
     expect(textOf(join(root, "app-triggers.json"))).toBe(JSON.stringify(ledger));
     expect(textOf(join(root, "app-triggers.json.held"))).toBe(JSON.stringify(receipts));
   }, 60_000);
+
+  it("keeps ordinary version 1 app automations available to Team backup", () => {
+    const normal = { ...ledger, heldEvents: [], attempts: [] };
+    expect(teamAppEventLedger(normal, undefined, publicTeam)).toEqual(normal);
+    expect(() => teamAppEventLedger({ ...normal, version: 2, retiredReceipts: { ["a".repeat(64)]: "b".repeat(64) } }, undefined, publicTeam)).toThrow(/held app events/);
+  });
+
+  it("refuses version 1 private definitions and orphan attempt previews before export", () => {
+    const privacy = { bots: new Set(["private-bot"]), threads: new Set(["private-thread"]) };
+    const normal = { ...ledger, heldEvents: [], attempts: [], triggers: [{ id: "public-trigger", botId: "public-bot", prompt: "public fixture" }] };
+    expect(teamAppEventLedger(normal, undefined, privacy)).toEqual(normal);
+    expect(() => teamAppEventLedger({ ...normal, triggers: [{ id: "private-trigger", botId: "private-bot", prompt: "private fixture" }] }, undefined, privacy)).toThrow(/private app automation/);
+    expect(() => teamAppEventLedger({ ...normal, deleted: [{ trigger: { id: "private-trigger", botId: "public-bot", sourceThreadId: "private-thread" } }] }, undefined, privacy)).toThrow(/private app automation/);
+    expect(() => teamAppEventLedger({ ...normal, attempts: [{ triggerId: "missing", preview: "private fixture" }] }, undefined, privacy)).toThrow(/attempt owners/);
+  });
 
   it("rejects a missing, malformed, active, unacknowledged or differently scoped retirement receipt", () => {
     expect(() => teamAppEventLedger(ledger, undefined, publicTeam)).toThrow(/held app events/);

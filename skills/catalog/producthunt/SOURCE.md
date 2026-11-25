@@ -11,3 +11,5 @@ The original `.claude-plugin/plugin.json` is preserved byte-for-byte at `upstrea
 ## Excluded upstream files
 
 - .claude-plugin/plugin.json
+
+Preserved the unmodified upstream SKILL.md as references/upstream.md for feature comparison. It may refer to tools, setup or integrations not included in StartupBot.

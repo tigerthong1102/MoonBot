@@ -8,6 +8,14 @@ import { installBundledLibrarySkills, readSkillLibraryIndex, retireLibrarySkill,
 
 // Replace only verified copies of these bundled folders with superseded scripts.
 const supersededFolders = new Map([
+  ["d53d46e6f757465b11ba154d3e705da339e93c81308422b3634f13f6cbd1a9fe", "google-ads-api-mcp-setup"],
+  ["02a1482cdc9f46d6a8c7657f13506bfe30e54e9a336cb0a4c5478424740d986c", "byted-kickart-video-subtitler"],
+  ["1f44959dfd38c7a81a9757e99227fccec48a7f2039927e4049ada5cf1e17cc09", "apify-ecommerce"],
+  ["7b2b1264dceb000451ae9ee8cab8ea76bccb56b8aa7f06102cdaebc740db8f8e", "gemini-api"],
+  ["826bac3c4d01452e2fde4d5860f923f0c47458cb55c46799276c40481c6141c5", "generated-ui"],
+  ["70b63a6241cc75987c6af3e5a7f73fafb8b0353948c3a35cb0e33f3fe1e9f99d", "byted-las-pdf-parse-doubao"],
+  ["34ba9e97ff58a1e78f84df4da447d0262c0bdc6d16c829f8b378cf710f95dd2c", "byted-las-asr-pro"],
+  ["c6766679d3271943d01f28fe8651955c80e74dc0f8306767d2f8ccd2bdea6d41", "producthunt"],
   ["1dff97bbde66b5b4af3d14c5aab56499d6742c5c1a23e80c0a88c4c0a2b2e999", "hyperframes"],
   ["759e4397580408711937ca57322c7c35ad026cc070c98b8deb2595ec037065e6", "pptx"],
   ["8826653319762358dc0f9dabe7c67a7bcaeed76731b548ddc23fb5240aef599a", "shopify"],
@@ -89,6 +97,17 @@ const additionalOlderInstructions = new Map([
   ])],
 ]);
 
+const previousGuideInstructions = new Map([
+  ["google-ads-api-mcp-setup", "981480360247332218b1f621339844b53d5b374abc73ef0b1ee74905c846b517"],
+  ["byted-kickart-video-subtitler", "db77b0da9bf837135c6b4a6ae97cf1827304bdd4f1b9186a7086ef3c82ff00ed"],
+  ["apify-ecommerce", "d68d1fbf0fa6a465587301e39474311c390c0d399f84928652853dcfad0b1d09"],
+  ["gemini-api", "7b7453f9d9db260b4a0a8e20a14c2fab1a10b148952f55fe0b47a1211f7fcf8f"],
+  ["generated-ui", "449072fec2d2a4b16e98ca0575200b51f3b03777715e920b60f0d17ee11de251"],
+  ["byted-las-pdf-parse-doubao", "eb23b981cc0c07c113ed2c2d52f3cc8db9f11f09a3504bde783ed54b78f6231f"],
+  ["byted-las-asr-pro", "f148752a4b9725b0e6258474b43c747cfabff837269800d9523fcb31f7abc4c3"],
+  ["producthunt", "2315e20b037b237a45b2818a993af3c9df3ac18e4ba18678a3f7189cf1e00ef3"],
+]);
+
 const catalogSchema = z.array(z.object({
   name: z.string().refine(isSkillName),
   source: z.url({ protocol: /^https$/, hostname: /^github\.com$/ }),
@@ -137,7 +156,7 @@ export function installStartupBotSkillCatalog({
       }
       if (previous) {
         const expected = olderInstructions.get(entry.name) ?? createHash("sha256").update(folder.skillMd).digest("hex");
-        if (previous.sha256 !== expected && !additionalOlderInstructions.get(entry.name)?.has(previous.sha256)) continue;
+        if (previous.sha256 !== expected && !additionalOlderInstructions.get(entry.name)?.has(previous.sha256) && previousGuideInstructions.get(entry.name) !== previous.sha256) continue;
         const archived = retireLibrarySkill(entry.name, previous.sha256, root);
         if ("error" in archived) throw new Error(archived.error);
         if ("stale" in archived) continue;
@@ -148,7 +167,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["shopify", "woocommerce", "product-discovery", "pricing-strategy", "business-finance-fundamentals", "team-leadership", "startup-idea", "comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
+        reviewState: ["byted-kickart-video-subtitler", "apify-ecommerce", "shopify", "woocommerce", "product-discovery", "pricing-strategy", "business-finance-fundamentals", "team-leadership", "startup-idea", "comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

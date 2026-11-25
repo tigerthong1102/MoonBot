@@ -29,3 +29,5 @@ Included upstream notices: upstream-notices/LICENSE, NOTICE.
 - scripts/subtitler.py
 - scripts/upgrade.py
 - scripts/upload.py
+
+Preserved the unmodified upstream SKILL.md as references/upstream.md for feature comparison. It may refer to tools, setup or integrations not included in StartupBot.

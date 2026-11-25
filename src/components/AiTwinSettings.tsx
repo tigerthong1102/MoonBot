@@ -9,6 +9,8 @@ import { Card, SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 
 export function AiTwinSettings() {
   const [view, setView] = useState<AiTwinView | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState("");
@@ -25,13 +27,19 @@ export function AiTwinSettings() {
     alive.current = true;
     const abort = new AbortController();
     void api<AiTwinView>(AI_TWIN_PATH, { signal: abort.signal, timeoutMs: 8_000 })
-      .then((result) => { if (!abort.signal.aborted) setView(result); })
+      .then((result) => {
+        if (abort.signal.aborted) return;
+        setView(result);
+        setError(null);
+      })
       .catch((reason: unknown) => {
-        if (abort.signal.aborted || (reason instanceof ApiError && reason.status === 404)) return;
-        setError("load");
+        if (!abort.signal.aborted) setError(reason instanceof ApiError && reason.status === 404 ? null : "load");
+      })
+      .finally(() => {
+        if (!abort.signal.aborted) setRetrying(false);
       });
     return () => { alive.current = false; abort.abort(); };
-  }, []);
+  }, [loadAttempt]);
 
   useEffect(() => { if (editing) nameInput.current?.focus(); }, [editing]);
 
@@ -92,6 +100,8 @@ export function AiTwinSettings() {
   }
 
   if (!view && error !== "load") return null;
+  const writeError = error === "conflict" ? t("settings.aiTwin.conflict") :
+    error === "save" ? t("settings.aiTwin.saveError") : null;
   return (
     <Card title={t("settings.aiTwin.title")} subtitle={t("settings.aiTwin.subtitle")}>
       {editing ? (
@@ -127,15 +137,18 @@ export function AiTwinSettings() {
             <button type="button" className="ui-button" disabled={pending} onClick={() => void write("PATCH", {
               id: twin.id, revision: twin.revision, name: twin.name, style: twin.style, paused: !twin.paused,
             })}>{t(twin.paused ? "settings.aiTwin.resume" : "settings.aiTwin.pause")}</button>
-            <button type="button" className="ui-button" disabled={pending} onClick={() => setConfirming(true)}>
+            <button type="button" className="ui-button" disabled={pending} onClick={() => { setError(null); setConfirming(true); }}>
               {t("settings.aiTwin.delete")}
             </button>
           </div>
           {!twin.paused && <AiTwinPreview key={twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
             twin={twin} provider={view?.preview} refresh={() => void reload()} />}
-          <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={t("settings.aiTwin.deleteBody")}
+          <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={<>
+            {t("settings.aiTwin.deleteBody")}
+            {writeError && <span role="alert" className="mt-2 block text-danger">{writeError}</span>}
+          </>}
             confirmLabel={t("settings.aiTwin.delete")} pending={pending} returnFocusRef={createButton}
-            onCancel={() => { if (!pending) setConfirming(false); }}
+            onCancel={() => { if (!pending) { setConfirming(false); setError(null); } }}
             onConfirm={() => void write("DELETE", { id: twin.id, revision: twin.revision })} />
         </>
       ) : view ? (
@@ -144,9 +157,16 @@ export function AiTwinSettings() {
         </button></div>
       ) : null}
       {pending && <p role="status" className="text-[12px] text-ink-secondary">{t("settings.aiTwin.saving")}</p>}
-      {error && <p role="alert" className="text-[12px] text-danger">{t(
-        error === "conflict" ? "settings.aiTwin.conflict" : error === "load" ? "settings.aiTwin.loadError" : "settings.aiTwin.saveError",
-      )}</p>}
+      {error === "load" && (
+        <div aria-busy={retrying} className="flex flex-col items-start gap-2">
+          <p role="alert" className="text-[12px] text-danger">{t("settings.aiTwin.loadError")}</p>
+          <button type="button" className="ui-button" disabled={retrying} onClick={() => {
+            setRetrying(true);
+            setLoadAttempt((attempt) => attempt + 1);
+          }}>{t("common.tryAgain")}</button>
+        </div>
+      )}
+      {writeError && !confirming && <p role="alert" className="text-[12px] text-danger">{writeError}</p>}
     </Card>
   );
 }

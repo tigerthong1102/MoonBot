@@ -26,7 +26,8 @@ it("asks the owning team member before a saved workflow executes", async () => {
     expect(bot).toBeDefined();
     const mode = await team.as(rui, "PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask", applyToAllThreads: true });
     expect(mode.status, JSON.stringify(mode.body)).toBe(200);
-    const workflow = { version: 1, summary: "Fixture", args: {}, steps: [{ id: "s1", kind: "shell", label: "Print fixture", run: "printf team-workflow-fixture" }] };
+    const command = process.platform === "win32" ? "echo team-workflow-fixture" : "printf team-workflow-fixture";
+    const workflow = { version: 1, summary: "Fixture", args: {}, steps: [{ id: "s1", kind: "shell", label: "Print fixture", run: command }] };
     const saved = await team.as(rui, "POST", "/api/skill-burgers", { botId: bot.id, name: "team-fixture-workflow", workflow, shareConsent: true });
     expect(saved.status, JSON.stringify(saved.body)).toBe(201);
     writeFileSync(calls, JSON.stringify([{ server: "agents", name: "run_workflow", input: { name: "team-fixture-workflow" } }]));
@@ -39,7 +40,7 @@ it("asks the owning team member before a saved workflow executes", async () => {
       if (!card) await delay(100);
     }
     expect(card).toBeDefined();
-    expect(card!.subtitle).toContain("printf team-workflow-fixture");
+    expect(card!.subtitle).toContain(command);
     expect((await team.as(marta, "POST", `/api/threads/${bot.threadId}/respond`, { requestId: card!.requestId, behavior: "allow" })).status).not.toBe(200);
     const allowed = await team.as(rui, "POST", `/api/threads/${bot.threadId}/respond`, { requestId: card!.requestId, behavior: "allow" });
     expect(allowed.status, JSON.stringify(allowed.body)).toBe(200);

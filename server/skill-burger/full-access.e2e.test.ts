@@ -16,7 +16,8 @@ it("runs under the existing Full access grant without opening a new permission c
     const run = (...args: string[]) => runControlOmb([...args, "--url", url]);
     const bot = ((await run("new-bot", "--name", "Full Fixture")) as { bot: { id: string; activeTaskId: string } }).bot;
     await request(`/api/bots/${bot.id}`, "PATCH", { approvalMode: "full", applyToAllThreads: true });
-    await request("/api/skill-burgers", "POST", { botId: bot.id, name: "full-fixture", workflow: { version: 1, summary: "Full fixture", args: {}, steps: [{ id: "s1", kind: "shell", label: "Print", run: "printf full-fixture", where: "bot" }] } });
+    const command = process.platform === "win32" ? "echo full-fixture" : "printf full-fixture";
+    await request("/api/skill-burgers", "POST", { botId: bot.id, name: "full-fixture", workflow: { version: 1, summary: "Full fixture", args: {}, steps: [{ id: "s1", kind: "shell", label: "Print", run: command, where: "bot" }] } });
     await run("send", "--bot", bot.id, "--task", bot.activeTaskId, "--text", "Run the fixture");
     const outcome = await run("wait", "--bot", bot.id, "--task", bot.activeTaskId, "--timeout", "30") as { status: string };
     expect(outcome.status).toBe("settled");

@@ -112,7 +112,6 @@ function publicFetch(url, { method = "GET", signal } = {}) {
   });
 }
 
-// Tests replace `fetch` here; every default download goes through it.
 export const mediaTransport = { fetch: publicFetch };
 
 export async function fetchMedia(

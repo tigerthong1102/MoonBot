@@ -49,7 +49,6 @@ function voltaFolder(name, env) {
     : null;
 }
 
-/** The folders a lookup of `name` without an override reads, for the message when none holds it. */
 export const searchedFolders = ({ name, home = homedir(), globalFolder, env = process.env } = {}) =>
   [
     join(home, "node_modules"),
@@ -65,10 +64,6 @@ function resolveFrom(folder, name) {
   }
 }
 
-/**
- * The entry file of package `name`: from `override`, the absolute path of a package folder the person set, or else
- * looked up from their home folder and then npm's global folder. Null when neither has it; throws for a bad override.
- */
 export function trustedPackageEntry(
   name,
   { override, overrideName, home = homedir(), globalFolder, env = process.env } = {},
@@ -90,7 +85,6 @@ export function trustedPackageEntry(
   );
 }
 
-/** The module at a resolved entry, with its default export unwrapped. */
 export async function importEntry(entry) {
   const loaded = await import(pathToFileURL(entry).href);
   return loaded.default ?? loaded;

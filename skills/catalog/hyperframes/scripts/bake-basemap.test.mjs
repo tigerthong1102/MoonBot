@@ -17,10 +17,8 @@ import { fileURLToPath } from "node:url";
 import { npmGlobalFolder } from "./lib/trusted-package.mjs";
 
 const scripts = fileURLToPath(new URL(".", import.meta.url));
-// A machine with its own global puppeteer-core loads that one, which is allowed; the message checks need it absent.
 const globalCopy = existsSync(join(npmGlobalFolder(), "puppeteer-core"));
 
-/** A package named puppeteer-core whose top-level code records that it ran, then stops the bake. */
 function stubPackage(folder, marker, label) {
   const dir = join(folder, "puppeteer-core");
   mkdirSync(dir, { recursive: true });
@@ -45,7 +43,6 @@ function setup(t, skillsDir) {
   mkdirSync(home);
   const skill = join(project, skillsDir, "hyperframes", "scripts");
   cpSync(scripts, skill, { recursive: true, filter: (path) => !path.endsWith(".test.mjs") });
-  // Every node_modules a project-scoped skill sits below.
   for (const folder of ["node_modules", ".agents/node_modules", `${skillsDir}/node_modules`]) {
     stubPackage(join(project, folder), marker, `project:${folder}`);
   }
@@ -97,7 +94,6 @@ test("HYPERFRAMES_PUPPETEER_CORE loads the folder it names, and must be absolute
   assert.deepEqual(loaded(), ["override"]);
 });
 
-/** A stand-in npm on PATH that records the folder it runs in and answers `root --global` with `answer`. */
 function fakeNpm(base, answer, status = 0) {
   const bin = join(base, "bin");
   mkdirSync(bin, { recursive: true });

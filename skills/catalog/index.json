@@ -520,7 +520,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Dựng video từ HTML với HyperFrames.",
-    "instructionsSha256": "d615ecdf85209ca9cb16bf57f162329a09332ac11aa617030ffab5682046a4fc",
+    "instructionsSha256": "0a2f50a464c4b81f7ff433ad719a941d482fad10e75073976e4d685c1426ff18",
     "summaryZh": "使用 HyperFrames 从 HTML 构建视频。",
     "summaryZhTw": "使用 HyperFrames 從 HTML 建立影片。"
   },

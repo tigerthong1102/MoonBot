@@ -28,7 +28,7 @@
 
 对于需求明确的短视频，先制定简短镜头计划，立即创建项目。阅读 `references/format.md` 和所需效果对应的资料。制作营销视频且允许联网时，若 CLI 支持，先运行 `hyperframes init <scratch-project> --example product-promo --non-interactive --skip-skills` 在临时项目中检查模板，合适时再选用；自定义作品或没有合适模板时使用 `blank`。用 `hyperframes init <project> --example <example> --non-interactive --skip-skills` 创建项目。替换占位内容和第三方品牌，检查使用权限及外部依赖。检查、审看动作并渲染所需文件。用户要求离线视频时使用已安装的本地素材和字体。无法渲染或缺少工具时，报告具体错误并保留项目。 `product-promo` 模板可能从 GitHub 下载文件；离线请求应使用本地可用的 `blank` 模板，不尝试下载远程目录或示例。
 
-HyperFrames 通过逐帧定位暂停的时间线把 HTML 渲染成视频，因此每次渲染一致；用户在 Studio 预览中编辑同一组文件。除非要求其他框架或直接录制浏览器，否则使用它。使用已安装的 `hyperframes` CLI；已配置的 Mac 使用 `"$HOME/.local/share/startupbot/hyperframes/node_modules/.bin/hyperframes"`。
+HyperFrames 通过逐帧定位暂停的时间线把 HTML 渲染成视频，因此每次渲染一致；用户在 Studio 预览中编辑同一组文件。除非要求其他框架或直接录制浏览器，否则使用它。使用当前环境中已安装的 `hyperframes` CLI；如果没有，请说明缺少的工具，并使用获准的安装方式或替代方案。
 
 `index.html` 是根合成：声明视频变量，并挂载 `compositions/` 中每个场景的子合成。素材和字体放在 `assets/`。新项目：`npx hyperframes init <dir> --skip-skills`。以网站为主题：`npx hyperframes capture <url> --json`。
 

@@ -28,7 +28,7 @@
 
 對於需求明確的短影片，先制定簡短鏡頭計劃，立即建立專案。閱讀 `references/format.md` 和所需效果對應的資料。製作行銷影片且允許連網時，若 CLI 支援，先執行 `hyperframes init <scratch-project> --example product-promo --non-interactive --skip-skills` 在暫存專案中檢查範本，合適時再選用；自訂作品或沒有合適範本時使用 `blank`。用 `hyperframes init <project> --example <example> --non-interactive --skip-skills` 建立專案。替換佔位內容和第三方品牌，檢查使用權限及外部依賴。檢查、審看動作並渲染所需檔案。使用者要求離線影片時使用已安裝的本地素材和字型。無法渲染或缺少工具時，報告具體錯誤並保留專案。 `product-promo` 範本可能從 GitHub 下載檔案；離線要求應使用本機可用的 `blank` 範本，不嘗試下載遠端目錄或範例。
 
-HyperFrames 透過逐幀定位暫停的時間線把 HTML 渲染成影片，因此每次渲染一致；使用者在 Studio 預覽中編輯同一組檔案。除非要求其他框架或直接錄製瀏覽器，否則使用它。使用已安裝的 `hyperframes` CLI；已配置的 Mac 使用 `"$HOME/.local/share/startupbot/hyperframes/node_modules/.bin/hyperframes"`。
+HyperFrames 透過逐幀定位暫停的時間線把 HTML 渲染成影片，因此每次渲染一致；使用者在 Studio 預覽中編輯同一組檔案。除非要求其他框架或直接錄製瀏覽器，否則使用它。使用目前環境中已安裝的 `hyperframes` CLI；如果沒有，請說明缺少的工具，並使用獲准的安裝方式或替代方案。
 
 `index.html` 是根合成：宣告影片變數，並掛載 `compositions/` 中每個場景的子合成。素材和字型放在 `assets/`。新專案：`npx hyperframes init <dir> --skip-skills`。以網站為主題：`npx hyperframes capture <url> --json`。
 

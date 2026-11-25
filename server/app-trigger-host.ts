@@ -1,5 +1,6 @@
 // Wires app-event automations into the server: the manager over the managed connected-apps service, the routes the
 // app and the bot tools use, and the chat receipts. index.ts builds it once and hands it what it needs.
+import { createHash } from "node:crypto";
 import type { ServerResponse } from "node:http";
 
 import { botMayWatchApp, type AppEventCatalog } from "../shared/app-triggers.ts";
@@ -10,7 +11,7 @@ import { AppTriggerRequestService, type AppTriggerRequestStore } from "./app-tri
 import { AppTriggerError, AppTriggerManager, type AppTriggerPatch } from "./app-triggers.ts";
 import { managedComposioBrokerOff } from "./composio-broker-access.ts";
 import type { RosterMember } from "./peer-roster.ts";
-import type { RequestAuth } from "./request-auth.ts";
+import { ownerOrAdmin, type RequestAuth } from "./request-auth.ts";
 import type { Routine, RoutineManager } from "./routines.ts";
 import { PASS, type RouteContext, type RouteHandler } from "./routes/table.ts";
 import { listTriggers, triggerTarget } from "./trigger-tools.ts";
@@ -37,6 +38,7 @@ export interface AppTriggerHostDeps {
   botState: (botId: string) => "ready" | "busy" | "missing";
   linkedBots?: (first: string, second: string) => boolean;
   timeZone: () => string;
+  personalReviewWorkspace?: () => boolean;
   visibleBot: (auth: RequestAuth, botId: string) => boolean;
   emit: (frame: Record<string, unknown>) => void;
   audit: (row: { threadId: string; requestId: string; botId: string; botName: string; tool: string; summary: string }) => void;
@@ -77,10 +79,19 @@ export function createAppTriggerHost(deps: AppTriggerHostDeps) {
     connectedApps: deps.connectedApps,
     botState: deps.botState,
     linkedBots: deps.linkedBots,
+    acknowledgmentScope: () => { const access = deps.access(); return access ? createHash("sha256").update(JSON.stringify([access.url, access.token])).digest("hex") : null; },
+    ...(deps.linkedBots ? { installationScope: async (signal?: AbortSignal) => {
+      const before = deps.access();
+      if (!before || !broker.identity) return null;
+      const installationId = await broker.identity(signal), after = deps.access();
+      if (!after || before.url !== after.url || before.token !== after.token) return null;
+      return createHash("sha256").update(JSON.stringify([before.url, installationId])).digest("hex");
+    } } : {}),
     runs: {
       enqueue: (input) => deps.routines().enqueueWebhook(input),
       merge: (triggerId, eventId, sameConversation, merge) => deps.routines().mergeIntoQueuedRun(triggerId, eventId, sameConversation, merge),
       receipt: (triggerId, eventId) => deps.routines().webhookRunReceipt(triggerId, eventId),
+      eventRecipients: (eventId) => deps.routines().appEventRecipients(eventId),
       pending: (triggerId) => deps.routines().activeWebhookRunCount(triggerId),
       cancelQueued: (triggerId, message) => deps.routines().cancelQueuedWebhook(triggerId, message),
     },
@@ -112,7 +123,11 @@ export function createAppTriggerHost(deps: AppTriggerHostDeps) {
         const snapshot = manager.snapshot();
         const shown = snapshot.triggers.filter((trigger) => deps.visibleBot(auth, trigger.botId));
         const ids = new Set(shown.map((trigger) => trigger.id));
-        return json(res, 200, { ...snapshot, triggers: shown, attempts: snapshot.attempts.filter((attempt) => ids.has(attempt.triggerId)) });
+        const canReview = ownerOrAdmin(auth);
+        const heldReviews = canReview && deps.personalReviewWorkspace?.()
+          ? manager.heldEventSummaries(trigger => deps.visibleBot(auth, trigger.botId)) : [];
+        const { cursorReview: _cursorReview, ...limitedService } = snapshot.service;
+        return json(res, 200, { ...snapshot, ...(heldReviews.length ? { heldReviews } : {}), service: canReview ? snapshot.service : limitedService, triggers: shown, attempts: snapshot.attempts.filter((attempt) => ids.has(attempt.triggerId)) });
       }
       if (path === "/api/app-triggers/events" && method === "GET") {
         const bot = deps.store.bot(url.searchParams.get("botId") ?? "");

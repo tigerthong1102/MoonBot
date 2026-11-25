@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
-import type { WorkspaceBackupSummary } from "../../shared/workspace-backup";
+import { TEAM_APP_EVENT_OMISSION, type WorkspaceBackupSummary } from "../../shared/workspace-backup";
 import { api } from "@/state/store";
 import { intlLocale, t } from "@/lib/i18n";
 import { applyWorkspaceClientState, collectWorkspaceClientState, WORKSPACE_RESTORE_MARKER } from "@/lib/workspace-backup-client";
 import { LearnMore, SETTINGS_INPUT, SettingRow, SettingsField, SettingsRows } from "./SettingsPrimitives";
 import { SettingsDialog } from "./settings/SettingsDialog";
 
-type BackupStatus = { busy: boolean; pendingRestore?: boolean; restarts?: boolean; lastRestoreId?: string };
+type BackupStatus = { busy: boolean; pendingRestore?: boolean; restarts?: boolean; lastRestoreId?: string; restoreBlockedId?: string; restoreBlockedReason?: string };
 const buttonClass = "cursor-pointer inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2 text-[13px] font-medium text-accent-ink disabled:opacity-40";
 const validPassword = (value: string) => value.length >= 12 && value.length <= 1024;
 
@@ -72,7 +72,7 @@ export function WorkspaceBackupSummaryView({ summary }: { summary: WorkspaceBack
       <dt className="text-ink-secondary">{t("backup.files")}</dt><dd className="text-ink">{summary.files}</dd>
       <dt className="text-ink-secondary">{t("backup.bytes")}</dt><dd className="text-ink">{summary.bytes.toLocaleString(intlLocale())}</dd>
     </dl>
-    {summary.warnings.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-4 text-[12px] text-warning">{summary.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
+    {summary.warnings.length > 0 && <ul className="mt-3 list-disc space-y-1 pl-4 text-[12px] text-warning">{summary.warnings.map((warning, index) => <li key={index}>{warning === TEAM_APP_EVENT_OMISSION ? t("backup.appEventsOmitted") : warning}</li>)}</ul>}
     {summary.exclusions.length > 0 && <div className="mt-3 text-[12px] text-ink-secondary"><p className="font-medium">{t("backup.exclusions")}</p><ul className="mt-1 list-disc space-y-1 pl-4">{summary.exclusions.map((exclusion, index) => <li key={index}>{exclusion}</li>)}</ul></div>}
   </div>;
 }
@@ -277,6 +277,7 @@ export function WorkspaceBackupRecovery({ children }: { children: ReactNode }) {
   const [restoreId] = useState(pendingRestoreId);
   const [ready, setReady] = useState(!restoreId);
   const [error, setError] = useState<string | null>(null);
+  const [restoreBlocked, setRestoreBlocked] = useState(false);
   const [restartRequired, setRestartRequired] = useState(false);
   const [serverRestarts, setServerRestarts] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -284,10 +285,12 @@ export function WorkspaceBackupRecovery({ children }: { children: ReactNode }) {
     if (!restoreId) return;
     let alive = true;
     setError(null);
+    setRestoreBlocked(false);
     void (async () => {
       const status: BackupStatus = await api("/api/workspace-backup/status");
       if (!alive) return;
       if (status.pendingRestore) { setServerRestarts(status.restarts === true); setRestartRequired(true); return; }
+      if (status.restoreBlockedId === restoreId && status.restoreBlockedReason) { setRestoreBlocked(true); setError(t("backup.restoreAppEventsBlocked")); return; }
       if (status.lastRestoreId !== restoreId) {
         localStorage.removeItem(WORKSPACE_RESTORE_MARKER);
         setReady(true);
@@ -313,8 +316,8 @@ export function WorkspaceBackupRecovery({ children }: { children: ReactNode }) {
     {error && <p role="alert" className="max-w-lg break-words text-[13px] text-danger">{error}</p>}
     {error && <button type="button" className={buttonClass} onClick={() => { setRestartRequired(false); setAttempt((value) => value + 1); }}>{t("connectors.action.retry")}</button>}
     {error && <>
-      <p className="max-w-lg text-[13px] text-ink-secondary">{t("backup.skipDraftsHint")}</p>
-      <button type="button" className="cursor-pointer rounded-lg border border-hairline/50 bg-control px-3 py-2 text-[13px] font-medium text-ink" onClick={continueWithoutDrafts}>{t("backup.skipDrafts")}</button>
+      {!restoreBlocked && <p className="max-w-lg text-[13px] text-ink-secondary">{t("backup.skipDraftsHint")}</p>}
+      <button type="button" className="cursor-pointer rounded-lg border border-hairline/50 bg-control px-3 py-2 text-[13px] font-medium text-ink" onClick={continueWithoutDrafts}>{t(restoreBlocked ? "backup.restoreBlockedContinue" : "backup.skipDrafts")}</button>
     </>}
   </main>;
 }

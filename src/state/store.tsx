@@ -116,7 +116,7 @@ export type SecretRequestCardData = Omit<import("../../shared/wire").SecretReque
 
 export type ComputerControlState = { held: boolean; helpReason: string | null; help?: import("../../shared/wire").ComputerHelpRef | null };
 
-export interface Message extends Pick<import("../../shared/wire").WireMessage, "widget" | "app" | "fromApp" | "pointed" | "routedBy" | "quickModel" | "automation" | "publishedPage" | "sender" | "setupSuggestion" | "settingsCard" | "helperIntro" | "helperFollowup" | "setupOffer" | "savedSteps" | "setupChoices" | "setupChoicesPending" | "setupChoicesUpdating" | "setupRequest" | "relay" | "inbox" | "sentDirectly" | "doneWhen" | "bugReport" | "engineCompaction" | "stoppedBy" | "workBotRouting" | "workBotExecutionUncertain"> {
+export interface Message extends Pick<import("../../shared/wire").WireMessage, "widget" | "app" | "fromApp" | "pointed" | "routedBy" | "quickModel" | "automation" | "publishedPage" | "sender" | "setupSuggestion" | "settingsCard" | "helperIntro" | "helperFollowup" | "setupOffer" | "savedSteps" | "setupChoices" | "setupChoicesPending" | "setupChoicesUpdating" | "setupRequest" | "relay" | "inbox" | "sentDirectly" | "doneWhen" | "bugReport" | "engineCompaction" | "stoppedBy" | "workBotRouting" | "workBotExecutionUncertain" | "workBotReviewHold" | "workBotCopy"> {
   id: string;
   role: "bot" | "user";
   kind: "text" | "options" | "activity" | "screen" | "connector" | "secret" | "signin" | "routine.run" | "goal.run" | "burst" | "digest" | "compaction" | "call" | "widget" | "app";
@@ -2448,8 +2448,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               if (response?.settlementPending && typeof response.message === "string") {
                 showError(new Error(response.message));
               }
-              if (action.openCreatedBot && response?.routingState === "interrupted") showError(new Error(t("workBotRouting.interrupted")));
-              if (action.openCreatedBot && action.behavior === "allow" && response?.result?.state === "applied" && response?.routingState === "dispatched") {
+              if (action.openCreatedBot && !response?.settlementPending && response?.routingState === "interrupted") showError(new Error(t("workBotRouting.interrupted")));
+              if (action.openCreatedBot && action.behavior === "allow" && response?.result?.state === "applied" && (response?.routingState === "dispatched" || response?.routingState === "held_for_review")) {
                 const created = response.result.bots?.find((bot: { id?: unknown; action?: unknown }) => bot.action === "created" && typeof bot.id === "string");
                 if (created) await openCreatedWorkBot(created.id, navigationAtDecision, { revision: () => selectionRevision.current, state: () => stateRef.current, current: store.getState, dispatch: rawDispatch, withTaskWrites });
               }

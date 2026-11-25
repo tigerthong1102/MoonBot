@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { Routine, RoutineRequestCommit, RoutineRun } from "../routines.ts";
 import type { Message, Store } from "../store.ts";
-import { assertWorkBotRoutineSafe, inspectWorkBotRoutineConflict } from "./work-bot-routine-guard.ts";
+import { assertWorkBotRoutineSafe, inspectWorkBotRoutineConflict, shouldHoldWorkBotHandoff } from "./work-bot-routine-guard.ts";
 
 it("checks existing source schedules at commit without exposing their contents", () => {
   const root = { id: "root", role: "user", kind: "text", at: 1, workBotRecoveryPending: true, workBotHandoffSource: { threadId: "source-thread", messageId: "source-message", botId: "source-bot" } } as Message;
@@ -80,4 +80,21 @@ it("reports and fingerprints a linked bot move in the conflict snapshot", () => 
   expect(before.conflict).toBe(false);
   expect(after.conflict).toBe(true);
   expect(after.fingerprint).not.toBe(before.fingerprint);
+});
+
+it.each([
+  [{ botId: "main", resultsThreadId: "other" }, false],
+  [{ botId: "main", threadId: "other" }, false],
+  [{ botId: "main", sourceThreadId: "other" }, false],
+  [{ botId: "main" }, true],
+  [{ botId: "delegate", sourceThreadId: "current", resultsThreadId: "updates" }, true],
+  [{ botId: "delegate", resultsThreadId: "current" }, true],
+  [{ botId: "other" }, false],
+] as const)("holds the source task according to its saved ownership %o", (entry, expected) => {
+  const sources: Parameters<typeof shouldHoldWorkBotHandoff>[0] = {
+    routines: { hasWorkForHandoff: matches => matches(entry) },
+    apps: { mutationActivity: () => "no-mutation", list: () => [] },
+    webhooks: { hasWorkForHandoff: () => false }, calendarCalls: null, waits: { list: () => [] },
+  };
+  expect(shouldHoldWorkBotHandoff(sources, "main", "current", "target")).toBe(expected);
 });

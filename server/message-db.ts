@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
+import { workBotsLinked } from "./work-bot-linked-bots.ts";
 import { createWorkBotMessageDb, migrateWorkBotLinks, WORK_BOT_LINK_SCHEMA } from "./work-bot-message-db.ts";
 import { CARD_KINDS, FAILED_CALL, ORDERING_AT, ORDERING_ROW, WORK_KINDS } from "./message-db-ordering.ts";
 
@@ -459,7 +460,10 @@ export function appendMessage(threadId: string, message: Message): void {
   });
 }
 
-export const { recoverLegacyWorkBotLinks, workBotLinksForThread, appendMessageBatch, transferQueuedWorkBotMessages, transferredChatFollowup, verifiedWorkBotFollowup, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, durableTransaction: writeFollowups, insertMessage, setActiveLeaf });
+export const { recoverLegacyWorkBotLinks, workBotLinksForThread, appendMessageBatch, appendHeldWorkBotContext, transferQueuedWorkBotMessages, transferredChatFollowup, verifiedWorkBotFollowup, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, durableTransaction: writeFollowups, insertMessage, setActiveLeaf });
+export function workBotLinkBetween(first: string, second: string): boolean {
+  return workBotsLinked(first, second, botId => workBotLinksForThread("", botId));
+}
 
 export function updateMessage(threadId: string, message: Message): void {
   prepared("UPDATE messages SET at = ?, role = ?, kind = ?, text = ?, json = ?, search_text = ? WHERE thread_id = ? AND id = ?").run(message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), cjkSearchText(message.text), threadId, message.id);

@@ -2,12 +2,11 @@
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
 import { assertWorkBotStopAllowed as assertWorkBotStop, cancelWorkBotRoutes, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
 import { createWorkBotTypedStop } from "./host/work-bot-typed-stop.ts";
-import { assertWorkBotRoutineSafe } from "./host/work-bot-routine-guard.ts";
-import { workBotsLinked } from "./work-bot-linked-bots.ts";
+import { assertWorkBotRoutineSafe, shouldHoldWorkBotHandoff } from "./host/work-bot-routine-guard.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
 import { createProfileModelResponder } from "./host/profile-model-responder.ts";
-import { pendingWorkBotRoutes, verifiedWorkBotFollowup, workBotLinksForThread, recoverLegacyWorkBotLinks } from "./message-db.ts";
+import { pendingWorkBotRoutes, verifiedWorkBotFollowup, workBotLinkBetween, workBotLinksForThread, recoverLegacyWorkBotLinks } from "./message-db.ts";
 import { startFailureText } from "./start-failure-text.ts";
 import { reserveGmailDrafts } from "./gmail-draft-policy.ts";
 import { createGmailDrafts } from "./host/gmail-drafts.ts";
@@ -540,7 +539,7 @@ import { createWorkspaceAccess, describeEdition, editionForSettings, editionStat
 import { environmentDescriptor, loadEnvironmentId, OWNER_LENDING, serverVersion } from "./environment.ts"; import { dataFormatAtStart } from "./data-format.ts";
 import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
 import { createWorkspaceBackupRoutes, isWorkspaceBackupSessionControl } from "./workspace-backup-http.ts";
-import { applyPendingWorkspaceRestore, readLastWorkspaceRestore, type WorkspaceRestoreResult } from "./workspace-backup.ts";
+import { applyPendingWorkspaceRestore, readLastWorkspaceRestore, type WorkspaceRestoreResult } from "./workspace-backup.ts"; import { readBlockedAppEventRestore } from "./workspace-backup-app-events.ts";
 import { repairMovedWorkspacePaths } from "./moved-paths-repair.ts";
 import { createCustomDomainVerifier, customDomainIpv4, normalizeCustomDomain } from "./custom-domain.ts";
 import { allowedScopes, createEmailSignIn, parseAllowList } from "./account-signin.ts";
@@ -690,7 +689,7 @@ let restoredAtStart: string | undefined;
 if (existsSync(join(DATA_DIR, ".backups"))) {
   workspaceRestore = applyPendingWorkspaceRestore(DATA_DIR);
   if (workspaceRestore.restored) restoredAtStart = workspaceRestore.id;
-  if (!workspaceRestore.restored && !workspaceRestore.rolledBack) workspaceRestore = readLastWorkspaceRestore(DATA_DIR) ?? workspaceRestore;
+  if (!workspaceRestore.restored && !workspaceRestore.rolledBack) workspaceRestore = readBlockedAppEventRestore(DATA_DIR) ?? readLastWorkspaceRestore(DATA_DIR) ?? workspaceRestore;
 } dataFormatAtStart("stamp", DATA_DIR, serverVersion());
 const workspaceMaintenance = new WorkspaceBackupMaintenance(), moveFreeze = createMoveFreeze({ dataDir: DATA_DIR, exportOnly: (process.env.OMB_CLOUD_ROLE === "home" || process.env.OMB_CLOUD_ROLE === "team") && process.env.OMB_CLOUD_EXPORT_ONLY === "1" });
 const ENVIRONMENT_ID = loadEnvironmentId(DATA_DIR);
@@ -4804,7 +4803,7 @@ function memberFrame(client: StreamView, seq: number, payload: Record<string, un
   const order = clientFrame === null ? null : botOrders?.streamFrame(client, payload); if (order) { payload = order; clientFrame = `id: ${STREAM_ID}:${seq}\ndata: ${JSON.stringify({ ...order, seq })}\n\n`; }
   const visible = visibleTo(client.viewer);
   if (clientFrame === null || (client.viewer.kind === "all" && !visible.filtersThreads)) return clientFrame;
-  if (visible.everything) {
+  if (visible.everything && !(visible.member && payload.kind === "app-trigger.service")) {
     noteSeen(payload, client.seen);
     return clientFrame;
   }
@@ -9351,6 +9350,7 @@ function offerWorkBot(botId: string, threadId: string, text: string, owner: stri
 const workBotHost = createWorkBotHost({
   store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked: settleTrackedRequest,
   assertAvailable: (botId, threadId) => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); if (botId && threadId) { const paused = botHolds.text(botId, threadLanguage(threadId)) ?? starterCaps.pausedText(botId, threadLanguage(threadId)); if (paused) throw Object.assign(new Error(paused), { status: 409 }); } },
+  shouldHold: (source, thread, target) => shouldHoldWorkBotHandoff({ routines, apps: appTriggers.manager, webhooks, calendarCalls, waits: botWaits }, source, thread, target),
   offerWorkBot, teamPersonFor: person => teamOwners.people?.everyone().find(entry => personKey({ id: "", email: entry.email }) === person),
   sessionFor: person => sessions.list().find(entry => personKey(entry) === person), cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(),
   teamHost, conversationShares, threadStarters, threadBusy, approvalMode: sourceApprovalMode, startTurn,
@@ -9358,7 +9358,6 @@ const workBotHost = createWorkBotHost({
 const { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets } = workBotHost;
 for (const pending of pendingWorkBotRoutes()) { workBotRouter.recoverDispatch(pending.threadId, pending.message.id); if (pending.message.workBotRouting?.state === "waiting_choice" && pending.message.workBotRouting.requestId) workBotHost.annotateOfferContext(pending.threadId, pending.message.id, pending.message.workBotRouting.requestId); }
 recoverWorkBotTargets();
-
 const resolveAndSendTeamSetup = createTeamSetupResponder({ store,
   workBotChoiceLocks,
   assertAvailable: workBotHost.assertAvailable,
@@ -9471,7 +9470,8 @@ const webhooks = new WebhookManager({
   }, ...createWebhookRoomPost({ store, cfg, roomTalks }) });
 const webhookRequests = new WebhookRequestService({ store, webhooks, botName: (botId) => store.bot(botId)?.name ?? "the bot" }); const botApi = createBotApiHost({ store, manager: botApiManager, actsAsOwner: { available: botApiAsOwnerAvailable, refusal: (auth) => !botApiAsOwnerAvailable() ? "A key can act as the owner only on a server one person uses (no members and at most one admin, named by address), not on a team's Cloud or a shared or hosted workspace." : (sharedWorkspaceFullAccessEnabled() ? auth.scopes.includes("admin") : ownHome.owner(auth) || (CLOUD_PERSONAL && cloudOwnerSession(auth)) || (auth.kind === "loopback" && auth.trust !== "service" && auth.scopes.includes("admin") && !CLOUD_HOME)) ? null : "Only this server's owner can let a key act as them." }, startTurn, threadBusy, canStart: canAdmitDirectTurn, canConfine: (botId) => registry.get(store.bot(botId)?.modelSelection.instanceId ?? "")?.adapter.capabilities.guestTurns === "confined", discard: (botId, threadId) => { store.deleteTask(botId, threadId); }, included: () => !cloudPlanTier.starter(), opened: (threadId) => { if (CLOUD_OWNER_KEY) threadStarters.set(threadId, CLOUD_OWNER_KEY); }, hooksBaseUrl: () => webhookIngressStatus().baseUrl, manageRefusal: (auth, botId) => auth.scopes.includes("admin") || (CLOUD_TEAM && levelOf(auth, botId) === "edit") ? null : refusalFor(store.bot(botId)?.name ?? "this bot", "edit").error, claimRequest: () => { cloudPower?.arrived("/hooks", {}); moveFreeze.assertTurns(); return workspaceMaintenance.request(); }, record: (auth, row) => appendAdminAction(DATA_DIR, { ...row, actor: decisionActorFor(auth) }) });
 const appTriggers = createAppTriggerHost({ store, webhooks, webhookBase: () => webhookIngressStatus().baseUrl, routines: () => routines!, botState: unattendedDispatchState, timeZone: routineTimeZone, emit: broadcast, connectionMode: () => composio.connectionMode(cfg),
-  linkedBots: (first, second) => workBotsLinked(first, second, (botId) => workBotLinksForThread("", botId)),
+  personalReviewWorkspace: () => !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership(),
+  linkedBots: workBotLinkBetween,
   access: composio.brokerAccess, connectedApps: () => composio.connectedServices(cfg), visibleBot: (auth, botId) => visibleTo(viewerFor(auth)).bot(botId),
   audit: (row) => appendDecision(DATA_DIR, { ...row, decision: "auto-approved", source: "routine" }) });
 tieAutomationsToBots(store, { routines: routines!, webhooks, apps: appTriggers.manager, waits: botWaits });
@@ -12032,7 +12032,7 @@ const workspaceBackupAccess = {
     return work();
   }, {
     idle: () => !providerFleetReloading && !providerAuthSessions.active && !browserEngineInstall &&
-      !routines?.isTicking && !calendarCalls?.isTicking && !botWaits.isTicking &&
+      !routines?.isTicking && !calendarCalls?.isTicking && !botWaits.isTicking && appTriggers.manager.mutationActivity() !== "changing" &&
       !localVmImageBusy && !localVmProvisionBusy && !localVmModeChangeBusy &&
       !localVmLifecycleBusy.size && !boatLifecycleBusyBots.size && !computerPreviews.size && !orphanBoatLifecycleBusyIds.size &&
       !computerProviderConfigTransitions.size &&
@@ -12040,9 +12040,9 @@ const workspaceBackupAccess = {
       store.bots.every((bot) => !botHasActiveTurn(bot.id) && !routines?.activeRunForBot(bot.id) && !sharedVm.snapshot(bot.id).held) &&
       store.groups.every((group) => !groupIsWorking(group)),
     pause: () => { routines?.stop(); calendarCalls?.stop(); botWaits.stop(); watchdog.stop(); memoryUpkeep.pause(); },
-    resume: () => { if (!moveFreeze.frozen()) { routines?.start(); calendarCalls?.start(); botWaits.start(); } watchdog.start(); memoryUpkeep.resume(); },
+    resume: () => { if (!moveFreeze.frozen()) { routines?.start(); calendarCalls?.start(); botWaits.start(); appTriggers.start(); } watchdog.start(); memoryUpkeep.resume(); },
     flush: async () => {
-      await Promise.all([chatApps.settleLive(), flushAllProfileHistory(), flushAllMemoryJournals(), flushUsageLedger(DATA_DIR), flushDecisionLog(DATA_DIR), flushAdminActivity(DATA_DIR)]);
+      await appTriggers.stop(); await Promise.all([chatApps.settleLive(), flushAllProfileHistory(), flushAllMemoryJournals(), flushUsageLedger(DATA_DIR), flushDecisionLog(DATA_DIR), flushAdminActivity(DATA_DIR)]);
       // Writers gated and work idle: release the WAL connection for a consistent snapshot; Store reopens it lazily.
       await closeMessageSearch();
       closeMessageDb();

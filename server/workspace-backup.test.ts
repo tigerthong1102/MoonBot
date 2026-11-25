@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applyPendingWorkspaceRestore, commitPendingWorkspaceRestore, createWorkspaceBackup,
   readLastWorkspaceRestore, readPendingWorkspaceRestoreMetadata, readStagedWorkspaceBackup,
-  omittedFromWorkspaceBackup, removeWorkspaceBackupJob, stageWorkspaceBackup,
+  omittedFromWorkspaceBackup, removeWorkspaceBackupJob, stageWorkspaceBackup, stagedWorkspaceData,
 } from "./workspace-backup.ts";
 
 const PASSWORD = "correct horse battery staple";
@@ -66,7 +66,7 @@ function fixture(root: string): DatabaseSync {
   json(join(root, "sessions.json"), { identity: "source-session" });
   json(join(root, "cloud-owner.json"), { identity: "source-owner-record" });
   writeFileSync(join(root, "environment-id"), "source-environment");
-  json(join(root, "data-format.json"), { format: 2, writtenBy: "99.0.0", writtenAt: "2027-01-01T00:00:00.000Z" });
+  json(join(root, "data-format.json"), { format: 1, writtenBy: "0.1.0", writtenAt: "2027-01-01T00:00:00.000Z" });
   mkdirSync(join(root, "tools"));
   writeFileSync(join(root, "tools", "downloaded"), "reinstallable");
   mkdirSync(join(root, "decider-log"));
@@ -116,6 +116,52 @@ function caseSensitiveTempFolder(): boolean {
 afterEach(() => { for (const root of scratch.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe("encrypted full workspace backups", () => {
+  it("preserves ordinary v1 backups and refuses held events, v2 ledgers and v2 markers", async () => {
+    const root = directory();
+    fixture(root).close();
+    const ledgerPath = join(root, "app-triggers.json");
+    const original = readFileSync(ledgerPath, "utf8");
+    const normal = JSON.parse(original);
+    json(ledgerPath, { ...normal, heldEvents: ["fixture-held"] });
+    await expect(createWorkspaceBackup(root, { password: PASSWORD })).rejects.toThrow(/held app events/);
+    json(ledgerPath, { ...normal, version: 2, retiredReceipts: { ["a".repeat(64)]: "b".repeat(64) } });
+    await expect(createWorkspaceBackup(root, { password: PASSWORD })).rejects.toThrow(/held app events/);
+    writeFileSync(ledgerPath, original);
+    json(join(root, "data-format.json"), { format: 2, writtenBy: "fixture", writtenAt: "" });
+    await expect(createWorkspaceBackup(root, { password: PASSWORD })).rejects.toThrow(/data format/);
+    json(join(root, "data-format.json"), { format: 1, writtenBy: "fixture", writtenAt: "" });
+    expect((await createWorkspaceBackup(root, { password: PASSWORD })).path).toBeTruthy();
+    expect(readFileSync(ledgerPath, "utf8")).toBe(original);
+  }, 60_000);
+
+  it("refuses incompatible app event data before committing or applying a staged restore", async () => {
+    const source = directory();
+    fixture(source).close();
+    const backup = await createWorkspaceBackup(source, { password: PASSWORD });
+    const target = directory();
+    json(join(target, "bots.json"), [{ id: "existing" }]);
+    const staged = await stageWorkspaceBackup(target, backup.path, { password: PASSWORD });
+    const data = stagedWorkspaceData(target, staged.id).data;
+    const file = join(data, "app-triggers.json"), manifestPath = join(data, "..", "manifest.json");
+    const original = readFileSync(file, "utf8"), manifestOriginal = readFileSync(manifestPath, "utf8");
+    const inject = () => {
+      const v2 = JSON.stringify({ ...JSON.parse(original), version: 2, retiredReceipts: { ["a".repeat(64)]: "b".repeat(64) } });
+      writeFileSync(file, v2);
+      const manifest = JSON.parse(manifestOriginal);
+      const entry = manifest.entries.find((row: { path: string }) => row.path === "app-triggers.json");
+      manifest.summary.bytes += Buffer.byteLength(v2) - entry.size;
+      entry.size = Buffer.byteLength(v2); entry.sha256 = createHash("sha256").update(v2).digest("hex");
+      writeFileSync(manifestPath, JSON.stringify(manifest));
+    };
+    inject();
+    expect(() => commitPendingWorkspaceRestore(target, staged.id)).toThrow(/held app events/);
+    expect(readPendingWorkspaceRestoreMetadata(target)).toBeNull();
+    writeFileSync(file, original); writeFileSync(manifestPath, manifestOriginal);
+    commitPendingWorkspaceRestore(target, staged.id);
+    inject();
+    expect(() => applyPendingWorkspaceRestore(target)).toThrow(/held app events/);
+    expect(readJson(join(target, "bots.json"))).toEqual([{ id: "existing" }]);
+  }, 60_000);
   it("leaves waits out of backups and Cloud sends", () => expect(omittedFromWorkspaceBackup("waits.json")).toBe(true));
 
   it("carries no waits, and a restore ends the waits already here, keeping them in the safety copy", async () => {

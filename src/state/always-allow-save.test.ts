@@ -105,6 +105,13 @@ describe("Always allow on an approval card", () => {
 
 
 describe("opening a newly created work bot", () => {
+  it("opens the new bot when the transferred work is held for review", async () => {
+    decision = () => json({ routingState: "held_for_review", result: { state: "applied", bots: [{ id: "new-bot", action: "created" }] } });
+    botRead = () => json({ bot: { ...bot, id: "new-bot", threadId: "new-thread", tasks: [{ threadId: "new-thread", title: "Thread", createdAt: 1 }], messages: [] } });
+    flushSync(() => dispatch({ type: "decideRequest", threadId: "thread", requestId: "work-request", behavior: "allow", openCreatedBot: true }));
+    await settle();
+    expect(seen.selectedId).toBe("new-bot");
+  });
   it("does not open a bot when its transcript snapshot is missing", async () => {
     decision = () => json({ routingState: "dispatched", result: { state: "applied", bots: [{ id: "new-bot", action: "created" }] } });
     botRead = () => json({ bot: { ...bot, id: "new-bot", threadId: "new-thread", messages: undefined } });

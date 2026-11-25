@@ -47,6 +47,11 @@ describe("counting tool steps", () => {
 });
 
 describe("the review transcript", () => {
+  it("does not send held handoff text to the background skill reviewer", () => {
+    const text = reviewTranscript([say("user", "VISIBLE_FIXTURE"), { ...say("user", "HELD_FIXTURE"), workBotReviewHold: true }], BOT, false);
+    expect(text).toContain("VISIBLE_FIXTURE");
+    expect(text).not.toContain("HELD_FIXTURE");
+  });
   it("keeps recent turns in full and folds older ones into a digest", () => {
     const messages: ReviewMessage[] = [];
     for (let i = 0; i < 60; i += 1) {

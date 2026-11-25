@@ -4,6 +4,7 @@ import { t } from "@/lib/i18n";
 
 export function WorkBotRoutingStatus({ message, botId, threadId, dispatch }: { message: Message; botId: string; threadId: string; dispatch: Dispatch<Action> }) {
   const route = message.workBotRouting;
+  if ((message.workBotReviewHold && !message.workBotCopy) || route?.state === "held_for_review") return <div role="status" className="mt-1 text-[11px] font-medium text-danger">{t("workBotRouting.held_for_review")}</div>;
   if (message.workBotExecutionUncertain) return <div role="status" className="mt-1 text-[11px] text-ink-tertiary">{t("workBotRouting.interrupted")}</div>;
   if (route?.recoveryBlocked) return <div role="status" className="mt-1 text-[11px] text-ink-tertiary">{t("server.workBot.restartToRecover")}</div>;
   if (!route || route.state === "dispatched") return null;

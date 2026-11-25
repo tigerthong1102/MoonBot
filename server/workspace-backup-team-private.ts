@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { parseHeldEvents, type HeldEvent } from "./app-trigger-file.ts";
 import { isLayerId, layerAudience } from "./audience.ts";
 import { CLOUD_NOBODY_KEY, CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts";
 import { routineHome } from "./routine-home.ts";
@@ -199,3 +200,31 @@ export function stripTeamPrivate(snapshot: { messages: string; runtime: string }
 }
 
 export const TEAM_PRIVATE_NOTE = "Members' private chats are theirs alone and are not in this export: their conversations, what bots remember from them, their own StartupBot and their About you stay out.";
+
+export function teamAppEventLedger(main: unknown, sidecar: unknown, privacy: Pick<TeamPrivacy, "bots" | "threads">): unknown {
+  const blocked = "Workspace backup cannot safely include held app events or format 2 receipts. Keep a protected copy of the closed data folder instead.";
+  if (main === undefined && sidecar === undefined) return undefined;
+  if (!record(main)) throw new Error(blocked);
+  const ledger = main;
+  const ids = Object.hasOwn(ledger, "heldEvents") ? ledger.heldEvents : [];
+  if (!Array.isArray(ids) || ids.some(id => typeof id !== "string")) throw new Error(blocked);
+  const held = new Map<string, HeldEvent>();
+  if (sidecar !== undefined) {
+    try { parseHeldEvents(sidecar, held); } catch { throw new Error(blocked); }
+  }
+  if (held.size !== ids.length || new Set(ids).size !== ids.length || ids.some(id => !held.has(id))) throw new Error(blocked);
+  if (held.size || ledger.version === 2) throw new Error(blocked);
+  if (privacy.bots.size || privacy.threads.size) {
+    for (const field of ["triggers", "deleted", "bindingOwners", "attempts"]) {
+      const value = ledger[field];
+      if (value !== undefined && (!Array.isArray(value) || rows(value).length !== value.length)) throw new Error("Team backup cannot safely identify app automation owners.");
+    }
+    if (rows(ledger.deleted).some(entry => !record(entry.trigger))) throw new Error("Team backup cannot safely identify app automation owners.");
+    const definitions = [...rows(ledger.triggers), ...rows(ledger.deleted).map(entry => entry.trigger).filter(record)];
+    if (definitions.some(trigger => typeof trigger.botId !== "string" || privacy.bots.has(trigger.botId) || (trigger.sourceThreadId !== undefined && (typeof trigger.sourceThreadId !== "string" || privacy.threads.has(trigger.sourceThreadId)))) ||
+        rows(ledger.bindingOwners).some(owner => typeof owner.botId !== "string" || privacy.bots.has(owner.botId))) throw new Error("Team backup cannot safely include private app automation definitions.");
+    const known = new Set(definitions.map(trigger => trigger.id).filter((id): id is string => typeof id === "string"));
+    if (rows(ledger.attempts).some(attempt => typeof attempt.triggerId !== "string" || !known.has(attempt.triggerId))) throw new Error("Team backup cannot safely identify app event attempt owners.");
+  }
+  return ledger;
+}

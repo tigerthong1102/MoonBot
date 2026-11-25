@@ -60,6 +60,9 @@ describe("IncidentLedger", () => {
 
 describe("incidentRequest", () => {
   const peerAsk = { botId: "clive", name: "Clive" };
+  it("does not present held work as a request to retry", () => {
+    expect(incidentRequest([{ role: "user", kind: "text", text: "HELD_FIXTURE", workBotReviewHold: true }])).toBeNull();
+  });
   it("quotes a requester's words, not the note they were delivered under", () => {
     const delivered = withPeerProvenance("Reconcile the September invoices.", { botName: "Clive", delivery: "delegate_bot",
       origin: { kind: "user", request: "x".repeat(400) } });

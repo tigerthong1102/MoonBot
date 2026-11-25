@@ -46,16 +46,24 @@ it.each(["before", "after", "target-first"])("avoids a duplicate when the first 
       expect((await api<{ routines: unknown[] }>("/api/routines")).routines).toHaveLength(1);
       return;
     }
-    try { await expect.poll(async () => (await rows(target.threadId)).some(row => JSON.stringify(row).includes("may overlap")), { timeout: 30000 }).toBe(true); }
-    catch (error) { throw new Error(`Synthetic target rows: ${JSON.stringify(await rows(target.threadId))}`, { cause: error }); }
+    const runtimeWarnings = async () => (await rows(target.threadId)).filter(row => JSON.stringify(row).includes("may overlap")).length;
+    if (timing === "before") {
+      const sourceMessageId = card.teamSetupRequest!.workBotOffer!.sourceMessageId;
+      expect((await rows(main.threadId)).find(row => row.id === sourceMessageId)?.workBotRouting?.state).toBe("held_for_review");
+      const transferred = (await rows(target.threadId)).filter(row => row.workBotReviewHold);
+      expect(transferred).toHaveLength(1);
+      expect(transferred[0]?.text).toBe(text);
+      expect(await runtimeWarnings()).toBe(0);
+    } else {
+      await expect.poll(runtimeWarnings, { timeout: 30000 }).toBeGreaterThan(0);
+    }
     const routines = (await api<{ routines: Array<{ id: string; enabled: boolean }> }>("/api/routines")).routines;
     expect(routines).toHaveLength(1);
     expect(routines[0]).toMatchObject({ id: old!.id, enabled: true });
-    expect(JSON.stringify(await rows(target.threadId))).toContain("may overlap");
+    const beforeRetry = await runtimeWarnings();
     await expect.poll(async () => !(await bots()).find(bot => bot.id === targetId)?.busy, { timeout: 30000 }).toBe(true);
     await api(`/api/bots/${targetId}/messages`, { threadId: target.threadId, text: "Please retry the schedule", sendId: randomUUID() });
-    try { await expect.poll(async () => (await rows(target.threadId)).filter(row => JSON.stringify(row).includes("may overlap")).length, { timeout: 30000 }).toBeGreaterThanOrEqual(2); }
-    catch (error) { throw new Error(`Synthetic retry rows: ${JSON.stringify(await rows(target.threadId))}`, { cause: error }); }
+    await expect.poll(runtimeWarnings, { timeout: 30000 }).toBeGreaterThan(beforeRetry);
     expect((await api<{ routines: unknown[] }>("/api/routines")).routines).toHaveLength(1);
   } finally {
     await fixture?.close();

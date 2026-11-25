@@ -28,6 +28,11 @@ function source(threads: Record<string, { askedAt?: number; title?: string; rout
 }
 
 describe("the chats a dream reads", () => {
+  it("excludes held handoff text from background memory", () => {
+    const conversations = dreamConversations(source({ a: { askedAt: 10, path: [said("VISIBLE_FIXTURE"), said("HELD_FIXTURE", { workBotReviewHold: true })] } }), "bot", 0);
+    expect(JSON.stringify(conversations)).toContain("VISIBLE_FIXTURE");
+    expect(JSON.stringify(conversations)).not.toContain("HELD_FIXTURE");
+  });
   it("takes chats the person wrote in since the last dream, newest first, and only the owner's own lines", () => {
     const read = dreamConversations(source({
       old: { askedAt: 50, path: [said("too old")] },

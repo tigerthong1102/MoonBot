@@ -1,27 +1,27 @@
 // App-event automations: the store (DATA_DIR/app-triggers.json), their copies on the connected-apps service kept in
 // step without the person (reconciliation), and the long-poll that turns each queued event into a routine run. One
 // path on desktop, headless and Cloud: Composio posts to the service, this server collects from it.
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 
 import {
-  APP_FILTER_MAX,
   GMAIL_APP,
-  gmailSearchQuery,
   type HeldAppEventReview,
   type AppEventAttempt,
   type AppEventOutcome,
   type AppTrigger,
-  type AppTriggerFilter,
   type AppTriggerService,
   type AppTriggersSnapshot,
 } from "../shared/app-triggers.ts";
+import { AppTriggerError, active, cleanFilter, resolveAccount, triggerConfig, type AppTriggerInput, type AppTriggerPatch, type ConnectedApps } from "./app-trigger-config.ts";
+import { countQueueLimit, eventDigest, fileSchema, noteDrops, publicTrigger, readHeldEvents, type HeldEvent, type StoredTrigger } from "./app-trigger-file.ts";
+export { AppTriggerError, type AppTriggerInput, type AppTriggerPatch } from "./app-trigger-config.ts";
 import { appLabel } from "./app-event-catalog.ts";
 import { eventBlock, eventPreview, eventPrompt, matchesFilter, mergeEventBlock } from "./app-events.ts";
-import { brokerEventSchema, BrokerError, type AppTriggerBroker, type BrokerEvent, type BrokerInventory, type BrokerTriggerType } from "./app-trigger-broker.ts";
+import { BrokerError, type AppTriggerBroker, type BrokerEvent, type BrokerInventory } from "./app-trigger-broker.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { EVENT_HISTORY_UNAVAILABLE, LINKED_EVENT_CONFLICT, heldEventMatches, isEventHoldProblem } from "./app-trigger-held.ts";
 import { instructionsUpdateRefusal } from "./automation-instructions.ts";
@@ -48,16 +48,6 @@ const MAX_HELD_BYTES = 2_000_000;
 class LinkedEventConflict extends Error {}
 class RetryAppEvent extends Error {}
 
-export class AppTriggerError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status = 400) {
-    super(message);
-    this.status = status;
-  }
-}
-
-type ConnectedApps = Record<string, { connected: boolean; accounts: Array<{ id: string; alias?: string; status: string }> }>;
 type Frame = { kind: "app-trigger"; botId: string; trigger: AppTrigger } | { kind: "app-trigger.deleted"; triggerId: string }
   | { kind: "app-trigger.attempt"; botId: string; attempt: AppEventAttempt } | { kind: "app-trigger.service"; service: AppTriggerService };
 
@@ -83,135 +73,6 @@ export interface AppTriggerManagerOptions {
   emit?: (frame: Frame) => void;
   log?: (line: string) => void;
   sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
-}
-
-const filterSchema = z.object({
-  from: z.string().trim().max(APP_FILTER_MAX).optional(),
-  subject: z.string().trim().max(APP_FILTER_MAX).optional(),
-  label: z.string().trim().max(APP_FILTER_MAX).optional(),
-  text: z.string().trim().max(APP_FILTER_MAX).optional(),
-}).strict();
-const skippedSchema = z.object({ day: z.string(), dailyLimit: z.number(), queueFull: z.number(), expired: z.number(), tooMany: z.number() });
-const dropCounts = z.record(z.string(), z.number());
-const storedSchema = z.object({
-  id: z.string().min(1),
-  name: z.string(),
-  prompt: z.string(),
-  botId: z.string().min(1),
-  runOn: z.enum(["maus", "cloud"]),
-  enabled: z.boolean(),
-  app: z.string().min(1),
-  appName: z.string(),
-  event: z.string().min(1),
-  eventName: z.string(),
-  delivery: z.enum(["instant", "poll"]),
-  accountId: z.string().min(1),
-  accountLabel: z.string().optional(),
-  config: z.record(z.string(), z.unknown()),
-  filter: filterSchema.optional().catch(undefined),
-  remote: z.object({ triggerId: z.string().optional(), state: z.enum(["active", "pending", "error"]), error: z.string().optional(), syncedAt: z.number().optional() }),
-  problem: z.union([
-    z.object({ kind: z.literal("reconnect"), at: z.number() }),
-    z.object({ kind: z.literal("error"), text: z.string(), at: z.number() }),
-  ]).optional().catch(undefined),
-  sourceThreadId: z.string().optional(),
-  sameConversation: z.boolean().optional().catch(undefined),
-  received: z.number().int().nonnegative(),
-  filtered: z.number().int().nonnegative(),
-  skipped: skippedSchema.optional().catch(undefined),
-  lastEventAt: z.number().optional(),
-  lastRunId: z.string().optional(),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-  /** The service's cumulative drop counts as last seen, and as they stood when this UTC day began. */
-  drops: z.object({ day: z.string(), base: dropCounts, last: dropCounts }).optional().catch(undefined),
-});
-type StoredTrigger = z.output<typeof storedSchema>;
-const attemptSchema = z.object({
-  id: z.string(),
-  triggerId: z.string(),
-  eventId: z.string(),
-  at: z.number(),
-  outcome: z.enum(["started", "joined", "filtered", "duplicate", "skipped", "rejected"]),
-  reason: z.string().optional(),
-  runId: z.string().optional(),
-  preview: z.string().optional(),
-});
-const fileSchema = z.object({
-  version: z.literal(1),
-  pollerId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
-  cursor: z.number().int().nonnegative(),
-  cursorScope: z.string().min(1).max(128).optional(),
-  triggers: z.array(storedSchema),
-  attempts: z.array(attemptSchema).default([]),
-  deleted: z.array(z.object({ at: z.number(), trigger: storedSchema })).default([]),
-  heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })])).default([]),
-  bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).optional(),
-});
-const heldStoreSchema = z.object({ version: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional(), allowedTriggerIds: z.array(z.string()).optional(), heldBotIds: z.array(z.string()).optional(), heldTriggerIds: z.array(z.string()).optional(), discarded: z.literal(true).optional(), eventDigest: z.string().regex(/^[a-f0-9]{64}$/).optional(), sourceScope: z.string().min(1).max(128).optional() })) });
-type HeldEvent = { reason: "conflict" | "unknown"; event?: BrokerEvent; allowedTriggerIds?: string[]; heldBotIds?: string[]; heldTriggerIds?: string[]; discarded?: true; eventDigest?: string; sourceScope?: string };
-const eventDigest = (event: BrokerEvent) => createHash("sha256").update(JSON.stringify(event)).digest("hex");
-
-export interface AppTriggerInput {
-  botId: string;
-  name: string;
-  prompt: string;
-  app: string;
-  event: string;
-  account?: string;
-  filter?: AppTriggerFilter;
-  config?: Record<string, unknown>;
-  runOn?: RoutineRunOn;
-  enabled?: boolean;
-  sourceThreadId?: string;
-  sameConversation?: boolean;
-  /** Another server's automation, made here under its own id. */
-  id?: string;
-}
-
-export interface AppTriggerPatch {
-  name?: string;
-  prompt?: string;
-  runOn?: RoutineRunOn;
-  filter?: AppTriggerFilter | null;
-  config?: Record<string, unknown>;
-  enabled?: boolean;
-  sameConversation?: boolean;
-  /** Undo: the config exactly as it was saved, filter already folded in. */
-  restoreConfig?: Record<string, unknown>;
-}
-
-const utcDay = (at: number) => new Date(at).toISOString().slice(0, 10);
-const active = (status: string) => /^active$/i.test(status);
-
-function cleanFilter(filter: AppTriggerFilter | null | undefined): AppTriggerFilter | undefined {
-  if (!filter) return undefined;
-  const parsed = filterSchema.safeParse(filter);
-  if (!parsed.success) throw new AppTriggerError(`The filter takes from, subject, label and text, each at most ${APP_FILTER_MAX} characters.`);
-  const kept = Object.fromEntries(Object.entries(parsed.data).filter(([, value]) => value)) as AppTriggerFilter;
-  return Object.keys(kept).length ? kept : undefined;
-}
-
-/** The trigger config Composio gets: the fields the event type takes, with Gmail's plain filter as its search. */
-function triggerConfig(type: BrokerTriggerType, config: Record<string, unknown>, filter: AppTriggerFilter | undefined): Record<string, unknown> {
-  const properties = (type.config.properties ?? {}) as Record<string, { default?: unknown }>;
-  const known = Object.keys(properties);
-  const unknown = Object.keys(config).filter((key) => known.length > 0 && !known.includes(key));
-  if (unknown.length) throw new AppTriggerError(`${type.name} has no setting ${unknown.join(", ")}. Its settings are: ${known.join(", ") || "none"}.`);
-  const next: Record<string, unknown> = { ...config };
-  if (type.toolkit === GMAIL_APP && filter) {
-    const query = [typeof next.query === "string" ? next.query.trim() : "", gmailSearchQuery(filter)].filter(Boolean).join(" ");
-    if (query) next.query = query;
-  }
-  const required = Array.isArray(type.config.required) ? type.config.required.filter((key): key is string => typeof key === "string") : [];
-  const missing = required.filter((key) => next[key] === undefined && properties[key]?.default === undefined);
-  if (missing.length) throw new AppTriggerError(`${type.name} needs ${missing.join(", ")} in its settings (event_config).`);
-  return next;
-}
-
-function publicTrigger(stored: StoredTrigger): AppTrigger {
-  const { drops: _drops, ...trigger } = stored;
-  return structuredClone(trigger);
 }
 
 export class AppTriggerManager {
@@ -280,19 +141,7 @@ export class AppTriggerManager {
       }
     }
     try {
-      const stored = heldStoreSchema.parse(JSON.parse(readFileSync(this.heldFile, "utf8")));
-      upgradeHeldStore = stored.version < 3;
-      if (new Set(stored.events.map(row => row.id)).size !== stored.events.length) throw new Error("Duplicate held event IDs");
-      for (const row of stored.events) {
-        if (row.event && row.event.id !== row.id) throw new Error("Mismatched held event ID");
-        if ((row.discarded || row.sourceScope) && stored.version !== 4) throw new Error("Invalid held event version");
-        if (row.discarded && (!row.event || !row.eventDigest || !row.sourceScope)) throw new Error("Invalid discarded event receipt");
-        if (row.heldTriggerIds && (!row.heldTriggerIds.length || !row.heldBotIds?.length || row.heldTriggerIds.some(id => row.allowedTriggerIds?.includes(id)))) throw new Error("Conflicting held recipient IDs");
-        const existing = this.heldEvents.get(row.id);
-        if (existing?.event && row.event && JSON.stringify(existing.event) !== JSON.stringify(row.event) && (!row.discarded || eventDigest(existing.event) !== row.eventDigest)) throw new Error("Conflicting held event copies");
-        const event = row.event ?? existing?.event;
-        this.heldEvents.set(row.id, { reason: row.reason, ...(event ? { event } : {}), ...(row.allowedTriggerIds ? { allowedTriggerIds: row.allowedTriggerIds } : {}), ...(row.heldBotIds ? { heldBotIds: row.heldBotIds } : {}), ...(row.heldTriggerIds ? { heldTriggerIds: row.heldTriggerIds } : {}), ...(row.sourceScope ? { sourceScope: row.sourceScope } : {}), ...(row.discarded ? { discarded: true as const, eventDigest: row.eventDigest } : {}) });
-      }
+      upgradeHeldStore = readHeldEvents(this.heldFile, this.heldEvents).upgrade;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
     }
@@ -420,7 +269,7 @@ export class AppTriggerManager {
     const type = await this.remote(() => this.options.broker.triggerType(input.event.trim()));
     if (!type) throw new AppTriggerError(`${input.event} is not an event StartupBot can watch. Call trigger_info action=events to see the events this app offers.`, 404);
     if (type.toolkit !== app) throw new AppTriggerError(`${type.slug} is a ${appLabel(type.toolkit)} event, not ${appLabel(app)}.`);
-    const account = await this.resolveAccount(app, input.account);
+    const account = await resolveAccount(this.options.connectedApps, app, input.account);
     const filter = cleanFilter(input.filter);
     const config = triggerConfig(type, input.config ?? {}, filter);
     const now = this.now();
@@ -799,7 +648,7 @@ export class AppTriggerManager {
       let runId = joined?.id;
       if (!runId) {
         if (this.options.runs.pending(trigger.id) >= DEFAULT_MAX_PENDING_RUNS) {
-          this.countSkipped(trigger, "tooMany");
+          countQueueLimit(this.now(), trigger);
           this.record(trigger, event, "skipped", { reason: `it already had ${DEFAULT_MAX_PENDING_RUNS} runs waiting` });
           continue;
         }
@@ -898,7 +747,7 @@ export class AppTriggerManager {
       } catch (error) {
         this.markRemoteFailure(trigger, error);
       }
-      this.noteDrops(trigger, trigger.remote.triggerId ? bindings.get(trigger.remote.triggerId)?.dropped : undefined);
+      noteDrops(this.now(), trigger, trigger.remote.triggerId ? bindings.get(trigger.remote.triggerId)?.dropped : undefined);
       if (JSON.stringify(trigger) !== before) changed.add(trigger);
     }
     const wanted = new Set(this.triggers.map((trigger) => trigger.remote.triggerId).filter((id): id is string => Boolean(id)));
@@ -942,49 +791,6 @@ export class AppTriggerManager {
     }
     trigger.remote = { triggerId: binding.triggerId, state: "active", syncedAt: this.now() };
     if (trigger.problem?.kind === "error" && !isEventHoldProblem(trigger.problem)) delete trigger.problem;
-  }
-
-  /** The service's drop counts never reset; today's share is what grew since the UTC day began. */
-  private noteDrops(trigger: StoredTrigger, dropped: Record<string, { count: number; lastAt: number }> | undefined): void {
-    if (!dropped) return;
-    const day = utcDay(this.now());
-    const dayStart = Date.parse(`${day}T00:00:00Z`);
-    const counts = Object.fromEntries(Object.entries(dropped).map(([reason, drop]) => [reason, drop.count]));
-    const base = trigger.drops?.day === day ? trigger.drops.base
-      : trigger.drops ? trigger.drops.last
-        : Object.fromEntries(Object.entries(dropped).map(([reason, drop]) => [reason, drop.lastAt >= dayStart ? 0 : drop.count]));
-    trigger.drops = { day, base, last: counts };
-    const today = (reason: string) => Math.max(0, (counts[reason] ?? 0) - (base[reason] ?? 0));
-    const tooMany = trigger.skipped?.day === day ? trigger.skipped.tooMany : 0;
-    trigger.skipped = { day, dailyLimit: today("daily_limit"), queueFull: today("queue_full"), expired: today("expired"), tooMany };
-  }
-
-  private countSkipped(trigger: StoredTrigger, reason: "tooMany"): void {
-    const day = utcDay(this.now());
-    const current = trigger.skipped?.day === day ? trigger.skipped : { day, dailyLimit: 0, queueFull: 0, expired: 0, tooMany: 0 };
-    trigger.skipped = { ...current, [reason]: current[reason] + 1 };
-  }
-
-  private async resolveAccount(app: string, wanted: string | undefined): Promise<{ id: string; alias?: string }> {
-    let apps: ConnectedApps;
-    try {
-      apps = await this.options.connectedApps();
-    } catch (error) {
-      throw new AppTriggerError(`Connected apps could not be checked: ${error instanceof Error ? error.message : String(error)}`, 503);
-    }
-    const accounts = (apps[app]?.accounts ?? []).filter((account) => active(account.status));
-    const label = appLabel(app);
-    if (!accounts.length) throw new AppTriggerError(`${label} is not connected. Ask the person to connect ${label} first (COMPOSIO_MANAGE_CONNECTIONS shows them a card for it), then create the automation.`, 409);
-    if (wanted?.trim()) {
-      const key = wanted.trim().toLowerCase();
-      const match = accounts.find((account) => account.id === wanted.trim() || account.alias?.toLowerCase() === key);
-      if (!match) throw new AppTriggerError(`No connected ${label} account is called ${wanted}. The accounts are: ${accounts.map((account) => account.alias ?? account.id).join(", ")}.`);
-      return match;
-    }
-    if (accounts.length > 1) {
-      throw new AppTriggerError(`The person has ${accounts.length} ${label} accounts (${accounts.map((account) => account.alias ?? account.id).join(", ")}). Ask which one, then pass account.`);
-    }
-    return accounts[0]!;
   }
 
   private async bind(trigger: StoredTrigger): Promise<void> {

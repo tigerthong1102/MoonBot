@@ -12,7 +12,6 @@ const supersededFolders = new Map([
   ["02a1482cdc9f46d6a8c7657f13506bfe30e54e9a336cb0a4c5478424740d986c", "byted-kickart-video-subtitler"],
   ["1f44959dfd38c7a81a9757e99227fccec48a7f2039927e4049ada5cf1e17cc09", "apify-ecommerce"],
   ["7b2b1264dceb000451ae9ee8cab8ea76bccb56b8aa7f06102cdaebc740db8f8e", "gemini-api"],
-  ["826bac3c4d01452e2fde4d5860f923f0c47458cb55c46799276c40481c6141c5", "generated-ui"],
   ["70b63a6241cc75987c6af3e5a7f73fafb8b0353948c3a35cb0e33f3fe1e9f99d", "byted-las-pdf-parse-doubao"],
   ["34ba9e97ff58a1e78f84df4da447d0262c0bdc6d16c829f8b378cf710f95dd2c", "byted-las-asr-pro"],
   ["c6766679d3271943d01f28fe8651955c80e74dc0f8306767d2f8ccd2bdea6d41", "producthunt"],
@@ -167,7 +166,7 @@ export function installStartupBotSkillCatalog({
         compatibility: folder.parsed.compatibility,
         warnings: folder.warnings,
         files: folder.files,
-        reviewState: ["byted-kickart-video-subtitler", "apify-ecommerce", "shopify", "woocommerce", "product-discovery", "pricing-strategy", "business-finance-fundamentals", "team-leadership", "startup-idea", "comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
+        reviewState: ["byted-kickart-video-subtitler", "shopify", "woocommerce", "product-discovery", "pricing-strategy", "business-finance-fundamentals", "team-leadership", "startup-idea", "comps-analysis", "hyperframes", "hyperframes-cli", "web-perf", "xlsx", "docx", "pptx", "producthunt", "apify-ecommerce", "gemini-api", "byted-text-to-speech", "google-ads-api-mcp-setup", "byted-las-asr-pro", "byted-las-pdf-parse-doubao", "generated-ui", "byted-seedance-video-generate", "byted-seedream-image-generate"].includes(entry.name)
           ? previous?.reviewState ?? "disabled"
           : "disabled",
         everyBot: previous?.everyBot,

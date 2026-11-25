@@ -101,6 +101,7 @@ export function loadRoutine(routine: Routine, now: number): Routine | null {
     timeoutMinutes: loadTimeoutMinutes(routine.timeoutMinutes),
     attachments: loadAttachments(routine.attachments),
     sourceThreadId: persistedSourceThreadId.parse(routine.sourceThreadId),
+    delegatedFromMessageId: persistedSourceThreadId.parse(routine.delegatedFromMessageId),
     resultsThreadId: persistedSourceThreadId.parse(routine.resultsThreadId),
     overlap: routine.overlap === "queue" ? "queue" : undefined,
     runOnStartup: routine.runOnStartup === true ? true : undefined,

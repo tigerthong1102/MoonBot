@@ -9085,7 +9085,7 @@ async function cloudRoutineReadiness(botId: string, threadId?: string): Promise<
   }
 }
 const routineRequests = new RoutineRequestService({
-  store,
+  store, workBotLinks: workBotLinksForThread,
   routines, engines: { name: engineName, resetAt: (engine) => limitClock.resetAt(engine), botEngine: (botId) => store.bot(botId)?.modelSelection.instanceId },
   autoApply: routineAppliesDirectly,
   cloudReady: cloudRoutineReadiness,

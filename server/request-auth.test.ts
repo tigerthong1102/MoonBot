@@ -773,7 +773,7 @@ describe("loopback trust: owner on one person's machine, service on a shared wor
 
   it("ignores service trust while the desktop capability is in force", () => {
     expect(check("PUT", "/api/config", { trust: "service", desktopToken: "owner-token", headers: { "x-openmausbot-desktop-owner": "owner-token" } }).auth)
-      .toEqual({ kind: "loopback", scopes: ["admin", "client"] });
+      .toEqual({ kind: "loopback", scopes: ["admin", "client"], desktopOwner: true });
   });
 
   it("defaults to service on a hosted workspace, owner elsewhere, and lets the operator choose", () => {
@@ -881,6 +881,8 @@ describe("a browser on this machine is not the owner", () => {
     const owner = { "x-openmausbot-desktop-owner": "owner-token-123" };
     expect(check({ ...ownUi, ...owner }, "/api/bots", "GET", desktop).auth?.kind).toBe("loopback");
     expect(check({ ...ownUi, ...owner }, "/api/bots/bot-1", "PATCH", desktop).auth?.kind).toBe("loopback");
+    expect(check({ ...ownUi, ...owner }, "/api/bots/bot-1", "PATCH", desktop).auth).toMatchObject({ kind: "loopback", desktopOwner: true });
+    expect(check({ host: "127.0.0.1:8799" }, "/api/bots", "GET", desktop).auth).not.toHaveProperty("desktopOwner");
     expect(check({ ...socket, origin: "http://127.0.0.1:8799", ...owner }, "/api/desktop-viewer/local/shared/websockify", "GET", desktop).auth?.kind).toBe("loopback");
     for (const headers of [ownUi, page, socket, { ...ownUi, "x-openmausbot-desktop-owner": "owner-token-999" }]) {
       expect(check(headers, "/api/bots", "GET", desktop).status, JSON.stringify(headers)).toBe(401);
@@ -891,6 +893,7 @@ describe("a browser on this machine is not the owner", () => {
     expect(check({ host: "127.0.0.1:8799" }, "/api/bots", "GET", desktop).auth?.kind).toBe("loopback");
     const relay = { host: "127.0.0.1:8799", "x-openmausbot-companion": "1", "x-openmausbot-companion-device": "phone-1", "x-openmausbot-companion-auth": "relay-secret" };
     expect(check(relay, "/api/bots/b/messages", "POST", desktop).auth?.kind).toBe("loopback");
+    expect(check(relay, "/api/bots/b/messages", "POST", desktop).auth).not.toHaveProperty("desktopOwner");
   });
 
   it("does not lend the owner header to another page in the desktop window's session", () => {

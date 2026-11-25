@@ -66,9 +66,9 @@ Studio 編輯你編寫的標籤。
 ## 工作流程
 
 - 已有專案：`npx hyperframes timeline --json` 顯示播放時序；修改前用 `npx hyperframes history --since mine --who <you>` 檢視使用者自上輪以來的更改，並在其基礎上繼續（`/hyperframes-cli`）。
-- 超過約 15 秒的新敘事影片：先讀下表對應型別的檔案，再讀 `references/story.md`；僅用文字提出三個不同故事方案，讓使用者選擇，除非使用者要求直接交付或不停止。然後建立 `SPEC.md`（`references/spec.md`）：量化每個形容詞，明確禁止的預設值，並按幀描述鏡頭。
+- 超過約 15 秒的新敘事影片：先讀下表對應型別的檔案，再讀 `references/story.md`；根據需求制定合適的故事；使用者要求選擇時再提供備選方案。然後建立 `SPEC.md`（`references/spec.md`）：量化每個形容詞，明確禁止的預設值，並按幀描述鏡頭。
 - 最後一次編輯後執行 `npx hyperframes check --json`；修復所有錯誤並評估每個警告。影片使用 `npx hyperframes snapshot --at <seconds>` 檢查代表性畫面及轉場，參考 `references/review.md` 並完成 `REVIEW.md`。有用時執行 `npx hyperframes snapshot --review`；如果卡住，停止自己啟動的行程並改用定點截圖，不得跳過畫面檢查。小改動則為修改部分截圖（`--at`、`--range`、`--composition`），回覆前檢視。
-- 使用者批准 Studio 預覽、要求檔案或要求不中斷時，在檢查和審閱透過後渲染；否則停在預覽並等待。
+- 使用者要求製作或編輯影片時，完成檢查和視覺審閱後渲染，並在 StartupBot 對話中返回檔案。不要要求使用者開啟 Studio 或專案連結；僅在使用者明確要求時使用 Studio 或分享預覽連結。
 
 ## 需要閱讀的資料
 

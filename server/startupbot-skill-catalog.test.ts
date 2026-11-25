@@ -87,7 +87,7 @@ it("upgrades the merged media skill and preserves approval", () => {
 it("upgrades the in-app video guides while preserving approval and custom changes", () => {
   const root = mkdtempSync(join(tmpdir(), "startupbot-in-app-guide-"));
   try {
-    const catalog = join(root, "catalog"), library = join(root, "library");
+    const catalog = join(root, "catalog"), library = join(root, "library"), customizedLibrary = join(root, "customized");
     const names = ["hyperframes", "hyperframes-cli"];
     mkdirSync(catalog);
     for (const name of names) {
@@ -97,12 +97,16 @@ it("upgrades the in-app video guides while preserving approval and custom change
     const entries = JSON.parse(readFileSync("skills/catalog/index.json", "utf8")).filter((entry: { name: string }) => names.includes(entry.name));
     writeFileSync(join(catalog, "index.json"), JSON.stringify(entries));
     expect(installStartupBotSkillCatalog({ catalog, root: library })).toEqual({ installed: 2, failed: [] });
+    expect(installStartupBotSkillCatalog({ catalog, root: customizedLibrary })).toEqual({ installed: 2, failed: [] });
     for (const name of names) expect(setLibrarySkillReviewState(name, "approved", library)).not.toHaveProperty("error");
-    const customized = join(library, "skills/hyperframes-cli/references/preview-render.md");
+    const customized = join(customizedLibrary, "skills/hyperframes-cli/references/preview-render.md");
     writeFileSync(customized, readFileSync(customized, "utf8") + "\nCustom note.\n");
-    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize - 1, failed: [] });
+    expect(installStartupBotSkillCatalog({ root: library })).toEqual({ installed: catalogSize, failed: [] });
+    expect(installStartupBotSkillCatalog({ root: customizedLibrary })).toEqual({ installed: catalogSize - 1, failed: [] });
     expect(readSkillLibraryIndex(library).hyperframes.reviewState).toBe("approved");
+    expect(readSkillLibraryIndex(library)["hyperframes-cli"].reviewState).toBe("approved");
     expect(readFileSync(join(library, "skills/hyperframes/SKILL.md"), "utf8")).toContain("return the resulting file in the StartupBot conversation");
+    expect(readFileSync(join(library, "skills/hyperframes-cli/SKILL.md"), "utf8")).toContain("return the file in the StartupBot conversation");
     expect(readFileSync(customized, "utf8")).toContain("Custom note.");
   } finally {
     rmSync(root, { recursive: true, force: true });

@@ -7,6 +7,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import type { RunMessage } from "../../shared/skill-burger/layers.ts";
 import { json, readBody } from "../harness/http.ts";
+import { setLibrarySkillEveryBot } from "../skill-library.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { dispatchRoutes } from "../routes/table.ts";
 import { createSkillBurgerRoutes, type SkillBurgerRouteDeps } from "./routes.ts";
@@ -26,6 +27,7 @@ const thread: RunMessage[] = [
 ];
 
 async function serve(extra: Partial<SkillBurgerRouteDeps> = {}, scopes: readonly string[] = ["admin"]) {
+  let currentScopes = scopes;
   const root = mkdtempSync(join(tmpdir(), "burger-routes-"));
   const bot = `route-burger-${Math.random().toString(36).slice(2, 10)}`;
   const routes = [createSkillBurgerRoutes({
@@ -38,7 +40,7 @@ async function serve(extra: Partial<SkillBurgerRouteDeps> = {}, scopes: readonly
   })];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
-    const auth = { kind: scopes.includes("admin") ? "loopback" : "session", scopes } as unknown as RequestAuth;
+    const auth = { kind: currentScopes.includes("admin") ? "loopback" : "session", scopes: currentScopes } as unknown as RequestAuth;
     if (!await dispatchRoutes(routes, { req, res, url, path: url.pathname, method: req.method ?? "GET", auth, json, readBody })) json(res, 404, {});
   });
   servers.push(server);
@@ -48,7 +50,7 @@ async function serve(extra: Partial<SkillBurgerRouteDeps> = {}, scopes: readonly
     const res = await fetch(`${base}${path}`, init);
     return { status: res.status, body: await res.json() as Record<string, any> };
   };
-  return { api, bot };
+  return { api, bot, root, as: (next: readonly string[]) => { currentScopes = next; } };
 }
 
 const send = (method: string, body: unknown): RequestInit => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -125,4 +127,21 @@ it("shows workflow history only for conversations the viewer can read", async ()
   const result = await api("/api/skill-burgers/workflow/runs");
   expect(result.status).toBe(200);
   expect(result.body.runs.map((entry: { run: string }) => entry.run)).toEqual(["visible"]);
+});
+
+it("does not expose a shared workflow to a member whose visible bot cannot use it", async () => {
+  let assigned: string[] = [];
+  const h = await serve({ levelOf: () => "view", assignedSkills: () => assigned });
+  const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
+  const name = saved.body.skill.name as string;
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { everyChat: true, botId: h.bot }))).status).toBe(200);
+  setLibrarySkillEveryBot(name, false, h.root);
+  h.as(["client"]);
+  expect(await names(h.api)).toEqual([]);
+  expect((await h.api(`/api/skill-burgers/${name}`)).status).toBe(404);
+  expect((await h.api(`/api/skill-burgers/${name}?runner=${h.bot}`)).status).toBe(404);
+  assigned = [name];
+  expect(await names(h.api)).toEqual([[name, true]]);
+  expect((await h.api(`/api/skill-burgers/${name}`)).status).toBe(200);
+  expect((await h.api(`/api/skill-burgers/${name}?runner=${h.bot}`)).status).toBe(200);
 });

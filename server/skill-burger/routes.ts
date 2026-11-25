@@ -119,7 +119,11 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
     if (path === SKILL_BURGERS_PATH) {
       if (method === "GET") {
         const visible = admin(auth) ? botIds : botIds.filter((botId) => level(auth, botId) !== "none");
-        return json(res, 200, { skills: listWorkflowSkills(visible, deps.root) });
+        const skills = listWorkflowSkills(visible, deps.root).filter((skill) => admin(auth) || !skill.everyChat || visible.some((botId) => {
+          const found = findWorkflowSkill(botId, skill.name, deps.root, deps.assignedSkills?.(botId));
+          return found && "everyChat" in found.place;
+        }));
+        return json(res, 200, { skills });
       }
       if (method !== "POST") return json(res, 405, { error: "Use GET or POST." });
       const body = saveBody.safeParse(await readBody(req));
@@ -205,6 +209,11 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       }
       const at = url.searchParams.get("botId");
       if (at && level(auth, at) === "none") return json(res, 404, { error: "No such skill." });
+      if (!at && !admin(auth) && !botIds.some((botId) => {
+        if (level(auth, botId) === "none") return false;
+        const found = findWorkflowSkill(botId, name, deps.root, deps.assignedSkills?.(botId));
+        return found && "everyChat" in found.place;
+      })) return json(res, 404, { error: "No such skill." });
       const found = readWorkflowSkill(placeOf(at), name, deps.root);
       return found ? json(res, 200, found) : json(res, 404, { error: "No such skill." });
     }

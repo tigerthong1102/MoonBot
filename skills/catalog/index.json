@@ -557,7 +557,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Tạo video bằng Gemini hoặc Veo qua kết nối đã cấu hình.",
-    "instructionsSha256": "7b7453f9d9db260b4a0a8e20a14c2fab1a10b148952f55fe0b47a1211f7fcf8f",
+    "instructionsSha256": "778fa72ebd433c75f7f4c6f4a7603dc305783ff1ee579113b4abd20e212484ef",
     "summaryZh": "通过配置的连接使用 Gemini 或 Veo 创建视频。",
     "summaryZhTw": "透過配置的連接使用 Gemini 或 Veo 創建視訊。"
   },
@@ -632,7 +632,7 @@
     "excludedFiles": [],
     "category": "marketing",
     "summaryVi": "Kiểm tra kết nối MCP của Google Ads.",
-    "instructionsSha256": "981480360247332218b1f621339844b53d5b374abc73ef0b1ee74905c846b517",
+    "instructionsSha256": "47ed5399afb9aac121b129f669c0b96cf725c4e550f2fc0a4f00fb114f5454b2",
     "summaryZh": "测试您的 Google Ads MCP 连接。",
     "summaryZhTw": "測試您的 Google Ads MCP 連線。"
   },
@@ -662,7 +662,7 @@
     "excludedFiles": [],
     "category": "commerce",
     "summaryVi": "Thu thập dữ liệu sản phẩm thương mại điện tử qua Apify.",
-    "instructionsSha256": "d68d1fbf0fa6a465587301e39474311c390c0d399f84928652853dcfad0b1d09",
+    "instructionsSha256": "5c2534a80ccaef4a29afb01e06b7318b2529a77a008a1f290613863d979ba06e",
     "summaryZh": "通过Apify收集电子商务产品数据。",
     "summaryZhTw": "透過Apify收集電子商務產品數據。"
   },
@@ -760,7 +760,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Chuyển giọng nói thành văn bản bằng dịch vụ nhận dạng âm thanh.",
-    "instructionsSha256": "f148752a4b9725b0e6258474b43c747cfabff837269800d9523fcb31f7abc4c3",
+    "instructionsSha256": "c0de0e16d2a14a7fbb4070b49775de80110fc89a81e09e012d2a51ab212db710",
     "summaryZh": "使用音频识别服务将语音转换为文本。",
     "summaryZhTw": "使用音訊辨識服務將語音轉換為文字。"
   },
@@ -793,7 +793,7 @@
     ],
     "category": "media",
     "summaryVi": "Tạo phụ đề cho video.",
-    "instructionsSha256": "db77b0da9bf837135c6b4a6ae97cf1827304bdd4f1b9186a7086ef3c82ff00ed",
+    "instructionsSha256": "a2b57e84b2ecee5b76a8f59c79ccc18cac991c2dc897be2bb153a39b2db81574",
     "summaryZh": "为视频创建字幕。",
     "summaryZhTw": "為影片建立字幕。"
   },
@@ -808,7 +808,7 @@
     "excludedFiles": [],
     "category": "office",
     "summaryVi": "Trích xuất nội dung PDF bằng dịch vụ Doubao.",
-    "instructionsSha256": "eb23b981cc0c07c113ed2c2d52f3cc8db9f11f09a3504bde783ed54b78f6231f",
+    "instructionsSha256": "1bde232d9b938bac5f302825458e6faac0a2b6531993b08d2728cec8391b6589",
     "summaryZh": "使用豆宝服务提取PDF内容。",
     "summaryZhTw": "使用豆寶服務擷取PDF內容。"
   },
@@ -823,7 +823,7 @@
     "excludedFiles": [],
     "category": "web",
     "summaryVi": "Tạo bảng so sánh hoặc công cụ tính toán tương tác trong StartupBot.",
-    "instructionsSha256": "449072fec2d2a4b16e98ca0575200b51f3b03777715e920b60f0d17ee11de251",
+    "instructionsSha256": "74fbdd186fa6cb5a97a102a7e5abc7f8cf35f905fd0917c7ab9c9b73982f8add",
     "summaryZh": "在 StartupBot 中创建比较表或交互式计算器。",
     "summaryZhTw": "在 StartupBot 中建立比較表或互動式計算器。"
   },
@@ -993,7 +993,7 @@
     ],
     "category": "startup",
     "summaryVi": "Nghiên cứu sản phẩm ra mắt, chủ đề và xu hướng trên Product Hunt.",
-    "instructionsSha256": "2315e20b037b237a45b2818a993af3c9df3ac18e4ba18678a3f7189cf1e00ef3",
+    "instructionsSha256": "b5bd69c3daf09ddedec77d760f88517c8bd8ae0d91aec3e996b15c244c26c64c",
     "summaryZh": "在 Product Hunt 上研究产品发布、主题和趋势。",
     "summaryZhTw": "在 Product Hunt 上研究產品發布、主題和趨勢。"
   },

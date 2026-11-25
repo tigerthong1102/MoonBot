@@ -240,8 +240,9 @@ export function SettingsLinkRow({ title, subtitle, value, badge, leading, extern
 
 /** A row that opens more rows in its own card: the chevron turns, and what it reveals joins the card under a divider.
  * Use it inside SettingsRows; it replaces every native details triangle. */
-export function SettingsFoldRow({ id, title, subtitle, value, leading, open, onToggle, children }: {
+export function SettingsFoldRow({ id, panelId, title, subtitle, value, leading, open, onToggle, children }: {
   id: string;
+  panelId?: string;
   title: string;
   subtitle?: ReactNode;
   value?: ReactNode;
@@ -252,7 +253,7 @@ export function SettingsFoldRow({ id, title, subtitle, value, leading, open, onT
 }) {
   return <>
     <div data-settings-disclosure={id} data-settings-fold="">
-      <button type="button" aria-expanded={open} onClick={onToggle}
+      <button type="button" aria-expanded={open} aria-controls={panelId} onClick={onToggle}
         className="group flex min-h-11 w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-menu-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus motion-reduce:transition-none">
         {leading !== undefined && <span data-settings-slot="" className={SLOT}>{leading}</span>}
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -266,7 +267,7 @@ export function SettingsFoldRow({ id, title, subtitle, value, leading, open, onT
       </button>
     </div>
     {/* The revealed rows are the card's own rows (each gets the card's divider), so they are not wrapped. */}
-    {open && children}
+    {panelId ? <div id={panelId} hidden={!open}>{children}</div> : open && children}
   </>;
 }
 

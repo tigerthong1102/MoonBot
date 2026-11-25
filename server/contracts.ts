@@ -547,6 +547,8 @@ export interface TextGenerationOptions {
   model?: string;
   /** How long the caller will wait; drivers with their own process timer use it instead of their default. */
   timeoutMs?: number;
+  /** Refuse a private preview if the driver cannot disable tools and session persistence. */
+  requireIsolatedText?: true;
   /** For a bot's own engine whose driver picks a small model of its own. */
   fallback?: SmallModelFallback;
 }

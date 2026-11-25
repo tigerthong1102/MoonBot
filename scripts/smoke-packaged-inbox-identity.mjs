@@ -60,6 +60,15 @@ async function connect(url) {
   return { socket, call: (method, params = {}) => new Promise((resolve, reject) => { const id = ++sequence; const timer = setTimeout(() => { pending.delete(id); reject(Error(`CDP timeout: ${method}`)); }, 20_000); pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } }); socket.send(JSON.stringify({ id, method, params })); }) };
 }
 async function evaluate(cdp, expression) { const result = await cdp.call("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true, userGesture: true }); if (result.exceptionDetails) throw Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text); return result.result?.value; }
+async function disconnect(connection) {
+  const socket = connection?.socket;
+  if (!socket || socket.readyState === WebSocket.CLOSED) return;
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error("Debugger did not disconnect")), 5_000);
+    socket.addEventListener("close", () => { clearTimeout(timer); resolve(); }, { once: true });
+    if (socket.readyState === WebSocket.OPEN) socket.close();
+  });
+}
 
 let child, inspector, renderer, inbox, appPort, result, failure, cleanupFailure, log = "";
 try {
@@ -106,8 +115,16 @@ try {
   assert.equal([...members].filter(id => registered.get(id) === username).length, 1);
   assert.equal(counts.unsignedInvites, 0); assert.equal(counts.invalidProofs, 0);
   result = { status: "PASS", fixture: "loopback TLS fake Cloud", sameNameBots: 2, distinctVerifiedUsernames: true, signedInvites: counts.signedInvites, roomMembers: members.size, unsignedInvites: counts.unsignedInvites, invalidProofs: counts.invalidProofs, nativeMenuSelection: "Electron main debugger invoked the built MenuItem click; physical keyboard not tested", scope: "no legacy Cloud-room upgrade" };
-  if (process.platform === "win32") await smokeWindowsQuit({ inspect: inspectPort, evaluate: expression => evaluate(renderer, expression), expectedPid: child.pid });
-  else await evaluate(inspector, "(()=>{const e=process.getBuiltinModule('module').createRequire(process.resourcesPath+'/app.asar/package.json')('electron');setTimeout(()=>e.app.quit(),10);return true})()");
+  await disconnect(inbox);
+  assert.equal(await evaluate(inspector, "process.pid"), child.pid, "The main debugger must belong to the fixture application");
+  if (process.platform === "win32") {
+    await disconnect(inspector);
+    await smokeWindowsQuit({ inspect: inspectPort, evaluate: expression => evaluate(renderer, expression), expectedPid: child.pid });
+  } else {
+    await evaluate(inspector, "(()=>{const e=process.getBuiltinModule('module').createRequire(process.resourcesPath+'/app.asar/package.json')('electron');setTimeout(()=>e.app.quit(),10);return true})()");
+    await disconnect(inspector);
+  }
+  await disconnect(renderer);
   await until(() => child.exitCode !== null || child.signalCode !== null, "fixture application shutdown", 45_000);
   assert.equal(child.exitCode, 0, "Fixture application must exit cleanly"); assert.equal(child.signalCode, null);
   await until(() => new Promise(resolve => { const socket = createConnection({ host: "127.0.0.1", port: appPort }); socket.setTimeout(500); socket.once("connect", () => { socket.destroy(); resolve(false); }); socket.once("timeout", () => { socket.destroy(); resolve(false); }); socket.once("error", error => { socket.destroy(); resolve(error.code === "ECONNREFUSED"); }); }), "fixture server shutdown", 15_000);

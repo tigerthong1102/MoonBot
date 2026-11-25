@@ -10,6 +10,7 @@ export async function smokeWindowsQuit({ inspect, evaluate, expectedPid }) {
   assert(target?.webSocketDebuggerUrl, "The fixture main inspector must be available");
   const inspector = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { inspector.addEventListener("open", resolve, { once: true }); inspector.addEventListener("error", reject, { once: true }); });
+  let failure;
   try {
     let next = 0;
     const main = expression => new Promise((resolve, reject) => {
@@ -25,5 +26,17 @@ export async function smokeWindowsQuit({ inspect, evaluate, expectedPid }) {
     const origin = await evaluate("location.origin");
     assert.equal(await main(`(()=>{const windows=process.getBuiltinModule('module').createRequire(process.resourcesPath+'/app.asar/package.json')('electron').BrowserWindow.getAllWindows();const win=windows.find(candidate=>candidate.webContents.getURL().startsWith(${JSON.stringify(origin + "/")}));if(!win)return false;win.close();return !win.isDestroyed()&&!win.isVisible()})()`), true, "Closing the fixture window must leave the tray application running");
     await main("(()=>{const item=globalThis.__fixtureQuitMenu.items.find(entry=>entry.label==='Quit StartupBot');setTimeout(()=>item.click(item,null,{}),10);return true})()");
-  } finally { inspector.close(); }
+  } catch (error) { failure = error; }
+  finally {
+    try {
+      if (inspector.readyState !== WebSocket.CLOSED) {
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(Error("Main debugger did not disconnect")), 5_000);
+          inspector.addEventListener("close", () => { clearTimeout(timer); resolve(); }, { once: true });
+          if (inspector.readyState === WebSocket.OPEN) inspector.close();
+        });
+      }
+    } catch (error) { failure ??= error; }
+  }
+  if (failure) throw failure;
 }

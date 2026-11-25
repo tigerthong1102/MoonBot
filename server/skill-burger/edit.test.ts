@@ -39,6 +39,10 @@ it("keeps undo tokens scoped to the skill location and expires them", () => {
 });
 
 describe("changing a saved Skill Burger's steps", () => {
+  it("rejects case steps whose existing conditions would be overwritten", () => {
+    const change = edit({ action: "add_case", decide: { after: "s1" }, case: "support", steps: [{ id: "x", kind: "app", app: "gmail", tool: "GMAIL_SEND_EMAIL", label: "Send", args: {}, when: { $step: "s1", op: "exists" } }] });
+    expect(applyEdit(base, change)).toMatchObject({ error: expect.stringContaining("cannot safely combine") });
+  });
   it("refuses to add a ninth case", () => {
     const workflow = workflowSchema.parse({ ...base, steps: [base.steps[0], { id: "d1", kind: "decide", label: "Choose", cases: ["one", "two", "three", "four", "five", "six", "seven", "eight"], prompt: "Choose" }] });
     expect(applyEdit(workflow, edit({ action: "add_case", decide: { id: "d1" }, case: "nine", steps: [] }))).toMatchObject({ error: expect.stringContaining("8 cases") });

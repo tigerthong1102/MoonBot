@@ -70,6 +70,22 @@ describe("running a Skill Burger", () => {
     expect(result.requiresInput?.input).toContain("example.test");
     expect(h.calls).toHaveLength(0);
   });
+
+  it("enforces saved checks on AI handoffs before running the next action", async () => {
+    const h = harness();
+    const checked = wf([{ id: "s1", kind: "ai", label: "Classify", deterministic: false, prompt: "Classify", check: { says: "good", rule: { op: "eq", value: "good" } } }, app("s2", "GMAIL_SEND_EMAIL", {})]);
+    await h.start(checked);
+    const refused = await resumeRun(h.saved.at(-1)!, "bad", h.deps);
+    expect(refused).toMatchObject({ ok: false, error: { type: "step_failed" } });
+    expect(h.calls).toHaveLength(0);
+    const manual = wf([{ id: "s1", kind: "ai", label: "Draft", deterministic: false, prompt: "Draft", check: true }, app("s2", "GMAIL_SEND_EMAIL", {})]);
+    await h.start(manual);
+    const needsCheck = await resumeRun(h.saved.at(-1)!, "fixture draft", h.deps);
+    expect(needsCheck).toMatchObject({ status: "needs_input", requiresInput: { type: "check", input: "fixture draft" } });
+    expect(h.calls).toHaveLength(0);
+    expect(await resumeRun(h.saved.at(-1)!, "pass", h.deps)).toMatchObject({ status: "ok" });
+    expect(h.calls).toHaveLength(1);
+  });
   it("starts the step timeout only after the person approves the action", async () => {
     vi.useFakeTimers();
     try {

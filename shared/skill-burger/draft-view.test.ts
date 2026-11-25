@@ -61,4 +61,8 @@ describe("the person's choices", () => {
     expect(result.args).toEqual({ target: { default: "example.test" } });
     expect(result.steps[0]).toMatchObject({ prompt: "Summarize {target}." });
   });
+
+  it("rejects swaps that would overwrite renamed input references", () => {
+    expect(applyChoices(workflow, { inputs: { url: { name: "page" }, page: { name: "url" } } })).toEqual({ error: "There is already an input named page." });
+  });
 });

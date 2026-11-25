@@ -133,6 +133,17 @@ describe("a saved delegation", () => {
     expect(t.sent).toHaveLength(0);
   });
 
+  it("checks delegated results before advancing to the next step", async () => {
+    const t = team();
+    const h = harness(t.exec);
+    const original = qa(1);
+    const workflow = workflowSchema.parse({ ...original, steps: [{ ...original.steps[0], check: { says: "Kiwi passed", rule: { path: "replies.Kiwi", op: "eq", value: "passed" } } }, original.steps[1]] });
+    await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    for (const bot of ["kiwi", "rio", "miso"]) t.reply(bot, `${bot} result`);
+    expect(await h.resume("back")).toMatchObject({ requiresInput: { type: "review" } });
+    expect(await h.resume('{"redo":{}}')).toMatchObject({ ok: false, error: { type: "step_failed", message: expect.stringContaining("Kiwi passed") } });
+  });
+
   it("gives a gone teammate's part to the one with its role, or asks the bot who does it", async () => {
     // Kiwi is gone; Ada has Kiwi's role. Rio is gone and nobody has its role.
     const t = team([{ id: "ada", name: "Ada", title: "Accessibility tester" }, { id: "miso", name: "Miso", title: "Content tester" }, { id: "zed", name: "Zed", title: "SRE" }]);

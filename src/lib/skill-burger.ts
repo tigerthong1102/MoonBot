@@ -156,7 +156,7 @@ export async function fetchRunnable(name: string, botId: string): Promise<{ work
 /** What Run sends: the burger's own slash command, which the bot runs with its run_workflow tool, with the inputs the
  * person gave on one line ("site: https://example.org"), so the run never reuses last time's values by surprise. */
 export const runCommand = (name: string, inputs: Record<string, string> = {}) => {
-  const given = Object.entries(inputs).filter(([, value]) => value.trim()).map(([key, value]) => `${key}: ${value.trim().replace(/\s+/g, " ")}`);
+  const given = Object.entries(inputs).map(([key, value]) => value.trim() ? `${key}: ${value.trim().replace(/\s+/g, " ")}` : `${key}: "" (empty; do not reuse the saved value)`);
   return given.length ? `/${name} ${given.join("; ")}` : `/${name}`;
 };
 

@@ -1,6 +1,3 @@
-// Changes to a saved Skill Burger's steps, from the bot (a person said "if it's support, make a Linear issue") or from a
-// one-tap "Add the path" on the card: add a case with its steps, take a case away, or put a condition on a step. Each
-// change applies at once and keeps the copy it replaced, so its Undo puts that back.
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
@@ -12,7 +9,6 @@ const condition = z.object({ $step: z.string(), path: z.string().max(200).option
 export const editSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("add_case"),
-    /** The fork the case belongs to: an existing decide step's id, or a new one placed after `after`. */
     decide: z.object({
       id: z.string().regex(/^[a-z0-9_]{1,40}$/).optional(),
       after: z.string().optional(),
@@ -50,7 +46,6 @@ const nextId = (workflow: Workflow, stem: string) => {
   for (let n = 1; ; n += 1) if (!taken.has(`${stem}${n}`)) return `${stem}${n}`;
 };
 
-/** `node` with each {"$step": old} that names one of the added steps pointing at its new id. */
 function rewriteRefs(node: unknown, renamed: ReadonlyMap<string, string>): unknown {
   if (Array.isArray(node)) return node.map((item) => rewriteRefs(item, renamed));
   if (!node || typeof node !== "object") return node;
@@ -59,7 +54,6 @@ function rewriteRefs(node: unknown, renamed: ReadonlyMap<string, string>): unkno
   return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, key === "id" ? value : rewriteRefs(value, renamed)]));
 }
 
-/** The workflow with `edit` made, or what is wrong with it. */
 export function applyEdit(workflow: Workflow, edit: WorkflowEdit): Workflow | { error: string } {
   const steps = [...workflow.steps];
   if (edit.action === "set_when") {
@@ -107,6 +101,7 @@ export function applyEdit(workflow: Workflow, edit: WorkflowEdit): Workflow | { 
   const added: WorkflowStep[] = [];
   const renamed = new Map<string, string>();
   for (const raw of edit.steps) {
+    if (raw && typeof raw === "object" && "when" in raw && raw.when != null) return { error: "A step cannot safely combine a condition with a case." };
     const id = nextId({ ...workflow, steps: [...steps, ...added] }, "c");
     const own = (raw as { id?: unknown }).id;
     if (typeof own === "string") renamed.set(own, id);
@@ -118,8 +113,6 @@ export function applyEdit(workflow: Workflow, edit: WorkflowEdit): Workflow | { 
   return { ...workflow, steps };
 }
 
-/** The workflow with `fix` (the steps the bot took to get past step `id` when it failed) put just before that step. The
- * step stays: going on from it ran it again, and it worked once the fix was in. The fix steps take ids of their own. */
 export function insertFix(workflow: Workflow, id: string, fix: readonly WorkflowStep[]): Workflow | { error: string } {
   const at = workflow.steps.findIndex((step) => step.id === id);
   if (at < 0) return { error: `there is no step ${id}` };
@@ -143,7 +136,6 @@ export function insertFix(workflow: Workflow, id: string, fix: readonly Workflow
   return { ...workflow, steps: [...workflow.steps.slice(0, at), ...added, ...workflow.steps.slice(at)] };
 }
 
-/** What each change replaced, by id, so its Undo can put it back. Kept a day. */
 export function createEditUndo(now: () => number = Date.now) {
   const kept = new Map<string, { name: string; previous: Workflow; sha256: string; scope: string; at: number }>();
   const peek = (id: string) => {

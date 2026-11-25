@@ -7,7 +7,13 @@ import type { SavedWorkflow } from "@/lib/skill-burger";
 const fixture = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock("@/state/api", () => ({ api: (...args: unknown[]) => fixture.api(...args) }));
 const { RunWithInputs } = await import("./RunInputs");
+const { runCommand } = await import("@/lib/skill-burger");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+it("distinguishes explicitly cleared inputs from omitted ones", () => {
+  expect(runCommand("fixture", { cc: "" })).toContain('cc: "" (empty; do not reuse the saved value)');
+  expect(runCommand("fixture", {})).toBe("/fixture");
+});
 
 it("shows loading and makes only one request while opening workflow inputs", async () => {
   let resolve!: (value: unknown) => void;

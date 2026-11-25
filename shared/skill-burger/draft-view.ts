@@ -156,7 +156,7 @@ export function applyChoices(workflow: Workflow, choices: DraftChoices | undefin
     const choice: { name?: string; value?: string } | undefined = choices.inputs?.[name];
     const to = choice?.name?.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_") || name;
     if (!ARG_NAME.test(to)) return { error: `"${choice?.name}" can't be an input's name: use letters, numbers and _ only, starting with a letter.` };
-    if (to !== name && (to in args || (to in workflow.args && !(choices.inputs?.[to]?.name)))) return { error: `There is already an input named ${to}.` };
+    if (to !== name && (to in args || to in workflow.args)) return { error: `There is already an input named ${to}.` };
     if (to !== name) steps = renameArg(steps, name, to);
     if (!used(to)) continue;
     args[to] = { ...arg, ...(choice?.value !== undefined ? { default: choice.value } : {}) };

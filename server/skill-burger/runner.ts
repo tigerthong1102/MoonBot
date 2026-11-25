@@ -272,7 +272,14 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
       const ruled = step.rules?.find((rule) => compare(valueAt(results[rule.$step]?.output, rule.path), rule.op, rule.value))?.case ?? (step.rules?.length ? step.otherwise : undefined);
       if (!ruled) return hand(step, "decide");
       deps.events.started(id, name, step);
-      end(step, { state: "done", case: ruled, output: { case: ruled } });
+      const output = { case: ruled };
+      const check = checkRule(step);
+      if (check?.rule && !compare(valueAt(output, check.rule.path), check.rule.op, check.rule.value)) return fail(step, "step_failed", `its check didn't hold: ${check.says}. Check the action's result before trying again.`, { check: { passed: false, says: check.says } }, false);
+      if (check && !check.rule) {
+        results[step.id] = { state: "done", case: ruled, output };
+        return hand(step, "check", undefined, { prompt: `Check this step's result against: "${check.says}". Resume with "pass", or "fail: <why>".`, input: asText(output) });
+      }
+      end(step, { state: "done", case: ruled, output, ...(check ? { detail: { check: { passed: true, says: check.says } } } : {}) });
       const missing = takeCase(workflow, index, ruled);
       if (missing) return hand(step, "missing_case", { decide: step.id, case: ruled });
       continue;
@@ -370,15 +377,36 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
     deps.save({ ...state, results, ...extra, waiting: { step: step.id, type }, createdAt: Date.now() });
     return { protocolVersion: 1, ok: true, status: "needs_input", run: state.id, steps: [], requiresInput: { type, step: step.id, label: step.label, prompt, resumeToken: state.id, ...(input ? { input: clip(redactSecretsInText(input), HANDED_INPUT_MAX) } : {}) } };
   };
+  const afterChecked = () => {
+    const chosen = results[step.id]?.case;
+    if (step.kind === "decide" && chosen && takeCase(workflow, index, chosen)) {
+      results[step.id] = { ...results[step.id]!, state: "handed" };
+      return ask("missing_case", handedPrompt(step, "missing_case", { decide: step.id, case: chosen }), { delegation: undefined });
+    }
+    const { delegation: _done, ...rest } = state;
+    return runFrom({ ...rest, results, from: index + 1 }, deps);
+  };
+  const finishResult = (result: StepResult) => {
+    const check = checkRule(step);
+    if (check?.rule && !compare(valueAt(result.output, check.rule.path), check.rule.op, check.rule.value)) {
+      results[step.id] = { ...result, state: "failed", error: `its check didn't hold: ${check.says}`, detail: { ...result.detail, check: { passed: false, says: check.says } } };
+      deps.events.ended(state.id, state.name, step, results[step.id]!);
+      return { protocolVersion: 1 as const, ok: false, run: state.id, steps: [], error: { type: "step_failed" as const, message: `"${step.label}" failed: its check didn't hold: ${check.says}. Check the action's result before trying again.`, step: step.id } };
+    }
+    results[step.id] = check && !check.rule ? { ...result, state: "handed" } : { ...result, state: "done", ...(check ? { detail: { ...result.detail, check: { passed: true, says: check.says } } } : {}) };
+    if (check && !check.rule) return ask("check", `Check this step's result against: "${check.says}". Resume with "pass", or "fail: <why>".`, { delegation: undefined }, asText(result.output));
+    deps.events.ended(state.id, state.name, step, results[step.id]!);
+    return afterChecked();
+  };
   if (waiting.type === "failed" && !state.delegation?.pendingRedo) {
     return goOn(index);
   }
   if (waiting.type === "check") {
     const verdict = response.trim();
     if (/^pass\b/i.test(verdict)) {
-      results[step.id] = { ...results[step.id], state: "done", detail: { check: { passed: true, says: checkRule(step)?.says ?? "" } } };
+      results[step.id] = { ...results[step.id], state: "done", detail: { ...results[step.id]?.detail, check: { passed: true, says: checkRule(step)?.says ?? "" } } };
       deps.events.ended(state.id, state.name, step, results[step.id]!);
-      return goOn(index + 1);
+      return afterChecked();
     }
     const why = verdict.replace(/^fail[:\s-]*/i, "").slice(0, ERROR_MAX) || "it didn't meet its check";
     results[step.id] = { state: "failed", error: why, detail: { check: { passed: false, says: checkRule(step)?.says ?? "", why } } };
@@ -402,14 +430,12 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
     }
     const finish = (unmet: string[] = []) => {
       const replies = Object.values(delegation.replies);
-      results[step.id] = {
+      const result: StepResult = {
         state: "done",
         output: { replies: Object.fromEntries(Object.entries(delegation.replies).map(([part, reply]) => [part, reply.text])), text: repliesText(delegation.replies), rounds: delegation.round, ...(unmet.length ? { unmet } : {}) },
         detail: { rounds: delegation.round, replies: replies.map((reply) => ({ name: reply.name, ok: reply.ok, text: reply.text.slice(0, 600) })) },
       };
-      deps.events.ended(state.id, state.name, step, results[step.id]!);
-      const { delegation: _done, ...rest } = state;
-      return runFrom({ ...rest, results, from: index + 1 }, deps);
+      return finishResult(result);
     };
     if (waiting.type === "teammates") {
       const got = await collect(delegation, exec, signal);
@@ -444,22 +470,12 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
       deps.save(state);
       return refused(state, `Answer with one of: ${step.cases.map((one) => JSON.stringify(one)).join(", ")}.`, step.id);
     }
-    results[step.id] = { state: "done", case: chosen, output: { case: chosen } };
-    deps.events.ended(state.id, state.name, step, results[step.id]!);
-    if (takeCase(workflow, index, chosen)) {
-      results[step.id] = { state: "handed", case: chosen, output: { case: chosen } };
-      deps.save({ ...state, results, waiting: { step: step.id, type: "missing_case" }, createdAt: Date.now() });
-      return {
-        protocolVersion: 1, ok: true, status: "needs_input", run: state.id, steps: [],
-        requiresInput: { type: "missing_case", step: step.id, label: step.label, prompt: handedPrompt(step, "missing_case", { decide: step.id, case: chosen }), resumeToken: state.id },
-      };
-    }
+    return finishResult({ state: "done", case: chosen, output: { case: chosen } });
   } else if (waiting.type === "missing_case") {
     const chosen = results[step.id]?.case;
     results[step.id] = { state: "done", ...(chosen ? { case: chosen, output: { case: chosen } } : {}) };
   } else {
-    results[step.id] = { state: "done", output: parsed(response) };
-    deps.events.ended(state.id, state.name, step, results[step.id]!);
+    return finishResult({ state: "done", output: parsed(response) });
   }
   return goOn(index + 1);
 }

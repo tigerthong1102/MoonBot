@@ -6,7 +6,7 @@ import { formatInstant, routineCronText } from "./routine-cron-text.ts";
 import { conversationLanguage, serverLine } from "./server-lines.ts";
 import { plainClock, plainTimeZone, plainWeekdays } from "../shared/plain-time-zone.ts";
 import { normalizeCronSchedule, nextCronRuns } from "../shared/routine-schedule.ts";
-import type { WorkBotLink } from "./work-bot-message-db.ts";
+import { isHeldHandoffSchedule, type WorkBotLinkLookup } from "./work-bot-held-schedule.ts";
 import { newId } from "./contracts.ts";
 import { UNDO_STALE, type DirectApply, type DirectApplyCheck } from "./direct-apply.ts";
 import { redactSecretsInText } from "./redact.ts";
@@ -67,7 +67,7 @@ import type { RoutineRequestOptionCard, RoutineRequestStore } from "./routine-re
 export type { RoutineRequestMessage, RoutineRequestOptionCard, RoutineRequestStore } from "./routine-request-store.ts";
 
 export interface RoutineRequestServiceOptions {
-  workBotLinks?: (threadId: string) => readonly WorkBotLink[];
+  workBotLinks?: WorkBotLinkLookup;
   store: RoutineRequestStore;
   routines: RoutineManager;
   now?: () => number;
@@ -924,25 +924,8 @@ export class RoutineRequestService {
     this.workBotLinks = options.workBotLinks;
   }
 
-  private isHeldHandoffSchedule(routine: Routine, threadId: string): boolean {
-    const sourceThreadId = routine.sourceThreadId;
-    if (!sourceThreadId || !this.workBotLinks) return false;
-    const incoming = this.workBotLinks(threadId).filter(link => link.targetThreadId === threadId && link.targetBotId === routine.botId);
-    if (sourceThreadId === threadId) return incoming.length > 0;
-    const origins = incoming.filter(link => link.sourceThreadId === sourceThreadId);
-    if (!origins.length) return false;
-    if (routine.delegatedFromMessageId) return origins.some(link => link.sourceMessageId === routine.delegatedFromMessageId);
-    return this.store.messagesFor(sourceThreadId).some(message => {
-      const card = message.card;
-      const receipt = card?.routineRequest;
-      return card?.answered === "allow" && !card.undone && receipt?.operation?.action === "create"
-        && receipt.threadId === sourceThreadId && receipt.operation.forBot?.botId === routine.botId && receipt.resultId === routine.id
-        && origins.some(link => link.sourceMessageId === message.requestMessageId && link.sourceBotId === receipt.botId);
-    });
-  }
-
   private revalidate(operation: RoutineRequestOperation, botId: string, threadId: string, now: number): void {
-    revalidateOperation(operation, this.routines, { botId, threadId, now, heldHandoff: routine => this.isHeldHandoffSchedule(routine, threadId) });
+    revalidateOperation(operation, this.routines, { botId, threadId, now, heldHandoff: routine => isHeldHandoffSchedule(this.store, this.workBotLinks, routine, threadId) });
   }
 
   /** Writes the card without applying it, the first half of submit(); no production path stops here since Triggers v2. */

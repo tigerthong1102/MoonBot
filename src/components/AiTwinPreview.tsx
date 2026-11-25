@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { AI_TWIN_LOOKUP_PATH, AI_TWIN_PREVIEW_PATH, AI_TWIN_QUESTION_MAX, type AiTwinLesson, type AiTwinPreviewProvider, type AiTwinProfile } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
-import { AiTwinDisclosure } from "./AiTwinDisclosure";
-import { SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
+import { SETTINGS_INPUT, SettingsField, SettingsFoldRow } from "./SettingsPrimitives";
 
 export function AiTwinPreview({ twin, provider, refresh }: {
   twin: AiTwinProfile;
   provider: AiTwinPreviewProvider | undefined;
   refresh: () => void;
 }) {
+  const panelId = useId();
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [draft, setDraft] = useState("");
@@ -58,7 +58,7 @@ export function AiTwinPreview({ twin, provider, refresh }: {
   }
 
   return (
-    <AiTwinDisclosure title={t("settings.aiTwin.preview")} open={open} onToggle={() => {
+    <SettingsFoldRow id="ai-twin-preview" panelId={panelId} title={t("settings.aiTwin.preview")} open={open} onToggle={() => {
       setOpen(!open);
       if (open) {
         abort.current?.abort();
@@ -105,6 +105,6 @@ export function AiTwinPreview({ twin, provider, refresh }: {
           )}
         </form>
       )}
-    </AiTwinDisclosure>
+    </SettingsFoldRow>
   );
 }

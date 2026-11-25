@@ -477,7 +477,7 @@ try {
   const duplicate = await request("/api/bots", { name: "Internal package agent", cwd: home });
   assert.equal(duplicate.status, 201, JSON.stringify(duplicate.body));
   assert.notEqual(duplicate.body.bot?.id, bot.id);
-  const usernameGroup = await smokeGroupUsernames({ bot, evaluate, until, cdp, evidence });
+  const usernameGroup = await smokeGroupUsernames({ bot, duplicate: duplicate.body.bot, evaluate, until, cdp, evidence });
   const first = "Please answer this internal package fixture.";
   assert.equal((await request("/api/sidebar-sections", { name: "Package fixture", botIds: [bot.id] })).status, 200);
   assert.equal((await request(`/api/bots/${bot.id}`, { chiefOfStaff: true, approvalMode: "full" }, "PATCH")).status, 200);

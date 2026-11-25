@@ -3,6 +3,9 @@ Dùng không gian làm việc và công cụ đã thiết lập cho tác vụ. C
 
 Tài liệu gốc được giữ tại `references/upstream.md` để đối chiếu tính năng. Tài liệu có thể mô tả công cụ hoặc thiết lập chưa có; kiểm tra tính tương thích và quyền trước khi thực hiện. Không tự cài đặt, tạo khóa, tải dữ liệu lên, đổi cài đặt hoặc chi tiền.
 
+
+Tài liệu gốc có ví dụ không an toàn yêu cầu gửi hoặc in khóa bí mật: tuyệt đối không yêu cầu người dùng dán khóa vào chat, không in khóa và không chạy các ví dụ đó.
+
 # Tạo và xem lại phụ đề cho video
 
 Sử dụng công cụ phụ đề đã được định cấu hình trên phương tiện được ủy quyền. Trả về các tín hiệu được định thời gian, giữ nguyên giọng Việt và xem lại tên theo chữ viết được cung cấp. Xem lại các tín hiệu trước khi tạo một tệp MP4 riêng có phụ đề được nhúng. Trước tiên hãy xác nhận bất kỳ điểm đến nào của nhà cung cấp dịch vụ bên ngoài.

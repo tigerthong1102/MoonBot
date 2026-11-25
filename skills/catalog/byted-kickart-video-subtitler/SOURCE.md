@@ -31,3 +31,5 @@ Included upstream notices: upstream-notices/LICENSE, NOTICE.
 - scripts/upload.py
 
 Preserved the unmodified upstream SKILL.md as references/upstream.md for feature comparison. It may refer to tools, setup or integrations not included in StartupBot.
+
+The preserved guide includes unsafe examples that print or request secret keys. The active instructions prohibit those examples.

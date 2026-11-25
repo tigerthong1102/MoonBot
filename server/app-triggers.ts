@@ -19,7 +19,7 @@ import {
 } from "../shared/app-triggers.ts";
 import { appLabel } from "./app-event-catalog.ts";
 import { eventBlock, eventPreview, eventPrompt, matchesFilter, mergeEventBlock } from "./app-events.ts";
-import { BrokerError, type AppTriggerBroker, type BrokerEvent, type BrokerInventory, type BrokerTriggerType } from "./app-trigger-broker.ts";
+import { brokerEventSchema, BrokerError, type AppTriggerBroker, type BrokerEvent, type BrokerInventory, type BrokerTriggerType } from "./app-trigger-broker.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { instructionsUpdateRefusal } from "./automation-instructions.ts";
 import { DATA_DIR } from "./config.ts";
@@ -37,11 +37,14 @@ const RECONCILE_ACTIVE_MS = 15 * 60_000;
 const RECONCILE_IDLE_MS = 60 * 60_000;
 const NAME_MAX = 80;
 const PROMPT_MAX = 20_000;
+const MAX_HELD_EVENTS = 100;
+const MAX_HELD_BYTES = 2_000_000;
 const LINKED_EVENT_CONFLICT = "Linked bots have overlapping app automations. Review them before this event can run.";
 const EVENT_HISTORY_UNAVAILABLE = "Event history or bot links cannot be checked. Restore access and review the automation before continuing.";
 const isEventHoldProblem = (problem: StoredTrigger["problem"]) => problem?.kind === "error" && (problem.text === LINKED_EVENT_CONFLICT || problem.text === EVENT_HISTORY_UNAVAILABLE);
 
 class LinkedEventConflict extends Error {}
+class RetryAppEvent extends Error {}
 
 export class AppTriggerError extends Error {
   readonly status: number;
@@ -137,9 +140,10 @@ const fileSchema = z.object({
   triggers: z.array(storedSchema),
   attempts: z.array(attemptSchema).default([]),
   deleted: z.array(z.object({ at: z.number(), trigger: storedSchema })).default([]),
-  heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]) })])).default([]),
+  heldEvents: z.array(z.union([z.string(), z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })])).default([]),
   bindingOwners: z.array(z.object({ remoteId: z.string(), botId: z.string() })).default([]),
 });
+const heldStoreSchema = z.object({ version: z.literal(1), events: z.array(z.object({ id: z.string(), reason: z.enum(["conflict", "unknown"]), event: brokerEventSchema.optional() })) });
 
 export interface AppTriggerInput {
   botId: string;
@@ -205,6 +209,7 @@ function publicTrigger(stored: StoredTrigger): AppTrigger {
 
 export class AppTriggerManager {
   private readonly file: string;
+  private readonly heldFile: string;
   private readonly now: () => number;
   private readonly options: AppTriggerManagerOptions;
   private triggers: StoredTrigger[] = [];
@@ -217,7 +222,8 @@ export class AppTriggerManager {
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
-  private heldEvents = new Map<string, "conflict" | "unknown">();
+  private heldEvents = new Map<string, { reason: "conflict" | "unknown"; event?: BrokerEvent }>();
+  private heldUnreadable = false;
   private bindingOwners = new Map<string, Set<string>>();
   private stopped = true;
   private abort = new AbortController();
@@ -230,7 +236,9 @@ export class AppTriggerManager {
   constructor(options: AppTriggerManagerOptions) {
     this.options = options;
     this.file = options.file ?? join(DATA_DIR, "app-triggers.json");
+    this.heldFile = `${this.file}.held`;
     this.now = options.now ?? Date.now;
+    let embeddedEvents = false;
     try {
       const parsed = fileSchema.safeParse(JSON.parse(readFileSync(this.file, "utf8")));
       if (!parsed.success) throw parsed.error;
@@ -239,7 +247,8 @@ export class AppTriggerManager {
       this.triggers = parsed.data.triggers;
       this.attemptLog = parsed.data.attempts.slice(-MAX_ATTEMPTS);
       this.deleted = parsed.data.deleted.filter((entry) => entry.at >= this.now() - RESTORE_WINDOW_MS);
-      this.heldEvents = new Map(parsed.data.heldEvents.map(row => typeof row === "string" ? [row, "conflict" as const] : [row.id, row.reason]));
+      this.heldEvents = new Map(parsed.data.heldEvents.map(row => typeof row === "string" ? [row, { reason: "conflict" as const }] : [row.id, { reason: row.reason, ...(row.event ? { event: row.event } : {}) }]));
+      embeddedEvents = parsed.data.heldEvents.some(row => typeof row !== "string" && row.event !== undefined);
       for (const owner of parsed.data.bindingOwners) this.rememberBindingOwner(owner.remoteId, owner.botId);
       for (const trigger of [...parsed.data.triggers, ...parsed.data.deleted.map(entry => entry.trigger)]) {
         if (trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
@@ -249,6 +258,25 @@ export class AppTriggerManager {
         this.unreadable = true;
         console.error(`app triggers: ignoring unreadable ${this.file}: ${error instanceof SyntaxError ? "invalid JSON" : error instanceof Error ? error.message : "unreadable"}`);
       }
+    }
+    try {
+      const stored = heldStoreSchema.parse(JSON.parse(readFileSync(this.heldFile, "utf8")));
+      if (new Set(stored.events.map(row => row.id)).size !== stored.events.length) throw new Error("Duplicate held event IDs");
+      for (const row of stored.events) {
+        const existing = this.heldEvents.get(row.id);
+        if (existing?.event && row.event && JSON.stringify(existing.event) !== JSON.stringify(row.event)) throw new Error("Conflicting held event copies");
+        const event = row.event ?? existing?.event;
+        this.heldEvents.set(row.id, { reason: row.reason, ...(event ? { event } : {}) });
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.heldUnreadable = true;
+    }
+    if ([...this.heldEvents.values()].some(value => !value.event)) this.heldUnreadable = true;
+    if (embeddedEvents && !this.heldUnreadable) {
+      try {
+        mkdirSync(dirname(this.heldFile), { recursive: true });
+        writeFileAtomic(this.heldFile, JSON.stringify({ version: 1, events: [...this.heldEvents].map(([id, value]) => ({ id, ...value })) }), { mode: 0o600 });
+      } catch { this.heldUnreadable = true; }
     }
   }
 
@@ -474,6 +502,7 @@ export class AppTriggerManager {
   }
 
   private async runNowTracked(id: string): Promise<{ via: "service" | "here"; runId?: string } | null> {
+    this.assertWritable();
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
     if (trigger.remote.triggerId && this.bound(trigger.remote.triggerId).length > 1) throw new AppTriggerError("This test cannot target one automation because its event source is shared. Review the automations first.", 409);
@@ -522,19 +551,29 @@ export class AppTriggerManager {
   /** Compares every automation with the service's copy and fixes what differs: a missing copy is made, one nobody
    *  wants is deleted, and on/off is matched. Idempotent; the person is never asked to set anything up again. */
   reconcile(): Promise<void> {
-    return this.trackMutation(() => this.exclusive(() => this.reconcileNow()));
+    return this.trackMutation(() => {
+      this.assertWritable();
+      return this.exclusive(() => { this.assertWritable(); return this.reconcileNow(); });
+    });
   }
 
   /** Handles one batch in order. The cursor (the service's ack) moves only after the runs and this file are saved:
    *  a crash before that brings the same events back, and each event's run receipt stops a second run. */
   receive(events: BrokerEvent[], cursor: number): void {
+    this.assertWritable();
+    if (this.heldUnreadable) throw new RetryAppEvent("Held event storage is unavailable");
     let next = this.cursor;
     try {
       for (const event of events) {
         try {
           this.handle(event);
         } catch (error) {
-          if (error instanceof LinkedEventConflict) throw error;
+          if (error instanceof RetryAppEvent) throw error;
+          if (error instanceof LinkedEventConflict) {
+            this.holdEvent(event, error.message === LINKED_EVENT_CONFLICT ? "conflict" : "unknown");
+            next = event.seq;
+            continue;
+          }
           const tries = (this.failures.get(event.id) ?? 0) + 1;
           this.failures.set(event.id, tries);
           if (tries < POISON_TRIES) throw error;
@@ -564,8 +603,8 @@ export class AppTriggerManager {
     }
     const data = event.event.data ?? {};
     const held = this.heldEvents.get(event.id);
-    if (held) throw new LinkedEventConflict(held === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE);
-    if (this.mutationsInFlight) throw new LinkedEventConflict(EVENT_HISTORY_UNAVAILABLE);
+    if (held) throw new LinkedEventConflict(held.reason === "conflict" ? LINKED_EVENT_CONFLICT : EVENT_HISTORY_UNAVAILABLE);
+    if (this.mutationsInFlight) throw new RetryAppEvent(EVENT_HISTORY_UNAVAILABLE);
     const bound = this.bound(event.triggerId);
     const candidates = bound.filter(trigger => this.options.runs.receipt(trigger.id, event.id) || (trigger.enabled && this.options.botState(trigger.botId) !== "missing" && matchesFilter(trigger.app, trigger.filter, data)));
     if (this.options.linkedBots) {
@@ -584,10 +623,9 @@ export class AppTriggerManager {
       } catch {
         reason = EVENT_HISTORY_UNAVAILABLE;
         for (const trigger of candidates.length ? candidates : bound) affected.add(trigger);
-        if (!affected.size) { this.heldEvents.set(event.id, "unknown"); throw new LinkedEventConflict(reason); }
+        if (!affected.size) throw new LinkedEventConflict(reason);
       }
       if (affected.size) {
-        this.heldEvents.set(event.id, reason === LINKED_EVENT_CONFLICT ? "conflict" : "unknown");
         for (const trigger of affected) if (trigger.problem?.kind !== "error" || trigger.problem.text !== reason) this.setProblem(trigger, { kind: "error", text: reason, at: this.now() });
         throw new LinkedEventConflict(reason);
       }
@@ -671,6 +709,7 @@ export class AppTriggerManager {
 
   /** One long-poll: acks everything handled so far (the cursor) and handles what comes back. */
   async pollOnce(signal?: AbortSignal, waitS = POLL_WAIT_S): Promise<number> {
+    this.assertWritable();
     const { events, cursor } = await this.options.broker.poll({ after: this.cursor, waitS, poller: this.pollerId, signal });
     if (signal?.aborted) return 0;
     if (events.length || cursor > this.cursor) this.receive(events, cursor);
@@ -848,6 +887,18 @@ export class AppTriggerManager {
     this.bindingOwners.set(remoteId, owners);
   }
 
+  private holdEvent(event: BrokerEvent, reason: "conflict" | "unknown"): void {
+    const existing = this.heldEvents.get(event.id);
+    if (existing?.event && JSON.stringify(existing.event) !== JSON.stringify(event)) throw new RetryAppEvent("Conflicting event identity");
+    const next = new Map(this.heldEvents);
+    next.set(event.id, { reason: existing?.reason ?? reason, event: structuredClone(event) });
+    const rows = [...next].map(([id, value]) => ({ id, ...value }));
+    if (rows.length > MAX_HELD_EVENTS || Buffer.byteLength(JSON.stringify(rows), "utf8") > MAX_HELD_BYTES) throw new RetryAppEvent("Held event storage is full");
+    mkdirSync(dirname(this.heldFile), { recursive: true });
+    writeFileAtomic(this.heldFile, JSON.stringify({ version: 1, events: rows }), { mode: 0o600 });
+    this.heldEvents = next;
+  }
+
   private record(trigger: StoredTrigger, event: BrokerEvent, outcome: AppEventOutcome, details: { reason?: string; runId?: string } = {}): void {
     const preview = eventPreview(event.event.data ?? {});
     const attempt: AppEventAttempt = {
@@ -885,6 +936,7 @@ export class AppTriggerManager {
 
   private assertWritable(): void {
     if (this.unreadable) throw new AppTriggerError("Saved app automations could not be read. Repair app-triggers.json before changing them.", 503);
+    if (this.heldUnreadable) throw new AppTriggerError("Held app events could not be read. Restore the held event store before changing automations.", 503);
   }
 
   private emitTrigger(trigger: StoredTrigger): void {
@@ -908,9 +960,10 @@ export class AppTriggerManager {
   private save(overrides: { cursor?: number } = {}): void {
     for (const trigger of this.triggers) if (trigger.remote.triggerId) this.rememberBindingOwner(trigger.remote.triggerId, trigger.botId);
     if (this.unreadable) return;
+    if (this.heldUnreadable) throw new RetryAppEvent("Held event storage is unavailable");
     mkdirSync(dirname(this.file), { recursive: true });
     writeFileAtomic(this.file, JSON.stringify({
-      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents].map(([id, reason]) => ({ id, reason })), bindingOwners: [...this.bindingOwners].flatMap(([remoteId, owners]) => [...owners].map(botId => ({ remoteId, botId }))),
+      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents.keys()], bindingOwners: [...this.bindingOwners].flatMap(([remoteId, owners]) => [...owners].map(botId => ({ remoteId, botId }))),
     } satisfies z.input<typeof fileSchema>, null, 2), { mode: 0o600 });
   }
 }

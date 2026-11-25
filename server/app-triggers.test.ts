@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppTriggerRequestService } from "./app-trigger-requests.ts";
 import { appEventCatalog } from "./app-event-catalog.ts";
 import { eventCount } from "./app-events.ts";
-import { brokerClient } from "./app-trigger-broker.ts";
+import { brokerClient, type BrokerEvent } from "./app-trigger-broker.ts";
 import { AppTriggerManager, type AppTriggerManagerOptions } from "./app-triggers.ts";
 import { RoutineManager } from "./routines.ts";
 import { startBrokerFake, type BrokerFake } from "./testing/broker-fake.ts";
@@ -67,6 +67,7 @@ function manager(overrides: Partial<AppTriggerManagerOptions> = {}) {
 }
 
 const runsOf = (triggerId: string) => routines.listRuns().filter((run) => run.routineId === triggerId);
+const heldEvents = () => JSON.parse(readFileSync(join(dir, "app-triggers.json.held"), "utf8")).events as Array<{ id: string; reason: string; event?: BrokerEvent }>;
 const drain = async (triggers: AppTriggerManager) => { while (await triggers.pollOnce(undefined, 0) > 0) { /* until the queue is empty */ } };
 
 async function gmailTrigger(triggers: AppTriggerManager, filter = { from: "acme.com", subject: "order" }) {
@@ -82,17 +83,20 @@ describe("AppTriggerManager", () => {
     expect(second.remote.triggerId).toBe(first.remote.triggerId);
     await expect(triggers.runNow(first.id)).rejects.toMatchObject({ status: 409 });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_linked_conflict");
-    for (let i = 0; i < 7; i++) await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
+    expect(heldEvents()[0]?.event?.id).toBe(heldEvents()[0]?.id);
     expect(routines.listRuns()).toHaveLength(0);
     expect(triggers.get(first.id)?.problem?.kind).toBe("error");
     await triggers.reconcile();
     expect(triggers.get(first.id)?.problem?.kind).toBe("error");
     triggers = manager({ linkedBots: links });
-    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.pollOnce(undefined, 0);
     expect(routines.listRuns()).toHaveLength(0);
     await triggers.update(second.id, { enabled: false });
     triggers = manager({ linkedBots: links });
-    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(0);
   });
 
@@ -105,16 +109,126 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns()).toHaveLength(2);
   });
 
+  it("persists a conflicted event while allowing the following unrelated event to run", async () => {
+    const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const other = await triggers.create({ botId: "bot-3", name: "Independent fixture", prompt: "Other", app: "gmail", event: first.event, filter: { from: "other.example" } });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_conflict_first");
+    await broker.deliver(other.remote.triggerId!, { sender: "person@other.example" }, "msg_independent_second");
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
+    expect(heldEvents()[0]?.event?.id).toBe(heldEvents()[0]?.id);
+    expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+    triggers = manager({ linkedBots: links });
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
+    expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+  });
+
+  it("does not duplicate an unrelated run after a crash before the cursor checkpoint", async () => {
+    const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const other = await triggers.create({ botId: "bot-3", name: "Independent fixture", prompt: "Other", app: "gmail", event: first.event, filter: { from: "other.example" } });
+    const main = join(dir, "app-triggers.json"), beforeCheckpoint = readFileSync(main, "utf8");
+    const at = Date.now();
+    const events = [
+      { seq: 1, id: "fixture-conflict", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: at, event: { data: { subject: "Order fixture", sender: "person@acme.com" } } },
+      { seq: 2, id: "fixture-unrelated", kind: "message" as const, triggerId: other.remote.triggerId!, receivedAt: at, event: { data: { sender: "person@other.example" } } },
+    ];
+    triggers.receive(events, 2);
+    expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+    writeFileSync(main, beforeCheckpoint);
+    routines.close();
+    routines = new RoutineManager({ file: join(dir, "routines.json"), botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
+    triggers = manager({ linkedBots: links });
+    triggers.receive(events, 2);
+    expect(routines.listRuns().map(run => run.botId)).toEqual(["bot-3"]);
+    expect(heldEvents()).toHaveLength(1);
+  });
+
+  it("keeps held payloads when an older version removes metadata from the main file", async () => {
+    const links = () => true;
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_downgrade_fixture");
+    await triggers.pollOnce(undefined, 0);
+    const held = heldEvents()[0]!;
+    const file = join(dir, "app-triggers.json"), old = JSON.parse(readFileSync(file, "utf8"));
+    delete old.heldEvents;
+    delete old.bindingOwners;
+    writeFileSync(file, JSON.stringify(old));
+    triggers = manager({ linkedBots: links });
+    expect(heldEvents()).toEqual([held]);
+    expect(held.event).toBeDefined();
+    triggers.receive([held.event!], 100);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(heldEvents()).toEqual([held]);
+  });
+
+  it("does not change automations or acknowledge an event when held storage is unreadable", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    let triggers = manager({ linkedBots: () => false, broker: client });
+    const first = await gmailTrigger(triggers);
+    const file = join(dir, "app-triggers.json.held"), broken = "{ broken held fixture";
+    writeFileSync(file, broken);
+    const inventory = vi.spyOn(client, "inventory"), testEvent = vi.spyOn(client, "testEvent"), poll = vi.spyOn(client, "poll");
+    triggers = manager({ linkedBots: () => false, broker: client });
+    await expect(triggers.update(first.id, { enabled: false })).rejects.toMatchObject({ status: 503 });
+    await expect(triggers.reconcile()).rejects.toMatchObject({ status: 503 });
+    await expect(triggers.runNow(first.id)).rejects.toMatchObject({ status: 503 });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toMatchObject({ status: 503 });
+    expect(inventory).not.toHaveBeenCalled();
+    expect(testEvent).not.toHaveBeenCalled();
+    expect(poll).not.toHaveBeenCalled();
+    const event = { seq: 100, id: "fixture-event", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: {} } };
+    expect(() => triggers.receive([event], 100)).toThrow(/Held app events/);
+    expect(readFileSync(file, "utf8")).toBe(broken);
+    expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
+  });
+
+  it("refuses to overwrite a profile whose acknowledged held-event file is missing", async () => {
+    const links = () => true;
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_missing_hold");
+    await triggers.pollOnce(undefined, 0);
+    const main = join(dir, "app-triggers.json"), before = readFileSync(main, "utf8");
+    rmSync(join(dir, "app-triggers.json.held"));
+    triggers = manager({ linkedBots: links });
+    await expect(triggers.update(first.id, { enabled: false })).rejects.toMatchObject({ status: 503 });
+    expect(readFileSync(main, "utf8")).toBe(before);
+  });
+
+  it("does not acknowledge a conflicted event when held-event storage reaches its limit", async () => {
+    const triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    const events = Array.from({ length: 101 }, (_, index) => ({ seq: index + 1, id: `fixture-${index}`, kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } }));
+    expect(() => triggers.receive(events, 101)).toThrow(/storage is full/);
+    const saved = JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8"));
+    expect(saved.cursor).toBe(100);
+    expect(saved.heldEvents).toHaveLength(100);
+    expect(heldEvents()).toHaveLength(100);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
   it("does not transfer an older event merely because its original automation was paused", async () => {
     const links = () => true;
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_before_second_bot");
     await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
-    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.pollOnce(undefined, 0);
     await triggers.update(first.id, { enabled: false });
     triggers = manager({ linkedBots: links });
-    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(0);
   });
 
@@ -124,7 +238,8 @@ describe("AppTriggerManager", () => {
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_pause_before_poll");
     await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     await triggers.update(first.id, { enabled: false });
-    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(0);
   });
 
@@ -136,7 +251,8 @@ describe("AppTriggerManager", () => {
     await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     await triggers.remove(first.id);
     triggers = manager({ linkedBots: links });
-    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(0);
   });
 
@@ -148,11 +264,12 @@ describe("AppTriggerManager", () => {
     await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     await triggers.update(first.id, { filter: { from: "other.example" } });
     triggers = manager({ linkedBots: links });
-    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(0);
   });
 
-  it("does not acknowledge events while the routine receipt store is unreadable", async () => {
+  it("persists events while the routine receipt store is unreadable", async () => {
     const triggers = manager({ linkedBots: () => false });
     const first = await gmailTrigger(triggers);
     routines.close();
@@ -160,16 +277,18 @@ describe("AppTriggerManager", () => {
     writeFileSync(file, "{ broken fixture");
     routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_unreadable");
-    for (let i = 0; i < 7; i++) await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/Event history or bot links/);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()[0]?.reason).toBe("unknown");
     expect(triggers.attempts().some(attempt => attempt.outcome === "rejected")).toBe(false);
     routines.close();
     writeFileSync(file, "{}");
     routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
-    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/Event history or bot links/);
+    await triggers.pollOnce(undefined, 0);
+    expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(0);
   });
 
-  it("does not acknowledge an in-flight event after its last binding disappears and history is unreadable", async () => {
+  it("persists an in-flight event after its last binding disappears and history is unreadable", async () => {
     const triggers = manager({ linkedBots: () => false });
     const first = await gmailTrigger(triggers);
     await triggers.remove(first.id);
@@ -178,9 +297,10 @@ describe("AppTriggerManager", () => {
     writeFileSync(file, "{ broken fixture");
     routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
     const event = { seq: 100, id: "fixture-event", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: {} } };
-    expect(() => triggers.receive([event], 100)).toThrow(/Event history or bot links/);
+    triggers.receive([event], 100);
     expect(triggers.attempts()).toEqual([]);
-    expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
+    expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(100);
+    expect(heldEvents()[0]).toMatchObject({ id: event.id, reason: "unknown", event });
   });
 
   it("retains malformed receipt rows without disabling unrelated saved routines", async () => {
@@ -221,11 +341,12 @@ describe("AppTriggerManager", () => {
     const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
     await triggers.update(first.id, { enabled: false });
     const event = { seq: 100, id: delivery, kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data } };
-    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    triggers.receive([event], 100);
     expect(routines.listRuns()).toHaveLength(1);
     await triggers.update(second.id, { enabled: false });
     await triggers.update(first.id, { enabled: true });
-    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    triggers.receive([event], 100);
+    expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(1);
   });
 
@@ -243,7 +364,8 @@ describe("AppTriggerManager", () => {
     routines = new RoutineManager({ file: join(dir, "routines.json"), botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
     triggers = manager({ linkedBots: links });
     const event = { seq: 100, id: delivery, kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data } };
-    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    triggers.receive([event], 100);
+    expect(heldEvents()).toHaveLength(1);
     expect(routines.listRuns()).toHaveLength(1);
   });
 
@@ -255,14 +377,15 @@ describe("AppTriggerManager", () => {
     await triggers.update(first.id, { enabled: false });
     await triggers.update(second.id, { enabled: false });
     const event = { seq: 100, id: "fixture-event", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
-    expect(() => triggers.receive([event], 100)).toThrow(/Event history or bot links/);
+    triggers.receive([event], 100);
     linkLookupFails = false;
-    expect(() => triggers.receive([event], 100)).toThrow(/Event history or bot links/);
+    triggers.receive([event], 100);
     const secondEvent = { ...event, id: "second-fixture-event", seq: 101 };
-    expect(() => triggers.receive([secondEvent], 101)).toThrow(/overlapping app automations/);
+    triggers.receive([secondEvent], 101);
     expect(routines.listRuns()).toHaveLength(0);
     await triggers.update(first.id, { enabled: true });
-    expect(() => triggers.receive([secondEvent], 101)).toThrow(/overlapping app automations/);
+    triggers.receive([secondEvent], 101);
+    expect(heldEvents()).toHaveLength(2);
     expect(routines.listRuns()).toHaveLength(0);
   });
   it("reports in-flight creation before network validation and until all concurrent calls finish", async () => {

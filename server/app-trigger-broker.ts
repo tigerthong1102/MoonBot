@@ -57,7 +57,7 @@ const inventorySchema = z.object({
 });
 export type BrokerInventory = z.infer<typeof inventorySchema>;
 
-const brokerEventSchema = z.object({
+export const brokerEventSchema = z.object({
   seq: z.number(),
   id: z.string(),
   kind: z.enum(["message", "test", "trigger_disabled", "account_expired"]),

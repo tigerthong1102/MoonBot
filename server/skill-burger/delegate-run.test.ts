@@ -42,7 +42,8 @@ function team(roster: Array<{ id: string; name: string; title?: string }> = [{ i
     assignment: async (id) => status.get(id) ?? null,
   };
   const reply = (bot: string, result: string) => { for (const one of status.values()) if (one.bot === bot && one.status === "running") Object.assign(one, { status: "completed", result }); };
-  return { exec, sent, reply };
+  const fail = (bot: string, outcome: string) => { for (const one of status.values()) if (one.bot === bot && one.status === "running") Object.assign(one, { status: outcome, result: "failed" }); };
+  return { exec, sent, reply, fail };
 }
 
 function harness(exec: StepExecutors) {
@@ -54,6 +55,21 @@ function harness(exec: StepExecutors) {
 }
 
 describe("a saved delegation", () => {
+  it.each(["failed", "cancelled"])("stops before the next step when a teammate is %s", async (outcome) => {
+    const t = team();
+    const h = harness(t.exec);
+    const source = qa();
+    const first = source.steps[0]!;
+    if (first.kind !== "delegate") throw new Error("expected a delegation");
+    const { review: _review, ...withoutReview } = first;
+    await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: { ...source, steps: [withoutReview, ...source.steps.slice(1)] } }, h.deps);
+    t.reply("kiwi", "done");
+    t.fail("rio", outcome);
+    t.reply("miso", "done");
+    expect(await h.resume("back")).toMatchObject({ ok: false, error: { type: "step_failed", step: "s1", message: expect.stringContaining("Rio") } });
+    expect(h.events).toContain("failed s1");
+    expect(h.events).not.toContain("start s2");
+  });
   it("sends every part at once with the new input, pauses, then reviews and goes on", async () => {
     const t = team();
     const h = harness(t.exec);

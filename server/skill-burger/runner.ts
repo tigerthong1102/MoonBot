@@ -430,6 +430,13 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
     }
     const finish = (unmet: string[] = []) => {
       const replies = Object.values(delegation.replies);
+      const failed = Object.entries(delegation.replies).filter(([, reply]) => !reply.ok).map(([part]) => part);
+      if (failed.length) {
+        const error = `Teammate assignments did not finish successfully: ${failed.join(", ")}. Check their results before trying again.`;
+        results[step.id] = { state: "failed", error };
+        deps.events.ended(state.id, state.name, step, results[step.id]!);
+        return { protocolVersion: 1 as const, ok: false, run: state.id, steps: [], error: { type: "step_failed" as const, message: error, step: step.id } };
+      }
       const result: StepResult = {
         state: "done",
         output: { replies: Object.fromEntries(Object.entries(delegation.replies).map(([part, reply]) => [part, reply.text])), text: repliesText(delegation.replies), rounds: delegation.round, ...(unmet.length ? { unmet } : {}) },

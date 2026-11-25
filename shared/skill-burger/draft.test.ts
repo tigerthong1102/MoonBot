@@ -199,6 +199,14 @@ describe("draftWorkflow", () => {
     });
   });
 
+  it.each([
+    ["/Users/ana/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/reports", "./reports"],
+    ["C:\\Users\\ana\\task-workspaces\\ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9\\a48d8ea2-161f-4ca1-a80c-0591f3082283\\reports", ".\\reports"],
+  ])("preserves the task workspace subdirectory in %s", (cwd, expected) => {
+    const { workflow } = draftWorkflow([ask("Archive the report"), tool("run_shell_command", { command: "python report.py", cwd }), tool("run_shell_command", { command: "cp result.csv archive.csv" })])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "shell", cwd: expected });
+  });
+
   it("keeps a redirected write in order before the commands that use its file", () => {
     const commands = ["printf report > report.txt", "cp report.txt archive.txt", "python make_appendix.py report.txt"];
     const { workflow } = draftWorkflow([

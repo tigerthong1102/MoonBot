@@ -55,8 +55,12 @@ it.each([
       restarted = spawn(process.execPath, verificationServerArgs(childEnv), { cwd: process.cwd(), env: childEnv, stdio: "ignore" });
       await expect.poll(async () => { try { return (await fetch(`${base}/api/health`)).ok; } catch { return false; } }, { timeout: 30000 }).toBe(true);
     } else {
-      const accepted = await api<{ routingState: string }>(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior: same ? "deny" : "allow" });
-      expect(accepted.routingState).toBe(recoverFail || cleanupFail ? "dispatching" : "interrupted");
+      const accepted = await api<{ routingState: string; settlementPending?: boolean; message?: string }>(`/api/threads/${main.threadId}/respond`, { requestId: card.requestId, behavior: same ? "deny" : "allow" });
+      expect(accepted.routingState).toBe(recoverFail && !cleanupFail ? "dispatching" : "interrupted");
+      if (cleanupFail) {
+        expect(accepted.settlementPending).toBe(true);
+        expect(accepted.message).toBeTruthy();
+      }
     }
     expect(existsSync(marker)).toBe(true);
     let worker = (await bots()).find(bot => bot.id === workerId)!;

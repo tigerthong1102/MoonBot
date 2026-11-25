@@ -7,6 +7,7 @@
   "workBotRouting.classifying": "Verificando para onde enviar esta tarefa…",
   "workBotRouting.waiting_choice": "Aguardando sua escolha.",
   "workBotRouting.dispatching": "Enviando a tarefa…",
+  "workBotRouting.held_for_review": "Confira as automações existentes e diga ao novo bot o que fazer.",
   "workBotRouting.interrupted": "A transferência foi interrompida e pode ter sido executada. Confira o resultado antes de enviar novamente.",
   "server.workBot.restartToRecover": "A transferência não pôde ser encerrada com segurança. Reinicie o StartupBot e confira o resultado antes de enviar novamente.",
   "server.workBot.everyoneStopNotice": "A interrupção foi tentada onde é permitida. Confira os trabalhos restantes.",

@@ -137,6 +137,7 @@ it("does not let an admin bypass a private bot's access level", async () => {
   level = "none";
   expect(await names(h.api)).toEqual([]);
   expect((await h.api(`/api/skill-burgers/${name}?botId=${h.bot}`)).status).toBe(404);
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(403);
   expect((await h.api(`/api/skill-burgers/${name}?botId=${h.bot}`, { method: "DELETE" })).status).toBe(403);
 });
 
@@ -149,6 +150,29 @@ it("requires explicit consent before saving or sharing conversation-derived work
   const name = saved.body.skill.name as string;
   expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(403);
   expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true, shareConsent: true }))).status).toBe(200);
+});
+
+it("does not let an admin move a shared workflow into a private bot they cannot edit", async () => {
+  let level: "none" | "edit" = "edit";
+  const h = await serve({ levelOf: () => level });
+  const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
+  const name = saved.body.skill.name as string;
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(200);
+  level = "none";
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { everyChat: false }))).status).toBe(403);
+});
+
+it("does not reveal a private origin bot when a workflow is shared with a visible bot", async () => {
+  let hidden = "";
+  const h = await serve({ botIds: () => [hidden, "visible-bot"], levelOf: (auth, botId) => auth.scopes.includes("admin") ? "edit" : botId === hidden ? "none" : "view" });
+  hidden = h.bot;
+  const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
+  const name = saved.body.skill.name as string;
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(200);
+  h.as(["client"]);
+  const list = await h.api("/api/skill-burgers");
+  expect(list.body.skills).toHaveLength(1);
+  expect(list.body.skills[0]).not.toHaveProperty("botId");
 });
 
 it("does not expose a shared workflow to a member whose visible bot cannot use it", async () => {

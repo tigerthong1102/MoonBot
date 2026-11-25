@@ -124,7 +124,11 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
         const skills = listWorkflowSkills(visible, deps.root).filter((skill) => admin(auth) || !skill.everyChat || visible.some((botId) => {
           const found = findWorkflowSkill(botId, skill.name, deps.root, deps.assignedSkills?.(botId));
           return found && "everyChat" in found.place;
-        }));
+        })).map((skill) => {
+          if (!skill.everyChat || !skill.botId || level(auth, skill.botId) !== "none") return skill;
+          const { botId: _hidden, ...rest } = skill;
+          return rest;
+        });
         return json(res, 200, { skills });
       }
       if (method !== "POST") return json(res, 405, { error: "Use GET or POST." });
@@ -226,8 +230,13 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const body = patchBody.safeParse(await readBody(req));
       if (!body.success) return json(res, 400, { error: "Send everyChat or rename." });
       if ("everyChat" in body.data && body.data.everyChat && deps.requiresShareConsent?.(auth) && !body.data.shareConsent) return json(res, 403, { error: "Confirm that this workflow may be shared with the whole team." });
-      const refused = "everyChat" in body.data ? (admin(auth) ? null : EVERY_CHAT_ADMIN_ONLY) : refusal(auth, body.data.botId);
+      if ("everyChat" in body.data && body.data.everyChat && !body.data.botId) return json(res, 400, { error: "Send the source bot." });
+      const refused = "everyChat" in body.data ? (!admin(auth) ? EVERY_CHAT_ADMIN_ONLY : body.data.everyChat ? refusal(auth, body.data.botId) : null) : refusal(auth, body.data.botId);
       if (refused) return json(res, 403, { error: refused });
+      if ("everyChat" in body.data && !body.data.everyChat) {
+        const origin = listWorkflowSkills([], deps.root).find((skill) => skill.everyChat && skill.name === name)?.botId;
+        if (origin && level(auth, origin) !== "edit") return json(res, 403, { error: NOT_YOURS });
+      }
       if ("undo" in body.data) {
         const kept = editUndo.take(body.data.undo, undoScope(placeOf(body.data.botId)), name);
         if (!kept) return json(res, 404, { error: "There is nothing to undo." });

@@ -46,7 +46,7 @@ describe("saved burgers", () => {
     if ("error" in saved) throw new Error(saved.error);
     const shared = setWorkflowEveryChat({ name: saved.name, everyChat: true, botId: bot, botIds, sha256: saved.sha256, root });
     expect(shared).toMatchObject({ name: saved.name, everyChat: true, botId: bot });
-    expect(readSkillLibraryIndex(root)[saved.name]).toMatchObject({ everyBot: true, reviewState: "approved", tags: ["workflow"], source: `skill-burger:${bot}`, files: [WORKFLOW_FILE] });
+    expect(readSkillLibraryIndex(root)[saved.name]).toMatchObject({ everyBot: true, reviewState: "approved", tags: ["workflow"], source: "skill-burger", workflowOriginBot: bot, files: [WORKFLOW_FILE] });
     expect(JSON.parse(readFileSync(join(librarySkillDirectory(root, saved.name), WORKFLOW_FILE), "utf8"))).toEqual(workflow);
     expect(listSkills(bot)).toEqual([]);
     expect(workflowSkillsPrompt("any-other-bot", root)).toContain(`- ${saved.name}: ${workflow.summary} Read`);
@@ -65,6 +65,19 @@ describe("saved burgers", () => {
     expect(moved).toEqual({ error: "The bot this Skill Burger came from is gone." });
     expect(listWorkflowSkills([], root)).toContainEqual(saved);
     expect(listSkills(bot)).toEqual([]);
+  });
+
+  it("normalizes legacy shared sources while retaining the origin for moving back", () => {
+    const { root, bot, botIds } = fixture();
+    const saved = saveWorkflowSkill({ workflow, name: "legacy-shared", place: { everyChat: true }, origin: bot, botIds, root });
+    if ("error" in saved) throw new Error(saved.error);
+    const path = join(root, "index.json");
+    const index = JSON.parse(readFileSync(path, "utf8"));
+    index[saved.name].source = `skill-burger:${bot}`;
+    delete index[saved.name].workflowOriginBot;
+    writeFileSync(path, JSON.stringify(index));
+    expect(readSkillLibraryIndex(root)[saved.name]).toMatchObject({ source: "skill-burger", workflowOriginBot: bot });
+    expect(setWorkflowEveryChat({ name: saved.name, everyChat: false, botIds, root })).toMatchObject({ botId: bot, everyChat: false });
   });
 
   it("only lets a bot use a shared workflow assigned to it or enabled for every bot", () => {

@@ -42,7 +42,7 @@ function readAt(place: BurgerPlace, name: string, root: string): { workflow: Wor
     const entry = readSkillLibraryIndex(root)[name];
     if (!entry?.tags?.includes(WORKFLOW_TAG) || !listLibrarySkills(root, (skill) => skill.name === name).some((skill) => skill.enabled)) return null;
     const workflow = parsed(join(librarySkillDirectory(root, name), WORKFLOW_FILE));
-    return workflow ? { workflow, sha256: entry.sha256, botId: burgerBotOf(entry.source) } : null;
+    return workflow ? { workflow, sha256: entry.sha256, botId: entry.workflowOriginBot ?? burgerBotOf(entry.source) } : null;
   }
   const entry = listMigratableSkills(place.botId).find((skill) => skill.name === name && skill.intact && isBurgerSource(skill.source));
   const workflow = parsed(entry?.directory ? join(entry.directory, WORKFLOW_FILE) : null);
@@ -92,9 +92,9 @@ function write(place: BurgerPlace, name: string, workflow: Workflow, origin: str
   if (Buffer.byteLength(body, "utf8") > WORKFLOW_MAX_BYTES) return { error: "This run is too large to save as a skill." };
   const files = [{ path: "SKILL.md", content: renderWorkflowSkillMd(name, workflow) }, { path: WORKFLOW_FILE, content: body }];
   const botId = "botId" in place ? place.botId : origin;
-  const source = botId ? burgerSource(botId) : "skill-burger";
+  const source = "everyChat" in place ? "skill-burger" : botId ? burgerSource(botId) : "skill-burger";
   if ("everyChat" in place) {
-    const installed = installLibrarySkill({ name, instructions: files[0]!.content, source, tags: [WORKFLOW_TAG], reviewState: "approved", files: [files[1]!], root });
+    const installed = installLibrarySkill({ name, instructions: files[0]!.content, source, ...(botId ? { workflowOriginBot: botId } : {}), tags: [WORKFLOW_TAG], reviewState: "approved", files: [files[1]!], root });
     if ("error" in installed) return { error: installed.error };
     const everyBot = setLibrarySkillEveryBot(name, true, root);
     if ("error" in everyBot) return { error: everyBot.error };

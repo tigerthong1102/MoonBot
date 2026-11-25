@@ -1057,16 +1057,32 @@ describe("AppTriggerManager", () => {
   });
 
   it("restores the warning to the original automation after it changes remote binding", async () => {
-    let triggers = manager({ linkedBots: () => true });
+    const emit = vi.fn();
+    let triggers = manager({ linkedBots: () => true, emit });
     const first = await gmailTrigger(triggers);
     await triggers.create({ botId: "bot-2", name: "Linked", prompt: `Please help. ${first.prompt}`, app: "gmail", event: first.event, filter: first.filter });
     const event = { seq: 1, id: "fixture-held-rebind", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
     triggers.receive([event], 1);
+    const warning = triggers.get(first.id)?.problem;
+    expect(warning?.kind).toBe("error");
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    await client.remove(first.remote.triggerId!);
+    emit.mockClear();
+    await triggers.reconcile();
+    const rebound = triggers.get(first.id)!;
+    expect(rebound.remote.state).toBe("active");
+    expect(rebound.remote.triggerId).not.toBe(first.remote.triggerId);
+    expect(rebound.problem).toEqual(warning);
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({ kind: "app-trigger", trigger: rebound }));
+    expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).triggers)
+      .toContainEqual(expect.objectContaining({ id: first.id, problem: warning }));
     const updated = await triggers.update(first.id, { filter: { from: "new.example", subject: "order" } });
-    expect(updated?.remote.triggerId).not.toBe(first.remote.triggerId);
+    expect(updated?.remote.triggerId).not.toBe(rebound.remote.triggerId);
+    expect(updated?.problem).toEqual(warning);
     triggers = manager({ linkedBots: () => true });
     expect(triggers.get(first.id)?.problem?.kind).toBe("error");
     expect(heldEvents()[0]?.event?.id).toBe(event.id);
+    expect(routines.listRuns()).toHaveLength(0);
   });
 
   it("replays an independent recipient after a failure between hold and enqueue", async () => {

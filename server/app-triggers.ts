@@ -820,7 +820,7 @@ export class AppTriggerManager {
     if (this.serviceOutOfReach()) return;
     const { triggerId } = await this.options.broker.create({ slug: trigger.event, connectedAccountId: trigger.accountId, config: trigger.config });
     trigger.remote = { triggerId, state: "active", syncedAt: this.now() };
-    if (trigger.problem?.kind === "error") delete trigger.problem;
+    if (trigger.problem?.kind === "error" && !isEventHoldProblem(trigger.problem)) this.restoreHeldProblem(trigger);
   }
 
   private async applyEnabled(triggerId: string | undefined, alsoEnabled = false): Promise<void> {

@@ -38,7 +38,7 @@ export async function reconcileTrigger(trigger: StoredTrigger, bindings: Map<str
     return;
   }
   trigger.remote = { triggerId: binding.triggerId, state: "active", syncedAt: deps.now() };
-  if (trigger.problem?.kind === "error" && !isEventHoldProblem(trigger.problem)) delete trigger.problem;
+  if (trigger.problem?.kind === "error" && !isEventHoldProblem(trigger.problem)) deps.restoreHeld(trigger);
 }
 
 export async function syncReplacementBinding(triggerId: string | undefined, previous: StoredTrigger, next: StoredTrigger, triggers: readonly StoredTrigger[],

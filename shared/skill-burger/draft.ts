@@ -304,7 +304,7 @@ class Drafter {
     if (raw && !layer.review && (MASKED.test(raw) || redactSecretsInText(raw) !== raw)) {
       // A secret was part of the call: the step is saved without it, for the AI to do again with the person's own key.
       this.steps.push({ id, kind: "ai", deterministic: false, label, prompt: `Do this step again: ${label}. It used a secret, so it isn't saved here.` });
-    } else if (layer.kind === "delegate" && layer.delegation) {
+    } else if (layer.kind === "delegate" && layer.delegation && layer.replay === "exact") {
       this.steps.push(this.delegate(id, layer, label));
     } else if (layer.review) {
       const from = [...this.steps].reverse().find((step) => step.kind === "delegate");

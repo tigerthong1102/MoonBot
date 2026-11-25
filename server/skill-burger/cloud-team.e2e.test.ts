@@ -19,11 +19,13 @@ it("asks the owning team member before a saved workflow executes", async () => {
     const team = fx.team!;
     const owner = (await team.pair({ email: "owner@example.test", role: "owner" })).token!;
     const admin = (await team.pair({ email: "admin@example.test", role: "admin" })).token!;
-    const rui = (await team.pair({ email: "rui@example.test", role: "member" })).token!;
+    const rui = (await team.pair({ email: "rui@example.test", role: "admin" })).token!;
     const marta = (await team.pair({ email: "marta@example.test", role: "member" })).token!;
     const bots = (await team.as(rui, "GET", "/api/bots")).body.bots as Array<{ id: string; threadId: string; defaultBot?: { person?: string } }>;
     const bot = bots.find((candidate) => candidate.defaultBot?.person === "rui@example.test")!;
     expect(bot).toBeDefined();
+    const mode = await team.as(rui, "PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask", applyToAllThreads: true });
+    expect(mode.status, JSON.stringify(mode.body)).toBe(200);
     const workflow = { version: 1, summary: "Fixture", args: {}, steps: [{ id: "s1", kind: "shell", label: "Print fixture", run: "printf team-workflow-fixture" }] };
     const saved = await team.as(rui, "POST", "/api/skill-burgers", { botId: bot.id, name: "team-fixture-workflow", workflow, shareConsent: true });
     expect(saved.status, JSON.stringify(saved.body)).toBe(201);

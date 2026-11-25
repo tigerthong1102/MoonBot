@@ -71,9 +71,10 @@ export function applyDecisions(workflow: Workflow, decisions: Decisions | null):
   if (fork) {
     const after = order.get(fork.after);
     if (after === undefined || !fork.cases.includes(fork.taken) || fork.steps.some((id) => (order.get(id) ?? -1) <= after)) return workflow;
-    const decide: WorkflowStep = { id: "d1", kind: "decide", label: fork.question, cases: fork.cases, prompt: fork.question, input: { $step: fork.after } };
+    const decide: WorkflowStep = { id: "d1", kind: "decide", label: fork.question.slice(0, 120), cases: fork.cases, prompt: fork.question, input: { $step: fork.after } };
     if (order.has("d1")) return workflow;
-    steps = steps.map((step) => (fork.steps.includes(step.id) && !step.when ? { ...step, when: onCase("d1", fork.taken) } as WorkflowStep : step));
+    if (steps.some((step) => fork.steps.includes(step.id) && step.when)) throw new Error("A step cannot safely combine a condition with a case.");
+    steps = steps.map((step) => (fork.steps.includes(step.id) ? { ...step, when: onCase("d1", fork.taken) } as WorkflowStep : step));
     steps.splice(after + 1, 0, decide);
   }
   const checked = workflowSchema.safeParse({ ...workflow, steps });

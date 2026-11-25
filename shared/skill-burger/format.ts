@@ -24,8 +24,7 @@ const text = z.union([z.string().min(1).max(8_000), z.array(z.union([z.string().
 export type WorkflowText = z.infer<typeof text>;
 
 /** What "done" means for a step: `says` in words, and, where a rule on the step's own output can tell, that rule. A step
- * with a rule fails when the rule doesn't hold; one with words only is checked by the bot. `true` is an older file's
- * "check this step", read as "does this look right". */
+ * with a rule fails when the rule doesn't hold; one with words only is checked by the bot. `true` means "does this look right". */
 export const checkSchema = z.union([
   z.boolean(),
   z.object({
@@ -74,7 +73,7 @@ export const workflowStepSchema = z.discriminatedUnion("kind", [
   // asked last time.
   z.object({
     ...common, kind: z.literal("delegate"),
-    tasks: z.array(z.object({ bot: teammate, message: text, doneWhen: z.string().max(1_000).optional() }).strict()).min(1).max(8),
+    tasks: z.array(z.object({ bot: teammate, message: text, doneWhen: z.string().max(1_000).optional() }).strict()).min(1).max(8).refine((tasks) => new Set(tasks.map((task) => task.bot.name.trim().toLowerCase().replace(/^@/, ""))).size === tasks.length, "Each delegated task needs a distinct teammate name."),
     consult: z.boolean().optional(),
     review: z.object({ rounds: z.number().int().min(1).max(DELEGATE_MAX_ROUNDS), example: z.string().max(2_000).optional() }).strict().optional(),
   }).strict(),

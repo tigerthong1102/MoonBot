@@ -9,7 +9,7 @@ import type { WorkflowStep } from "../../shared/skill-burger/format.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
 import { applyEdit, editSchema, editUndo, undoScope } from "./edit.ts";
 import { createExecutors, type ExecutorContext } from "./executors.ts";
-import { authorizeWorkflowAction, guardedExecutors, type WorkflowGuard } from "./guarded-executors.ts";
+import { authorizeWorkflowAction, checkedExecutors, guardedExecutors, type WorkflowGuard } from "./guarded-executors.ts";
 import { createRunHistory } from "./history.ts";
 import { createRunStates } from "./run-state.ts";
 import { resumeRun, startRun, type RunDeps, type RunEnvelope, type StepExecutors, type StepResult } from "./runner.ts";
@@ -41,6 +41,8 @@ export interface BurgerTurn extends Pick<ExecutorContext, "internal"> {
   publish(event: StepEvent): void;
   /** A burger used in every chat belongs to the whole place: whether this turn may change one. */
   mayEditEveryChat: boolean;
+  mayEditBot?: boolean;
+  sharedSkillsEnabled?: boolean;
 }
 
 const runBody = z.object({ name: z.string().min(1).max(64), args: z.record(z.string(), z.unknown()).optional() }).strict();
@@ -81,13 +83,18 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   const states = createRunStates(join(deps.dataDir, "skill-burger-runs"));
   const history = createRunHistory(join(deps.dataDir, "skill-burger-runs"));
   const open = new Map<string, Set<string>>();
-  const runDeps = (turn: BurgerTurn): RunDeps => ({
-    exec: turn.guard ? guardedExecutors(deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, cwd: turn.cwd, internal: turn.internal }), turn.guard) : deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, cwd: turn.cwd, internal: turn.internal }),
+  const runDeps = (turn: BurgerTurn): RunDeps => {
+    const exec = deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, cwd: turn.cwd, internal: turn.internal });
+    const noop: StepExecutors = { shell: async () => ({ ok: true, output: null }), app: async () => ({ ok: true, output: null }), browser: async () => ({ ok: true, output: null }), file: async () => ({ ok: true, output: null }) };
+    return {
+    exec: turn.guard ? guardedExecutors(exec, turn.guard) : exec,
+    ...(turn.guard ? { authorizationExec: guardedExecutors(noop, turn.guard), actionExec: checkedExecutors(exec, turn.guard) } : {}),
     events: stepEvents(turn, open),
     save: (state) => states.save(state),
     signal: turn.signal,
     fileViaBot: Boolean(turn.guard),
-  });
+    };
+  };
   const finished = (turn: BurgerTurn, name: string | undefined, envelope: RunEnvelope) => {
     if (envelope.status !== "needs_input") open.delete(envelope.run);
     if (name) history.record({ name, botId: turn.botId, threadId: turn.threadId }, envelope);
@@ -103,7 +110,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     if (path === RUN_PATH) {
       const parsed = runBody.safeParse(body);
       if (!parsed.success) return json(res, 400, { error: "run_workflow needs the Skill Burger's name." });
-      const found = findWorkflowSkill(turn.botId, parsed.data.name, deps.root, turn.assignedSkills);
+      const found = findWorkflowSkill(turn.botId, parsed.data.name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
       if (!found) return json(res, 404, { error: `No Skill Burger named "${parsed.data.name}" here. Check the names in your skills index.` });
       const envelope = await startRun({ name: parsed.data.name, botId: turn.botId, threadId: turn.threadId, sha256: found.sha256, workflow: found.workflow, ...(parsed.data.args ? { args: parsed.data.args } : {}) }, runDeps(turn));
       return json(res, 200, finished(turn, parsed.data.name, envelope));
@@ -113,6 +120,11 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
       if (!parsed.success) return json(res, 400, { error: "Resume needs the run's token and your response." });
       const state = states.take(parsed.data.run, turn.botId, turn.threadId);
       if (!state) return json(res, 404, { error: "That run can't be resumed: it finished, was resumed already, or is more than a day old." });
+      const current = findWorkflowSkill(turn.botId, state.name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
+      if (!current || current.sha256 !== state.sha256) {
+        states.save(state);
+        return json(res, 409, { error: "This workflow is unavailable or changed since it paused; review it before starting again." });
+      }
       return json(res, 200, finished(turn, state.name, await resumeRun(state, parsed.data.response, runDeps(turn))));
     }
     if (path === UNDO_PATH) {
@@ -120,9 +132,10 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
       if (!parsed.success) return json(res, 404, { error: "There is nothing to undo with that id." });
       const kept = editUndo.peek(parsed.data.undo);
       if (!kept) return json(res, 404, { error: "There is nothing to undo with that id." });
-      const found = findWorkflowSkill(turn.botId, kept.name, deps.root, turn.assignedSkills);
+      const found = findWorkflowSkill(turn.botId, kept.name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
       if (!found) return json(res, 404, { error: "That Skill Burger is gone." });
       if ("everyChat" in found.place && !turn.mayEditEveryChat) return json(res, 403, { error: "Only an admin of this installation can change a Skill Burger used in every chat." });
+      if ("botId" in found.place && turn.mayEditBot === false) return json(res, 403, { error: "Edit this workflow through the bot's settings with an authorized account." });
       if (!editUndo.take(parsed.data.undo, undoScope(found.place), kept.name)) return json(res, 404, { error: "There is nothing to undo with that id." });
       const restored = replaceWorkflowSkill({ place: found.place, name: kept.name, workflow: kept.previous, sha256: kept.sha256, root: deps.root });
       if ("stale" in restored) return json(res, 409, { error: "The Skill Burger changed since; undo isn't safe now." });
@@ -133,9 +146,10 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     const { name: _name, ...rest } = raw;
     const edit = editSchema.safeParse(rest);
     if (!name || !edit.success) return json(res, 400, { error: `workflow_edit needs name and a change: ${edit.success ? "name" : edit.error.issues[0]?.message ?? ""}` });
-    const found = findWorkflowSkill(turn.botId, name, deps.root, turn.assignedSkills);
+    const found = findWorkflowSkill(turn.botId, name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
     if (!found) return json(res, 404, { error: `No Skill Burger named "${name}" here.` });
     if ("everyChat" in found.place && !turn.mayEditEveryChat) return json(res, 403, { error: "Only an admin of this installation can change a Skill Burger used in every chat." });
+    if ("botId" in found.place && turn.mayEditBot === false) return json(res, 403, { error: "Edit this workflow through the bot's settings with an authorized account." });
     const next = applyEdit(found.workflow, edit.data);
     if ("error" in next) return json(res, 422, next);
     const saved = replaceWorkflowSkill({ place: found.place, name, workflow: next, sha256: found.sha256, root: deps.root });

@@ -22,6 +22,8 @@ export interface BurgerHostDeps {
   /** The chat's event bus, with the engine of the turn that is running in the thread. */
   publish(threadId: string, event: Record<string, unknown>): void;
   mayEditEveryChat(): boolean;
+  mayEditBot?(): boolean;
+  sharedSkillsEnabled?(): boolean;
 }
 
 /** The run's view of the calling turn: `authorization` is the agents bearer the tool call came with. */
@@ -45,6 +47,8 @@ export function burgerTurn(host: BurgerHostDeps, turn: CallingTurn, authorizatio
     assignedSkills: host.assignedSkills?.(turn.botId),
     guard: host.guard?.(turn),
     mayEditEveryChat: host.mayEditEveryChat(),
+    mayEditBot: host.mayEditBot?.() ?? true,
+    sharedSkillsEnabled: host.sharedSkillsEnabled?.() ?? true,
     publish: (event: StepEvent) => host.publish(turn.threadId, { eventId: randomUUID(), createdAt: new Date().toISOString(), threadId: turn.threadId, itemType: "tool", ...event }),
     async internal(kind, path, body, signal) {
       if (kind === "agents") {

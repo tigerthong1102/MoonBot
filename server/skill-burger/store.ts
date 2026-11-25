@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
@@ -38,17 +38,19 @@ function parsed(path: string | null): Workflow | null {
   }
 }
 
-function readAt(place: BurgerPlace, name: string, root: string): { workflow: Workflow; sha256: string; botId?: string } | null {
+const workflowHash = (skillHash: string, workflow: Workflow) => createHash("sha256").update(skillHash).update("\0").update(JSON.stringify(workflow)).digest("hex");
+
+function readAt(place: BurgerPlace, name: string, root: string): { workflow: Workflow; sha256: string; fileSha256: string; botId?: string } | null {
   if (!isSkillName(name)) return null;
   if ("everyChat" in place) {
     const entry = readSkillLibraryIndex(root)[name];
     if (!entry?.tags?.includes(WORKFLOW_TAG) || !listLibrarySkills(root, (skill) => skill.name === name).some((skill) => skill.enabled)) return null;
     const workflow = parsed(join(librarySkillDirectory(root, name), WORKFLOW_FILE));
-    return workflow ? { workflow, sha256: entry.sha256, botId: entry.workflowOriginBot ?? burgerBotOf(entry.source) } : null;
+    return workflow ? { workflow, sha256: workflowHash(entry.sha256, workflow), fileSha256: entry.sha256, botId: entry.workflowOriginBot ?? burgerBotOf(entry.source) } : null;
   }
   const entry = listMigratableSkills(place.botId).find((skill) => skill.name === name && skill.intact && isBurgerSource(skill.source));
   const workflow = parsed(entry?.directory ? join(entry.directory, WORKFLOW_FILE) : null);
-  return workflow && entry ? { workflow, sha256: entry.sha256, botId: place.botId } : null;
+  return workflow && entry ? { workflow, sha256: workflowHash(entry.sha256, workflow), fileSha256: entry.sha256, botId: place.botId } : null;
 }
 
 const listed = (name: string, workflow: Workflow, sha256: string, savedAt: string, everyChat: boolean, botId: string | undefined): SavedWorkflow => ({
@@ -114,7 +116,7 @@ function erase(place: BurgerPlace, name: string, sha256: string, root: string): 
   const found = readAt(place, name, root);
   if (!found || found.sha256 !== sha256) return { stale: true };
   if ("everyChat" in place) {
-    const result = retireLibrarySkill(name, sha256, root);
+    const result = retireLibrarySkill(name, found.fileSha256, root);
     return "retired" in result ? { removed: true } : result;
   }
   const result = removeSkill(place.botId, name);
@@ -165,12 +167,13 @@ export function setWorkflowEveryChat(input: { name: string; everyChat: boolean; 
 }
 
 /** The burger a bot runs by this name: its own first, then one used in every chat. */
-export function findWorkflowSkill(botId: string, name: string, root: string = skillsLibraryRoot(), assigned: readonly string[] = []): { place: BurgerPlace; workflow: Workflow; sha256: string } | null {
+export function findWorkflowSkill(botId: string, name: string, root: string = skillsLibraryRoot(), assigned: readonly string[] = [], allowShared = true): { place: BurgerPlace; workflow: Workflow; sha256: string } | null {
   const ownSkill = listSkills(botId).find((skill) => skill.name === name);
   if (ownSkill) {
     const own = ownSkill.enabled ? readAt({ botId }, name, root) : null;
     return own ? { place: { botId }, workflow: own.workflow, sha256: own.sha256 } : null;
   }
+  if (!allowShared) return null;
   const shared = readSkillLibraryIndex(root)[name];
   if (!shared || (!assigned.includes(name) && (!shared.everyBot || librarySkillOptOuts(botId).has(name)))) return null;
   const found = readAt({ everyChat: true }, name, root);

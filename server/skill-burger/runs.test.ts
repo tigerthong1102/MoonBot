@@ -16,13 +16,14 @@ import { createWorkflowApprovals } from "./approval.ts";
 import type { WorkflowGuard } from "./guarded-executors.ts";
 import type { StepExecutors } from "./runner.ts";
 import { saveWorkflowSkill } from "./store.ts";
+import { setSkillEnabled } from "../skills.ts";
 
 const servers: Server[] = [];
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise((done) => server.close(done))));
 });
 
-async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]; guard?: WorkflowGuard } = {}) {
+async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]; guard?: WorkflowGuard; mayEditBot?: () => boolean } = {}) {
   const root = mkdtempSync(join(tmpdir(), "burger-runs-"));
   const bot = `run-burger-${Math.random().toString(36).slice(2, 10)}`;
   const events: StepEvent[] = [];
@@ -43,7 +44,7 @@ async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]
       shell: async () => ({ ok: true, output: "" }), browser: async () => ({ ok: true, output: "" }), file: async () => ({ ok: true, output: "" }),
     }),
   });
-  const turnFor = (botId: string): BurgerTurn => ({ botId, threadId: "t1", cwd: root, mayEditEveryChat: false, signal: options.signal, guard: options.guard, internal: async () => ({ ok: false, body: {} }), publish: (event) => events.push(event) });
+  const turnFor = (botId: string): BurgerTurn => ({ botId, threadId: "t1", cwd: root, mayEditEveryChat: false, mayEditBot: options.mayEditBot?.(), signal: options.signal, guard: options.guard, internal: async () => ({ ok: false, body: {} }), publish: (event) => events.push(event) });
   let as = bot;
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -74,6 +75,17 @@ it("runs a bot's Skill Burger, hands its AI step back, and goes on once the bot 
   expect(h.calls.at(-1)).toBe('GMAIL_SEND_EMAIL {"to":"priya@example.com","body":"One row."}');
   expect(h.events.filter((event) => event.type === "item.started").map((event) => event.title)).toEqual(["Read the sheet", "Write the body", "Send email"]);
   expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "again" })).toHaveProperty("error");
+});
+
+it("does not resume a workflow while that skill is disabled", async () => {
+  const h = await serve();
+  const paused = await h.post("/api/internal/skill-burgers/run", { name: "email-the-sheet" });
+  expect(paused.status).toBe("needs_input");
+  setSkillEnabled(h.bot, "email-the-sheet", false);
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "fixture" })).toHaveProperty("error");
+  expect(h.calls).toHaveLength(1);
+  setSkillEnabled(h.bot, "email-the-sheet", true);
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: paused.run, response: "fixture" })).toMatchObject({ status: "ok" });
 });
 
 it("aborts an in-flight workflow action when the owning turn is revoked", async () => {
@@ -119,10 +131,23 @@ it("does not change a saved workflow when editing is refused", async () => {
   expect(changed).not.toHaveProperty("undo");
 });
 
+it("refuses bot-local edit and undo without edit authority", async () => {
+  let permitted = true;
+  const h = await serve({ mayEditBot: () => permitted });
+  const changed = await h.post("/api/internal/skill-burgers/edit", { name: "email-the-sheet", action: "set_when", step: "s3", when: { $step: "s1", op: "exists" } });
+  expect(changed.undo).toBeDefined();
+  permitted = false;
+  expect(await h.post("/api/internal/skill-burgers/edit", { name: "email-the-sheet", action: "set_when", step: "s3", when: null })).toHaveProperty("error");
+  expect(await h.post("/api/internal/skill-burgers/undo", { undo: changed.undo })).toHaveProperty("error");
+  permitted = true;
+  expect(await h.post("/api/internal/skill-burgers/undo", { undo: changed.undo })).toHaveProperty("skill");
+});
+
 it("refuses internal workflow calls when the host has disabled the feature", async () => {
   const root = mkdtempSync(join(tmpdir(), "burger-disabled-"));
   const runs = createSkillBurgerRuns({ dataDir: root, host: {
     available: () => false,
+    guard: () => ({ allowed: () => true, approve: async () => true }),
     port: 0,
     cwd: () => root,
     mint: () => "",
@@ -130,6 +155,15 @@ it("refuses internal workflow calls when the host has disabled the feature", asy
     publish: () => {},
     mayEditEveryChat: () => false,
   } });
+  let status = 0;
+  const ctx = { method: "POST", path: "/api/internal/skill-burgers/run", json: (_res: unknown, code: number) => { status = code; } } as unknown as RouteContext;
+  await runs.routesFor({ botId: "b", threadId: "t", generation: "g" }, "Bearer fixture")(ctx);
+  expect(status).toBe(404);
+});
+
+it("refuses internal workflow calls when the host has no permission guard", async () => {
+  const root = mkdtempSync(join(tmpdir(), "burger-no-guard-"));
+  const runs = createSkillBurgerRuns({ dataDir: root, host: { available: () => true, port: 0, cwd: () => root, mint: () => "", browser: async () => null, publish: () => {}, mayEditEveryChat: () => false } });
   let status = 0;
   const ctx = { method: "POST", path: "/api/internal/skill-burgers/run", json: (_res: unknown, code: number) => { status = code; } } as unknown as RouteContext;
   await runs.routesFor({ botId: "b", threadId: "t", generation: "g" }, "Bearer fixture")(ctx);

@@ -4,14 +4,25 @@ import type { StepExecutors } from "./runner.ts";
 export type WorkflowAction = "shell" | "vm" | "app" | "browser" | "file" | "delegate" | "edit";
 export interface WorkflowGuard {
   allowed(action: WorkflowAction, name?: string): boolean;
-  approve(action: WorkflowAction, summary: string, signal: AbortSignal): Promise<boolean>;
+  approve(action: WorkflowAction, summary: string, signal: AbortSignal, input: unknown): Promise<boolean>;
 }
 
 export async function authorizeWorkflowAction(guard: WorkflowGuard, action: WorkflowAction, name: string | undefined, input: unknown, signal: AbortSignal): Promise<boolean> {
   if (signal.aborted || !guard.allowed(action, name)) return false;
   const summary = redactSecretsInText(JSON.stringify(input));
   if (summary.length > 4_000) return false;
-  return await guard.approve(action, summary, signal) && !signal.aborted && guard.allowed(action, name);
+  return await guard.approve(action, summary, signal, input) && !signal.aborted && guard.allowed(action, name);
+}
+
+export function checkedExecutors(exec: StepExecutors, guard: WorkflowGuard): StepExecutors {
+  const denied = { ok: false as const, error: "Permission denied, unavailable, or expired; the action was not executed" };
+  return {
+    ...exec,
+    shell: (input) => !input.signal.aborted && guard.allowed(input.where === "vm" ? "vm" : "shell", input.tool) ? exec.shell(input) : Promise.resolve(denied),
+    app: (input) => !input.signal.aborted && guard.allowed("app", input.tool) ? exec.app(input) : Promise.resolve(denied),
+    browser: (input) => !input.signal.aborted && guard.allowed("browser", "browser_navigate") ? exec.browser(input) : Promise.resolve(denied),
+    file: (input) => !input.signal.aborted && guard.allowed("file") ? exec.file(input) : Promise.resolve(denied),
+  };
 }
 
 export function guardedExecutors(exec: StepExecutors, guard: WorkflowGuard): StepExecutors {

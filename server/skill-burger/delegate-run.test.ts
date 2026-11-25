@@ -113,6 +113,24 @@ describe("a saved delegation", () => {
     expect(t.sent).toHaveLength(3);
     expect(readReview("done", { round: 1, who: {}, requests: [], replies: {} })).toEqual({});
     expect(readReview("not json", { round: 1, who: {}, requests: [], replies: {} })).toBeNull();
+    const review = { round: 1, who: {}, requests: [], replies: { Rio: { name: "Rio", text: "draft", ok: true, round: 1 } } };
+    expect(readReview('{"redo":{"unknown":"fix"}}', review)).toBeNull();
+    expect(readReview('{"redo":{"Rio":" "}}', review)).toBeNull();
+    expect(readReview('{"redo":{"Rio":"fix"}}', review)).toEqual({ Rio: "fix" });
+  });
+
+  it("rejects duplicate teammate names in saved delegated tasks", () => {
+    const parsed = workflowSchema.safeParse({ version: 1, summary: "x", args: {}, steps: [{ id: "s1", kind: "delegate", label: "Delegate", tasks: [{ bot: { name: "Rio" }, message: "first" }, { bot: { name: "@rio" }, message: "second" }] }] });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("reports an unavailable roster instead of claiming that teammates disappeared", async () => {
+    const t = team();
+    t.exec.teammates = async () => { throw new Error("roster unavailable"); };
+    const h = harness(t.exec);
+    const result = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: qa(1) }, h.deps);
+    expect(result).toMatchObject({ ok: false, error: { message: expect.stringContaining("roster unavailable"), resumeToken: expect.any(String) } });
+    expect(t.sent).toHaveLength(0);
   });
 
   it("gives a gone teammate's part to the one with its role, or asks the bot who does it", async () => {
@@ -197,15 +215,25 @@ describe("a step's check", () => {
 });
 
 describe("the run_workflow tool", () => {
-  it("reads resume and response nested inside args as a resume, never as a new run", async () => {
+  it("distinguishes nested workflow inputs from an unnamed resume envelope", async () => {
     const { callWorkflowTool } = await import("../drivers/agents-workflow-tool.ts");
     const calls: Array<{ path: string; body: unknown }> = [];
     const context = { client: { apiResponse: async (path: string, init: { body: string }) => { calls.push({ path, body: JSON.parse(init.body) }); return { ok: true, status: 200, body: { protocolVersion: 1, ok: true, status: "ok", run: "r", steps: [] } }; } } };
-    await callWorkflowTool("run_workflow", { name: "qa", args: { resume: "run-7", response: "Wrote wait.md" } }, context as never);
+    await callWorkflowTool("run_workflow", { args: { resume: "run-7", response: "Wrote wait.md" } }, context as never);
     await callWorkflowTool("run_workflow", { name: "qa", resume: "run-7", response: { redo: { Rio: "add the URL" } } }, context as never);
+    await callWorkflowTool("run_workflow", { name: "qa", args: { resume: "report.pdf" } }, context as never);
     expect(calls).toEqual([
       { path: "/api/internal/skill-burgers/resume", body: { run: "run-7", response: "Wrote wait.md" } },
       { path: "/api/internal/skill-burgers/resume", body: { run: "run-7", response: '{"redo":{"Rio":"add the URL"}}' } },
+      { path: "/api/internal/skill-burgers/run", body: { name: "qa", args: { resume: "report.pdf" } } },
     ]);
+  });
+
+  it("includes the required workflow name in its undo instruction", async () => {
+    const { callWorkflowTool } = await import("../drivers/agents-workflow-tool.ts");
+    const context = { client: { apiResponse: async () => ({ ok: true, body: { undo: "token-1" } }) } };
+    const result = await callWorkflowTool("workflow_edit", { name: "sales", action: "set_when" }, context as never);
+    expect(result.text).toContain('name "sales", action "undo"');
+    expect(result.text).toContain('undo "token-1"');
   });
 });

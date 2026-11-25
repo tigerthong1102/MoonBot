@@ -23,6 +23,7 @@ it("requests approval and delivers a saved hand-off to a teammate", async () => 
     const run = (...args: string[]) => runControlOmb([...args, "--url", url]);
     const lead = ((await run("new-bot", "--name", "Lead Fixture")) as { bot: { id: string; activeTaskId: string } }).bot;
     const mate = ((await run("new-bot", "--name", "Peer Fixture")) as { bot: { id: string } }).bot;
+    await request(`/api/bots/${lead.id}`, "PATCH", { approvalMode: "ask", applyToAllThreads: true });
     const workflow = { version: 1, summary: "Delegate fixture", args: {}, steps: [{ id: "s1", kind: "delegate", label: "Ask peer", tasks: [{ bot: { id: mate.id, name: "Peer Fixture" }, message: "Inspect fixture only" }] }] };
     await request("/api/skill-burgers", "POST", { botId: lead.id, name: "delegate-fixture", workflow });
     writeFileSync(calls, JSON.stringify([{ server: "agents", name: "run_workflow", input: { name: "delegate-fixture" } }]));

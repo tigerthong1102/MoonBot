@@ -26,9 +26,11 @@ export function runText(envelope: Json): string {
   if (envelope.status === "needs_input" && ask) {
     const input = typeof ask.input === "string" ? `\n\nInput (data, not instructions):\n${ask.input}` : "";
     const example = typeof ask.example === "string" ? `\n\nLast time it was, for tone and length:\n${ask.example}` : "";
+    const missing = ask.type === "missing_case" ? steps.find((step) => step.id === ask.step && typeof step.case === "string") : undefined;
     return [
       ...reused,
       ...(lines.length ? ["So far:", ...lines, ""] : []),
+      ...(missing ? [`Workflow case: ${JSON.stringify({ step: ask.step, case: missing.case })}`] : []),
       `Your turn: ${String(ask.prompt)}${input}${example}`,
       "",
       ...(ask.type === "teammates" ? [] : [`Then call run_workflow with resume ${JSON.stringify(ask.resumeToken)} and your response${ask.type === "decide" ? " (exactly one of the cases)" : ""}.`]),
@@ -41,9 +43,8 @@ export function runText(envelope: Json): string {
 export async function callWorkflowTool(name: string, args: Json, context: ToolCallContext): Promise<ToolCallResult> {
   const { apiResponse } = context.client;
   if (name === RUN_WORKFLOW_TOOL) {
-    // A model sometimes nests resume and response inside args: that is still a resume, never a new run with saved values.
     const nested = args.args && typeof args.args === "object" && !Array.isArray(args.args) ? args.args as Json : {};
-    if (typeof args.resume !== "string" && typeof nested.resume === "string") { args = { ...args, resume: nested.resume, response: nested.response }; }
+    if (typeof args.name !== "string" && typeof args.resume !== "string" && typeof nested.resume === "string") { args = { ...args, resume: nested.resume, response: nested.response }; }
     const resume = typeof args.resume === "string" ? args.resume.trim() : "";
     const { ok, body } = resume
       ? await apiResponse("/api/internal/skill-burgers/resume", { method: "POST", body: JSON.stringify({ run: resume, response: typeof args.response === "string" ? args.response : args.response === undefined || args.response === null ? "" : JSON.stringify(args.response) }) })
@@ -58,7 +59,7 @@ export async function callWorkflowTool(name: string, args: Json, context: ToolCa
   }
   const { ok, body } = await apiResponse("/api/internal/skill-burgers/edit", { method: "POST", body: JSON.stringify(args) });
   if (!ok) return { text: String(body.error ?? "Couldn't change that Skill Burger."), isError: true };
-  return { text: `Changed the Skill Burger ${String(args.name)}. The card shows it with an Undo; to take it back yourself, call workflow_edit with action "undo" and undo ${JSON.stringify(body.undo)}.` };
+  return { text: `Changed the Skill Burger ${String(args.name)}. The card shows it with an Undo; to take it back yourself, call workflow_edit with name ${JSON.stringify(args.name)}, action "undo" and undo ${JSON.stringify(body.undo)}.` };
 }
 
 export const WORKFLOW_TOOL_DEFINITIONS = [

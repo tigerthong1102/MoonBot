@@ -92,9 +92,10 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
     if (!to || (fixes && !(task.bot.name in fixes))) continue;
     const base = textOf(task.message, fill);
     const message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;
-    const key = `${message}\u0000${task.doneWhen ?? ""}`;
+    let key = `${message}\u0000${task.doneWhen ?? ""}`;
+    if (calls.get(key)?.botIds.includes(to.id)) key += `\u0000${task.bot.name}`;
     const call = calls.get(key) ?? { parts: [], botIds: [], message, ...(task.doneWhen ? { doneWhen: task.doneWhen } : {}) };
-    if (!call.botIds.includes(to.id)) { call.parts.push(task.bot.name); call.botIds.push(to.id); }
+    call.parts.push(task.bot.name); call.botIds.push(to.id);
     calls.set(key, call);
   }
   const requests: DelegationState["requests"] = [];
@@ -154,7 +155,8 @@ export function readReview(response: string, state: DelegationState): Record<str
   const out: Record<string, string> = {};
   for (const [name, fix] of Object.entries(redo as Record<string, unknown>)) {
     const part = Object.entries(state.replies).find(([key, reply]) => norm(key) === norm(name) || norm(reply.name) === norm(name))?.[0];
-    if (part && typeof fix === "string" && fix.trim()) out[part] = fix.trim().slice(0, 2_000);
+    if (!part || typeof fix !== "string" || !fix.trim() || part in out) return null;
+    out[part] = fix.trim().slice(0, 2_000);
   }
   return out;
 }

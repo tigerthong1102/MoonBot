@@ -1,9 +1,7 @@
-// A real run, trimmed: a lead asked Kiwi, Rio and Miso to QA-test a site (three coordinate_bots calls at once), then sent
-// Rio and Miso a second round, then gave a verdict (fixtures/qa-delegation-run.json, from an isolated real-engine run).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-import { askValues, draftWorkflow, layerLabel } from "./draft.ts";
+import { askValues, draftFromLayers, draftWorkflow, layerLabel } from "./draft.ts";
 import { renderWorkflowSkillMd, workflowSchema } from "./format.ts";
 import { burgerLayers, isServerRow, redirectTarget, type RunMessage } from "./layers.ts";
 
@@ -21,6 +19,11 @@ const bash = (command: string, extra: Partial<NonNullable<RunMessage["tool"]>> =
 });
 
 describe("a delegation run", () => {
+  it("does not save a clipped delegation as an exact handoff", () => {
+    const layer = burgerLayers(run).find((item) => item.kind === "delegate")!;
+    const workflow = draftFromLayers([{ ...layer, replay: "ai" }], "Inspect the fixture", "Inspect", { teammate });
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", deterministic: false });
+  });
   it("never makes a step of the app's own rows about teammates", () => {
     const rows = run.filter((message) => message.kind === "activity" && !message.tool?.itemId);
     expect(rows.map((message) => message.tool!.name)).toEqual(expect.arrayContaining(["Sent to Kiwi", "Kiwi replied", "Resumed with Kiwi, Rio, Miso results, reviewing"]));
@@ -66,7 +69,6 @@ describe("a delegation run", () => {
     expect(send.tasks.every((task) => task.doneWhen?.startsWith("3 findings"))).toBe(true);
     expect(send.review?.example).toMatch(/^Rio: /);
     expect(review).toMatchObject({ kind: "ai", deterministic: false, input: { $step: "s1", path: "text" } });
-    // The replies are this run's results: shown on the card, never written into the workflow.
     expect(JSON.stringify(draft.workflow)).not.toContain("each with the URL checked and evidence");
     const md = renderWorkflowSkillMd("qa-test", draft.workflow);
     expect(md).toContain("Teammates: Kiwi (Accessibility tester), Rio (Performance tester) and Miso (Content and links tester) each get their part at once");
@@ -74,7 +76,6 @@ describe("a delegation run", () => {
   });
 
   it("stays a running step while a teammate hasn't replied, whatever the lead said meanwhile", () => {
-    // Cut the run just before the second round's replies: the lead's "sent them back" text must not read as its verdict.
     const cut = run.slice(0, run.findIndex((message) => message.roomRequest?.phase === "result" && run.slice(0, run.indexOf(message)).filter((one) => one.roomRequest?.phase === "result").length === 3));
     const layers = burgerLayers(cut);
     expect(layers.map((layer) => [layer.kind, layer.status])).toEqual([["delegate", "running"]]);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseRunCommand } from "../run-command.ts";
 import { draftWorkflow, layerLabel } from "./draft.ts";
+import { applyChoices } from "./draft-view.ts";
 import { renderWorkflowSkillMd, workflowSchema, workflowSkillName } from "./format.ts";
 import { burgerLayers, type RunMessage } from "./layers.ts";
 
@@ -279,6 +280,8 @@ describe("draftWorkflow", () => {
     expect(steps.map((step) => [step.id, step.kind])).toEqual([["s1", "app"], ["s2_write_2", "ai"], ["s2", "app"]]);
     expect(steps[1]).toMatchObject({ deterministic: false, input: { $step: "s1" }, example: body, label: "Write the body" });
     expect(steps[2]!.kind === "app" && steps[2]!.args.body).toEqual({ $step: "s2_write_2" });
+    const kept = applyChoices(draft.workflow, { skip: ["s2"] });
+    expect("error" in kept ? kept : kept.steps.map((step) => step.id)).toEqual(["s1"]);
   });
 
   it("references distinct composition steps for two fields of the same app call", () => {

@@ -51,6 +51,7 @@ export interface DraftChoices {
 }
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+const writerOf = (id: string) => /^(.*)_write(?:_\d+)?$/.exec(id)?.[1];
 
 /** The steps whose output `node` uses. */
 function refsIn(node: unknown, into = new Set<string>()): Set<string> {
@@ -88,7 +89,7 @@ export function draftView(workflow: Workflow, layers: readonly BurgerLayer[], me
     const base: DraftStepView = {
       id: step.id, kind: step.kind, label: step.label, exact: step.kind !== "ai" && !(step.kind === "decide" && !step.rules?.length), needs: needsOf(step),
       ...(step.kind === "app" ? { app: step.app } : {}), ...(detailOf(step) ? { detail: detailOf(step) } : {}),
-      ...(layer?.tries && !step.id.endsWith("_write") ? { tries: layer.tries } : {}),
+      ...(layer?.tries && !writerOf(step.id) ? { tries: layer.tries } : {}),
     };
     if (step.kind !== "delegate") return base;
     const delegation = layer?.delegation;
@@ -119,7 +120,7 @@ export function dependents(steps: ReadonlyArray<{ id: string; needs: readonly st
 }
 
 /** Renames an arg everywhere it is used: references and the OMB_ARG_ variables in commands. */
-function renameArg(steps: WorkflowStep[], from: string, to: string): WorkflowStep[] {
+export function renameArg(steps: WorkflowStep[], from: string, to: string): WorkflowStep[] {
   const env = new RegExp(`OMB_ARG_${from.toUpperCase()}(?![A-Z0-9_])`, "g");
   const walk = (node: unknown): unknown => {
     if (Array.isArray(node)) return node.map(walk);
@@ -130,7 +131,11 @@ function renameArg(steps: WorkflowStep[], from: string, to: string): WorkflowSte
   };
   return steps.map((step) => {
     const renamed = walk(step) as WorkflowStep;
-    return renamed.kind === "shell" ? { ...renamed, run: renamed.run.replace(env, `OMB_ARG_${to.toUpperCase()}`) } : renamed;
+    if (renamed.kind === "shell") return { ...renamed, run: renamed.run.replace(env, `OMB_ARG_${to.toUpperCase()}`) };
+    const renameText = (value: string) => value.split(`{${from}}`).join(`{${to}}`);
+    if (renamed.kind === "ai") return { ...renamed, prompt: renameText(renamed.prompt), ...(renamed.example ? { example: renameText(renamed.example) } : {}) };
+    if (renamed.kind === "delegate" && renamed.review?.example) return { ...renamed, review: { ...renamed.review, example: renameText(renamed.review.example) } };
+    return renamed;
   });
 }
 
@@ -138,7 +143,7 @@ function renameArg(steps: WorkflowStep[], from: string, to: string): WorkflowSte
 export function applyChoices(workflow: Workflow, choices: DraftChoices | undefined): Workflow | { error: string } {
   if (!choices) return workflow;
   const skip = new Set(choices.skip ?? []);
-  let steps = workflow.steps.filter((step) => !skip.has(step.id) && !(step.id.endsWith("_write") && skip.has(step.id.replace(/_write$/, ""))));
+  let steps = workflow.steps.filter((step) => !skip.has(step.id) && !(writerOf(step.id) && skip.has(writerOf(step.id)!)));
   if (!steps.length) return { error: "Keep at least one step." };
   const kept = new Set(steps.map((step) => step.id));
   for (const step of steps) {

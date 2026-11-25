@@ -66,11 +66,9 @@ describe("changing a saved Skill Burger's steps", () => {
 });
 
 describe("decisions the bot stated, made part of the saved burger", () => {
-  it("turns a stated condition into a when, and a stated case into a fork with this run's steps under it", () => {
+  it("refuses to save a case when the same step already has a condition", () => {
     const decisions = parseDecisions('```json\n{"conditions":[{"step":"s2","when":{"$step":"s1","path":"messages.0","op":"exists"}}],"fork":{"after":"s1","question":"Support or sales?","cases":["support","sales"],"taken":"support","steps":["s2"]}}\n```');
-    const next = applyDecisions(base, decisions);
-    expect(next.steps.map((step) => [step.id, step.kind])).toEqual([["s1", "app"], ["d1", "decide"], ["s2", "app"]]);
-    expect(next.steps[1]).toMatchObject({ cases: ["support", "sales"], prompt: "Support or sales?" });
+    expect(() => applyDecisions(base, decisions)).toThrow("cannot safely combine");
   });
 
   it("changes nothing for {} or for decisions that don't fit the steps", () => {

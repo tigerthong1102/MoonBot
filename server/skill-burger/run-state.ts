@@ -19,7 +19,6 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
         if (name !== "history.json" && now() - statSync(path).mtimeMs > RUN_STATE_TTL_MS) rmSync(path, { force: true });
       }
     } catch {
-      // Nothing saved yet.
     }
   };
   return {
@@ -40,12 +39,10 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
             const ours = seen.delegation?.requests.some((request) => handoffs.includes(request.requestId));
             if (seen.threadId === threadId && seen.waiting?.type === "teammates" && ours && now() - seen.createdAt <= RUN_STATE_TTL_MS && (!newest || seen.createdAt > newest.createdAt)) newest = seen;
           } catch {
-            // Not a run's file.
           }
         }
       } catch {
-        // Nothing saved yet.
-      }
+        }
       return newest;
     },
     /** The paused run, taken so nobody else can resume it; null when it is gone, too old, or another bot's. */

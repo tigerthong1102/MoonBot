@@ -35,6 +35,18 @@ function harness(handlers: Partial<StepExecutors> = {}) {
 }
 
 describe("running a Skill Burger", () => {
+  it("starts the step timeout only after the person approves the action", async () => {
+    vi.useFakeTimers();
+    try {
+      const h = harness();
+      h.deps.actionExec = h.deps.exec;
+      h.deps.authorizationExec = { ...h.deps.exec, shell: async () => { await new Promise((resolve) => setTimeout(resolve, 3_000)); return { ok: true, output: null }; } };
+      const running = h.start(wf([{ id: "s1", kind: "shell", label: "Action", run: "true", timeoutMs: 1_000 }]));
+      await vi.advanceTimersByTimeAsync(3_001);
+      expect(await running).toMatchObject({ ok: true, status: "ok" });
+      expect(h.calls).toHaveLength(1);
+    } finally { vi.useRealTimers(); }
+  });
   it("runs each step where it ran, pipes values forward and fills args, with OMB_ARG_ env for commands", async () => {
     const h = harness({
       app: async (input) => {

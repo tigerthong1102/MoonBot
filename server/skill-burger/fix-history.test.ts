@@ -6,11 +6,12 @@ import { describe, expect, it } from "vitest";
 
 import { workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
 import type { RunMessage } from "../../shared/skill-burger/layers.ts";
-import { insertFix } from "./edit.ts";
+import { insertFix, mergeDraftInputs } from "./edit.ts";
 import { createRunHistory } from "./history.ts";
 import { createRunStates } from "./run-state.ts";
 import { fillPrompt, type RunEnvelope, type RunState } from "./runner.ts";
-import { fixLayers } from "./routes.ts";
+import { fixLayers, judgementLayers } from "./routes.ts";
+import { runText } from "../drivers/agents-workflow-tool.ts";
 
 const wf = (steps: unknown[]): Workflow => workflowSchema.parse({ version: 1, summary: "Make the csv", args: {}, steps });
 let n = 0;
@@ -18,6 +19,23 @@ const bash = (command: string): RunMessage => ({ id: `m${++n}`, role: "bot", kin
 const runCall = (output: string): RunMessage => ({ id: `m${++n}`, role: "bot", kind: "activity", tool: { name: "mcp__agents__run_workflow", ok: true, itemId: `t${n}`, input: "{}", output } });
 
 describe("keeping a fix", () => {
+  it("retains and renames captured inputs that collide with existing inputs", () => {
+    const original = { ...wf([{ id: "s1", kind: "shell", label: "Original", run: "echo $OMB_ARG_SITE" }]), args: { site: { default: "old" }, site_2: { default: "reserved" } } };
+    const draft = { ...wf([{ id: "s1", kind: "shell", label: "Fix", run: "curl $OMB_ARG_SITE" }, { id: "s2", kind: "ai", deterministic: false, label: "Think", prompt: "Inspect {site}" }]), args: { site: { default: "new" } } };
+    const merged = mergeDraftInputs(original, draft);
+    expect(merged.workflow.args).toMatchObject({ site: { default: "old" }, site_3: { default: "new" } });
+    expect(merged.steps[0]).toMatchObject({ run: "curl $OMB_ARG_SITE_3" });
+    expect(merged.steps[1]).toMatchObject({ prompt: "Inspect {site_3}" });
+  });
+
+  it("captures the requested missing-case handoff after earlier pauses", () => {
+    const handoff = runText({ status: "needs_input", run: "run-1", steps: [{ id: "d2", label: "Classify", state: "handed", case: "support" }], requiresInput: { type: "missing_case", step: "d2", prompt: 'The run reached the "support" case of "Classify", which has no saved steps yet.', resumeToken: "run-1" } });
+    const messages = [runCall('Your turn: think; resume "run-1"'), bash("echo unrelated"), runCall(handoff), bash("cp support.csv output.csv"), runCall("The Skill Burger ran")];
+    const layers = judgementLayers(messages, "run-1", "d2", "Classify", "support", false);
+    expect(layers).toHaveLength(1);
+    expect(JSON.stringify(layers)).toContain("cp support.csv output.csv");
+    expect(judgementLayers(messages, "run-1", "d1", "Classify", "support", false)).toEqual([]);
+  });
   it("takes what the bot did between the failed step and going on, and puts it just before that step", () => {
     const messages = [
       { id: "u", role: "user", kind: "text", text: "/make-csv" },

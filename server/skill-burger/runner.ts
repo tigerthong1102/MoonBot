@@ -1,9 +1,3 @@
-// Runs a saved Skill Burger without the AI: each step exactly as it was recorded, in the place it ran (an app through the
-// connectors gate, a command in the bot's own box or on its cloud computer, a page in its browser, a file in its folder),
-// with values piped from earlier steps and args filled from the person's request. The AI does only what needs judgement:
-// an AI step, a decide step that weighs something, a desktop's clicks, and a case nobody has saved steps for yet. The run
-// pauses there and hands the step to the bot, which does it and resumes. A run stops at the first failed step and never
-// tries a step with side effects twice; each step has a time limit and an output cap.
 import { randomUUID } from "node:crypto";
 import { posix, win32 } from "node:path";
 
@@ -99,6 +93,8 @@ export interface StepEvents {
 
 export interface RunDeps {
   exec: StepExecutors;
+  authorizationExec?: StepExecutors;
+  actionExec?: StepExecutors;
   events: StepEvents;
   save(state: RunState): void;
   now?: () => number;
@@ -211,6 +207,7 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
   const { id, name, workflow, args, results } = state;
   const now = deps.now ?? Date.now;
   const started = now();
+  let approvalTime = 0;
   const envelope = (extra: Partial<RunEnvelope>): RunEnvelope => ({
     protocolVersion: 1, ok: true, run: id,
     steps: workflow.steps.filter((step) => results[step.id]).map((step) => ({ id: step.id, label: step.label, state: results[step.id]!.state, ...(results[step.id]!.case ? { case: results[step.id]!.case } : {}) })),
@@ -249,7 +246,9 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     const exec = deps.exec;
     if (!exec.teammates || !exec.delegate || !exec.assignment) return fail(step, "step_failed", "this bot can't hand work to teammates here");
     const signal = deps.signal ?? new AbortController().signal;
-    const roster = await exec.teammates(signal).catch(() => []);
+    let roster;
+    try { roster = await exec.teammates(signal); }
+    catch (error) { return fail(step, "step_failed", `Could not read teammates: ${clip(redactSecretsInText(error instanceof Error ? error.message : String(error)), ERROR_MAX)}`); }
     const { who, missing } = matchTeammates(step, roster, chosen);
     const delegation: NonNullable<RunState["delegation"]> = { step: step.id, round: 1, who, requests: [], replies: {} };
     if (missing.length) return hand(step, "missing_bot", undefined, { prompt: missingPrompt(missing), delegation });
@@ -264,7 +263,7 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
   for (let index = state.from; index < workflow.steps.length; index += 1) {
     const step = workflow.steps[index]!;
     if (deps.signal?.aborted) return envelope({ status: "cancelled" });
-    if (now() - started > RUN_TIMEOUT_MS) return envelope({ ok: false, error: { type: "timeout", message: "The run went past its time limit.", step: step.id } });
+    if (now() - started - approvalTime > RUN_TIMEOUT_MS) return envelope({ ok: false, error: { type: "timeout", message: "The run went past its time limit.", step: step.id } });
     if (step.when && !holds(step.when, results)) {
       end(step, { state: caseOf(step) ? "not_taken" : "skipped" });
       continue;
@@ -292,7 +291,14 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
 
     deps.events.started(id, name, step);
     const limit = step.timeoutMs ?? STEP_TIMEOUT_MS;
-    const outcome = await timed(limit, deps.signal, (signal) => execute(step, args, results, deps.exec, signal));
+    if (deps.authorizationExec) {
+      const startedApproval = now();
+      const approval = await execute(step, args, results, deps.authorizationExec, deps.signal ?? new AbortController().signal);
+      approvalTime += now() - startedApproval;
+      if (deps.signal?.aborted) return envelope({ status: "cancelled" });
+      if (!approval.ok) return fail(step, "step_failed", "The action was not approved or is no longer permitted.");
+    }
+    const outcome = await timed(limit, deps.signal, (signal) => execute(step, args, results, deps.actionExec ?? deps.exec, signal));
     if (outcome === "timeout") return fail(step, "timeout", `"${step.label}" took longer than ${Math.round(limit / 1000)} s and was stopped. Check the action's result before trying again.`, undefined, false);
     if (!outcome.ok) return fail(step, outcome.tooLarge ? "output_too_large" : "step_failed", `${clip(redactSecretsInText(outcome.error), ERROR_MAX)}. Check the action's result before trying again.`, undefined, false);
     const output = parsed(outcome.output);
@@ -360,7 +366,6 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
     return { protocolVersion: 1, ok: true, status: "needs_input", run: state.id, steps: [], requiresInput: { type, step: step.id, label: step.label, prompt, resumeToken: state.id, ...(input ? { input: clip(redactSecretsInText(input), HANDED_INPUT_MAX) } : {}) } };
   };
   if (waiting.type === "failed") {
-    // The bot fixed what made this step fail: the run goes on from that step, the steps before it are not run again.
     return goOn(index);
   }
   if (waiting.type === "check") {
@@ -382,7 +387,9 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
     if (!delegation || delegation.step !== step.id || !exec.assignment) return refused(state, "This run lost track of its teammates; start it again.", step.id);
     const fill = (ref: WorkflowRef) => resolve(ref, state.args, results);
     if (waiting.type === "missing_bot") {
-      const roster = await exec.teammates(signal).catch(() => []);
+      let roster;
+      try { roster = await exec.teammates(signal); }
+      catch (error) { return ask("missing_bot", `Could not read teammates: ${clip(redactSecretsInText(error instanceof Error ? error.message : String(error)), ERROR_MAX)}. Try again when the list is available.`, { delegation }); }
       const { missing } = matchTeammates(step, roster, delegation.who);
       const picked = readReassignment(response, missing, roster);
       if ("error" in picked) return ask("missing_bot", `${picked.error} ${missingPrompt(missing)}`, { delegation });
@@ -392,7 +399,7 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
       const replies = Object.values(delegation.replies);
       results[step.id] = {
         state: "done",
-        output: { replies: Object.fromEntries(replies.map((reply) => [reply.name, reply.text])), text: repliesText(delegation.replies), rounds: delegation.round, ...(unmet.length ? { unmet } : {}) },
+        output: { replies: Object.fromEntries(Object.entries(delegation.replies).map(([part, reply]) => [part, reply.text])), text: repliesText(delegation.replies), rounds: delegation.round, ...(unmet.length ? { unmet } : {}) },
         detail: { rounds: delegation.round, replies: replies.map((reply) => ({ name: reply.name, ok: reply.ok, text: reply.text.slice(0, 600) })) },
       };
       deps.events.ended(state.id, state.name, step, results[step.id]!);

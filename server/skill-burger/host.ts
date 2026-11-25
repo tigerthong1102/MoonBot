@@ -1,8 +1,9 @@
 import { allowsTool, narrowsNativeTools, parseToolScope } from "../../shared/tool-scope.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import type { Store } from "../store.ts";
+import { groupTurnCwd } from "../room-cwd.ts";
 import type { createWorkflowApprovals } from "./approval.ts";
-import type { WorkflowGuard } from "./guarded-executors.ts";
+import type { WorkflowAction, WorkflowGuard } from "./guarded-executors.ts";
 import type { RunHistory } from "./history.ts";
 import { createSkillBurgerRoutes, createStandaloneSkillBurgerRoutes, type SkillBurgerRouteDeps } from "./routes.ts";
 import type { CallingTurn } from "./turn-host.ts";
@@ -16,6 +17,7 @@ interface WorkflowHostDeps {
   active(turn: CallingTurn): boolean;
   scope(botId: string): unknown;
   approvals: ReturnType<typeof createWorkflowApprovals>;
+  auto(turn: CallingTurn, action: WorkflowAction, input: unknown): "allow" | "ask" | "deny";
 }
 
 export function createWorkflowHost(deps: WorkflowHostDeps) {
@@ -33,7 +35,11 @@ export function createWorkflowHost(deps: WorkflowHostDeps) {
           return Boolean(name && allowsTool(scope, { kind: "mcp", server: "composio", name }) && allowsTool(scope, { kind: "mcp", server: "composio", name: "COMPOSIO_MULTI_EXECUTE_TOOL" }));
         } catch { return false; }
       },
-      approve: (action, summary, signal) => deps.approvals.ask({ threadId: turn.threadId, tool: `Workflow: ${action}`, summary, signal, active }),
+      approve: (action, summary, signal, input) => {
+        const decision = deps.auto(turn, action, input);
+        if (decision !== "ask") return Promise.resolve(decision === "allow" && active() && !signal.aborted);
+        return deps.approvals.ask({ threadId: turn.threadId, tool: `Workflow: ${action}`, summary, signal, active });
+      },
     };
   }
   function routes(history: Pick<RunHistory, "list">) {
@@ -60,6 +66,15 @@ export function createWorkflowHost(deps: WorkflowHostDeps) {
   return { guard, routes };
 }
 
+export function workflowAutoDecision(mode: string, action: WorkflowAction, input: unknown, floor: { blocked(command: string): boolean; clears(command: string): boolean }): "allow" | "ask" | "deny" {
+  if (mode !== "full") return "ask";
+  if (action !== "shell" && action !== "vm") return "allow";
+  const command = input && typeof input === "object" && "command" in input ? input.command : undefined;
+  if (typeof command !== "string") return "ask";
+  if (floor.blocked(command)) return "deny";
+  return floor.clears(command) ? "allow" : "ask";
+}
+
 export function createToolScopeForTurn(botById: (id: string) => { toolScope?: unknown } | null | undefined) {
   return (botId: string) => {
     const bot = botById(botId);
@@ -68,4 +83,10 @@ export function createToolScopeForTurn(botById: (id: string) => { toolScope?: un
     if (!parsed.ok) throw Object.assign(new Error("This bot's tool selection is invalid. Open Access settings and save a valid selection before starting a turn."), { status: 409, code: "tool_scope" });
     return parsed.scope;
   };
+}
+
+export function workflowCwd(store: Pick<Store, "groupByThread" | "pinGroupCwd" | "taskByThread" | "bot">, workspace: (botId: string) => string, botId: string, threadId: string): string {
+  const group = store.groupByThread(threadId);
+  if (group) return groupTurnCwd(workspace(botId), () => store.pinGroupCwd(group.id, threadId))!;
+  return store.taskByThread(botId, threadId)?.cwd || store.bot(botId)?.cwd || workspace(botId);
 }

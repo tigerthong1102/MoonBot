@@ -4,7 +4,7 @@ import { draftFromLayers, draftWorkflow } from "../../shared/skill-burger/draft.
 import { askOf, burgerLayers, type RunMessage } from "../../shared/skill-burger/layers.ts";
 import { caseName } from "../../shared/skill-burger/format.ts";
 import { applyChoices, draftView } from "../../shared/skill-burger/draft-view.ts";
-import { applyEdit, editUndo, insertFix, undoScope } from "./edit.ts";
+import { applyEdit, editUndo, insertFix, mergeDraftInputs, undoScope } from "./edit.ts";
 import type { RunHistory } from "./history.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
@@ -58,9 +58,14 @@ const fixBody = z.object({ botId: id.optional(), runBotId: id, threadId: z.strin
 const pathBody = z.object({ botId: id.optional(), runBotId: id, threadId: z.string().min(1).max(200), run: z.string().min(1).max(64), decide: z.string().min(1).max(40), case: caseName, shareConsent: z.literal(true).optional() }).strict();
 
 /** The tool rows of the bot's own steps between the run handing over `run` and the run going on: what it did by judgement. */
-export function judgementLayers(messages: readonly RunMessage[], run: string) {
+export function judgementLayers(messages: readonly RunMessage[], run: string, decide: string, label: string, chosen: string, uniqueLabel: boolean) {
   const isRunCall = (message: RunMessage) => message.kind === "activity" && /(?:^|__)run_workflow$/.test(message.tool?.name ?? "");
-  const handed = messages.findIndex((message) => isRunCall(message) && (message.tool?.output ?? "").includes(run));
+  const prompt = `The run reached the "${chosen}" case of "${label}", which has no saved steps yet.`;
+  const marker = `Workflow case: ${JSON.stringify({ step: decide, case: chosen })}`;
+  const handed = messages.findIndex((message) => {
+    const output = message.tool?.output ?? "";
+    return isRunCall(message) && output.includes(run) && (output.includes(marker) || (uniqueLabel && !output.includes("Workflow case: ") && output.includes(prompt)));
+  });
   if (handed < 0) return [];
   const after = messages.slice(handed + 1);
   const resumed = after.findIndex(isRunCall);
@@ -172,8 +177,9 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       if (!found || !sha256) return json(res, 404, { error: "No such skill." });
       const layers = fixLayers(deps.messages(threadId), run);
       if (!layers.length) return json(res, 422, { error: "The bot did nothing to fix it that could be saved." });
-      const fix = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary, deps.teammate ? { teammate: teammateFor(auth) } : {}).steps;
-      const next = insertFix(found.workflow, step, fix);
+      const draft = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary, deps.teammate ? { teammate: teammateFor(auth) } : {});
+      const fix = mergeDraftInputs(found.workflow, draft);
+      const next = insertFix(fix.workflow, step, fix.steps);
       if ("error" in next) return json(res, 422, next);
       const saved = replaceWorkflowSkill({ place: placeOf(botId), name: burger, workflow: next, sha256, root: deps.root });
       if ("stale" in saved) return stale();
@@ -192,10 +198,14 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       const found = readWorkflowSkill(placeOf(botId), burger, deps.root);
       const sha256 = listWorkflowSkills(botId ? [botId] : [], deps.root).find((skill) => skill.name === burger && skill.everyChat === !botId)?.sha256;
       if (!found || !sha256) return json(res, 404, { error: "No such skill." });
-      const layers = judgementLayers(deps.messages(threadId), run);
+      const decision = found.workflow.steps.find((step) => step.id === decide && step.kind === "decide");
+      if (!decision) return json(res, 422, { error: "No such decision step." });
+      const uniqueLabel = found.workflow.steps.filter((step) => step.kind === "decide" && step.label === decision.label).length === 1;
+      const layers = judgementLayers(deps.messages(threadId), run, decide, decision.label, chosen, uniqueLabel);
       if (!layers.length) return json(res, 422, { error: "The bot did nothing for this case that could be saved." });
-      const steps = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary, deps.teammate ? { teammate: teammateFor(auth) } : {}).steps;
-      const next = applyEdit(found.workflow, { action: "add_case", decide: { id: decide }, case: chosen, steps });
+      const draft = draftFromLayers(layers, askOf(deps.messages(threadId)) ?? "", found.workflow.summary, deps.teammate ? { teammate: teammateFor(auth) } : {});
+      const addition = mergeDraftInputs(found.workflow, draft);
+      const next = applyEdit(addition.workflow, { action: "add_case", decide: { id: decide }, case: chosen, steps: addition.steps });
       if ("error" in next) return json(res, 422, next);
       const saved = replaceWorkflowSkill({ place: placeOf(botId), name: burger, workflow: next, sha256, root: deps.root });
       if ("stale" in saved) return stale();

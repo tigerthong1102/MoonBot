@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { WORKFLOW_FILE, type Workflow } from "../../shared/skill-burger/format.ts";
 import { librarySkillDirectory, readSkillLibraryIndex, setLibrarySkillEveryBot, setLibrarySkillOptOut } from "../skill-library.ts";
-import { installSkill, listSkills, setSkillEnabled, skillsSystemPrompt } from "../skills.ts";
+import { installSkill, listMigratableSkills, listSkills, setSkillEnabled, skillsSystemPrompt } from "../skills.ts";
 import { findWorkflowSkill, listWorkflowSkills, readWorkflowSkill, removeWorkflowSkill, renameWorkflowSkill, replaceWorkflowSkill, saveWorkflowSkill, setWorkflowEveryChat, workflowSkillsPrompt } from "./store.ts";
 
 const workflow: Workflow = {
@@ -85,6 +85,7 @@ describe("saved burgers", () => {
     const saved = saveWorkflowSkill({ workflow, name: "scoped-workflow", place: { everyChat: true }, botIds: [bot], root });
     if ("error" in saved) throw new Error(saved.error);
     expect(findWorkflowSkill(bot, saved.name, root)).not.toBeNull();
+    expect(findWorkflowSkill(bot, saved.name, root, [saved.name], false)).toBeNull();
     setLibrarySkillOptOut(bot, saved.name, true);
     expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
     expect(findWorkflowSkill(bot, saved.name, root, [saved.name])).not.toBeNull();
@@ -130,6 +131,31 @@ describe("saved burgers", () => {
     expect(replaceWorkflowSkill({ place: { botId: bot }, name: saved.name, workflow: oversized, sha256: saved.sha256, root })).toHaveProperty("error");
     expect(readWorkflowSkill({ botId: bot }, saved.name, root)?.workflow).toEqual(workflow);
     expect(readdirSync(join(root, "workflow-recovery"))).toEqual([]);
+  });
+
+  it("rejects edits and removals after workflow content changes without changing its rendered skill", () => {
+    const { root, botIds } = fixture();
+    const original = { version: 1 as const, summary: "Fixture", args: {}, steps: [{ id: "s1", kind: "shell" as const, label: "Run", run: `printf first\n${"x".repeat(150)} old` }] };
+    const saved = saveWorkflowSkill({ workflow: original, name: "stale-workflow", place: { everyChat: true }, botIds, root });
+    if ("error" in saved) throw new Error(saved.error);
+    const changed = { ...original, steps: [{ ...original.steps[0]!, run: `printf first\n${"x".repeat(150)} new` }] };
+    writeFileSync(join(librarySkillDirectory(root, saved.name), WORKFLOW_FILE), JSON.stringify(changed));
+    expect(replaceWorkflowSkill({ place: { everyChat: true }, name: saved.name, workflow: original, sha256: saved.sha256, root })).toEqual({ stale: true });
+    expect(removeWorkflowSkill({ everyChat: true }, saved.name, saved.sha256, root)).toEqual({ stale: true });
+    expect(JSON.parse(readFileSync(join(librarySkillDirectory(root, saved.name), WORKFLOW_FILE), "utf8"))).toEqual(changed);
+  });
+
+  it("detects a changed private workflow even when the rendered skill hash is unchanged", () => {
+    const { root, bot, botIds } = fixture();
+    const original = { version: 1 as const, summary: "Fixture", args: {}, steps: [{ id: "s1", kind: "shell" as const, label: "Run", run: "printf first\nprintf old" }] };
+    const saved = saveWorkflowSkill({ workflow: original, name: "stale-private", place: { botId: bot }, botIds, root });
+    if ("error" in saved) throw new Error(saved.error);
+    const path = join(listMigratableSkills(bot).find((skill) => skill.name === saved.name)!.directory!, WORKFLOW_FILE);
+    const changed = { ...original, steps: [{ ...original.steps[0]!, run: "printf first\nprintf new" }] };
+    writeFileSync(path, JSON.stringify(changed));
+    expect(replaceWorkflowSkill({ place: { botId: bot }, name: saved.name, workflow: original, sha256: saved.sha256, root })).toEqual({ stale: true });
+    expect(removeWorkflowSkill({ botId: bot }, saved.name, saved.sha256, root)).toEqual({ stale: true });
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual(changed);
   });
 
   it("refuses a taken or malformed name and a workflow that isn't one", () => {

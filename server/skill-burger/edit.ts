@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { caseName, caseOf, onCase, workflowStepSchema, type Workflow, type WorkflowStep } from "../../shared/skill-burger/format.ts";
+import { renameArg } from "../../shared/skill-burger/draft-view.ts";
 
 const condition = z.object({ $step: z.string(), path: z.string().max(200).optional(), op: z.enum(["eq", "ne", "gt", "lt", "exists"]), value: z.unknown().optional() }).strict();
 
@@ -26,6 +27,23 @@ export const editSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_when"), step: z.string(), when: condition.nullable() }).strict(),
 ]);
 export type WorkflowEdit = z.infer<typeof editSchema>;
+
+export function mergeDraftInputs(workflow: Workflow, draft: Workflow): { workflow: Workflow; steps: WorkflowStep[] } {
+  const args = { ...workflow.args };
+  const reserved = new Set([...Object.keys(args), ...Object.keys(draft.args)]);
+  let steps = draft.steps;
+  for (const [name, arg] of Object.entries(draft.args)) {
+    let target = name;
+    if (name in args) {
+      let number = 2;
+      do { const suffix = `_${number++}`; target = name.slice(0, 40 - suffix.length) + suffix; } while (reserved.has(target));
+      reserved.add(target);
+      steps = renameArg(steps, name, target);
+    }
+    args[target] = arg;
+  }
+  return { workflow: { ...workflow, args }, steps };
+}
 
 const nextId = (workflow: Workflow, stem: string) => {
   const taken = new Set(workflow.steps.map((step) => step.id));
@@ -67,7 +85,10 @@ export function applyEdit(workflow: Workflow, edit: WorkflowEdit): Workflow | { 
   if (at >= 0) {
     const decide = steps[at]!;
     if (decide.kind !== "decide") return { error: `step ${decideId} is not a decide step` };
-    if (!decide.cases.includes(edit.case)) steps[at] = { ...decide, cases: [...decide.cases, edit.case].slice(0, 8) };
+    if (!decide.cases.includes(edit.case)) {
+      if (decide.cases.length >= 8) return { error: `decide step ${decideId} already has 8 cases` };
+      steps[at] = { ...decide, cases: [...decide.cases, edit.case] };
+    }
   } else {
     const after = edit.decide.after ? steps.findIndex((step) => step.id === edit.decide.after) : steps.length - 1;
     if (after < 0) return { error: `there is no step ${edit.decide.after}` };

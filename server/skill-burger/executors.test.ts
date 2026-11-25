@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -55,6 +55,43 @@ describe("where a Skill Burger's steps run", () => {
     const result = await exec.shell({ command: "send invoice", env: {}, where: "vm", tool: "shell", signal: signal(), maxBytes: 1_000 });
     expect(result).toMatchObject({ ok: false });
     expect(paths).toEqual(["/api/internal/vm-exec"]);
+  });
+
+  it("does not treat failed app responses as successful calls", async () => {
+    for (const body of [
+      { successful: false, error: "denied" },
+      { successful: true, data: { results: [{ tool_slug: "GMAIL_SEND_EMAIL", response: { successful: false, error: "denied" } }] } },
+    ]) {
+      const exec = createExecutors({ botId: "b", cwd: folder(), internal: async () => ({ ok: true, body: { result: { content: [{ type: "text", text: JSON.stringify(body) }] } } }) });
+      expect(await exec.app({ tool: "GMAIL_SEND_EMAIL", app: "gmail", args: {}, signal: signal(), maxBytes: 10_000 })).toMatchObject({ ok: false, error: "denied" });
+    }
+  });
+
+  it("preserves the message from a JSON-RPC error", async () => {
+    const exec = createExecutors({ botId: "b", cwd: folder(), internal: async () => ({ ok: false, body: { error: { code: -32000, message: "Account disconnected" } } }) });
+    expect(await exec.app({ tool: "GMAIL_SEND_EMAIL", app: "gmail", args: {}, signal: signal(), maxBytes: 1_000 })).toEqual({ ok: false, error: "Account disconnected" });
+    expect(await exec.browser({ url: "https://example.test", signal: signal() })).toEqual({ ok: false, error: "Account disconnected" });
+  });
+
+  it.skipIf(process.platform === "win32")("resolves the working folder inside the conversation and rejects paths outside it", async () => {
+    const cwd = folder();
+    mkdirSync(join(cwd, "child"));
+    const exec = createExecutors({ botId: "b", cwd, internal: async () => ({ ok: false, body: {} }) });
+    const input = { command: "pwd", env: {}, where: "bot" as const, tool: "shell", signal: signal(), maxBytes: 1_000 };
+    expect(await exec.shell({ ...input, cwd: "child" })).toMatchObject({ ok: true, output: expect.stringContaining("/child") });
+    expect(await exec.shell({ ...input, cwd: tmpdir() })).toMatchObject({ ok: false, error: expect.stringContaining("outside") });
+  });
+
+  it.skipIf(process.platform === "win32")("stops a command's descendants on cancellation", async () => {
+    const cwd = folder();
+    const exec = createExecutors({ botId: "b", cwd, internal: async () => ({ ok: false, body: {} }) });
+    const controller = new AbortController();
+    const running = exec.shell({ command: "(sleep 0.5; printf persisted > marker) & wait", env: {}, where: "bot", tool: "shell", signal: controller.signal, maxBytes: 1_000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    controller.abort();
+    expect(await running).toMatchObject({ ok: false });
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(existsSync(join(cwd, "marker"))).toBe(false);
   });
 
   it.skipIf(process.platform === "win32")("runs a command as the bot, reading its inputs from OMB_ARG_ variables, and stops one that says too much", async () => {

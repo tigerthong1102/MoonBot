@@ -13,3 +13,9 @@ installation first. The normal Skill Burger save API refuses to replace a
 workflow with an existing name; do not remove the current copy until its state
 and the recovery file have been reviewed. Restoring on a Team Cloud requires
 the same bot access and explicit sharing consent as saving a workflow.
+
+On Team Cloud, bot-initiated workflow edits and undo are unavailable until the
+initiating member's edit authority can be verified for the active turn. Use the
+workflow controls with an account that can edit the bot. Sharing a workflow
+requires explicit consent. These controls have been exercised with isolated
+fixtures; production Team Cloud connectivity has not been verified.

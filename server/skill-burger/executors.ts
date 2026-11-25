@@ -8,7 +8,7 @@ import { dirname, isAbsolute, relative, resolve as resolvePath } from "node:path
 
 import { appToolCall } from "../connector-app-tools.ts";
 import { toolData } from "../connected-reads.ts";
-import { spawnCli } from "../procs.ts";
+import { killCliTree, spawnCli } from "../procs.ts";
 import { writeFileAtomic } from "../atomic.ts";
 import { isInside, resolveThroughLinks } from "../sentinel/paths.ts";
 import type { ExecResult, StepExecutors } from "./runner.ts";
@@ -29,6 +29,7 @@ export interface ExecutorContext {
 const tooLarge = (maxBytes: number): ExecResult => ({ ok: false, error: `the output went over ${Math.round(maxBytes / 1024)} KB`, tooLarge: true });
 const rpcId = () => Math.floor(Math.random() * 1e9);
 const record = (value: unknown): Record<string, unknown> | undefined => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined);
+const errorText = (error: unknown, fallback: string) => typeof error === "string" ? error : typeof record(error)?.message === "string" ? String(record(error)!.message) : fallback;
 
 /** The text of an MCP tools/call answer, or its error. */
 function callText(frame: Record<string, unknown>): ExecResult {
@@ -60,8 +61,11 @@ function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["she
   return new Promise((done) => {
     let child: ReturnType<typeof spawnCli>;
     try {
+      const root = realpathSync(context.cwd);
+      const cwd = realpathSync(input.cwd ? resolvePath(root, input.cwd) : root);
+      if (cwd !== root && !isInside(cwd, root)) return done({ ok: false, error: "the command folder is outside this conversation's folder" });
       child = spawnCli(shell.command, shell.args(input.command), {
-        cwd: input.cwd && isAbsolute(input.cwd) ? input.cwd : context.cwd,
+        cwd,
         env: { PATH: commandPath(), HOME: process.env.HOME, LANG: process.env.LANG, ...input.env },
         stdio: ["pipe", "pipe", "pipe"],
         box: { botId: context.botId },
@@ -77,14 +81,14 @@ function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["she
     const take = (into: Buffer[]) => (chunk: Buffer) => {
       size += chunk.length;
       if (size > input.maxBytes) {
-        if (!over) { over = true; child.kill("SIGKILL"); }
+        if (!over) { over = true; void killCliTree(child, 0); }
         return;
       }
       into.push(chunk);
     };
     child.stdout.on("data", take(out));
     child.stderr.on("data", take(err));
-    const stop = () => child.kill("SIGKILL");
+    const stop = () => { void killCliTree(child, 0); };
     input.signal.addEventListener("abort", stop, { once: true });
     child.on("error", (error) => done({ ok: false, error: error.message }));
     child.on("close", (code) => {
@@ -133,6 +137,7 @@ export function createExecutors(context: ExecutorContext): StepExecutors {
     // A delegate step's hand-offs go through coordinate_bots' own route, as this turn: the same reach, limits and receipts.
     async teammates(signal) {
       const answer = await context.internal("agents", `/api/internal/agents?self=${encodeURIComponent(context.botId)}`, undefined, signal);
+      if (!answer.ok) throw new Error(errorText(answer.body.error, "the teammate list is unavailable"));
       const bots = Array.isArray(answer.body.bots) ? answer.body.bots.map(record).filter((bot): bot is Record<string, unknown> => Boolean(bot)) : [];
       return bots.flatMap((bot) => (typeof bot.id === "string" && typeof bot.name === "string" ? [{ id: bot.id, name: bot.name, ...(typeof bot.title === "string" ? { title: bot.title } : {}) }] : []));
     },
@@ -157,18 +162,21 @@ export function createExecutors(context: ExecutorContext): StepExecutors {
     async app(input) {
       const { slug, frame } = appFrame(input.tool, input.args, input.account, rpcId());
       const answer = await context.internal("connectors", "/api/internal/connectors/mcp", frame, input.signal);
-      if (!answer.ok) return { ok: false, error: String(answer.body.error ?? "the app call was refused") };
+      if (!answer.ok) return { ok: false, error: errorText(answer.body.error, "the app call was refused") };
       if (Buffer.byteLength(JSON.stringify(answer.body)) > input.maxBytes) return tooLarge(input.maxBytes);
       try {
         return { ok: true, output: toolData(slug, answer.body) };
       } catch (error) {
         const plain = callText(answer.body);
-        return plain.ok ? plain : { ok: false, error: error instanceof Error ? error.message : String(error) };
+        if (plain.ok && typeof plain.output === "string") {
+          try { JSON.parse(plain.output); } catch { return plain; }
+        }
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
       }
     },
     async browser(input) {
       const answer = await context.internal("browser", "/api/internal/browser/mcp", { jsonrpc: "2.0", id: rpcId(), method: "tools/call", params: { name: "browser_navigate", arguments: { url: input.url } } }, input.signal);
-      return answer.ok ? callText(answer.body) : { ok: false, error: String(answer.body.error ?? "the browser isn't available") };
+      return answer.ok ? callText(answer.body) : { ok: false, error: errorText(answer.body.error, "the browser isn't available") };
     },
     async file(input) {
       const root = realpathSync(context.cwd);

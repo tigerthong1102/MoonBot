@@ -47,7 +47,7 @@ export function burgerTurn(host: BurgerHostDeps, turn: CallingTurn, authorizatio
     assignedSkills: host.assignedSkills?.(turn.botId),
     guard: host.guard?.(turn),
     mayEditEveryChat: host.mayEditEveryChat(),
-    mayEditBot: host.mayEditBot?.() ?? true,
+    mayEditBot: host.mayEditBot?.() ?? false,
     sharedSkillsEnabled: host.sharedSkillsEnabled?.() ?? true,
     publish: (event: StepEvent) => host.publish(turn.threadId, { eventId: randomUUID(), createdAt: new Date().toISOString(), threadId: turn.threadId, itemType: "tool", ...event }),
     async internal(kind, path, body, signal) {

@@ -23,7 +23,7 @@ it("runs under the existing Full access grant without opening a new permission c
     expect(outcome.status).toBe("settled");
     const { messages } = await request(`/api/threads/${bot.activeTaskId}/messages?limit=100`) as { messages: Array<{ card?: { tool?: string }; tool?: { output?: string } }> };
     expect(messages.some((message) => message.card?.tool === "Workflow: shell")).toBe(false);
-    expect(messages.some((message) => message.tool?.output?.includes("full-fixture"))).toBe(true);
+    expect(messages.some((message) => message.tool?.output?.includes("full-fixture") && message.tool.output.includes("The Skill Burger ran:"))).toBe(true);
   } finally {
     await fixture.close();
   }

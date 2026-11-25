@@ -17,6 +17,7 @@ import type { WorkflowGuard } from "./guarded-executors.ts";
 import type { StepExecutors } from "./runner.ts";
 import { saveWorkflowSkill } from "./store.ts";
 import { setSkillEnabled } from "../skills.ts";
+import { burgerTurn } from "./turn-host.ts";
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -44,7 +45,7 @@ async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]
       shell: async () => ({ ok: true, output: "" }), browser: async () => ({ ok: true, output: "" }), file: async () => ({ ok: true, output: "" }),
     }),
   });
-  const turnFor = (botId: string): BurgerTurn => ({ botId, threadId: "t1", cwd: root, mayEditEveryChat: false, mayEditBot: options.mayEditBot?.(), signal: options.signal, guard: options.guard, internal: async () => ({ ok: false, body: {} }), publish: (event) => events.push(event) });
+  const turnFor = (botId: string): BurgerTurn => ({ botId, threadId: "t1", cwd: root, mayEditEveryChat: false, mayEditBot: options.mayEditBot?.() ?? true, signal: options.signal, guard: options.guard, internal: async () => ({ ok: false, body: {} }), publish: (event) => events.push(event) });
   let as = bot;
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -141,6 +142,11 @@ it("refuses bot-local edit and undo without edit authority", async () => {
   expect(await h.post("/api/internal/skill-burgers/undo", { undo: changed.undo })).toHaveProperty("error");
   permitted = true;
   expect(await h.post("/api/internal/skill-burgers/undo", { undo: changed.undo })).toHaveProperty("skill");
+});
+
+it("denies bot-local editing when the host has no authority provider", () => {
+  const host = { available: () => true, port: 0, cwd: () => "/tmp", mint: () => "", browser: async () => null, publish: () => {}, mayEditEveryChat: () => false };
+  expect(burgerTurn(host, { botId: "b", threadId: "t", generation: "g" }, undefined).mayEditBot).toBe(false);
 });
 
 it("refuses internal workflow calls when the host has disabled the feature", async () => {

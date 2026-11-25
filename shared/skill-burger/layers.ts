@@ -442,7 +442,7 @@ function joinDelegations(layers: BurgerLayer[], round: Map<string, number>, repl
     if (last?.kind === "delegate" && last.delegation && round.get(last.id) === round.get(layer.id) && !ids.some((id) => botsOf(last).has(id)) && Boolean(last.delegation.rounds.at(-1)?.[0]?.rework) === Boolean(call.rework)) {
       const rounds = last.delegation.rounds;
       rounds[rounds.length - 1]!.push(call);
-      out[out.length - 1] = { ...last, words: [...new Set([...last.words.split(", "), ...layer.words.split(", ")])].join(", "), status: last.status === "failed" ? layer.status : last.status };
+      out[out.length - 1] = { ...last, replay: last.replay === "exact" && layer.replay === "exact" ? "exact" : "ai", words: [...new Set([...last.words.split(", "), ...layer.words.split(", ")])].join(", "), status: last.status === "failed" ? layer.status : last.status };
       round.set(out[out.length - 1]!.id, round.get(layer.id)!);
       continue;
     }

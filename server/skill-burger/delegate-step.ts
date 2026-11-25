@@ -103,7 +103,7 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
   for (const call of calls.values()) {
     for (let at = 0; at < call.botIds.length; at += 4) {
       const botIds = call.botIds.slice(at, at + 4);
-      const sent = await exec.delegate({ botIds, message: call.message, ...(call.doneWhen ? { doneWhen: call.doneWhen } : {}), ...(fixes ? { rework: true } : {}), ...(step.consult ? { consult: true } : {}), signal });
+      const sent = await exec.delegate({ botIds, message: call.message, ...(call.doneWhen ? { doneWhen: call.doneWhen } : {}), ...(fixes ? { rework: true } : {}), ...(step.consult ? { consult: true } : {}), signal }).catch((error: unknown) => ({ ok: false as const, error: error instanceof Error ? error.message : String(error), definitive: false }));
       if (!sent.ok) return { ...sent, unsafeToRetry: requests.length > 0 || !sent.definitive };
       if (botIds.some((botId) => !sent.receipts.some((receipt) => receipt.botId === botId && receipt.requestId))) {
         return { ok: false, error: "the coordinator did not confirm every hand-off", unsafeToRetry: true };
@@ -155,7 +155,10 @@ export function readReview(response: string, state: DelegationState): Record<str
   if (!redo || typeof redo !== "object" || Array.isArray(redo)) return null;
   const out: Record<string, string> = {};
   for (const [name, fix] of Object.entries(redo as Record<string, unknown>)) {
-    const part = Object.entries(state.replies).find(([key, reply]) => norm(key) === norm(name) || norm(reply.name) === norm(name))?.[0];
+    const entries = Object.entries(state.replies);
+    const direct = entries.find(([key]) => norm(key) === norm(name));
+    const aliases = entries.filter(([, reply]) => norm(reply.name) === norm(name));
+    const part = direct?.[0] ?? (aliases.length === 1 ? aliases[0]?.[0] : undefined);
     if (!part || typeof fix !== "string" || !fix.trim() || part in out) return null;
     out[part] = fix.trim().slice(0, 2_000);
   }

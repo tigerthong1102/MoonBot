@@ -33,7 +33,10 @@ export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liv
   team?: boolean;
 }) {
   const seen = useMemo(() => latestRun(messages, liveTools), [messages, liveTools]);
-  const edit = useMemo(() => editIn(messages), [messages]);
+  const edit = useMemo(() => {
+    const found = editIn(messages);
+    return found && !latestRun(messages.slice(messages.findIndex((message) => message.id === found.id) + 1), liveTools) ? found : null;
+  }, [messages, liveTools]);
   const shownRun = seen && (!edit || seen.name === edit.name) ? seen : null;
   const runnable = useRunnable(edit?.name ?? seen?.name ?? null, botId);
   const layers = useMemo(() => burgerLayers(messages, liveTools), [messages, liveTools]);

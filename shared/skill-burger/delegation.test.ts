@@ -19,6 +19,12 @@ const bash = (command: string, extra: Partial<NonNullable<RunMessage["tool"]>> =
 });
 
 describe("a delegation run", () => {
+  it("keeps a merged handoff non-exact if either input was clipped", () => {
+    const calls = run.filter((message) => message.tool?.name?.endsWith("coordinate_bots")).slice(0, 2);
+    const clipped = { ...calls[1]!, tool: { ...calls[1]!.tool!, input: calls[1]!.tool!.input!.replace("QA round", "[additional data omitted] QA round") } };
+    expect(burgerLayers([ask("Inspect"), calls[0]!, clipped])[0]).toMatchObject({ kind: "delegate", replay: "ai" });
+    expect(burgerLayers([ask("Inspect"), ...calls])[0]).toMatchObject({ kind: "delegate", replay: "exact" });
+  });
   it("does not save a clipped delegation as an exact handoff", () => {
     const layer = burgerLayers(run).find((item) => item.kind === "delegate")!;
     const workflow = draftFromLayers([{ ...layer, replay: "ai" }], "Inspect the fixture", "Inspect", { teammate });

@@ -10101,7 +10101,7 @@ async function runClaimedGroupMemberTurn(
       : "");
   const liveRosterBlock = !orchestration?.liveRoster || orchestration.resumed ? "" : `\n\n${orchestration.liveRoster}`;
   const heldReplay = heldReplayFor(group.id, threadId, bot.id, userName, roomContext);
-  const roomTail = `\n\n(Reply to the conversation above as ${bot.name}.)${learnBlock}${heldReplay.block}${cardContinuation ? `\n\n${cardContinuation}` : ""}${coordinationReminder}${liveRosterBlock}`;
+  const roomTail = `\n\n(Reply to the conversation above as ${bot.name}.)${learnBlock}${heldReplay.block}${cardContinuation ? `\n\n${cardContinuation}` : ""}${coordinationReminder}${liveRosterBlock}${orchestration?.resumed && addressedRequest ? `\n\n${skillBurgerRuns.waitingNote(threadId, coordinator.children(addressedRequest.id).map(child => child.id)) ?? ""}` : ""}`;
   const text = roomContext + roomTail;
 
   const worksInWorkspace = supportsWorkspaceFiles(instance.driverKind);

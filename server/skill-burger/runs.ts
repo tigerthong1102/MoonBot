@@ -135,7 +135,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
       const found = findWorkflowSkill(turn.botId, kept.name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
       if (!found) return json(res, 404, { error: "That Skill Burger is gone." });
       if ("everyChat" in found.place && !turn.mayEditEveryChat) return json(res, 403, { error: "Only an admin of this installation can change a Skill Burger used in every chat." });
-      if ("botId" in found.place && turn.mayEditBot === false) return json(res, 403, { error: "Edit this workflow through the bot's settings with an authorized account." });
+      if ("botId" in found.place && turn.mayEditBot !== true) return json(res, 403, { error: "Edit this workflow through the bot's settings with an authorized account." });
       if (!editUndo.take(parsed.data.undo, undoScope(found.place), kept.name)) return json(res, 404, { error: "There is nothing to undo with that id." });
       const restored = replaceWorkflowSkill({ place: found.place, name: kept.name, workflow: kept.previous, sha256: kept.sha256, root: deps.root });
       if ("stale" in restored) return json(res, 409, { error: "The Skill Burger changed since; undo isn't safe now." });
@@ -149,7 +149,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     const found = findWorkflowSkill(turn.botId, name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
     if (!found) return json(res, 404, { error: `No Skill Burger named "${name}" here.` });
     if ("everyChat" in found.place && !turn.mayEditEveryChat) return json(res, 403, { error: "Only an admin of this installation can change a Skill Burger used in every chat." });
-    if ("botId" in found.place && turn.mayEditBot === false) return json(res, 403, { error: "Edit this workflow through the bot's settings with an authorized account." });
+    if ("botId" in found.place && turn.mayEditBot !== true) return json(res, 403, { error: "Edit this workflow through the bot's settings with an authorized account." });
     const next = applyEdit(found.workflow, edit.data);
     if ("error" in next) return json(res, 422, next);
     const saved = replaceWorkflowSkill({ place: found.place, name, workflow: next, sha256: found.sha256, root: deps.root });

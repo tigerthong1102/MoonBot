@@ -65,4 +65,11 @@ describe("the person's choices", () => {
   it("rejects swaps that would overwrite renamed input references", () => {
     expect(applyChoices(workflow, { inputs: { url: { name: "page" }, page: { name: "url" } } })).toEqual({ error: "There is already an input named page." });
   });
+
+  it("rejects chained renames in either input order", () => {
+    const choices = { inputs: { url: { name: "page" }, page: { name: "feed" } } };
+    expect(applyChoices(workflow, choices)).toEqual({ error: "There is already an input named page." });
+    const reversed = { ...workflow, args: { page: workflow.args.page!, url: workflow.args.url! } };
+    expect(applyChoices(reversed, choices)).toEqual({ error: "There is already an input named page." });
+  });
 });

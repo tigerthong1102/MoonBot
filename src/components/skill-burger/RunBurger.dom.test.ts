@@ -64,6 +64,14 @@ it("reads the newest run's steps from its rows, and lays the cases under their d
   expect(latestRun([step("s1", "done"), ask])).toBeNull();
 });
 
+it("shows the later workflow run after another workflow was edited", async () => {
+  const edit: RunMessage = { id: "edit-before-run", role: "bot", kind: "activity", tool: { name: "mcp__agents__workflow_edit", ok: true, input: JSON.stringify({ name: "another-workflow" }), output: 'undo "0f0e0d0c-0b0a-4908-8706-050403020100"' } };
+  await render([ask, edit, step("s1", "done"), step("d1")], true);
+  expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers/files-new-support-email?runner=scout");
+  expect(card()?.dataset.skillBurger).toBe("running");
+  expect(rows()).toContain("done Fetch emails");
+});
+
 it("cooks the running step, greys the case not taken and a skipped step, and ends quietly", async () => {
   await render([ask, step("s1", "done"), step("d1", "done", { case: "support" }), step("c1")], true);
   expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers/files-new-support-email?runner=scout");

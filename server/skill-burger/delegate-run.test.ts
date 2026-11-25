@@ -117,6 +117,9 @@ describe("a saved delegation", () => {
     expect(readReview('{"redo":{"unknown":"fix"}}', review)).toBeNull();
     expect(readReview('{"redo":{"Rio":" "}}', review)).toBeNull();
     expect(readReview('{"redo":{"Rio":"fix"}}', review)).toEqual({ Rio: "fix" });
+    const reassigned = { ...review, replies: { Kiwi: { name: "Rio", text: "first", ok: true, round: 1 }, Rio: { name: "Rio", text: "second", ok: true, round: 1 } } };
+    expect(readReview('{"redo":{"Rio":"fix"}}', reassigned)).toEqual({ Rio: "fix" });
+    expect(readReview('{"redo":{"Rio":"fix"}}', { ...review, replies: { Kiwi: reassigned.replies.Kiwi, Miso: reassigned.replies.Rio } })).toBeNull();
   });
 
   it("rejects duplicate teammate names in saved delegated tasks", () => {
@@ -204,6 +207,22 @@ describe("a saved delegation", () => {
     const exec: StepExecutors = { ...t.exec, delegate: async (input) => {
       count += 1;
       return count === 1 ? t.exec.delegate!(input) : { ok: false, error: "connection lost" };
+    } };
+    const h = harness(exec);
+    const failed = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: qa() }, h.deps);
+    expect(t.sent).toHaveLength(1);
+    expect(failed.error?.message).toContain("may already have received work");
+    expect(failed.error?.resumeToken).toBeUndefined();
+    expect(h.saved).toHaveLength(0);
+  });
+
+  it("does not retry after a hand-off throws with an unknown outcome", async () => {
+    const t = team();
+    let count = 0;
+    const exec: StepExecutors = { ...t.exec, delegate: async (input) => {
+      count += 1;
+      if (count === 1) return t.exec.delegate!(input);
+      throw new Error("connection lost");
     } };
     const h = harness(exec);
     const failed = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow: qa() }, h.deps);

@@ -1,7 +1,3 @@
-// The finished run on the burger card, the way a person would explain it: its inputs (rename one, or give it another
-// saved value), each step in plain words with who did it, opened to see what was asked and what came back, what "done"
-// meant and how many tries or rounds it took. A step can be left out before saving; a step that uses its output goes
-// with it. Nothing here is saved until the person adds the burger.
 import { Check, ChevronRight, Users } from "lucide-react";
 import { useState, type KeyboardEvent } from "react";
 

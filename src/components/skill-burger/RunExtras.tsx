@@ -1,5 +1,3 @@
-// The run card's two small extras: what a step brought back (each teammate's reply, a check's verdict), and the
-// burger's last few runs, with the one-line offer to keep a fix the bot made to get past a failed step.
 import { Check, ChevronRight, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 

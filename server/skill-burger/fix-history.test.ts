@@ -1,4 +1,3 @@
-// "Update the burger with this fix", a burger's run history, and the line that sends a resumed turn back into its run.
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

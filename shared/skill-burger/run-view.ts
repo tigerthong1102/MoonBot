@@ -1,6 +1,3 @@
-// A Skill Burger run as its card shows it: the saved steps in order, each with how it went in this run, read from the
-// step rows the run left in the chat. A decide step shows its cases, the steps of each case sit under it, and the cases
-// this run didn't take are greyed. Shared so the card and its tests read runs the same way.
 import { caseOf, type Workflow } from "./format.ts";
 import { RUN_STEP_MARK, type LayerKind, type RunMessage } from "./layers.ts";
 

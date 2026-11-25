@@ -1,8 +1,3 @@
-// A finished run as the card explains it before it is saved: the goal, the inputs it found, each step in plain words
-// with who did it, what each teammate was asked and sent back, what "done" meant, the tries it took, and whether the
-// step repeats exactly or is the bot's to redo with judgement. Built on the server from the same draft a save writes,
-// so the step ids the person unticks are the ids that are saved. The person's choices (steps left out, inputs renamed
-// or given another value) are applied here too, the same way the save applies them.
 import { textLine, type Workflow, type WorkflowStep } from "./format.ts";
 import { askOf, type BurgerLayer, type LayerKind, type RunMessage } from "./layers.ts";
 

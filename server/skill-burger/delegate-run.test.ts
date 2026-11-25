@@ -1,6 +1,3 @@
-// A saved delegation run against a fake coordinator: the parts go out at once through coordinate_bots, the run pauses
-// for the replies, a reply that falls short goes back for the rounds the step allows, a gone teammate is matched by role
-// or picked by the bot, a failed step goes on once fixed, and a step's check is honoured.
 import { describe, expect, it } from "vitest";
 
 import { workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";

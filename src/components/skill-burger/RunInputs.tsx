@@ -1,5 +1,3 @@
-// Run for a saved burger that has inputs: one compact form with each input, filled with the value it was saved with, so
-// the person sees what the run will use and changes what differs this time. A burger without inputs runs at once.
 import { CirclePlay } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 

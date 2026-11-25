@@ -1,7 +1,3 @@
-// What the bot decided along the way, as the run's own words say it ("nothing new, so no email"; "it's a support
-// request, so a Linear issue"), turned into a saved burger's conditions and cases by the same small model pass that
-// names the run. Nothing here is guessed from the steps alone: with no decision in the bot's words, nothing changes, and
-// a reply that doesn't fit the steps is dropped whole.
 import { z } from "zod";
 
 import { caseName, onCase, workflowSchema, type Workflow, type WorkflowStep } from "./format.ts";

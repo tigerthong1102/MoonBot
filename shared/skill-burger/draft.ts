@@ -1,9 +1,3 @@
-// A finished run as a draft workflow. Nobody fills a form: values the person typed in the ask become args (the recorded
-// value is the default); values an earlier step returned are piped from it; long text the AI wrote from something it
-// read becomes an AI step that writes it again next time. A step that can't be repeated exactly (its input was clipped
-// or masked, it ran code, it clicked in a browser, it used a temporary folder of that run) is saved as an AI step, never
-// guessed. Work handed to teammates is one delegate step: who, what each was asked, what done means, and how many
-// rounds of fixes the run took; the review that closed the run is an AI step. No secret is written down.
 import { redactSecretsInText } from "../redact.ts";
 import { DELEGATE_MAX_ROUNDS, textLine, type Workflow, type WorkflowRef, type WorkflowStep, type WorkflowTeammate, type WorkflowText } from "./format.ts";
 import { appLabel, BARE_READ } from "./apps.ts";

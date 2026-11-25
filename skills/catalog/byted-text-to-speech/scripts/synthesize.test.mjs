@@ -32,6 +32,7 @@ test('rejects missing credentials, provider errors and invalid audio without rep
   let called = false;
   const transport = async () => { called = true; return new Response('data: {"code":100,"message":"sensitive"}\n'); };
   await assert.rejects(synthesize({ text: 'test', output, transport }), /MODEL_SPEECH_API_KEY/);
+  await assert.rejects(synthesize({ text: 'test', output, apiKey: 'fixture-key', timeoutSeconds: 0, transport }), /Timeout/);
   assert.equal(called, false);
   await assert.rejects(synthesize({ text: 'test', output, apiKey: 'fixture-key', transport }), /code 100/);
   await assert.rejects(synthesize({ text: 'test', output, apiKey: 'fixture-key', transport: async () => new Response('data: {"code":0,"data":"!!!!"}\n') }), /Invalid audio encoding/);

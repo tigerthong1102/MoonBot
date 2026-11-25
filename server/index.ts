@@ -109,7 +109,6 @@ import { DataFailure } from "./data/types.ts";
 import { TeamComputers, teamComputerOwner, type TeamComputerRecord } from "./team-computers.ts";
 import { isEffortLevel, type AuthPairResponse, type CardAnswerer, type LoopbackSessionResponse, type SignedInSessionResponse, type PairResponse, type ResolvedSender, type ServerFrame, type SignInRequestCardData, type WireBot, type WireGroup, type WireTask } from "../shared/wire.ts";
 import { isPersistentQuestionCard, shouldSettleRequestCard } from "../shared/ask-question.ts";
-import { allowsTool, narrowsNativeTools, parseToolScope } from "../shared/tool-scope.ts";
 import type { TeamComputersPayload } from "../shared/team-computer.ts";
 import { boatCreateRecoverySnapshot } from "./boat-create-idempotency.ts";
 import { boatDeletionSnapshot } from "./boat-delete-journal.ts";
@@ -320,12 +319,10 @@ import {
 import * as tts from "./tts/index.ts";
 import { voiceNoteFailure } from "./tts/errors.ts";
 import { createDecider, deciderReady, describeDecider } from "./decider/index.ts"; import { createExtractor, describeHelpers } from "./extractor/index.ts";
-import { createStopLineRoutes } from "./routes/stop-line.ts"; import { createSkillBurgerRoutes, createStandaloneSkillBurgerRoutes } from "./skill-burger/routes.ts"; import { decideRoomResponder } from "./decider/room-routing.ts"; import { roomRoutingInput } from "./host/room-routing-input.ts";
+import { createStopLineRoutes } from "./routes/stop-line.ts"; import { createWorkflowHost, createToolScopeForTurn } from "./skill-burger/host.ts"; import { decideRoomResponder } from "./decider/room-routing.ts"; import { roomRoutingInput } from "./host/room-routing-input.ts";
 import { findWorkflowSkill, listWorkflowSkills } from "./skill-burger/store.ts";
 import { createSkillBurgerRuns } from "./skill-burger/runs.ts";
 import { createWorkflowApprovals } from "./skill-burger/approval.ts";
-import type { CallingTurn } from "./skill-burger/turn-host.ts";
-import type { WorkflowGuard } from "./skill-burger/guarded-executors.ts";
 import { autoRoomDefault, roomTurnMembers } from "./room-routing-members.ts";
 import { liveHistoryFrom, LiveSessionError, type LiveBot, type LiveHistoryMessage } from "./live-call.ts";
 import { LiveCallController, LiveCallSignedOutError } from "./live-call-controller.ts"; import { liveSessionWiring } from "./live-session-wiring.ts";
@@ -538,7 +535,7 @@ import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
 import { createWorkspaceBackupRoutes, isWorkspaceBackupSessionControl } from "./workspace-backup-http.ts";
 import { applyPendingWorkspaceRestore, readLastWorkspaceRestore, type WorkspaceRestoreResult } from "./workspace-backup.ts";
 import { repairMovedWorkspacePaths } from "./moved-paths-repair.ts";
-import { createCustomDomainVerifier, customDomainIpv4, normalizeCustomDomain } from "./custom-domain.ts";
+import { createCustomDomainVerifier, createCustomDomainStatus } from "./custom-domain.ts";
 import { allowedScopes, createEmailSignIn, parseAllowList } from "./account-signin.ts";
 import { pairingLinkBase, signInMailTarget } from "./pairing-base.ts"; import { lanUrl, listenHost } from "./lan-address.ts"; import { createTailnetShare } from "./tailnet-listener.ts";
 import { ProviderAuthSessions } from "./provider-auth-sessions.ts";
@@ -807,19 +804,7 @@ const customDomainVerifier = createCustomDomainVerifier({ environmentId: ENVIRON
 const emailSignIn = createEmailSignIn({
   allow: signInAllowList,
 });
-function savedCustomDomain(): string | null {
-  if (DESKTOP_MANAGED || !cfg.customDomain) return null;
-  try { return normalizeCustomDomain(cfg.customDomain); }
-  catch { return null; }
-}
-function publicUrl(): string | null { return savedCustomDomain() ?? FALLBACK_PUBLIC_URL ?? tailnetShare.origin() ?? lanUrl(PORT); }
-function customDomainStatus() {
-  return {
-    customDomain: savedCustomDomain(), publicUrl: publicUrl(), fallbackUrl: FALLBACK_PUBLIC_URL,
-    supported: !DESKTOP_MANAGED, appPort: PORT, webhookPort: WEBHOOK_PORT,
-    serverIpv4: DESKTOP_MANAGED ? null : customDomainIpv4(),
-  };
-}
+const { savedCustomDomain, publicUrl, customDomainStatus } = createCustomDomainStatus({ desktop: DESKTOP_MANAGED, domain: () => cfg.customDomain, fallback: FALLBACK_PUBLIC_URL, tailnet: () => tailnetShare.origin(), lan: () => lanUrl(PORT), port: PORT, webhookPort: WEBHOOK_PORT });
 const registry = new ProviderRegistry(BUILT_IN_DRIVERS, { statusFile: join(DATA_DIR, "providers", "engine-status.json") });
 const supportsApprovalMode = createApprovalModeSupport(registry);
 registerEnginesBinDir(); const engineUpdates = engineUpdatesFor({ drivers: BUILT_IN_DRIVERS, turnRunning: () => store.bots.some((bot) => botHasActiveTurn(bot.id)) || store.groups.some(groupIsWorking) || Boolean(routines?.hasActiveRuns()), configuredClis: () => Object.values(providerConfigs()).flatMap((entry) => { const cli = (entry.config as { cli?: unknown } | undefined)?.cli; return typeof cli === "string" && cli ? [cli] : []; }), updated: () => { registry.forgetSnapshots(); broadcast({ kind: "config", ...configStatus() }); } });
@@ -2925,13 +2910,7 @@ const wireBot = (bot: BotRecord, onlyThreadId?: string): WireBot => {
     avatarUrl: visible.avatarUrl ?? null, ...(tasks ? { tasks: (onlyThreadId === undefined ? tasks : tasks.filter((task) => task.threadId === onlyThreadId)).map((task) => wireTask(task, bot.modelSelection, awaiting)) } : {}) };
 };
 
-function toolScopeForTurn(botId: string) {
-  const bot = store.bot(botId);
-  if (!bot) throw Object.assign(new Error("no such bot"), { status: 404 });
-  const parsed = parseToolScope(bot.toolScope);
-  if (!parsed.ok) throw Object.assign(new Error("This bot's tool selection is invalid. Open Access settings and save a valid selection before starting a turn."), { status: 409, code: "tool_scope" });
-  return parsed.scope;
-}
+const toolScopeForTurn = createToolScopeForTurn((id) => store.bot(id));
 
 const wireTrustedApprovalBot = (bot: NonNullable<ReturnType<typeof store.bot>>) => {
   const { resumeCursors: _resumeCursors, tasks, approvalGrant: _approvalGrant, lastProfileRequestId: _lastProfileRequestId, lastTeamSetupReceipt: _lastTeamSetupReceipt, packageBase: _packageBase, assignedSkills: _assignedSkills, mainThreadChoice: _mainThreadChoice, home: _home, ...rest } = bot;
@@ -12076,43 +12055,9 @@ const cloudMoveRoutes = createCloudMoveRoutes();
 ROUTES.push(inboxBotTextRoutes({ desktop: DESKTOP_MANAGED, bots: () => store.bots, held: id => Boolean(botHolds.held(id)), jobs: sideJobs }));
 ROUTES.push(createHostedSlackRoutes({ bot: (id) => store.bot(id), hostedReady: () => Boolean(workspaceAccess) && entitled("admin") })); ROUTES.push(createStopLineRoutes());
 
-function workflowGuard(turn: CallingTurn): WorkflowGuard {
-  const active = () => internalCapabilityIsActive(turn as InternalCapability) && !cloudGuestDriven(turn.threadId) && !outsideDrivenThread(turn.threadId) && !botApiThread(turn.threadId);
-  return {
-    allowed(action, name) {
-      if (!active() || action === "file") return false;
-      try {
-        const scope = toolScopeForTurn(turn.botId);
-        if (action === "shell") return !narrowsNativeTools(scope);
-        if (action === "vm" || action === "delegate" || action === "edit") return allowsTool(scope, { kind: "mcp", server: "agents", name: action === "vm" ? "vm_exec" : action === "edit" ? "workflow_edit" : "coordinate_bots" });
-        if (action === "browser") return allowsTool(scope, { kind: "mcp", server: "browser", name: "browser_navigate" });
-        return Boolean(name && allowsTool(scope, { kind: "mcp", server: "composio", name }) && allowsTool(scope, { kind: "mcp", server: "composio", name: "COMPOSIO_MULTI_EXECUTE_TOOL" }));
-      } catch { return false; }
-    },
-    approve: (action, summary, signal) => workflowApprovals.ask({ threadId: turn.threadId, tool: `Workflow: ${action}`, summary, signal, active }),
-  };
-}
-
-const skillBurgerRuns = createSkillBurgerRuns({ dataDir: DATA_DIR, host: { available: () => Boolean(CLOUD_TEAM) || (!CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership()), guard: workflowGuard, assignedSkills: (botId) => store.bot(botId)?.assignedSkills, port: PORT, cwd: (botId, threadId) => store.taskByThread(botId, threadId)?.cwd || store.bot(botId)?.cwd || workspaceDir(botId), mint: (turn, kind) => mintInternalCapability({ ...(turn as unknown as InternalCapability), kind, depth: 0, skillAuthoring: false, createdBots: 0, openedThreads: 0 }), browser: async (turn) => { const bot = store.bot(turn.botId); return bot ? ((await browserIntegration(bot.id, bot.browserProfile, { threadId: turn.threadId, generation: turn.generation }))?.integration as { env?: Record<string, string | undefined> } | undefined) ?? null : null; }, publish: (threadId, event) => { const engine = runningTurnEngines.get(threadId); bus.publish({ ...event, provider: engine?.driverKind, providerInstanceId: engine?.instanceId } as unknown as RuntimeEvent); }, mayEditEveryChat: () => !CLOUD_TEAM } });
-const workflowRouteExtras = {
-  history: skillBurgerRuns.history,
-  teammate: (auth: RequestAuth, idOrName: string) => {
-    const visible = store.bots.filter((one) => levelOf(auth, one.id) !== "none");
-    const bot = visible.find((one) => one.id === idOrName) ?? visible.find((one) => one.name.toLowerCase() === idOrName.toLowerCase());
-    return bot ? { id: bot.id, name: bot.name, ...(bot.title ? { role: bot.title } : {}) } : undefined;
-  },
-};
-ROUTES.push(CLOUD_TEAM ? createSkillBurgerRoutes({
-  available: (auth) => auth.kind === "session",
-  requiresShareConsent: () => true,
-  messages: (threadId) => store.activePath(threadId),
-  botIds: () => store.bots.map((bot) => bot.id),
-  owns: (botId, threadId) => store.bot(botId)?.threadId === threadId || Boolean(store.taskByThread(botId, threadId)),
-  sees: (auth, threadId) => visibleTo(viewerFor(auth)).thread(threadId),
-  levelOf,
-  assignedSkills: (botId) => store.bot(botId)?.assignedSkills,
-  ...workflowRouteExtras,
-}) : createStandaloneSkillBurgerRoutes(store, (auth, id) => visibleTo(viewerFor(auth)).thread(id), () => !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership(), workflowRouteExtras));
+const workflowHost = createWorkflowHost({ store, team: Boolean(CLOUD_TEAM), enabled: () => !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership(), sees: (auth, id) => visibleTo(viewerFor(auth)).thread(id), levelOf, active: (turn) => internalCapabilityIsActive(turn as InternalCapability) && !cloudGuestDriven(turn.threadId) && !outsideDrivenThread(turn.threadId) && !botApiThread(turn.threadId), scope: toolScopeForTurn, approvals: workflowApprovals });
+const skillBurgerRuns = createSkillBurgerRuns({ dataDir: DATA_DIR, host: { available: () => Boolean(CLOUD_TEAM) || (!CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership()), guard: workflowHost.guard, assignedSkills: (botId) => store.bot(botId)?.assignedSkills, port: PORT, cwd: (botId, threadId) => store.taskByThread(botId, threadId)?.cwd || store.bot(botId)?.cwd || workspaceDir(botId), mint: (turn, kind) => mintInternalCapability({ ...(turn as unknown as InternalCapability), kind, depth: 0, skillAuthoring: false, createdBots: 0, openedThreads: 0 }), browser: async (turn) => { const bot = store.bot(turn.botId); return bot ? ((await browserIntegration(bot.id, bot.browserProfile, { threadId: turn.threadId, generation: turn.generation }))?.integration as { env?: Record<string, string | undefined> } | undefined) ?? null : null; }, publish: (threadId, event) => { const engine = runningTurnEngines.get(threadId); bus.publish({ ...event, provider: engine?.driverKind, providerInstanceId: engine?.instanceId } as unknown as RuntimeEvent); }, mayEditEveryChat: () => !CLOUD_TEAM } });
+ROUTES.push(workflowHost.routes(skillBurgerRuns.history));
 const orgInstallStatuses = () => orgLibrary?.installStatuses() ?? new Map();
 ROUTES.push(createBotPresetRoutes({ presets: presetStore, orgStatuses: orgInstallStatuses })); ROUTES.push(createBotHoldRoutes({ holds: botHolds, named: (kind, id) => (kind === "bot" ? store.bot(id)?.name ?? null : store.sections.includes(id.trim()) ? id.trim() : null), stop: async (botIds) => { let stopped = 0; for (const botId of botIds) { for (const { threadId } of store.tasks(botId)) if (threadBusy(botId, threadId) || coordinator.activeDirect(threadId)) { await stopThreadForPerson(botId, threadId); stopped++; } for (const group of store.groups) if (roomThreadIds(group).some((threadId) => groupSpeakers.get(threadId)?.botId === botId)) { await interruptHeldMember(group.id, botId); stopped++; } } return stopped; }, audit: (entry, auth, req) => { if (!DESKTOP_MANAGED && adminActivityRecording()) appendAdminAction(DATA_DIR, { category: "bot", action: `${entry.kind}.${entry.paused ? "pause" : "resume"}`, target: { kind: entry.kind, id: entry.id, name: entry.name }, actor: adminActorFor(auth, req) }); } })); ROUTES.push(createWorkspaceBannerRoutes({ changed: () => broadcast({ kind: "config", ...configStatus() }) })); ROUTES.unshift(createUsageCapRoutes({ view: () => usageCapGate.view(), botExists: (botId) => Boolean(store.bot(botId)), save: (usageCaps) => { saveConfig({ usageCaps }); Object.assign(cfg, loadConfig()); } })); const starterAwakeRoutes = createStarterAwakeRoutes({ awake: starterAwake }); ROUTES.push(starterAwakeRoutes);
 ROUTES.push(createSharedComputerRoutes({ enabled: (auth) => lendingEnabled() || (ownerLends() && ownHome.owner(auth)), computers: sharedComputers, sessionLive: (id) => sessions.isLive(id), environmentId: ENVIRONMENT_ID,

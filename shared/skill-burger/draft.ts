@@ -13,6 +13,7 @@ const SEARCH_BUDGET = 5_000;
 const MASKED = /••••••|«redacted \d+ chars»/;
 /** A conversation's own folder (task-workspaces/<bot>/<thread>): next time the run is in another conversation's folder. */
 const CONVERSATION_FOLDER = /(?:[A-Za-z]:)?(?:[\\/][^\s"'`\\/;|&<>()]+)*[\\/]task-workspaces[\\/][0-9a-f-]{36}[\\/][0-9a-f-]{36}/g;
+const CONVERSATION_CWD = /^(?:[A-Za-z]:)?[\\/](?:[^\\/]+[\\/])*task-workspaces[\\/][0-9a-f-]{36}[\\/][0-9a-f-]{36}(?=[\\/]|$)/;
 /** A temporary folder that run made for itself (mktemp): gone next time. */
 const RUN_TEMP = /(?:\/private)?\/var\/folders\/[^\s"']+\/T\/tmp\.[A-Za-z0-9]+|\/tmp\/tmp\.[A-Za-z0-9]{6,}/;
 const SHELL_WORDS = new Set(["for", "in", "do", "done", "if", "then", "else", "fi", "while", "until", "case", "esac", "function", "select", "echo", "true", "false"]);
@@ -320,7 +321,7 @@ class Drafter {
     } else if (layer.kind === "shell" && /(?:^|[^<])<<-?(?!<)\s*\S/.test(command)) {
       this.steps.push(this.ai(id, layer, label, " Preserve the heredoc's expansion and quoting when adapting its contents."));
     } else if (layer.kind === "shell") {
-      const cwd = typeof layer.args.cwd === "string" ? layer.args.cwd.replace(CONVERSATION_FOLDER, ".") : undefined;
+      const cwd = typeof layer.args.cwd === "string" ? layer.args.cwd.replace(CONVERSATION_CWD, ".") : undefined;
       const shell = layer.args.shell === "bash" || layer.args.shell === "unknown" ? layer.args.shell : undefined;
       this.steps.push({ id, kind: "shell", label: label.replace(CONVERSATION_FOLDER, "."), run: this.shell(command.replace(CONVERSATION_FOLDER, ".")), ...(cwd ? { cwd } : {}), ...(shell ? { shell } : {}) });
     } else if (layer.kind === "file") {

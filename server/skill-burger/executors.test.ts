@@ -64,6 +64,16 @@ describe("where a Skill Burger's steps run", () => {
     expect(paths).toEqual(["/api/internal/vm-exec"]);
   });
 
+  it("refuses a VM Bash command when the interpreter cannot be guaranteed", async () => {
+    const paths: string[] = [];
+    const exec = createExecutors({ botId: "b", cwd: folder(), internal: async (_kind, path) => {
+      paths.push(path);
+      return { ok: true, body: {} };
+    } });
+    expect(await exec.shell({ command: "printf '%s\\n' {north,south}", shell: "bash", env: {}, where: "vm", tool: "vm", signal: signal(), maxBytes: 1_000 })).toMatchObject({ ok: false });
+    expect(paths).toEqual([]);
+  });
+
   it("does not treat failed app responses as successful calls", async () => {
     for (const body of [
       { successful: false, error: "denied" },

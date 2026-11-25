@@ -85,9 +85,10 @@ describe("running a Skill Burger", () => {
 
   it("hands VM commands to the normal bot tools rather than starting an uncancellable replay", async () => {
     const h = harness();
-    const result = await h.start(wf([{ id: "s1", kind: "shell", label: "VM step", where: "vm", run: 'printf %s "$OMB_ARG_SITE"' }], { site: { default: "example.test" } }));
+    const result = await h.start(wf([{ id: "s1", kind: "shell", label: "VM step", where: "vm", shell: "bash", run: 'printf %s "$OMB_ARG_SITE"' }], { site: { default: "example.test" } }));
     expect(result).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step", step: "s1" } });
     expect(result.requiresInput?.input).toContain("example.test");
+    expect(JSON.parse(result.requiresInput!.input!)).toMatchObject({ shell: "bash" });
     expect(h.calls).toHaveLength(0);
   });
 

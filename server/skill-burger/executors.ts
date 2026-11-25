@@ -104,6 +104,7 @@ function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["she
 
 /** A command on the cloud computer through vm-exec. */
 async function runOnVm(context: ExecutorContext, input: Parameters<StepExecutors["shell"]>[0]): Promise<ExecResult> {
+  if (input.shell === "bash") return { ok: false, error: "the cloud command cannot guarantee the requested Bash interpreter" };
   const prefix = Object.entries(input.env).map(([name, value]) => `${name}=${shellQuote(value)}`).join(" ");
   const command = prefix ? `export ${prefix}; ${input.command}` : input.command;
   const vm = await context.internal("agents", "/api/internal/vm-exec", { command, timeout_seconds: 600 }, input.signal);

@@ -25,6 +25,11 @@ it("captures linked schedules and active runs without exposing their content", (
   expect(workBotRoutineSnapshot("target", [...links, { botId: "second", threadId: "t2" }], [routine], [run]).fingerprint).not.toBe(current.fingerprint);
   expect(workBotRoutineSnapshot("target", [{ threadId: "unknown" }], [], [])).toMatchObject({ conflict: true, hasResolvedLinks: false });
   expect(workBotRoutineSnapshot("target", links, [{ ...routine, enabled: false }], []).conflict).toBe(false);
+  for (const heldFor of ["no_engine", "no_connections", "plan_cancelled"] as const) {
+    const held = { ...routine, enabled: false, heldFor };
+    expect(workBotRoutineSnapshot("target", links, [held], []).conflict).toBe(true);
+    expect(workBotRoutineSnapshot("target", links, [held], []).fingerprint).not.toBe(workBotRoutineSnapshot("target", links, [{ ...routine, enabled: false }], []).fingerprint);
+  }
 });
 
 it("marks malformed linked records incomplete without throwing", () => {

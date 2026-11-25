@@ -24,7 +24,7 @@ export function workBotRoutineSnapshot(botId: string, related: readonly Related[
     if (!routine || typeof routine !== "object" || typeof routine.id !== "string" || !ROUTINE_ID.test(routine.id) || typeof routine.botId !== "string" || !routine.botId || !Number.isSafeInteger(routine.updatedAt) || routine.updatedAt < 0 || typeof routine.enabled !== "boolean" || !(routine.nextRunAt === null || (Number.isSafeInteger(routine.nextRunAt) && routine.nextRunAt >= 0)) || !(routine.target === "bot" || routine.target === "room-goal")) return false;
     try { return Boolean(loadSchedule(routine.schedule, Date.now())); } catch { return false; }
   }) && runs.every(run => Boolean(run && typeof run === "object" && typeof run.id === "string" && ROUTINE_ID.test(run.id) && typeof run.routineId === "string" && ROUTINE_ID.test(run.routineId) && typeof run.botId === "string" && run.botId && Number.isSafeInteger(run.scheduledFor) && run.scheduledFor >= 0 && ["queued", "running", "waiting", "completed", "failed", "cancelled", "missed"].includes(run.status) && (!["queued", "running", "waiting"].includes(run.status) || routineOwners.get(run.routineId) === run.botId)));
-  const conflict = !hasResolvedLinks || relatedRoutines.some(routine => routine.enabled) || relatedRuns.length > 0;
+  const conflict = !hasResolvedLinks || relatedRoutines.some(routine => routine.enabled || routine.heldFor !== undefined) || relatedRuns.length > 0;
   const fingerprint = createHash("sha256").update(JSON.stringify(canonical({ botId, references, routines: relatedRoutines, runs: relatedRuns }))).digest("hex");
   return { conflict, hasResolvedLinks, hasCompleteRecords, fingerprint };
 }

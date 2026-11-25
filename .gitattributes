@@ -68,3 +68,5 @@ server/testing/fixtures/startupbot-old-skills/** text eol=lf
 skills/catalog/hyperframes/assets/frame-presets/code-editorial/fonts/*.woff2 binary
 
 shared/settings-places.ts text eol=lf
+
+skills/catalog/media-use/audio/assets/sfx/*.mp3 binary

@@ -1,4 +1,5 @@
 import { routedWorkMarker } from "../delta-context.ts";
+export { linkedWorkBotOwners } from "../work-bot-linked-owners.ts";
 import { workBotGrantsMatch } from "../work-bot-permissions.ts";
 import { parseToolScope, toolScopeWidens } from "../../shared/tool-scope.ts";
 import { levelWithin } from "../../shared/approval-mode.ts";

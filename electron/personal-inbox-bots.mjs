@@ -4,7 +4,7 @@ import { app, Menu, safeStorage } from "electron";
 import { jsonFile } from "./desktop-prefs.mjs";
 import { startupBotDataDir } from "./startupbot-identity.mjs";
 import { inboxBotLabel } from "./inbox-bot-label.mjs";
-import { createPersonalInboxClaims } from "./personal-inbox-claims.mjs";
+import { createPersonalInboxClaims, identityScope } from "./personal-inbox-claims.mjs";
 import { createBotIdentityRegistration } from "./bot-identity-registration.mjs";
 import { createBotWorkspaceIdentities } from "./bot-workspace-identities.mjs";
 
@@ -64,6 +64,8 @@ export function personalInboxBots(window, page, origin, localRequest) {
   }
   const claims = createPersonalInboxClaims(cloud);
   const picksInFlight = new Set();
+  const preparations = new Map();
+  const preparationRetryAt = new Map();
   const identityEndpoint = "/api/personal-inbox/bot-identity";
   const encryption = { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value) };
   function report(type) {
@@ -74,10 +76,60 @@ export function personalInboxBots(window, page, origin, localRequest) {
         )
         .catch(() => {});
   }
+  async function prepareIdentity(bot, owner, workspaceId) {
+    const key = JSON.stringify([workspaceId, bot.id]);
+    if (preparations.has(key)) return preparations.get(key);
+    const pending = (async () => {
+      if (!(await encryption.available())) throw Error("identity_storage_unavailable");
+      const records = bindings(), record = records[key] ?? { id: randomUUID(), owner, origin, workspaceId, localBotId: bot.id };
+      if (record.owner !== owner || record.origin !== origin || record.workspaceId !== workspaceId) throw Error("account_changed");
+      records[key] = record; file.write(records);
+      const identities = createBotWorkspaceIdentities({ workspaceId, publicDirectory: path.join(app.getPath("userData"), "bot-public-identities"), privateDirectory: path.join(app.getPath("userData"), "bot-private-identities"), encryption, current: scope => current() && scope.workspaceId === workspaceId });
+      let signed;
+      const registration = createBotIdentityRegistration({ ...identities,
+        loadIdentity: async scope => {
+          const [saved, inventory] = await Promise.all([identities.loadIdentity(scope), local()]);
+          const anchored = inventory.bots.find(item => item.id === scope.localBotId)?.username;
+          if (anchored && (saved.kind !== "existing" || saved.username !== anchored)) throw Error("identity_changed");
+          return saved;
+        },
+        currentAccount: async () => (await cloud("me")).id,
+        validateTarget: async scope => {
+          const [identity, inventory] = await Promise.all([local(undefined, identityEndpoint), local()]);
+          return identity.workspaceId === scope.workspaceId && inventory.bots.some(item => item.id === scope.localBotId);
+        },
+        challenge: claims.identityChallenge,
+        invite: async request => { await claims.registerIdentity(request); signed = request; },
+      });
+      await registration.register({ workspaceId, localBotId: bot.id, bindingId: record.id, owner, room: identityScope, origin, name: bot.name });
+      if (!signed || (await cloud("me")).id !== owner) throw Error("account_changed");
+      if (!current() || typeof localRequest !== "function") throw Error("workspace_closed");
+      const response = await localRequest(identityEndpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: bot.id, workspaceId, username: signed.username, publicKey: signed.proof.publicKey }) });
+      if (!response.ok) throw Error("identity_unavailable");
+      return signed.username;
+    })().finally(() => { if (preparations.get(key) === pending) preparations.delete(key); });
+    preparations.set(key, pending);
+    return pending;
+  }
+  async function prepareInventory(bots, owner, workspaceId) {
+    let cursor = 0;
+    const pending = bots.filter(bot => !bot.username);
+    await Promise.all(Array.from({ length: Math.min(4, pending.length) }, async () => {
+      while (cursor < pending.length) {
+        const bot = pending[cursor++];
+        try { await prepareIdentity(bot, owner, workspaceId); preparationRetryAt.delete(JSON.stringify([workspaceId, bot.id])); }
+        catch { preparationRetryAt.set(JSON.stringify([workspaceId, bot.id]), Date.now() + 30_000); }
+      }
+    }));
+  }
   async function invite(room) {
     if (!uuid.test(room)) return;
-    const [me, inventory] = await Promise.all([cloud("me"), local()]);
-    const choices = inventory.bots;
+    const [me, inventory, identity] = await Promise.all([cloud("me"), local(), local(undefined, identityEndpoint)]);
+    const registrations = prepareInventory(inventory.bots, me.id, identity.workspaceId);
+    await Promise.race([registrations, new Promise(resolve => setTimeout(resolve, 1500))]);
+    const [currentIdentity, account, currentInventory] = await Promise.all([local(undefined, identityEndpoint), cloud("me"), local()]);
+    if (currentIdentity.workspaceId !== identity.workspaceId || account.id !== me.id) throw Error("workspace_changed");
+    const choices = currentInventory.bots;
     if (!choices.length) {
       report("inbox-bots-empty");
       return;
@@ -88,12 +140,14 @@ export function personalInboxBots(window, page, origin, localRequest) {
       try {
       if ((await cloud("me")).id !== me.id) throw Error("account_changed");
       const canEncrypt = await encryption.available().catch(() => false);
-      const identity = await local(undefined, identityEndpoint);
+      const selectedIdentity = await local(undefined, identityEndpoint);
+      const selected = (await local()).bots.find(item => item.id === bot.id);
+      if (selectedIdentity.workspaceId !== identity.workspaceId || !bot.username || selected?.username !== bot.username) throw Error("workspace_changed");
       const records = bindings(), key = JSON.stringify([identity.workspaceId, bot.id]), existing = records[key];
       const record = existing ?? { id: randomUUID(), owner: me.id, origin, workspaceId: identity.workspaceId, localBotId: bot.id };
       if (record.owner !== me.id || record.origin !== origin)
         throw Error("account_changed");
-      if (record.workspaceId && record.workspaceId !== identity?.workspaceId) throw Error("workspace_changed");
+      if (record.workspaceId && record.workspaceId !== identity.workspaceId) throw Error("workspace_changed");
       records[key] = record;
       file.write(records);
       const input = { room, bot: record.id, name: bot.name, owner: me.id };
@@ -141,7 +195,8 @@ export function personalInboxBots(window, page, origin, localRequest) {
     }
     Menu.buildFromTemplate(
       choices.map((bot) => ({
-        label: inboxBotLabel(bot),
+        label: bot.username ? inboxBotLabel(bot) : `${bot.name} (…)`,
+        enabled: Boolean(bot.username),
         click: () => {
           void pick(bot).catch(() => report("inbox-bots-error"));
         },
@@ -149,6 +204,26 @@ export function personalInboxBots(window, page, origin, localRequest) {
     ).popup({ window });
   }
   let busy = false;
+  let preparing = false, nextPreparation = 0, preparationCursor = 0;
+  async function retryPreparation() {
+    if (preparing || !current() || Date.now() < nextPreparation) return;
+    preparing = true;
+    try {
+      const inventory = await local();
+      const pending = inventory.bots.filter(item => !item.username);
+      if (!pending.length) { nextPreparation = Date.now() + 60_000; return; }
+      const [me, identity] = await Promise.all([cloud("me"), local(undefined, identityEndpoint)]);
+      const index = pending.findIndex((item, offset) => offset >= preparationCursor % pending.length && Date.now() >= (preparationRetryAt.get(JSON.stringify([identity.workspaceId, item.id])) ?? 0));
+      const fallback = pending.findIndex(item => Date.now() >= (preparationRetryAt.get(JSON.stringify([identity.workspaceId, item.id])) ?? 0));
+      const chosen = index >= 0 ? index : fallback;
+      if (chosen < 0) { nextPreparation = Date.now() + 8_000; return; }
+      const bot = pending[chosen]; preparationCursor = (chosen + 1) % pending.length;
+      try { await prepareIdentity(bot, me.id, identity.workspaceId); preparationRetryAt.delete(JSON.stringify([identity.workspaceId, bot.id])); }
+      catch { preparationRetryAt.set(JSON.stringify([identity.workspaceId, bot.id]), Date.now() + 30_000); }
+      nextPreparation = Date.now() + 5_000;
+    } catch { nextPreparation = Date.now() + 30_000; }
+    finally { preparing = false; }
+  }
   async function poll() {
     if (busy || !current()) return;
     busy = true;
@@ -198,6 +273,7 @@ export function personalInboxBots(window, page, origin, localRequest) {
   }
   const timer = setInterval(() => {
     void poll().catch(() => {});
+    void retryPreparation();
   }, 8000);
   page.once("destroyed", () => clearInterval(timer));
   return {

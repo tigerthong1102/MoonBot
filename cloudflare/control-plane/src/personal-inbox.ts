@@ -1,4 +1,5 @@
 import { pendingBotTurns, roomBots } from "./inbox-bots";
+import { botIdentities } from "./inbox-bot-identities";
 import { canPost } from "./inbox-files";
 import { groupManager, joinGroup, moderate } from "./inbox-group";
 import { z } from "zod";
@@ -144,6 +145,10 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     } });
   }
   if (url.pathname === "/api/bot-turns" && req.method === "GET") return pendingBotTurns(db,user);
+  if (url.pathname === "/api/bot-identities") {
+    await limit(db, user, "inbox_bot_claim", 30, 60_000);
+    return botIdentities(req, db, user);
+  }
   const botRoom = /^\/api\/rooms\/([a-f0-9-]{36})\/bots$/.exec(url.pathname);
   if (botRoom) {
     if (req.method === "POST") {

@@ -832,6 +832,39 @@ async function signedBotClaim(who: Awaited<ReturnType<typeof login>>, room: stri
 }
 const botKey = () => crypto.subtle.generateKey("Ed25519", false, ["sign", "verify"]);
 
+it("registers bot identity without joining any room and rejects replay and another owner", async () => {
+  const owner = await login("owner@example.test"), other = await login("member@example.test"), bot = uuid(), pair = await botKey();
+  const challenge = await call("bot-identities", owner.cookie, { action: "challenge", bot });
+  expect(challenge.status).toBe(200);
+  const { nonce } = await challenge.json<{ nonce: string }>();
+  const key = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+  const hex = (value: Uint8Array) => Array.from(value, byte => byte.toString(16).padStart(2, "0")).join("");
+  const signature = new Uint8Array(await crypto.subtle.sign("Ed25519", pair.privateKey, new Uint8Array(botClaimBytes({ origin, owner: owner.id, bot, room: "00000000-0000-4000-8000-000000000000", nonce }))));
+  const username = await proofUsername(key);
+  const claim = { action: "register", bot, name: "Fixture", username, proof: { nonce, publicKey: hex(key), signature: hex(signature) } };
+  expect((await call("bot-identities", other.cookie, claim)).status).toBe(409);
+  expect((await call("bot-identities", owner.cookie, claim)).status).toBe(200);
+  expect((await call("bot-identities", owner.cookie, claim)).status).toBe(409);
+  expect(await env.INBOX_DB.prepare("SELECT id,owner,username FROM inbox_bots WHERE id=?").bind(bot).first()).toEqual({ id: bot, owner: owner.id, username });
+  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_room_bots WHERE bot=?").bind(bot).first()).toEqual({ n: 0 });
+});
+
+it("keeps the existing 50-bot account limit for independent identity registration", async () => {
+  const owner = await login("owner@example.test"), ids = Array.from({ length: 50 }, () => uuid());
+  await env.INBOX_DB.batch(ids.map(id => env.INBOX_DB.prepare("INSERT INTO inbox_bots(id,owner,name) VALUES (?,?,?)").bind(id, owner.id, "Fixture")));
+  const register = async (bot: string) => {
+    const response = await call("bot-identities", owner.cookie, { action: "challenge", bot });
+    const { nonce } = await response.json<{ nonce: string }>(), pair = await botKey();
+    const key = new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+    const hex = (value: Uint8Array) => Array.from(value, byte => byte.toString(16).padStart(2, "0")).join("");
+    const signature = new Uint8Array(await crypto.subtle.sign("Ed25519", pair.privateKey, new Uint8Array(botClaimBytes({ origin, owner: owner.id, bot, room: "00000000-0000-4000-8000-000000000000", nonce }))));
+    return call("bot-identities", owner.cookie, { action: "register", bot, name: "Fixture", username: await proofUsername(key), proof: { nonce, publicKey: hex(key), signature: hex(signature) } });
+  };
+  expect((await register(ids[0]!)).status).toBe(200);
+  expect((await register(uuid())).status).toBe(409);
+  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_room_bots").first()).toEqual({ n: 0 });
+});
+
 it("routes desktop owned-bot challenge and signed invite through the real worker", async () => {
   const owner = await login("owner@example.test"), room = uuid(), bot = uuid();
   expect((await call("rooms", owner.cookie, { id: room, kind: "group", title: "Fixture" })).status).toBe(200);

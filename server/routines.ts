@@ -84,6 +84,7 @@ export interface Routine extends RoutineTroubleCode {
   warning?: string;
   heldFor?: RoutineHoldCause;
   sourceThreadId?: string;
+  delegatedFromMessageId?: string;
   resultsThreadId?: string;
   installedPackage?: RoutinePackageStamp;
   nextRunAt: number | null;
@@ -540,7 +541,7 @@ export class RoutineManager {
     this.options.beforeHandoffRoutineCommit?.(request, [...this.routines, ...this.unloadedRoutines], this.runs);
   }
 
-  create(input: RoutineInput, request?: RoutineRequestCommitFor<"create">): Routine {
+  create(input: RoutineInput, request?: RoutineRequestCommitFor<"create"> & { delegatedFromMessageId?: string }): Routine {
     this.assertWritable();
     if (request) {
       const receipt = this.matchingRoutineRequestReceipt(request);
@@ -564,6 +565,7 @@ export class RoutineManager {
       ...clean,
       // Only a confirmed chat card supplies `request`: the calendar API cannot pick an arbitrary transcript.
       sourceThreadId: request?.threadId,
+      ...(request?.delegatedFromMessageId && request.botId !== clean.botId ? { delegatedFromMessageId: request.delegatedFromMessageId } : {}),
       nextRunAt,
       createdAt: at,
       updatedAt: at,

@@ -113,13 +113,18 @@ describe("AppTriggerManager", () => {
     expect(triggers.get(active.id)).toBeNull();
   });
 
-  it("allows linked automations with different local filters on the same event", async () => {
+  it("prevents an event matching two local filters from running the same work twice", async () => {
     const slack = broker.account(owner.userId, "slack");
     connected.slack = { connected: true, accounts: [{ id: slack, status: "ACTIVE" }] };
-    const triggers = manager({ linkedBots: () => true });
+    const triggers = manager({ linkedBots: (a, b) => [a, b].every(bot => bot === "source" || bot === "target") });
     const create = (botId: string, text: string) => triggers.create({ botId, name: "Fixture", prompt: "Summarize matching updates", app: "slack", event: "SLACK_CHANNEL_MESSAGE_RECEIVED", filter: { text } });
-    await create("source", "warehouse");
-    await expect(create("target", "sales")).resolves.toMatchObject({ botId: "target" });
+    const first = await create("source", "warehouse");
+    await expect(create("source", "sales")).rejects.toMatchObject({ status: 409 });
+    await expect(create("target", "sales")).rejects.toMatchObject({ status: 409 });
+    await broker.deliver(first.remote.triggerId!, { text: "warehouse sales" }, "overlap");
+    await drain(triggers);
+    expect(routines.listRuns()).toMatchObject([{ botId: "source", deliveryId: "overlap" }]);
+    await expect(create("independent", "sales")).resolves.toMatchObject({ botId: "independent" });
   });
 
   it("delivers a queued Run now only to the selected bot even after another bot binds and the manager restarts", async () => {

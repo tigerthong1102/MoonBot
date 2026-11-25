@@ -1,19 +1,20 @@
 import { createPublicKey, verify } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { afterEach, expect, it, vi } from "vitest";
 
-const fixture = vi.hoisted(() => ({ home: "", menu: null, destroyed: null }));
+const fixture = vi.hoisted(() => ({ home: "", menu: null, destroyed: null, response: 0 }));
 vi.mock("electron", () => ({
   app: { getPath: () => fixture.home },
+  dialog: { showMessageBox: async () => ({ response: fixture.response }) },
   Menu: { buildFromTemplate: menu => { fixture.menu = menu; return { popup: () => {} }; } },
   safeStorage: { isAsyncEncryptionAvailable: async () => true, encryptStringAsync: async text => Buffer.from(`fixture:${text}`), decryptStringAsync: async bytes => bytes.toString().slice(8), getSelectedStorageBackend: () => "keychain" },
 }));
 import { personalInboxBots } from "./personal-inbox-bots.mjs";
 
-afterEach(() => { fixture.destroyed?.(); vi.useRealTimers(); if (fixture.home) rmSync(fixture.home, { recursive: true, force: true }); });
+afterEach(() => { fixture.destroyed?.(); fixture.response = 0; vi.useRealTimers(); if (fixture.home) rmSync(fixture.home, { recursive: true, force: true }); });
 
 it("registers same-name bots before selection without joining a room", async () => {
   fixture.home = mkdtempSync(join(tmpdir(), "startupbot-pick-fixture-"));
@@ -266,4 +267,83 @@ it("bounds concurrent identity challenges before opening the selection menu", as
   expect(maximum).toBeLessThanOrEqual(4);
   expect(maximum).toBeGreaterThan(1);
   expect(anchors.size).toBe(10);
+});
+
+it("reconnects a legacy bot only after explicit confirmation and keeps its cloud ID across restart", async () => {
+  fixture.home = mkdtempSync(join(tmpdir(), "startupbot-legacy-rebind-fixture-"));
+  mkdirSync(join(fixture.home, ".startupbot")); fixture.menu = null;
+  const file = join(fixture.home, ".startupbot", "personal-inbox-bots.json"), origin = "https://fixture.invalid", owner = "owner-fixture";
+  const bot = "11111111-1111-4111-8111-111111111111", room = "22222222-2222-4222-8222-222222222222", sourceWorkspace = "33333333-3333-4333-8333-333333333333", nonce = "44444444-4444-4444-8444-444444444444";
+  let workspaceId = "66666666-6666-4666-8666-666666666666";
+  const otherRoom = "55555555-5555-4555-8555-555555555555", members = new Map([[room, new Set([bot, "person-fixture-a"])], [otherRoom, new Set([bot, "person-fixture-b"])]]);
+  const old = { "fixture-bot": { id: bot, owner, origin } }; writeFileSync(file, JSON.stringify(old));
+  let anchored, invited = 0, autoRegistered = 0, anchorFailure = true, changeOwner = true, errors = 0, present = true;
+  const claimedNames = [];
+  const localFetch = async (endpoint, init) => {
+    if (endpoint.endsWith("bot-identity")) {
+      if (init?.method === "POST") { anchored = JSON.parse(init.body); return { ok: true, json: async () => ({ ok: true }) }; }
+      return { ok: true, json: async () => ({ workspaceId }) };
+    }
+    return { ok: true, json: async () => ({ bots: present ? [{ id: "fixture-bot", name: "Fixture", ...(anchored ? { username: anchored.username } : {}) }] : [] }) };
+  };
+  const workspace = { getURL: () => "http://127.0.0.1:4000", isDestroyed: () => false, executeJavaScript: code => runInNewContext(code, { location: { origin: "http://127.0.0.1:4000" }, fetch: localFetch }) };
+  const page = { isDestroyed: () => false, session: { fetch: async (url, init) => {
+    if (url.endsWith("/me")) return { ok: true, json: async () => ({ id: owner }) };
+    if (url.endsWith("/bot-identities")) { autoRegistered++; return { ok: false, status: 500 }; }
+    const body = JSON.parse(init.body);
+    expect(body.bot).toBe(bot);
+    if (body.action === "challenge") return { ok: true, json: async () => ({ nonce }) };
+    expect(body.action).toBe("invite"); expect(body.username).toMatch(/^bot_k[a-f0-9]{64}$/); claimedNames.push(body.username); members.get(room).add(body.bot); invited++;
+    return { ok: true, json: async () => ({ ok: true }) };
+  } }, executeJavaScript: async text => { if (text.includes("inbox-bots-error")) errors++; }, once: (_event, cb) => { fixture.destroyed = cb; } };
+  const anchor = (endpoint, init) => {
+    if (anchorFailure) { anchorFailure = false; return Promise.resolve({ ok: false }); }
+    if (changeOwner) { changeOwner = false; writeFileSync(file, JSON.stringify({ "fixture-bot": { ...old["fixture-bot"], owner: "other-owner" } })); }
+    return localFetch(endpoint, init);
+  };
+  const instance = personalInboxBots({ webContents: workspace }, page, origin, anchor);
+  instance.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  present = false; fixture.menu[0].click();
+  await vi.waitFor(() => expect(errors).toBe(1));
+  expect(invited).toBe(0);
+  present = true; fixture.menu = null; instance.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  fixture.menu[0].click();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  expect(invited).toBe(0); expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(old);
+  workspaceId = sourceWorkspace; fixture.menu = null; instance.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  fixture.response = 1; fixture.menu[0].click();
+  await vi.waitFor(() => expect(invited).toBe(1));
+  await vi.waitFor(() => expect(errors).toBe(2));
+  expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(old);
+  fixture.destroyed(); fixture.menu = null;
+  const resumed = personalInboxBots({ webContents: workspace }, page, origin, anchor);
+  resumed.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  fixture.menu[0].click();
+  await vi.waitFor(() => expect(invited).toBe(2));
+  await vi.waitFor(() => expect(errors).toBe(3));
+  expect(JSON.parse(readFileSync(file, "utf8"))[JSON.stringify([workspaceId, "fixture-bot"])]).toBeUndefined();
+  writeFileSync(file, JSON.stringify(old));
+  fixture.destroyed(); fixture.menu = null;
+  const retry = personalInboxBots({ webContents: workspace }, page, origin, anchor);
+  retry.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  fixture.menu[0].click();
+  await vi.waitFor(() => expect(invited).toBe(3));
+  await vi.waitFor(() => expect(JSON.parse(readFileSync(file, "utf8"))[JSON.stringify([workspaceId, "fixture-bot"])]?.id).toBe(bot));
+  expect(claimedNames[0]).toBe(claimedNames[1]);
+  expect(claimedNames[1]).toBe(claimedNames[2]);
+  expect(JSON.parse(readFileSync(file, "utf8"))["fixture-bot"]).toBeUndefined();
+  expect([...members.get(room)]).toEqual([bot, "person-fixture-a"]);
+  expect([...members.get(otherRoom)]).toEqual([bot, "person-fixture-b"]);
+  expect(autoRegistered).toBe(0);
+  fixture.destroyed(); fixture.menu = null;
+  const restarted = personalInboxBots({ webContents: workspace }, page, origin, (endpoint, init) => localFetch(endpoint, init));
+  restarted.invite(room);
+  await vi.waitFor(() => expect(fixture.menu).toHaveLength(1));
+  expect(fixture.menu[0].label).toContain(anchored.username);
+  expect(JSON.parse(readFileSync(file, "utf8"))[JSON.stringify([workspaceId, "fixture-bot"])].id).toBe(bot);
 });

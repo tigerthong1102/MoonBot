@@ -74,7 +74,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
   } });
   const page = view.webContents;
   const workspace = window.webContents;
-  const bots = personalInboxBots(window, page, origin, localRequest);
+  const bots = personalInboxBots(window, page, origin, localRequest, language);
   const disposeVoice = registerInboxVoice({ page, workspace, origin, localWorkspace, requestMicrophone, canStartDictation: () => !speechBusy() });
   const invitePath = origin + "/desktop/invite-bot/";
   page.setWindowOpenHandler(({ url }) => {

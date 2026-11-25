@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { afterEach, expect, it } from "vitest";
 import { archiveHeldAppEvents } from "./archive-held-app-events.mjs";
 import { brokerClient } from "../server/app-trigger-broker.ts";
+import { retiredEventKey } from "../server/app-trigger-file.ts";
 import { AppTriggerManager } from "../server/app-triggers.ts";
 import { RoutineManager } from "../server/routines.ts";
 import { startBrokerFake } from "../server/testing/broker-fake.ts";
@@ -49,12 +50,16 @@ it("archives 100 held events privately and rejects a real broker replay while al
     const template = held.events[0];
     for (let seq = 2; seq <= 100; seq++) held.events.push({ ...structuredClone(template), id: `fixture-held-${seq}`, event: { ...structuredClone(template.event), id: `fixture-held-${seq}`, seq } });
     ledger.cursor = 100;
+    expect(ledger.triggers.find((row: { id: string }) => row.id === first.id).problem?.kind).toBe("error");
+    ledger.triggers.find((row: { botId: string }) => row.botId === "target").problem = { kind: "reconnect", at: 100 };
     ledger.heldEvents = held.events.map((row: { id: string }) => row.id);
     writeFileSync(ledgerPath, JSON.stringify({ ...ledger, heldEvents: ledger.heldEvents.slice(0, -1) }));
     writeFileSync(heldPath, JSON.stringify(held));
     await expect(archiveHeldAppEvents(profile, workspace, join(root, "orphan-recovery"), join(root, "orphan-archive"))).rejects.toThrow(/does not match/);
     writeFileSync(ledgerPath, JSON.stringify({ ...ledger, heldEvents: [...ledger.heldEvents, ledger.heldEvents[0]] }));
     await expect(archiveHeldAppEvents(profile, workspace, join(root, "duplicate-recovery"), join(root, "duplicate-archive"))).rejects.toThrow(/does not match/);
+    writeFileSync(ledgerPath, JSON.stringify({ ...ledger, version: 2, retiredReceipts: { [retiredEventKey(owner.id, template.id)]: "f".repeat(64) } }));
+    await expect(archiveHeldAppEvents(profile, workspace, join(root, "conflict-recovery"), join(root, "conflict-archive"))).rejects.toThrow(/conflicts/);
     writeFileSync(ledgerPath, JSON.stringify(ledger));
     writeFileSync(heldPath, JSON.stringify(held));
     const beforeLedger = readFileSync(ledgerPath), beforeHeld = readFileSync(heldPath);
@@ -73,7 +78,13 @@ it("archives 100 held events privately and rejects a real broker replay while al
     expect(readFileSync(heldPath)).toEqual(beforeHeld);
     expect(readFileSync(join(archive, "app-triggers.json.held"))).toEqual(beforeHeld);
     expect(readFileSync(join(archive, "app-triggers.json"))).toEqual(beforeLedger);
-    expect(readFileSync(join(output, "app-triggers.json"))).toEqual(beforeLedger);
+    const recoveredLedger = JSON.parse(readFileSync(join(output, "app-triggers.json"), "utf8"));
+    expect(recoveredLedger.version).toBe(2);
+    expect(recoveredLedger.heldEvents).toEqual([]);
+    expect(Object.keys(recoveredLedger.retiredReceipts)).toHaveLength(100);
+    expect(recoveredLedger.attempts).toEqual(ledger.attempts);
+    expect(recoveredLedger.triggers.find((row: { id: string }) => row.id === first.id).problem).toBeUndefined();
+    expect(recoveredLedger.triggers.find((row: { botId: string }) => row.botId === "target").problem).toEqual({ kind: "reconnect", at: 100 });
     if (process.platform !== "win32") expect(statSync(join(archive, "app-triggers.json.held")).mode & 0o777).toBe(0o600);
     else {
       const windowsPowerShell = join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
@@ -84,8 +95,7 @@ it("archives 100 held events privately and rejects a real broker replay while al
       runCheck();
     }
     const rewritten = JSON.parse(readFileSync(join(output, "app-triggers.json.held"), "utf8"));
-    expect(rewritten.events).toHaveLength(100);
-    expect(rewritten.events.every((row: { discarded: boolean }) => row.discarded)).toBe(true);
+    expect(rewritten.events).toEqual([]);
     expect(JSON.stringify(rewritten)).not.toContain("PRIVATE_SYNTHETIC_PAYLOAD");
     const originalPoll = await client.poll({ after: 0, waitS: 0, poller: ledger.pollerId });
     expect(originalPoll.events.map(event => event.id)).toContain("fixture-held-original");
@@ -127,7 +137,7 @@ it("refuses unsafe paths and unverified or incomplete event stores without modif
   await expect(archiveHeldAppEvents(profile, workspace, output, archive)).rejects.toThrow(/checkpointed/);
 });
 
-it("retains all payloads when existing compact receipts already exhaust the byte limit", async () => {
+it("archives a store already over the byte limit and converts every receipt without losing payloads", async () => {
   root = mkdtempSync(join(tmpdir(), "held-archive-full-"));
   protectFixtureParent(root);
   const profile = join(root, "profile"), workspace = join(root, "workspace"), output = join(root, "recovery"), archive = join(root, "private");
@@ -142,6 +152,20 @@ it("retains all payloads when existing compact receipts already exhaust the byte
   expect(Buffer.byteLength(contents)).toBeGreaterThan(2_000_000);
   writeFileSync(join(profile, "app-triggers.json"), JSON.stringify(ledger));
   writeFileSync(join(profile, "app-triggers.json.held"), contents);
-  await expect(archiveHeldAppEvents(profile, workspace, output, archive)).rejects.toThrow(/storage limit/);
+  await expect(archiveHeldAppEvents(profile, workspace, output, archive)).resolves.toMatchObject({ archived: 12_001 });
   expect(readFileSync(join(profile, "app-triggers.json.held"), "utf8")).toBe(contents);
+  expect(readFileSync(join(archive, "app-triggers.json.held"), "utf8")).toBe(contents);
+  const recovered = JSON.parse(readFileSync(join(output, "app-triggers.json"), "utf8"));
+  expect(Object.keys(recovered.retiredReceipts)).toHaveLength(12_001);
+  expect(JSON.parse(readFileSync(join(output, "app-triggers.json.held"), "utf8")).events).toEqual([]);
+  const tombstones = events.slice(0, -1);
+  const priorKey = retiredEventKey("owner", "older-fixture");
+  const onlyReceipts = { ...ledger, version: 2, heldEvents: tombstones.map(row => row.id), retiredReceipts: { [priorKey]: "b".repeat(64) } };
+  writeFileSync(join(profile, "app-triggers.json"), JSON.stringify(onlyReceipts));
+  writeFileSync(join(profile, "app-triggers.json.held"), JSON.stringify({ version: 4, events: tombstones }));
+  const secondOutput = join(root, "recovery-only-receipts"), secondArchive = join(root, "private-only-receipts");
+  await expect(archiveHeldAppEvents(profile, workspace, secondOutput, secondArchive)).resolves.toMatchObject({ archived: 12_000 });
+  const again = JSON.parse(readFileSync(join(secondOutput, "app-triggers.json"), "utf8"));
+  expect(again.retiredReceipts[priorKey]).toBe("b".repeat(64));
+  expect(Object.keys(again.retiredReceipts)).toHaveLength(12_001);
 });

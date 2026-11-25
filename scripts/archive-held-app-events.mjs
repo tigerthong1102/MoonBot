@@ -4,7 +4,8 @@ import { mkdir, open, realpath, rmdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs, promisify } from "node:util";
-import { eventDigest, fileSchema, parseHeldEvents } from "../server/app-trigger-file.ts";
+import { eventDigest, fileSchema, parseHeldEvents, retiredEventKey } from "../server/app-trigger-file.ts";
+import { heldEventMatches, isEventHoldProblem } from "../server/app-trigger-held.ts";
 
 const ledger = "app-triggers.json";
 const sidecar = `${ledger}.held`;
@@ -30,7 +31,7 @@ async function newPath(value) {
 
 async function durableFile(filename, content) {
   const handle = await open(filename, "wx", 0o600);
-  try { await privateDirectory(filename, false, true); await handle.writeFile(content); await handle.sync(); await privateDirectory(filename, false, true); }
+  try { await privateDirectory(filename, true, true); await handle.writeFile(content); await handle.sync(); await privateDirectory(filename, false, true); }
   finally { await handle.close(); }
 }
 
@@ -38,18 +39,22 @@ const powershell = String.raw`
 $ErrorActionPreference = 'Stop'
 $path = $env:STARTUPBOT_PRIVATE_DIR
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$file = $env:STARTUPBOT_PRIVATE_FILE -eq '1'
 if ($env:STARTUPBOT_PRIVATE_SETUP -eq '1') {
-  $acl = New-Object System.Security.AccessControl.DirectorySecurity
+  $acl = if ($file) { New-Object System.Security.AccessControl.FileSecurity } else { New-Object System.Security.AccessControl.DirectorySecurity }
   $acl.SetOwner($sid)
   $acl.SetAccessRuleProtection($true, $false)
-  $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')
+  $inherit = if ($file) { 'None' } else { 'ContainerInherit, ObjectInherit' }
+  $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', $inherit, 'None', 'Allow')
   $acl.AddAccessRule($rule)
-  [System.IO.Directory]::SetAccessControl($path, $acl)
+  if ($file) { [System.IO.File]::SetAccessControl($path, $acl) } else { [System.IO.Directory]::SetAccessControl($path, $acl) }
 }
-$file = $env:STARTUPBOT_PRIVATE_FILE -eq '1'
 $actual = if ($file) { [System.IO.File]::GetAccessControl($path) } else { [System.IO.Directory]::GetAccessControl($path) }
 $rules = @($actual.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
-if ((!$file -and (!$actual.AreAccessRulesProtected -or $rules[0].IsInherited)) -or $actual.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value -or $rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or $rules[0].AccessControlType -ne 'Allow' -or $rules[0].FileSystemRights -ne 'FullControl') { throw 'Private ACL verification failed' }
+if (!$actual.AreAccessRulesProtected -or $rules.Count -ne 1) { exit 21 }
+if ($actual.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value) { exit 22 }
+if ($rules[0].IsInherited -or $rules[0].IdentityReference.Value -ne $sid.Value) { exit 23 }
+if ($rules[0].AccessControlType -ne 'Allow' -or $rules[0].FileSystemRights -ne 'FullControl') { exit 24 }
 `;
 
 async function privateDirectory(folder, setup = false, file = false) {
@@ -61,7 +66,10 @@ async function privateDirectory(folder, setup = false, file = false) {
     await promisify(execFile)(executable, ["-NoProfile", "-NonInteractive", "-Command", powershell], {
       env: { ...process.env, STARTUPBOT_PRIVATE_DIR: folder, STARTUPBOT_PRIVATE_SETUP: setup ? "1" : "0", STARTUPBOT_PRIVATE_FILE: file ? "1" : "0" }, timeout: 20_000, windowsHide: true,
     });
-  } catch { throw Error("Windows private archive ACL could not be established and verified."); }
+  } catch (error) {
+    const reason = { 21: "unexpected rule count or inheritance", 22: "unexpected owner", 23: "unexpected principal", 24: "unexpected access rights" }[error.code];
+    throw Error("Windows private archive ACL could not be established and verified" + (reason ? " (" + reason + ")." : "."));
+  }
 }
 
 async function protectedParent(folder) {
@@ -85,26 +93,34 @@ export async function archiveHeldAppEvents(profile, workspace, output, archive) 
   await protectedParent(path.dirname(destination));
   await protectedParent(path.dirname(privateArchive));
   const [rawLedger, rawHeld] = await Promise.all([regularFile(source, ledger), regularFile(source, sidecar)]);
-  const parsed = fileSchema.parse(JSON.parse(rawLedger));
+  const document = JSON.parse(rawLedger);
+  const parsed = fileSchema.parse(document);
   if (!parsed.cursorScope || !Number.isSafeInteger(parsed.cursor) || parsed.heldEvents.some(entry => typeof entry !== "string")) throw Error("The ledger must have a verified account and no embedded event payloads.");
   const held = new Map();
   parseHeldEvents(JSON.parse(rawHeld), held);
   if (!rawHeld.equals(await regularFile(source, sidecar)) || !rawLedger.equals(await regularFile(source, ledger))) throw Error("The profile copy changed while being read.");
   const indexed = parsed.heldEvents;
   if (!held.size || new Set(indexed).size !== indexed.length || indexed.length !== held.size || indexed.some(id => !held.has(id))) throw Error("The held event store does not match its ledger.");
-  const rows = [];
-  let archived = 0;
+  const retired = new Map(Object.entries(parsed.retiredReceipts ?? {}));
   for (const [id, item] of held) {
-    if (item.discarded) { rows.push({ id, ...item }); continue; }
     const event = item.event;
     if (!event || !Number.isSafeInteger(event.seq) || event.seq <= 0 || event.seq > parsed.cursor || item.sourceScope !== parsed.cursorScope) throw Error("A held event is not fully checkpointed to the verified account.");
-    rows.push({ id, reason: item.reason, event: { seq: event.seq, id, kind: event.kind, triggerId: event.triggerId, receivedAt: event.receivedAt, event: {} },
-      discarded: true, eventDigest: eventDigest(event), sourceScope: item.sourceScope,
-      ...(item.heldBotIds ? { heldBotIds: item.heldBotIds } : {}), ...(item.heldTriggerIds ? { heldTriggerIds: item.heldTriggerIds } : {}) });
-    archived++;
+    if (item.discarded && (!item.eventDigest || Object.keys(event.event).length)) throw Error("A held event receipt is incomplete.");
+    const key = retiredEventKey(item.sourceScope, id);
+    const digest = item.discarded ? item.eventDigest : eventDigest(event);
+    if (retired.has(key) && retired.get(key) !== digest) throw Error("A saved event receipt conflicts with the archive.");
+    retired.set(key, digest);
   }
-  if (!archived) throw Error("There are no held payloads to archive.");
-  if (Buffer.byteLength(JSON.stringify(rows), "utf8") >= 2_000_000) throw Error("Compact receipts would still exceed the held-event storage limit.");
+  const receipts = [...held.values()];
+  const clearResolved = (raw, stored) => {
+    if (!isEventHoldProblem(stored.problem) || !receipts.some(item => heldEventMatches(item, stored))) return raw;
+    const { problem: _problem, ...kept } = raw;
+    return kept;
+  };
+  const recovered = { ...document, version: 2, heldEvents: [], retiredReceipts: Object.fromEntries(retired),
+    triggers: document.triggers.map((row, index) => clearResolved(row, parsed.triggers[index])),
+    ...(Array.isArray(document.deleted) ? { deleted: document.deleted.map((row, index) => ({ ...row, trigger: clearResolved(row.trigger, parsed.deleted[index].trigger) })) } : {}) };
+  fileSchema.parse(recovered);
   await mkdir(privateArchive, { mode: 0o700 });
   try {
     await privateDirectory(privateArchive, true);
@@ -117,9 +133,9 @@ export async function archiveHeldAppEvents(profile, workspace, output, archive) 
     await mkdir(destination, { mode: 0o700 });
     try {
       await privateDirectory(destination, true);
-      await durableFile(path.join(destination, ledger), rawLedger);
+      await durableFile(path.join(destination, ledger), JSON.stringify(recovered));
       await privateDirectory(destination);
-      await durableFile(path.join(destination, sidecar), JSON.stringify({ version: 4, events: rows }));
+      await durableFile(path.join(destination, sidecar), JSON.stringify({ version: 4, events: [] }));
       await privateDirectory(destination);
       await syncDirectory(destination);
       await syncDirectory(path.dirname(destination));
@@ -131,7 +147,7 @@ export async function archiveHeldAppEvents(profile, workspace, output, archive) 
   } catch (error) {
     throw new Error(`Recovery could not be completed. A private archive may remain at ${privateArchive}.`, { cause: error });
   }
-  return { archived, archive: privateArchive, recovery: destination };
+  return { archived: held.size, archive: privateArchive, recovery: destination };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

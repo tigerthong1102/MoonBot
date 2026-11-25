@@ -44,11 +44,11 @@ if ($env:STARTUPBOT_PRIVATE_SETUP -eq '1') {
   $acl.SetAccessRuleProtection($true, $false)
   $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')
   $acl.AddAccessRule($rule)
-  Set-Acl -LiteralPath $path -AclObject $acl
+  [System.IO.Directory]::SetAccessControl($path, $acl)
 }
-$actual = Get-Acl -LiteralPath $path
-$rules = @($actual.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
 $file = $env:STARTUPBOT_PRIVATE_FILE -eq '1'
+$actual = if ($file) { [System.IO.File]::GetAccessControl($path) } else { [System.IO.Directory]::GetAccessControl($path) }
+$rules = @($actual.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))
 if ((!$file -and (!$actual.AreAccessRulesProtected -or $rules[0].IsInherited)) -or $actual.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid.Value -or $rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or $rules[0].AccessControlType -ne 'Allow' -or $rules[0].FileSystemRights -ne 'FullControl') { throw 'Private ACL verification failed' }
 `;
 

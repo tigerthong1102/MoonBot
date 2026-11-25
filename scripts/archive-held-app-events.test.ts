@@ -14,7 +14,7 @@ afterEach(() => { if (root) rmSync(root, { recursive: true, force: true }); });
 function protectFixtureParent(folder: string) {
   if (process.platform !== "win32") return;
   const executable = join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-  const setup = "$sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $a=New-Object System.Security.AccessControl.DirectorySecurity; $a.SetOwner($sid); $a.SetAccessRuleProtection($true,$false); $r=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit, ObjectInherit','None','Allow'); $a.AddAccessRule($r); Set-Acl -LiteralPath $env:ARCHIVE_FIXTURE_PATH -AclObject $a";
+  const setup = "$sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; $a=New-Object System.Security.AccessControl.DirectorySecurity; $a.SetOwner($sid); $a.SetAccessRuleProtection($true,$false); $r=New-Object System.Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit, ObjectInherit','None','Allow'); $a.AddAccessRule($r); [System.IO.Directory]::SetAccessControl($env:ARCHIVE_FIXTURE_PATH,$a)";
   execFileSync(executable, ["-NoProfile", "-NonInteractive", "-Command", setup], { env: { ...process.env, ARCHIVE_FIXTURE_PATH: folder }, windowsHide: true });
 }
 
@@ -77,7 +77,7 @@ it("archives 100 held events privately and rejects a real broker replay while al
     if (process.platform !== "win32") expect(statSync(join(archive, "app-triggers.json.held")).mode & 0o777).toBe(0o600);
     else {
       const windowsPowerShell = join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-      const check = "$a=Get-Acl -LiteralPath $env:ARCHIVE_FIXTURE_PATH; $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $r=@($a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); if (!$a.AreAccessRulesProtected -or $r.Count -ne 1 -or $r[0].IdentityReference.Value -ne $sid -or $r[0].IsInherited) { exit 1 }";
+      const check = "$a=[System.IO.Directory]::GetAccessControl($env:ARCHIVE_FIXTURE_PATH); $sid=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $r=@($a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); if (!$a.AreAccessRulesProtected -or $r.Count -ne 1 -or $r[0].IdentityReference.Value -ne $sid -or $r[0].IsInherited) { exit 1 }";
       const runCheck = () => execFileSync(windowsPowerShell, ["-NoProfile", "-NonInteractive", "-Command", check], { env: { ...process.env, ARCHIVE_FIXTURE_PATH: archive }, windowsHide: true });
       runCheck();
       execFileSync("icacls.exe", [root, "/grant", "*S-1-1-0:(OI)(CI)(RX)"], { stdio: "ignore", windowsHide: true });

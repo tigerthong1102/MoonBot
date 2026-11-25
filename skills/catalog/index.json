@@ -512,6 +512,9 @@
       "references/film.md",
       "references/look.md",
       "references/types/launch.md",
+      "scripts/bake-basemap.mjs",
+      "scripts/plugin-cli.mjs",
+      "scripts/plugin-cli.test.mjs",
       "scripts/locate.mjs",
       "scripts/lib/main-module.test.mjs",
       "scripts/lib/windows-exe-search.test.mjs",
@@ -520,7 +523,7 @@
     "excludedFiles": [],
     "category": "media",
     "summaryVi": "Dựng video từ HTML với HyperFrames.",
-    "instructionsSha256": "0a2f50a464c4b81f7ff433ad719a941d482fad10e75073976e4d685c1426ff18",
+    "instructionsSha256": "08c71637864ffb4f1df7667377505e04cdf2f29986fafdfe8c0b2f822d3b377c",
     "summaryZh": "使用 HyperFrames 从 HTML 构建视频。",
     "summaryZhTw": "使用 HyperFrames 從 HTML 建立影片。"
   },
@@ -1157,7 +1160,18 @@
       "audio/assets/sfx/whoosh.mp3",
       "audio/scripts/lib/sfx.mjs",
       "audio/scripts/lib/sfx.test.mjs",
-      "audio/references/sfx.md"
+      "audio/references/sfx.md",
+      "scripts/lib/media-fetch.mjs",
+      "scripts/dither.mjs",
+      "scripts/lib/terminal-text.mjs",
+      "scripts/dither.test.mjs",
+      "scripts/transcribe.mjs",
+      "scripts/transcribe.test.mjs",
+      "scripts/lib/telemetry.mjs",
+      "scripts/lib/telemetry.test.mjs",
+      "scripts/resolve.mjs",
+      "scripts/resolve-plugin.test.mjs",
+      "audio/scripts/audio.test.mjs"
     ],
     "excludedFiles": [
       ".gitignore",

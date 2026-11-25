@@ -21,6 +21,7 @@
  *        redo step 2/3 with corrected strips. Never skip this.
  */
 import "./lib/windows-exe-search.mjs";
+import { assertLiteralMediaPath } from "./lib/literal-media-input.mjs";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 
@@ -120,6 +121,7 @@ const opt = {};
 for (let i = 0; i < rest.length; i++)
   if (rest[i].startsWith("--")) opt[rest[i].slice(2)] = rest[i + 1];
 const img = pos[0];
+for (const path of [img, opt.out]) if (path) assertLiteralMediaPath(path);
 
 if (cmd === "overlay") {
   const dir = opt.out || ".";

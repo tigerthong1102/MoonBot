@@ -25,6 +25,13 @@ const msg = (id: string, text = `text ${id}`, extra: Partial<ContextMessage> = {
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `m${i}`);
 const unseenIds = (order: string[], state: HandedState) => unseenMessages(order.map((id) => msg(id)), order, state).map((m) => m.id);
 
+it("withholds a staged request and its audio transcript from model context", () => {
+  const held = { kind: "text" as const, text: "HELD_FIXTURE_REQUEST", workBotReviewHold: true as const, attachments: [{ kind: "audio" as const, path: "/attachments/fixture.mp3", mime: "audio/mpeg", text: "HELD_FIXTURE_TRANSCRIPT" }] };
+  expect(isContextMessage(held)).toBe(true);
+  expect(contextText(held)).toBe("[This work is held for review. Do not execute it automatically.]");
+  expect(contextText({ ...held, workBotReviewHold: undefined })).toContain("HELD_FIXTURE_REQUEST");
+});
+
 describe("recordHanded", () => {
   it("folds a contiguous received run into `through` and keeps the rest as ids", () => {
     const order = ids(6);

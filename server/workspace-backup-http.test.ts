@@ -187,6 +187,13 @@ function status() {
   return fetch(`${url}/api/workspace-backup/status`, { headers: { authorization: `Bearer ${admin.token}` } }).then((response) => response.json()) as Promise<Record<string, unknown>>;
 }
 
+it("reports the specific canceled restore to the initiating owner", async () => {
+  server.closeAllConnections();
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await listen({ restored: { restored: false, id: "fixture-id", blockedReason: "Existing automation data must be reviewed." } });
+  expect(await status()).toMatchObject({ lastRestoreId: null, restoreBlockedId: "fixture-id", restoreBlockedReason: "Existing automation data must be reviewed." });
+});
+
 it("restarts a server its launcher starts again (My Cloud) once a restore commits, after answering", async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve) => server.close(() => resolve()));

@@ -132,6 +132,11 @@ describe("message_person", () => {
 });
 
 describe("a teammate who shares a bot's name", () => {
+  it("does not notify a teammate again when held context is copied", () => {
+    const f = fixture();
+    f.said("scout-main", "@Ben HELD_FIXTURE", CLEO, { workBotReviewHold: true, workBotHandoffSource: { threadId: "old", messageId: "m1" } });
+    expect(f.notified).toEqual([]);
+  });
   it("is still the one their tag reaches: a tie is the person's, and their tags are known", () => {
     const f = fixture();
     f.bots.push({ id: "ada-bot", name: "Ada", color: "blue", threadId: "ada-bot-main", tasks: [{ threadId: "ada-bot-main", title: "Ada" }] });

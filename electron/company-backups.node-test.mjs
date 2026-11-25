@@ -241,6 +241,14 @@ test("restore verifies the downloaded archive and prepares only a local preview,
   await f.clean();
 });
 
+test("restore accepts a version 2 preview with its omission warning", async t => {
+  const summary = { ...SUMMARY, version: 2, warnings: ["App automations and their event history are not included."] };
+  const f = await fixture(t, { local: route => route === "/api/workspace-backup/preview" ? Response.json({ id: UPLOAD_ID, summary }) : undefined });
+  assert.deepEqual(await f.restore(), { id: UPLOAD_ID, summary });
+  assert(!f.localCalls.some(call => /\/restore(?:\/|$)/.test(call.route)));
+  await f.clean();
+});
+
 for (const corruption of ["short", "long", "hash", "magic"]) {
   test(`restore rejects ${corruption} download before any local upload or preview`, async t => {
     const f = await fixture(t, {

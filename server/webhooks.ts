@@ -414,6 +414,10 @@ export class WebhookManager {
     }
   }
 
+  hasWorkForHandoff(matches: (row: Pick<WebhookTrigger, "botId">) => boolean): boolean {
+    return this.unreadable || this.webhooks.some(trigger => trigger.enabled && matches(trigger));
+  }
+
   list(): WebhookTrigger[] {
     return this.webhooks.map(publicTrigger);
   }

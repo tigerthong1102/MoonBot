@@ -222,6 +222,7 @@ export function createTeamMessages(deps: TeamMessagesDeps) {
 
   /** A teammate's line tags @Bob: their words reach Bob's inbox, wherever they wrote them; Bob's answer reaches theirs. */
   function personWrote(threadId: string, line: Message) {
+    if (line.workBotCopy || line.workBotHandoffSource || line.workBotReviewHold) return;
     const writer = byKey(line.sender?.id);
     if (writer) { inbox.seen(writer.key, threadId); inbox.wrote(writer.key, threadId); }
     const at = owner(threadId);

@@ -13,6 +13,7 @@ export interface AppTriggerState {
   loaded: boolean;
   triggers: AppTrigger[];
   attempts: AppEventAttempt[];
+  heldReviews?: AppTriggersSnapshot["heldReviews"];
   service: AppTriggerService | null;
 }
 
@@ -22,6 +23,9 @@ let state = EMPTY;
 const listeners = new Set<() => void>();
 let started = false;
 let loading: Promise<void> | null = null;
+let pendingFrames: ServerFrame[] | null = null;
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let refreshAgain = false;
 
 function set(next: AppTriggerState): void {
   state = next;
@@ -29,10 +33,20 @@ function set(next: AppTriggerState): void {
 }
 
 export function applyAppTriggerSnapshot(snapshot: AppTriggersSnapshot): void {
-  set({ loaded: true, triggers: snapshot.triggers, attempts: snapshot.attempts.slice(-MAX_ATTEMPTS), service: snapshot.service });
+  set({ loaded: true, ...(snapshot.heldReviews ? { heldReviews: snapshot.heldReviews } : {}), triggers: snapshot.triggers, attempts: snapshot.attempts.slice(-MAX_ATTEMPTS), service: snapshot.service });
 }
 
 export function applyAppTriggerFrame(frame: ServerFrame): void {
+  if (frame.kind !== "app-trigger" && frame.kind !== "app-trigger.deleted" && frame.kind !== "app-trigger.attempt" && frame.kind !== "app-trigger.service") return;
+  if (pendingFrames) {
+    pendingFrames.push(frame);
+    if (pendingFrames.length > MAX_ATTEMPTS) pendingFrames.shift();
+  }
+  if (started) scheduleRefresh();
+  applyFrame(frame);
+}
+
+function applyFrame(frame: ServerFrame): void {
   if (frame.kind === "app-trigger") {
     const exists = state.triggers.some((trigger) => trigger.id === frame.trigger.id);
     set({ ...state, triggers: exists ? state.triggers.map((trigger) => trigger.id === frame.trigger.id ? frame.trigger : trigger) : [frame.trigger, ...state.triggers] });
@@ -45,12 +59,36 @@ export function applyAppTriggerFrame(frame: ServerFrame): void {
   }
 }
 
-export function loadAppTriggers(): Promise<void> {
-  loading ??= api<AppTriggersSnapshot>("/api/app-triggers")
-    .then(applyAppTriggerSnapshot)
-    .catch(() => {})
-    .finally(() => { loading = null; });
+function scheduleRefresh(delay = 500): void {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    if (loading) refreshAgain = true;
+    else void loadAppTriggers();
+  }, delay);
+}
+
+function refresh(): Promise<void> {
+  if (loading) return loading;
+  pendingFrames = [];
+  loading = api<AppTriggersSnapshot>("/api/app-triggers")
+    .then((snapshot) => {
+      const frames = pendingFrames ?? [];
+      pendingFrames = null;
+      applyAppTriggerSnapshot(snapshot);
+      for (const frame of frames) applyFrame(frame);
+    })
+    .finally(() => {
+      pendingFrames = null;
+      loading = null;
+      if (refreshAgain) { refreshAgain = false; scheduleRefresh(); }
+    });
   return loading;
+}
+
+export async function loadAppTriggers(): Promise<void> {
+  try { await refresh(); }
+  catch { if (started && !refreshTimer) scheduleRefresh(2_000); }
 }
 
 function start(): void {
@@ -101,6 +139,8 @@ export const appTriggerApi = {
   },
   test: (id: string) => api(`/api/app-triggers/${id}/test`, { method: "POST" }),
   async sync() {
-    applyAppTriggerSnapshot(await api<AppTriggersSnapshot>("/api/app-triggers/sync", { method: "POST" }));
+    await api<AppTriggersSnapshot>("/api/app-triggers/sync", { method: "POST" });
+    if (loading) await loading.catch(() => {});
+    await refresh();
   },
 };

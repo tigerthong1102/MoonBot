@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { Message } from "./store.ts";
-import { newWorkBotReceipt } from "./work-bot-receipt.ts";
+import { transferWorkBotFollowups, type WorkBotFollowupClaim } from "./work-bot-followups-db.ts";
+import { commitHeldWorkBotContext } from "./work-bot-held-db.ts";
 
 export const WORK_BOT_LINK_SCHEMA = `
     CREATE TABLE IF NOT EXISTS work_bot_links (
@@ -50,6 +51,9 @@ export function createWorkBotMessageDb(deps: {
     database.prepare("INSERT INTO work_bot_links (source_bot_id, source_thread_id, source_message_id, target_bot_id, target_thread_id) VALUES (?, ?, ?, ?, ?)").run(link.sourceBotId, link.sourceThreadId, link.sourceMessageId, link.targetBotId, link.targetThreadId);
   }
   return {
+    appendHeldWorkBotContext(link: WorkBotLink, messages: Message[], expectedSourceLeaf: string | null, claim?: WorkBotFollowupClaim): Message {
+      return commitHeldWorkBotContext({ durableTransaction: deps.durableTransaction, insert: deps.insertMessage, setLeaf: deps.setActiveLeaf }, link, messages, expectedSourceLeaf, claim);
+    },
     recoverLegacyWorkBotLinks(botForThread: (threadId: string) => string | undefined): void {
       deps.durableTransaction(database => {
         if (database.prepare("SELECT 1 FROM command_receipts WHERE kind = 'migration' AND key = 'work_bot_links_v2'").get()) return;
@@ -89,7 +93,7 @@ export function createWorkBotMessageDb(deps: {
         deps.setActiveLeaf(threadId, messages[messages.length - 1]!.id);
       });
     },
-    transferQueuedWorkBotMessages(threadId: string, messages: Message[], claim: { botId: string; sourceThreadId: string; sourceMessageId: string; queueIds: string[]; trigger?: unknown; offerOwner?: string }, link?: WorkBotLink): void {
+    transferQueuedWorkBotMessages(threadId: string, messages: Message[], claim: WorkBotFollowupClaim, link?: WorkBotLink): void {
       if (!messages.length || !claim.queueIds.length || new Set(claim.queueIds).size !== claim.queueIds.length) throw new Error("Invalid work bot transfer");
       if (claim.queueIds.some(id => messages.filter(message => message.queueId === id && message.role === "user" && message.kind === "text").length !== 1) || messages.some(message => message.queueId && !claim.queueIds.includes(message.queueId))) throw new Error("Incomplete work bot transfer");
       if (messages.filter(message => !message.queueId && message.workBotHandoffSource?.threadId === claim.sourceThreadId && message.workBotHandoffSource.messageId === claim.sourceMessageId && message.workBotRecoveryPending === true).length !== 1 || claim.queueIds.some(id => !messages.some(message => message.queueId === id && message.workBotHandoffSource?.threadId === claim.sourceThreadId && message.workBotHandoffSource.messageId === claim.sourceMessageId && message.workBotRecoveryPending === true))) throw new Error("Work bot recovery receipt is missing");
@@ -100,20 +104,7 @@ export function createWorkBotMessageDb(deps: {
         if ((messages[0]!.parentId ?? null) !== (leaf?.active_leaf_id ?? null) || messages.slice(1).some((message, index) => message.parentId !== messages[index]!.id)) throw new Error("Work bot destination changed during handoff");
         const existing = database.prepare("SELECT 1 FROM messages WHERE thread_id = ? AND id = ?");
         if (new Set(messages.map(message => message.id)).size !== messages.length || messages.some(message => existing.get(threadId, message.id))) throw new Error("Work bot destination message already exists");
-        const pending = database.prepare("SELECT payload FROM chat_followups WHERE id = ? AND kind = 'bot' AND owner_id = ? AND thread_id = ? AND status = 'pending' AND json_extract(payload, '$.workBotOfferSource') = ?");
-        const update = database.prepare("UPDATE chat_followups SET status = 'transferred', payload = ? WHERE id = ? AND kind = 'bot' AND owner_id = ? AND thread_id = ? AND status = 'pending' AND json_extract(payload, '$.workBotOfferSource') = ?");
-        for (const id of claim.queueIds) {
-          const row = pending.get(id, claim.botId, claim.sourceThreadId, claim.sourceMessageId) as { payload: string } | undefined;
-          if (!row) throw new Error("Queued work changed during handoff");
-          const payload = JSON.parse(row.payload) as { text: string; prompt?: string; sendId?: string; sender?: Message["sender"]; [key: string]: unknown };
-          const destination = messages.find(message => message.queueId === id && message.role === "user")!;
-          const allowed = new Set(["messageId", "text", "prompt", "sendId", "sender", "queuedAt", "trigger", "workBotOfferOwner", "workBotOfferSource", "workBotFollowUp"]);
-          if (Object.entries(payload).some(([key, value]) => value !== undefined && !allowed.has(key)) || (payload.prompt !== undefined && payload.prompt !== payload.text)) throw new Error("Queued work cannot be transferred safely");
-          if (JSON.stringify(payload.trigger ?? null) !== JSON.stringify(claim.trigger ?? null) || payload.workBotOfferOwner !== claim.offerOwner || (payload.queuedAt !== undefined && payload.queuedAt !== destination.at)) throw new Error("Queued work ownership changed during handoff");
-          if (destination.text !== payload.text || destination.sendId !== payload.sendId || JSON.stringify(destination.sender ?? null) !== JSON.stringify(payload.sender ?? null)) throw new Error("Queued work does not match its destination");
-          const receipt = JSON.stringify(newWorkBotReceipt(payload.text, payload.sender, (payload.trigger as { kind?: string } | undefined)?.kind, threadId, destination.id, claim.sourceMessageId, payload.workBotFollowUp as import("../shared/follow-up.ts").FollowUp | undefined));
-          if (update.run(receipt, id, claim.botId, claim.sourceThreadId, claim.sourceMessageId).changes !== 1) throw new Error("Queued work changed during handoff");
-        }
+        transferWorkBotFollowups(database, threadId, messages, claim);
         for (const message of messages) deps.insertMessage(threadId, message);
         deps.setActiveLeaf(threadId, messages[messages.length - 1]!.id);
       });

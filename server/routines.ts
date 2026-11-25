@@ -6,7 +6,7 @@ import { DATA_DIR } from "./config.ts";
 import type { RuntimeEvent } from "./contracts.ts";
 import { OwnedFile } from "./atomic.ts"; import { saveSoon } from "./save-batch.ts"; import { RunProgressSave } from "./routine-progress-save.ts";
 import { redactSecretsInText } from "./redact.ts";
-import { activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
+import { hasScheduledHandoffWork, activeRunFor, activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
@@ -207,7 +207,7 @@ interface RoutineFile {
   routines: Routine[];
   runs: RoutineRun[];
   routineRequestReceipts?: RoutineRequestReceipt[];
-  webhookRunReceipts?: EventRunReceipt[];
+  webhookRunReceipts?: unknown[];
   startupLaunchId?: string;
   noStartOffsChecked?: true;
   ownerNotices?: RoutineOwnerNotice[];
@@ -320,6 +320,7 @@ export class RoutineManager {
   private runs: RoutineRun[] = [];
   private routineRequestReceipts: RoutineRequestReceipt[] = [];
   private webhookRunReceipts: EventRunReceipt[] = [];
+  private malformedEventReceipts: unknown[] = [];
   private timer: DueTimer | null = null;
   private startupRunsQueued = false;
   private startupLaunchId: string | undefined;
@@ -353,7 +354,7 @@ export class RoutineManager {
     if (read.state === "unreadable" && !before) console.error(`routines: ${this.file} cannot be read (${read.reason}), so no routine runs until it can; it is left as it is, with a copy at ${keepUnreadableAside(this.file) ?? "no path (the copy failed)"}`);
     if (read.state !== "ok") return read.state === "missing";
     ({ routines: this.routines, unloadedRoutines: this.unloadedRoutines, runs: this.runs, malformedAttachments: this.malformedAttachments, routineRequestReceipts: this.routineRequestReceipts,
-      webhookRunReceipts: this.webhookRunReceipts, frozenPending: this.frozenPending, ownerNotices: this.ownerNotices, holds: this.holds,
+      webhookRunReceipts: this.webhookRunReceipts, malformedEventReceipts: this.malformedEventReceipts, frozenPending: this.frozenPending, ownerNotices: this.ownerNotices, holds: this.holds,
       startupLaunchId: this.startupLaunchId, noStartOffsChecked: this.noStartOffsChecked } = read);
     this.disk.loaded(read.text);
     const cut = settleRestored(this.routines, this.runs, this.ledger.restoredThrough, this.now(), (routine, past) => this.advancePastOccurrence(routine, past, past)).map(cloneRun); this.ledger.restoredThrough = null;
@@ -386,10 +387,12 @@ export class RoutineManager {
   /** Files every saved routine and run names, unloaded rows too; null while routines.json is unreadable or a row's attachments are malformed, so nothing can clear them. */
   attachmentPaths(): string[] | null { return this.unreadable || this.malformedAttachments ? null : attachmentPathsOf([...this.routines, ...this.unloadedRoutines, ...this.runs]); }
 
+  hasWorkForHandoff(matches: (row: { botId: string; sourceThreadId?: string; resultsThreadId?: string; threadId?: string }) => boolean): boolean {
+    return this.unreadable || hasScheduledHandoffWork(this.routines, this.unloadedRoutines, this.runs, matches);
+  }
   listRoutines(): Routine[] {
     return this.routines.map(routine => this.routineWithHealth(routine));
   }
-
   clearFrozenResultsThreads(): void {
     if (!this.frozenPending) return;
     for (const routine of this.routines) {
@@ -454,19 +457,11 @@ export class RoutineManager {
   }
 
   activeRunForBot(botId: string): RoutineRun | null {
-    const run = this.runs.find(
-      (candidate) => candidate.botId === botId && ["running", "waiting"].includes(candidate.status),
-    );
-    return run ? cloneRun(run) : null;
+    return activeRunFor(this.runs, botId);
   }
 
   activeBotRunForBot(botId: string): RoutineRun | null {
-    const run = this.runs.find(
-      (candidate) => candidate.target === "bot" &&
-        candidate.botId === botId &&
-        ["running", "waiting"].includes(candidate.status),
-    );
-    return run ? cloneRun(run) : null;
+    return activeRunFor(this.runs, botId, "bot");
   }
 
   routineRequestReceipt(requestId: string): RoutineRequestReceipt | null {
@@ -763,6 +758,12 @@ export class RoutineManager {
     return active ? { id: active.id } : null;
   }
 
+  appEventRecipients(deliveryId: string): Array<string | null> {
+    if (this.unreadable || this.malformedEventReceipts.length) throw new Error("Event receipt history is unavailable");
+    return this.webhookRunReceipts.filter(receipt => receipt.deliveryId === deliveryId && receipt.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS && receipt.eventSource !== "wait")
+      .map(receipt => receipt.botId ?? null);
+  }
+
   enqueueWebhook(input: {
     webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number;
     eventSource?: "app" | "wait"; sameConversation?: boolean; byPerson?: boolean;
@@ -804,7 +805,7 @@ export class RoutineManager {
     const receipts = previousReceipts.filter((receipt) => receipt.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS);
     // Never evict a promised retry identity to admit fresh work.
     if (receipts.length >= MAX_EVENT_RECEIPTS) throw Object.assign(new Error("Webhook retry history is full; try again later"), { status: 429 });
-    receipts.push({ webhookId: run.webhookId!, deliveryId, runId: run.id, acceptedAt: this.now() });
+    receipts.push({ webhookId: run.webhookId!, deliveryId, runId: run.id, acceptedAt: this.now(), botId: run.botId, ...(run.eventSource ? { eventSource: run.eventSource } : {}) });
     const previousRuns = this.runs.slice();
     apply();
     this.webhookRunReceipts = receipts;
@@ -1536,7 +1537,7 @@ export class RoutineManager {
       routines: [...this.routines, ...this.unloadedRoutines],
       runs: this.runs,
       routineRequestReceipts: this.routineRequestReceipts,
-      webhookRunReceipts: this.webhookRunReceipts,
+      webhookRunReceipts: [...this.webhookRunReceipts, ...this.malformedEventReceipts],
       ...(this.startupLaunchId === undefined ? {} : { startupLaunchId: this.startupLaunchId }), ...(this.noStartOffsChecked ? { noStartOffsChecked: true } : {}),
       ...(this.ownerNotices.length ? { ownerNotices: this.ownerNotices } : {}),
       ...(this.holds.length ? { holds: this.holds } : {}),

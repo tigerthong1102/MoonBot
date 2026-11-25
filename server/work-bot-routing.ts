@@ -12,15 +12,16 @@ export interface WorkBotRoutingDependencies {
   offer(threadId: string, messageId: string, signal: AbortSignal): Promise<Offer | null>;
   mainTarget(threadId: string, messageId: string): Target | null;
   decision(threadId: string, messageId: string, requestId: string): Promise<{ state: "pending" | "interrupted" } | { state: "chosen"; target: Target }>;
-  dispatch(threadId: string, messageId: string, target: Target): Promise<void>;
+  dispatch(threadId: string, messageId: string, target: Target): Promise<void | "held">;
   recoverDispatch?(threadId: string, messageId: string, route: Routing): boolean;
   finishRecovery?(threadId: string, messageId: string, route: Routing): void;
-  blockCleanupFailure?(threadId: string, messageId: string, route: Routing): void;
+  blockCleanupFailure?(threadId: string, messageId: string, route: Routing, heldCommitted: boolean): void;
   report(error: unknown): void;
 }
 
 export class WorkBotRouter {
   private readonly inFlight = new Map<string, AbortController>();
+  private readonly cleanupBlocked = new Set<string>();
   private readonly deps: WorkBotRoutingDependencies;
   private readonly timeoutMs: number;
 
@@ -31,6 +32,10 @@ export class WorkBotRouter {
 
   private key(threadId: string, messageId: string): string {
     return JSON.stringify([threadId, messageId]);
+  }
+
+  hasCleanupFailure(threadId: string, messageId: string): boolean {
+    return this.cleanupBlocked.has(this.key(threadId, messageId));
   }
 
   async classify(threadId: string, messageId: string): Promise<void> {
@@ -125,12 +130,17 @@ export class WorkBotRouter {
     const claimed: Routing = { ...route, state: "dispatching", targetBotId: target.botId, targetThreadId: target.threadId };
     if (!this.deps.patch(threadId, messageId, expected, claimed)) return "not_claimed";
     try {
-      await this.deps.dispatch(threadId, messageId, target);
+      const result = await this.deps.dispatch(threadId, messageId, target);
+      if (result === "held") {
+        const held = this.deps.message(threadId, messageId)?.workBotRouting;
+        return held?.state === "held_for_review" && held.targetBotId === target.botId && held.targetThreadId === target.threadId ? "accepted" : "interrupted";
+      }
       return this.deps.patch(threadId, messageId, "dispatching", { ...claimed, state: "dispatched" }) ? "accepted" : "interrupted";
     } catch (error) {
       this.deps.report(error);
       if ((error as { workBotCleanupFailed?: boolean } | null)?.workBotCleanupFailed) {
-        this.deps.blockCleanupFailure?.(threadId, messageId, claimed);
+        this.cleanupBlocked.add(this.key(threadId, messageId));
+        this.deps.blockCleanupFailure?.(threadId, messageId, claimed, (error as { workBotHeldCommitted?: boolean }).workBotHeldCommitted === true);
       } else {
         try { this.recoverDispatch(threadId, messageId); } catch (recoveryError) { this.deps.report(recoveryError); }
       }

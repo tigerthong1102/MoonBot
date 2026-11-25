@@ -4,6 +4,7 @@ import { persistedPin, tightenRegistryFile } from "./store-persistence-helpers.t
 import { join } from "node:path"; import { isDeepStrictEqual } from "node:util";
 import { OwnedFile, writeFileAtomic } from "./atomic.ts"; import { saveLater, saveSoon, supersedeLaterSave } from "./save-batch.ts"; import { discardTranscriptFiles, messagesFile, resetTranscriptState } from "./transcript-cleanup.ts";
 import { commitRegistryChange, deferrablePatch, keptRevocation, saveRegistryFor, touchesPermissions } from "./registry-save.ts";
+import { persistWorkBotContext } from "./work-bot-store-persist.ts";
 import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts"; import { grantScopedApps } from "../shared/connector-scopes.ts"; import { dropRetiredApps } from "./retired-apps.ts";
 import { reorderInPlace } from "../shared/bot-order.ts"; import { trimOutboundPolicy } from "../shared/outbound.ts";
 import { botOwner, chiefConflict, chiefScope, ownerEmail } from "../shared/bot-owner.ts"; import { reshowWhenMoved } from "../shared/default-bot.ts";
@@ -1132,7 +1133,7 @@ export class Store {
     return full;
   }
 
-  appendWorkBotContext(threadId: string, rows: Array<{ sourceId: string; replySourceId?: string; message: Omit<Message, "id" | "at" | "parentId" | "replyToId"> & { at: number } }>, transfer?: { claim: Parameters<typeof mdb.transferQueuedWorkBotMessages>[2]; afterCommit(): void }, link?: import("./work-bot-message-db.ts").WorkBotLink): Map<string, Message> {
+  appendWorkBotContext(threadId: string, rows: Array<{ sourceId: string; replySourceId?: string; message: Omit<Message, "id" | "at" | "parentId" | "replyToId"> & { at: number } }>, transfer?: { claim: Parameters<typeof mdb.transferQueuedWorkBotMessages>[2]; afterCommit(): void }, link?: import("./work-bot-message-db.ts").WorkBotLink, hold?: { expectedSourceLeaf: string | null }): Map<string, Message> {
     const thread = this.thread(threadId);
     const copied = new Map<string, Message>();
     const messages: Message[] = [];
@@ -1144,11 +1145,7 @@ export class Store {
       copied.set(row.sourceId, message);
       parentId = message.id;
     }
-    if (transfer) {
-      mdb.transferQueuedWorkBotMessages(threadId, messages, transfer.claim, link);
-      try { transfer.afterCommit(); }
-      catch (error) { throw Object.assign(error instanceof Error ? error : new Error("Could not reconcile transferred work"), { workBotCleanupFailed: true }); }
-    } else mdb.appendMessageBatch(threadId, messages, link);
+    persistWorkBotContext(threadId, messages, transfer, link, hold, (sourceThread, sourceId, patch) => this.patchMessage(sourceThread, sourceId, patch));
     for (const message of messages) {
       thread.messages.push(message);
       this.threads.grew(threadId, message);

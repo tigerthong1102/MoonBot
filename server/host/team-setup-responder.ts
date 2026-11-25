@@ -82,8 +82,9 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
       store.patchMessage(args.threadId, current.id, { card: { ...current.card, teamSetupRequest: { ...current.card.teamSetupRequest, resumed: true } } });
     }
   }
-  const routingState = sourceMessageId ? store.messagesFor(args.threadId).find(row => row.id === sourceMessageId)?.workBotRouting?.state : undefined;
-  json(res, 200, { ok: true, outcome: resolved.result.state === "applied" ? "allowed-once" : "rejected", result: resolved.result, alreadySettled: resolved.duplicate, ...(routingState ? { routingState } : {}) });
+  const cleanupFailed = Boolean(sourceMessageId && workBotRouter.hasCleanupFailure(args.threadId, sourceMessageId));
+  const routingState = sourceMessageId ? (cleanupFailed ? "interrupted" : store.messagesFor(args.threadId).find(row => row.id === sourceMessageId)?.workBotRouting?.state) : undefined;
+  json(res, 200, { ok: true, outcome: resolved.result.state === "applied" ? "allowed-once" : "rejected", result: resolved.result, alreadySettled: resolved.duplicate, ...(routingState ? { routingState } : {}), ...(cleanupFailed ? { settlementPending: true, message: serverLine(threadLanguage(args.threadId), "server.workBot.restartToRecover") } : {}) });
   return true;
   } finally { if (shouldLock) workBotChoiceLocks.delete(args.threadId); }
 }

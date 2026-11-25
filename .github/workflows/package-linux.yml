@@ -276,6 +276,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify private held-event archive on Windows
+        run: pnpm exec vitest run scripts/archive-held-app-events.test.ts
       - name: Verify StartupBot branding and native icon assets
         run: |
           pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts

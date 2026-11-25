@@ -20,7 +20,7 @@ function relatedWorkBotRoutines(store: Store, request: Pick<RoutineRequestCommit
 }
 
 export function inspectWorkBotRoutineConflict(store: Store, request: Pick<RoutineRequestCommit, "botId" | "threadId" | "messageId">, routines: readonly Routine[], runs: readonly RoutineRun[], links: (threadId: string, botId: string) => import("../work-bot-message-db.ts").WorkBotLink[] = () => []) {
-  const related = relatedWorkBotRoutines(store, request, links);
+  const related = relatedWorkBotRoutines(store, request, links).map(link => ({ ...link, moving: Boolean(link.botId && link.botId !== request.botId && store.bot?.(link.botId)?.movedTo) }));
   return workBotRoutineSnapshot(request.botId, related, routines, runs);
 }
 

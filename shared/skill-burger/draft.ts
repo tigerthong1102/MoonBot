@@ -153,8 +153,6 @@ class Drafter {
     return null;
   }
 
-  /** An AI step that writes `field` from the last thing the run read, with the recorded text as its example. With only a
-   * look at a page or a file behind it (nothing piped), it reads that again itself. */
   private composer(id: string, field: string, example: string, looked = false, file?: string): WorkflowRef | null {
     const read = [...this.recorded].reverse().find((entry) => entry.read) ?? [...this.recorded].reverse().find((entry) => entry.output !== undefined && entry.output !== "");
     if (!read && !looked) return null;
@@ -171,7 +169,6 @@ class Drafter {
     return { $step: aiId };
   }
 
-  /** One string from a recorded call: piped, made an arg, written by an AI step, or kept as it was. */
   private value(id: string, value: string, key: string | undefined, looked = false, file?: string): unknown {
     const piped = this.pipe(value);
     if (piped) return piped;
@@ -187,12 +184,10 @@ class Drafter {
     return node;
   }
 
-  /** The person's request in a prompt, each of its inputs as {name}: the runner fills in this run's values. */
   private request(max: number): string {
     return textLine(this.text(this.askText.replace(/\s+/g, " ").slice(0, max) || this.summary));
   }
 
-  /** A message with the ask's typed values in it as parts: ["QA-test ", {"$arg": "site"}, " for…"]. */
   private text(message: string): WorkflowText {
     const parts: Array<string | WorkflowRef> = [message];
     for (const { value } of this.typed) {

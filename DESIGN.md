@@ -52,9 +52,9 @@ where they belong instead of adding new places.
   usage caps and choose whether they stop all new work or unattended work,
   because spending limits depend on the owner's budget and cannot be chosen
   safely for everyone. Keep these controls together in Settings.
-  AI Twin has a disabled-by-default internal release gate during qualification.
-  It has no app-wide settings control. The person opts in by creating a Twin
-  after the capability is enabled for that environment.
+  AI Twin is available by default in the local desktop workspace. The
+  personal menu links to its settings in Your account. The person opts in by
+  creating a Twin. The existing internal release gate can disable availability.
 - **No new asks.** No new permission asks, approval cards, confirm dialogs,
   nags or waits that interrupt the person, and no default below Full access.
   A bot gets on with the work; a change that needs undoing gets **Undo**.

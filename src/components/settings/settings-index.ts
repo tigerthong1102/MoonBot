@@ -107,6 +107,7 @@ export const LEGACY_SETTINGS: Record<Exclude<AppSettingsSection, SettingsPageId>
   organization: () => ({ page: "account", anchor: "organization" }),
   cloudAccount: (ctx) => (ctx.plan ? { page: "plan", anchor: "plan" } : { page: "account" }),
   experimental: () => ({ page: "bots", anchor: "early" }),
+  aiTwin: () => ({ page: "account", anchor: "ai-twin" }),
   connections: () => ({ page: "ai", anchor: "ai-keys" }),
   decisionModel: () => ({ page: "ai", anchor: "routing" }),
   imageGeneration: () => ({ page: "ai", anchor: "images" }),

@@ -55,6 +55,7 @@ describe("the pages", () => {
     expect(resolveSettingsTarget("import", simple)).toEqual({ page: "transfer", anchor: "bring-in" });
     expect(resolveSettingsTarget("decisionModel", simple)).toEqual({ page: "ai", anchor: "routing", advanced: true });
     expect(resolveSettingsTarget("phone", simple)).toEqual({ page: "phone" });
+    expect(resolveSettingsTarget("aiTwin", simple)).toEqual({ page: "account", anchor: "ai-twin" });
     expect(needsAdvanced({ page: "general" }, fullContext())).toBe(false);
   });
 

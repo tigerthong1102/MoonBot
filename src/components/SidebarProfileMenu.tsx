@@ -56,6 +56,7 @@ import type { CloudPlanSnapshot } from "../../electron/cloud-account.mjs";
 import { activeLocale, t } from "@/lib/i18n";
 import { FEEDBACK_URL, HELP_CENTER_URL, RELEASES_URL, appVersion, openExternalLink } from "@/lib/app-links";
 import { pageIsThisComputer } from "@/lib/companion-bridge";
+import { localAiTwinAvailable } from "@/lib/ai-twin";
 import { cloudPlanLabel } from "@/lib/cloud-plan";
 import { shortcutLabel } from "./ShortcutHint";
 import { useOtherServerName } from "@/lib/other-server";
@@ -434,6 +435,7 @@ export function profileMenuItems({
   updateTop = null,
   move = [],
   header,
+  twin = null,
   plan = null,
   switchPlace = null,
   accounts = [],
@@ -453,6 +455,7 @@ export function profileMenuItems({
   /** the move to My Cloud's own rows, first of all (AccountMove) */
   move?: SidebarMenuItem[];
   header: AccountHeader;
+  twin?: SidebarMenuItem | null;
   plan?: SidebarMenuItem | null;
   /** only when the rail is hidden and there is another place to go to */
   switchPlace?: SidebarMenuItem | null;
@@ -497,8 +500,8 @@ export function profileMenuItems({
       : accounts.filter((item) => item.key === "accounts-sign-out"))];
   // Plan & billing follows Settings (Simple's own places sit between them); both modes end with Help, then Sign out.
   const groups = simple
-    ? [move, present(raised), [account], present(phone, settings), simple.tools, present(plan, switchPlace), [support], out]
-    : [move, present(raised), [account], present(phone, settings, plan), present(switchPlace, support), out];
+    ? [move, present(raised), [account], present(twin, phone, settings), simple.tools, present(plan, switchPlace), [support], out]
+    : [move, present(raised), [account], present(twin, phone, settings, plan), present(switchPlace, support), out];
   return groups.filter((group) => group.length > 0)
     .flatMap((group, at) => group.map((item, index) => (at > 0 && index === 0 ? { ...item, separatorBefore: true } : item)));
 }
@@ -582,6 +585,9 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false, circle = fa
       avatar: <InitialsAvatar initials={profileInitials(profile)} avatarUrl={profile?.avatarUrl} size={32} fontSize={13} className="bg-ink/[0.08]" />,
       onOpen: () => openSettings("account"),
     },
+    twin: localAiTwinAvailable(state.config)
+      ? { key: "ai-twin", label: t("settings.aiTwin.title"), subtitle: t("settings.aiTwin.menuHint"), icon: <Sparkles size={16} />, onSelect: () => openSettings("aiTwin") }
+      : null,
     plan: planHere ? { key: "plan", label: t("settings.page.plan"), ...(planLine ? { subtitle: planLine } : {}), icon: <CreditCard size={16} />, onSelect: () => openSettings("plan") } : null,
     switchPlace: !besideRail && desktop && !remote && window.ogb?.workspaces && account?.place.switchable
       ? { key: "switch-place", label: t("sidebar.menu.switchPlace"), icon: <ArrowLeftRight size={16} />, chevron: true, onSelect: account.place.openMenu } : null,

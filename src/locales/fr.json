@@ -3394,6 +3394,8 @@
   "settings.account.free": "Gratuit",
   "settings.account.fromHere": "Se déconnecter ou changer de compte depuis {place}",
   "settings.account.mausbot": "Compte {app}",
+  "settings.aiTwin.title": "AI Twin",
+  "settings.aiTwin.menuHint": "Enregistrez des réponses avec vos propres mots",
   "settings.account.nameRow": "Votre nom, votre photo et à propos de vous",
   "settings.account.notSignedIn": "Non connecté",
   "settings.account.onThisDevice": "Sur cet appareil",

@@ -37559,7 +37559,9 @@
       "skillBurger.share.title": "f718b1aa56d12b852a98ba3e5bf6211d6a319a1f17dc80f66a5b83ddcfb2be4b",
       "skillBurger.share.botBody": "dd907caf0451d5ae8211965eeae6e747ed426b6db4f1b2d829a7eba20c1b6b71",
       "skillBurger.share.teamBody": "58e0d9d11b51ab8a89a00cb45caf3b09104e4e0841fc2cf940cd6b18932fddc4",
-      "skillBurger.share.confirm": "5384205688190b15b1e488c803da80fc6914a1ef7783e47e8aee12f441261563"
+      "skillBurger.share.confirm": "5384205688190b15b1e488c803da80fc6914a1ef7783e47e8aee12f441261563",
+      "computer.linux.waylandOtherDesktop": "3f2dd5c5c584d38fcd9dd39756a9096087a42af246781c13e41cb89c61c9be45",
+      "computer.problem.localWaylandBlockedOther": "350a7ad5cba076518d35be7a83a24eb473f6c8316f5204d05951319266b8e147"
     },
     "zh": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -73632,7 +73634,9 @@
       "skillBurger.share.title": "f718b1aa56d12b852a98ba3e5bf6211d6a319a1f17dc80f66a5b83ddcfb2be4b",
       "skillBurger.share.botBody": "dd907caf0451d5ae8211965eeae6e747ed426b6db4f1b2d829a7eba20c1b6b71",
       "skillBurger.share.teamBody": "58e0d9d11b51ab8a89a00cb45caf3b09104e4e0841fc2cf940cd6b18932fddc4",
-      "skillBurger.share.confirm": "5384205688190b15b1e488c803da80fc6914a1ef7783e47e8aee12f441261563"
+      "skillBurger.share.confirm": "5384205688190b15b1e488c803da80fc6914a1ef7783e47e8aee12f441261563",
+      "computer.problem.localWaylandBlockedOther": "350a7ad5cba076518d35be7a83a24eb473f6c8316f5204d05951319266b8e147",
+      "computer.linux.waylandOtherDesktop": "3f2dd5c5c584d38fcd9dd39756a9096087a42af246781c13e41cb89c61c9be45"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",

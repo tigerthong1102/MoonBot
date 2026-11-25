@@ -287,6 +287,11 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
       if (missing) return hand(step, "missing_case", { decide: step.id, case: ruled });
       continue;
     }
+    if (step.kind === "browser" && (step.where === "vm" || step.where === "yourComputer")) {
+      const url = asText(resolve(step.url, args, results));
+      if (!/^https?:\/\//i.test(url) || url.length > HANDED_INPUT_MAX || redactSecretsInText(url) !== url) return fail(step, "step_failed", "The browser address is invalid, too large, or contains a secret; ask the person how to proceed.", undefined, false);
+      return hand(step, "ai_step", undefined, { prompt: `Open the supplied address through your normal ${step.where === "vm" ? "VM" : "local computer"} tool, following the conversation's access rules. Resume only with the actual result.`, input: url });
+    }
     if (step.kind === "shell" && (step.where === "vm" || step.where === "yourComputer" || step.shell === "unknown")) {
       const data = JSON.stringify({ command: step.run, env: argEnv(args), ...(step.cwd ? { cwd: step.cwd } : {}), ...(step.stdin ? { stdin: asText(resolve(step.stdin, args, results)) } : {}) });
       if (data.length > HANDED_INPUT_MAX || redactSecretsInText(data) !== data) return fail(step, "step_failed", "The command data is too large or contains a secret; ask the person how to proceed.", undefined, false);

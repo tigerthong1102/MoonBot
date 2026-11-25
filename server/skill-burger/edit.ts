@@ -59,6 +59,7 @@ export function applyEdit(workflow: Workflow, edit: WorkflowEdit): Workflow | { 
   if (edit.action === "set_when") {
     const at = steps.findIndex((step) => step.id === edit.step);
     if (at < 0) return { error: `there is no step ${edit.step}` };
+    if (edit.when && !steps.slice(0, at).some((step) => step.id === edit.when!.$step)) return { error: "The condition must reference an earlier step." };
     const { when: _old, ...rest } = steps[at]!;
     steps[at] = (edit.when ? { ...rest, when: edit.when } : rest) as WorkflowStep;
     return { ...workflow, steps };

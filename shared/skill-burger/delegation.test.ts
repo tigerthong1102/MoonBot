@@ -19,6 +19,16 @@ const bash = (command: string, extra: Partial<NonNullable<RunMessage["tool"]>> =
 });
 
 describe("a delegation run", () => {
+  it("keeps work and consultation handoffs in separate steps", () => {
+    const calls = run.filter((message) => message.tool?.name?.endsWith("coordinate_bots")).slice(0, 2);
+    const consultation = { ...calls[1]!, tool: { ...calls[1]!.tool!, input: JSON.stringify({ ...JSON.parse(calls[1]!.tool!.input!), consult: true }) } };
+    const layers = burgerLayers([ask("Make the report and review the plan"), calls[0]!, consultation]);
+    expect(layers).toHaveLength(2);
+    const workflow = draftFromLayers(layers, "Make the report", "Report", { teammate });
+    expect(workflow.steps[0]).toMatchObject({ kind: "delegate" });
+    expect(workflow.steps[0]).not.toHaveProperty("consult", true);
+    expect(workflow.steps[1]).toMatchObject({ kind: "delegate", consult: true });
+  });
   it("hands delegated work with attached files to the bot with its transfer context", () => {
     const call = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
     const withFile = { ...call, tool: { ...call.tool!, input: JSON.stringify({ ...JSON.parse(call.tool!.input!), files: ["reports/fixture.txt"] }) } };

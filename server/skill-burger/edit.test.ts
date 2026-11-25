@@ -82,6 +82,8 @@ describe("changing a saved Skill Burger's steps", () => {
     const open = applyEdit(guarded as Workflow, edit({ action: "set_when", step: "s2", when: null }));
     expect((open as Workflow).steps[1]).not.toHaveProperty("when");
     expect(applyEdit(base, edit({ action: "add_case", decide: { after: "s1" }, case: "x", steps: [{ kind: "teleport" }] }))).toHaveProperty("error");
+    for (const source of ["missing", "s2"]) expect(applyEdit(base, edit({ action: "set_when", step: "s2", when: { $step: source, op: "ne", value: "x" } }))).toHaveProperty("error");
+    expect(applyEdit(base, edit({ action: "set_when", step: "s1", when: { $step: "s2", op: "exists" } }))).toHaveProperty("error");
   });
 });
 

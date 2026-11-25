@@ -71,6 +71,13 @@ describe("running a Skill Burger", () => {
     expect(h.calls).toHaveLength(0);
   });
 
+  it.each(["vm", "yourComputer"])("opens a %s desktop browser in its original environment", async (where) => {
+    const h = harness();
+    const result = await h.start(wf([{ id: "s1", kind: "browser", label: "Open", action: "open", where, url: { $arg: "site" } }], { site: { default: "https://example.test" } }));
+    expect(result).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step", input: "https://example.test" } });
+    expect(h.calls).toHaveLength(0);
+  });
+
   it("hands the complete local-computer command and resolved inputs to the bot", async () => {
     const h = harness();
     const result = await h.start(wf([{ id: "s1", kind: "shell", label: "Write", where: "yourComputer", run: 'printf %s "$OMB_ARG_SITE" > file.txt', cwd: "reports", stdin: { $arg: "site" } }], { site: { default: "example.test" } }));

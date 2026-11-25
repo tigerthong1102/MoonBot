@@ -208,9 +208,6 @@ class Drafter {
     return clean.length === 1 && typeof clean[0] === "string" ? clean[0] : clean;
   }
 
-  /** Values the person typed that the command repeats become OMB_ARG_<NAME>, where the shell would expand them: a typed
-   * value (a web address, a site, a file) outside single quotes; a plain word only as a whole argument outside any quotes,
-   * never a program's name and never inside code a command carries in quotes. */
   private shell(run: string): string {
     let out = run;
     const plain = [...new Set(run.split(/[\s;&|()]+/).map((word) => word.replace(/^["'`]+|["'`;,)]+$/g, "")).filter((word) => !word.startsWith("-") && !SHELL_WORDS.has(word) && this.wordInAsk(word)))];
@@ -226,7 +223,6 @@ class Drafter {
       let atCommand = true;
       for (let i = 0; i < out.length; i += 1) {
         const char = out[i]!;
-        // A file the person named may sit in a folder ("./top5.md"): a slash before it is still its start.
         const before = typed && FILE_EXT.test(value) ? /[\w.-]/ : /[\w./-]/;
         const boundary = !before.test(out[i - 1] ?? " ") && !/[\w./-]/.test(out[i + value.length] ?? " ");
         const allowed = typed ? quote !== "'" : quote === null && !atCommand;
@@ -240,10 +236,8 @@ class Drafter {
         if ((char === "'" || char === '"') && (quote === null || quote === char)) quote = quote ? null : char;
         if (quote === null && /[;&|\n(]/.test(char)) atCommand = true;
         else if (quote === null && !/\s/.test(char) && atCommand && !/[;&|\n(]/.test(char)) {
-          // The first word of a command is its program; skip it, and any VAR=value before it.
           const word = /^[^\s;&|]+/.exec(out.slice(i))?.[0] ?? "";
           if (word === "for" || word === "select") {
-            // `for NAME in …`: the loop's own variable is never an arg.
             const loop = /^(?:for|select)\s+\w+/.exec(out.slice(i))?.[0] ?? word;
             rebuilt += loop; i += loop.length - 1; atCommand = false; continue;
           }

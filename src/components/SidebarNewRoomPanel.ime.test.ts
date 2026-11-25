@@ -18,6 +18,7 @@ vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
 
 import { NewRoomPanel } from "./SidebarNewRoomPanel";
 import { TeamDialog } from "./TeamDialog";
+import { botUsername } from "../../shared/bot-username";
 
 const bot: Bot = {
   id: "ime-bot", threadId: "ime-thread", name: "Atlas", title: "", description: "",
@@ -60,7 +61,7 @@ describe("New channel panel with an input method", () => {
   function open() {
     const onClose = vi.fn();
     flushSync(() => root.render(createElement(NewRoomPanel, { onClose })));
-    flushSync(() => document.querySelector<HTMLButtonElement>('[role="checkbox"][aria-label="Atlas"]')!.click());
+    flushSync(() => document.querySelector<HTMLButtonElement>(`[role="checkbox"][aria-label="Atlas @${botUsername(bot.id)}"]`)!.click());
     const [name, section] = [...document.querySelectorAll<HTMLInputElement>("input")];
     return { onClose, name, section };
   }

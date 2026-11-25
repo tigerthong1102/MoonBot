@@ -18,6 +18,7 @@ export function ManageMembersPanel({
   const { state, dispatch } = useStore();
   const [picked, setPicked] = useState<Set<string>>(() => new Set(group.memberIds));
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const openedMemberIds = useRef([...group.memberIds]);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +76,8 @@ export function ManageMembersPanel({
     bots.map((b) => b.id),
   );
   const changed = memberIds.length !== group.memberIds.length || memberIds.some((id, i) => id !== group.memberIds[i]);
+  const needle = query.trim().toLowerCase().replace(/^@/, "");
+  const farMembers = farMembersOf(group).filter(member => !needle || member.name.toLowerCase().includes(needle));
 
   const save = () => {
     if (!memberIds.length) return;
@@ -110,8 +113,8 @@ export function ManageMembersPanel({
       >
         <div className="mb-1 text-[15px] font-semibold text-ink">{t("room.members.title")}</div>
         <div className="mb-3 truncate text-[13px] text-ink-secondary">{group.name}</div>
-        <BotPickerList bots={bots} picked={picked} onToggle={toggle} emptyHint={t("room.members.emptyHint")} />
-        <RoomFarMembers members={farMembersOf(group)} picked={picked} onToggle={toggle} />
+        <BotPickerList bots={bots} picked={picked} onToggle={toggle} emptyHint={t("room.members.emptyHint")} onSearchChange={setQuery} hasOtherMatches={farMembers.length > 0} />
+        <RoomFarMembers members={farMembers} picked={picked} onToggle={toggle} />
         {!memberIds.length && <div className="mt-2 text-[12px] text-ink-secondary">{t("room.members.needOne")}</div>}
         {saveError && (
           <div role="alert" className="mt-2 text-[12px] text-danger">

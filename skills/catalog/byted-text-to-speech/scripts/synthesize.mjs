@@ -19,23 +19,24 @@ export async function synthesize({ text, output, apiKey, resourceId = 'seed-tts-
   if (!formats.includes(format) || !sampleRates.includes(sampleRate)) throw new Error('Unsupported format or sample rate.');
   if (![speechRate, pitchRate, loudnessRate, bitRate].every(Number.isInteger) || speechRate < -50 || speechRate > 100 || pitchRate < -12 || pitchRate > 12 || loudnessRate < -50 || loudnessRate > 100 || bitRate <= 0) throw new Error('Invalid audio settings.');
   try { await lstat(output); throw new Error('Output already exists.'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-  const audioParams = { format, speech_rate: speechRate, loudness_rate: loudnessRate };
+  const audioParams = { format, sample_rate: sampleRate, speech_rate: speechRate, loudness_rate: loudnessRate };
   if (format !== 'pcm') audioParams.bit_rate = bitRate;
   const response = await transport(endpoint, {
     method: 'POST', redirect: 'error', signal: AbortSignal.timeout(timeoutSeconds * 1000),
     headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey.trim(), 'X-Api-Resource-Id': resourceId, 'X-Api-Request-Id': randomUUID() },
-    body: JSON.stringify({ user: { uid: 'skill_tts_user' }, req_params: { text: text.trim(), speaker, sample_rate: sampleRate, audio_params: audioParams, additions: JSON.stringify({ post_process: { pitch: pitchRate }, disable_markdown_filter: !filterMarkdown, enable_latex_tn: enableLatex, latex_parser: 'v2' }) } }),
+    body: JSON.stringify({ user: { uid: 'skill_tts_user' }, req_params: { text: text.trim(), speaker, audio_params: audioParams, additions: JSON.stringify({ post_process: { pitch: pitchRate }, disable_markdown_filter: filterMarkdown || enableLatex, enable_latex_tn: enableLatex, latex_parser: 'v2' }) } }),
   });
   if (!response.ok || !response.body) throw new Error(`ByteDance request failed (HTTP ${response.status}).`);
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let pending = '', received = 0;
+  let pending = '', received = 0, complete = false;
   const chunks = [];
   const consume = line => {
     if (!line.startsWith('data:')) return;
     let event;
     try { event = JSON.parse(line.slice(5).trim()); } catch { throw new Error('Invalid speech response.'); }
     if (event.code != null && ![0, 20000000].includes(event.code)) throw new Error(`ByteDance speech failed (code ${String(event.code).replace(/[^0-9-]/g, '')}).`);
+    if (event.code === 20000000) complete = true;
     if (event.data) {
       if (typeof event.data !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(event.data)) throw new Error('Invalid audio encoding.');
       chunks.push(Buffer.from(event.data, 'base64'));
@@ -55,6 +56,7 @@ export async function synthesize({ text, output, apiKey, resourceId = 'seed-tts-
     pending += decoder.decode();
     if (pending) consume(pending);
   } finally { await reader.cancel().catch(() => {}); }
+  if (!complete) throw new Error('ByteDance speech response was incomplete.');
   if (!chunks.length || !chunks.some(chunk => chunk.length)) throw new Error('ByteDance returned no audio.');
   const handle = await open(output, 'wx', 0o600);
   try { for (const chunk of chunks) await handle.writeFile(chunk); } finally { await handle.close(); }
@@ -70,7 +72,7 @@ async function main() {
   process.stdout.write(JSON.stringify(result) + '\n');
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => {
-  const known = ['MODEL_SPEECH_API_KEY is required.', 'Text and a new output path are required.', 'Text exceeds the 1 MiB limit.', 'Unsupported format or sample rate.', 'Invalid resource ID.', 'Timeout must be between 1 and 600 seconds.', 'Invalid audio settings.', 'Output already exists.', 'Invalid speech response.', 'Invalid audio encoding.', 'ByteDance returned no audio.', 'Speech response exceeds the size limit.', 'Use --text-file INPUT --output NEW_FILE.'];
+  const known = ['MODEL_SPEECH_API_KEY is required.', 'Text and a new output path are required.', 'Text exceeds the 1 MiB limit.', 'Unsupported format or sample rate.', 'Invalid resource ID.', 'Timeout must be between 1 and 600 seconds.', 'Invalid audio settings.', 'Output already exists.', 'Invalid speech response.', 'Invalid audio encoding.', 'ByteDance returned no audio.', 'ByteDance speech response was incomplete.', 'Speech response exceeds the size limit.', 'Use --text-file INPUT --output NEW_FILE.'];
   const message = known.includes(error.message) || /^ByteDance (request failed \(HTTP \d+\)|speech failed \(code -?\d+\))\.$/.test(error.message) ? error.message : 'Speech synthesis failed. Check the input, output path, service access and network.';
   process.stderr.write(message + '\n');
   process.exitCode = 1;

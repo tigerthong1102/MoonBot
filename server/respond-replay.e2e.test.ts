@@ -118,12 +118,22 @@ posixOnly("a replayed respond for a settled card", () => {
     expect(replay.status, JSON.stringify(replay.body)).toBe(200);
     expect(replay.body.outcome).toBe("unavailable");
     expect(await undelivered(bot.threadId)).toHaveLength(0);
-    expect(await userDecisionsFor(requestId)).toHaveLength(1);
 
     // Control: a requestId that was never issued is a genuine miss, and the message still says so.
     const unknown = await api("POST", `/api/threads/${bot.threadId}/respond`, { requestId: "req-never-issued", behavior: "allow" });
     expect(unknown.status, JSON.stringify(unknown.body)).toBe(200);
     expect(unknown.body.outcome).toBe("unavailable");
     expect(await undelivered(bot.threadId)).toHaveLength(1);
+    const marker = await api("POST", "/api/bots", { name: "Decision marker" });
+    expect(marker.status, JSON.stringify(marker.body)).toBe(201);
+    const markerBot = marker.body.bot as { id: string; threadId: string };
+    expect((await api("PATCH", `/api/bots/${markerBot.id}`, { modelSelection: { instanceId: "grok", model: "fake-model" }, approvalMode: "ask" })).status).toBe(200);
+    expect((await api("POST", `/api/bots/${markerBot.id}/messages`, { text: "run marker", threadId: markerBot.threadId })).status).toBe(202);
+    const markerCard = await openCard(markerBot.threadId);
+    expect(markerCard).not.toBeNull();
+    const markerId = markerCard.card.requestId as string;
+    expect((await api("POST", `/api/threads/${markerBot.threadId}/respond`, { requestId: markerId, behavior: "allow" })).status).toBe(200);
+    expect(await waitFor(async () => (await userDecisionsFor(markerId)).length ? true : null)).toBe(true);
+    expect(await userDecisionsFor(requestId)).toHaveLength(1);
   }, 90_000);
 });

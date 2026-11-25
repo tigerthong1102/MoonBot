@@ -79,8 +79,10 @@ export function createStandaloneSkillBurgerRoutes(
   store: Pick<Store, "activePath" | "bots" | "bot" | "taskByThread">,
   sees: SkillBurgerRouteDeps["sees"],
   enabled: () => boolean,
+  extras: Pick<SkillBurgerRouteDeps, "teammate" | "history"> = {},
 ): RouteHandler {
   return createSkillBurgerRoutes({
+    ...extras,
     messages: (threadId) => store.activePath(threadId),
     botIds: () => store.bots.map((bot) => bot.id),
     owns: (botId, threadId) => store.bot(botId)?.threadId === threadId || Boolean(store.taskByThread(botId, threadId)),

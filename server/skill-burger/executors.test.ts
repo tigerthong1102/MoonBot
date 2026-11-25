@@ -46,6 +46,17 @@ describe("where a Skill Burger's steps run", () => {
     expect(existsSync(join(outside, "new"))).toBe(false);
   });
 
+  it("does not retry a cloud command through another route after an ambiguous failure", async () => {
+    const paths: string[] = [];
+    const exec = createExecutors({ botId: "b", cwd: folder(), internal: async (_kind, path) => {
+      paths.push(path);
+      return { ok: false, status: 503, body: { error: "connection lost" } };
+    } });
+    const result = await exec.shell({ command: "send invoice", env: {}, where: "vm", tool: "shell", signal: signal(), maxBytes: 1_000 });
+    expect(result).toMatchObject({ ok: false });
+    expect(paths).toEqual(["/api/internal/vm-exec"]);
+  });
+
   it.skipIf(process.platform === "win32")("runs a command as the bot, reading its inputs from OMB_ARG_ variables, and stops one that says too much", async () => {
     const cwd = folder();
     const exec = createExecutors({ botId: "b", cwd, internal: async () => ({ ok: false, body: {} }) });

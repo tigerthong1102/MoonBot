@@ -98,7 +98,7 @@ function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["she
   });
 }
 
-/** A command on the cloud computer: the bot's VM or VPS desktop through vm-exec, else the cloud computer's own exec. */
+/** A command on the cloud computer through vm-exec. */
 async function runOnVm(context: ExecutorContext, input: Parameters<StepExecutors["shell"]>[0]): Promise<ExecResult> {
   const prefix = Object.entries(input.env).map(([name, value]) => `${name}=${shellQuote(value)}`).join(" ");
   const command = prefix ? `export ${prefix}; ${input.command}` : input.command;
@@ -108,10 +108,7 @@ async function runOnVm(context: ExecutorContext, input: Parameters<StepExecutors
     if (Buffer.byteLength(stdout) > input.maxBytes) return tooLarge(input.maxBytes);
     return Number(vm.body.exitCode ?? 0) === 0 && !vm.body.timedOut ? { ok: true, output: stdout } : { ok: false, error: String(vm.body.stderr || vm.body.stdout || "the command failed").slice(-2_000) };
   }
-  const computer = await context.internal("computer", "/api/internal/computer/mcp", { jsonrpc: "2.0", id: rpcId(), method: "tools/call", params: { name: "exec", arguments: { command } } }, input.signal);
-  if (!computer.ok) return { ok: false, error: String(vm.body.error ?? computer.body.error ?? "there is no cloud computer to run this on") };
-  const result = callText(computer.body);
-  return result.ok && typeof result.output === "string" && Buffer.byteLength(result.output) > input.maxBytes ? tooLarge(input.maxBytes) : result;
+  return { ok: false, error: String(vm.body.error ?? "the cloud command could not be confirmed") };
 }
 
 /** Single-quoted for a POSIX shell: the value is data, never code. */

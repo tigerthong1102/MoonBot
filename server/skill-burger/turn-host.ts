@@ -9,6 +9,7 @@ import type { BurgerTurn, StepEvent } from "./runs.ts";
 export interface CallingTurn { botId: string; threadId: string; generation: string; [field: string]: unknown }
 
 export interface BurgerHostDeps {
+  available(): boolean;
   port: number;
   cwd(botId: string, threadId: string): string;
   /** A bearer of `kind` for the same turn. */

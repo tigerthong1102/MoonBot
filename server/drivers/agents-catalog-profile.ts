@@ -6,6 +6,7 @@ import { toolsOffFromEnv, type ToolGroup } from "../../shared/tool-groups.ts";
  * authenticates and scopes every call. */
 export interface CatalogProfile {
   skillAuthoring: boolean;
+  workflowsAvailable?: boolean;
   sharedComputers: boolean;
   voiceNotes: boolean;
   /** A treg key or a Cloud plan's research credential is held and this bot's research switch is on: x_search is mounted.
@@ -42,6 +43,7 @@ export interface CatalogProfile {
 export function catalogProfileFromEnv(env: NodeJS.ProcessEnv): CatalogProfile {
   return {
     skillAuthoring: env.OMB_SKILL_AUTHORING_ENABLED === "1",
+    workflowsAvailable: env.OMB_WORKFLOWS_AVAILABLE === "1",
     sharedComputers: env.OMB_SHARED_COMPUTERS_ENABLED === "1",
     voiceNotes: env.OMB_VOICE_NOTES === "1",
     xResearch: env.OMB_X_RESEARCH === "1",

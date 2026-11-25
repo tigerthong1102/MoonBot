@@ -138,10 +138,11 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   };
 
   /** The routes for one agents tool call: `authorization` is the bearer it came with. */
-  const routesFor = (calling: CallingTurn, authorization: string | undefined, signal?: AbortSignal): RouteHandler => (ctx) =>
-    ctx.method === "POST" && [RUN_PATH, RESUME_PATH, EDIT_PATH, UNDO_PATH].includes(ctx.path) && deps.host
-      ? internalRoutes(burgerTurn(deps.host, calling, authorization, signal))(ctx)
-      : Promise.resolve(PASS);
+  const routesFor = (calling: CallingTurn, authorization: string | undefined, signal?: AbortSignal): RouteHandler => (ctx) => {
+    if (ctx.method !== "POST" || ![RUN_PATH, RESUME_PATH, EDIT_PATH, UNDO_PATH].includes(ctx.path) || !deps.host) return Promise.resolve(PASS);
+    if (!deps.host.available()) return Promise.resolve(ctx.json(ctx.res, 404, { error: "No such route." }));
+    return internalRoutes(burgerTurn(deps.host, calling, authorization, signal))(ctx);
+  };
 
   /** For a turn the teammates' replies resume: the line that sends it back into the run it paused for them. */
   const waitingNote = (threadId: string, handoffs: readonly string[]): string | null => {

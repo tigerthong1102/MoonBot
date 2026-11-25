@@ -10,7 +10,7 @@ import { RUN_STEP_MARK } from "../../shared/skill-burger/layers.ts";
 import { runText } from "../drivers/agents-workflow-tool.ts";
 import { json, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
-import { dispatchRoutes } from "../routes/table.ts";
+import { dispatchRoutes, type RouteContext } from "../routes/table.ts";
 import { createSkillBurgerRuns, type BurgerTurn, type StepEvent } from "./runs.ts";
 import type { StepExecutors } from "./runner.ts";
 import { saveWorkflowSkill } from "./store.ts";
@@ -92,6 +92,23 @@ it("aborts an in-flight workflow action when the owning turn is revoked", async 
   finish();
   await request;
   expect(aborted).toBe(true);
+});
+
+it("refuses internal workflow calls when the host has disabled the feature", async () => {
+  const root = mkdtempSync(join(tmpdir(), "burger-disabled-"));
+  const runs = createSkillBurgerRuns({ dataDir: root, host: {
+    available: () => false,
+    port: 0,
+    cwd: () => root,
+    mint: () => "",
+    browser: async () => null,
+    publish: () => {},
+    mayEditEveryChat: () => false,
+  } });
+  let status = 0;
+  const ctx = { method: "POST", path: "/api/internal/skill-burgers/run", json: (_res: unknown, code: number) => { status = code; } } as unknown as RouteContext;
+  await runs.routesFor({ botId: "b", threadId: "t", generation: "g" }, "Bearer fixture")(ctx);
+  expect(status).toBe(404);
 });
 
 it("changes the steps when asked, with an undo, and refuses a burger that isn't there", async () => {

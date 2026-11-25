@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { onCase, workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
+import { draftWorkflow } from "../../shared/skill-burger/draft.ts";
 import { createRunStates } from "./run-state.ts";
 import { argEnv, resolve, resumeRun, runArgs, startRun, type ExecResult, type RunDeps, type RunState, type StepExecutors } from "./runner.ts";
 import { createExecutors } from "./executors.ts";
@@ -37,6 +38,24 @@ function harness(handlers: Partial<StepExecutors> = {}) {
 }
 
 describe("running a Skill Burger", () => {
+  it("replays each recorded batch result with the paths used by later actions", async () => {
+    const savedId = "recorded-id-123";
+    const batch = { data: { results: [{ response: { data: { messages: [{ id: savedId }] } } }, { response: { data: { rows: ["recorded-row-456"] } } }] } };
+    const draft = draftWorkflow([
+      { id: "u", role: "user", kind: "text", text: "Forward the message" },
+      { id: "batch", role: "bot", kind: "activity", tool: { name: "mcp__composio__COMPOSIO_MULTI_EXECUTE_TOOL", ok: true, input: JSON.stringify({ tools: [{ tool_slug: "GMAIL_FETCH_EMAILS", arguments: {} }, { tool_slug: "GOOGLESHEETS_BATCH_GET", arguments: {} }] }), output: JSON.stringify(batch) } },
+      { id: "forward", role: "bot", kind: "activity", tool: { name: "mcp__composio__COMPOSIO_MULTI_EXECUTE_TOOL", ok: true, input: JSON.stringify({ tools: [{ tool_slug: "GMAIL_FORWARD_MESSAGE", arguments: { message_id: savedId, row: "recorded-row-456" } }] }) } },
+    ])!;
+    const sent: Array<Record<string, unknown>> = [];
+    const exec = createExecutors({ botId: "fixture", cwd: tmpdir(), internal: async (_kind, _path, raw) => {
+      const call = (raw as { params: { arguments: { tools: Array<{ tool_slug: string; arguments: Record<string, unknown> }> } } }).params.arguments.tools[0]!;
+      sent.push(call.arguments);
+      const data = call.tool_slug === "GMAIL_FETCH_EMAILS" ? { messages: [{ id: "new-message-id" }] } : { rows: ["new-row-789"] };
+      return { ok: true, body: { result: { content: [{ type: "text", text: JSON.stringify({ successful: true, data: { results: [{ tool_slug: call.tool_slug, response: { successful: true, data } }] } }) }] } } };
+    } });
+    expect(await harness({ app: exec.app }).start(draft.workflow)).toMatchObject({ status: "ok" });
+    expect(sent.at(-1)).toMatchObject({ message_id: "new-message-id", row: "new-row-789" });
+  });
   it("passes a recorded nested app result into a later app action", async () => {
     const sent: Array<Record<string, unknown>> = [];
     const exec = createExecutors({ botId: "fixture", cwd: tmpdir(), internal: async (_kind, _path, raw) => {

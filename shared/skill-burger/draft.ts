@@ -48,7 +48,7 @@ function parsedOutput(layer: BurgerLayer): unknown {
   try { value = JSON.parse(layer.output); } catch { return layer.output; }
   const index = /#(\d+)$/.exec(layer.id)?.[1];
   const results = isRecord(value) && isRecord(value.data) && Array.isArray(value.data.results) ? value.data.results : undefined;
-  return index !== undefined && results ? results[Number(index)] : value;
+  return index !== undefined && results && isRecord(value) && isRecord(value.data) ? { ...value, data: { ...value.data, results: [results[Number(index)]] } } : value;
 }
 
 function findPath(value: unknown, target: string): string | null {

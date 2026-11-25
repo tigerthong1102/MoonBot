@@ -38,6 +38,8 @@ const RECONCILE_IDLE_MS = 60 * 60_000;
 const NAME_MAX = 80;
 const PROMPT_MAX = 20_000;
 const LINKED_EVENT_CONFLICT = "Linked bots have overlapping app automations. Review them before this event can run.";
+const EVENT_HISTORY_UNAVAILABLE = "Event history or bot links cannot be checked. Restore access and review the automation before continuing.";
+const isEventHoldProblem = (problem: StoredTrigger["problem"]) => problem?.kind === "error" && (problem.text === LINKED_EVENT_CONFLICT || problem.text === EVENT_HISTORY_UNAVAILABLE);
 
 class LinkedEventConflict extends Error {}
 
@@ -135,6 +137,7 @@ const fileSchema = z.object({
   triggers: z.array(storedSchema),
   attempts: z.array(attemptSchema).default([]),
   deleted: z.array(z.object({ at: z.number(), trigger: storedSchema })).default([]),
+  heldEvents: z.array(z.string()).default([]),
 });
 
 export interface AppTriggerInput {
@@ -213,6 +216,7 @@ export class AppTriggerManager {
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
+  private heldEvents = new Set<string>();
   private stopped = true;
   private abort = new AbortController();
   private nextReconcileAt = 0;
@@ -233,6 +237,7 @@ export class AppTriggerManager {
       this.triggers = parsed.data.triggers;
       this.attemptLog = parsed.data.attempts.slice(-MAX_ATTEMPTS);
       this.deleted = parsed.data.deleted.filter((entry) => entry.at >= this.now() - RESTORE_WINDOW_MS);
+      this.heldEvents = new Set(parsed.data.heldEvents);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         this.unreadable = true;
@@ -552,28 +557,37 @@ export class AppTriggerManager {
       return;
     }
     const data = event.event.data ?? {};
+    if (this.heldEvents.has(event.id)) throw new LinkedEventConflict(LINKED_EVENT_CONFLICT);
     const bound = this.bound(event.triggerId);
     const candidates = bound.filter(trigger => this.options.runs.receipt(trigger.id, event.id) || (trigger.enabled && this.options.botState(trigger.botId) !== "missing" && matchesFilter(trigger.app, trigger.filter, data)));
     if (this.options.linkedBots) {
       const affected = new Set<StoredTrigger>();
+      let reason = LINKED_EVENT_CONFLICT;
       try {
-        const previous = this.options.runs.eventRecipients?.(event.id) ?? [];
+        if (!this.options.runs.eventRecipients) throw new Error("Event receipt lookup unavailable");
+        const previous = this.options.runs.eventRecipients(event.id);
         candidates.forEach((first, index) => candidates.slice(index + 1).forEach(second => {
+          if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
+        }));
+        if (!candidates.length) bound.forEach((first, index) => bound.slice(index + 1).forEach(second => {
           if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
         }));
         for (const candidate of candidates) {
           if (previous.some(bot => bot === null || (bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId)))) affected.add(candidate);
         }
       } catch {
-        for (const trigger of candidates) affected.add(trigger);
+        reason = EVENT_HISTORY_UNAVAILABLE;
+        for (const trigger of candidates.length ? candidates : bound) affected.add(trigger);
+        if (!affected.size) throw new LinkedEventConflict(reason);
       }
       if (affected.size) {
-        for (const trigger of affected) if (trigger.problem?.kind !== "error" || trigger.problem.text !== LINKED_EVENT_CONFLICT) this.setProblem(trigger, { kind: "error", text: LINKED_EVENT_CONFLICT, at: this.now() });
-        throw new LinkedEventConflict(LINKED_EVENT_CONFLICT);
+        if (reason === LINKED_EVENT_CONFLICT) this.heldEvents.add(event.id);
+        for (const trigger of affected) if (trigger.problem?.kind !== "error" || trigger.problem.text !== reason) this.setProblem(trigger, { kind: "error", text: reason, at: this.now() });
+        throw new LinkedEventConflict(reason);
       }
     }
     for (const trigger of bound) {
-      if (trigger.problem?.kind === "error" && trigger.problem.text === LINKED_EVENT_CONFLICT) {
+      if (isEventHoldProblem(trigger.problem)) {
         delete trigger.problem;
         this.emitTrigger(trigger);
       }
@@ -718,7 +732,7 @@ export class AppTriggerManager {
       return;
     }
     trigger.remote = { triggerId: binding.triggerId, state: "active", syncedAt: this.now() };
-    if (trigger.problem?.kind === "error" && trigger.problem.text !== LINKED_EVENT_CONFLICT) delete trigger.problem;
+    if (trigger.problem?.kind === "error" && !isEventHoldProblem(trigger.problem)) delete trigger.problem;
   }
 
   /** The service's drop counts never reset; today's share is what grew since the UTC day began. */
@@ -883,7 +897,7 @@ export class AppTriggerManager {
     if (this.unreadable) return;
     mkdirSync(dirname(this.file), { recursive: true });
     writeFileAtomic(this.file, JSON.stringify({
-      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted,
+      version: 1, pollerId: this.pollerId, cursor: overrides.cursor ?? this.cursor, triggers: this.triggers, attempts: this.attemptLog, deleted: this.deleted, heldEvents: [...this.heldEvents],
     } satisfies z.input<typeof fileSchema>, null, 2), { mode: 0o600 });
   }
 }

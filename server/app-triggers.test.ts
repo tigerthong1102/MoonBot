@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -74,7 +74,7 @@ async function gmailTrigger(triggers: AppTriggerManager, filter = { from: "acme.
 }
 
 describe("AppTriggerManager", () => {
-  it("holds a shared event for linked bots until one automation is paused", async () => {
+  it("keeps a shared event held after a pause and restart", async () => {
     const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
     let triggers = manager({ linkedBots: links });
     const first = await gmailTrigger(triggers);
@@ -91,11 +91,9 @@ describe("AppTriggerManager", () => {
     await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
     expect(routines.listRuns()).toHaveLength(0);
     await triggers.update(second.id, { enabled: false });
-    await triggers.pollOnce(undefined, 0);
-    expect(routines.listRuns()).toHaveLength(1);
-    expect(routines.listRuns()[0]?.botId).toBe("bot-1");
-    expect(triggers.get(first.id)?.problem).toBeUndefined();
-    expect(triggers.get(second.id)?.problem).toBeUndefined();
+    triggers = manager({ linkedBots: links });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
   });
 
   it("keeps fan-out for independent bots sharing a remote event", async () => {
@@ -105,6 +103,78 @@ describe("AppTriggerManager", () => {
     await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_independent");
     await triggers.pollOnce(undefined, 0);
     expect(routines.listRuns()).toHaveLength(2);
+  });
+
+  it("does not transfer an older event merely because its original automation was paused", async () => {
+    const links = () => true;
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_before_second_bot");
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    await triggers.update(first.id, { enabled: false });
+    triggers = manager({ linkedBots: links });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
+  });
+
+  it("does not acknowledge events while the routine receipt store is unreadable", async () => {
+    const triggers = manager({ linkedBots: () => false });
+    const first = await gmailTrigger(triggers);
+    routines.close();
+    const file = join(dir, "routines.json");
+    writeFileSync(file, "{ broken fixture");
+    routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_unreadable");
+    for (let i = 0; i < 7; i++) await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/Event history or bot links/);
+    expect(triggers.attempts().some(attempt => attempt.outcome === "rejected")).toBe(false);
+    routines.close();
+    writeFileSync(file, "{}");
+    routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
+    await triggers.pollOnce(undefined, 0);
+    expect(routines.listRuns()).toHaveLength(1);
+  });
+
+  it("does not acknowledge an in-flight event after its last binding disappears and history is unreadable", async () => {
+    const triggers = manager({ linkedBots: () => false });
+    const first = await gmailTrigger(triggers);
+    await triggers.remove(first.id);
+    routines.close();
+    const file = join(dir, "routines.json");
+    writeFileSync(file, "{ broken fixture");
+    routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
+    const event = { seq: 100, id: "fixture-event", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: {} } };
+    expect(() => triggers.receive([event], 100)).toThrow(/Event history or bot links/);
+    expect(triggers.attempts()).toEqual([]);
+    expect(JSON.parse(readFileSync(join(dir, "app-triggers.json"), "utf8")).cursor).toBe(0);
+  });
+
+  it("retains malformed receipt rows without disabling unrelated saved routines", async () => {
+    const file = join(dir, "routines.json");
+    const routine = routines.create({ name: "Fixture", prompt: "Fixture", botId: "bot-1", enabled: true, schedule: { type: "interval", everyMinutes: 5, anchorAt: Date.now() + 3_600_000 } });
+    routines.enqueueWebhook({ webhookId: "trigger-fixture", webhookName: "Fixture", prompt: "Fixture", botId: "bot-1", runOn: "maus", deliveryId: "event-fixture", receivedAt: Date.now(), eventSource: "app" });
+    routines.close();
+    const before = JSON.parse(readFileSync(file, "utf8"));
+    const damaged = { webhookId: "broken-fixture", unexpected: "preserve-me" };
+    before.webhookRunReceipts.push(damaged);
+    writeFileSync(file, JSON.stringify(before));
+    routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
+    expect(routines.schedulerState().unreadable).toBe(false);
+    expect(routines.listRoutines().find(row => row.id === routine.id)?.enabled).toBe(true);
+    await routines.tick();
+    expect(routines.listRoutines().find(row => row.id === routine.id)?.enabled).toBe(true);
+    expect(routines.listRuns()).toHaveLength(1);
+    expect(() => routines.appEventRecipients("event-fixture")).toThrow(/unavailable/);
+    routines.create({ name: "Second fixture", prompt: "Fixture", botId: "bot-1", enabled: false, schedule: { type: "interval", everyMinutes: 5, anchorAt: Date.now() } });
+    expect(JSON.parse(readFileSync(file, "utf8")).webhookRunReceipts).toContainEqual(damaged);
+    routines.close();
+    const repaired = JSON.parse(readFileSync(file, "utf8"));
+    repaired.webhookRunReceipts = repaired.webhookRunReceipts.filter((row: { webhookId?: string }) => row.webhookId !== "broken-fixture");
+    writeFileSync(file, JSON.stringify(repaired));
+    routines = new RoutineManager({ file, botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
+    expect(routines.listRoutines().find(row => row.id === routine.id)?.enabled).toBe(true);
+    expect(routines.listRuns()).toHaveLength(1);
+    expect(routines.appEventRecipients("event-fixture")).toEqual(["bot-1"]);
   });
 
   it("does not replay an event to a linked bot after the original recipient is paused", async () => {
@@ -121,7 +191,7 @@ describe("AppTriggerManager", () => {
     expect(routines.listRuns()).toHaveLength(1);
     await triggers.update(second.id, { enabled: false });
     await triggers.update(first.id, { enabled: true });
-    triggers.receive([event], 100);
+    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
     expect(routines.listRuns()).toHaveLength(1);
   });
 
@@ -141,6 +211,23 @@ describe("AppTriggerManager", () => {
     const event = { seq: 100, id: delivery, kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data } };
     expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
     expect(routines.listRuns()).toHaveLength(1);
+  });
+
+  it("keeps an event when both linked automations were paused before it arrived", async () => {
+    let linkLookupFails = true;
+    const triggers = manager({ linkedBots: () => { if (linkLookupFails) throw new Error("fixture DB unavailable"); return true; } });
+    const first = await gmailTrigger(triggers);
+    const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.update(first.id, { enabled: false });
+    await triggers.update(second.id, { enabled: false });
+    const event = { seq: 100, id: "fixture-event", kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data: { subject: "Order fixture", sender: "person@acme.com" } } };
+    expect(() => triggers.receive([event], 100)).toThrow(/Event history or bot links/);
+    linkLookupFails = false;
+    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
+    await triggers.update(first.id, { enabled: true });
+    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
   });
   it("reports in-flight creation before network validation and until all concurrent calls finish", async () => {
     const client = brokerClient(() => ({ url: broker.url, token: owner.token }));

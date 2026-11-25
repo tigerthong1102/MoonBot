@@ -14,6 +14,10 @@ export type EventRunReceipt = z.infer<typeof receiptSchema>;
 export const EVENT_RETRY_WINDOW_MS = 7 * 24 * 60 * 60_000;
 export const MAX_EVENT_RECEIPTS = 20_000;
 
+export function malformedEventReceipts(saved: unknown): unknown[] {
+  return Array.isArray(saved) ? saved.filter(receipt => !receiptSchema.safeParse(receipt).success) : [];
+}
+
 /** The saved receipts, plus one for each recent run that names its event but lost its receipt. */
 export function loadEventReceipts(
   saved: unknown,

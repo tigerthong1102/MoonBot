@@ -206,7 +206,7 @@ interface RoutineFile {
   routines: Routine[];
   runs: RoutineRun[];
   routineRequestReceipts?: RoutineRequestReceipt[];
-  webhookRunReceipts?: EventRunReceipt[];
+  webhookRunReceipts?: unknown[];
   startupLaunchId?: string;
   noStartOffsChecked?: true;
   ownerNotices?: RoutineOwnerNotice[];
@@ -319,6 +319,7 @@ export class RoutineManager {
   private runs: RoutineRun[] = [];
   private routineRequestReceipts: RoutineRequestReceipt[] = [];
   private webhookRunReceipts: EventRunReceipt[] = [];
+  private malformedEventReceipts: unknown[] = [];
   private timer: DueTimer | null = null;
   private startupRunsQueued = false;
   private startupLaunchId: string | undefined;
@@ -352,7 +353,7 @@ export class RoutineManager {
     if (read.state === "unreadable" && !before) console.error(`routines: ${this.file} cannot be read (${read.reason}), so no routine runs until it can; it is left as it is, with a copy at ${keepUnreadableAside(this.file) ?? "no path (the copy failed)"}`);
     if (read.state !== "ok") return read.state === "missing";
     ({ routines: this.routines, unloadedRoutines: this.unloadedRoutines, runs: this.runs, malformedAttachments: this.malformedAttachments, routineRequestReceipts: this.routineRequestReceipts,
-      webhookRunReceipts: this.webhookRunReceipts, frozenPending: this.frozenPending, ownerNotices: this.ownerNotices, holds: this.holds,
+      webhookRunReceipts: this.webhookRunReceipts, malformedEventReceipts: this.malformedEventReceipts, frozenPending: this.frozenPending, ownerNotices: this.ownerNotices, holds: this.holds,
       startupLaunchId: this.startupLaunchId, noStartOffsChecked: this.noStartOffsChecked } = read);
     this.disk.loaded(read.text);
     const cut = settleRestored(this.routines, this.runs, this.ledger.restoredThrough, this.now(), (routine, past) => this.advancePastOccurrence(routine, past, past)).map(cloneRun); this.ledger.restoredThrough = null;
@@ -762,6 +763,7 @@ export class RoutineManager {
   }
 
   appEventRecipients(deliveryId: string): Array<string | null> {
+    if (this.unreadable || this.malformedEventReceipts.length) throw new Error("Event receipt history is unavailable");
     return this.webhookRunReceipts.filter(receipt => receipt.deliveryId === deliveryId && receipt.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS && receipt.eventSource !== "wait")
       .map(receipt => receipt.botId ?? null);
   }
@@ -1539,7 +1541,7 @@ export class RoutineManager {
       routines: [...this.routines, ...this.unloadedRoutines],
       runs: this.runs,
       routineRequestReceipts: this.routineRequestReceipts,
-      webhookRunReceipts: this.webhookRunReceipts,
+      webhookRunReceipts: [...this.webhookRunReceipts, ...this.malformedEventReceipts],
       ...(this.startupLaunchId === undefined ? {} : { startupLaunchId: this.startupLaunchId }), ...(this.noStartOffsChecked ? { noStartOffsChecked: true } : {}),
       ...(this.ownerNotices.length ? { ownerNotices: this.ownerNotices } : {}),
       ...(this.holds.length ? { holds: this.holds } : {}),

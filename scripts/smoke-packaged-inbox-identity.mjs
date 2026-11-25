@@ -64,7 +64,7 @@ let child, inspector, renderer, inbox;
 try {
   await new Promise(resolve => cloud.listen(0, "127.0.0.1", resolve)); origin = `https://127.0.0.1:${cloud.address().port}`;
   const appPort = await port(), webhookPort = await port(), debugPort = await port(), inspectPort = await port();
-  writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", instances: { claude: { driver: "claudeAgent", displayName: "Fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") }, environment: {} } } }));
+  writeFileSync(path.join(data, "config.json"), JSON.stringify({ language: "en", profile: { name: "Fixture Owner" }, features: { smartSetupChoices: false }, instances: { claude: { driver: "claudeAgent", displayName: "Fixture", config: { cli: path.join(root, "server", "testing", "fake-claude-cli.ts") }, environment: {} } } }));
   const mac = process.platform === "darwin", executable = mac ? path.join(path.resolve(values.app), "Contents", "MacOS", "StartupBot") : path.resolve(values.app);
   const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"),
     OMB_DATA_DIR: data, OMB_SMOKE_HOME: home, OMB_SMOKE_TEST: "1", OMB_SMOKE_KEEP_OPEN: "1", OMB_SMOKE_CUA: "0", OMB_COMPANION_BONJOUR: "0", OMB_PORT: String(appPort), OMB_WEBHOOK_PORT: String(webhookPort), STARTUPBOT_INBOX_ORIGIN: origin,
@@ -77,6 +77,10 @@ try {
   inspector = await connect(mainTarget.webSocketDebuggerUrl);
   await evaluate(inspector, `(()=>{const r=process.getBuiltinModule('module').createRequire(process.resourcesPath+'/app.asar/package.json');const e=r('electron');const original=e.Menu.buildFromTemplate.bind(e.Menu);globalThis.__fixtureMenus=[];e.Menu.buildFromTemplate=(template)=>{const menu=original(template);if(template.some(item=>item.label?.startsWith('Synthetic Inbox Bot')))globalThis.__fixtureMenus.push(menu);return menu};return true})()`);
   await until(() => evaluate(renderer, "Boolean(window.ogb?.personalAccount && window.ogb?.openPersonalInbox)"), "desktop Inbox bridge");
+  await until(() => evaluate(renderer, "Boolean(document.querySelector('[data-welcome=meet]'))"), "first-run welcome");
+  await until(() => evaluate(renderer, `(()=>{const next=document.querySelector('[data-welcome=meet] [data-primary]:not([data-sign-in]):not([disabled])');if(!next)return false;next.click();return true})()`), "first-run Next");
+  await until(() => evaluate(renderer, `(()=>{const button=document.querySelector('[data-chief-create]:not([disabled])');return button?.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}))===true})()`), "first-run bot creation");
+  await until(() => evaluate(renderer, "!document.querySelector('[data-welcome], [data-chief-intro]') && Boolean(document.querySelector('[data-startupbot-avatar]'))"), "interactive StartupBot chat");
   console.log("Fixture: authenticating");
   assert.equal(await evaluate(renderer, "window.ogb.personalAccount.sendCode('synthetic@example.test')"), "ok");
   assert.equal(await evaluate(renderer, "window.ogb.personalAccount.verify('synthetic@example.test','12345678')"), "ok");

@@ -263,6 +263,7 @@ export class AppTriggerManager {
       const stored = heldStoreSchema.parse(JSON.parse(readFileSync(this.heldFile, "utf8")));
       if (new Set(stored.events.map(row => row.id)).size !== stored.events.length) throw new Error("Duplicate held event IDs");
       for (const row of stored.events) {
+        if (row.event && row.event.id !== row.id) throw new Error("Mismatched held event ID");
         const existing = this.heldEvents.get(row.id);
         if (existing?.event && row.event && JSON.stringify(existing.event) !== JSON.stringify(row.event)) throw new Error("Conflicting held event copies");
         const event = row.event ?? existing?.event;

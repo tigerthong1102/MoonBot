@@ -205,6 +205,16 @@ describe("AppTriggerManager", () => {
     expect(readFileSync(main, "utf8")).toBe(before);
   });
 
+  it("refuses a held store whose event ID does not match its key", async () => {
+    let triggers = manager({ linkedBots: () => false });
+    const first = await gmailTrigger(triggers);
+    const file = join(dir, "app-triggers.json.held");
+    writeFileSync(file, JSON.stringify({ version: 1, events: [{ id: "fixture-a", reason: "conflict", event: { id: "fixture-b", seq: 1, kind: "message", triggerId: first.remote.triggerId, receivedAt: Date.now(), event: { data: {} } } }] }));
+    triggers = manager({ linkedBots: () => false });
+    await expect(triggers.update(first.id, { enabled: false })).rejects.toMatchObject({ status: 503 });
+    expect(triggers.get(first.id)?.enabled).toBe(true);
+  });
+
   it("does not acknowledge a conflicted event when held-event storage reaches its limit", async () => {
     const triggers = manager({ linkedBots: () => true });
     const first = await gmailTrigger(triggers);

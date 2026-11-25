@@ -26,4 +26,5 @@ export async function smokeGroupUsernames({ bot, evaluate, until, cdp, evidence 
   await evaluate("window.fetch = window.__groupFixtureFetch; delete window.__groupFixtureFetch; delete window.__groupFixtureResult");
   assert(result.status >= 200 && result.status < 300, `Group creation failed: ${result.status}`);
   assert.deepEqual(result.body.group.memberIds, [bot.id], "The username must select the correct bot identity");
+  return { groupId: result.body.group.id, botId: bot.id };
 }

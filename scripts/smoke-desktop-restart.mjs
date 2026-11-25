@@ -40,7 +40,7 @@ export async function waitPortClosed(port, label) {
   }), label, 15_000);
 }
 
-export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, canceledHandoff, expectedSkin, expectedWorkspace, stablePort }) {
+export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, canceledHandoff, expectedSkin, expectedWorkspace, stablePort, usernameGroup }) {
   if (canceledHandoff && followupText) throw new Error("The handoff and upgrade follow-ups need separate fixtures");
   if (stablePort !== undefined && (!Number.isInteger(stablePort) || stablePort < 1024 || stablePort > 65535)) throw new Error("Invalid saved renderer port");
   if (expectedSkin && stablePort === undefined) throw new Error("Saved renderer port required for appearance verification");
@@ -97,6 +97,10 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     if (expectedSkin) await until(() => evaluate(`localStorage.getItem('omb-skin') === ${JSON.stringify(expectedSkin)} && document.documentElement.dataset.skin === ${JSON.stringify(expectedSkin)}`), "the restored appearance choice");
     const request = route => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)});return {status:r.status,body:await r.json()};})()`);
     const bots = await until(async () => { const response = await request("/api/bots?messages=0"); return response.status === 200 && response.body.bots; }, "the restored bots");
+    if (usernameGroup) {
+      const snapshot = await request("/api/bots?messages=0");
+      assert.deepEqual(snapshot.body.groups.find(group => group.id === usernameGroup.groupId)?.memberIds, [usernameGroup.botId], "The selected bot must remain in the group after restart");
+    }
     assert.deepEqual(bots.map(bot => bot.id).sort(), [...botIds].sort());
     assert.equal(bots.find(bot => bot.id === helper.id)?.approvalMode, "full");
     if (expectedWorkspace) assert.equal(bots.find(bot => bot.id === helper.id)?.cwd, expectedWorkspace);

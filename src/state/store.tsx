@@ -2448,8 +2448,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               if (response?.settlementPending && typeof response.message === "string") {
                 showError(new Error(response.message));
               }
-              if (action.openCreatedBot && response?.routingState === "interrupted") showError(new Error(t("workBotRouting.interrupted")));
-              if (action.openCreatedBot && action.behavior === "allow" && response?.result?.state === "applied" && response?.routingState === "dispatched") {
+              if (action.openCreatedBot && !response?.settlementPending && response?.routingState === "interrupted") showError(new Error(t("workBotRouting.interrupted")));
+              if (action.openCreatedBot && action.behavior === "allow" && response?.result?.state === "applied" && (response?.routingState === "dispatched" || response?.routingState === "held_for_review")) {
                 const created = response.result.bots?.find((bot: { id?: unknown; action?: unknown }) => bot.action === "created" && typeof bot.id === "string");
                 if (created) await openCreatedWorkBot(created.id, navigationAtDecision, { revision: () => selectionRevision.current, state: () => stateRef.current, current: store.getState, dispatch: rawDispatch, withTaskWrites });
               }

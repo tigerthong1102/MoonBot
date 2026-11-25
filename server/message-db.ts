@@ -459,7 +459,7 @@ export function appendMessage(threadId: string, message: Message): void {
   });
 }
 
-export const { recoverLegacyWorkBotLinks, workBotLinksForThread, appendMessageBatch, transferQueuedWorkBotMessages, transferredChatFollowup, verifiedWorkBotFollowup, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, durableTransaction: writeFollowups, insertMessage, setActiveLeaf });
+export const { recoverLegacyWorkBotLinks, workBotLinksForThread, appendMessageBatch, appendHeldWorkBotContext, transferQueuedWorkBotMessages, transferredChatFollowup, verifiedWorkBotFollowup, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, durableTransaction: writeFollowups, insertMessage, setActiveLeaf });
 
 export function updateMessage(threadId: string, message: Message): void {
   prepared("UPDATE messages SET at = ?, role = ?, kind = ?, text = ?, json = ?, search_text = ? WHERE thread_id = ? AND id = ?").run(message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), cjkSearchText(message.text), threadId, message.id);

@@ -23,6 +23,44 @@ function fixture() {
 }
 
 describe("work bot request routing", () => {
+  it("does not mark staged work dispatched or retry it after a second choice", async () => {
+    const f = fixture();
+    await f.router.classify("main-thread", "source");
+    f.deps.dispatch = async () => {
+      const current = f.message().workBotRouting!;
+      expect(f.deps.patch("main-thread", "source", "dispatching", { ...current, state: "held_for_review" })).toBe(true);
+      return "held";
+    };
+    const target = { botId: "worker", threadId: "worker-thread" };
+    expect(await f.router.choose("main-thread", "source", "offer", target)).toBe("accepted");
+    expect(f.message().workBotRouting?.state).toBe("held_for_review");
+    expect(await f.router.choose("main-thread", "source", "offer", target)).toBe("not_claimed");
+    await f.router.recover("main-thread", "source");
+    expect(f.message().workBotRouting?.state).toBe("held_for_review");
+  });
+
+  it("does not claim a hold if the durable state was not recorded", async () => {
+    const f = fixture();
+    await f.router.classify("main-thread", "source");
+    f.deps.dispatch = async () => "held";
+    expect(await f.router.choose("main-thread", "source", "offer", { botId: "worker", threadId: "worker-thread" })).toBe("interrupted");
+    expect(f.message().workBotRouting?.state).toBe("dispatching");
+  });
+
+  it("keeps committed held work blocked when post-commit cleanup fails", async () => {
+    const f = fixture();
+    await f.router.classify("main-thread", "source");
+    f.deps.blockCleanupFailure = vi.fn();
+    f.deps.dispatch = async () => {
+      const current = f.message().workBotRouting!;
+      f.deps.patch("main-thread", "source", "dispatching", { ...current, state: "held_for_review" });
+      throw Object.assign(new Error("fixture cleanup"), { workBotCleanupFailed: true, workBotHeldCommitted: true });
+    };
+    expect(await f.router.choose("main-thread", "source", "offer", { botId: "worker", threadId: "worker-thread" })).toBe("interrupted");
+    expect(f.router.hasCleanupFailure("main-thread", "source")).toBe(true);
+    expect(f.message().workBotRouting?.state).toBe("held_for_review");
+    expect(f.deps.blockCleanupFailure).toHaveBeenCalledWith("main-thread", "source", expect.anything(), true);
+  });
   it("holds a qualifying request until the person chooses and dispatches once", async () => {
     const f = fixture();
     await f.router.classify("main-thread", "source");

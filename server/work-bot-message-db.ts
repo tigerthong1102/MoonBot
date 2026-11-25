@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { Message } from "./store.ts";
 import { transferWorkBotFollowups, type WorkBotFollowupClaim } from "./work-bot-followups-db.ts";
+import { commitHeldWorkBotContext } from "./work-bot-held-db.ts";
 
 export const WORK_BOT_LINK_SCHEMA = `
     CREATE TABLE IF NOT EXISTS work_bot_links (
@@ -50,6 +51,9 @@ export function createWorkBotMessageDb(deps: {
     database.prepare("INSERT INTO work_bot_links (source_bot_id, source_thread_id, source_message_id, target_bot_id, target_thread_id) VALUES (?, ?, ?, ?, ?)").run(link.sourceBotId, link.sourceThreadId, link.sourceMessageId, link.targetBotId, link.targetThreadId);
   }
   return {
+    appendHeldWorkBotContext(link: WorkBotLink, messages: Message[], expectedSourceLeaf: string | null, claim?: WorkBotFollowupClaim): Message {
+      return commitHeldWorkBotContext({ durableTransaction: deps.durableTransaction, insert: deps.insertMessage, setLeaf: deps.setActiveLeaf }, link, messages, expectedSourceLeaf, claim);
+    },
     recoverLegacyWorkBotLinks(botForThread: (threadId: string) => string | undefined): void {
       deps.durableTransaction(database => {
         if (database.prepare("SELECT 1 FROM command_receipts WHERE kind = 'migration' AND key = 'work_bot_links_v2'").get()) return;

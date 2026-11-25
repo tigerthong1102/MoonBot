@@ -447,7 +447,7 @@ function joinDelegations(layers: BurgerLayer[], round: Map<string, number>, repl
       round.set(out[out.length - 1]!.id, round.get(layer.id)!);
       continue;
     }
-    const earlier = call.rework && !layer.args?.files ? [...out].reverse().find((one) => one.kind === "delegate" && !one.args?.files && Boolean(one.delegation?.rounds[0]?.[0]?.consult) === Boolean(call.consult) && ids.every((id) => botsOf(one).has(id))) : undefined;
+    const earlier = call.rework && !layer.args?.files && last?.kind === "delegate" && !last.args?.files && Boolean(last.delegation?.rounds[0]?.[0]?.consult) === Boolean(call.consult) && ids.every((id) => botsOf(last).has(id)) ? last : undefined;
     if (earlier?.delegation && round.get(earlier.id) !== round.get(layer.id)) {
       const rounds = earlier.delegation.rounds;
       const lastRoundAt = round.get(`${earlier.id}#last`) ?? round.get(earlier.id);
@@ -456,7 +456,7 @@ function joinDelegations(layers: BurgerLayer[], round: Map<string, number>, repl
       round.set(`${earlier.id}#last`, round.get(layer.id)!);
       continue;
     }
-    out.push(layer);
+    out.push(call.rework ? { ...layer, replay: "ai", args: { ...layer.args, bots: call.bots.map((bot) => bot.name), message: call.message, rework: true, ...(call.doneWhen ? { doneWhen: call.doneWhen } : {}), ...(call.consult ? { consult: true } : {}) } } : layer);
   }
   for (const layer of out) {
     if (!layer.delegation) continue;

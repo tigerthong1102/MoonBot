@@ -82,7 +82,7 @@ export function missingPrompt(missing: DelegateStep["tasks"]): string {
  * teammates a call). Returns the hand-offs, or why a call was refused. */
 export async function sendRound(step: DelegateStep, state: DelegationState, fill: (ref: WorkflowRef) => unknown, exec: DelegateExecutors, signal: AbortSignal,
   fixes?: Record<string, string>): Promise<{ ok: true; requests: DelegationState["requests"] } | { ok: false; error: string; unsafeToRetry?: boolean }> {
-  const calls = new Map<string, { parts: string[]; botIds: string[]; message: string; doneWhen?: string }>();
+  const calls = new Map<string, { parts: string[]; botIds: string[]; message: string; correction?: string; doneWhen?: string }>();
   for (const task of step.tasks) {
     const to = state.who[task.bot.name];
     if (!to || (fixes && !(task.bot.name in fixes))) continue;
@@ -90,7 +90,7 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
     const message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;
     let key = `${message}\u0000${task.doneWhen ?? ""}`;
     if (calls.get(key)?.botIds.includes(to.id)) key += `\u0000${task.bot.name}`;
-    const call = calls.get(key) ?? { parts: [], botIds: [], message, ...(task.doneWhen ? { doneWhen: task.doneWhen } : {}) };
+    const call = calls.get(key) ?? { parts: [], botIds: [], message, ...(fixes ? { correction: fixes[task.bot.name] } : {}), ...(task.doneWhen ? { doneWhen: task.doneWhen } : {}) };
     call.parts.push(task.bot.name); call.botIds.push(to.id);
     calls.set(key, call);
   }
@@ -98,7 +98,9 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
   for (const call of calls.values()) {
     for (let at = 0; at < call.botIds.length; at += 4) {
       const botIds = call.botIds.slice(at, at + 4);
-      const sent = await exec.delegate({ botIds, message: call.message, ...(call.doneWhen ? { doneWhen: call.doneWhen } : {}), ...(fixes ? { rework: true } : {}), ...(step.consult ? { consult: true } : {}), signal }).catch((error: unknown) => ({ ok: false as const, error: error instanceof Error ? error.message : String(error), definitive: false }));
+      const summary = { botIds, message: call.message, doneWhen: call.doneWhen, rework: fixes ? true : undefined, consult: step.consult ? true : undefined };
+      const message = call.correction && JSON.stringify(summary).length > 4_000 ? call.correction : call.message;
+      const sent = await exec.delegate({ botIds, message, ...(call.doneWhen ? { doneWhen: call.doneWhen } : {}), ...(fixes ? { rework: true } : {}), ...(step.consult ? { consult: true } : {}), signal }).catch((error: unknown) => ({ ok: false as const, error: error instanceof Error ? error.message : String(error), definitive: false }));
       if (!sent.ok) return { ...sent, unsafeToRetry: requests.length > 0 || !sent.definitive };
       if (botIds.some((botId) => !sent.receipts.some((receipt) => receipt.botId === botId && receipt.requestId))) {
         return { ok: false, error: "the coordinator did not confirm every hand-off", unsafeToRetry: true };

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
 import { runText } from "../drivers/agents-workflow-tool.ts";
 import { readReview } from "./delegate-step.ts";
+import { guardedExecutors } from "./guarded-executors.ts";
 import { createRunStates } from "./run-state.ts";
 import { resumeRun, startRun, type RunDeps, type RunEnvelope, type RunState, type StepExecutors } from "./runner.ts";
 
@@ -56,6 +57,19 @@ function harness(exec: StepExecutors) {
 }
 
 describe("a saved delegation", () => {
+  it("sends a long correction within the production authorization limit", async () => {
+    const t = team();
+    const exec = guardedExecutors(t.exec, { allowed: () => true, approve: async () => true });
+    const h = harness(exec);
+    const original = "a".repeat(3_000);
+    const correction = "b".repeat(1_100);
+    const workflow = wf([{ id: "s1", kind: "delegate", label: "Ask Kiwi", tasks: [{ bot: { id: "kiwi", name: "Kiwi" }, message: original }], review: { rounds: 1 } }]);
+    await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    t.reply("kiwi", "draft");
+    expect(await h.resume("back")).toMatchObject({ requiresInput: { type: "review" } });
+    expect(await h.resume(JSON.stringify({ redo: { Kiwi: correction } }))).toMatchObject({ requiresInput: { type: "teammates" } });
+    expect(t.sent[1]).toMatchObject({ message: correction, rework: true });
+  });
   it("places the current single-use token in the teammate handoff prompt", async () => {
     const t = team();
     const h = harness(t.exec);

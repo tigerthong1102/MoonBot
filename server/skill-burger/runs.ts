@@ -47,14 +47,12 @@ const resumeBody = z.object({ run: z.string().min(1).max(100), response: z.strin
 const undoBody = z.object({ undo: z.string().min(1).max(64) }).strict();
 
 const DETAIL_MAX = 6_000;
-/** A step's detail as its row carries it: a few replies of a few hundred characters, never the whole of them. */
 function boundedDetail(detail: StepResult["detail"]): StepResult["detail"] {
   if (!detail?.replies) return detail;
   const each = Math.floor(DETAIL_MAX / Math.max(1, detail.replies.length));
   return { ...detail, replies: detail.replies.slice(0, 8).map((reply) => ({ ...reply, text: reply.text.slice(0, Math.min(600, each)) })) };
 }
 
-/** The step rows a run publishes, each started before it ends, even a step the run passed over. */
 function stepEvents(turn: BurgerTurn, open: Map<string, Set<string>>): RunDeps["events"] {
   const itemId = (run: string, step: WorkflowStep) => `burger-${run}-${step.id}`;
   const start = (run: string, name: string, step: WorkflowStep) => {

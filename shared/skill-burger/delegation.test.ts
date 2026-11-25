@@ -55,6 +55,17 @@ describe("a delegation run", () => {
     const layers = burgerLayers([ask("Research and publish"), first, reply, bash("echo brief > brief.md"), second]);
     expect(layers.map((layer) => layer.kind)).toEqual(["delegate", "shell", "delegate"]);
   });
+  it("keeps a rework handoff after the validation that produced its input", () => {
+    const first = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
+    const reply = run.find((message) => message.roomRequest?.phase === "result")!;
+    const rework = { ...first, id: "rework", tool: { ...first.tool!, input: JSON.stringify({ ...JSON.parse(first.tool!.input!), message: "Fix errors in errors.txt", rework: true }) } };
+    const layers = burgerLayers([ask("Create and validate the report"), first, reply, bash("validate report.csv > errors.txt"), rework]);
+    expect(layers.map((layer) => layer.kind)).toEqual(["delegate", "shell", "delegate"]);
+    expect(layers[0]!.delegation!.rounds).toHaveLength(1);
+    const steps = draftFromLayers(layers, "Create and validate the report", "Validate", { teammate }).steps;
+    expect(steps.map((step) => step.kind)).toEqual(["delegate", "shell", "ai"]);
+    expect(steps[2]).toMatchObject({ prompt: expect.stringContaining("Fix errors in errors.txt") });
+  });
   it("never makes a step of the app's own rows about teammates", () => {
     const rows = run.filter((message) => message.kind === "activity" && !message.tool?.itemId);
     expect(rows.map((message) => message.tool!.name)).toEqual(expect.arrayContaining(["Sent to Kiwi", "Kiwi replied", "Resumed with Kiwi, Rio, Miso results, reviewing"]));

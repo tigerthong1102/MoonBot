@@ -226,7 +226,10 @@ export function teamAppEventLedger(main: unknown, sidecar: unknown, privacy: Pic
     const event = receipt.event;
     if (!receipt.discarded || !receipt.eventDigest || !event || Object.keys(event.event).length || receipt.sourceScope !== scope ||
         !Number.isSafeInteger(event.seq) || event.seq < 1 || event.seq > parsed.data.cursor) throw new Error(blocked);
-    retired.set(retiredEventKey(receipt.sourceScope, id), receipt.eventDigest);
+    const key = retiredEventKey(receipt.sourceScope, id);
+    const previous = retired.get(key);
+    if (previous && previous !== receipt.eventDigest) throw new Error(blocked);
+    retired.set(key, receipt.eventDigest);
   }
   const privateIds = new Set([...held.keys()].map(id => id.slice(0, 200)));
   const attempts = parsed.data.attempts.filter(attempt => !privateIds.has(attempt.eventId) && !retired.has(retiredEventKey(scope, attempt.eventId)));

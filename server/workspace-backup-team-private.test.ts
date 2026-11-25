@@ -129,6 +129,9 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
 
   it("rejects a missing, malformed, active, unacknowledged or differently scoped retirement receipt", () => {
     expect(() => teamAppEventLedger(ledger, undefined, publicTeam)).toThrow(/held app events/);
+    const sameKey = retiredEventKey(retired.sourceScope, retired.id);
+    const inconsistent = { ...ledger, version: 2, retiredReceipts: { [sameKey]: "b".repeat(64) } };
+    expect(() => teamAppEventLedger(inconsistent, { version: 4, events: [retired] }, publicTeam)).toThrow(/held app events/);
     const invalid = [
       { ...retired, discarded: undefined }, { ...retired, eventDigest: "invalid" }, { ...retired, sourceScope: "different" },
       { ...retired, event: { ...retired.event, seq: ledger.cursor + 1 } },

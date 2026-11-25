@@ -57,6 +57,7 @@ function manager(overrides: Partial<AppTriggerManagerOptions> = {}) {
       },
       merge: (triggerId, eventId, sameConversation, merge) => routines.mergeIntoQueuedRun(triggerId, eventId, sameConversation, merge),
       receipt: (triggerId, eventId) => routines.webhookRunReceipt(triggerId, eventId),
+      eventRecipients: (eventId) => routines.appEventRecipients(eventId),
       pending: (triggerId) => routines.activeWebhookRunCount(triggerId),
       cancelQueued: (triggerId, message) => routines.cancelQueuedWebhook(triggerId, message),
     },
@@ -73,6 +74,74 @@ async function gmailTrigger(triggers: AppTriggerManager, filter = { from: "acme.
 }
 
 describe("AppTriggerManager", () => {
+  it("holds a shared event for linked bots until one automation is paused", async () => {
+    const links = (first: string, second: string) => [first, second].sort().join(":") === "bot-1:bot-2";
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    const second = await triggers.create({ botId: "bot-2", name: "Duplicate fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    expect(second.remote.triggerId).toBe(first.remote.triggerId);
+    await expect(triggers.runNow(first.id)).rejects.toMatchObject({ status: 409 });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_linked_conflict");
+    for (let i = 0; i < 7; i++) await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
+    expect(triggers.get(first.id)?.problem?.kind).toBe("error");
+    await triggers.reconcile();
+    expect(triggers.get(first.id)?.problem?.kind).toBe("error");
+    triggers = manager({ linkedBots: links });
+    await expect(triggers.pollOnce(undefined, 0)).rejects.toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(0);
+    await triggers.update(second.id, { enabled: false });
+    await triggers.pollOnce(undefined, 0);
+    expect(routines.listRuns()).toHaveLength(1);
+    expect(routines.listRuns()[0]?.botId).toBe("bot-1");
+    expect(triggers.get(first.id)?.problem).toBeUndefined();
+    expect(triggers.get(second.id)?.problem).toBeUndefined();
+  });
+
+  it("keeps fan-out for independent bots sharing a remote event", async () => {
+    const triggers = manager({ linkedBots: () => false });
+    const first = await gmailTrigger(triggers);
+    await triggers.create({ botId: "bot-2", name: "Other fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await broker.deliver(first.remote.triggerId!, { subject: "Order fixture", sender: "person@acme.com" }, "msg_independent");
+    await triggers.pollOnce(undefined, 0);
+    expect(routines.listRuns()).toHaveLength(2);
+  });
+
+  it("does not replay an event to a linked bot after the original recipient is paused", async () => {
+    const triggers = manager({ linkedBots: () => true });
+    const first = await gmailTrigger(triggers);
+    const data = { subject: "Order fixture", sender: "person@acme.com" };
+    await broker.deliver(first.remote.triggerId!, data, "msg_already_delivered");
+    await triggers.pollOnce(undefined, 0);
+    const delivery = routines.listRuns()[0]!.deliveryId!;
+    const second = await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.update(first.id, { enabled: false });
+    const event = { seq: 100, id: delivery, kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data } };
+    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(1);
+    await triggers.update(second.id, { enabled: false });
+    await triggers.update(first.id, { enabled: true });
+    triggers.receive([event], 100);
+    expect(routines.listRuns()).toHaveLength(1);
+  });
+
+  it("retains the event owner after its original automation is deleted and the manager restarts", async () => {
+    const links = () => true;
+    let triggers = manager({ linkedBots: links });
+    const first = await gmailTrigger(triggers);
+    const data = { subject: "Order fixture", sender: "person@acme.com" };
+    await broker.deliver(first.remote.triggerId!, data, "msg_deleted_owner");
+    await triggers.pollOnce(undefined, 0);
+    const delivery = routines.listRuns()[0]!.deliveryId!;
+    await triggers.create({ botId: "bot-2", name: "New fixture", prompt: first.prompt, app: "gmail", event: first.event, filter: first.filter });
+    await triggers.remove(first.id);
+    routines.close();
+    routines = new RoutineManager({ file: join(dir, "routines.json"), botState: () => "busy", createTask: () => ({ threadId: "thread-run" }), startTurn: async () => {} });
+    triggers = manager({ linkedBots: links });
+    const event = { seq: 100, id: delivery, kind: "message" as const, triggerId: first.remote.triggerId!, receivedAt: Date.now(), event: { data } };
+    expect(() => triggers.receive([event], 100)).toThrow(/overlapping app automations/);
+    expect(routines.listRuns()).toHaveLength(1);
+  });
   it("reports in-flight creation before network validation and until all concurrent calls finish", async () => {
     const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
     const type = await client.triggerType("GMAIL_NEW_GMAIL_MESSAGE");

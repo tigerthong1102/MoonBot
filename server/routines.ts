@@ -761,6 +761,11 @@ export class RoutineManager {
     return active ? { id: active.id } : null;
   }
 
+  appEventRecipients(deliveryId: string): Array<string | null> {
+    return this.webhookRunReceipts.filter(receipt => receipt.deliveryId === deliveryId && receipt.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS && receipt.eventSource !== "wait")
+      .map(receipt => receipt.botId ?? null);
+  }
+
   enqueueWebhook(input: {
     webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number;
     eventSource?: "app" | "wait"; sameConversation?: boolean; byPerson?: boolean;
@@ -802,7 +807,7 @@ export class RoutineManager {
     const receipts = previousReceipts.filter((receipt) => receipt.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS);
     // Never evict a promised retry identity to admit fresh work.
     if (receipts.length >= MAX_EVENT_RECEIPTS) throw Object.assign(new Error("Webhook retry history is full; try again later"), { status: 429 });
-    receipts.push({ webhookId: run.webhookId!, deliveryId, runId: run.id, acceptedAt: this.now() });
+    receipts.push({ webhookId: run.webhookId!, deliveryId, runId: run.id, acceptedAt: this.now(), botId: run.botId, ...(run.eventSource ? { eventSource: run.eventSource } : {}) });
     const previousRuns = this.runs.slice();
     apply();
     this.webhookRunReceipts = receipts;

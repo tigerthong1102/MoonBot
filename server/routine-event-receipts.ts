@@ -7,6 +7,8 @@ const receiptSchema = z.object({
   deliveryId: z.string().min(1).max(200),
   runId: z.string().min(1),
   acceptedAt: z.number().finite().nonnegative(),
+  botId: z.string().min(1).optional(),
+  eventSource: z.enum(["app", "wait"]).optional(),
 });
 export type EventRunReceipt = z.infer<typeof receiptSchema>;
 export const EVENT_RETRY_WINDOW_MS = 7 * 24 * 60 * 60_000;
@@ -15,19 +17,22 @@ export const MAX_EVENT_RECEIPTS = 20_000;
 /** The saved receipts, plus one for each recent run that names its event but lost its receipt. */
 export function loadEventReceipts(
   saved: unknown,
-  runs: ReadonlyArray<{ id: string; webhookId?: string; deliveryId?: string; createdAt: number }>,
+  runs: ReadonlyArray<{ id: string; webhookId?: string; deliveryId?: string; createdAt: number; botId?: string; eventSource?: "app" | "wait" }>,
   now: number,
 ): EventRunReceipt[] {
+  const runsById = new Map(runs.map(run => [run.id, run]));
   const receipts = Array.isArray(saved) ? saved.flatMap((receipt) => {
     const parsed = receiptSchema.safeParse(receipt);
-    return parsed.success ? [parsed.data] : [];
+    if (!parsed.success) return [];
+    const run = runsById.get(parsed.data.runId);
+    return [{ ...parsed.data, ...(parsed.data.botId || !run?.botId ? {} : { botId: run.botId }), ...(parsed.data.eventSource || !run?.eventSource ? {} : { eventSource: run.eventSource }) }];
   }) : [];
   const known = new Set(receipts.map((receipt) => JSON.stringify([receipt.webhookId, receipt.deliveryId])));
   for (const run of runs) {
     if (!run.webhookId || !run.deliveryId || run.createdAt < now - EVENT_RETRY_WINDOW_MS) continue;
     const key = JSON.stringify([run.webhookId, run.deliveryId]);
     if (known.has(key)) continue;
-    receipts.push({ webhookId: run.webhookId, deliveryId: run.deliveryId, runId: run.id, acceptedAt: run.createdAt });
+    receipts.push({ webhookId: run.webhookId, deliveryId: run.deliveryId, runId: run.id, acceptedAt: run.createdAt, ...(run.botId ? { botId: run.botId } : {}), ...(run.eventSource ? { eventSource: run.eventSource } : {}) });
     known.add(key);
   }
   return receipts;

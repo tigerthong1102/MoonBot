@@ -37,6 +37,9 @@ const RECONCILE_ACTIVE_MS = 15 * 60_000;
 const RECONCILE_IDLE_MS = 60 * 60_000;
 const NAME_MAX = 80;
 const PROMPT_MAX = 20_000;
+const LINKED_EVENT_CONFLICT = "Linked bots have overlapping app automations. Review them before this event can run.";
+
+class LinkedEventConflict extends Error {}
 
 export class AppTriggerError extends Error {
   readonly status: number;
@@ -59,10 +62,12 @@ export interface AppTriggerManagerOptions {
   service: () => { available: true } | { available: false; reason: "self-hosted" | "unavailable" | "off" };
   connectedApps: () => Promise<ConnectedApps>;
   botState: (botId: string) => "ready" | "busy" | "missing";
+  linkedBots?: (first: string, second: string) => boolean;
   runs: {
     enqueue(input: { webhookId: string; webhookName: string; prompt: string; botId: string; runOn: RoutineRunOn; deliveryId: string; receivedAt: number; eventSource: "app"; sameConversation?: boolean }): { id: string };
     merge(triggerId: string, eventId: string, sameConversation: boolean, merge: (prompt: string) => string | null): { id: string } | null;
     receipt(triggerId: string, eventId: string): { id: string } | null;
+    eventRecipients?(eventId: string): Array<string | null>;
     pending(triggerId: string): number;
     cancelQueued(triggerId: string, message: string): void;
   };
@@ -460,6 +465,7 @@ export class AppTriggerManager {
   private async runNowTracked(id: string): Promise<{ via: "service" | "here"; runId?: string } | null> {
     const trigger = this.triggers.find((candidate) => candidate.id === id);
     if (!trigger) return null;
+    if (trigger.remote.triggerId && this.bound(trigger.remote.triggerId).length > 1) throw new AppTriggerError("This test cannot target one automation because its event source is shared. Review the automations first.", 409);
     const data = { omb_test: true, note: "A test run started from StartupBot." };
     if (trigger.remote.triggerId && trigger.remote.state === "active" && this.options.service().available) {
       try {
@@ -517,6 +523,7 @@ export class AppTriggerManager {
         try {
           this.handle(event);
         } catch (error) {
+          if (error instanceof LinkedEventConflict) throw error;
           const tries = (this.failures.get(event.id) ?? 0) + 1;
           this.failures.set(event.id, tries);
           if (tries < POISON_TRIES) throw error;
@@ -545,7 +552,33 @@ export class AppTriggerManager {
       return;
     }
     const data = event.event.data ?? {};
-    for (const trigger of this.bound(event.triggerId)) {
+    const bound = this.bound(event.triggerId);
+    const candidates = bound.filter(trigger => this.options.runs.receipt(trigger.id, event.id) || (trigger.enabled && this.options.botState(trigger.botId) !== "missing" && matchesFilter(trigger.app, trigger.filter, data)));
+    if (this.options.linkedBots) {
+      const affected = new Set<StoredTrigger>();
+      try {
+        const previous = this.options.runs.eventRecipients?.(event.id) ?? [];
+        candidates.forEach((first, index) => candidates.slice(index + 1).forEach(second => {
+          if (first.botId !== second.botId && this.options.linkedBots!(first.botId, second.botId)) { affected.add(first); affected.add(second); }
+        }));
+        for (const candidate of candidates) {
+          if (previous.some(bot => bot === null || (bot !== candidate.botId && this.options.linkedBots!(bot, candidate.botId)))) affected.add(candidate);
+        }
+      } catch {
+        for (const trigger of candidates) affected.add(trigger);
+      }
+      if (affected.size) {
+        for (const trigger of affected) if (trigger.problem?.kind !== "error" || trigger.problem.text !== LINKED_EVENT_CONFLICT) this.setProblem(trigger, { kind: "error", text: LINKED_EVENT_CONFLICT, at: this.now() });
+        throw new LinkedEventConflict(LINKED_EVENT_CONFLICT);
+      }
+    }
+    for (const trigger of bound) {
+      if (trigger.problem?.kind === "error" && trigger.problem.text === LINKED_EVENT_CONFLICT) {
+        delete trigger.problem;
+        this.emitTrigger(trigger);
+      }
+    }
+    for (const trigger of bound) {
       if (!trigger.enabled) {
         this.record(trigger, event, "skipped", { reason: "paused" });
         continue;
@@ -685,7 +718,7 @@ export class AppTriggerManager {
       return;
     }
     trigger.remote = { triggerId: binding.triggerId, state: "active", syncedAt: this.now() };
-    if (trigger.problem?.kind === "error") delete trigger.problem;
+    if (trigger.problem?.kind === "error" && trigger.problem.text !== LINKED_EVENT_CONFLICT) delete trigger.problem;
   }
 
   /** The service's drop counts never reset; today's share is what grew since the UTC day began. */

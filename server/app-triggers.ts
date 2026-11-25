@@ -204,6 +204,7 @@ export class AppTriggerManager {
   private pollerId = randomBytes(16).toString("base64url");
   private cursor = 0;
   private unreadable = false;
+  private creationsInFlight = 0;
   private usage: { plan: "desktop" | "cloud"; eventsPerDay: number; eventsToday: number } | null = null;
   private serial: Promise<unknown> = Promise.resolve();
   private failures = new Map<string, number>();
@@ -239,6 +240,10 @@ export class AppTriggerManager {
     return this.triggers.map(publicTrigger);
   }
 
+  creationState(): "unreadable" | "creating" | "idle" {
+    return this.unreadable ? "unreadable" : this.creationsInFlight > 0 ? "creating" : "idle";
+  }
+
   get(id: string): AppTrigger | null {
     const stored = this.triggers.find((trigger) => trigger.id === id);
     return stored ? publicTrigger(stored) : null;
@@ -261,6 +266,8 @@ export class AppTriggerManager {
   /** Validated against the event type and the person's connected accounts, then saved and copied to the service. A
    *  service that cannot be reached leaves it pending; reconciliation finishes it. */
   async create(input: AppTriggerInput): Promise<AppTrigger> {
+    this.creationsInFlight++;
+    try {
     this.assertWritable();
     this.assertAvailable();
     const name = input.name.trim().slice(0, NAME_MAX);
@@ -303,6 +310,9 @@ export class AppTriggerManager {
     this.emitTrigger(trigger);
     this.wake();
     return publicTrigger(trigger);
+    } finally {
+      this.creationsInFlight--;
+    }
   }
 
   /** Another server's automation under its own id, against the same connected account: a new one starts switched off;

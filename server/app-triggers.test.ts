@@ -73,6 +73,30 @@ async function gmailTrigger(triggers: AppTriggerManager, filter = { from: "acme.
 }
 
 describe("AppTriggerManager", () => {
+  it("reports in-flight creation before network validation and until all concurrent calls finish", async () => {
+    const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
+    const type = await client.triggerType("GMAIL_NEW_GMAIL_MESSAGE");
+    const releases: Array<() => void> = [];
+    vi.spyOn(client, "triggerType").mockImplementation(() => new Promise(resolve => releases.push(() => resolve(type))));
+    const triggers = manager({ broker: client });
+    expect(triggers.creationState()).toBe("idle");
+    const first = gmailTrigger(triggers);
+    const second = gmailTrigger(triggers);
+    expect(triggers.creationState()).toBe("creating");
+    expect(triggers.list()).toEqual([]);
+    releases[0]!();
+    await first;
+    expect(triggers.creationState()).toBe("creating");
+    releases[1]!();
+    await expect(second).rejects.toMatchObject({ status: 409 });
+    expect(triggers.creationState()).toBe("idle");
+  });
+
+  it("does not call an unreadable trigger store idle", () => {
+    const triggers = manager({ file: dir });
+    expect(triggers.creationState()).toBe("unreadable");
+  });
+
   it("rejects a concurrent duplicate before one event can queue two runs", async () => {
     const client = brokerClient(() => ({ url: broker.url, token: owner.token }));
     const type = await client.triggerType("GMAIL_NEW_GMAIL_MESSAGE");

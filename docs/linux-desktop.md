@@ -77,9 +77,11 @@ chmod +x release/StartupBot-*-x86_64.AppImage
 
 For a downloaded release AppImage, use `StartupBot-*-x86_64.AppImage` in place of the versioned path above.
 
-Fedora's GNOME runs only on Wayland (it has no Xorg session to choose), so **This computer** stays unavailable there
-for now, as on Ubuntu's GNOME Wayland (see [Enable local control](#enable-local-control)). Chat, screen preview,
-Cloud desktop and Private desktop still work.
+On GNOME Wayland, **This computer** stays unavailable for now, as on Ubuntu's GNOME Wayland (see [Enable local control](#enable-local-control)).
+Fedora 41 removed the GNOME Xorg session from its installation media but kept it in its repositories; Fedora 43 removed
+the GNOME X11 packages from its repositories. See Fedora's [Fedora 41 change](https://fedoraproject.org/wiki/Changes/WaylandOnlyGNOMEWorkstationMedia)
+and [Fedora 43 change](https://fedoraproject.org/wiki/Changes/WaylandOnlyGNOME). Chat, screen preview, Cloud desktop and
+Private desktop still work.
 
 ### Arch Linux and EndeavourOS
 

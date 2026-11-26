@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.spyOn(document, "hidden", "get").mockReturnValue(false);
   const intervals = vi.spyOn(window, "setInterval");
   tick = () => { const handler = intervals.mock.calls.find(([, delay]) => delay === 60_000)?.[0]; if (typeof handler === "function") handler(); };
-  vi.mocked(browserRecord).mockImplementation(async (_mode, work) => {
+  vi.mocked(browserRecord).mockClear().mockImplementation(async (_mode, work) => {
     const store = {
       getAllKeys: () => ({ result: [...records.keys()].filter(id => id.startsWith("watch:")) }),
       get: (id: string) => ({ result: records.get(id) }),
@@ -214,4 +214,60 @@ it.each([
     calls.length = 0; tick?.(); await Promise.resolve();
     expect(calls).toEqual([]);
   }
+});
+
+it.each([
+  ["workspace_backup_busy", "knowledge.answerMaintenance"],
+  ["workspace_restore_restart", "knowledge.answerRestoreRestart"],
+] as const)("keeps the library private and shows the specific %s recovery on open and focus", async (code, issue) => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  records.delete("watch:" + key);
+  const path = "private-policy.txt", content = "Confidential policy contents.";
+  records.set(key, { docs: new Map([[path, { path, file: new File([content], path), digest: "a".repeat(64),
+    passages: [{ page: 1, paragraph: 1, text: content, start: 0 }] }]]), changes: [] } satisfies Index);
+  const denied = () => Response.json({ code }, { status: 503 }), session = () => Response.json({ kind: "session", id: "viewer" });
+  let ownership: () => Response | Promise<Response> = denied;
+  answer = route => route === auth ? ownership() : Response.json({});
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), focus = () => act(async () => { window.dispatchEvent(new Event("focus")); });
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t(issue));
+    expect(browserRecord).not.toHaveBeenCalled();
+    let verified = false;
+    ownership = () => { if (verified) return denied(); verified = true; return session(); };
+    await act(async () => [...host.querySelectorAll("button")].find(b => b.textContent === t("chat.retry"))!.click());
+    expect(browserRecord).toHaveBeenCalled();
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t(issue));
+    expect(host.textContent).not.toContain(path);
+    expect(host.textContent).not.toContain(content);
+    ownership = session; await focus();
+    const search = host.querySelector<HTMLInputElement>("input[type=search]")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "policy");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const passage = [...host.querySelectorAll("button")].find(b => b.textContent?.includes(path))!;
+    await act(async () => passage.click());
+    expect(host.querySelector("dialog section")?.textContent).toContain(content);
+    ownership = denied;
+    calls.length = 0;
+    await act(async () => { stop = watchDocumentSources(); });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t(issue));
+    expect(host.textContent).not.toContain(content);
+    expect(calls).toEqual([{ path: auth, background: "1", activity: false }]);
+    ownership = session; await focus(); await act(async () => [...host.querySelectorAll("button")].find(b => b.textContent?.includes(path))!.click());
+    const delayed = Promise.withResolvers<Response>();
+    ownership = () => delayed.promise; await focus();
+    expect(host.textContent).not.toContain(path);
+    expect(host.textContent).not.toContain(content);
+    await act(async () => delayed.resolve(denied()));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t(issue));
+    ownership = () => Response.json({ error: "unauthenticated" }, { status: 401 }); await focus();
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t("knowledge.answerAccess"));
+    expect(search.value).toBe("");
+    expect(host.textContent).not.toContain(content);
+    ownership = session; await focus();
+    expect(search.value).toBe("");
+  } finally { await act(async () => root.unmount()); host.remove(); }
 });

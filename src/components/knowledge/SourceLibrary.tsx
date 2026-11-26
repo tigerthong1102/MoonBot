@@ -15,17 +15,27 @@ const issueLabel = { signedOut: "files.signedOut", offline: "files.offline", mis
 const empty = (): Index => ({ docs: new Map(), changes: [] });
 type UnsavedSelection = { scope: string } & ({ folder: FolderSource; index: Index; manual?: never } | { folder?: never; manual: Index });
 
+async function reader(threadId: string, background = false): Promise<{ scope: string | null; issue: SourceAnswerIssue | null }> {
+  try {
+    const scope = await libraryKey(threadId, { reportOffline: true, background });
+    return { scope, issue: scope ? null : "knowledge.answerAccess" };
+  } catch (cause) {
+    return { scope: null, issue: sourceAnswerIssue(cause) };
+  }
+}
+
 type Retry = { payload: string; sendId: string };
 type Props = { bot: Bot; open: boolean; close(): void };
 export default function SourceLibrary({ bot, open, close }: Props) {
   const unsaved = useRef<UnsavedSelection | null>(null);
+  const lastReader = useRef<string | null>(null);
   const submission = useRef<Retry | null>(null);
   const [query, setQuery] = useState("");
-  return open && <OpenLibrary key={bot.threadId} bot={bot} close={close} unsaved={unsaved} submission={submission} query={query} setQuery={setQuery} />;
+  return open && <OpenLibrary key={bot.threadId} bot={bot} close={close} lastReader={lastReader} unsaved={unsaved} submission={submission} query={query} setQuery={setQuery} />;
 }
 
-function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<Props, "open"> & {
-  unsaved: RefObject<UnsavedSelection | null>; submission: RefObject<Retry | null>; query: string; setQuery(value: string): void;
+function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQuery }: Omit<Props, "open"> & {
+  lastReader: RefObject<string | null>; unsaved: RefObject<UnsavedSelection | null>; submission: RefObject<Retry | null>; query: string; setQuery(value: string): void;
 }) {
   const [index, setIndex] = useState<Index>(empty);
   const current = useRef(index);
@@ -43,50 +53,79 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
   const filesInput = useRef<HTMLInputElement>(null);
   const directoryInput = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
+  const recheck = useRef<(() => void) | null>(null);
   const alive = useRef(true);
-  const clearAccess = useCallback(() => {
-    current.current = empty(); setIndex(current.current); setSource(null); setWatching(null); setCloud(null); setSendError("knowledge.answerAccess");
+  const clearAccess = useCallback((issue: SourceAnswerIssue | null = "knowledge.answerAccess") => {
+    current.current = empty(); setIndex(current.current); setWatching(null); setCloud(null); setSendError(issue);
+    if (issue) setSource(null);
   }, []);
   useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
-    let active = true;
+    let opening = 0, active = true, verifying = false;
     let off: (() => void) | undefined;
     void fetch("/.well-known/openmausbot/environment").then(r => r.json()).then(env => {
       if (active) setOffersCloud(env?.capabilities?.cloudHome === true);
     }).catch(() => {});
-    void libraryKey(bot.threadId).then(async scope => {
-      if (!active) return;
-      key.current = scope;
-      if (!scope) return clearAccess();
-      if (unsaved.current?.scope !== scope) unsaved.current = null;
+    async function verifyOpening() {
+      verifying = true;
+      const visit = ++opening;
+      const live = () => active && visit === opening;
+      off?.(); off = undefined;
+      setStarting(true); clearAccess(null);
       let revision = 0;
-      async function restore(scope: string, verify: boolean, background = false) {
-        if (!active || inFlight.current) return;
-        const request = ++revision, pending = unsaved.current;
-        const [saved, watch] = pending
-          ? [pending.folder ? (verify ? await scanSource(pending.folder, pending.index) : pending.index) : pending.manual, pending.folder]
-          : await Promise.all([verify ? currentLibrary(scope) : readLibrary(scope), readWatch(scope).then(w => w?.source)]);
-        const owner = await libraryKey(bot.threadId, { background });
-        if (!active || request !== revision || inFlight.current || pending !== unsaved.current) return;
-        if (scope !== owner) return clearAccess();
-        if (pending?.folder && saved) pending.index = saved;
-        current.current = saved ?? empty(); setIndex(current.current); setWatching(watch ?? null); setCacheFailed(!!pending);
-      }
-      off = onSourceSync(scope, background => { void restore(scope, false, background).catch(() => { if (active) setCacheFailed(true); }); }, () => {
-        if (!active) return;
+      function unavailable(issue: SourceAnswerIssue | null) {
         ++revision;
-        key.current = null; unsaved.current = null; submission.current = null;
-        setQuery(""); clearAccess(); off?.();
-      });
-      await restore(scope, true);
-    }).catch(() => { if (active) setCacheFailed(true); }).finally(() => { if (active) setStarting(false); });
-    return () => { active = false; off?.(); };
-  }, [bot.threadId, unsaved, submission, setQuery, clearAccess]);
+        key.current = null;
+        if (issue === "knowledge.answerAccess") {
+          lastReader.current = null; unsaved.current = null; submission.current = null; setQuery(""); off?.();
+        }
+        clearAccess(issue);
+      }
+      try {
+        const session = await reader(bot.threadId);
+        if (!live()) return;
+        const scope = session.scope;
+        if (!scope) return unavailable(session.issue);
+        if (lastReader.current && lastReader.current !== scope) {
+          unsaved.current = null; submission.current = null; setQuery(""); setSource(null);
+        }
+        lastReader.current = scope; key.current = scope;
+        if (unsaved.current?.scope !== scope) unsaved.current = null;
+        async function restore(scope: string, verify: boolean, background = false) {
+          if (!live() || inFlight.current) return;
+          const request = ++revision, pending = unsaved.current;
+          const [saved, watch] = pending
+            ? [pending.folder ? (verify ? await scanSource(pending.folder, pending.index) : pending.index) : pending.manual, pending.folder]
+            : await Promise.all([verify ? currentLibrary(scope) : readLibrary(scope), readWatch(scope).then(w => w?.source)]);
+          const confirmed = await reader(bot.threadId, background);
+          if (!live() || request !== revision || inFlight.current || pending !== unsaved.current) return;
+          if (scope !== confirmed.scope) return unavailable(confirmed.issue ?? "knowledge.answerAccess");
+          if (!key.current) setSendError(null);
+          key.current = scope;
+          if (pending?.folder && saved) pending.index = saved;
+          current.current = saved ?? empty(); setIndex(current.current); setWatching(watch ?? null); setCacheFailed(!!pending);
+        }
+        off = onSourceSync(scope, background => { void restore(scope, false, background).catch(() => { if (live()) setCacheFailed(true); }); },
+          maintenance => { if (live()) unavailable(maintenance ? sourceAnswerIssue(maintenance) : "knowledge.answerAccess"); });
+        await restore(scope, true);
+      } catch { if (live()) setCacheFailed(true); }
+      finally { if (live()) { verifying = false; setStarting(false); } }
+    }
+    const focus = () => { if (!document.hidden && !inFlight.current && !verifying) void verifyOpening(); };
+    recheck.current = focus;
+    void verifyOpening();
+    window.addEventListener("focus", focus);
+    document.addEventListener("visibilitychange", focus);
+    return () => {
+      active = false; recheck.current = null; off?.();
+      window.removeEventListener("focus", focus); document.removeEventListener("visibilitychange", focus);
+    };
+  }, [bot.threadId, lastReader, unsaved, submission, setQuery, clearAccess]);
   async function stillOwns(scope: string | null) {
-    const owner = await libraryKey(bot.threadId);
+    const confirmed = await reader(bot.threadId);
     if (!alive.current) return false;
-    if (scope && scope === owner && scope === key.current) return true;
-    clearAccess();
+    if (scope && scope === confirmed.scope && scope === key.current) return true;
+    clearAccess(confirmed.issue ?? "knowledge.answerAccess");
     return false;
   }
   async function refresh(read: () => Promise<SourceFile[]>, newFolder: FolderSource | null) {
@@ -210,10 +249,10 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
       <button type="button" className="ui-button ui-button-sm" onClick={close}>{t("reconcile.close")}</button></header>
     <p className="mb-3 text-xs text-ink-secondary">{t("knowledge.formats")}</p>
     <div className="flex flex-wrap gap-2">
-      <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => filesInput.current?.click()}>{t("knowledge.files")}</button>
-      <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => void pickFolder()}>{t("knowledge.folder")}</button>
-      {(index.docs.size > 0 || watching) && <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => void clear()}>{t("knowledge.clear")}</button>}
-      {offersCloud && <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => {
+      <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => filesInput.current?.click()}>{t("knowledge.files")}</button>
+      <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => void pickFolder()}>{t("knowledge.folder")}</button>
+      {(index.docs.size > 0 || watching) && <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => void clear()}>{t("knowledge.clear")}</button>}
+      {offersCloud && <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => {
         void cloudFolders().then(list => { if (!alive.current || !key.current) return; setCloud(list.filter(f => !f.threadId || f.threadId === bot.threadId)); setError(false); }).catch(() => setError(true));
       }}>{t("knowledge.cloudFolders")}</button>}
       {cloud && cloud.length === 0 && <span role="status">{t("knowledge.noCloud")}</span>}
@@ -223,7 +262,7 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
         const remote = { kind: "cloud" as const, id: selected.id, name: selected.name };
         void refresh(() => readSource(remote, current.current), remote);
       }}><option value="">{t("knowledge.cloudFolders")}</option>{cloud.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</Select>}
-      {watching && <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => void syncWatching()}>{t("knowledge.refresh")}</button>}
+      {watching && <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => void syncWatching()}>{t("knowledge.refresh")}</button>}
       <input type="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.pdf" hidden ref={filesInput} onChange={e => { chosen(e.target.files); e.target.value = ""; }} />
       <input type="file" multiple hidden ref={node => { directoryInput.current = node; node?.setAttribute("webkitdirectory", ""); }} onChange={e => { chosen(e.target.files); e.target.value = ""; }} />
     </div>
@@ -232,14 +271,15 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
     <p role="status" className="my-2 text-xs text-ink-secondary">{busy || starting ? t("knowledge.reading") : t("knowledge.indexed", { count: index.docs.size })} {watching && t("knowledge.watching")}</p>
     {index.changes.length > 0 && <details className="my-2"><summary>{t("knowledge.changes")}</summary><ul className="max-h-32 overflow-y-auto">{index.changes.slice().reverse().map((c, i) =>
       <li key={i}>{c.at && <time dateTime={new Date(c.at).toISOString()}>{new Date(c.at).toLocaleString()} · </time>}{c.path} · {t(c.issue ? issueLabel[c.issue] : c.state === "error" ? "knowledge.errorFile" : `knowledge.${c.state}`)}</li>)}</ul></details>}
-    <label className="block font-medium">{t("knowledge.query")}<input type="search" maxLength={1000} value={query} onChange={e => { setQuery(e.target.value); setSource(null); setSendError(null); }}
+    <label className="block font-medium">{t("knowledge.query")}<input type="search" maxLength={1000} disabled={starting || !key.current} value={starting || !key.current ? "" : query} onChange={e => { setQuery(e.target.value); setSource(null); setSendError(null); }}
       className="mt-1 block w-full rounded-lg border border-hairline bg-inset p-2" /></label>
-    {!starting && query.trim() && !hits.length && <p className="my-3 text-ink-secondary">{t("knowledge.noHits")}</p>}
+    {!starting && key.current && query.trim() && !hits.length && <p className="my-3 text-ink-secondary">{t("knowledge.noHits")}</p>}
     {hits.length > 0 && <><ol className="my-3 max-h-72 overflow-y-auto">{hits.map(hit => <li key={JSON.stringify([hit.path, hit.passage.start])} className="border-b border-hairline/40 py-2">
       <button className="break-all text-start font-medium text-accent-text hover:underline" onClick={() => setSource({ path: hit.path, start: hit.passage.start })}>{location(hit)}</button>
       <p className="line-clamp-2 whitespace-pre-wrap break-words text-xs">{hit.passage.text}</p></li>)}</ol>
       <button type="button" className="ui-button ui-button-primary" disabled={busy || sending || search !== query} onClick={ask}>{t("knowledge.ask", { count: Math.min(3, hits.length) })}</button></>}
     {sendError && <p role="alert">{t(sendError)}</p>}
+    {sendError && !starting && !key.current && <button className="ui-button ui-button-sm" onClick={() => recheck.current?.()}>{t("chat.retry")}</button>}
     {shown && source && <SourcePassage doc={shown} start={source.start} />}
   </dialog>;
 }

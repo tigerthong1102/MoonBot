@@ -1,3 +1,4 @@
+import { isWorkspaceMaintenanceCode } from "../../../shared/workspace-backup";
 import { browserRecord } from "@/lib/browser-records";
 import { randomUuid } from "@/lib/random-uuid";
 import { cloudAsleep } from "@/lib/cloud-power";
@@ -8,19 +9,19 @@ import { accepts, indexSources, scanFolder, type Directory, type Index, type Sou
 export type FolderSource = { kind: "directory"; name: string; handle: Directory } | { kind: "cloud"; name: string; id: string };
 type Watch = { id: string; key: string; source: FolderSource; scanId?: string };
 const syncEvent = "startupbot-document-sync";
-const openLibraries = new Map<() => void, string>();
+const openLibraries = new Map<(maintenance?: ApiError) => void, string>();
 function ownedBy(key: string, owner: string | null) {
   return owner !== null && JSON.parse(key)[0] === owner;
 }
-export function onSourceSync(key: string, listener: (background: boolean) => void, revoked: () => void) {
+export function onSourceSync(key: string, listener: (background: boolean) => void, unavailable: (maintenance?: ApiError) => void) {
   const changed = (event: Event) => {
     const detail = (event as CustomEvent<string | { key: string; background: boolean }>).detail;
     if (typeof detail === "string") { if (detail === key) listener(false); }
     else if (detail?.key === key) listener(detail.background);
   };
   window.addEventListener(syncEvent, changed);
-  openLibraries.set(revoked, key);
-  return () => { window.removeEventListener(syncEvent, changed); openLibraries.delete(revoked); };
+  openLibraries.set(unavailable, key);
+  return () => { window.removeEventListener(syncEvent, changed); openLibraries.delete(unavailable); };
 }
 
 export function readWatch(key: string): Promise<Watch | undefined> {
@@ -136,8 +137,8 @@ export function watchDocumentSources() {
   async function tick() {
     if (running || read.signal.aborted || cloudAsleep() || document.hidden) return;
     running = true;
+    const readers = [...openLibraries];
     try {
-      const readers = [...openLibraries];
       const slots = readers.length ? undefined : await watchedSlots();
       if (slots?.length === 0 || read.signal.aborted) return;
       const owner = await libraryOwner((input, init) => apiFetch(input, { ...init, ...read, timeoutMs: 30_000 }), true);
@@ -151,8 +152,11 @@ export function watchDocumentSources() {
         const watch = await readWatch(key);
         if (watch && !read.signal.aborted) await syncSource(watch, read);
       }
-    } catch {}
-    finally { running = false; }
+    } catch (error) {
+      if (!read.signal.aborted && error instanceof ApiError && error.status === 503 && isWorkspaceMaintenanceCode(error.body?.code)) {
+        for (const [notify] of readers) if (openLibraries.has(notify)) notify(error);
+      }
+    } finally { running = false; }
   }
   const timer = window.setInterval(() => void tick(), 60_000);
   void tick();

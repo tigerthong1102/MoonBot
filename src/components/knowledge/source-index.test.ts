@@ -34,6 +34,27 @@ describe("document sources", () => {
     }
   });
 
+  it("searches mixed-language documents on WebViews without Intl.Segmenter", async () => {
+    const index = await indexSources([
+      file("政策.txt", "这是公司的报销政策。"), file("ja.txt", "報告書を確認してください。"),
+      file("en.txt", "Quarterly records"), file("vi.txt", "Đối chiếu chứng từ".normalize("NFD")),
+      file("names.txt", "𠮷野"), file("kana.txt", "ガイドを読む"),
+    ], empty);
+    const original = Object.getOwnPropertyDescriptor(Intl, "Segmenter")!;
+    Object.defineProperty(Intl, "Segmenter", { ...original, value: undefined });
+    try {
+      const searches = [["quarterly", "en.txt"], ["doi chieu", "vi.txt"], ["报销", "政策.txt"], ["報告書", "ja.txt"],
+        ["𠮷", "names.txt"], ["ｶﾞｲﾄﾞ", "kana.txt"]] as const;
+      for (const [question, path] of searches) {
+        expect(findPassages(index, question)[0]?.path).toBe(path);
+      }
+      expect(findPassages(index, "quarter")).toEqual([]);
+      expect(findPassages(index, "飞机")).toEqual([]);
+    } finally {
+      Object.defineProperty(Intl, "Segmenter", original);
+    }
+  });
+
   it("matches Chinese and Japanese words alongside English and Vietnamese terms", async () => {
     const index = await indexSources([file("zh.txt", "这是公司的报销政策。"), file("ja.txt", "報告書を確認してください。"),
       file("en.txt", "Quarterly records"), file("vi.txt", "Đối chiếu chứng từ".normalize("NFD"))], empty);

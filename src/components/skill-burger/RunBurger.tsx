@@ -10,7 +10,6 @@ import { LayerIcon } from "./SkillBurger";
 
 const SHEEN_PERIOD_MS = 2000;
 
-/** The running step cooks: the same slow sheen as a bot's working phrase, and none with reduced motion. */
 function Cooking({ text }: { text: string }) {
   const [delay] = useState(() => `-${Date.now() % SHEEN_PERIOD_MS}ms`);
   return (

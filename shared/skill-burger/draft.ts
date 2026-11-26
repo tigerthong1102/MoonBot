@@ -18,6 +18,7 @@ const CONVERSATION_CWD = /^(?:[A-Za-z]:)?[\\/](?:[^\\/]+[\\/])*task-workspaces[\
 const RUN_TEMP = /(?:\/private)?\/var\/folders\/[^\s"']+\/T\/tmp\.[A-Za-z0-9]+|\/tmp\/tmp\.[A-Za-z0-9]{6,}/;
 const SHELL_WORDS = new Set(["for", "in", "do", "done", "if", "then", "else", "fi", "while", "until", "case", "esac", "function", "select", "echo", "true", "false"]);
 const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n([\s\S]*?)\n\s*\2\b/;
+const INLINE_SOURCE = /(?:^|[\s;&|])(?:eval|(?:[^\s;&|]*\/)?(?:awk|gawk|sed))(?:\s|$)|(?:^|\s)(?:-[cer](?=\s|["']|$)|--(?:eval|execute|expression)(?=[=\s]|$))/;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const capital = (words: string) => (words ? words[0]!.toUpperCase() + words.slice(1) : words);
@@ -304,6 +305,8 @@ class Drafter {
       this.steps.push({ id, kind: "app", label, app: layer.app!, tool: layer.tool, args: this.values(id, layer.args) as Record<string, unknown>, ...(layer.account ? { account: layer.account } : {}) });
     } else if (layer.kind === "shell" && RUN_TEMP.test(command)) {
       this.steps.push(this.ai(id, layer, label, " It used a temporary folder of that run, which is gone now, so redo it with fresh ones."));
+    } else if (layer.kind === "shell" && INLINE_SOURCE.test(command)) {
+      this.steps.push(this.ai(id, layer, label, " Treat input values as data when adapting the embedded program."));
     } else if (layer.kind === "shell" && heredoc && heredoc[3]!.trim().length >= HEREDOC_MIN && layer.afterRead) {
       // The command wrote text the AI composed from what it read: write it again from what is there now.
       const target = /(?:>{1,2})\s*["']?([^\s"';|&]+)/.exec(command)?.[1]?.split("/").pop() ?? "the file";

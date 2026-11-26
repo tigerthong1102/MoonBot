@@ -11,8 +11,14 @@ const { runCommand } = await import("@/lib/skill-burger");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 it("distinguishes explicitly cleared inputs from omitted ones", () => {
-  expect(runCommand("fixture", { cc: "" })).toContain('cc: "" (empty; do not reuse the saved value)');
+  expect(runCommand("fixture", { cc: "" })).toContain('{"cc":""}');
   expect(runCommand("fixture", {})).toBe("/fixture");
+});
+
+it("retains multiline and whitespace-only inputs exactly", () => {
+  const inputs = { body: "  Hello\nO'Reilly\n ", empty: "", spaces: "  " };
+  const command = runCommand("fixture", inputs);
+  expect(JSON.parse(command.slice(command.indexOf("{")))).toEqual(inputs);
 });
 
 it("shows loading and makes only one request while opening workflow inputs", async () => {

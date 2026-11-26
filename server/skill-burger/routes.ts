@@ -221,7 +221,6 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       return json(res, 200, { skill: saved, undo: editUndo.keep(burger, found.workflow, saved.sha256, undoScope(placeOf(botId))) });
     }
     if (method === "GET" && name.endsWith("/runs")) {
-      // A burger's recent runs, by the bots this person can see.
       const burger = name.slice(0, -"/runs".length);
       const visible = new Set(botIds.filter((botId) => level(auth, botId) !== "none"));
       const runs = deps.history?.list(burger, visible).filter((run) => deps.sees(auth, run.threadId)) ?? [];

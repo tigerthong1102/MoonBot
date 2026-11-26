@@ -57,6 +57,13 @@ function harness(exec: StepExecutors) {
 }
 
 describe("a saved delegation", () => {
+  it("matches and dispatches a teammate whose name is a prototype property", async () => {
+    const t = team([{ id: "constructor-id", name: "constructor" }]);
+    const h = harness(t.exec);
+    const workflow = wf([{ id: "s1", kind: "delegate", label: "Ask constructor", tasks: [{ bot: { id: "old-id", name: "constructor" }, message: "Inspect this fixture" }] }]);
+    await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    expect(t.sent[0]?.botIds).toEqual(["constructor-id"]);
+  });
   it("delegates the fresh output of the preceding step", async () => {
     const t = team();
     t.exec.shell = async () => ({ ok: true, output: "Fresh task from the current email" });

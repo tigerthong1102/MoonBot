@@ -42,10 +42,10 @@ export function textOf(value: WorkflowText, fill: (ref: WorkflowRef) => unknown)
 /** Who does each saved part now: the same bot by id, else by name, else the one teammate with the same role. A part
  * the bot already reassigned keeps its choice. Unmatched parts are returned as missing. */
 export function matchTeammates(step: DelegateStep, roster: readonly Teammate[], chosen: DelegationState["who"] = {}): { who: DelegationState["who"]; missing: DelegateStep["tasks"] } {
-  const who: DelegationState["who"] = { ...chosen };
+  const who: DelegationState["who"] = Object.assign(Object.create(null) as DelegationState["who"], chosen);
   const missing: DelegateStep["tasks"] = [];
   for (const task of step.tasks) {
-    if (task.bot.name in who) continue;
+    if (Object.hasOwn(who, task.bot.name)) continue;
     const byId = task.bot.id ? roster.find((bot) => bot.id === task.bot.id) : undefined;
     const byName = roster.filter((bot) => norm(bot.name) === norm(task.bot.name));
     const byRole = task.bot.role ? roster.filter((bot) => bot.title && norm(bot.title) === norm(task.bot.role!)) : [];
@@ -58,7 +58,7 @@ export function matchTeammates(step: DelegateStep, roster: readonly Teammate[], 
 
 /** The bot's answer for parts whose teammate is gone: "Ada" for one part, or "Kiwi=Ada, Rio=skip" for several. */
 export function readReassignment(response: string, missing: DelegateStep["tasks"], roster: readonly Teammate[]): DelegationState["who"] | { error: string } {
-  const out: DelegationState["who"] = {};
+  const out: DelegationState["who"] = Object.create(null) as DelegationState["who"];
   const pairs = /[=:]/.test(response) ? response.split(/[,;\n]+/).map((pair) => pair.split(/[=:]/).map((side) => side.trim())) : [[missing[0]?.bot.name ?? "", response.trim()]];
   for (const [part = "", pick = ""] of pairs) {
     const task = missing.find((one) => norm(one.bot.name) === norm(part));
@@ -68,7 +68,7 @@ export function readReassignment(response: string, missing: DelegateStep["tasks"
     if (!bot) return { error: `${pick} isn't one of your teammates. Answer with a name from list_bots, or "skip".` };
     out[task.bot.name] = { id: bot.id, name: bot.name };
   }
-  const left = missing.filter((task) => !(task.bot.name in out));
+  const left = missing.filter((task) => !Object.hasOwn(out, task.bot.name));
   return left.length ? { error: `Say who does ${teammateNames(left, false)}'s part ("${left[0]!.bot.name}=<teammate>", or "skip").` } : out;
 }
 
@@ -84,7 +84,7 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
   fixes?: Record<string, string>): Promise<{ ok: true; requests: DelegationState["requests"] } | { ok: false; error: string; unsafeToRetry?: boolean }> {
   const calls = new Map<string, { parts: string[]; botIds: string[]; message: string; correction?: string; doneWhen?: string }>();
   for (const task of step.tasks) {
-    const to = state.who[task.bot.name];
+    const to = Object.hasOwn(state.who, task.bot.name) ? state.who[task.bot.name] : undefined;
     if (!to || (fixes && !(task.bot.name in fixes))) continue;
     const base = textOf(task.message, fill);
     const message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;

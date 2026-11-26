@@ -89,7 +89,7 @@ try {
   await until(() => evaluate(renderer, "Boolean(window.ogb?.personalAccount && window.ogb?.openPersonalInbox)"), "desktop Inbox bridge");
   await until(() => evaluate(renderer, "Boolean(document.querySelector('[data-welcome=meet]'))"), "first-run welcome");
   await until(() => evaluate(renderer, `(()=>{const next=document.querySelector('[data-welcome=meet] [data-primary]:not([data-sign-in]):not([disabled])');if(!next)return false;next.click();return true})()`), "first-run Next");
-  await until(() => evaluate(renderer, `(()=>{const button=document.querySelector('[data-chief-create]:not([disabled])');return button?.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}))===true})()`), "first-run bot creation");
+  await until(() => evaluate(renderer, `(()=>{const button=document.querySelector('[data-chief-create]:not([disabled])');if(button)return button.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));return !document.querySelector('[data-welcome], [data-chief-intro]')&&Boolean(document.querySelector('[data-startupbot-avatar]'))})()`), "first-run completion");
   await until(() => evaluate(renderer, "!document.querySelector('[data-welcome], [data-chief-intro]') && Boolean(document.querySelector('[data-startupbot-avatar]'))"), "interactive StartupBot chat");
   console.log("Fixture: authenticating");
   assert.equal(await evaluate(renderer, "window.ogb.personalAccount.sendCode('synthetic@example.test')"), "ok");

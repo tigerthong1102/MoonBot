@@ -1365,25 +1365,26 @@ function budgetRoot(botId: string, threadId: string) {
 }
 function turnRequestBudget(botId: string, threadId: string, driverKind: string, waiting: boolean): NonNullable<SendTurnInput["requestBudget"]> {
   const meter = makeRequestBudget(botId, waiting, () => budgetRoot(botId, threadId));
+  meter.assertRun();
   return { before: meter.before, finish: meter.finish, record(model, usage) {
     const { tokens, usd } = measuredSpend(model, driverKind, usage, operatorPrices());
     meter.record(tokens ?? cfg.usageCaps?.run?.tokens ?? 0, usd ?? cfg.usageCaps?.run?.usd ?? 0);
   } };
 }
-function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true, notificationThreadId = row.threadId): void {
+function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true): void {
   const cost = tokensReported || row.costUsd !== null ? ledgerCost(row, operatorPrices()) : { costUsd: null };
-  if (cfg.usageCaps?.run && !registry.get(row.instanceId)?.adapter.capabilities.requestMetering && budgetRoot(row.botId, row.threadId)) {
+  if (!row.usageId && cfg.usageCaps?.run && !registry.get(row.instanceId)?.adapter.capabilities.requestMetering && budgetRoot(row.botId, row.threadId)) {
     const meter = makeRequestBudget(row.botId, false, () => budgetRoot(row.botId, row.threadId));
     meter.record(tokensReported ? row.input + row.output : cfg.usageCaps.run.tokens ?? 0, cost.costUsd ?? cfg.usageCaps.run.usd ?? 0);
     meter.finish();
   }
-  const booked = attributeUsage({ ...row, ...cost, ...usageTrace.settle(row.threadId), at: new Date().toISOString() });
+  const booked = attributeUsage({ ...row, ...cost, ...(!row.usageId ? usageTrace.settle(row.threadId) : {}), at: new Date().toISOString() });
   // The append is async; noteSpend counts the row from memory until it lands, so the cap check sees it.
   noteSpend(DATA_DIR, booked, appendUsage(DATA_DIR, booked));
   const state = spendState(cfg, DATA_DIR);
   const alert = takeSpendAlert(DATA_DIR, state);
   if (alert && state) {
-    broadcast({ kind: "notify", notification: logNotification(buildSpendNotification({ id: row.botId, name: row.botName }, notificationThreadId, spendAlertText(alert, state))) }, { adminOnly: true });
+    broadcast({ kind: "notify", notification: logNotification(buildSpendNotification({ id: row.botId, name: row.botName }, row.threadId, spendAlertText(alert, state))) }, { adminOnly: true });
   } usageCapGate.booked(row.botId);
 }
 
@@ -10222,6 +10223,7 @@ async function runClaimedGroupMemberTurn(
     }
     return false;
   }
+  const requestBudget = turnRequestBudget(readyBot.id, threadId, instance.driverKind, personWaitingInRoom(operation, routineTriggerOf(threadId)));
   const turnTexts: string[] = [];
   let turnCompletedOk = false;
   let providerTurnId: string | undefined;
@@ -10322,7 +10324,7 @@ async function runClaimedGroupMemberTurn(
       window: roomWindow, tail: roomTail, wrap: (body) => withTurnClock(clock, withRecalled(roomRecalled, roomPick + attachmentsForBox(body, cwd) + roomShareNote.text + devsReports.note(threadId, Boolean(integrations.agents)))),
     });
     guardTurnDispatch(roomShareNote.after(instance.adapter.sendTurn({
-        requestBudget: turnRequestBudget(readyBot.id, threadId, instance.driverKind, personWaitingInRoom(operation, routineTriggerOf(threadId))),
+        requestBudget,
         ...roomSession.send,
         threadId,
         botId: readyBot.id,
@@ -10840,7 +10842,7 @@ function startGroupTurn(
       await invokeRoomCouncil({ store, threadId, messageId: message.id, language, members: routableMembers, eligible, question: council,
         signal: operation.cancellation.signal, botIds: operation.botIds, trigger: options.trigger,
         chairId: group.defaultResponder.kind === "member" ? group.defaultResponder.botId : undefined,
-        cap: () => cfg.usageCaps?.run, prices: operatorPrices, book: bookTurnUsage,
+        cap: () => cfg.usageCaps?.run, prices: operatorPrices, book: bookTurnUsage, refreshUsage: () => flushUsageLedger(DATA_DIR).then(() => groupUsageReader.refresh()).catch(() => {}),
         checkBudget: id => { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(id, true, language); },
       });
     } else if (goalCoordinator) {

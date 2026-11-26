@@ -266,7 +266,7 @@ function layersIn(message: RunMessage, live: ReadonlySet<string>): RawLayer[] {
   if (COORDINATE.test(tool.name)) {
     const call = delegateCall(input, tool.output);
     if (!call) return [];
-    const needsContext = (Array.isArray(input?.files) && input.files.length > 0) || input?.in_my_folder === false || input?.inMyFolder === false;
+    const needsContext = (Array.isArray(input?.files) && input.files.length > 0) || input?.in_my_folder === false || input?.inMyFolder === false || Boolean(text(input?.group_id) || text(input?.groupId)) || (Boolean(text(input?.thread)) && input?.thread !== "standing");
     return [{ ...base, id: message.id, kind: "delegate", tool: "coordinate_bots", words: call.bots.map((bot) => bot.name).join(", "), read: false, replay: clipped || needsContext ? "ai" : "exact", ...(needsContext ? { args: input } : {}), delegation: { rounds: [[call]], replies: [] } }];
   }
   if (server && OWN_SERVERS.has(server)) return [];

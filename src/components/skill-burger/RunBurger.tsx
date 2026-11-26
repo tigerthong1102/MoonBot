@@ -90,7 +90,6 @@ export function RunBurger({ view, summary, everyChat, botId, threadId, busy, onD
   const [editUndone, setEditUndone] = useState(false);
   const live = view.rows.some((row) => row.state === "running");
   const failed = view.rows.some((row) => row.state === "failed");
-  // The case offered stays named after its path is added, so its Undo stays in reach.
   const [offered, setOffered] = useState(view.missing);
   useEffect(() => { if (view.missing) setOffered(view.missing); }, [view.missing]);
   const missing = view.missing ?? (offer.state === "idle" ? undefined : offered);

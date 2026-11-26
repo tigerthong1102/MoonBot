@@ -43,6 +43,13 @@ describe("a delegation run", () => {
     expect(layers[0]).toMatchObject({ replay: "ai", args: { [field]: false } });
     expect(draftFromLayers(layers, "Delegate", "Delegate", { teammate }).steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining(`"${field}":false`) });
   });
+  it.each([{ group_id: "other-room" }, { groupId: "other-room" }, { thread: "new" }, { thread: "thread-123" }])("hands a delegation with an explicit destination to the bot: %o", (destination) => {
+    const call = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
+    const modified = { ...call, tool: { ...call.tool!, input: JSON.stringify({ ...JSON.parse(call.tool!.input!), ...destination }) } };
+    const layers = burgerLayers([ask("Delegate to the chosen destination"), modified]);
+    expect(layers[0]).toMatchObject({ replay: "ai", args: destination });
+    expect(draftFromLayers(layers, "Delegate", "Delegate", { teammate }).steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining(Object.values(destination)[0]) });
+  });
   it("keeps work and consultation handoffs in separate steps", () => {
     const calls = run.filter((message) => message.tool?.name?.endsWith("coordinate_bots")).slice(0, 2);
     const consultation = { ...calls[1]!, tool: { ...calls[1]!.tool!, input: JSON.stringify({ ...JSON.parse(calls[1]!.tool!.input!), consult: true }) } };

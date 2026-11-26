@@ -1,4 +1,3 @@
-// Real HTTP/auth, store and provider CLI adapter in a disposable workspace.
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { encodedSourcePath, legacySourceRequest, sourceLink, type SourceEvidence } from "../../shared/source-evidence.ts";
+import { personKey } from "../person-key.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import type { SideJobText } from "../side-jobs.ts";
 import type { BotRecord, Message, Store } from "../store.ts";
@@ -63,9 +64,19 @@ export interface KnowledgeAnswerDeps {
   writer(auth: RequestAuth, bot: BotRecord, threadId: string): SideJobText | null;
 }
 
-/** This endpoint has no startTurn, tools, MCP, computer or chat-command dispatcher. An older host returns 404. */
+class SourceRequestRefused extends Error {
+  readonly status: number;
+  readonly body: Record<string, unknown>;
+  constructor(status: number, body: Record<string, unknown>) {
+    super(); this.status = status; this.body = body;
+  }
+}
+
+/** This endpoint has no startTurn, tools, MCP, computer or chat-command dispatcher. */
 export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler {
   const pending = new Set<string>();
+  // One running or waiting source answer per authenticated person across their sessions, bots and threads.
+  const principals = new Set<string>();
   return async ({ req, res, path, method, auth, readBody, json }) => {
     const match = /^\/api\/bots\/([\w-]+)\/knowledge-answers$/.exec(path);
     if (!match || method !== "POST") return PASS;
@@ -82,17 +93,30 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
     if (previous?.sendId && previous.sendId !== key) return json(res, 409, { error: "This request was already used for different content." });
     if (previous && rows.some(row => row.role === "bot" && row.replyToId === previous.id && row.sendId === key + "-a")) return json(res, 200, { ok: true });
     if (pending.has(threadId) || deps.busy(botId, threadId)) return json(res, 409, { error: "Wait until this conversation is idle." });
+    const principal = auth.kind === "session" ? personKey(auth.session) : "local-owner";
+    if (principals.has(principal)) return json(res, 429, { error: "Wait for your current source answer to finish." });
     const refused = deps.refusal(botId, threadId);
     if (refused) return json(res, refused.status, refused.body);
     const writer = deps.writer(auth, bot, threadId);
     if (!writer) return json(res, 422, { error: "This model cannot answer from sources in an isolated text session." });
-    pending.add(threadId);
     const leaf = deps.store.activeLeaf(threadId);
     const controller = new AbortController();
     const stop = () => controller.abort();
+    if (res.destroyed) return;
     res.once("close", stop);
+    pending.add(threadId);
+    principals.add(principal);
     try {
-      const raw = await writer.generateText(prompt(question, evidence, previous ? rows.filter(row => row.id !== previous.id) : rows), { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(65_000)]), timeoutMs: 65_000 });
+      const raw = await writer.generateText(prompt(question, evidence, previous ? rows.filter(row => row.id !== previous.id) : rows), {
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(65_000)]), timeoutMs: 65_000,
+        started: () => {
+          if (!allowed()) throw new SourceRequestRefused(404, { error: "No such conversation." });
+          if (deps.busy(botId, threadId) || deps.store.activeLeaf(threadId) !== leaf) throw new SourceRequestRefused(409, { error: "The conversation changed while waiting. Ask again." });
+          const refusal = deps.refusal(botId, threadId);
+          if (refusal) throw new SourceRequestRefused(refusal.status, refusal.body);
+          if (!deps.writer(auth, bot, threadId)) throw new SourceRequestRefused(422, { error: "The selected model is unavailable." });
+        },
+      });
       if (controller.signal.aborted) return;
       const answer = citedAnswer(raw, evidence);
       if (!answer) return json(res, 502, { error: "The model returned an invalid source answer." });
@@ -101,8 +125,10 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
       const person = previous ?? deps.store.appendMessage(threadId, { role: "user", kind: "text", text: question, sendId: key, sender: deps.sender(auth) });
       deps.store.appendMessage(threadId, { role: "bot", kind: "text", text: answer, replyToId: person.id, sendId: key + "-a" });
       return json(res, 200, { ok: true });
-    } catch {
-      if (!controller.signal.aborted) return json(res, 502, { error: "The isolated source answer could not be completed." });
-    } finally { pending.delete(threadId); res.off("close", stop); }
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (error instanceof SourceRequestRefused) return json(res, error.status, error.body);
+      return json(res, 502, { error: "The isolated source answer could not be completed." });
+    } finally { pending.delete(threadId); principals.delete(principal); res.off("close", stop); }
   };
 }

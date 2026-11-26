@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { citationLocation } from "./citation";
 import { sourceAnswerIssue, type SourceAnswerIssue } from "./source-answer-issue";
 import { SourcePassage } from "./SourcePassage";
@@ -44,7 +44,10 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
   const directoryInput = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
   const alive = useRef(true);
-  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const clearAccess = useCallback(() => {
+    current.current = empty(); setIndex(current.current); setSource(null); setWatching(null); setCloud(null); setSendError("knowledge.answerAccess");
+  }, []);
+  useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
     let active = true;
     let off: (() => void) | undefined;
@@ -57,31 +60,40 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
       if (!scope) return;
       if (unsaved.current?.scope !== scope) unsaved.current = null;
       let revision = 0;
-      async function restore(scope: string, verify: boolean) {
-        if (!active || inFlight.current || (!verify && unsaved.current)) return;
+      async function restore(scope: string, verify: boolean, background = false) {
+        if (!active || inFlight.current) return;
         const request = ++revision, pending = unsaved.current;
         const [saved, watch] = pending
-          ? [pending.folder ? await scanSource(pending.folder, pending.index) : pending.manual, pending.folder]
+          ? [pending.folder ? (verify ? await scanSource(pending.folder, pending.index) : pending.index) : pending.manual, pending.folder]
           : await Promise.all([verify ? currentLibrary(scope) : readLibrary(scope), readWatch(scope).then(w => w?.source)]);
-        if (scope !== await libraryKey(bot.threadId) || !active || request !== revision || inFlight.current || pending !== unsaved.current) return;
+        const owner = await libraryKey(bot.threadId, { background });
+        if (!active || request !== revision || inFlight.current || pending !== unsaved.current) return;
+        if (scope !== owner) return clearAccess();
         if (pending?.folder && saved) pending.index = saved;
         current.current = saved ?? empty(); setIndex(current.current); setWatching(watch ?? null); setCacheFailed(!!pending);
       }
-      off = onSourceSync(scope, () => { void restore(scope, false).catch(() => { if (active) setCacheFailed(true); }); });
+      off = onSourceSync(scope, background => { void restore(scope, false, background).catch(() => { if (active) setCacheFailed(true); }); });
       await restore(scope, true);
     }).catch(() => { if (active) setCacheFailed(true); }).finally(() => { if (active) setStarting(false); });
     return () => { active = false; off?.(); };
-  }, [bot.threadId, unsaved]);
+  }, [bot.threadId, unsaved, clearAccess]);
+  async function stillOwns(scope: string | null) {
+    const owner = await libraryKey(bot.threadId);
+    if (!alive.current) return false;
+    if (scope === owner) return true;
+    clearAccess();
+    return false;
+  }
   async function refresh(read: () => Promise<SourceFile[]>, newFolder: FolderSource | null) {
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
     try {
       const scope = key.current;
-      if (scope !== await libraryKey(bot.threadId) || !alive.current) return;
+      if (!await stillOwns(scope)) return;
       const files = await read();
       const next = await indexSources(files, current.current);
-      if (scope !== await libraryKey(bot.threadId) || !alive.current) return;
+      if (!await stillOwns(scope)) return;
       setWatching(newFolder);
       current.current = next;
       setIndex(next); setError(false);
@@ -97,11 +109,12 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
     inFlight.current = true;
     setBusy(true);
     try {
-      const next = key.current && !cacheFailed ? await currentLibrary(key.current) : await scanSource(watching, current.current);
-      if (alive.current) {
-        current.current = next ?? empty(); setIndex(current.current); setError(false);
-        if (unsaved.current?.folder === watching) unsaved.current.index = current.current;
-      }
+      const scope = key.current;
+      if (!await stillOwns(scope)) return;
+      const next = scope && !cacheFailed ? await currentLibrary(scope) : await scanSource(watching, current.current);
+      if (!await stillOwns(scope)) return;
+      current.current = next ?? empty(); setIndex(current.current); setError(false);
+      if (unsaved.current?.folder === watching) unsaved.current.index = current.current;
     } catch {
       if (alive.current) { current.current = empty(); setIndex(current.current); setCacheFailed(true); setError(true); }
     } finally { inFlight.current = false; if (alive.current) setBusy(false); }
@@ -110,7 +123,7 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
     setBusy(true);
     try {
       const next = empty(), scope = key.current;
-      if (scope !== await libraryKey(bot.threadId) || !alive.current) return;
+      if (!await stillOwns(scope)) return;
       if (scope) {
         try { await saveSource(scope, next, null); unsaved.current = null; setCacheFailed(false); }
         catch (cause) {
@@ -146,18 +159,17 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
   async function ask() {
     if (sending || !hits.length || !query.trim()) return;
     setSending(true); setSendError(null);
-    function accessChanged() {
-      current.current = empty(); setIndex(current.current); setSource(null); setWatching(null); setSendError("knowledge.answerAccess");
-    }
     try {
       const scope = await libraryKey(bot.threadId, { reportOffline: true });
       if (!alive.current) return;
       const selection = unsaved.current;
-      if (!scope || scope !== key.current || (selection && selection.scope !== scope)) return accessChanged();
+      if (!scope || scope !== key.current || (selection && selection.scope !== scope)) return clearAccess();
       // Manual files were explicitly picked. A live folder always has to prove access to its contents again.
       const fresh = selection?.folder ? await scanSource(selection.folder, index) : selection?.manual ?? await currentLibrary(scope);
       if (!alive.current) return;
-      if (scope !== await libraryKey(bot.threadId, { reportOffline: true })) return accessChanged();
+      const owner = await libraryKey(bot.threadId, { reportOffline: true });
+      if (!alive.current) return;
+      if (scope !== owner) return clearAccess();
       if (selection !== unsaved.current) { setSendError("knowledge.answerChanged"); return; }
       if (!fresh) { current.current = empty(); setIndex(current.current); setSendError("knowledge.answerChanged"); return; }
       if (selection?.folder) selection.index = fresh;

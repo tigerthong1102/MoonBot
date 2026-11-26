@@ -8,8 +8,12 @@ import { accepts, indexSources, scanFolder, type Directory, type Index, type Sou
 export type FolderSource = { kind: "directory"; name: string; handle: Directory } | { kind: "cloud"; name: string; id: string };
 type Watch = { id: string; key: string; source: FolderSource; scanId?: string };
 const syncEvent = "startupbot-document-sync";
-export function onSourceSync(key: string, listener: () => void) {
-  const changed = (event: Event) => { if ((event as CustomEvent).detail === key) listener(); };
+export function onSourceSync(key: string, listener: (background: boolean) => void) {
+  const changed = (event: Event) => {
+    const detail = (event as CustomEvent<string | { key: string; background: boolean }>).detail;
+    if (typeof detail === "string") { if (detail === key) listener(false); }
+    else if (detail?.key === key) listener(detail.background);
+  };
   window.addEventListener(syncEvent, changed);
   return () => window.removeEventListener(syncEvent, changed);
 }
@@ -101,7 +105,7 @@ export async function syncSource(watch: Watch, read: SourceRead = {}) {
     return request;
   });
   if (latest?.id !== watch.id || latest.scanId !== scanId) return committed?.result;
-  window.dispatchEvent(new CustomEvent(syncEvent, { detail: watch.key }));
+  window.dispatchEvent(new CustomEvent(syncEvent, { detail: { key: watch.key, background: !!read.background } }));
   return index;
 }
 

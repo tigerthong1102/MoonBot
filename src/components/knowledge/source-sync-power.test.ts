@@ -1,4 +1,9 @@
 // @vitest-environment happy-dom
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { t } from "@/lib/i18n";
+import type { Bot } from "@/state/store";
+import SourceLibrary from "./SourceLibrary";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { countsAsActivity } from "../../../server/cloud-power";
 import { cloudAsleep, markCloudAsleep, resetCloudPowerForTests } from "@/lib/cloud-power";
@@ -133,4 +138,27 @@ it("distinguishes an unreachable session check from a signed-out document reader
   expect(await libraryKey("thread")).toBeNull();
   answer = () => Response.json({ error: "signed out" }, { status: 401 });
   expect(await libraryKey("thread", { reportOffline: true })).toBeNull();
+});
+
+it("keeps the open dialog's timer-driven ownership recheck in the background while explicit reads are foreground", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), bot = { id: "bot", threadId: "thread" } as Bot;
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot, open: true, close: () => {} })));
+    await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(3)); });
+    expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }));
+    const manual = calls.filter(c => c.path === auth || c.path === list || c.path === file);
+    expect(manual.length).toBeGreaterThan(0);
+    expect(manual.every(c => c.background === null)).toBe(true);
+    expect(manual.filter(c => c.path === auth).every(c => c.activity)).toBe(true);
+    calls.length = 0;
+    await act(async () => {
+      stop = watchDocumentSources();
+      await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(2));
+    });
+    expect(calls.map(c => [c.path, c.background, c.activity])).toEqual([auth, list, file, auth].map(path => [path, "1", false]));
+  } finally {
+    await act(async () => root.unmount()); host.remove();
+  }
 });

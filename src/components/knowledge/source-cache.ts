@@ -1,4 +1,5 @@
 import { browserRecord } from "@/lib/browser-records";
+import { apiFetch } from "@/state/api";
 import { readSessionState } from "@/lib/session";
 import type { Index } from "./source-index";
 
@@ -10,8 +11,10 @@ export async function libraryOwner(fetchImpl?: typeof fetch, reportOffline = fal
   return null;
 }
 
-export async function libraryKey(threadId: string, options?: { reportOffline?: boolean }) {
-  const owner = await libraryOwner(undefined, options?.reportOffline);
+const backgroundFetch: typeof fetch = (input, init) => apiFetch(input, { ...init, background: true, timeoutMs: 30_000 });
+
+export async function libraryKey(threadId: string, options?: { reportOffline?: boolean; background?: boolean }) {
+  const owner = await libraryOwner(options?.background ? backgroundFetch : undefined, options?.reportOffline);
   return owner ? JSON.stringify([owner, threadId]) : null;
 }
 

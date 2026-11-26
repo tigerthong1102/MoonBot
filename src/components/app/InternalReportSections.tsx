@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "@/state/api";
+import { readReportLink } from "@/lib/report-link";
 import { t } from "@/lib/i18n";
 import type { AppDocument } from "../../../shared/app";
 import { appDocumentPath, fetchAppDocument } from "./app-api";
@@ -21,9 +22,9 @@ export function InternalReportSections({ threadId, messageId, url }: { threadId:
       let target = ref;
       if (!target) {
         const link = new URL(value.trim());
-        const id = link.searchParams.get("report")?.match(/^([\w-]{1,200})\/([\w-]{1,200})$/);
+        const id = readReportLink(link.searchParams);
         if (!id || ![new URL(url).origin, window.location.origin].includes(link.origin)) throw new Error();
-        target = { threadId: id[1]!, messageId: id[2]!, title: "" };
+        target = { ...id, title: "" };
       }
       await api(appDocumentPath(threadId, messageId) + "/sections", { method: "POST", body: JSON.stringify({
         action: ref ? "remove" : "add", sourceThread: target.threadId, sourceMessage: target.messageId,

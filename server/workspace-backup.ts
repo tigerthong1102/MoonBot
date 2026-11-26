@@ -61,7 +61,7 @@ const EXCLUSION_NOTES = [
   "Installed dependency folders (node_modules) and symbolic links inside conversation work folders; reinstall or recreate them in the project.",
   "External project folders, CLI login homes, browser session homes, OS keychains, companion devices and other servers.",
   "VM/container disk layers and remote cloud data; durable files inside this workspace are included.",
-  "Private bot configuration drafts and their test questions stay on the original server.",
+  "Private bot drafts, their test questions and paused workflow runs stay on the original server.",
   "Waits bots set up: they end within a week, so ask the bot again after restoring.",
 ];
 const RESTORE_WARNING = "Restoring pauses routines, webhooks and calendar calls, ends every wait, and does not resume pending delegations, queued chat messages or queued runs. Definitions and historical receipts are retained; review before enabling them again.";

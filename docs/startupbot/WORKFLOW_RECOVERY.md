@@ -36,6 +36,12 @@ A step with an approval prompt pauses in its original conversation for up to
 24 hours. A person with edit access can inspect the action and approve or
 cancel. The pause and decision survive a server restart. Continuing requires
 the same bot, conversation and enabled workflow revision, and runs through
-the current tool permissions. Each approval applies to one step. If the server
+the current tool permissions. In a room, the approval card addresses the bot
+that paused in the original room conversation. The reviewer must be able to
+edit that bot and chat with every room member. Each approval applies to one
+step. An action that cannot be shown completely within 8,000 characters, or
+that contains a recognized secret, stops before execution. Portable workspace
+backups omit private workflow run files. Restoring an older backup never
+reactivates its paused runs or approvals. If the server
 stops after claiming an approved action, the chat marks the result as uncertain.
 Reconcile it against the destination before starting a fresh workflow.

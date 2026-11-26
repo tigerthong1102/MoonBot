@@ -59,7 +59,8 @@ export function redownloadedOrgLibraryPath(path: string): boolean {
 }
 
 export function ephemeralWorkspaceTokenPath(path: string): boolean {
-  return /^(?:hook-tokens(?:\/|$)|sessions\.json\.open$)/.test(path);
+  // Checkpoints carry single-use approvals and private resolved inputs. Older archives may still contain them.
+  return /^(?:hook-tokens(?:\/|$)|skill-burger-runs(?:\/|$)|sessions\.json\.open$)/i.test(path);
 }
 
 /** Not a consistent snapshot while the engine holds it open (unflushed WAL), and reloadable from its sources. */

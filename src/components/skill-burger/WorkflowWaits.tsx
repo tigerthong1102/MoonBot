@@ -4,13 +4,16 @@ import { t } from "@/lib/i18n";
 import { api } from "@/state/api";
 import { useStoreDispatch } from "@/state/store-select";
 
-export function WorkflowWaits({ botId, threadId, busy }: { botId: string; threadId: string; busy: boolean }) {
+type WaitOwner = { botId: string; room?: never } | { botId?: never; room: { id: string; members: ReadonlyArray<{ id: string; name: string }> } };
+
+export function WorkflowWaits({ botId, room, threadId, busy }: WaitOwner & { threadId: string; busy: boolean }) {
   const dispatch = useStoreDispatch();
   const [rows, setRows] = useState<WorkflowWait[]>([]);
   const [error, setError] = useState("");
   const [sending, setSending] = useState("");
   const [revision, refresh] = useState(0);
-  const path = `/api/bots/${encodeURIComponent(botId)}/workflow-approvals?threadId=${encodeURIComponent(threadId)}`;
+  const query = `/workflow-approvals?threadId=${encodeURIComponent(threadId)}`;
+  const path = room ? `/api/groups/${encodeURIComponent(room.id)}${query}` : `/api/bots/${encodeURIComponent(botId)}${query}`;
   useEffect(() => {
     const abort = new AbortController();
     const load = async () => {
@@ -26,15 +29,25 @@ export function WorkflowWaits({ botId, threadId, busy }: { botId: string; thread
   const decide = async (row: WorkflowWait, decision: "allow" | "deny") => {
     setSending(row.token); setError("");
     try {
-      await api(path, { method: "POST", body: JSON.stringify({ token: row.token, decision }) });
-      if (decision === "allow") dispatch({ type: "send", botId, threadId, text: t("workflow.resumeMessage", { token: row.token }) });
+      const member = room?.members.find(one => one.id === row.botId);
+      if (room && !member) { refresh(value => value + 1); return; }
+      const target = member?.id ?? botId;
+      if (!target) return;
+      const endpoint = `/api/bots/${encodeURIComponent(target)}${query}`;
+      await api(endpoint, { method: "POST", body: JSON.stringify({ token: row.token, decision }) });
+      if (decision === "allow") {
+        const text = t("workflow.resumeMessage", { token: row.token });
+        if (room && member) dispatch({ type: "sendGroup", groupId: room.id, threadId, text: `@${member.name} ${text}`, mentions: [member.id] });
+        else if (botId) dispatch({ type: "send", botId, threadId, text });
+      }
       refresh(value => value + 1);
     } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
     finally { setSending(""); }
   };
-  if (!rows.length) return null;
+  const visible = room ? rows.filter(row => room.members.some(member => member.id === row.botId)) : rows;
+  if (!visible.length) return null;
   return <section aria-label={t("workflow.waiting")} className="pointer-events-auto mx-auto max-h-64 w-full max-w-xl overflow-auto rounded-xl bg-card p-3 text-sm shadow-sm">
-    {rows.map(row => <div key={row.token} className="space-y-1.5 py-1">
+    {visible.map(row => <div key={row.token} className="space-y-1.5 py-1">
       <strong>{row.name} · {row.step}</strong><p>{row.message}</p>
       {row.action && <details><summary>{t("workflow.action")}</summary><pre className="max-h-32 overflow-auto whitespace-pre-wrap break-all">{row.action}</pre></details>}
       {row.state === "interrupted" || row.state === "unavailable" ? <p role="status">{t(row.state === "interrupted" ? "workflow.interrupted" : "skills.library.unavailable")}</p> : <div className="flex gap-2">

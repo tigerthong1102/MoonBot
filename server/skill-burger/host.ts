@@ -11,7 +11,7 @@ import { createSkillBurgerRoutes, createStandaloneSkillBurgerRoutes, type SkillB
 import type { CallingTurn } from "./turn-host.ts";
 
 interface WorkflowHostDeps {
-  store: Pick<Store, "activePath" | "bots" | "bot" | "taskByThread">;
+  store: Pick<Store, "activePath" | "bots" | "bot" | "taskByThread" | "groupByThread">;
   team: boolean;
   enabled(): boolean;
   sees: SkillBurgerRouteDeps["sees"];
@@ -68,12 +68,22 @@ export function createWorkflowHost(deps: WorkflowHostDeps) {
   function reviewRoutes(approvals: SkillBurgerRuns["approvals"], reviewer: {
     live(id: string): boolean; ownerToken(): string | undefined; localBrowserIdle(): boolean;
   }) {
+    const mayReview = (auth: RequestAuth, threadId: string) => (deps.team || deps.enabled()) && deps.sees(auth, threadId)
+      && (auth.kind === "session" ? !auth.session.token && reviewer.live(auth.session.id) : !deps.team && auth.trust !== "service");
+    // The message route requires chat access to every room bot. A reviewer must additionally edit the originating bot.
+    const roomMembers = (auth: RequestAuth, threadId: string) => {
+      const group = store.groupByThread(threadId);
+      return group && group.memberIds.every(id => ["edit", "chat"].includes(deps.levelOf(auth, id))) ? group : null;
+    };
     return workflowApprovalRoutes({
       approvals,
-      sees: (auth, botId, threadId) => Boolean((deps.team || deps.enabled())
-        && (auth.kind === "session" ? !auth.session.token && reviewer.live(auth.session.id) : !deps.team && auth.trust !== "service")
-        && deps.levelOf(auth, botId) === "edit" && deps.sees(auth, threadId)
-        && (store.bot(botId)?.threadId === threadId || store.taskByThread(botId, threadId))),
+      roomEditors: (auth, groupId, threadId) => {
+        if (!mayReview(auth, threadId)) return null;
+        const group = roomMembers(auth, threadId);
+        return group?.id === groupId ? group.memberIds.filter(id => deps.levelOf(auth, id) === "edit") : null;
+      },
+      sees: (auth, botId, threadId) => Boolean(mayReview(auth, threadId) && deps.levelOf(auth, botId) === "edit"
+        && (store.bot(botId)?.threadId === threadId || store.taskByThread(botId, threadId) || roomMembers(auth, threadId)?.memberIds.includes(botId))),
       human: (auth, req) => auth.kind === "session" || Boolean(auth.companionDevice)
         || hasDesktopOwnerCapability(req, reviewer.ownerToken()) || Boolean(req.headers.origin && reviewer.localBrowserIdle()),
     });

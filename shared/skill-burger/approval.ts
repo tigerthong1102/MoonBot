@@ -1,5 +1,6 @@
 export interface WorkflowWait {
   run: string;
+  botId: string;
   token: string;
   name: string;
   step: string;

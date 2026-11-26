@@ -41,7 +41,7 @@ it("edits adjacent reads and requires team sharing consent before saving the pin
 
 it("sends the pinned continuation only after the review succeeds, and hides actions for uncertain writes", async () => {
   fixture.api.mockReset(); fixture.dispatch.mockClear();
-  const row: WorkflowWait = { run: "run", token: "paused-token", name: "Fixture", step: "Send", action: "send to Alice", message: "Check recipient", state: "pending" };
+  const row: WorkflowWait = { run: "run", botId: "A", token: "paused-token", name: "Fixture", step: "Send", action: "send to Alice", message: "Check recipient", state: "pending" };
   let state: WorkflowWait["state"] = "pending";
   let refuse = true;
   fixture.api.mockImplementation(async (_path: string, opts: RequestInit) => {
@@ -67,5 +67,20 @@ it("sends the pinned continuation only after the review succeeds, and hides acti
     await act(async () => { window.dispatchEvent(new Event("focus")); });
     expect(host.querySelector("button")).toBeNull();
     expect(host.querySelector('[role="status"]')).toBeTruthy();
+  } finally { act(() => root.unmount()); host.remove(); }
+});
+
+it("addresses the originating member and thread when a person approves in a room", async () => {
+  fixture.api.mockReset(); fixture.dispatch.mockClear();
+  const wait: WorkflowWait = { run: "run", botId: "member", token: "pin", name: "report", step: "write", action: "publish", message: "approve?", state: "pending" };
+  fixture.api.mockImplementation(async (_path: string, opts: RequestInit) => opts.method === "POST" ? { ok: true } : { waits: [wait] });
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(WorkflowWaits, { room: { id: "room", members: [{ id: "member", name: "Viv" }] }, threadId: "room-topic", busy: false })));
+    await act(async () => host.querySelector("button")!.click());
+    expect(fixture.api).toHaveBeenCalledWith("/api/groups/room/workflow-approvals?threadId=room-topic", expect.anything());
+    expect(fixture.api).toHaveBeenCalledWith("/api/bots/member/workflow-approvals?threadId=room-topic", { method: "POST", body: JSON.stringify({ token: "pin", decision: "allow" }) });
+    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "sendGroup", groupId: "room", threadId: "room-topic", text: expect.stringMatching(/^@Viv .*pin/), mentions: ["member"] });
   } finally { act(() => root.unmount()); host.remove(); }
 });

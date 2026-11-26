@@ -32,7 +32,7 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
   };
   return {
     peek,
-    approvals(botId: string, threadId: string) {
+    approvals(threadId: string, includesBot: (id: string) => boolean) {
       let names: string[];
       try { names = readdirSync(dir); } catch { return []; }
       return names.flatMap(name => {
@@ -40,7 +40,7 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
         const id = name.slice(0, claimed ? -13 : -5);
         if ((!claimed && !name.endsWith(".json")) || !ID.test(id)) return [];
         const state = read(join(dir, name));
-        if (!state || state.botId !== botId || state.threadId !== threadId || state.waiting.type !== "approval" || state.approvalDecision === "deny"
+        if (!state || state.threadId !== threadId || !includesBot(state.botId) || state.waiting.type !== "approval" || state.approvalDecision === "deny"
           || now() - state.createdAt > RUN_STATE_TTL_MS || state.pauseToken !== id) return [];
         return [{ state, claimed }];
       });

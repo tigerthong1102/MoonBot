@@ -253,3 +253,25 @@ it("checks all read approvals before dispatching any parallel operation", async 
   expect(checked).toEqual(["GMAIL_FETCH_EMAILS", "GMAIL_GET_PROFILE"]);
   expect(h.calls).toEqual([]);
 });
+
+it("refuses hidden action tails, including previously approved checkpoints written by an older version", async () => {
+  const h = await serve({ workflow: { version: 1, args: { payload: {} }, summary: "Review payload", steps: [
+    { kind: "app", id: "send", label: "Send", app: "gmail", tool: "GMAIL_SEND_EMAIL", args: { body: { $arg: "payload" } }, approval: "Check full payload" },
+  ] } });
+  const huge = "x".repeat(9000) + "sensitive-final-destination";
+  expect(await h.post("/api/internal/skill-burgers/run", { name: "review-payload", args: { payload: huge } }))
+    .toMatchObject({ ok: false, error: { step: "send" } });
+  const masked = "Bearer " + "private-fixture-value".repeat(3);
+  expect(await h.post("/api/internal/skill-burgers/run", { name: "review-payload", args: { payload: masked } }))
+    .toMatchObject({ ok: false, error: { step: "send" } });
+  const short = await h.post("/api/internal/skill-burgers/run", { name: "review-payload", args: { payload: "ordinary" } });
+  const token = short.requiresInput.resumeToken;
+  const states = createRunStates(join(h.root, "skill-burger-runs"));
+  const legacy = states.peek(token, h.bot, "t1")!;
+  states.save({ ...legacy, args: { payload: huge }, approvalDecision: "allow" }, true);
+  const approvals = createSkillBurgerRuns({ dataDir: h.root, root: h.root }).approvals;
+  expect(approvals.list(h.bot, "t1")).toMatchObject([{ state: "unavailable", action: "" }]);
+  expect(approvals.decide(token, h.bot, "t1", "allow")).toBe(false);
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: token, response: "prior approval" })).toMatchObject({ ok: false });
+  expect(h.calls).toEqual([]);
+});

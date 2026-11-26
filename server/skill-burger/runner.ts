@@ -167,6 +167,12 @@ function parsed(output: unknown): unknown {
   try { return JSON.parse(trimmed); } catch { return output; }
 }
 
+/** Full effective input that may be presented for a human decision. Hidden or truncated actions are never executable. */
+export function reviewAction(step: WorkflowStep, args: RunState["args"], results: RunState["results"]): string | null {
+  const detail = JSON.stringify({ step: resolve(step, args, results), ...(step.kind === "shell" ? { env: argEnv(args) } : {}) });
+  return detail.length <= 8000 && detail === redactSecretsInText(detail) ? detail : null;
+}
+
 /** Waits for `run` up to `ms`, aborting what it was given when the time is up. */
 async function timed(ms: number, outer: AbortSignal | undefined, run: (signal: AbortSignal) => Promise<ExecResult>): Promise<ExecResult | "timeout"> {
   if (outer?.aborted) return { ok: false, error: "The owning turn was stopped." };
@@ -277,9 +283,12 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
       end(step, { state: caseOf(step) ? "not_taken" : "skipped" });
       continue;
     }
-    if (step.approval && step.id !== approvedStep) return hand(step, "approval", undefined, {
-      prompt: "Stop here and wait for a person to approve this step in the conversation. Do not perform the step yourself.",
-    });
+    if (step.approval) {
+      if (reviewAction(step, args, results) === null) return fail(step, "step_failed", "This action is too large or contains a secret and cannot be reviewed in full. Split it or remove the sensitive input before starting again.", undefined, false);
+      if (step.id !== approvedStep) return hand(step, "approval", undefined, {
+        prompt: "Stop here and wait for a person to approve this step in the conversation. Do not perform the step yourself.",
+      });
+    }
     if (workflow.steps[index + 1]?.parallelWithPrevious) {
       let next = index + 1;
       while (workflow.steps[next]?.parallelWithPrevious) next++;

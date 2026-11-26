@@ -77,6 +77,28 @@ it("recovers an approved step after restarting, restricts the review to its chat
     await request(path, "POST", { token: denied!.token, decision: "deny" }, 200, device);
     expect(await waits()).toEqual([]);
     await request(path, "POST", { token: denied!.token, decision: "allow" }, 409, device);
+    const { bot: other } = await request<{ bot: { id: string } }>("/api/bots", "POST", { name: "Other Fixture" }, 201);
+    const { group } = await request<{ group: { id: string; threadId: string } }>("/api/groups", "POST", {
+      name: "Review Room", memberIds: [bot.id, other.id],
+      setup: { bulletin: "", defaultResponder: { kind: "member", botId: other.id } },
+    }, 201);
+    const roomPath = `/api/groups/${group.id}/workflow-approvals?threadId=${group.threadId}`;
+    const roomWaits = async () => (await request<{ waits: WorkflowWait[] }>(roomPath, "GET", undefined, 200, device)).waits;
+    const roomTurn = async (input: unknown) => {
+      plan(input);
+      await request(`/api/groups/${group.id}/messages`, "POST", { threadId: group.threadId, text: "@Approval Fixture run the saved step", mentions: [bot.id] }, 202);
+      await expect.poll(async () => (await request<{ groups: Array<{ id: string; working?: boolean; busyBotId?: string }> }>("/api/bots")).groups.some(one => one.id === group.id && (one.working || one.busyBotId)), { timeout: 30_000 }).toBe(false);
+    };
+    await roomTurn({ name });
+    await expect.poll(roomWaits, { timeout: 25_000 }).toMatchObject([{ state: "pending", botId: bot.id }]);
+    const [roomPause] = await roomWaits();
+    const roomAnswer = { token: roomPause!.token, decision: "allow" };
+    await request(path, "POST", roomAnswer, 409, device);
+    await request(`/api/bots/${other.id}/workflow-approvals?threadId=${group.threadId}`, "POST", roomAnswer, 409, device);
+    await request(`/api/bots/${bot.id}/workflow-approvals?threadId=${group.threadId}`, "POST", roomAnswer, 200, device);
+    await roomTurn({ resume: roomPause!.token, response: "continue" });
+    await expect.poll(async () => (await request<{ messages: Array<{ tool?: { output?: string } }> }>(`/api/threads/${group.threadId}/messages?limit=100`)).messages.filter(msg => msg.tool?.output?.includes("The Skill Burger ran:") && msg.tool.output.includes("reviewed-output")).length, { timeout: 25_000 }).toBe(1);
+    expect(await roomWaits()).toEqual([]);
   } finally {
     if (restarted) await waitForExit(restarted, { signal: "SIGTERM" });
     await fixture.close();

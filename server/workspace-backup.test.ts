@@ -414,6 +414,44 @@ describe("encrypted full workspace backups", () => {
     expect(readJson(join(source, "webhooks.json")).webhooks[0].secretHash).toBe("a".repeat(64));
   });
 
+  it("omits private workflow checkpoints and strips executable approvals and claims from older archives", async () => {
+    const source = directory(), target = directory();
+    const actor = "skill-burger-runs";
+    const files = ["pause-token.json", "pause-token.json.claimed", "history.json"];
+    mkdirSync(join(source, actor));
+    const decision = JSON.stringify({ approvalDecision: "allow", args: { memo: "private thread" } });
+    for (const name of files) writeFileSync(join(source, actor, name), decision);
+    writeFileSync(join(source, "notes.txt"), "ordinary workspace data");
+    const exported = await createWorkspaceBackup(source, { password: PASSWORD });
+    const clean = await stageWorkspaceBackup(target, exported.path, { password: PASSWORD });
+    const staging = join(target, ".backups", clean.id, "staged");
+    const manifest = readJson(join(staging, "manifest.json"));
+    expect(manifest.entries.filter((e: { path: string }) => e.path.startsWith(actor))).toEqual([]);
+    expect(existsSync(join(staging, "data", actor))).toBe(false);
+    // Reconstitute the format written before the exclusion, including its valid checksum and authenticated encryption.
+    const data = [tarEntry("data", "Directory")];
+    for (const entry of manifest.entries) data.push(entry.type === "directory" ? tarEntry("data/" + entry.path, "Directory") :
+      tarEntry("data/" + entry.path, "File", readFileSync(join(staging, "data", entry.path), "utf8")));
+    manifest.entries.push({ path: actor, type: "directory", size: 0, mode: 0o700 });
+    manifest.summary.directories++;
+    data.push(tarEntry("data/" + actor, "Directory"));
+    for (const file of files) {
+      const path = actor + "/" + file, size = Buffer.byteLength(decision);
+      manifest.entries.push({ path, type: "file", size, mode: 0o600, sha256: createHash("sha256").update(decision).digest("hex") });
+      manifest.summary.bytes += size; manifest.summary.files++;
+      data.push(tarEntry("data/" + path, "File", decision));
+    }
+    const old = encryptedPayload(source, Buffer.concat([...data, tarEntry("manifest.json", "File", JSON.stringify(manifest)), Buffer.alloc(1024)]));
+    const imported = await stageWorkspaceBackup(target, old, { password: PASSWORD });
+    mkdirSync(join(target, actor));
+    writeFileSync(join(target, actor, "existing-token.json"), decision);
+    commitPendingWorkspaceRestore(target, imported.id);
+    expect(applyPendingWorkspaceRestore(target)).toMatchObject({ restored: true });
+    expect(readFileSync(join(target, "notes.txt"), "utf8")).toBe("ordinary workspace data");
+    expect(existsSync(join(target, actor))).toBe(false);
+    expect(readFileSync(join(source, actor, files[0]!), "utf8")).toBe(decision);
+  });
+
   it("never lists a per-turn hook token directory in a backup manifest", async () => {
     const source = directory();
     mkdirSync(join(source, "hook-tokens"), { mode: 0o700 });

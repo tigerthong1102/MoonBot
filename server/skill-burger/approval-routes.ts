@@ -12,14 +12,22 @@ const decisionBody = z.object({
 export function workflowApprovalRoutes(deps: {
   approvals: SkillBurgerRuns["approvals"];
   sees(auth: RequestAuth, botId: string, threadId: string): boolean;
+  roomEditors(auth: RequestAuth, groupId: string, threadId: string): readonly string[] | null;
   human(auth: RequestAuth, req: IncomingMessage): boolean;
 }): RouteHandler {
   return async ({ path, method, req, res, auth, url, readBody, json }) => {
-    const match = /^\/api\/bots\/([\w-]+)\/workflow-approvals$/.exec(path);
+    const match = /^\/api\/(bots|groups)\/([\w-]+)\/workflow-approvals$/.exec(path);
     if (!match) return PASS;
-    const botId = match[1]!;
+    const [, owner, ownerId] = match;
     const threadId = url.searchParams.get("threadId") ?? "";
     res.setHeader("cache-control", "private, no-store");
+    if (owner === "groups") {
+      if (method !== "GET") return json(res, 405, { error: "Use GET." });
+      const editors = deps.roomEditors(auth, ownerId!, threadId);
+      if (!editors?.length) return json(res, 404, { error: "No such conversation." });
+      return json(res, 200, { waits: deps.approvals.listRoom(threadId, editors) });
+    }
+    const botId = ownerId!;
     if (!threadId || !deps.sees(auth, botId, threadId)) return json(res, 404, { error: "No such conversation." });
     if (method === "GET") return json(res, 200, { waits: deps.approvals.list(botId, threadId) });
     if (method !== "POST") return json(res, 405, { error: "Use GET or POST." });

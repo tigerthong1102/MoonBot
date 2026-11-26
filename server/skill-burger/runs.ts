@@ -2,7 +2,6 @@ import { join } from "node:path";
 import { z } from "zod";
 
 import type { WorkflowWait } from "../../shared/skill-burger/approval.ts";
-import { redactSecretsInText } from "../../shared/redact.ts";
 import { RUN_STEP_MARK } from "../../shared/skill-burger/layers.ts";
 import type { WorkflowStep } from "../../shared/skill-burger/format.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
@@ -11,7 +10,7 @@ import { createExecutors, type ExecutorContext } from "./executors.ts";
 import { authorizeWorkflowAction, checkedExecutors, guardedExecutors, type WorkflowGuard } from "./guarded-executors.ts";
 import { createRunHistory } from "./history.ts";
 import { createRunStates } from "./run-state.ts";
-import { argEnv, resolve, resumeRun, startRun, type RunDeps, type RunEnvelope, type StepExecutors, type StepResult } from "./runner.ts";
+import { reviewAction, resumeRun, startRun, type RunDeps, type RunEnvelope, type StepExecutors, type StepResult } from "./runner.ts";
 import { findWorkflowSkill, replaceWorkflowSkill } from "./store.ts";
 import { burgerTurn, type BurgerHostDeps, type CallingTurn } from "./turn-host.ts";
 
@@ -179,21 +178,29 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   const availableRevision = (botId: string, name: string, sha256: string) => findWorkflowSkill(
     botId, name, deps.root, deps.host?.assignedSkills?.(botId), deps.host?.sharedSkillsEnabled?.(),
   )?.sha256 === sha256;
+  function listWaits(threadId: string, includesBot: (id: string) => boolean): WorkflowWait[] {
+    return states.approvals(threadId, includesBot).flatMap(({ state, claimed }) => {
+      const step = state.workflow.steps.find(one => one.id === state.waiting.step);
+      if (!step?.approval || !state.pauseToken || claims.has(state.pauseToken)) return [];
+      const action = availableRevision(state.botId, state.name, state.sha256) ? reviewAction(step, state.args, state.results) : null;
+      return [{ run: state.id, token: state.pauseToken, botId: state.botId, name: state.name, step: step.label,
+        message: action ? step.approval : "", action: action ?? "",
+        state: claimed ? "interrupted" : !action ? "unavailable" : state.approvalDecision === "allow" ? "approved" : "pending" }];
+    });
+  }
   const approvals = {
-    list(botId: string, threadId: string): WorkflowWait[] {
-      return states.approvals(botId, threadId).flatMap(({ state, claimed }) => {
-        const step = state.workflow.steps.find(one => one.id === state.waiting.step);
-        if (!step?.approval || !state.pauseToken || claims.has(state.pauseToken)) return [];
-        const available = availableRevision(botId, state.name, state.sha256);
-        const detail = available ? { step: resolve(step, state.args, state.results), ...(step.kind === "shell" ? { env: argEnv(state.args) } : {}) } : undefined;
-        return [{ run: state.id, token: state.pauseToken, name: state.name, step: step.label, message: available ? step.approval : "",
-          action: detail ? redactSecretsInText(JSON.stringify(detail)).slice(0, 8000) : "",
-          state: claimed ? "interrupted" : !available ? "unavailable" : state.approvalDecision === "allow" ? "approved" : "pending" }];
-      });
+    list: (botId: string, threadId: string) => listWaits(threadId, id => id === botId),
+    listRoom(threadId: string, botIds: readonly string[]) {
+      const visible = new Set(botIds);
+      return listWaits(threadId, id => visible.has(id));
     },
     decide(token: string, botId: string, threadId: string, decision: "allow" | "deny") {
       const paused = states.peek(token, botId, threadId);
-      if (!paused || (decision === "allow" && !availableRevision(botId, paused.name, paused.sha256))) return false;
+      if (!paused) return false;
+      if (decision === "allow") {
+        const step = paused.workflow.steps.find(one => one.id === paused.waiting.step);
+        if (!step?.approval || !availableRevision(botId, paused.name, paused.sha256) || !reviewAction(step, paused.args, paused.results)) return false;
+      }
       const state = states.decide(token, botId, threadId, decision);
       if (!state) return false;
       if (!state.approvalDecision && decision === "deny") {

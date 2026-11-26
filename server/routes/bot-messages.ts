@@ -57,7 +57,7 @@ type CardAnswer = { botId: string; botName?: string; threadId: string; requestId
 type Behavior = "allow" | "deny" | "answer";
 
 export interface BotMessageRouteDeps {
-  knowledge?: Pick<KnowledgeAnswerDeps, "accessible" | "writer" | "contextChanged">;
+  knowledge?: Pick<KnowledgeAnswerDeps, "accessible" | "unavailable" | "writer" | "contextChanged">;
   store: Pick<Store,
     | "activeLeaf" | "activePath" | "appendMessage" | "bot" | "botByThread" | "bots" | "groupByThread" | "messagesFor"
     | "patchMessage" | "patchTask" | "projectBotForTask" | "setActiveLeaf" | "setTaskAskedAt" | "taskByThread" | "tasks">;

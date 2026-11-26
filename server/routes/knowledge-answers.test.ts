@@ -25,20 +25,21 @@ function fixture() {
   const generate = vi.fn<SideJobText["generateText"]>().mockResolvedValue(response);
   const contextChanged = vi.fn<KnowledgeAnswerDeps["contextChanged"]>();
   const writer = vi.fn<KnowledgeAnswerDeps["writer"]>(() => ({ via: "engine", selection: { instanceId: "codex", model: "selected" }, generateText: generate }));
-  const route = createKnowledgeAnswers({ store, accessible, busy: () => false, refusal: () => null, sender: () => undefined,
+  const unavailable = vi.fn<KnowledgeAnswerDeps["unavailable"]>().mockReturnValue(null);
+  const route = createKnowledgeAnswers({ store, accessible, unavailable, busy: () => false, refusal: () => null, sender: () => undefined,
     contextChanged, writer });
   function send(auth: RequestAuth, thread: number, id = randomUUID()) {
     const req = new IncomingMessage(new Socket()), res = new ServerResponse(req);
     const path = "/api/bots/" + (thread === 2 ? otherBot.id : bot.id) + "/knowledge-answers";
-    let status: number | undefined;
+    let status: number | undefined, body: unknown;
     const done = route({ auth, req, res, url: new URL(path, "http://localhost"), path, method: "POST",
       readBody: async () => ({ question: "Question", threadId: threads[thread], sendId: id,
         evidence: [{ path: "guide", digest: "a".repeat(64), start: 0, page: 1, paragraph: 1, text: "Source" }] }),
-      json: (_res, code) => { status = code; },
+      json: (_res, code, value) => { status = code; body = value; },
     }).then(() => status);
-    return { done, disconnect: () => res.emit("close") };
+    return { done, body: () => body, disconnect: () => res.emit("close") };
   }
-  return { send, accessible, generate, writer, contextChanged };
+  return { send, accessible, generate, writer, contextChanged, unavailable };
 }
 
 it("admits one source request per person across sessions, bots and threads, and frees it on every exit", async () => {
@@ -105,4 +106,23 @@ it.each(["instanceId", "model", "effort", "variant"] as const)("refuses a change
   expect(contextChanged).toHaveBeenCalledTimes(1);
   expect(await send(reader, 0, id).done).toBe(200);
   expect(contextChanged).toHaveBeenCalledTimes(1);
+});
+
+it.each(["bot_held", "bot_paused", "source_maintenance"] as const)("keeps %s distinguishable from model incompatibility at queue entry and dispatch", async code => {
+  const { send, generate, unavailable, writer } = fixture(), reader = member("viewer", "reader@example.test");
+  unavailable.mockReturnValue(code);
+  const refused = send(reader, 0);
+  expect(await refused.done).toBe(409);
+  expect(refused.body()).toMatchObject({ code });
+  expect(writer).not.toHaveBeenCalled();
+  unavailable.mockReturnValueOnce(null);
+  generate.mockImplementationOnce(async (_prompt, opts) => { opts!.started!(); return response; });
+  const queued = send(reader, 0);
+  expect(await queued.done).toBe(409);
+  expect(queued.body()).toMatchObject({ code });
+  unavailable.mockReturnValue(null);
+  writer.mockReturnValueOnce(null);
+  const unsupported = send(reader, 0);
+  expect(await unsupported.done).toBe(422);
+  expect(unsupported.body()).toMatchObject({ code: "source_model_unavailable" });
 });

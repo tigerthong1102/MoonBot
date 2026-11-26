@@ -46,7 +46,10 @@ it("answers from document data with a tool-free model, canonical citations and o
     const old = input.question + "\n\nUse the following quoted sources.\n\n[1](" + sourceLink(doc.digest, doc.start, doc.path) + ") · Guide, p. 3\n" + doc.text;
     await api("/api/bots/" + bot.id + "/messages", "POST", { threadId: bot.threadId, text: old }, 409);
     expect((await rows()).some(m => m.text === old)).toBe(false);
-    await api(path, "POST", { ...input, threadId: "unrelated" }, 404);
+    expect(await api(path, "POST", { ...input, threadId: "unrelated" }, 404)).toMatchObject({ code: "source_conversation_missing" });
+    await api("/api/paused", "POST", { kind: "bot", id: bot.id, paused: true });
+    expect(await api(path, "POST", input, 409)).toMatchObject({ code: "bot_held" });
+    await api("/api/paused", "POST", { kind: "bot", id: bot.id, paused: false });
     await api(path, "POST", { ...input, widgetAction: { response: "allow" } }, 400);
     await api(path, "POST", input);
     const first = provider();

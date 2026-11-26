@@ -23,7 +23,7 @@ it("posts only explicitly displayed evidence, keeps a stable retry on older host
   vi.mocked(currentLibrary).mockResolvedValue(index);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("fetch", vi.fn(async () => Response.json({})));
-  vi.mocked(api).mockRejectedValueOnce(new Error("404")).mockResolvedValueOnce({}).mockResolvedValueOnce({ ok: true });
+  vi.mocked(api).mockRejectedValueOnce(new ApiError("not found", 404, { error: "not found" })).mockResolvedValueOnce({}).mockResolvedValueOnce({ ok: true });
   try {
     await act(async () => { root.render(createElement(SourceLibrary, { bot: { id: "bot", threadId: "thread" } as Bot, open: true, close })); });
     const input = host.querySelector("input[type=search]") as HTMLInputElement;
@@ -33,7 +33,7 @@ it("posts only explicitly displayed evidence, keeps a stable retry on older host
     });
     const ask = () => Array.from(host.querySelectorAll("button")).find(b => b.textContent === t("knowledge.ask", { count: 1 }))!;
     await act(async () => ask().click());
-    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t("knowledge.sendError"));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t("knowledge.answerMissing"));
     expect(close).not.toHaveBeenCalled();
     await act(async () => ask().click());
     expect(close).not.toHaveBeenCalled();
@@ -75,7 +75,13 @@ it("shows the appropriate recovery for each source answer refusal without exposi
     const ask = [...host.querySelectorAll("button")].find(b => b.textContent === t("knowledge.ask", { count: 1 }))!;
     for (const [error, key] of [
       [new ApiError("sensitive", 409), "knowledge.answerBusy"], [new ApiError("sensitive", 429), "knowledge.answerBusy"],
-      [new ApiError("sensitive", 422), "knowledge.answerModel"], [new ApiError("sensitive", 403), "knowledge.answerAccess"],
+      [new ApiError("sensitive", 422, { code: "source_model_unavailable" }), "knowledge.answerModel"],
+      [new ApiError("sensitive", 422), "knowledge.answerReadiness"],
+      [new ApiError("sensitive", 404, { code: "source_conversation_missing" }), "knowledge.answerAccess"],
+      [new ApiError("sensitive", 409, { code: "bot_held" }), "knowledge.answerHeld"],
+      [new ApiError("sensitive", 409, { code: "bot_paused" }), "knowledge.answerPlanPaused"],
+      [new ApiError("sensitive", 409, { code: "source_maintenance" }), "knowledge.answerMaintenance"], [new ApiError("sensitive", 403), "knowledge.answerAccess"],
+      [new ApiError("forbidden: this session lacks the admin scope", 403), "knowledge.answerMissing"],
       [new ApiError("sensitive", 409, { code: "spend_cap" }), "knowledge.answerLimit"],
       [new ApiError("sensitive", 409, { code: "moved" }), "knowledge.answerMoved"],
       [new TypeError("sensitive"), "knowledge.answerNetwork"], [new DOMException("sensitive", "TimeoutError"), "knowledge.answerNetwork"],

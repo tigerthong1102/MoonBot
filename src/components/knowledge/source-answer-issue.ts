@@ -1,16 +1,29 @@
+import { BOT_HELD_CODE, BOT_PAUSED_CODE } from "../../../shared/bot-limit";
+import { lacksAdminScope } from "@/lib/admin-scope";
 import { ApiError } from "@/state/api";
 
 export type SourceAnswerIssue = "knowledge.answerAccess" | "knowledge.answerChanged" | "knowledge.answerNetwork" |
-  "knowledge.answerLimit" | "knowledge.answerMoved" | "knowledge.answerBusy" | "knowledge.answerModel" | "knowledge.sendError";
+  "knowledge.answerLimit" | "knowledge.answerMoved" | "knowledge.answerBusy" | "knowledge.answerModel" | "knowledge.answerMissing" |
+  "knowledge.answerHeld" | "knowledge.answerPlanPaused" | "knowledge.answerMaintenance" | "knowledge.answerReadiness" | "knowledge.sendError";
 
 export function sourceAnswerIssue(error: unknown): SourceAnswerIssue {
   if (error instanceof ApiError) {
-    if (error.status === 409 && error.body?.code === "spend_cap") return "knowledge.answerLimit";
-    if (error.status === 409 && error.body?.code === "moved") return "knowledge.answerMoved";
+    const code = error.body?.code;
     switch (error.status) {
-      case 401: case 403: case 404: return "knowledge.answerAccess";
-      case 409: case 429: return "knowledge.answerBusy";
-      case 422: return "knowledge.answerModel";
+      case 401: return "knowledge.answerAccess";
+      case 403: return lacksAdminScope(error) ? "knowledge.answerMissing" : "knowledge.answerAccess";
+      case 404: return code === "source_conversation_missing" ? "knowledge.answerAccess" : "knowledge.answerMissing";
+      case 409:
+        switch (code) {
+          case "spend_cap": return "knowledge.answerLimit";
+          case "moved": return "knowledge.answerMoved";
+          case BOT_HELD_CODE: return "knowledge.answerHeld";
+          case BOT_PAUSED_CODE: return "knowledge.answerPlanPaused";
+          case "source_maintenance": return "knowledge.answerMaintenance";
+          default: return "knowledge.answerBusy";
+        }
+      case 429: return "knowledge.answerBusy";
+      case 422: return code === "source_model_unavailable" ? "knowledge.answerModel" : "knowledge.answerReadiness";
       case 408: case 503: case 504: return "knowledge.answerNetwork";
     }
   }

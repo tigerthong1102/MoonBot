@@ -82,6 +82,13 @@ export type AttachmentOriginals = Readonly<Record<string, string>>;
 const originalOf = (originals: AttachmentOriginals | undefined, path: string) => originals && Object.hasOwn(originals, path) ? originals[path] : undefined;
 const NO_GENERATED_ATTACHMENTS: readonly MessageAttachmentEntry[] = [];
 
+export function replyDisplayFiles(text: string, attachments: readonly MessageAttachmentEntry[] | undefined, scanText: boolean) {
+  const attached = splitMessageAttachments(attachments);
+  const linkedFiles = scanText ? [...attached.files, ...collectMessageFiles(text, [...attached.images, ...attached.files.map(file => file.path)])] : [];
+  const group = scanText && text.trim() ? replyAttachmentGroup(text, attachments) : null;
+  return { attached, linkedFiles, group };
+}
+
 export function splitMessageAttachments(attachments: readonly MessageAttachmentEntry[] = NO_GENERATED_ATTACHMENTS): { images: string[]; files: GalleryFile[]; originals: AttachmentOriginals } {
   const images: string[] = [];
   const files: GalleryFile[] = [];

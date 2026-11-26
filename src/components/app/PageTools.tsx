@@ -1,3 +1,4 @@
+import { shareableReportOrigin } from "@/lib/report-link";
 // A bot's page in the chat, artifact-style: its version stepper, Point, Share, Open in new tab and Full screen.
 import { createContext, useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -65,24 +66,21 @@ type Share =
 export function usePageShare(threadId: string, messageId: string, published: PublishedPageCard | undefined, released = false) {
   const [share, setShare] = useState<Share>({ kind: "idle" });
   const [again, setAgain] = useState(false);
-  const [reportUrl, setReportUrl] = useState("");
+  const [publicOrigin, setPublicOrigin] = useState("");
   const [internalLive, setInternalLive] = useState(released);
   useEffect(() => setInternalLive(released), [released]);
   useEffect(() => {
-    if (!internalLive) { setReportUrl(""); return; }
-    let active = true;
-    const base = window.location.origin;
-    const url = (host: string) => {
-      const link = new URL("/", host);
-      link.searchParams.set("report", threadId + "/" + messageId);
-      return link.href;
-    };
-    setReportUrl(url(base));
-    if (window.location.protocol !== "https:") void api<{ publicUrl?: string }>("/api/settings/custom-domain", { background: true }).then(settings => {
-      if (active && settings.publicUrl) setReportUrl(url(settings.publicUrl));
+    if (!internalLive || shareableReportOrigin(window.location.origin)) return;
+    const controller = new AbortController();
+    void api<{ publicUrl?: string }>("/api/settings/custom-domain", { background: true, signal: controller.signal }).then(settings => {
+      if (!controller.signal.aborted) setPublicOrigin(shareableReportOrigin(settings.publicUrl));
     }).catch(() => {});
-    return () => { active = false; };
-  }, [internalLive, threadId, messageId]);
+    return () => { controller.abort(); setPublicOrigin(""); };
+  }, [internalLive]);
+  const reportPath = "/?" + new URLSearchParams({ report: threadId + "/" + messageId });
+  const previewUrl = internalLive ? new URL(reportPath, window.location.href).href : "";
+  const origin = shareableReportOrigin(window.location.origin) || publicOrigin;
+  const reportUrl = internalLive && origin ? new URL(reportPath, origin).href : "";
   const internal = async (rev: number | null) => {
     setShare({ kind: "busy" });
     try {
@@ -105,7 +103,7 @@ export function usePageShare(threadId: string, messageId: string, published: Pub
     setShare(await unpublishPage(live.pageId) ? { kind: "idle" } : { kind: "unpublish-failed" });
     setAgain(false);
   };
-  return { share, internal, reportUrl, threadId, messageId, url: live?.url, again, unpublished: published?.state === "unpublished", run, unpublish };
+  return { share, internal, reportUrl, previewUrl, threadId, messageId, url: live?.url, again, unpublished: published?.state === "unpublished", run, unpublish };
 }
 
 /** On a phone the OS share sheet (Save to Files, Share); elsewhere a download, which Electron turns into its save dialog. */
@@ -299,12 +297,12 @@ export function PageNotes({ version, point, share, save, room, className }: Pick
   const internalCopy = useCopyFeedback(share.reportUrl ?? "");
   const state = share.share;
   const rows: ReactNode[] = [];
-  if (share.reportUrl) rows.push(<div key="internal" className="flex flex-wrap items-center gap-2 rounded-lg bg-inset p-2">
-    <a href={share.reportUrl} target="_blank" rel="noopener noreferrer" className="text-accent-text hover:underline">{t("knowledge.reportOpen")}</a>
-    <button type="button" className={cn(ASK_CHIP, ASK_CHIP_IDLE)} onClick={internalCopy.copy}>
+  if (share.previewUrl) rows.push(<div key="internal" className="flex flex-wrap items-center gap-2 rounded-lg bg-inset p-2">
+    <a href={share.previewUrl} target="_blank" rel="noopener noreferrer" className="text-accent-text hover:underline">{t("knowledge.reportOpen")}</a>
+    <button type="button" className={cn(ASK_CHIP, ASK_CHIP_IDLE)} disabled={!share.reportUrl} onClick={internalCopy.copy}>
       <Copy size={14}/>{t(internalCopy.state === "copied" ? "chat.page.copied" : "chat.page.copyLink")}</button>
     <button type="button" className={cn(ASK_CHIP, ASK_CHIP_IDLE)} disabled={state.kind === "busy"} onClick={() => void share.internal(null)}>{t("chat.page.unpublish")}</button>
-    <InternalReportSections threadId={share.threadId} messageId={share.messageId} url={share.reportUrl} />
+    <InternalReportSections threadId={share.threadId} messageId={share.messageId} url={share.reportUrl || share.previewUrl} />
     {internalCopy.state === "failed" && <span role="status" className="break-all">{share.reportUrl}</span>}
   </div>);
   if (share.url) {

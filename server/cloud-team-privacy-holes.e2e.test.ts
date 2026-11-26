@@ -112,6 +112,22 @@ afterAll(async () => {
   await fx?.close();
 });
 
+it("keeps a member's saved workflow private and requires explicit sharing consent", async () => {
+  const workflow = { version: 1, summary: "Plover42 private fixture", args: {}, steps: [{ id: "s1", kind: "shell", label: "Fixture", run: "printf fixture" }] };
+  const body = { botId: ruiMaus.id, name: "private-fixture-workflow", workflow };
+  expect((await team.as(rui, "POST", "/api/skill-burgers", body)).status).toBe(403);
+  const saved = await team.as(rui, "POST", "/api/skill-burgers", { ...body, shareConsent: true });
+  expect(saved.status, JSON.stringify(saved.body)).toBe(201);
+  expect(JSON.stringify((await team.as(rui, "GET", "/api/skill-burgers")).body)).toContain("private-fixture-workflow");
+  for (const token of [owner, admin, marta]) {
+    const list = await team.as(token, "GET", "/api/skill-burgers");
+    expect(list.status).toBe(200);
+    expect(JSON.stringify(list.body)).not.toContain("private-fixture-workflow");
+    expect((await team.as(token, "GET", `/api/skill-burgers/private-fixture-workflow?botId=${ruiMaus.id}`)).status).toBe(404);
+    expect((await team.as(token, "GET", `/api/skill-burgers/private-fixture-workflow?runner=${ruiMaus.id}`)).status).toBe(404);
+  }
+}, hostTimeout(60_000));
+
 it("usage tells an Admin and the Owner how much Rui used, never on what", async () => {
   for (const [who, token] of [["an Admin", admin], ["the Owner", owner]] as const) {
     for (const groupBy of ["bot", "model", "user", "day", "engine", "routine", "department"]) {

@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -7,6 +7,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import type { RunMessage } from "../../shared/skill-burger/layers.ts";
 import { json, readBody } from "../harness/http.ts";
+import { setLibrarySkillEveryBot } from "../skill-library.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { dispatchRoutes } from "../routes/table.ts";
 import { createSkillBurgerRoutes, type SkillBurgerRouteDeps } from "./routes.ts";
@@ -26,6 +27,7 @@ const thread: RunMessage[] = [
 ];
 
 async function serve(extra: Partial<SkillBurgerRouteDeps> = {}, scopes: readonly string[] = ["admin"]) {
+  let currentScopes = scopes;
   const root = mkdtempSync(join(tmpdir(), "burger-routes-"));
   const bot = `route-burger-${Math.random().toString(36).slice(2, 10)}`;
   const routes = [createSkillBurgerRoutes({
@@ -38,7 +40,7 @@ async function serve(extra: Partial<SkillBurgerRouteDeps> = {}, scopes: readonly
   })];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
-    const auth = { kind: scopes.includes("admin") ? "loopback" : "session", scopes } as unknown as RequestAuth;
+    const auth = { kind: currentScopes.includes("admin") ? "loopback" : "session", scopes: currentScopes } as unknown as RequestAuth;
     if (!await dispatchRoutes(routes, { req, res, url, path: url.pathname, method: req.method ?? "GET", auth, json, readBody })) json(res, 404, {});
   });
   servers.push(server);
@@ -48,7 +50,7 @@ async function serve(extra: Partial<SkillBurgerRouteDeps> = {}, scopes: readonly
     const res = await fetch(`${base}${path}`, init);
     return { status: res.status, body: await res.json() as Record<string, any> };
   };
-  return { api, bot };
+  return { api, bot, root, as: (next: readonly string[]) => { currentScopes = next; } };
 }
 
 const send = (method: string, body: unknown): RequestInit => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -58,6 +60,7 @@ it("does not read conversations or saved workflows when the installation disable
   const messages = vi.fn(() => thread);
   const { api, bot } = await serve({ available: () => false, messages });
   expect((await api("/api/skill-burgers")).status).toBe(404);
+  expect((await api("/api/skill-burger-draft", send("POST", { botId: bot, threadId: "t1" }))).status).toBe(404);
   expect((await api("/api/skill-burgers", send("POST", { botId: bot, threadId: "t1" }))).status).toBe(404);
   expect(messages).not.toHaveBeenCalled();
 });
@@ -113,4 +116,88 @@ it("lets a Team member save and remove a burger on a bot they can edit, and keep
   expect((await api(`/api/skill-burgers/${name}?botId=${bot}`)).status).toBe(404);
   access = "edit";
   expect((await api(`/api/skill-burgers/${name}?botId=${bot}`, { method: "DELETE" })).status).toBe(200);
+});
+
+it("shows workflow history only for conversations the viewer can read", async () => {
+  const history = { list: vi.fn(() => [
+    { run: "visible", name: "workflow", botId: "visible-bot", threadId: "t1", startedAt: 1, at: 1, status: "ok" as const, steps: [] },
+    { run: "private", name: "workflow", botId: "visible-bot", threadId: "t2", startedAt: 1, at: 1, status: "ok" as const, steps: [] },
+  ]) };
+  const { api } = await serve({ history, levelOf: () => "view" }, ["client"]);
+  const result = await api("/api/skill-burgers/workflow/runs");
+  expect(result.status).toBe(200);
+  expect(result.body.runs.map((entry: { run: string }) => entry.run)).toEqual(["visible"]);
+});
+
+it("does not let an admin bypass a private bot's access level", async () => {
+  let level: "none" | "edit" = "edit";
+  const h = await serve({ levelOf: () => level });
+  const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
+  const name = saved.body.skill.name as string;
+  level = "none";
+  expect(await names(h.api)).toEqual([]);
+  expect((await h.api(`/api/skill-burgers/${name}?botId=${h.bot}`)).status).toBe(404);
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(403);
+  expect((await h.api(`/api/skill-burgers/${name}?botId=${h.bot}`, { method: "DELETE" })).status).toBe(403);
+});
+
+it("requires explicit consent before saving or sharing conversation-derived workflows on a team", async () => {
+  const h = await serve({ requiresShareConsent: () => true, levelOf: () => "edit" });
+  const body = { botId: h.bot, threadId: "t1" };
+  expect((await h.api("/api/skill-burgers", send("POST", body))).status).toBe(403);
+  const saved = await h.api("/api/skill-burgers", send("POST", { ...body, shareConsent: true }));
+  expect(saved.status).toBe(201);
+  const name = saved.body.skill.name as string;
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(403);
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true, shareConsent: true }))).status).toBe(200);
+});
+
+it("does not let an admin move a shared workflow into a private bot they cannot edit", async () => {
+  let level: "none" | "edit" = "edit";
+  const h = await serve({ levelOf: () => level });
+  const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
+  const name = saved.body.skill.name as string;
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(200);
+  level = "none";
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { everyChat: false }))).status).toBe(403);
+});
+
+it("does not reveal a private origin bot when a workflow is shared with a visible bot", async () => {
+  let hidden = "";
+  const h = await serve({ botIds: () => [hidden, "visible-bot"], levelOf: (auth, botId) => auth.scopes.includes("admin") ? "edit" : botId === hidden ? "none" : "view" });
+  hidden = h.bot;
+  const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
+  const name = saved.body.skill.name as string;
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { botId: h.bot, everyChat: true }))).status).toBe(200);
+  h.as(["client"]);
+  const list = await h.api("/api/skill-burgers");
+  expect(list.body.skills).toHaveLength(1);
+  expect(list.body.skills[0]).not.toHaveProperty("botId");
+});
+
+it("does not expose a shared workflow to a member whose visible bot cannot use it", async () => {
+  let assigned: string[] = [];
+  const h = await serve({ levelOf: (auth) => auth.scopes.includes("admin") ? "edit" : "view", assignedSkills: () => assigned });
+  const saved = await h.api("/api/skill-burgers", send("POST", { botId: h.bot, threadId: "t1" }));
+  const name = saved.body.skill.name as string;
+  expect((await h.api(`/api/skill-burgers/${name}`, send("PATCH", { everyChat: true, botId: h.bot }))).status).toBe(200);
+  setLibrarySkillEveryBot(name, false, h.root);
+  h.as(["client"]);
+  expect(await names(h.api)).toEqual([]);
+  expect((await h.api(`/api/skill-burgers/${name}`)).status).toBe(404);
+  expect((await h.api(`/api/skill-burgers/${name}?runner=${h.bot}`)).status).toBe(404);
+  assigned = [name];
+  expect(await names(h.api)).toEqual([[name, true]]);
+  expect((await h.api(`/api/skill-burgers/${name}`)).status).toBe(200);
+  expect((await h.api(`/api/skill-burgers/${name}?runner=${h.bot}`)).status).toBe(200);
+});
+
+it("resolves workflow teammates in the requesting member's context", async () => {
+  const messages = JSON.parse(readFileSync(new URL("../../shared/skill-burger/fixtures/qa-delegation-run.json", import.meta.url), "utf8")) as RunMessage[];
+  const teammate = vi.fn((_auth: RequestAuth, name: string) => ({ name }));
+  const { api, bot } = await serve({ levelOf: () => "edit", messages: () => messages, teammate }, ["client"]);
+  const draft = await api("/api/skill-burger-draft", send("POST", { botId: bot, threadId: "t1" }));
+  expect(draft.status).toBe(200);
+  expect(teammate).toHaveBeenCalled();
+  expect(teammate.mock.calls.every(([auth]) => auth.scopes.includes("client") && !auth.scopes.includes("admin"))).toBe(true);
 });

@@ -44,6 +44,13 @@ async function everyTurn(conversation: AgentsConversation, extra: Record<string,
 }
 
 describe("one conversation's agents tools", () => {
+  it("exposes saved-workflow tools consistently for every turn when workflows are available", async () => {
+    const turns = await everyTurn({ ...CHAT, host: { ...HOST, workflowsAvailable: true } });
+    for (const { wire } of turns) {
+      const names = (JSON.parse(wire) as { tools: Array<{ name: string }> }).tools.map((tool) => tool.name);
+      expect(names).toEqual(expect.arrayContaining(["run_workflow", "workflow_edit"]));
+    }
+  });
   for (const [name, conversation] of [["a direct chat", CHAT], ["a room", ROOM]] as const) {
     for (const bridged of [false, true]) {
       it(`lists ${name} the same tools on every kind of turn, byte for byte${bridged ? ", with the tool bridge on" : ""}`, async () => {

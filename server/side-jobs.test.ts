@@ -677,3 +677,19 @@ it("pins instruction tests to the bot's allowed model, checking spend before eve
   state.bots.get("pi")!.modelSelection.model = "selected";
   expect(jobs.instructionTest("pi", { instanceId: "pi", model: "selected" })).toBeNull();
 });
+
+it("uses only isolated source-capable models and charges the person and conversation that asked", async () => {
+  const { jobs, state, codex, acp } = setup({ modelAllowed: ({ model }) => model === "allowed" });
+  const selection = { instanceId: "codex", model: "allowed" }, person = { kind: "user" as const, label: "Reader" };
+  for (const instanceId of ["pi", "grok"]) expect(jobs.sourceAnswer(instanceId, { ...selection, instanceId }, "thread", person)).toBeNull();
+  expect(acp.calls).toHaveLength(0);
+  expect(jobs.sourceAnswer("codex", { ...selection, model: "disabled" }, "thread", person)).toBeNull();
+  const writer = jobs.sourceAnswer("codex", selection, "thread", person)!;
+  await writer.generateText("information-only evidence");
+  expect(codex.calls[0]?.options).toMatchObject({ model: "allowed", requireIsolatedText: true });
+  expect(state.booked[0]).toMatchObject({ row: { botId: "codex", threadId: expect.stringMatching(/^source-answer-/), trigger: person }, notificationThreadId: "thread" });
+  state.overBudget = true;
+  expect(() => codex.calls[0]?.options?.beforeRequest?.()).toThrow(/spend limit/);
+  await expect(writer.generateText("next question")).rejects.toThrow(/spend limit/);
+  expect(codex.calls).toHaveLength(1);
+});

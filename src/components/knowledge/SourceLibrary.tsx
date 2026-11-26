@@ -3,16 +3,18 @@ import { citationLocation } from "./citation";
 import { SourcePassage } from "./SourcePassage";
 import { cloudFolders, currentLibrary, onSourceSync, readSource, readWatch, scanSource, setSource as saveSource, type FolderSource } from "./source-sync";
 import { Select } from "../Select";
-import { libraryKey, readLibrary, sourceLink } from "./source-cache";
+import { libraryKey, readLibrary } from "./source-cache";
 import { t } from "@/lib/i18n";
-import { useStore, type Bot } from "@/state/store";
+import type { Bot } from "@/state/store";
+import { api } from "@/state/api";
+import { randomUuid } from "@/lib/random-uuid";
 import { findPassages, indexSources, scanFolder, type Directory, type Index, type SourceFile } from "./source-index";
 
 const issueLabel = { signedOut: "files.signedOut", offline: "files.offline", missing: "files.status.missing", folder: "files.status.problem" } as const;
 const empty = (): Index => ({ docs: new Map(), changes: [] });
 
 export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: boolean; close(): void }) {
-  const { dispatch } = useStore();
+  const submission = useRef<{ payload: string; sendId: string } | null>(null);
   const [index, setIndex] = useState<Index>(empty);
   const current = useRef(index);
   const key = useRef<string | null>(null);
@@ -110,14 +112,34 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
   const hits = useMemo(() => findPassages(index, search), [index, search]);
   const shown = source ? index.docs.get(source.path) : null;
   const location = (hit: typeof hits[number]) => citationLocation(hit.path, hit.passage);
-  function ask() {
-    if (sending || !hits.length) return;
+  async function ask() {
+    if (sending || !hits.length || !query.trim()) return;
     setSending(true); setSendFailed(false);
-    const citations = hits.slice(0, 3).map((hit, i) => `[${i + 1}](${sourceLink(index.docs.get(hit.path)!.digest, hit.passage.start, hit.path)}) · ${location(hit)}\n${hit.passage.text}`).join("\n\n");
-    dispatch({ type: "send", botId: bot.id, threadId: bot.threadId,
-      text: query.trim() + "\n\n" + t("knowledge.instructions") + "\n\n" + citations,
-      onAccepted: () => { setSending(false); close(); },
-      onError: () => { setSending(false); setSendFailed(true); } });
+    try {
+      const scope = await libraryKey(bot.threadId);
+      const fresh = scope && scope === key.current ? await currentLibrary(scope) : null;
+      if (!fresh || !alive.current || scope !== await libraryKey(bot.threadId)) throw new Error();
+      const selected = findPassages(fresh, query).slice(0, 3);
+      const displayed = hits.slice(0, 3);
+      if (!selected.length || selected.length !== displayed.length || selected.some((hit, i) =>
+        hit.path !== displayed[i]?.path || hit.passage.start !== displayed[i]?.passage.start || fresh.docs.get(hit.path)?.digest !== index.docs.get(hit.path)?.digest)) {
+        current.current = fresh; setIndex(fresh); throw new Error();
+      }
+      const evidence = selected.map(({ path, passage }) => ({
+        path, digest: fresh.docs.get(path)!.digest, start: passage.start, page: passage.page,
+        paragraph: passage.paragraph, text: passage.text,
+      }));
+      const payload = JSON.stringify({ threadId: bot.threadId, question: query.trim(), evidence });
+      if (submission.current?.payload !== payload) submission.current = { payload, sendId: randomUuid() };
+      const response = await api<{ ok?: boolean }>(`/api/bots/${encodeURIComponent(bot.id)}/knowledge-answers`, {
+        method: "POST", body: JSON.stringify({ threadId: bot.threadId, question: query.trim(), evidence, sendId: submission.current.sendId }),
+        timeoutMs: 75_000,
+      });
+      if (response?.ok !== true) throw new Error();
+      submission.current = null;
+      if (alive.current) close();
+    } catch { if (alive.current) setSendFailed(true); }
+    finally { if (alive.current) setSending(false); }
   }
   if (!open) return null;
   return <dialog ref={node => { if (node && !node.open) node.showModal(); }} onCancel={close} aria-label={t("knowledge.title")}

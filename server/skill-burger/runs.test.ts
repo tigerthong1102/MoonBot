@@ -12,6 +12,7 @@ import { json, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { dispatchRoutes, type RouteContext } from "../routes/table.ts";
 import { createSkillBurgerRuns, type BurgerTurn, type StepEvent } from "./runs.ts";
+import { createRunStates } from "./run-state.ts";
 import { createWorkflowApprovals } from "./approval.ts";
 import type { WorkflowGuard } from "./guarded-executors.ts";
 import type { StepExecutors } from "./runner.ts";
@@ -55,7 +56,7 @@ async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]
   await new Promise<void>((ready) => server.listen(0, "127.0.0.1", ready));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const post = async (path: string, body: unknown) => (await fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json() as Promise<Record<string, any>>;
-  return { post, events, calls, bot, actAs: (id: string) => { as = id; } };
+  return { post, events, calls, bot, root, actAs: (id: string) => { as = id; } };
 }
 
 it("rejects duplicate resumes without consuming the next pause", async () => {
@@ -202,4 +203,53 @@ it("changes the steps when asked, with an undo, and refuses a burger that isn't 
   expect(undone).toHaveProperty("skill");
   expect(await h.post("/api/internal/skill-burgers/undo", { undo: changed.undo })).toHaveProperty("error");
   expect(await h.post("/api/internal/skill-burgers/run", { name: "nope" })).toHaveProperty("error");
+});
+
+it("recovers a review from disk and never replays a write claimed by an interrupted process", async () => {
+  const h = await serve({ workflow: { version: 1, args: {}, summary: "Review write", steps: [
+    { kind: "app", id: "send", label: "Send", app: "gmail", tool: "GMAIL_SEND_EMAIL", args: { recipient: "test@example.org" }, approval: "Check the recipient" },
+  ] } });
+  const paused = await h.post("/api/internal/skill-burgers/run", { name: "review-write" });
+  const token = paused.requiresInput.resumeToken;
+  const recover = () => createSkillBurgerRuns({ dataDir: h.root, root: h.root }).approvals;
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: token, response: "allow" })).toHaveProperty("error");
+  expect(recover().list(h.bot, "other")).toEqual([]);
+  expect(recover().decide(token, "other", "t1", "allow")).toBe(false);
+  expect(recover().list(h.bot, "t1")).toMatchObject([{ state: "pending", action: expect.stringContaining("test@example.org") }]);
+  expect(recover().decide(token, h.bot, "t1", "allow")).toBe(true);
+  expect(recover().decide(token, h.bot, "t1", "allow")).toBe(true);
+  expect(recover().decide(token, h.bot, "t1", "deny")).toBe(false);
+  expect(recover().list(h.bot, "t1")).toMatchObject([{ state: "approved" }]);
+  const checkpoints = createRunStates(join(h.root, "skill-burger-runs"));
+  expect(checkpoints.take(token, h.bot, "t1")?.approvalDecision).toBe("allow");
+  expect(recover().list(h.bot, "t1")).toMatchObject([{ state: "interrupted" }]);
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: token, response: "retry" })).toHaveProperty("error");
+  expect(h.calls).toEqual([]);
+});
+
+it("hides the action and refuses a saved decision when the paused workflow's permission is revoked", async () => {
+  const h = await serve({ workflow: { version: 1, args: {}, summary: "Approve read", steps: [
+    { kind: "app", id: "read", label: "Read", app: "gmail", tool: "GMAIL_FETCH_EMAILS", args: {}, approval: "Review the mailbox" },
+  ] } });
+  const { requiresInput } = await h.post("/api/internal/skill-burgers/run", { name: "approve-read" });
+  const approvals = createSkillBurgerRuns({ dataDir: h.root, root: h.root }).approvals;
+  setSkillEnabled(h.bot, "approve-read", false);
+  expect(approvals.list(h.bot, "t1")).toMatchObject([{ state: "unavailable", action: "", message: "" }]);
+  expect(approvals.decide(requiresInput.resumeToken, h.bot, "t1", "allow")).toBe(false);
+  expect(h.calls).toEqual([]);
+});
+
+it("checks all read approvals before dispatching any parallel operation", async () => {
+  const checked: string[] = [];
+  const h = await serve({ workflow: { version: 1, args: {}, summary: "Read two", steps: [
+    { kind: "app", id: "mail", label: "Mail", app: "gmail", tool: "GMAIL_FETCH_EMAILS", args: {} },
+    { kind: "app", id: "user", label: "User", app: "gmail", tool: "GMAIL_GET_PROFILE", args: {}, parallelWithPrevious: true },
+  ] }, guard: { allowed: () => true, approve: async (_action, _summary, _signal, input) => {
+    const { tool } = input as { tool: string };
+    checked.push(tool);
+    return tool === "GMAIL_FETCH_EMAILS";
+  } } });
+  expect(await h.post("/api/internal/skill-burgers/run", { name: "read-two" })).toMatchObject({ ok: false, error: { step: "user" } });
+  expect(checked).toEqual(["GMAIL_FETCH_EMAILS", "GMAIL_GET_PROFILE"]);
+  expect(h.calls).toEqual([]);
 });

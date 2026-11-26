@@ -410,6 +410,7 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["POST"], path: /^\/api\/groups\/[\w-]+\/interrupt$/ },
   { methods: ["POST"], path: /^\/api\/groups\/[\w-]+\/members\/[\w-]+\/compact$/ },
   { methods: ["POST"], path: /^\/api\/groups\/[\w-]+\/read$/ },
+  { methods: ["GET", "POST"], path: /^\/api\/bots\/[\w-]+\/workflow-approvals$/ },
   { methods: ["GET", "POST"], path: /^\/api\/skill-burgers$/ },
   { methods: ["POST"], path: /^\/api\/skill-burger-draft$/ },
   { methods: ["GET", "PATCH", "DELETE"], path: /^\/api\/skill-burgers\/[a-z0-9-]{1,64}$/ },

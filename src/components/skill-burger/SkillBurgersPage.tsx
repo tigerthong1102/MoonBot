@@ -9,6 +9,7 @@ import { BotAvatar } from "../Avatar";
 import { SidebarPopoverMenu } from "../SidebarPopoverMenu";
 import { TOOL_PAGE_TITLE, ToolPage, ToolPageHeader } from "../ToolPageShell";
 import { MiniBurger } from "./MiniBurger";
+import { WorkflowControls } from "./WorkflowControls";
 import { RunWithInputs } from "./RunInputs";
 import { useBurgerRemoval } from "./SavedWorkflowsCard";
 
@@ -18,6 +19,7 @@ function BurgerCard({ skill, onRemove }: { skill: SavedWorkflow; onRemove: () =>
   const bot = useStoreSelector((state) => (skill.botId ? state.bots.find((candidate) => candidate.id === skill.botId) : undefined));
   /** Where Run sends it: the bot it came from, else (one used in every chat whose bot is gone) the first bot. */
   const runner = useStoreSelector((state) => bot ?? (skill.everyChat ? state.bots.find((candidate) => !candidate.hidden) : undefined));
+  const team = useStoreSelector(state => Boolean(state.config?.team));
   const [renaming, setRenaming] = useState<string | null>(null);
   const [problem, setProblem] = useState("");
   const field = useRef<HTMLInputElement>(null);
@@ -90,6 +92,7 @@ function BurgerCard({ skill, onRemove }: { skill: SavedWorkflow; onRemove: () =>
         {runner && (
           <RunWithInputs skill={skill} onRun={(inputs) => runBurgerIn(dispatch, runner, skill.name, inputs)} className="ui-button ui-button-md self-start" />
         )}
+        <WorkflowControls skill={skill} team={team} />
         {problem && <p role="alert" className="text-[12px] text-danger">{problem}</p>}
       </div>
     </li>

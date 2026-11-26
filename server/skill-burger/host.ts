@@ -1,9 +1,11 @@
 import { allowsTool, narrowsNativeTools, parseToolScope } from "../../shared/tool-scope.ts";
-import type { RequestAuth } from "../request-auth.ts";
+import { hasDesktopOwnerCapability, type RequestAuth } from "../request-auth.ts";
 import type { Store } from "../store.ts";
 import { groupTurnCwd } from "../room-cwd.ts";
 import type { createWorkflowApprovals } from "./approval.ts";
 import type { WorkflowAction, WorkflowGuard } from "./guarded-executors.ts";
+import { workflowApprovalRoutes } from "./approval-routes.ts";
+import type { SkillBurgerRuns } from "./runs.ts";
 import type { RunHistory } from "./history.ts";
 import { createSkillBurgerRoutes, createStandaloneSkillBurgerRoutes, type SkillBurgerRouteDeps } from "./routes.ts";
 import type { CallingTurn } from "./turn-host.ts";
@@ -63,7 +65,20 @@ export function createWorkflowHost(deps: WorkflowHostDeps) {
       ...extras,
     }) : createStandaloneSkillBurgerRoutes(store, deps.sees, deps.enabled, extras);
   }
-  return { guard, routes };
+  function reviewRoutes(approvals: SkillBurgerRuns["approvals"], reviewer: {
+    live(id: string): boolean; ownerToken(): string | undefined; localBrowserIdle(): boolean;
+  }) {
+    return workflowApprovalRoutes({
+      approvals,
+      sees: (auth, botId, threadId) => Boolean((deps.team || deps.enabled())
+        && (auth.kind === "session" ? !auth.session.token && reviewer.live(auth.session.id) : !deps.team && auth.trust !== "service")
+        && deps.levelOf(auth, botId) === "edit" && deps.sees(auth, threadId)
+        && (store.bot(botId)?.threadId === threadId || store.taskByThread(botId, threadId))),
+      human: (auth, req) => auth.kind === "session" || Boolean(auth.companionDevice)
+        || hasDesktopOwnerCapability(req, reviewer.ownerToken()) || Boolean(req.headers.origin && reviewer.localBrowserIdle()),
+    });
+  }
+  return { guard, routes, reviewRoutes };
 }
 
 export function workflowAutoDecision(mode: string, action: WorkflowAction, input: unknown, floor: { blocked(command: string): boolean; clears(command: string): boolean }): "allow" | "ask" | "deny" {

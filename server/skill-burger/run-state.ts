@@ -13,6 +13,14 @@ const ID = /^[0-9a-f-]{36}(?:\.[0-9a-f-]{36})?$/;
 
 export function createRunStates(dir: string, now: () => number = Date.now) {
   const file = (id: string) => join(dir, `${id}.json`);
+  const read = (path: string): RunState | null => {
+    try { return JSON.parse(readFileSync(path, "utf8")) as RunState; } catch { return null; }
+  };
+  const peek = (id: string, botId: string, threadId: string) => {
+    if (!ID.test(id)) return null;
+    const state = read(file(id));
+    return state && state.botId === botId && state.threadId === threadId && now() - state.createdAt <= RUN_STATE_TTL_MS ? state : null;
+  };
   const sweep = () => {
     try {
       for (const name of readdirSync(dir)) {
@@ -23,6 +31,30 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
     }
   };
   return {
+    peek,
+    approvals(botId: string, threadId: string) {
+      let names: string[];
+      try { names = readdirSync(dir); } catch { return []; }
+      return names.flatMap(name => {
+        const claimed = name.endsWith(".json.claimed");
+        const id = name.slice(0, claimed ? -13 : -5);
+        if ((!claimed && !name.endsWith(".json")) || !ID.test(id)) return [];
+        const state = read(join(dir, name));
+        if (!state || state.botId !== botId || state.threadId !== threadId || state.waiting.type !== "approval" || state.approvalDecision === "deny"
+          || now() - state.createdAt > RUN_STATE_TTL_MS || state.pauseToken !== id) return [];
+        return [{ state, claimed }];
+      });
+    },
+    decide(id: string, botId: string, threadId: string, decision: "allow" | "deny") {
+      const state = peek(id, botId, threadId);
+      if (!state || state.waiting.type !== "approval") return null;
+      if (state.approvalDecision && state.approvalDecision !== decision) return null;
+      if (!state.approvalDecision) writeFileAtomic(file(id), JSON.stringify({ ...state, approvalDecision: decision }), { mode: 0o600 });
+      return state;
+    },
+    settleClaim(id: string) {
+      if (ID.test(id)) rmSync(file(id) + ".claimed", { force: true });
+    },
     save(state: RunState, preserve = false): string {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
       const token = preserve && state.pauseToken ? state.pauseToken : `${state.id}.${randomUUID()}`;
@@ -50,13 +82,10 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
     },
     /** The paused run, taken so nobody else can resume it; null when it is gone, too old, or another bot's. */
     take(id: string, botId: string, threadId: string): RunState | null {
-      if (!ID.test(id)) return null;
-      const read = (path: string): RunState | null => {
-        try { return JSON.parse(readFileSync(path, "utf8")) as RunState; } catch { return null; }
-      };
-      const seen = read(file(id));
-      if (!seen || seen.botId !== botId || seen.threadId !== threadId || now() - seen.createdAt > RUN_STATE_TTL_MS) return null;
-      const taken = `${file(id)}.taken-${now()}`;
+      const seen = peek(id, botId, threadId);
+      if (!seen || (seen.waiting.type === "approval" && !seen.approvalDecision)) return null;
+      const claimed = seen.waiting.type === "approval" && seen.approvalDecision === "allow";
+      const taken = claimed ? file(id) + ".claimed" : `${file(id)}.taken-${now()}`;
       try {
         renameSync(file(id), taken);
       } catch {
@@ -65,7 +94,7 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
       try {
         return read(taken);
       } finally {
-        rmSync(taken, { force: true });
+        if (!claimed) rmSync(taken, { force: true });
       }
     },
   };

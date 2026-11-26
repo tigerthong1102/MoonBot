@@ -76,12 +76,12 @@ export function listWorkflowSkills(botIds: readonly string[], root: string = ski
   return [...shared, ...own].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }
 
-export function readWorkflowSkill(place: BurgerPlace, name: string, root: string = skillsLibraryRoot()): { text: string; workflow: Workflow } | null {
+export function readWorkflowSkill(place: BurgerPlace, name: string, root: string = skillsLibraryRoot()): { text: string; workflow: Workflow; sha256: string } | null {
   const found = readAt(place, name, root);
   if (!found) return null;
   try {
     const text = "everyChat" in place ? readLibrarySkillFile(name, root) : readSkillFile(place.botId, name);
-    return text === null ? null : { text, workflow: found.workflow };
+    return text === null ? null : { text, workflow: found.workflow, sha256: found.sha256 };
   } catch {
     return null;
   }

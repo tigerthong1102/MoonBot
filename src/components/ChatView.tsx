@@ -66,7 +66,7 @@ import { RawMarkdownView, RawToggleAction } from "./RawMarkdownToggle";
 import { ThreadChip } from "./ThreadChip";
 import { HandoffChip } from "./HandoffReply"; import { TeammateChip } from "./TeammateChip"; import { useTeammates } from "@/state/team-people"; import type { MentionPeer } from "@/lib/mentions";
 import { NewConversationInstead } from "./NewConversationInstead";
-import { SkillBurgerSlot } from "./skill-burger/SkillBurgerSlot";
+import { SkillBurgerDock } from "./skill-burger/SkillBurgerSlot";
 import { VerifyCard } from "./VerifyCard";
 import { askText, runSkill, runSteps, runSummary, showRun, skillPrompt } from "@/lib/verify-steps";
 import { useShowRunCard } from "@/lib/run-card-preferences";
@@ -1226,8 +1226,8 @@ export const ChatView = memo(function ChatView({ bot: profile, inForkPanel = fal
       <div ref={setPagePane} data-page-pane-slot className="contents" style={{ "--page-pane-bottom": `${composerDock.height}px` } as CSSProperties} />
 
       <div ref={composerDockRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] chat-column-dock">
-      {(!state.config?.cloudHome || state.config?.team) && (!remoteClient || state.config?.team) && canWrite && !(advanced && showRunCard) && (
-        <SkillBurgerSlot botId={bot.id} threadId={bot.threadId} busy={Boolean(bot.busy)} canWrite={canWrite} messages={messages} liveTools={liveTools} transcriptKey={transcriptKey} team={Boolean(state.config?.team)} />
+      {(!state.config?.cloudHome || state.config?.team) && canWrite && (
+        <SkillBurgerDock showWaits={!bot.yourAccess || bot.yourAccess === "edit"} showBurger={(!remoteClient || Boolean(state.config?.team)) && !(advanced && showRunCard)} botId={bot.id} threadId={bot.threadId} busy={Boolean(bot.busy)} canWrite={canWrite} messages={messages} liveTools={liveTools} transcriptKey={transcriptKey} team={Boolean(state.config?.team)} />
       )}
       {advanced && lastRunStep && showRun(recordedRun) && showRunCard && runDismissed.get(transcriptKey) !== lastRunStep.id && (
         <div className="flex justify-end px-5 pb-2">

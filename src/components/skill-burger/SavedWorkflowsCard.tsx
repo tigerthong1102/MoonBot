@@ -8,6 +8,7 @@ import { useStoreDispatch } from "@/state/store-select";
 import { Card, NoteRow, TrashButton } from "../bot-panel/rows";
 import { EveryChatToggle } from "./EveryChatToggle";
 import { MiniBurger } from "./MiniBurger";
+import { WorkflowControls } from "./WorkflowControls";
 import { RunWithInputs } from "./RunInputs";
 import { LayerIcon } from "./SkillBurger";
 
@@ -87,6 +88,7 @@ export function SavedWorkflowsCard({ botId, threadId, team = false }: { botId: s
                 </li>
               ))}
             </ol>
+            {expanded && <div className="px-3.5 pb-3"><WorkflowControls skill={skill} team={team} /></div>}
           </div>
         );
       })}

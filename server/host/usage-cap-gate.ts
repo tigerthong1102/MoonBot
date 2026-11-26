@@ -12,6 +12,7 @@ export const USAGE_CAP_CODE = "spend_cap";
 export interface UsageCapView {
   stops: CapStops;
   savedStops: CapStops;
+  run?: UsageCapsConfig["run"];
   server: CapLimits;
   bots: Record<string, CapLimits>;
   env: { stops: boolean; server: Array<keyof CapLimits>; values: { stops?: CapStops; server: CapLimits } };
@@ -159,7 +160,7 @@ export function createUsageCapGate(deps: {
       const saved = deps.caps();
       const fromEnv = capsFromEnv(env);
       return {
-        stops: effectiveCaps(saved, env).stops, savedStops: saved?.stops ?? "unattended", server: saved?.server ?? {}, bots: saved?.bots ?? {},
+        stops: effectiveCaps(saved, env).stops, savedStops: saved?.stops ?? "unattended", server: saved?.server ?? {}, ...(saved?.run ? { run: saved.run } : {}), bots: saved?.bots ?? {},
         env: { stops: fromEnv.stops !== undefined, server: CAP_FIELDS.map(({ field }) => field).filter((field) => fromEnv.server[field] !== undefined), values: fromEnv },
         caps: capStates(saved, deps.dataDir, now(), env),
       };

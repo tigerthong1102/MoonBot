@@ -1,4 +1,5 @@
 import type { Bot } from "@/state/store";
+import { InstructionStudio } from "./InstructionStudio";
 import { SoulField } from "../SoulField";
 import { ProposalStatus } from "./ProposalStatus";
 import { ReplyStyleField } from "./ReplyStyleField";
@@ -13,6 +14,7 @@ export function SoulSection({ bot, patch }: { bot: Bot; patch: (patch: BotPatch)
       </p>
       <ProposalStatus bot={bot} kind="chief" />
       <SoulField bot={bot} onPatch={patch} />
+      <InstructionStudio key={bot.id} bot={bot} />
       <ReplyStyleField bot={bot} patch={patch} />
     </div>
   );

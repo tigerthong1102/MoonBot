@@ -122,6 +122,8 @@ export type RequestOutcome = "allowed-once" | "rejected" | "answered" | "unavail
 
 // Sessions start implicitly on the first turn; resumeCursor carries the provider-native continuation (e.g. a Claude session id).
 export interface SendTurnInput {
+  /** Engines which control individual model calls check before every request and report each completed response. */
+  requestBudget?: { before(): void; record(model: string, usage: { input: number; output: number; costUsd?: number; cachedInput?: number } | null): void; finish(): void };
   threadId: ThreadId;
   /** Drivers namespace process-level resources (broker socket, CLI session) by botId too: threadIds may coincide across bots. */
   botId?: string;
@@ -248,6 +250,7 @@ export interface TurnStartResult {
 export interface ProviderAdapter {
   readonly provider: DriverKind;
   readonly capabilities: {
+    readonly requestMetering?: true;
     sessionModelSwitch: "in-session" | "unsupported";
     /** The driver mounts integrations.agents. Every *Mcp flag guards one rule: never tell a bot about tools its driver cannot mount. */
     agentsMcp?: boolean;
@@ -549,6 +552,10 @@ export interface TextGenerationOptions {
   timeoutMs?: number;
   /** Refuse a private preview if the driver cannot disable tools and session persistence. */
   requireIsolatedText?: true;
+  /** In a comparison run, honor the bot's normal reasoning selection, including driver defaults. */
+  comparison?: { effort?: EffortLevel; variant?: string };
+  /** Recheck the spend cap before a text-only provider request, including a protocol retry. */
+  beforeRequest?(): void;
   /** For a bot's own engine whose driver picks a small model of its own. */
   fallback?: SmallModelFallback;
 }

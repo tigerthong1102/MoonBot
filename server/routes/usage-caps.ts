@@ -31,7 +31,7 @@ export function createUsageCapRoutes(deps: UsageCapRouteDeps): RouteHandler {
     const unknown = Object.keys(parsed.data.bots ?? {}).find((botId) => !deps.botExists(botId));
     if (unknown) return void json(res, 404, { error: `No such bot: ${unknown}` });
     const bots = Object.fromEntries(Object.entries(parsed.data.bots ?? {}).map(([botId, limits]) => [botId, setLimits(limits)] as const).filter(([, limits]) => Object.keys(limits).length));
-    deps.save({ stops: parsed.data.stops ?? "unattended", server: setLimits(parsed.data.server), bots });
+    deps.save({ stops: parsed.data.stops ?? "unattended", server: setLimits(parsed.data.server), ...(parsed.data.run ? { run: parsed.data.run } : deps.view().run ? { run: deps.view().run } : {}), bots });
     json(res, 200, deps.view());
   };
 }

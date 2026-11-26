@@ -660,3 +660,20 @@ describe("background engine calls across bots", () => {
     expect(most).toBe(2);
   });
 });
+
+it("pins instruction tests to the bot's allowed model, checking spend before every call", async () => {
+  const { jobs, state, codex } = setup({ modelAllowed: ({ model }) => model === "selected" });
+  const target = state.bots.get("codex")!;
+  target.modelSelection.model = "selected";
+  const writer = jobs.instructionTest(target.id, { ...target.modelSelection, model: target.modelSelection.model! })!;
+  await writer.generateText("live prompt");
+  expect(codex.calls[0]?.options).toMatchObject({ model: "selected", requireIsolatedText: true });
+  expect(state.booked).toHaveLength(1);
+  state.overBudget = true;
+  await expect(writer.generateText("draft prompt")).rejects.toThrow(/spend limit/);
+  expect(codex.calls).toHaveLength(1);
+  target.modelSelection.model = "forbidden";
+  expect(jobs.instructionTest(target.id, { ...target.modelSelection, model: target.modelSelection.model! })).toBeNull();
+  state.bots.get("pi")!.modelSelection.model = "selected";
+  expect(jobs.instructionTest("pi", { instanceId: "pi", model: "selected" })).toBeNull();
+});

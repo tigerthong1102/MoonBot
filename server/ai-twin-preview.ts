@@ -14,7 +14,7 @@ export class TwinPreviewError extends Error {
 
 export function createAiTwinPreview(deps: {
   selection: () => { instanceId: string; model: string };
-  jobs: SideJobs;
+  jobs: Pick<SideJobs, "twinPreview">;
 }) {
   let route: { instance: object; model: string; key: string } | null = null;
   let active: AbortController | null = null;

@@ -65,8 +65,12 @@ export class SendSequencer {
   }
 }
 
-export function sendFingerprint(text: string, replyToId?: string, channelMode?: "chat" | "goal"): string {
-  return JSON.stringify([text, replyToId ?? null, channelMode ?? null]);
+export function sameSendData(left: Message["dataContext"], right: Message["dataContext"]): boolean {
+  return left?.cardId === right?.cardId && left?.draftSql === right?.draftSql;
+}
+
+export function sendFingerprint(text: string, replyToId?: string, channelMode?: "chat" | "goal", dataContext?: Message["dataContext"]): string {
+  return JSON.stringify([text, replyToId ?? null, channelMode ?? null, ...(dataContext ? [dataContext.cardId, dataContext.draftSql ?? null] : [])]);
 }
 
 /** A Stop's `stopId`: the same client-generated form as a `sendId`. Null when one is sent but malformed. */

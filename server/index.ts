@@ -273,7 +273,7 @@ import {
 } from "./channel-queue.ts"; import { copyRoomPick, pointedResponders, roomPickBots, takeRoomPick, undeliveredPickBots, type RoomPick } from "./room-pointed.ts";
 import {
   acceptedSendMatch,
-  sendFingerprint,
+  sendFingerprint, sameSendData,
   SendSequencer,
 } from "./send-idempotency.ts";
 import { EventBus } from "./harness/bus.ts"; import { publicReplyEvent } from "./harness/public-reply.ts";
@@ -7258,7 +7258,7 @@ async function acceptDirectSend(
   if (refused) throw refused;
   return sendSequencer.run(
     sendId ? `bot:${botId}:${threadId}:${sendId}` : undefined,
-    sendFingerprint(text, replyTo?.id),
+    sendFingerprint(text, replyTo?.id, undefined, dataContext),
     async (): Promise<DirectSendReceipt> => {
       workBotTypedStop.assertSafe({ botId, threadId, text, trigger, personPresent, fromApp: Boolean(app), busy: false, row: { sendId } });
       if (sendId) {
@@ -7266,7 +7266,7 @@ async function acceptDirectSend(
           throw Object.assign(new Error("this queued sendId was cancelled; send a new message to try again"), { status: 409 });
         }
         const accepted = acceptedSendMatch(store.messagesFor(threadId), sendId, text, replyTo?.id);
-        if (accepted.kind === "conflict") {
+        if (accepted.kind === "conflict" || (accepted.kind === "match" && !sameSendData(accepted.message.dataContext, dataContext))) {
           throw Object.assign(new Error("sendId already belongs to another message"), { status: 409 });
         }
         if (accepted.kind === "match") {
@@ -7281,7 +7281,7 @@ async function acceptDirectSend(
         }
         const queued = queuedSteeredMessage(botId, threadId, sendId);
         if (queued) {
-          if (queued.text !== text || queued.replyToId !== replyTo?.id) {
+          if (queued.text !== text || queued.replyToId !== replyTo?.id || !sameSendData(queued.dataContext, dataContext)) {
             throw Object.assign(new Error("sendId already belongs to another message"), { status: 409 });
           }
           return { ok: true as const, queued: true as const, queueId: queued.id, threadId, reason: queued.reason, why: waitWords.queued(threadId, queued.reason) };

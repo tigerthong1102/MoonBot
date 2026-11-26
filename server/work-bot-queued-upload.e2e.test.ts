@@ -36,9 +36,13 @@ it("accepts an uploaded file queued during the choice, admits one worker run and
     expect(upload.status).toBe(201);
     expect(saved.handoffReady).toBe(true);
     const text = 'Use these numbers\n\n<attached-file path="' + saved.path + '" name="count.txt" />';
-    const queued = { text, threadId: main.threadId, sendId: randomUUID(), followUp: "queue", workBotUploadReceipts: [token] };
+    const data = await api<{ card: { id: string } }>(`/api/bots/${main.id}/data/run`, { sql: "SELECT 42 AS quantity" });
+    const dataContext = { cardId: data.card.id, draftSql: "SELECT 73 AS pending" };
+    const queued = { text, dataContext, threadId: main.threadId, sendId: randomUUID(), followUp: "queue", workBotUploadReceipts: [token] };
     const pending = await api<{ queueId: string }>(sendPath, queued);
     expect(pending.queueId).toBeTruthy();
+    const changedDraftStatus = async () => (await fetch(base + sendPath, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ ...queued, dataContext: { ...dataContext, draftSql: "SELECT 74 AS different" } }) })).status;
+    expect(await changedDraftStatus()).toBe(409);
     const allowed = await api<{ routingState: string; result: { bots: [{ id: string }] } }>(`/api/threads/${main.threadId}/respond`, { requestId: offer.requestId, behavior: "allow" });
     expect(allowed.routingState).toBe("dispatched");
     const worker = (await roster()).find(bot => bot.id === allowed.result.bots[0].id)!;
@@ -50,6 +54,7 @@ it("accepts an uploaded file queued during the choice, admits one worker run and
     expect(await file.text()).toBe(bytes);
     const retry = await api<{ transferred: boolean; queueId: string }>(sendPath, queued);
     expect(retry).toMatchObject({ transferred: true, queueId: pending.queueId });
+    expect(await changedDraftStatus()).toBe(409);
     const calls = () => existsSync(prompts) ? readFileSync(prompts, "utf8").split("\n").filter(line => line.includes(work)) : [];
     await expect.poll(() => calls().length, { timeout: 15000 }).toBe(1);
     expect(calls()[0]).toContain("Use these numbers");

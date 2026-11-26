@@ -244,8 +244,8 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
       if (body.mode !== undefined && body.mode !== "chat" && body.mode !== "goal") return json(res, 400, { error: "mode must be chat or goal" });
       const explicitSendId = parseSendId(body.sendId);
       if (explicitSendId && deps.transferredSend?.(bot.id, threadId, explicitSendId)) {
-        if (guarded || pressed || fromAnApp || pointing || pageOpen || body.mode === "goal" || body.replyToId || body.dataContext || mentions?.length) return json(res, 409, { error: "sendId already belongs to another message" });
-        const receipt = await acceptDirectSend({ botId: bot.id, threadId, text: typed, sendId: explicitSendId, sender: messageSender(auth), trigger: usageTriggerFor(auth), personPresent: true, ...(followUp ? { followUp } : {}) });
+        if (guarded || pressed || fromAnApp || pointing || pageOpen || body.mode === "goal" || body.replyToId || mentions?.length) return json(res, 409, { error: "sendId already belongs to another message" });
+        const receipt = await acceptDirectSend({ botId: bot.id, threadId, text: typed, sendId: explicitSendId, dataContext: parseDataContext(body.dataContext), sender: messageSender(auth), trigger: usageTriggerFor(auth), personPresent: true, ...(followUp ? { followUp } : {}) });
         return json(res, 202, receipt);
       }
       if (body.mode === "goal") {

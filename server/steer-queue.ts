@@ -316,11 +316,11 @@ export function queuedSteeredMessage(
   botId: string,
   threadId: string,
   sendId: string,
-): { id: string; text: string; replyToId?: string; reason?: SteerQueueReason } | null {
+): { id: string; text: string; replyToId?: string; dataContext?: Message["dataContext"]; reason?: SteerQueueReason } | null {
   const entry = queues.get(threadId);
   if (!entry || entry.botId !== botId) return null;
   const item = entry.items.find((candidate) => candidate.sendId === sendId);
-  return item ? { id: item.messageId, text: item.text, replyToId: item.replyToId, ...(item.reason ? { reason: item.reason } : {}) } : null;
+  return item ? { id: item.messageId, text: item.text, replyToId: item.replyToId, ...(item.dataContext ? { dataContext: item.dataContext } : {}), ...(item.reason ? { reason: item.reason } : {}) } : null;
 }
 
 /** Whose waiting line this is, or null when nothing waits under that id. */

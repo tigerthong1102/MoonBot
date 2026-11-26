@@ -131,7 +131,6 @@ export function createWorkBotData(engine: DataEngine, sheets: DataSheetRegistry,
         id, title: card.title, kind: card.kind, by: "person", status: "ready", createdAt: now, updatedAt: now,
         ...(card.kind === "text" ? { text: card.text } : {
           result, sql: `SELECT * FROM ${resultRelation(backing)}`, ...shapes.get(card.id), truncated: card.truncated,
-          // Chart results already contain the reduced marks. Applying the source chart's aggregation again would change them.
           vegaLite: card.vegaLite, reduction: card.reduction,
         }),
       };

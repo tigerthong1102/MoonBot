@@ -317,11 +317,14 @@ try {
     report = { ...report, status: "PASS", baselineFixture: destination };
   } else {
   assert(!initialBots.some(row => row.name === workName));
+  const historyNote = "Ảnh kiểm kho tổng hợp hôm trước.";
+  const historyPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGM40eMGAAO6AZue0imfAAAAAElFTkSuQmCC";
   const extra = "Chỉ chọn nguồn đáng tin cậy.";
   const extraNext = "Tóm tắt ngắn gọn bằng tiếng Việt.";
   const declinedWork = "Theo dõi lịch bảo trì thiết bị thử mỗi tháng.";
-  writeFileSync(textRoutes, JSON.stringify({ [workMessage]: JSON.stringify({ name: workName, icon: "calendar" }), [declinedWork]: JSON.stringify({ name: "Bảo trì", icon: "calendar" }) }));
+  writeFileSync(textRoutes, JSON.stringify({ [historyNote]: "null", [workMessage]: JSON.stringify({ name: workName, icon: "calendar" }), [declinedWork]: JSON.stringify({ name: "Bảo trì", icon: "calendar" }) }));
   writeFileSync(plan, JSON.stringify({ [helper.id]: { script: [
+    { key: "previous-photo", match: [historyNote], reply: "Đã nhận ảnh thử." },
     { key: "first-work", match: [workMessage], reply: "Tôi sẽ giúp theo dõi tin tức AI." },
     { key: "queued-first", match: [extra], reply: "Đã ghi nhận ghi chú thứ nhất." },
     { key: "queued-next", match: [extraNext], reply: "Đã ghi nhận ghi chú thứ hai." },
@@ -330,6 +333,24 @@ try {
   const helperRow = `document.querySelector('[data-sidebar-bot-row="${helper.id}"]')`;
   await until(() => evaluate(`Boolean(${helperRow})`), "the main helper in the sidebar");
   await evaluate(`${helperRow}.click()`);
+  const attachFiles = async (files) => {
+    const root = await cdp("DOM.getDocument", {});
+    const input = await cdp("DOM.querySelector", { nodeId: root.root.nodeId, selector: '[data-composer-row] input[type="file"]' });
+    assert(input.nodeId);
+    await cdp("DOM.setFileInputFiles", { nodeId: input.nodeId, files });
+    for (const file of files) {
+      const name = JSON.stringify(path.basename(file));
+      const ready = file.endsWith(".png")
+        ? `[...document.images].some(image => image.alt === ${name} && image.closest('button')?.getAttribute('aria-busy') !== 'true')`
+        : `document.body.innerText.includes(${name})`;
+      await until(() => evaluate(ready), "the selected fixture attachment");
+    }
+  };
+  const historyFile = path.join(fixture, "Ảnh hôm trước.png");
+  writeFileSync(historyFile, Buffer.from(historyPng, "base64"));
+  await attachFiles([historyFile]);
+  await send(historyNote);
+  await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text?.startsWith(historyNote) && row.requestPending === false), "the previous photo to settle in the main conversation");
   await send(workMessage, true);
   const offerCard = async () => {
     const result = await request(`/api/threads/${helper.threadId}/messages`);
@@ -363,11 +384,7 @@ try {
   const fixtureImage = path.join(fixture, "Kiểm kho.png");
   const fixturePng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
   writeFileSync(fixtureImage, Buffer.from(fixturePng, "base64"));
-  const documentRoot = await cdp("DOM.getDocument", {});
-  const fileInput = await cdp("DOM.querySelector", { nodeId: documentRoot.root.nodeId, selector: '[data-composer-row] input[type="file"]' });
-  assert(fileInput.nodeId);
-  await cdp("DOM.setFileInputFiles", { nodeId: fileInput.nodeId, files: [fixtureFile, fixtureImage] });
-  await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(fixtureFilename)})`), "the uploaded fixture file chip");
+  await attachFiles([fixtureFile, fixtureImage]);
   await send(fileNote);
   const sourceCard = await request(`/api/bots/${helper.id}/data/run`, { sql: "SELECT 42 AS quantity", title: "Fixture Stock" });
   assert.equal(sourceCard.status, 200);
@@ -429,7 +446,8 @@ try {
   })()`);
   assert.deepEqual(receivedFile, [200, fixtureBytes]);
   const nativeImages = workPrompts()[0].message.content.filter(block => block.type === "image");
-  assert.deepEqual(nativeImages, [{ type: "image", source: { type: "base64", media_type: "image/png", data: fixturePng } }]);
+  assert.deepEqual(nativeImages, [historyPng, fixturePng].map(data => ({ type: "image", source: { type: "base64", media_type: "image/png", data } })));
+  assert(JSON.stringify(workPrompts()[0]).includes("An image was attached to this earlier message"));
   const targetCard = dataRows[0].dataContext;
   assert.equal(targetCard.draftSql, selectedData.draftSql);
   const counts = async (botId, cardId) => (await request(`/api/bots/${botId}/data/page`, { cardId, offset: 0, limit: 10 })).body.rows;
@@ -914,7 +932,7 @@ try {
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, canceledHandoff, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle, usernameGroup });
   assert.equal(heldPrompts().length, 0, "Restart must not replay held work");
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, uploadedFileReadBack: true, nativeImageReceived: true, sourceDataQuantity: 42, editedTargetQuantity: 84, workCompletion, transferredClarifications, declinedCompletion, compactedContext: "PASS (blocked transfer; one source run with summary)" },
+    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, uploadedFileReadBack: true, nativeImageReceived: true, historicalImageReceived: true, sourceDataQuantity: 42, editedTargetQuantity: 84, workCompletion, transferredClarifications, declinedCompletion, compactedContext: "PASS (blocked transfer; one source run with summary)" },
     artifactPreview: "PASS (synthetic Markdown opened from its conversation)",
     notificationNavigation: "PASS (feed enabled and opened in isolated profile)",
     permissionFixture: permissionCounts, workBotPermissions: handoffPermissions,

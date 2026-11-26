@@ -4,6 +4,8 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { Message } from "./store.ts";
+import { transcriptText } from "./replies.ts";
 import { extractHandoffMedia, extractReplayImages, extractSteerImages, extractTurnImages, REPLAYED_IMAGE_NOTE } from "./turn-images.ts";
 
 const IDS = [
@@ -260,6 +262,27 @@ describe("turn image admission", () => {
     expect(result.transcript[0]!.text).toBe(`login fails, see screenshot\n\n${REPLAYED_IMAGE_NOTE}`);
     expect(REPLAYED_IMAGE_NOTE).toMatch(/earlier/i);
     expect(result.transcript[2]!.text).toBe("A");
+  });
+
+  it("only replays a copied user's selected historical image within the current turn's limits", () => {
+    const root = store();
+    const path = image(root, 0);
+    const text = `fixture $&\n\n<attached-image path="${path}" />`;
+    const copy: Message = { id: "copy", role: "user", kind: "text", at: 1, text, dataContext: { cardId: "target" },
+      workBotCopy: { sourceThreadId: "main", sourceMessageId: "earlier", requestMessageId: "work", status: "settled" } };
+    const entry = { id: copy.id, role: "user" as const, text: transcriptText(copy, new Map()) };
+    const options = { attachmentsDir: root, history: [copy] };
+    const result = extractReplayImages([entry], [], options);
+    expect(result.images.map(item => item.path)).toEqual([path]);
+    expect(result.transcript[0]?.text).toContain("fixture $&");
+    expect(result.transcript[0]?.text).toContain(REPLAYED_IMAGE_NOTE);
+    expect(result.transcript[0]?.text).toContain("target");
+    for (const unavailable of [{ ...entry, id: "elsewhere" }, { ...entry, text: entry.text.slice(0, -15) }, { ...entry, role: "assistant" as const }]) {
+      expect(extractReplayImages([unavailable], [], options).images).toEqual([]);
+    }
+    expect(extractReplayImages([entry], result.images, { ...options, maxCount: 1 }).images).toEqual([]);
+    expect(extractReplayImages([entry], [], { ...options, maxBytes: 1 }).images).toEqual([]);
+    expect(extractReplayImages([entry], [], { ...options, history: [{ ...copy, workBotReviewHold: true }] }).images).toEqual([]);
   });
 
   it("keeps a current turn's own images unmarked", () => {

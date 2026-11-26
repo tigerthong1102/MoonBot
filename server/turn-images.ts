@@ -1,6 +1,8 @@
 import { lstatSync, realpathSync, statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 
+import { contextText, routedWorkMarker } from "./delta-context.ts";
+import type { Message } from "./store.ts";
 import { attachmentTagCandidates, type TagCandidate } from "./attachment-tags.ts";
 
 import { ATTACHMENTS_DIR, FILE_MAX_BYTES, IMAGE_MAX_BYTES } from "./attachments.ts";
@@ -171,20 +173,31 @@ export function extractSteerImages(
   return { texts: resolved, images };
 }
 
-export function extractReplayImages<T extends { role: "user" | "assistant"; text: string }>(
+function replayEntryImages(text: string, copy: Message | undefined, options: ExtractTurnImagesOptions) {
+  if (!copy) return extractTurnImages(text, options);
+  if (copy.role !== "user" || !copy.text?.includes("<attached-image") || routedWorkMarker(copy)) return;
+  const quoted = JSON.stringify(contextText(copy));
+  if (!text.includes(quoted)) return;
+  const media = extractTurnImages(copy.text, options);
+  const marked = JSON.stringify(contextText({ ...copy, text: media.text }));
+  return { images: media.images, text: text.replace(quoted, () => marked) };
+}
+
+export function extractReplayImages<T extends { id?: string; role: "user" | "assistant"; text: string }>(
   transcript: readonly T[],
   current: readonly TurnImageInput[],
-  options: ExtractTurnImagesOptions = {},
+  options: ExtractTurnImagesOptions & { history?: readonly Message[] } = {},
 ): { transcript: T[]; images: TurnImageInput[] } {
   let maxCount = (options.maxCount ?? TURN_IMAGE_MAX_COUNT) - current.length;
   let maxBytes = (options.maxBytes ?? TURN_IMAGE_MAX_BYTES) - current.reduce((total, image) => total + image.bytes, 0);
+  const copies = new Map(options.history?.filter(message => message.workBotCopy).map(message => [message.id, message]));
   const replayed = [...transcript];
   const images: TurnImageInput[] = [];
   for (let index = replayed.length - 1; index >= 0 && maxCount > 0; index -= 1) {
     const entry = replayed[index]!;
     if (entry.role !== "user") continue;
-    const item = extractTurnImages(entry.text, { ...options, maxCount: Infinity, maxBytes: Infinity, imageNote: REPLAYED_IMAGE_NOTE });
-    if (!item.images.length) continue;
+    const item = replayEntryImages(entry.text, entry.id ? copies.get(entry.id) : undefined, { ...options, maxCount: Infinity, maxBytes: Infinity, imageNote: REPLAYED_IMAGE_NOTE });
+    if (!item?.images.length) continue;
     const bytes = item.images.reduce((total, image) => total + image.bytes, 0);
     if (item.images.length > maxCount || bytes > maxBytes) break;
     replayed[index] = { ...entry, text: item.text };

@@ -69,6 +69,7 @@ it("runs independent ballots, the optional critique and the chair from a real ro
     const messages = async (): Promise<Array<{ id: string; replyToId?: string; text?: string; tool?: { name?: string } }>> =>
       (await api("GET", `/api/threads/${group.threadId}/messages`)).messages;
     await expect.poll(async () => (await messages()).filter(m => m.text?.includes("Chair’s synthesis")).length).toBe(2);
+    // Three concurrent requests may already be in flight. Their usage must stop the next round.
     await api("PUT", "/api/usage/caps", { run: { tokens: 40 } });
     await send("/council --critique Budget fixture");
     await expect.poll(async () => (await messages()).filter(m => m.tool?.name?.includes("did not finish")).length, { timeout: 8000 }).toBeGreaterThanOrEqual(3);

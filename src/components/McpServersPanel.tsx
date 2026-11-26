@@ -711,6 +711,7 @@ export function McpServersPanel({ embedded = false, hostedCards, hideHosted = fa
                         {auth && <span className={cn("rounded-full px-2 py-0.5 text-[11px]", auth === "signed-in" ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>{t(auth === "signed-in" ? "mcp.auth.signedIn" : "mcp.auth.needsSignIn")}</span>}
                         {server.managedBy && <span className="rounded-full bg-raised px-2 py-0.5 text-[11px] text-ink-secondary">{t("policy.managedBy", { organization: server.managedBy })}</span>}
                       </div>
+                      {server.scope && <div className="mt-1 text-[12px] text-ink-secondary">{t(server.scope === "team" ? "mcp.connectionTeam" : "mcp.connectionPerson")}</div>}
                       {server.managedBy && <div className="mt-1 text-[12px] text-ink-secondary">{t("policy.mcpBlocked", { organization: server.managedBy })}</div>}
                       {server.runsOn && <div data-mcp-runs-on className="mt-1 text-[12px] text-ink-secondary">{t("mcp.runsOn", { computer: server.runsOn.label })}</div>}
                       {server.bot && <div data-mcp-own-bot className="mt-1 text-[12px] text-ink-secondary">{t("mcp.ownBot", { bot: botName(server.bot) })}</div>}

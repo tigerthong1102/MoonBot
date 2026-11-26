@@ -227,6 +227,21 @@ export function createTeamConnectionsHost(deps: TeamConnectionsHostDeps) {
     return key ? { ...spec, headers: { [key.header]: key.value } } : null;
   };
 
+  type RelayCapability = { threadId: string; generation: string; connectorsFor?: string };
+  const relayActor = (capability: RelayCapability): { access?: PersonAppsAccess; refusal?: string } => {
+    const own = capability.connectorsFor;
+    if (!own) return {};
+    if (turnPerson(capability.threadId, capability.generation) !== own) return { refusal: lines.ownOnly(nameOf(own)) };
+    const access = people.appsAccess(own);
+    return access ? { access } : { refusal: lines.ownGone(own) };
+  };
+
+  const sameAccount = (left: PersonAppsAccess | undefined, right: PersonAppsAccess | undefined): boolean => {
+    if (!left || !right) return left === right;
+    if (isProjectAccess(left)) return isProjectAccess(right) && left.composio.apiKey === right.composio.apiKey && left.composio.userId === right.composio.userId;
+    return !isProjectAccess(right) && left.url === right.url && left.token === right.token;
+  };
+
   return {
     team,
     scopes,
@@ -296,12 +311,14 @@ export function createTeamConnectionsHost(deps: TeamConnectionsHostDeps) {
 
     /** Whose installation a relayed frame goes to: the team's (none named), or the member's own after checking the turn
      * still acts for them. A refusal is the plain line the bot gets back. */
-    relayActor(capability: { threadId: string; generation: string; connectorsFor?: string }): { access?: PersonAppsAccess; refusal?: string } {
-      const own = capability.connectorsFor;
-      if (!own) return {};
-      if (turnPerson(capability.threadId, capability.generation) !== own) return { refusal: lines.ownOnly(nameOf(own)) };
-      const access = people.appsAccess(own);
-      return access ? { access } : { refusal: lines.ownGone(own) };
+    relayActor,
+
+    relayDispatchRefusal(capability: RelayCapability, revision: number, expected: PersonAppsAccess | undefined): string | null {
+      if (revision !== scopes.appRevision()) return "The team changed which accounts this app may use while the call was waiting.";
+      const actor = relayActor(capability);
+      if (actor.refusal) return actor.refusal;
+      if (!sameAccount(expected, actor.access)) return "The connected account changed while the call was waiting.";
+      return null;
     },
 
     /** The app calls a frame would run, checked against the scopes: a `person` app never through the team's bridge, a

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Pause, Pencil, Play, RotateCw, Trash2, X } from "lucide-react";
 
-import { automationStatus, automationSubtitle, capital, lastReceived, lastWhen, runLine, STATUS_WORD, webhookCalls, type Automation } from "@/lib/automations";
+import { automationStatus, automationSubtitle, capital, lastReceived, lastWhen, ownerFix, runLine, STATUS_WORD, webhookCalls, type Automation } from "@/lib/automations";
 import { cn } from "@/lib/cn";
 import { copyText } from "@/lib/copy-text";
 import { t } from "@/lib/i18n";
@@ -16,8 +16,9 @@ const RECENT = 5;
 const BUTTON = "flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium disabled:opacity-50";
 
 /** One automation, simply: its sentence, its status, the last five runs plus any failure not yet seen, and what can be done to it. */
-export function AutomationPanel({ automation, sentence, onClose, onEdit, onDeleted }: {
+export function AutomationPanel({ automation, focusedRunId, sentence, onClose, onEdit, onDeleted }: {
   automation: Automation;
+  focusedRunId?: string;
   sentence: string;
   onClose: () => void;
   onEdit: () => void;
@@ -25,10 +26,16 @@ export function AutomationPanel({ automation, sentence, onClose, onEdit, onDelet
 }) {
   const { state, dispatch } = useStore();
   const [unseenRunIds] = useState(() => new Set(automation.runs.filter((run) => isRoutineProblemRun(run) && !run.seenAt).map((run) => run.id)));
-  const visibleRuns = automation.runs.filter((run, index) => index < RECENT || unseenRunIds.has(run.id) || (isRoutineProblemRun(run) && !run.seenAt));
+  const focusedRun = useRef<HTMLLIElement>(null);
+  const focusVisible = automation.runs.some((run) => run.id === focusedRunId);
+  const visibleRuns = automation.runs.filter((run, index) => index < RECENT || run.id === focusedRunId || (run.blockedBy && !run.seenAt) || unseenRunIds.has(run.id) || (isRoutineProblemRun(run) && !run.seenAt));
   useEffect(() => {
     for (const run of automation.runs) if (isRoutineProblemRun(run) && !run.seenAt) dispatch({ type: "markRoutineRunSeen", runId: run.id });
   }, [automation.runs, dispatch]);
+  useEffect(() => {
+    focusedRun.current?.scrollIntoView?.({ block: "nearest" });
+    focusedRun.current?.focus({ preventScroll: true });
+  }, [focusedRunId, focusVisible]);
   const actions = useAllAutomationActions();
   const status = automationStatus(automation);
   const webhook = automation.kind === "webhook" ? state.webhooks.find((candidate) => candidate.id === automation.id) : undefined;
@@ -128,14 +135,17 @@ export function AutomationPanel({ automation, sentence, onClose, onEdit, onDelet
             ? <p className="text-[13px] text-ink-secondary">{t("automations.panel.noRuns")}</p>
             : <ul className="space-y-1">{visibleRuns.map((run) => {
               const line = runLine(run);
+              const repair = run.blockedBy ? ownerFix(run) : null;
               return (
-                <li key={run.id}>
+                <li key={run.id} ref={run.id === focusedRunId ? focusedRun : undefined} tabIndex={run.id === focusedRunId ? -1 : undefined}>
                   <button type="button" disabled={!run.threadId} onClick={() => actions.openRun(automation, run)} title={run.threadId ? t("automations.panel.open") : undefined}
                     className="flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-raised disabled:hover:bg-transparent">
                     <span className="shrink-0 text-ink-secondary">{line.when}</span>
                     <span className={cn("shrink-0 font-semibold", line.mark === "✓" ? "text-success" : line.mark === "✗" ? "text-danger" : "text-warning")}>{line.mark}</span>
                     <span className="min-w-0 truncate text-ink">{line.text}</span>
                   </button>
+                  {repair && (status.fix !== repair.fix || run.id === focusedRunId) && <FixButton
+                    automation={automation} status={{ state: "needs-you", ...repair }} actions={actions} onEdit={onEdit} className="ms-2" />}
                 </li>
               );
             })}</ul>}

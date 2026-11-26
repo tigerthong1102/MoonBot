@@ -364,7 +364,13 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
     save();
     if (brief) await deps.report(report);
     const sentence = troubleSentence(trouble);
-    return { ...(run ? { run } : {}), ...(sentence ? { trouble: sentence } : {}), ...(wakeAt !== undefined ? { wakeAt } : {}) };
+    const reconnect = trouble.find((entry) => entry.signedOut || entry.severalAccounts);
+    return {
+      ...(run ? { run } : {}),
+      ...(sentence ? { trouble: sentence } : {}),
+      ...(reconnect ? { reconnectApp: appName[reconnect.app] } : {}),
+      ...(wakeAt !== undefined ? { wakeAt } : {}),
+    };
   }
 
   function settled(run: RoutineRun): void {

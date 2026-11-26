@@ -1,3 +1,4 @@
+import type { RoutineBlock } from "../shared/routines.ts";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -142,6 +143,8 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   finishedAt?: number;
   output?: string;
   attention?: string;
+  blockedBy?: RoutineBlock;
+  repairApp?: string;
   error?: string; partial?: boolean;
   cost?: number | null;
   denials?: string[];
@@ -222,7 +225,7 @@ function routineRequestOwnerKey(owner: RoutineRequestOwner): string {
 
 /** What a routine's checks found: items for one AI run, a sentence while an app cannot be read, and the next time they
  * have something to do on time. */
-export interface RoutineCheckResult { run?: { prompt: string; key: string }; trouble?: string; troubleCode?: string; wakeAt?: number }
+export interface RoutineCheckResult { run?: { prompt: string; key: string }; trouble?: string; troubleCode?: string; reconnectApp?: string; wakeAt?: number }
 
 export interface RoutineChecks {
   /** Runs a routine's checks. With `hold` they may do only what needs no AI, and their items wait. */
@@ -288,6 +291,7 @@ export interface RoutineManagerOptions {
   handedOffWorkLive?: (threadId: string) => boolean;
   launchId?: string;
   /** A Cloud home woken from a sleep it was stopped for (server/cloud-power.ts): not a startup, so no "run on startup". */
+  preflight?: (run: Readonly<RoutineRun>) => { reason: RoutineBlock; text: string } | null;
   skipStartupRuns?: boolean; /** What a run needs before it starts (its cloud computer awake and answering): null when nothing, else resolves null when ready or with why the run cannot start. `preparing` is the run's line meanwhile. Only a run nobody started by hand is held; the signal aborts once the run no longer waits to start. */ prepareRun?: RunPreparation<RoutineRun>; preparing?: string;
   checks?: RoutineChecks;
   /** routines.json, unreadable at start, can be read now. True: the host starts the process afresh instead, so that what
@@ -634,7 +638,7 @@ export class RoutineManager {
       });
       if (patch.enabled !== undefined) delete routine.heldFor;
       for (const key of ["continuity", "sameConversation", "modelSelection", "overlap", "runOnStartup", "access", "deliver"] as const) if (!clean[key]) delete routine[key];
-      if (!clean.checks) for (const key of ["checks", "checkedAt", "checkTrouble", "checkTroubleCode", "wakeAt"] as const) delete routine[key];
+      if (!clean.checks) for (const key of ["checks", "checkedAt", "checkTrouble", "checkTroubleCode", "checkRepairApp", "wakeAt"] as const) delete routine[key];
       if (Object.hasOwn(patch, "timeoutMinutes") && patch.timeoutMinutes == null) {
         delete routine.timeoutMinutes;
       }
@@ -1048,6 +1052,7 @@ export class RoutineManager {
               scheduledRuns.push(Object.assign(this.newRun(routine, scheduledFor, false, allocations), plan.fields, plan.late ? staggered(now, lateStarts++) : {}));
             } else {
               const skip = recordSkip(this.runs, () => this.newRun(routine, plan.through, false, allocations), skipFor, plan.through, now, plan.count > 1 ? { count: plan.count - 1, scheduledFor: plan.first } : undefined);
+              if (capped) skip.row.blockedBy = "usage";
               (skip.tell ? scheduledRuns : countedSkips).push(skip.row);
               if (!capped) { routine.skippedRuns = Math.min(Number.MAX_SAFE_INTEGER, (routine.skippedRuns ?? 0) + plan.count); routine.lastSkippedAt = plan.through; }
               else if (once) { if (routine.schedule.type === "once") routine.schedule = { type: "once", at: capped.resetsAt }; routine.nextRunAt = capped.resetsAt; continue; }
@@ -1121,10 +1126,42 @@ export class RoutineManager {
           else if (busy.changed) this.saveLater();
           continue;
         }
-        if (state === "missing") { this.failRun(run, this.missingTargetMessage(run.target)); continue; }
+        if (state === "missing") { run.blockedBy = "target"; this.failRun(run, this.missingTargetMessage(run.target)); continue; }
         const paused = run.target === "room-goal" ? null : this.options.pausedText?.(run.botId);
         if (!this.ledger.ready(run)) continue; if (this.ledger.startedElsewhere(run)) { const line = codedLine("error", "routines.server.duplicate"); Object.assign(run, line.codes); void this.cancelRun(run.id, line.text); continue; }
-        if (paused) { if (triggerSource !== "manual" && this.options.held?.(run.botId)) void this.cancelRun(run.id, paused); else this.failRun(run, paused); continue; } const startedBy = run.byPerson ? "manual" : triggerSource, capped = run.retried === "restarted" ? null : this.options.capText?.(run.botId, startedBy); if (capped) { if (startedBy === "manual") this.failRun(run, capped); else void this.cancelRun(run.id, capped); continue; } const gated = triggerSource === "manual" ? false : this.gate.hold(run); if (gated === true) { if (this.options.preparing && run.attention !== this.options.preparing) { run.attention = this.options.preparing; this.emitRun(run); } continue; } if (gated) { this.failRun(run, gated); continue; }
+        if (paused) {
+          run.blockedBy = this.options.held?.(run.botId) ? "target" : "usage";
+          if (triggerSource !== "manual" && run.blockedBy === "target") void this.cancelRun(run.id, paused);
+          else this.failRun(run, paused);
+          continue;
+        }
+        const startedBy = run.byPerson ? "manual" : triggerSource;
+        const capped = run.retried === "restarted" ? null : this.options.capText?.(run.botId, startedBy);
+        if (capped) {
+          run.blockedBy = "usage";
+          if (startedBy === "manual") this.failRun(run, capped);
+          else void this.cancelRun(run.id, capped);
+          continue;
+        }
+        const blocked = this.options.preflight?.(run);
+        if (blocked) {
+          run.blockedBy = blocked.reason;
+          this.failRun(run, blocked.text);
+          continue;
+        }
+        const gated = triggerSource === "manual" ? false : this.gate.hold(run);
+        if (gated === true) {
+          if (this.options.preparing && run.attention !== this.options.preparing) {
+            run.attention = this.options.preparing;
+            this.emitRun(run);
+          }
+          continue;
+        }
+        if (gated) {
+          run.blockedBy = "computer";
+          this.failRun(run, gated);
+          continue;
+        }
         const startedAt = this.now();
         const suffix = ` · ${new Date(startedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
         const title = `${run.routineName.slice(0, 80 - suffix.length).trimEnd()}${suffix}`;
@@ -1232,7 +1269,10 @@ export class RoutineManager {
       return console.error(`routines: could not save the checks of ${routineId}`, error);
     }
     this.emitRoutine(current);
-    if (queued && !result.run && result.trouble) this.failRun(queued, result.trouble);
+    if (queued && !result.run && result.trouble) {
+      if (result.reconnectApp) Object.assign(queued, { blockedBy: "connection", repairApp: result.reconnectApp });
+      this.failRun(queued, result.trouble);
+    }
     else if (run ?? queued) this.emitRun((run ?? queued)!);
     if (run) queueMicrotask(() => this.tickInBackground());
   }
@@ -1306,7 +1346,10 @@ export class RoutineManager {
     if (this.closing) return;
     const held = facts.limit !== undefined || facts.limitResetsAt !== undefined ? facts.limit ?? "engine" : facts.stopReason === "auth_required" ? "signed-out" : undefined, backupReady = held !== undefined && this.options.limitBackup?.(run.botId, held) === true;
     const recovery = recoverRun(run, failure, { ...facts, ...(backupReady ? { backupReady } : {}), nextScheduled: nextScheduledRun(run, this.routines) }, this.now(), this.ownerNotices);
-    if (!recovery.queued) this.failRun(Object.assign(run, { partial: (facts.partial && Boolean(run.output)) || undefined }), recovery.error, "failed", recovery.alert);
+    if (!recovery.queued) {
+      run.blockedBy = facts.blockedBy ?? (held === "signed-out" ? "model" : held ? "usage" : undefined);
+      this.failRun(Object.assign(run, { partial: (facts.partial && Boolean(run.output)) || undefined }), recovery.error, "failed", recovery.alert);
+    }
     else {
       this.saveLater();
       this.emitRun(run);

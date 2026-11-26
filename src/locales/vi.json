@@ -11490,5 +11490,21 @@
   "personalInbox.startingVoice": "Đang mở micro…",
   "personalInbox.dictatingVoice": "Đang nhập bằng giọng nói…",
   "personalInbox.microphoneUnavailable": "Không dùng được micro. Hãy kiểm tra quyền truy cập micro.",
-  "personalInbox.recordingFailed": "Không ghi âm được. Hãy thử lại."
+  "personalInbox.recordingFailed": "Không ghi âm được. Hãy thử lại.",
+  "today.title": "Hôm nay",
+  "today.failed": "Tự động hóa gặp lỗi",
+  "today.completed": "Đã hoàn tất hôm nay",
+  "today.continue": "Tiếp tục cuộc trò chuyện",
+  "today.empty": "Hôm nay bạn đã xem hết công việc.",
+  "today.loadError": "Không tải được hoạt động hôm nay.",
+  "automations.fix.model": "Mở cài đặt mô hình",
+  "automations.fix.permission": "Xem lại quyền",
+  "automations.fix.computer": "Mở cài đặt máy tính",
+  "server.routines.approvalPending": "Thay đổi quyền của bot đang chờ xác nhận.",
+  "botAccess.connectionApproval": "Chế độ phê duyệt của bot · {mode}",
+  "botAccess.connectionNeedsSignIn": "Cần đăng nhập lại",
+  "botAccess.connectionPending": "Đang kết nối",
+  "mcp.connectionTeam": "Kết nối dùng chung của nhóm",
+  "mcp.connectionPerson": "Kết nối cá nhân",
+  "automations.app.sourceAccount": "Nguồn sự kiện · {app} · {account}"
 }

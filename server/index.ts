@@ -7623,7 +7623,7 @@ async function beginTurn(
   const instance = registry.get(bot.modelSelection.instanceId);
   if (!instance) {
     if (removedComputerInstanceIds(cfg.instances).has(bot.modelSelection.instanceId)) void retryComputerEngineMove();
-    throw noAiNotice.refusal(threadId, opts?.sender, bot.modelSelection.instanceId) ?? Object.assign(new Error(`provider instance "${bot.modelSelection.instanceId}" is unavailable — pick another model in settings`), { status: 409 });
+    throw noAiNotice.refusal(threadId, opts?.sender, bot.modelSelection.instanceId) ?? Object.assign(new Error(`provider instance "${bot.modelSelection.instanceId}" is unavailable — pick another model in settings`), { status: 409, code: "model_unavailable" });
   }
   const policyRefusal = policyModelRefusal(instance);
   if (policyRefusal) throw Object.assign(new Error(policyRefusal), { status: 409, code: "managed_policy" });
@@ -8795,6 +8795,12 @@ routines = new RoutineManager({
   limitBackup: (botId, scope) => { const bot = store.bot(botId); return quotaSwitchEnabled() ? Boolean(bot && limitTakeover.backups(botId, bot.modelSelection, scope, approvalModeFor(bot)).length) : Boolean(bot && startupBackups(bot, cfg.automaticRecovery).length); },
   launchId: DESKTOP_MANAGED && /^[\w-]{1,100}$/.test(process.env.OMB_DESKTOP_LAUNCH_ID ?? "")
     ? process.env.OMB_DESKTOP_LAUNCH_ID : undefined,
+  preflight: (run) => {
+    if (run.target !== "bot") return null;
+    const bot = run.threadId ? store.projectBotForTask(run.botId, run.threadId) : store.bot(run.botId);
+    if (bot?.approvalGrant) return { reason: "approval", text: serverLine(threadLanguage(bot.threadId), "server.routines.approvalPending") };
+    return null;
+  },
   skipStartupRuns: (startedFromSleep = Boolean(CLOUD_HOME) && wokeFromSleep(DATA_DIR)), prepareRun: (run, signal) => runComputers.prepare(run, signal), preparing: RUN_COMPUTER_LINES.waking, // a Cloud home waking from a sleep it was stopped for
   hasPendingDelegations: runtimeWorkPending, refusedHandoff: refusedHandoffs.take, handedOffWorkLive: (threadId) => coordinator.outstandingFor(threadId).length > 0,
   routineTurn: (threadId) => directRequestOwners.get(threadId)?.automation !== undefined, personTurn: (threadId) => directRequestOwners.get(threadId)?.origin?.kind === "user", home: { machine: CLOUD_HOME?.machineId, cloud: CLOUD_HOME !== null }, turnLive: (run) => runTurnLive(run, (threadId) => ({ busy: threadBusy(run.botId, threadId), settling: settlingTurns.has(threadId), queued: queuedThreadPosition(run.botId, threadId) !== null, pending: runtimeWorkPending(threadId), parked: store.taskByThread(run.botId, threadId)?.activity === "parked.computer" })),
@@ -14425,6 +14431,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           return json(res, 403, { error: "connected apps are not enabled for this bot" });
         }
         // Security: a member's own bridge reaches only their own installation, and only in their own turn.
+        const scopesRevision = teamConnections.scopes.appRevision();
         const actor = teamConnections.relayActor(internalCapability); if (actor.refusal) return json(res, 200, { jsonrpc: "2.0", id: (body as { id?: unknown }).id ?? null, result: { content: [{ type: "text", text: actor.refusal }], isError: true } });
         // Verdict every tools/call frame against connectorTools; a grants record makes every unrecognized shape a deny.
         const call = connectorCallFromFrame(body);
@@ -14554,6 +14561,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             requireActiveInternalCapability();
             const checkDispatch = (final = false, record = true) => {
               requireActiveInternalCapability();
+              const identityRefusal = teamConnections.relayDispatchRefusal(internalCapability, scopesRevision, actor.access);
+              if (identityRefusal) refuseDispatch(identityRefusal);
               const fresh = store.bot(internalCapability.botId);
               if (!fresh || fresh.composio === false || !composio.configured(cfg) || managedPolicy.appsCallRefusal(connectorCalls, serviceSlugs)) refuseDispatch("Connected apps were disabled while this call waited.");
               const freshAccess = connectorAccessDecision(fresh.connectorScopes, connectorCalls, serviceSlugs);

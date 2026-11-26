@@ -11490,5 +11490,21 @@
   "personalInbox.startingVoice": "Opening microphone…",
   "personalInbox.dictatingVoice": "Dictating…",
   "personalInbox.microphoneUnavailable": "Microphone unavailable. Check microphone permissions.",
-  "personalInbox.recordingFailed": "Recording failed. Try again."
+  "personalInbox.recordingFailed": "Recording failed. Try again.",
+  "today.title": "Today",
+  "today.failed": "Failed automations",
+  "today.completed": "Completed today",
+  "today.continue": "Continue a chat",
+  "today.empty": "Nothing to catch up on today.",
+  "today.loadError": "Could not load today’s activity.",
+  "automations.fix.model": "Open model settings",
+  "automations.fix.permission": "Review permissions",
+  "automations.fix.computer": "Open computer settings",
+  "server.routines.approvalPending": "The bot’s permission change is waiting for confirmation.",
+  "botAccess.connectionApproval": "Bot approval mode · {mode}",
+  "botAccess.connectionNeedsSignIn": "Needs sign-in",
+  "botAccess.connectionPending": "Connecting",
+  "mcp.connectionTeam": "Shared team connection",
+  "mcp.connectionPerson": "Personal connection",
+  "automations.app.sourceAccount": "Event source · {app} · {account}"
 }

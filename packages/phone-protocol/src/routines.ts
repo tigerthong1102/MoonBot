@@ -165,6 +165,7 @@ export interface Routine {
   checkTrouble?: string;
   /** Catalog key for `checkTrouble` when it is one of the server's fixed lines; `checkTrouble` keeps the English. */
   checkTroubleCode?: string;
+  checkRepairApp?: string;
   /** The next time its checks have something to do on time (a reminder, meeting prep): only this may keep the
    * computer awake or wake a sleeping Cloud. */
   wakeAt?: number;
@@ -187,6 +188,8 @@ export interface Routine {
   createdAt: number;
   updatedAt: number;
 }
+
+export type RoutineBlock = "connection" | "model" | "permission" | "approval" | "usage" | "computer" | "target";
 
 export interface RoutineRun {
   id: string;
@@ -236,6 +239,8 @@ export interface RoutineRun {
   /** Concise, redacted question or approval reason while status is waiting,
    * or why a queued run starts later. */
   attention?: string;
+  blockedBy?: RoutineBlock;
+  repairApp?: string;
   cost?: number | null;
   denials?: string[];
   report?: RoutineRunReport;

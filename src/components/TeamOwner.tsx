@@ -128,7 +128,7 @@ export function NeedsYouTitle({ item, title }: { item: NeedsYouItem; title: stri
 }
 
 /** One thing that needs this person, opening its conversation. */
-export function NeedsYouLine({ item, onOpened }: { item: NeedsYouItem; onOpened?: () => void }) {
+export function NeedsYouLine({ item, onOpened, menuItem = true }: { item: NeedsYouItem; onOpened?: () => void; menuItem?: boolean }) {
   const { state, dispatch } = useStore();
   const showThreads = useShowThreads();
   const botName = (botId: string) => state.bots.find((bot) => bot.id === botId)?.name ?? t("needsYou.aBot");
@@ -136,7 +136,7 @@ export function NeedsYouLine({ item, onOpened }: { item: NeedsYouItem; onOpened?
   const title = item.kind === "message" ? t("needsYou.message", { name: item.from })
     : item.kind === "question" ? t("needsYou.asking", { bot: botName(botId) }) : t("needsYou.fix", { bot: botName(botId) });
   const text = "text" in item ? item.text : "";
-  return <button type="button" role="menuitem"
+  return <button type="button" role={menuItem ? "menuitem" : undefined}
     onClick={() => {
       onOpened?.();
       if (!item.threadId) return;

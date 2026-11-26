@@ -3,6 +3,7 @@ import { Check, TriangleAlert } from "lucide-react";
 import { AUTOMATION_FIX_LABEL, runAwaitingAnswer, type Automation, type AutomationStatus } from "@/lib/automations";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
+import { openBotSettings } from "../bot-panel/panel-link";
 import { useStore } from "@/state/store";
 import type { useAllAutomationActions } from "./app-actions";
 
@@ -27,10 +28,13 @@ export function FixButton({ automation, status, actions, onEdit, className }: {
   const waiting = fix === "answer" ? runAwaitingAnswer(automation.runs) : undefined;
   const onClick = () => {
     if (fix === "answer") actions.openRun(automation, waiting);
-    else if (fix === "sign-in") actions.openRun(automation, automation.runs.find((run) => run.status !== "queued"));
+    else if (fix === "sign-in") dispatch({ type: "toggleAppSettings", open: true, section: "ai" });
+    else if (fix === "model") openBotSettings(dispatch, "model", { botId: automation.botId });
+    else if (fix === "permission") openBotSettings(dispatch, "permissions", { botId: automation.botId });
+    else if (fix === "computer") openBotSettings(dispatch, "access", { botId: automation.botId });
     else if (fix === "usage") dispatch({ type: "toggleAppSettings", open: true, section: "usage" });
     else if (fix === "edit") onEdit();
-    else if (fix === "reconnect") dispatch({ type: "togglePlugins", open: true, surface: "apps" });
+    else if (fix === "reconnect") dispatch({ type: "togglePlugins", open: true, surface: "apps", search: status.repairApp ?? automation.appTrigger?.appName });
     else void actions.runNow(automation);
   };
   return (

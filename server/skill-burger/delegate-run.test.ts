@@ -57,6 +57,24 @@ function harness(exec: StepExecutors) {
 }
 
 describe("a saved delegation", () => {
+  it("uses changed input in both delegation criteria and review", async () => {
+    const t = team();
+    const h = harness(t.exec);
+    const workflow = wf([{ id: "s1", kind: "delegate", label: "Ask Kiwi", tasks: [{ bot: { id: "kiwi", name: "Kiwi" }, message: ["Inspect ", { $arg: "site" }], doneWhen: ["Report findings for ", { $arg: "site" }] }], review: { rounds: 1 } }], { site: { default: "https://old.example" } });
+    await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow, args: { site: "https://new.example" } }, h.deps);
+    expect(t.sent[0]).toMatchObject({ message: "Inspect https://new.example", doneWhen: "Report findings for https://new.example" });
+    t.reply("kiwi", "done");
+    const review = await h.resume("back");
+    expect(review.requiresInput?.prompt).toContain("Report findings for https://new.example");
+    expect(review.requiresInput?.prompt).not.toContain("old.example");
+  });
+  it("does not send any handoff when expanded criteria exceed the limit", async () => {
+    const t = team();
+    const workflow = wf([{ id: "s1", kind: "delegate", label: "Ask Kiwi", tasks: [{ bot: { id: "kiwi", name: "Kiwi" }, message: "Inspect", doneWhen: [{ $arg: "site" }] }] }], { site: {} });
+    const result = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow, args: { site: "x".repeat(1_001) } }, harness(t.exec).deps);
+    expect(result.ok).toBe(false);
+    expect(t.sent).toHaveLength(0);
+  });
   it("sends a long correction within the production authorization limit", async () => {
     const t = team();
     const exec = guardedExecutors(t.exec, { allowed: () => true, approve: async () => true });

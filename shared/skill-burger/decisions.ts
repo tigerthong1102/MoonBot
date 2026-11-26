@@ -16,7 +16,6 @@ export const decisionsSchema = z.object({
 }).strict();
 export type Decisions = z.infer<typeof decisionsSchema>;
 
-/** The top-level keys of a value, so the model can name a path that exists ("messages", "data.items"). */
 function shape(value: unknown, depth = 0): string {
   if (Array.isArray(value)) return depth > 1 ? "[…]" : `[${value.length ? shape(value[0], depth + 1) : ""}]`;
   if (!value || typeof value !== "object") return typeof value;

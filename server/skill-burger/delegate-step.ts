@@ -88,9 +88,11 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
     if (!to || (fixes && !(task.bot.name in fixes))) continue;
     const base = textOf(task.message, fill);
     const message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;
-    let key = `${message}\u0000${task.doneWhen ?? ""}`;
+    const doneWhen = task.doneWhen ? textOf(task.doneWhen, fill) : undefined;
+    if (doneWhen && doneWhen.length > 1_000) return { ok: false, error: "The completed criteria exceed 1,000 characters." };
+    let key = `${message}\u0000${doneWhen ?? ""}`;
     if (calls.get(key)?.botIds.includes(to.id)) key += `\u0000${task.bot.name}`;
-    const call = calls.get(key) ?? { parts: [], botIds: [], message, ...(fixes ? { correction: fixes[task.bot.name] } : {}), ...(task.doneWhen ? { doneWhen: task.doneWhen } : {}) };
+    const call = calls.get(key) ?? { parts: [], botIds: [], message, ...(fixes ? { correction: fixes[task.bot.name] } : {}), ...(doneWhen ? { doneWhen } : {}) };
     call.parts.push(task.bot.name); call.botIds.push(to.id);
     calls.set(key, call);
   }
@@ -132,8 +134,8 @@ export function repliesText(replies: DelegationState["replies"]): string {
   return Object.entries(replies).map(([part, reply]) => `## ${reply.name}${reply.name !== part ? ` (for ${part})` : ""}${reply.ok ? "" : " (did not finish)"}\n${reply.text.slice(0, Math.min(each, REPLY_MAX))}`).join("\n\n");
 }
 
-export function reviewPrompt(step: DelegateStep, state: DelegationState): string {
-  const done = step.tasks.map((task) => (task.doneWhen ? `${task.bot.name}: ${task.doneWhen.replace(/[.\s]+$/, "")}` : "")).filter(Boolean);
+export function reviewPrompt(step: DelegateStep, state: DelegationState, fill: (ref: WorkflowRef) => unknown): string {
+  const done = step.tasks.map((task) => (task.doneWhen ? `${task.bot.name}: ${textOf(task.doneWhen, fill).replace(/[.\s]+$/, "")}` : "")).filter(Boolean);
   const left = (step.review?.rounds ?? 0) - (state.round - 1);
   return [
     `Check each teammate's reply${done.length ? ` against what done means:\n${done.join("\n")}` : " for whether it does what was asked"}`,

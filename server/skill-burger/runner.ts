@@ -459,11 +459,11 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
       if ("waiting" in got) return ask("teammates", `Still waiting on ${got.waiting.join(", ")}. End your turn; their replies resume you. Then call run_workflow with resume ${JSON.stringify(state.id)} again.`, { delegation });
       delegation.replies = got.replies;
       const roundsLeft = (step.review?.rounds ?? 0) - (delegation.round - 1);
-      if (roundsLeft > 0) return ask("review", reviewPrompt(step, delegation), { delegation }, repliesText(delegation.replies));
+      if (roundsLeft > 0) return ask("review", reviewPrompt(step, delegation, fill), { delegation }, repliesText(delegation.replies));
       return finish();
     }
     const redo = delegation.pendingRedo ?? readReview(response, delegation);
-    if (!redo) return ask("review", `Answer with JSON only. ${reviewPrompt(step, delegation)}`, { delegation }, repliesText(delegation.replies));
+    if (!redo) return ask("review", `Answer with JSON only. ${reviewPrompt(step, delegation, fill)}`, { delegation }, repliesText(delegation.replies));
     const parts = Object.keys(redo);
     if (!parts.length) return finish();
     if (delegation.round - 1 >= (step.review?.rounds ?? 0)) return finish(parts);

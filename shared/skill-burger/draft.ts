@@ -268,7 +268,7 @@ class Drafter {
 
   private delegate(id: string, layer: BurgerLayer, label: string): WorkflowStep {
     const [first = [], ...later] = layer.delegation!.rounds;
-    const tasks = first.flatMap((call) => call.bots.map((bot) => ({ bot: this.teammate(bot), message: this.text(call.message), ...(call.doneWhen ? { doneWhen: call.doneWhen.slice(0, 1_000) } : {}) })));
+    const tasks = first.flatMap((call) => call.bots.map((bot) => ({ bot: this.teammate(bot), message: this.text(call.message), ...(call.doneWhen ? { doneWhen: this.text(call.doneWhen.slice(0, 1_000)) } : {}) })));
     const unique = tasks.filter((task, index) => tasks.findIndex((other) => other.bot.name === task.bot.name) === index).slice(0, 8);
     const example = later.flat().map((call) => `${namesLine(call.bots.map((bot) => this.teammate(bot).name))}: ${textLine(this.text(call.message))}`).join("\n").slice(0, EXAMPLE_MAX);
     const rounds = Math.min(DELEGATE_MAX_ROUNDS, Math.max(later.length, unique.some((task) => task.doneWhen) ? 1 : 0));

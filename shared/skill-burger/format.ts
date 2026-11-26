@@ -73,7 +73,7 @@ export const workflowStepSchema = z.discriminatedUnion("kind", [
   // asked last time.
   z.object({
     ...common, kind: z.literal("delegate"),
-    tasks: z.array(z.object({ bot: teammate, message: text, doneWhen: z.string().max(1_000).optional() }).strict()).min(1).max(8).refine((tasks) => new Set(tasks.map((task) => task.bot.name.trim().toLowerCase().replace(/^@/, ""))).size === tasks.length, "Each delegated task needs a distinct teammate name."),
+    tasks: z.array(z.object({ bot: teammate, message: text, doneWhen: text.or(z.literal("")).refine((value) => typeof value === "string" ? value.length <= 1_000 : value.reduce((size, part) => size + (typeof part === "string" ? part.length : 0), 0) <= 1_000).optional() }).strict()).min(1).max(8).refine((tasks) => new Set(tasks.map((task) => task.bot.name.trim().toLowerCase().replace(/^@/, ""))).size === tasks.length, "Each delegated task needs a distinct teammate name."),
     consult: z.boolean().optional(),
     review: z.object({ rounds: z.number().int().min(1).max(DELEGATE_MAX_ROUNDS), example: z.string().max(2_000).optional() }).strict().optional(),
   }).strict(),
@@ -151,7 +151,7 @@ function stepLine(step: WorkflowStep, args: Workflow["args"]): string {
   const prefix = fork ? `[only when ${fork.decide} is "${fork.case}"] ` : "";
   const done = step.check && typeof step.check === "object" ? ` (done when: ${step.check.says.replace(/\s+/g, " ").slice(0, 200)})` : "";
   if (step.kind === "delegate") {
-    const taskDone = [...new Set(step.tasks.map((task) => task.doneWhen).filter(Boolean))];
+    const taskDone = [...new Set(step.tasks.flatMap((task) => task.doneWhen ? [textLine(task.doneWhen)] : []))];
     return prefix + [
       `Teammates: ${teammateNames(step.tasks)} each get their part at once (coordinate_bots); wait for every reply${argsUsed(step, args)}`,
       ...step.tasks.map((task) => `   - ${task.bot.name}: ${textLine(task.message).replace(/\s+/g, " ").slice(0, 300)}`),

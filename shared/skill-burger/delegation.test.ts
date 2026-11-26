@@ -19,6 +19,17 @@ const bash = (command: string, extra: Partial<NonNullable<RunMessage["tool"]>> =
 });
 
 describe("a delegation run", () => {
+  it("captures input references in delegated completion criteria", () => {
+    const call = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
+    const modified = { ...call, tool: { ...call.tool!, input: JSON.stringify({ ...JSON.parse(call.tool!.input!), message: "Inspect https://old.example", done_when: "Report findings for https://old.example" }) } };
+    const workflow = draftFromLayers(burgerLayers([ask("Inspect https://old.example"), modified]), "Inspect https://old.example", "Inspect", { teammate });
+    const step = workflow.steps[0]!;
+    expect(step.kind).toBe("delegate");
+    if (step.kind !== "delegate") throw new Error("expected delegation");
+    expect(JSON.stringify(step.tasks[0]!.doneWhen)).toContain('"$arg"');
+    expect(JSON.stringify(step.tasks[0]!.doneWhen)).not.toContain("old.example");
+    expect(workflowSchema.safeParse(workflow).success).toBe(true);
+  });
   it("does not merge a refused teammate handoff into completed work", () => {
     const calls = run.filter((message) => message.tool?.name?.endsWith("coordinate_bots")).slice(0, 2);
     const failed = { ...calls[1]!, tool: { ...calls[1]!.tool!, ok: false } };

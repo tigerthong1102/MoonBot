@@ -86,7 +86,7 @@ export function draftView(workflow: Workflow, layers: readonly BurgerLayer[], me
     };
     if (step.kind !== "delegate") return base;
     const delegation = layer?.delegation;
-    const done = [...new Set(step.tasks.map((task) => task.doneWhen).filter((one): one is string => Boolean(one)))];
+    const done = [...new Set(step.tasks.flatMap((task) => task.doneWhen ? [filled(task.doneWhen, workflow.args)] : []))];
     return {
       ...base,
       who: step.tasks.map((task) => ({ name: task.bot.name, ...(task.bot.role ? { role: task.bot.role } : {}) })),

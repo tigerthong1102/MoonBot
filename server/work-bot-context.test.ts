@@ -67,6 +67,16 @@ it("keeps untransferred Data and files in the original conversation", () => {
   expect(unsupportedWorkBotContext([row("Track our inventory weekly")])).toBeNull();
 });
 
+it("allows a slash topic or endpoint while preserving explicit file and directory references", async () => {
+  for (const text of ["Theo dõi chiến dịch /marketing hằng tuần", "Review the /health endpoint weekly"]) {
+    expect(unsupportedWorkBotContext([row(text)])).toBeNull();
+    expect(await scanWorkBotContext([row(text)], new AbortController().signal)).toBeNull();
+  }
+  for (const text of ["Read /tmp/a.pdf", "Inspect /somewhere/README", "Inspect [root item](/health)"]) {
+    expect(unsupportedWorkBotContext([row(text)])).toBe("files");
+  }
+});
+
 it("refuses to commit if a file or Data context is added during a yield", async () => {
   for (const field of ["file", "data"] as const) {
     const messages = Array.from({ length: 150 }, (_, index) => row(`message ${index}`));

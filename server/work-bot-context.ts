@@ -1,3 +1,4 @@
+import { lstatSync } from "node:fs";
 import { messageFileTargets } from "./message-file.ts";
 import { isContextMessage } from "./delta-context.ts";
 import { digestPromptLine } from "./digest.ts";
@@ -17,6 +18,20 @@ function relativeFileReference(text: string): boolean {
     /(?<![\p{L}\p{M}\p{N}_@./:\\-])[\p{L}\p{M}\p{N}_-][\p{L}\p{M}\p{N}_.-]*\.(?:csv|tsv|xlsx?|xlsm|numbers|pages|log|pdf|docx?|pptx?|txt|md|sql|sqlite|db|json|xml|zip|tar|gz|7z|png|jpe?g|webp|heic|avif|gif|tiff?|mp[34]|wav|m4a|mov)(?![\p{L}\p{M}\p{N}_@])/iu.test(text);
 }
 
+/** A bare /topic can also name a root entry. Check existence without opening its contents. */
+function posixFileReference(text: string): boolean {
+  for (const match of text.matchAll(/(?:^|[^:\p{L}\p{M}\p{N}_/])\/(?!\/)([^\s]+)/giu)) {
+    const word = /^([\p{L}\p{M}\p{N}_-]+)[,;:!?)”’"']*$/u.exec(match[1]!);
+    if (!word) return true;
+    try {
+      if (lstatSync(`/${word[1]}`, { throwIfNoEntry: false })) return true;
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+
 function scanContext(messages: readonly Message[], copied: Set<string>): Reason {
   for (const message of messages) {
     const willCopy = (message.kind === "text" && Boolean(message.text) || message.kind === "digest" && Boolean(message.digest)) && (message.role === "user" || message.role === "bot");
@@ -33,8 +48,8 @@ function scanContext(messages: readonly Message[], copied: Set<string>): Reason 
     let reason: Reason = null;
     const pathText = (text ?? "").replace(/https?:\/\/[^\s<>]+/giu, " ");
     if (hasData) reason = "data";
-    else if (attachmentCount || /<attached-(?:file|image)\b/i.test(text ?? "") || /(?:file:\/\/|(?<![\p{L}\p{M}\p{N}_])[a-z]:[\\/]|\\\\|(?:^|[^:\p{L}\p{M}\p{N}_/])\/(?!\/))\S+/iu.test(pathText) || relativeFileReference(pathText) || (/\]\s*[([]/.test(text ?? "") && messageFileTargets(text ?? "").length)) reason = "files";
-    cache.set(message, { text, hasData, attachmentCount, reason });
+    else if (attachmentCount || /<attached-(?:file|image)\b/i.test(text ?? "") || /(?:file:\/\/|(?<![\p{L}\p{M}\p{N}_])[a-z]:[\\/]|\\\\)\S+/iu.test(pathText) || posixFileReference(pathText) || relativeFileReference(pathText) || (/\]\s*[([]/.test(text ?? "") && messageFileTargets(text ?? "").length)) reason = "files";
+    if (!pathText.includes("/")) cache.set(message, { text, hasData, attachmentCount, reason });
     if (reason) return reason;
   }
   return null;

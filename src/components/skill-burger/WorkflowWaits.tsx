@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { WorkflowWait } from "../../../shared/skill-burger/approval";
+import { isWorkflowWait, type WorkflowWait } from "../../../shared/skill-burger/approval";
 import { t } from "@/lib/i18n";
 import { api } from "@/state/api";
 import { useStoreDispatch } from "@/state/store-select";
@@ -18,8 +18,8 @@ export function WorkflowWaits({ botId, room, threadId, busy }: WaitOwner & { thr
     const abort = new AbortController();
     const load = async () => {
       try {
-        const result = await api<{ waits: WorkflowWait[] }>(path, { signal: abort.signal, background: true });
-        if (!abort.signal.aborted) setRows(result.waits);
+        const result = await api<{ waits?: unknown } | null>(path, { signal: abort.signal, background: true });
+        if (!abort.signal.aborted) setRows(Array.isArray(result?.waits) ? result.waits.filter(isWorkflowWait) : []);
       } catch { if (!abort.signal.aborted) setRows([]); }
     };
     void load();

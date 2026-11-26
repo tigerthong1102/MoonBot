@@ -84,3 +84,26 @@ it("addresses the originating member and thread when a person approves in a room
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "sendGroup", groupId: "room", threadId: "room-topic", text: expect.stringMatching(/^@Viv .*pin/), mentions: ["member"] });
   } finally { act(() => root.unmount()); host.remove(); }
 });
+
+it("ignores unsupported approvals and clears old cards when a server lacks the wait list", async () => {
+  fixture.api.mockReset();
+  const row: WorkflowWait = { run: "r", botId: "A", token: "p", name: "Review", step: "Export", message: "Allow export?", action: "Export report", state: "pending" };
+  let response: unknown = { waits: [null, { ...row, state: "future-state" }, { ...row, token: null }, { ...row, action: "" }, row] };
+  fixture.api.mockImplementation(async () => response);
+  const host = document.createElement("div");
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(WorkflowWaits, { botId: "A", threadId: "T", busy: false })));
+    expect(host.querySelectorAll("strong")).toHaveLength(1);
+    expect(host.querySelector("pre")?.textContent).toBe("Export report");
+    for (const unsupported of [{ ok: true }, { waits: {} }, null]) {
+      response = unsupported;
+      await act(async () => { window.dispatchEvent(new Event("focus")); });
+      expect(host.childElementCount).toBe(0);
+    }
+    response = { waits: [{ ...row, action: "", state: "unavailable" }] };
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(host.querySelector('[role="status"]')).toBeTruthy();
+    expect(host.querySelector("button")).toBeNull();
+  } finally { act(() => root.unmount()); }
+});

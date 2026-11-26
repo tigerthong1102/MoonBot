@@ -1,4 +1,5 @@
 import { browserRecord } from "../lib/browser-records";
+import { sha256Hex } from "../lib/sha256";
 import type { Report } from "./report";
 import { mergeReviewChanges, type ReviewChange } from "./review";
 
@@ -17,8 +18,7 @@ export async function loadSavedReview(key: string): Promise<ReviewFile | undefin
 }
 
 export async function saveChanges(owner: string, report: Report, changes: ReviewChange[]): Promise<ReviewChange[]> {
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(report)));
-  const hash = Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, "0")).join("");
+  const hash = await sha256Hex(new TextEncoder().encode(JSON.stringify(report)));
   const id = owner + ":" + hash;
   const key = "review:" + id;
   let merged: ReviewChange[] = [];

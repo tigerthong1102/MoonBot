@@ -1,3 +1,5 @@
+import { sha256Hex } from "../../lib/sha256";
+
 export const accepts = /\.(txt|md|markdown|csv|tsv|pdf)$/i;
 const MAX_FILE = 2 * 1024 * 1024;
 const MAX_LIBRARY = 16 * 1024 * 1024;
@@ -68,8 +70,7 @@ export async function indexSources(files: SourceFile[], previous: Index): Promis
       const pdf = /\.pdf$/i.test(path);
       if (file.size > (pdf ? 12 * 1024 * 1024 : MAX_FILE)) throw new Error("file limit");
       const bytes = await file.arrayBuffer();
-      const hash = await crypto.subtle.digest("SHA-256", bytes);
-      const digest = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, "0")).join("");
+      const digest = await sha256Hex(bytes);
       const saved = previous.docs.get(path);
       let doc = saved;
       if (!doc || doc.digest !== digest) {
@@ -89,7 +90,15 @@ export async function indexSources(files: SourceFile[], previous: Index): Promis
 }
 
 const fold = (value: string) => value.toLocaleLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replaceAll("đ", "d");
-const wordsOf = (value: string) => fold(value).match(/[\p{L}\p{N}]+/gu) ?? [];
+const continuousScript = /((?:[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\u30fc]\p{M}*)+)/u;
+let segmenter: Intl.Segmenter | undefined;
+function wordsOf(value: string) {
+  return value.split(continuousScript).flatMap((part, index) => {
+    if (index % 2 === 0) return fold(part).match(/[\p{L}\p{N}]+/gu) ?? [];
+    segmenter ??= new Intl.Segmenter(undefined, { granularity: "word" });
+    return Array.from(segmenter.segment(part.normalize("NFKC")), word => word.isWordLike ? word.segment : "").filter(Boolean);
+  });
+}
 const vocabulary = new WeakMap<Passage, Set<string>>();
 const questionWords = new Set(["how", "what", "do", "the", "and", "is", "of", "to", "lam", "nao", "cho", "toi", "cua", "co", "la", "gi", "de", "va"]);
 

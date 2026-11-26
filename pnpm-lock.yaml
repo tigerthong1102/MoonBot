@@ -51,6 +51,9 @@ importers:
       '@muse-code/sdk':
         specifier: 1.4.6
         version: 1.4.6(@types/node@26.2.0)
+      '@noble/hashes':
+        specifier: 2.3.0
+        version: 2.3.0
       '@novnc/novnc':
         specifier: 1.7.0
         version: 1.7.0

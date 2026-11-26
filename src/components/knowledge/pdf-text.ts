@@ -1,10 +1,14 @@
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mjs";
 import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
-export async function pdfText(bytes: ArrayBuffer) {
+export function openSourcePdf(bytes: ArrayBuffer) {
   GlobalWorkerOptions.workerSrc = workerUrl;
-  const task = getDocument({ data: new Uint8Array(bytes), useWorkerFetch: false, useWasm: false, disableFontFace: true,
+  return getDocument({ data: new Uint8Array(bytes), useWorkerFetch: false, useWasm: false, disableFontFace: true,
     isImageDecoderSupported: false, stopAtErrors: true });
+}
+
+export async function pdfText(bytes: ArrayBuffer) {
+  const task = openSourcePdf(bytes);
   const pages: string[] = [];
   let length = 0;
   try {

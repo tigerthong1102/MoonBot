@@ -34,7 +34,7 @@ beforeEach(() => {
   tick = () => { const handler = intervals.mock.calls.find(([, delay]) => delay === 60_000)?.[0]; if (typeof handler === "function") handler(); };
   vi.mocked(browserRecord).mockImplementation(async (_mode, work) => {
     const store = {
-      getAllKeys: () => ({ result: ["watch:" + key] }),
+      getAllKeys: () => ({ result: [...records.keys()].filter(id => id.startsWith("watch:")) }),
       get: (id: string) => ({ result: records.get(id) }),
       put: (value: unknown, id: string) => { records.set(id, value); return { result: id }; },
     };
@@ -160,5 +160,58 @@ it("keeps the open dialog's timer-driven ownership recheck in the background whi
     expect(calls.map(c => [c.path, c.background, c.activity])).toEqual([auth, list, file, auth].map(path => [path, "1", false]));
   } finally {
     await act(async () => root.unmount()); host.remove();
+  }
+});
+
+it.each([
+  ["watch", "signed out"], ["watch", "another reader"], ["manual", "signed out"], ["manual", "another reader"],
+  ["memory", "signed out"], ["memory", "another reader"],
+] as const)("withdraws the open %s document when the watch timer finds %s before scanning", async (storage, session) => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const path = storage === "watch" ? "Drive/policy.txt" : "policy.txt";
+  const file = new File([text], "policy.txt");
+  if (storage !== "watch") records.delete("watch:" + key);
+  if (storage === "manual") records.set(key, { docs: new Map([[path, { path, file, digest: "a".repeat(64),
+    passages: [{ page: 1, paragraph: 1, start: 0, text }] }]]), changes: [] } satisfies Index);
+  if (storage === "memory") {
+    vi.stubGlobal("indexedDB", undefined);
+    vi.mocked(browserRecord).mockRejectedValue(new Error("No storage"));
+  }
+  stop = watchDocumentSources();
+  if (storage === "watch") await vi.waitFor(() => expect((records.get(key) as Index)?.docs.size).toBe(1));
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
+    if (storage === "watch") await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(4)); });
+    if (storage === "memory") {
+      const picker = host.querySelector<HTMLInputElement>("input[type=file]")!;
+      Object.defineProperty(picker, "files", { value: [file] });
+      await act(async () => { picker.dispatchEvent(new Event("change", { bubbles: true })); });
+      await act(async () => { await vi.waitFor(() => expect(vi.mocked(browserRecord).mock.calls.some(([mode]) => mode === "readwrite")).toBe(true)); });
+    }
+    const search = host.querySelector<HTMLInputElement>("input[type=search]")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "policy");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const hit = [...host.querySelectorAll("button")].find(b => b.textContent?.includes(path))!;
+    await act(async () => hit.click());
+    expect(host.querySelector("dialog section")?.textContent).toContain(text);
+    calls.length = 0;
+    answer = route => {
+      if (route !== auth) throw new Error("Unexpected source read: " + route);
+      return session === "signed out" ? Response.json({}, { status: 401 }) : Response.json({ kind: "session", id: "next-reader" });
+    };
+    await act(async () => { tick?.(); });
+    expect(host.textContent).not.toContain(path);
+    expect(host.querySelector("dialog section")).toBeNull();
+    expect(search.value).toBe("");
+    expect(host.textContent).toContain(t("knowledge.answerAccess"));
+    expect(calls).toEqual([{ path: auth, background: "1", activity: false }]);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+  if (storage !== "watch") {
+    calls.length = 0; tick?.(); await Promise.resolve();
+    expect(calls).toEqual([]);
   }
 });

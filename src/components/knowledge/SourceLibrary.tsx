@@ -57,7 +57,7 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
     void libraryKey(bot.threadId).then(async scope => {
       if (!active) return;
       key.current = scope;
-      if (!scope) return;
+      if (!scope) return clearAccess();
       if (unsaved.current?.scope !== scope) unsaved.current = null;
       let revision = 0;
       async function restore(scope: string, verify: boolean, background = false) {
@@ -72,15 +72,20 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
         if (pending?.folder && saved) pending.index = saved;
         current.current = saved ?? empty(); setIndex(current.current); setWatching(watch ?? null); setCacheFailed(!!pending);
       }
-      off = onSourceSync(scope, background => { void restore(scope, false, background).catch(() => { if (active) setCacheFailed(true); }); });
+      off = onSourceSync(scope, background => { void restore(scope, false, background).catch(() => { if (active) setCacheFailed(true); }); }, () => {
+        if (!active) return;
+        ++revision;
+        key.current = null; unsaved.current = null; submission.current = null;
+        setQuery(""); clearAccess(); off?.();
+      });
       await restore(scope, true);
     }).catch(() => { if (active) setCacheFailed(true); }).finally(() => { if (active) setStarting(false); });
     return () => { active = false; off?.(); };
-  }, [bot.threadId, unsaved, clearAccess]);
+  }, [bot.threadId, unsaved, submission, setQuery, clearAccess]);
   async function stillOwns(scope: string | null) {
     const owner = await libraryKey(bot.threadId);
     if (!alive.current) return false;
-    if (scope === owner) return true;
+    if (scope && scope === owner && scope === key.current) return true;
     clearAccess();
     return false;
   }
@@ -98,8 +103,10 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
       current.current = next;
       setIndex(next); setError(false);
       if (scope) {
-        try { await saveSource(scope, next, newFolder); unsaved.current = null; setCacheFailed(false); }
-        catch { unsaved.current = newFolder ? { scope, folder: newFolder, index: next } : { scope, manual: next }; setCacheFailed(true); }
+        let pending: UnsavedSelection | null = null;
+        try { await saveSource(scope, next, newFolder); }
+        catch { pending = newFolder ? { scope, folder: newFolder, index: next } : { scope, manual: next }; }
+        if (key.current === scope) { unsaved.current = pending; setCacheFailed(!!pending); }
       }
     } catch { if (alive.current) setError(true); }
     finally { inFlight.current = false; if (alive.current) setBusy(false); }
@@ -169,7 +176,7 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
       if (!alive.current) return;
       const owner = await libraryKey(bot.threadId, { reportOffline: true });
       if (!alive.current) return;
-      if (scope !== owner) return clearAccess();
+      if (scope !== owner || scope !== key.current) return clearAccess();
       if (selection !== unsaved.current) { setSendError("knowledge.answerChanged"); return; }
       if (!fresh) { current.current = empty(); setIndex(current.current); setSendError("knowledge.answerChanged"); return; }
       if (selection?.folder) selection.index = fresh;
@@ -207,7 +214,7 @@ function OpenLibrary({ bot, close, unsaved, submission, query, setQuery }: Omit<
       <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => void pickFolder()}>{t("knowledge.folder")}</button>
       {(index.docs.size > 0 || watching) && <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => void clear()}>{t("knowledge.clear")}</button>}
       {offersCloud && <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => {
-        void cloudFolders().then(list => { setCloud(list.filter(f => !f.threadId || f.threadId === bot.threadId)); setError(false); }).catch(() => setError(true));
+        void cloudFolders().then(list => { if (!alive.current || !key.current) return; setCloud(list.filter(f => !f.threadId || f.threadId === bot.threadId)); setError(false); }).catch(() => setError(true));
       }}>{t("knowledge.cloudFolders")}</button>}
       {cloud && cloud.length === 0 && <span role="status">{t("knowledge.noCloud")}</span>}
       {cloud && cloud.length > 0 && <Select aria-label={t("knowledge.cloudFolders")} value="" onChange={e => {

@@ -1,9 +1,12 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { encodedSourcePath, legacySourceRequest, sourceLink, type SourceEvidence } from "../../shared/source-evidence.ts";
+import { BOT_HELD_CODE, BOT_PAUSED_CODE } from "../../shared/bot-limit.ts";
+import { sameModelSelection } from "../../shared/thread-model.ts";
+import { sinceFreshStart } from "../fresh-start.ts";
 import { personKey } from "../person-key.ts";
 import type { RequestAuth } from "../request-auth.ts";
-import type { SideJobText } from "../side-jobs.ts";
+import type { SideJobs } from "../side-jobs.ts";
 import type { BotRecord, Message, Store } from "../store.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -23,7 +26,7 @@ const result = z.object({
 }).strict();
 
 function prompt(question: string, evidence: SourceEvidence[], history: Message[]): string {
-  const recent = history.filter(message => message.kind === "text" && message.text && (message.role === "user" || message.role === "bot") && !legacySourceRequest(message.text))
+  const recent = sinceFreshStart(history).filter(message => message.kind === "text" && message.text && (message.role === "user" || message.role === "bot") && !legacySourceRequest(message.text))
     .slice(-12).map(message => ({
       speaker: message.role === "bot" ? "assistant" : message.relayed || message.via === "api" || message.peerAsk || message.aside ? "relay" : "person",
       text: message.text!.slice(0, 1600),
@@ -55,13 +58,18 @@ function citedAnswer(raw: string, evidence: SourceEvidence[]): string | null {
   return blocks.join("\n\n");
 }
 
+const missingConversation = { code: "source_conversation_missing", error: "No such conversation." };
+const unavailableModel = { code: "source_model_unavailable", error: "This model cannot answer from sources in an isolated text session." };
+
 export interface KnowledgeAnswerDeps {
   store: Pick<Store, "bot" | "taskByThread" | "activePath" | "activeLeaf" | "appendMessage">;
   accessible(auth: RequestAuth, botId: string, threadId: string): boolean;
+  unavailable(botId: string): typeof BOT_HELD_CODE | typeof BOT_PAUSED_CODE | "source_maintenance" | null;
   refusal(botId: string, threadId: string): { status: number; body: Record<string, unknown> } | null;
   busy(botId: string, threadId: string): boolean;
   sender(auth: RequestAuth): Message["sender"];
-  writer(auth: RequestAuth, bot: BotRecord, threadId: string): SideJobText | null;
+  writer(auth: RequestAuth, bot: BotRecord, threadId: string): ReturnType<SideJobs["sourceAnswer"]>;
+  contextChanged(bot: BotRecord, threadId: string): void;
 }
 
 class SourceRequestRefused extends Error {
@@ -85,7 +93,7 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
     const botId = match[1]!, { question, evidence, threadId, sendId } = body.data;
     const allowed = () => deps.store.taskByThread(botId, threadId) && deps.accessible(auth, botId, threadId);
     const bot = deps.store.bot(botId);
-    if (!bot || !allowed()) return json(res, 404, { error: "No such conversation." });
+    if (!bot || !allowed()) return json(res, 404, missingConversation);
     const rows = deps.store.activePath(threadId);
     const prefix = `source-${sendId}-`;
     const key = prefix + createHash("sha256").update(JSON.stringify([question, evidence])).digest("hex").slice(0, 16);
@@ -95,10 +103,16 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
     if (pending.has(threadId) || deps.busy(botId, threadId)) return json(res, 409, { error: "Wait until this conversation is idle." });
     const principal = auth.kind === "session" ? personKey(auth.session) : "local-owner";
     if (principals.has(principal)) return json(res, 429, { error: "Wait for your current source answer to finish." });
-    const refused = deps.refusal(botId, threadId);
+    const refusal = () => {
+      const refused = deps.refusal(botId, threadId);
+      if (refused) return refused;
+      const code = deps.unavailable(botId);
+      return code && { status: 409, body: { code, error: code === "source_maintenance" ? "Maintenance is in progress." : "This bot is paused." } };
+    };
+    const refused = refusal();
     if (refused) return json(res, refused.status, refused.body);
     const writer = deps.writer(auth, bot, threadId);
-    if (!writer) return json(res, 422, { error: "This model cannot answer from sources in an isolated text session." });
+    if (!writer) return json(res, 422, unavailableModel);
     const leaf = deps.store.activeLeaf(threadId);
     const controller = new AbortController();
     const stop = () => controller.abort();
@@ -110,20 +124,23 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
       const raw = await writer.generateText(prompt(question, evidence, previous ? rows.filter(row => row.id !== previous.id) : rows), {
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(65_000)]), timeoutMs: 65_000,
         started: () => {
-          if (!allowed()) throw new SourceRequestRefused(404, { error: "No such conversation." });
+          if (!allowed()) throw new SourceRequestRefused(404, missingConversation);
           if (deps.busy(botId, threadId) || deps.store.activeLeaf(threadId) !== leaf) throw new SourceRequestRefused(409, { error: "The conversation changed while waiting. Ask again." });
-          const refusal = deps.refusal(botId, threadId);
-          if (refusal) throw new SourceRequestRefused(refusal.status, refusal.body);
-          if (!deps.writer(auth, bot, threadId)) throw new SourceRequestRefused(422, { error: "The selected model is unavailable." });
+          const refused = refusal();
+          if (refused) throw new SourceRequestRefused(refused.status, refused.body);
+          const current = deps.writer(auth, bot, threadId);
+          if (!current) throw new SourceRequestRefused(422, unavailableModel);
+          if (!sameModelSelection(current.selection, writer.selection)) throw new SourceRequestRefused(409, { error: "The conversation's model changed while waiting. Ask again." });
         },
       });
       if (controller.signal.aborted) return;
       const answer = citedAnswer(raw, evidence);
       if (!answer) return json(res, 502, { error: "The model returned an invalid source answer." });
-      if (!allowed()) return json(res, 404, { error: "No such conversation." });
+      if (!allowed()) return json(res, 404, missingConversation);
       if (deps.store.activeLeaf(threadId) !== leaf || deps.busy(botId, threadId)) return json(res, 409, { error: "The conversation changed while answering. Ask again with its current context." });
       const person = previous ?? deps.store.appendMessage(threadId, { role: "user", kind: "text", text: question, sendId: key, sender: deps.sender(auth) });
       deps.store.appendMessage(threadId, { role: "bot", kind: "text", text: answer, replyToId: person.id, sendId: key + "-a" });
+      deps.contextChanged(bot, threadId);
       return json(res, 200, { ok: true });
     } catch (error) {
       if (controller.signal.aborted) return;

@@ -94,7 +94,7 @@ it("a typed stop ends a turn waiting for memory at once and never starts it, and
   expect(Date.now() - before).toBeLessThan(3_000);
 
   await f.api(`/api/bots/${idle.id}/messages`, { text: "@everyone alles stoppen", threadId: idle.activeTaskId });
-  await expect.poll(async () => (await f.messages(idle.activeTaskId)).map((message: any) => message.tool?.name ?? message.text).slice(-2)).toEqual(["@everyone alles stoppen", "Nothing was running here, so nothing needed stopping."]);
+  await expect.poll(async () => (await f.messages(idle.activeTaskId)).map((message: any) => message.tool?.name ?? message.text).slice(-2)).toEqual(["@everyone alles stoppen", "Stop was attempted where permitted. Check any remaining work."]);
   writeFileSync(gate, "finish");
   await expect.poll(async () => (await f.api("/api/bots?messages=0", undefined, "GET")).bots.find((bot: any) => bot.id === running.id).busy, { timeout: 30_000 }).toBe(false);
   await new Promise((resolve) => setTimeout(resolve, 1_500));

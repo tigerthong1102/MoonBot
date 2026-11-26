@@ -65,7 +65,9 @@ it.each(["unavailable", "stale"])("answers from manually picked bytes while stor
   await act(async () => { window.dispatchEvent(new CustomEvent("startupbot-document-sync", { detail: "reader/a" })); });
   owner = "another reader"; await ask();
   expect(api).not.toHaveBeenCalled();
-  owner = "reader"; await ask();
+  expect(host.textContent).not.toContain("Manual ledger reference.");
+  expect(host.textContent).toContain(t("knowledge.answerAccess"));
+  owner = "reader"; await click(t("reconcile.close")); await open(); await ask();
   expect(api).toHaveBeenCalledTimes(1);
   expect(JSON.parse(String(vi.mocked(api).mock.calls[0]![1]?.body))).toMatchObject({
     threadId: "a", question: "ledger", evidence: [{ path: "Guide.txt", text: "Manual ledger reference." }],
@@ -85,8 +87,8 @@ it("requires a new read for a picked folder whose watch could not be saved", asy
   await click(t("knowledge.folder")); await indexed(); await search("ledger");
   await ask();
   await act(async () => { await vi.waitFor(() => expect(api).toHaveBeenCalledTimes(1)); });
-  await open();
-  permitted = false; await ask();
+  permitted = false; await open();
+  expect(host.textContent).not.toContain("Manual ledger reference.");
   expect(api).toHaveBeenCalledTimes(1);
   expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
 });
@@ -106,4 +108,67 @@ it("unmounts the old library on a same-bot thread switch and discards an unfinis
   expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
   expect(vi.mocked(setSource).mock.calls.map(([scope]) => scope)).toEqual(["reader/a"]);
   expect(api).not.toHaveBeenCalled();
+});
+
+it("hides the previous excerpt throughout revalidation on reopening, including when access has expired", async () => {
+  const path = "Policy.txt", text = "Private ledger threshold.";
+  const stored = { docs: new Map([[path, { path, file: new File([text], path), digest: "a".repeat(64),
+    passages: [{ page: 1, paragraph: 1, start: 0, text }] }]]), changes: [] };
+  await click(t("reconcile.close"));
+  vi.mocked(currentLibrary).mockResolvedValue(stored);
+  await open(); await search("ledger");
+  expect(host.textContent).toContain(text);
+  await click(t("reconcile.close"));
+  const next = Promise.withResolvers<typeof stored>();
+  vi.mocked(currentLibrary).mockReturnValue(next.promise);
+  await open();
+  expect(host.textContent).not.toContain(text);
+  expect(host.textContent).not.toContain(path);
+  await act(async () => next.reject(new Error("access expired")));
+  expect(host.textContent).not.toContain(text);
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
+});
+
+it("removes a previous reader's selected passage and results when the latest sync sees an expired session", async () => {
+  const text = "Private ledger reference.", path = "Private.txt";
+  const stored = { docs: new Map([[path, { path, file: new File([text], path), digest: "a".repeat(64),
+    passages: [{ start: 0, page: 1, paragraph: 1, text }] }]]), changes: [] };
+  await click(t("reconcile.close"));
+  vi.mocked(currentLibrary).mockResolvedValue(stored);
+  await open(); await search("ledger");
+  const hit = [...host.querySelectorAll("button")].find(b => b.textContent?.includes(path))!;
+  await act(async () => hit.click());
+  expect(host.querySelector("dialog section")?.textContent).toContain(text);
+  vi.mocked(readLibrary).mockResolvedValue({ docs: new Map(), changes: [] });
+  vi.mocked(libraryKey).mockResolvedValue(null);
+  await act(async () => { window.dispatchEvent(new CustomEvent("startupbot-document-sync", { detail: "reader/a" })); });
+  expect(host.textContent).not.toContain(path);
+  expect(host.textContent).not.toContain(text);
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
+  expect(host.textContent).toContain(t("knowledge.answerAccess"));
+});
+
+it("does not submit when the user switches conversations during the final ownership lookup", async () => {
+  await selectFile(doc()); await indexed(); await search("ledger");
+  const final = Promise.withResolvers<string>(), started = Promise.withResolvers<void>();
+  vi.mocked(libraryKey).mockResolvedValueOnce("reader/a").mockImplementationOnce(() => { started.resolve(); return final.promise; });
+  await ask(); await started.promise;
+  await mount("b");
+  await act(async () => final.resolve("reader/a"));
+  expect(api).not.toHaveBeenCalled();
+});
+
+it("ignores an obsolete ownership check after a newer restore verified the current reader", async () => {
+  const path = "Policy.txt", text = "Updated ledger passage.";
+  const saved = { docs: new Map([[path, { path, digest: "c".repeat(64), file: new File([text], path),
+    passages: [{ start: 0, page: 1, paragraph: 1, text }] }]]), changes: [] };
+  vi.mocked(readLibrary).mockResolvedValue(saved);
+  const previous = Promise.withResolvers<string | null>(), started = Promise.withResolvers<void>();
+  vi.mocked(libraryKey).mockImplementationOnce(() => { started.resolve(); return previous.promise; });
+  const notify = async () => { await act(async () => { window.dispatchEvent(new CustomEvent("startupbot-document-sync", { detail: "reader/a" })); }); };
+  await notify(); await started.promise; await notify(); await search("ledger");
+  expect(host.textContent).toContain(text);
+  await act(async () => previous.resolve(null));
+  expect(host.textContent).toContain(text);
+  expect(host.textContent).not.toContain(t("knowledge.answerAccess"));
 });

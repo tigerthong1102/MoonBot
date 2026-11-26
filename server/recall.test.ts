@@ -2,11 +2,22 @@ import { rmSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DATA_DIR } from "./config.ts";
-import { closeMessageDb, recallMatchTerm, recallTerms } from "./message-db.ts";
+import { closeMessageDb, insertMessage, recallMatchTerm, recallTerms } from "./message-db.ts";
 import { buildRecall, enoughMatches, memoryPassages, RECALL_CLOSE, RECALL_OPEN, recallQuery, renderRecall, topicPassages } from "./recall.ts";
 import { appendMemoryLog, searchMemoryFiles, writeMemoryFile, writeMemoryTopic, WORKSPACES_DIR } from "./workspace.ts";
 
 const BOT = "bot-recall-test";
+
+describe("conversation recall filtering", () => {
+  beforeEach(() => { closeMessageDb(); rmSync(DATA_DIR, { recursive: true, force: true }); });
+  it("omits a handed-off message when the caller excludes it", () => {
+    insertMessage("fixture-thread", { id: "handed", role: "user", kind: "text", text: "Synthetic quarterly schedule requested", at: 1 });
+    insertMessage("fixture-thread", { id: "kept", role: "user", kind: "text", text: "Synthetic quarterly schedule discussion", at: 2 });
+    const recall = buildRecall({ botId: BOT, message: "synthetic quarterly schedule", threadIds: ["fixture-thread"], label: () => "fixture", author: () => "User", includeConversation: hit => hit.messageId !== "handed" });
+    expect(recall?.text).toContain("discussion");
+    expect(recall?.text).not.toContain("requested");
+  });
+});
 
 it("keeps a matching answer late in a named topic instead of replacing it with the introduction", () => {
   writeMemoryTopic(BOT, "tapa.md", `---\ntitle: Tapa\n---\n${"Earlier draft background. ".repeat(40)}\nThe approved amber test is version SEVEN.\n`);

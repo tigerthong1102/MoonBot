@@ -7,6 +7,7 @@ import {
   ATTACHMENTS_DIR, attachmentStorageUsage, clearAttachments, deleteAttachment, extensionForMime, FILE_MAX_BYTES, IMAGE_MAX_BYTES,
   parseAudioRange, readAttachment, saveFile, saveImageUpload, validateAttachmentUploadId, type SavedAttachment,
 } from "../attachments.ts";
+import { uploadGuardForWorkBot } from "../message-db.ts";
 import { saveXmindUpload, XMIND_MIME } from "../xmind.ts";
 import { deliveredCopy } from "../bot-attachment.ts";
 import { memberBot, memberGroup, type Viewer, type VisibleSet } from "../bot-visibility.ts";
@@ -369,6 +370,7 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
         req.resume();
         return json(res, 413, { error: `image exceeds ${IMAGE_MAX_BYTES} bytes` });
       }
+      const guard = uploadGuardForWorkBot(auth, req.headers["x-startupbot-upload-receipt"]);
       const saved = await new Promise<SavedAttachment>((resolve, reject) => {
         const chunks: Buffer[] = [];
         let received = 0;
@@ -388,7 +390,7 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
           if (settled) return;
           settled = true;
           try {
-            resolve(await saveImageUpload(Buffer.concat(chunks), mime, uploadId));
+            resolve(await saveImageUpload(Buffer.concat(chunks), mime, uploadId, guard));
           } catch (e) {
             reject(e instanceof Error ? e : new Error(String(e)));
           }
@@ -396,7 +398,7 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
         req.on("error", (e) => fail(400, e instanceof Error ? e.message : String(e)));
       });
       deps.uploads.note(auth, basename(saved.path));
-      return json(res, 201, saved);
+      return json(res, 201, guard ? { ...saved, handoffReady: true } : saved);
     }
 
     // Raw bytes; a UUID uploadId is stable across retries, and the quota rejects rather than delete files old prompts reference.
@@ -431,11 +433,12 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
       try {
         // Returning must not destroy the socket: the caller still sends the 4xx when the byte count crosses the limit.
         const chunks = req.iterator({ destroyOnReturn: false }) as AsyncIterable<Buffer>;
+        const guard = rawType?.split(";")[0]!.trim().toLowerCase() === XMIND_MIME ? undefined : uploadGuardForWorkBot(auth, req.headers["x-startupbot-upload-receipt"]);
         const saved = rawType?.split(";")[0]!.trim().toLowerCase() === XMIND_MIME
           ? await saveXmindUpload(chunks, name, { uploadId })
-          : await saveFile(chunks, name, rawType ?? "", { uploadId, expectedBytes: declaredLength });
+          : await saveFile(chunks, name, rawType ?? "", { uploadId, expectedBytes: declaredLength, guard });
         deps.uploads.note(auth, basename(saved.path));
-        return json(res, 201, saved);
+        return json(res, 201, guard ? { ...saved, handoffReady: true } : saved);
       } catch (error) {
         req.resume();
         throw error;

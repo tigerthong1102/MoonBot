@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { verifyBotClaim } from "../../../shared/bot-proof";
 import { redactSecretsInText } from "../../../shared/redact";
 import { HTTPError, json, readBoundedJSON } from "./http";
 import { canPost } from "./inbox-files";
@@ -6,13 +7,17 @@ import { groupManager } from "./inbox-group";
 
 type BotRow = Record<string, string | number | null>;
 const uuid = z.uuid();
+const dbNow = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
 const actions = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("invite"),
     owner: z.string().min(1).max(128),
     bot: uuid,
     name: z.string().trim().min(1).max(80),
+    username: z.string().regex(/^bot_k[a-f0-9]{64}$/).optional(),
+    proof: z.object({ nonce: uuid, publicKey: z.string().regex(/^[a-f0-9]{64}$/), signature: z.string().regex(/^[a-f0-9]{128}$/) }).optional(),
   }),
+  z.object({ action: z.literal("challenge"), owner: z.string().min(1).max(128), bot: uuid }),
   z.object({ action: z.literal("add"), bot: uuid }),
   z.object({ action: z.literal("remove"), bot: uuid }),
   z.object({
@@ -36,6 +41,8 @@ const actions = z.discriminatedUnion("action", [
 const active =
   "EXISTS(SELECT 1 FROM inbox_members WHERE room=?1 AND person=?2 AND state='active')";
 const canInvite = `EXISTS(${canPost}) AND EXISTS(SELECT 1 FROM inbox_rooms WHERE id=?1 AND kind='group')`;
+const withinBotLimit = `(EXISTS(SELECT 1 FROM inbox_bots WHERE id=?3 AND owner=?2 AND prepared_only=0)
+  OR (SELECT count(*) FROM inbox_bots WHERE owner=?2 AND prepared_only=0)<50)`;
 const speaking = "CASE q.step WHEN 0 THEN q.first_bot ELSE q.second_bot END";
 const writable = (
   person: string,
@@ -46,10 +53,10 @@ function changed(n: number) {
   if (!n) throw new HTTPError(409, "unavailable");
   return json({ ok: true });
 }
-function addOwnedBot(db: D1Database, room: string, user: string, bot: string) {
+function addOwnedBot(db: D1Database, room: string, user: string, bot: string, afterRegistration = false) {
   return db.prepare(
     `INSERT OR IGNORE INTO inbox_room_bots(room,bot,owner) SELECT ?1,id,?2 FROM inbox_bots
-    WHERE id=?3 AND owner=?2 AND ${canInvite} AND (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12`,
+    WHERE id=?3 AND owner=?2 AND prepared_only=0 AND ${canInvite} AND (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12 ${afterRegistration ? "AND changes()=1" : ""}`,
   ).bind(room, user, bot);
 }
 export async function pendingBotTurns(db: D1Database, user: string) {
@@ -72,16 +79,16 @@ export async function roomBots(
   if (req.method === "GET") {
     if (new URL(req.url).searchParams.get("available") === "1") {
       const rows = await db.prepare(
-        `SELECT b.id,b.name FROM inbox_bots b WHERE b.owner=?2 AND ${canInvite}
+        `SELECT b.id,b.name,b.username FROM inbox_bots b WHERE b.owner=?2 AND b.prepared_only=0 AND ${canInvite}
         AND NOT EXISTS(SELECT 1 FROM inbox_room_bots rb WHERE rb.room=?1 AND rb.bot=b.id)
         ORDER BY b.name,b.id`,
       ).bind(room, user).all<BotRow>();
-      return json({ bots: rows.results });
+      return json({ bots: rows.results.map(({ username, ...row }) => username === null ? row : { ...row, username }) });
     }
     const [members, rounds] = await db.batch<BotRow>([
       db
         .prepare(
-          `SELECT b.id,b.name,u.email AS owner FROM inbox_room_bots rb JOIN inbox_bots b ON b.id=rb.bot
+          `SELECT b.id,b.name,b.username,u.email AS owner FROM inbox_room_bots rb JOIN inbox_bots b ON b.id=rb.bot
         JOIN "user" u ON u.id=b.owner WHERE rb.room=?1 AND ${active} ORDER BY b.name,b.id`,
         )
         .bind(room, user),
@@ -94,25 +101,63 @@ export async function roomBots(
         )
         .bind(room, user, Date.now()),
     ]);
-    return json({ bots: members.results, round: rounds.results[0] ?? null });
+    return json({ bots: members.results.map(({ username, ...row }) => username === null ? row : { ...row, username }), round: rounds.results[0] ?? null });
   }
   const parsed = actions.safeParse(await readBoundedJSON(req));
   if (!parsed.success) throw new HTTPError(400, "invalid_request");
   const a = parsed.data,
     now = Date.now();
+  if (a.action === "challenge") {
+    if (a.owner !== user) throw new HTTPError(403, "unavailable");
+    const nonce = crypto.randomUUID();
+    const [, issued] = await db.batch<BotRow>([
+      db.prepare("DELETE FROM inbox_bot_claims WHERE owner=? AND expires<=?").bind(user, now),
+      db.prepare(`INSERT INTO inbox_bot_claims(nonce,owner,bot,room,expires) SELECT ?3,?2,?4,?1,?5 WHERE ${canInvite}
+        AND (SELECT count(*) FROM inbox_bot_claims WHERE owner=?2)<20`).bind(room, user, nonce, a.bot, now + 5 * 60_000),
+    ]);
+    if (!issued.meta.changes) throw new HTTPError(409, "unavailable");
+    const response = json({ nonce });
+    response.headers.set("x-inbox-internal-silent", "1");
+    return response;
+  }
   if (a.action === "add") return changed((await addOwnedBot(db, room, user, a.bot).run()).meta.changes);
   if (a.action === "invite") {
     if (a.owner !== user) throw new HTTPError(403, "unavailable");
-    const [, result] = await db.batch<BotRow>([
+    if (Boolean(a.username) !== Boolean(a.proof)) throw new HTTPError(400, "invalid_request");
+    if (a.username && a.proof) {
+      const available = await db.prepare(`SELECT nonce FROM inbox_bot_claims WHERE nonce=? AND owner=? AND bot=? AND room=? AND expires>${dbNow}`).bind(a.proof.nonce, user, a.bot, room).first();
+      if (!available) throw new HTTPError(409, "unavailable");
+      const bytes = (hex: string) => Uint8Array.from(hex.match(/../g)!, pair => Number.parseInt(pair, 16));
+      const valid = await verifyBotClaim(bytes(a.proof.publicKey), a.username, { origin: new URL(req.url).origin, owner: user, bot: a.bot, room, nonce: a.proof.nonce }, bytes(a.proof.signature));
+      if (!valid) throw new HTTPError(403, "invalid_bot_proof");
+    }
+    let registered: D1Result<BotRow>, members: D1Result<BotRow>;
+    try {
+    const operations = [
+      ...(a.proof ? [db.prepare(`DELETE FROM inbox_bot_claims WHERE nonce=? AND owner=? AND bot=? AND room=? AND expires>${dbNow}`).bind(a.proof.nonce, user, a.bot, room)] : []),
       db
         .prepare(
-          `INSERT INTO inbox_bots(id,owner,name) SELECT ?3,?2,?4 WHERE ${canInvite}
-        AND (SELECT count(*) FROM inbox_bots WHERE owner=?2)<50 ON CONFLICT(id) DO UPDATE SET name=excluded.name WHERE owner=?2`,
+          `INSERT INTO inbox_bots(id,owner,name,username,prepared_only) SELECT ?3,?2,?4,?5,0 WHERE ${canInvite}
+        ${a.proof ? "AND changes()=1" : ""}
+        AND (EXISTS(SELECT 1 FROM inbox_room_bots WHERE room=?1 AND bot=?3 AND owner=?2)
+          OR (SELECT count(*) FROM inbox_room_bots WHERE room=?1)<12)
+        AND ${withinBotLimit}
+        ON CONFLICT(id) DO UPDATE SET name=excluded.name, username=COALESCE(inbox_bots.username,excluded.username), prepared_only=0
+        WHERE owner=?2 AND (inbox_bots.prepared_only=0 OR excluded.username IS NOT NULL)
+        AND (excluded.username IS NULL OR inbox_bots.username IS NULL OR inbox_bots.username=excluded.username COLLATE NOCASE)`,
         )
-        .bind(room, user, a.bot, a.name),
-      addOwnedBot(db, room, user, a.bot),
-    ]);
-    return changed(result.meta.changes);
+        .bind(room, user, a.bot, a.name, a.username ?? null),
+      addOwnedBot(db, room, user, a.bot, true),
+      db.prepare(`SELECT bot FROM inbox_room_bots WHERE room=?1 AND bot=?3 AND owner=?2 AND ${canInvite}`).bind(room, user, a.bot),
+    ];
+    const results = await db.batch<BotRow>(operations);
+    registered = results[a.proof ? 1 : 0]!;
+    members = results[a.proof ? 3 : 2]!;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("UNIQUE constraint failed: inbox_bots.username")) throw new HTTPError(409, "username_unavailable");
+      throw error;
+    }
+    return changed(registered.meta.changes && members.results.length ? 1 : 0);
   }
   if (a.action === "remove")
     return changed(

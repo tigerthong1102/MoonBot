@@ -87,6 +87,16 @@ const get = async (base: string, path: string) => {
 };
 
 describe("GET /api/threads/:id/job", () => {
+  it("reports classification as running and a pending work-bot choice as needing input", async () => {
+    const f = fixture();
+    const row = f.store.appendMessage(f.threadId, { role: "user", kind: "text", text: "Synthetic work", workBotRouting: { state: "classifying" } });
+    const base = await serve(f);
+    expect((await get(base, `/api/threads/${f.threadId}/job`)).body.state).toBe("running");
+    f.store.patchMessage(f.threadId, row.id, { workBotRouting: { state: "waiting_choice", requestId: "fixture" } });
+    expect((await get(base, `/api/threads/${f.threadId}/job`)).body.state).toBe("needs-input");
+    f.store.patchMessage(f.threadId, row.id, { workBotRouting: { state: "dispatching", recoveryBlocked: true } });
+    expect((await get(base, `/api/threads/${f.threadId}/job`)).body.state).toBe("needs-input");
+  });
   it("is a client read, like the transcript", () => {
     expect(requiredScope("GET", "/api/threads/thread-1/job")).toBe("client");
   });

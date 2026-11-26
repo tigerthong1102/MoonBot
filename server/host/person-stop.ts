@@ -28,6 +28,7 @@ export interface PersonStopDeps {
   language(threadId: string): string | undefined;
   /** Where several people write, the sentence someone who may not stop this thread's run reads. */
   stopRefusal?(threadId: string, by: Actor): string | null;
+  assertStopAllowed?(threadId: string): void;
 }
 
 export interface TypedStop {
@@ -40,6 +41,7 @@ export interface TypedStop {
   fromApp: boolean;
   /** This thread's turn is running now. */
   busy: boolean;
+  stopHandoff?: () => Promise<void>;
   /** The rest of the person's message row, as the busy branch would have recorded it. */
   row: Pick<Message, "replyToId" | "sendId" | "sender" | "via" | "callId">;
   /** Who typed it. */
@@ -49,18 +51,20 @@ export interface TypedStop {
 export function createPersonStop(deps: PersonStopDeps) {
   const { store } = deps;
 
-  async function stopThreadForPerson(botId: string, threadId: string, by?: ResolvedSender): Promise<void> {
+  async function stopThreadForPerson(botId: string, threadId: string, by?: ResolvedSender, options?: { system?: boolean }): Promise<void> {
+    if (!options?.system) deps.assertStopAllowed?.(threadId);
     const routines = deps.routines();
     const routine = routines?.activeBotRunForBot(botId);
     const free = deps.stopping(botId, threadId);
-    if (routine?.threadId === threadId) await routines!.cancelRun(routine.id);
-    else {
-      deps.handoffs().stoppedByPerson(threadId);
-      deps.markStopped(threadId, by);
-      deps.stopGoal(threadId);
-      await deps.interruptDirectThread(botId, threadId);
-    }
-    free();
+    try {
+      if (routine?.threadId === threadId) await routines!.cancelRun(routine.id);
+      else {
+        deps.handoffs().stoppedByPerson(threadId);
+        deps.markStopped(threadId, by);
+        deps.stopGoal(threadId);
+        await deps.interruptDirectThread(botId, threadId);
+      }
+    } finally { free(); }
   }
 
   /** Only a message made of stop words, from a person, acts as Stop: it is recorded, and never reaches the turn it ends. With no
@@ -74,11 +78,27 @@ export function createPersonStop(deps: PersonStopDeps) {
     const refusal = (id: string) => deps.stopRefusal?.(id, input.by ?? { admin: false }) ?? null;
     const refused = everyone ? null : refusal(threadId);
     if (refused) throw Object.assign(new Error(refused), { status: 403, code: "stop_not_yours" });
+    const candidates = (everyone ? store.tasks(botId).map((task) => task.threadId) : [threadId]).filter((id) => (id === threadId && busy) || deps.working(botId, id));
+    const stopping: string[] = [];
+    for (const id of candidates) {
+      if (refusal(id)) continue;
+      try { deps.assertStopAllowed?.(id); stopping.push(id); }
+      catch (error) { if (!everyone) throw error; }
+    }
+    if (!everyone && stopping.includes(threadId) && input.stopHandoff) {
+      await input.stopHandoff();
+      stopping.splice(stopping.indexOf(threadId), 1);
+    }
     if (input.personPresent) deps.clearUnattended(threadId);
     const message = store.appendMessage(threadId, { role: "user", kind: "text", text, ...input.row });
-    const stopping = (everyone ? store.tasks(botId).map((task) => task.threadId) : [threadId]).filter((id) => ((id === threadId && busy) || deps.working(botId, id)) && refusal(id) === null);
-    for (const id of stopping) await stopThreadForPerson(botId, id, input.row.sender);
-    if (!stopping.length) store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: serverLine(deps.language(threadId), "server.stop.nothingRunning"), ok: true } });
+    for (const id of stopping) {
+      try {
+        await stopThreadForPerson(botId, id, input.row.sender);
+      }
+      catch (error) { if (!everyone) throw error; }
+    }
+    if (everyone) store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: serverLine(deps.language(threadId), "server.workBot.everyoneStopNotice"), ok: true } });
+    else if (!stopping.length && !input.stopHandoff) store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: serverLine(deps.language(threadId), "server.stop.nothingRunning"), ok: true } });
     return { ok: true as const, threadId, message };
   }
 

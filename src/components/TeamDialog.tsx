@@ -98,7 +98,7 @@ export function TeamDialog({ section, rename = false, onClose, onRenamed }: {
           </button>}
           <fieldset disabled={saving}>
             <legend className="mb-1 text-[12px] font-medium text-ink-secondary">{t("team.existingBots")}</legend>
-            <BotPickerList bots={candidates} picked={picked} emptyHint={t("team.noBots")} onToggle={(id) => setPicked((previous) => {
+            <BotPickerList bots={candidates} allBots={state.bots} picked={picked} emptyHint={t("team.noBots")} onToggle={(id) => setPicked((previous) => {
               const next = new Set(previous);
               if (next.has(id)) next.delete(id); else next.add(id);
               return next;

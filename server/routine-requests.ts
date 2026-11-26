@@ -6,6 +6,7 @@ import { formatInstant, routineCronText } from "./routine-cron-text.ts";
 import { conversationLanguage, serverLine } from "./server-lines.ts";
 import { plainClock, plainTimeZone, plainWeekdays } from "../shared/plain-time-zone.ts";
 import { normalizeCronSchedule, nextCronRuns } from "../shared/routine-schedule.ts";
+import { isHeldHandoffSchedule, type WorkBotLinkLookup } from "./work-bot-held-schedule.ts";
 import { newId } from "./contracts.ts";
 import { UNDO_STALE, type DirectApply, type DirectApplyCheck } from "./direct-apply.ts";
 import { redactSecretsInText } from "./redact.ts";
@@ -62,46 +63,11 @@ const ACTION_COPY = {
 const ROUTINE_REQUEST_FINGERPRINT_VERSION = 1 as const;
 
 export type { RoutineProposalInput, RoutineToolChangesInput, RoutineToolDefinitionInput, RoutineToolScheduleInput } from "./routine-request-schemas.ts";
-
-export interface RoutineRequestOptionCard {
-  title: string;
-  subtitle: string;
-  options: string[];
-  answered?: string;
-  dismissed?: boolean;
-  expired?: boolean;
-  requestId?: string;
-  tool?: string;
-  held?: string;
-  autoApplied?: boolean;
-  undone?: boolean;
-  routineRequest?: RoutineRequestCardData;
-}
-
-export interface RoutineRequestMessage {
-  id: string;
-  card?: RoutineRequestOptionCard;
-}
-
-export interface RoutineRequestStore {
-  messagesFor(threadId: string): RoutineRequestMessage[];
-  appendMessage(
-    threadId: string,
-    message: {
-      role: "bot";
-      kind: "options";
-      card: RoutineRequestOptionCard;
-      from?: { botId: string; name: string; color: string };
-    },
-  ): RoutineRequestMessage;
-  patchMessage(
-    threadId: string,
-    messageId: string,
-    patch: { card: RoutineRequestOptionCard },
-  ): RoutineRequestMessage | null;
-}
+import type { RoutineRequestOptionCard, RoutineRequestStore } from "./routine-request-store.ts";
+export type { RoutineRequestMessage, RoutineRequestOptionCard, RoutineRequestStore } from "./routine-request-store.ts";
 
 export interface RoutineRequestServiceOptions {
+  workBotLinks?: WorkBotLinkLookup;
   store: RoutineRequestStore;
   routines: RoutineManager;
   now?: () => number;
@@ -125,6 +91,7 @@ export interface ProposeRoutineRequestArgs {
   threadId: string;
   /** Untrusted model output; normalized by routineProposalSchema in propose(). */
   proposal: unknown;
+  requestMessageId?: () => string | undefined;
   from?: { botId: string; name: string; color: string };
   /** Caller/turn lease, checked synchronously right before the durable card append. */
   canCommit?: () => boolean;
@@ -802,13 +769,16 @@ function requestCommit(payload: RoutineRequestCardData, messageId: string): Rout
   };
 }
 
-function revalidateOperation(operation: RoutineRequestOperation, manager: RoutineManager, botId: string, now: number): void {
+function revalidateOperation(operation: RoutineRequestOperation, manager: RoutineManager, context: {
+  botId: string; threadId: string; now: number; heldHandoff: (routine: Routine) => boolean;
+}): void {
+  const { botId, threadId, now, heldHandoff } = context;
   if (operation.action === "create") {
     const definition = operation.routine;
     const owner = operation.forBot?.botId ?? botId;
     const schedule = asSchedule(definition.schedule, now);
     const duplicate = manager.listRoutines().find((routine) => {
-      if (!routine.enabled || routine.target !== "bot" || routine.botId !== owner
+      if ((!routine.enabled && !routine.heldFor) || routine.target !== "bot" || routine.botId !== owner
         || routine.runOn !== definition.runOn || routine.prompt !== definition.instructions
         || routine.durationMinutes !== definition.durationMinutes
         || routine.timeoutMinutes !== definition.timeoutMinutes
@@ -817,18 +787,22 @@ function revalidateOperation(operation: RoutineRequestOperation, manager: Routin
         || Boolean(routine.runOnStartup) !== Boolean(definition.runOnStartup)
         || (routine.attachments?.length ?? 0) > 0) return false;
       if (schedule.type === "limit_reset" || routine.schedule.type === "limit_reset") {
-        return schedule.type === routine.schedule.type && isDeepStrictEqual(requestSchedule(schedule), requestSchedule(routine.schedule));
+        return routine.enabled && schedule.type === routine.schedule.type && isDeepStrictEqual(requestSchedule(schedule), requestSchedule(routine.schedule));
       }
       const candidate = schedule.type === "interval" && routine.schedule.type === "interval"
         && definition.schedule.type === "interval" && definition.schedule.anchorAt === undefined
         ? { ...schedule, anchorAt: routine.schedule.anchorAt }
         : schedule;
-      return isDeepStrictEqual(candidate, routine.schedule);
+      if (!isDeepStrictEqual(candidate, routine.schedule)) return false;
+      if (routine.enabled) return true;
+      return !routine.sameConversation && !routine.resultsThreadId && !routine.modelSelection
+        && !routine.checks?.length && !routine.access && !routine.deliver && heldHandoff(routine);
     });
     if (duplicate) {
       // The tool cannot choose a result destination.
       throw new RoutineRequestError(
-        `An enabled routine with the same instructions and execution settings already exists (${duplicate.id}). Use trigger_info to review it, then change or run that trigger instead.`,
+        duplicate.enabled ? `An enabled routine with the same instructions and execution settings already exists (${duplicate.id}). Use trigger_info to review it, then change or run that trigger instead.`
+          : serverLine(conversationLanguage(threadId), "server.workBot.scheduleConflict"),
         409,
         { terminal: true },
       );
@@ -935,6 +909,7 @@ export class RoutineRequestService {
   private readonly validateTarget?: RoutineRequestServiceOptions["validateTarget"];
   private readonly autoApply?: RoutineRequestServiceOptions["autoApply"];
   private readonly engines?: LimitResetEngines;
+  private readonly workBotLinks?: RoutineRequestServiceOptions["workBotLinks"];
 
   constructor(options: RoutineRequestServiceOptions) {
     this.store = options.store;
@@ -946,6 +921,11 @@ export class RoutineRequestService {
     this.validateTarget = options.validateTarget;
     this.autoApply = options.autoApply;
     this.engines = options.engines;
+    this.workBotLinks = options.workBotLinks;
+  }
+
+  private revalidate(operation: RoutineRequestOperation, botId: string, threadId: string, now: number): void {
+    revalidateOperation(operation, this.routines, { botId, threadId, now, heldHandoff: routine => isHeldHandoffSchedule(this.store, this.workBotLinks, routine, threadId) });
   }
 
   /** Writes the card without applying it, the first half of submit(); no production path stops here since Triggers v2. */
@@ -978,7 +958,7 @@ export class RoutineRequestService {
     await this.requireCloudReadiness(operation, botId);
     // The probe is async: re-check the captured revision before persisting the snapshot.
     const cardAt = this.now();
-    revalidateOperation(operation, this.routines, botId, cardAt);
+    this.revalidate(operation, botId, threadId, cardAt);
     const requestId = newId();
     const payload: RoutineRequestCardData = {
       version: 1,
@@ -1023,6 +1003,8 @@ export class RoutineRequestService {
       messageInput.card.options = [];
       messageInput.card.dismissed = true;
     }
+    const requestMessageId = args.requestMessageId?.();
+    if (requestMessageId) messageInput.requestMessageId = requestMessageId;
     const message = this.store.appendMessage(threadId, messageInput);
     const proposal = {
       requestId,
@@ -1134,6 +1116,7 @@ export class RoutineRequestService {
           const patch = operation.action === "update"
             ? restorePatch(undo.before!, now)
             : { enabled: operation.action === "pause" };
+          if (patch.enabled) this.routines.assertHandoffRoutineSafe({ botId: owner, threadId: args.threadId, messageId: message.id });
           if (!this.routines.update(routineId, patch)) return stale;
           break;
         }
@@ -1141,6 +1124,7 @@ export class RoutineRequestService {
           routineId = operation.routineId;
           const before = undo?.before;
           if (!before) return cannot("This change can't be undone here.");
+          if (before.enabled) this.routines.assertHandoffRoutineSafe({ botId: owner, threadId: args.threadId, messageId: message.id });
           restoredId = this.routines.create({
             name: before.name,
             prompt: before.instructions,
@@ -1292,15 +1276,15 @@ export class RoutineRequestService {
         this.store.patchMessage(args.threadId, message.id, { card: { ...card, answered: "deny", held: undefined } });
         return { claimed: true, state: "denied" };
       }
-      revalidateOperation(payload.operation, this.routines, payload.botId, this.now());
+      this.revalidate(payload.operation, payload.botId, payload.threadId, this.now());
       if (payload.operation.forBot && this.validateTarget) {
         const refusal = this.validateTarget(payload.botId, payload.operation.forBot);
         if (refusal) throw new RoutineRequestError(refusal, 404, { terminal: true });
       }
-      const resultId = this.apply(payload, message.id, fingerprint);
+      const resultId = this.apply(payload, message.id, fingerprint, message.requestMessageId);
       return this.settleApplied(args.threadId, message.id, card, payload, resultId);
     } catch (error) {
-      const status = error instanceof RoutineRequestError ? error.status : 400;
+      const status = error instanceof RoutineRequestError ? error.status : (error as { code?: string } | null)?.code === "work_bot_schedule_conflict" ? 409 : 400;
       const detail = error instanceof Error ? error.message : String(error);
       const expired = error instanceof RoutineRequestError && error.terminal;
       this.store.patchMessage(args.threadId, message.id, {
@@ -1382,7 +1366,7 @@ export class RoutineRequestService {
     }
   }
 
-  private apply(payload: RoutineRequestCardData, messageId: string, fingerprint: string): string {
+  private apply(payload: RoutineRequestCardData, messageId: string, fingerprint: string, requestMessageId?: string): string {
     const operation = payload.operation;
     const confirmationAt = this.now();
     switch (operation.action) {
@@ -1397,6 +1381,7 @@ export class RoutineRequestService {
           botId: payload.botId,
           threadId: payload.threadId,
           action: "create",
+          delegatedFromMessageId: operation.forBot ? requestMessageId : undefined,
           fingerprintVersion: ROUTINE_REQUEST_FINGERPRINT_VERSION,
           fingerprint,
         }).id;

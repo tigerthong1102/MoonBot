@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
 import { findPassages, indexSources, splitPassages, type Index } from "./source-index";
 import { parseSourceLink, sourceLink } from "./source-cache";
 
@@ -18,6 +19,51 @@ describe("document sources", () => {
     expect(parseSourceLink("#startupbot-source-../../a-0")).toBeNull();
     expect(findPassages(index, "nonexistent")).toEqual([]);
   });
+  it("indexes plain HTTP files with the same digest as Web Crypto", async () => {
+    const path = "policy.txt";
+    const text = "Đối chiếu\r\n";
+    const secure = await indexSources([file(path, text)], empty);
+    vi.stubGlobal("crypto", {});
+    try {
+      const index = await indexSources([file(path, text)], empty);
+      expect(index.docs.get(path)?.digest).toBe(createHash("sha256").update(text).digest("hex"));
+      expect(index.docs.get(path)?.digest).toBe(secure.docs.get(path)?.digest);
+      expect((await indexSources([file(path, text)], secure)).docs.get(path)).toBe(secure.docs.get(path));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("searches mixed-language documents on WebViews without Intl.Segmenter", async () => {
+    const index = await indexSources([
+      file("政策.txt", "这是公司的报销政策。"), file("ja.txt", "報告書を確認してください。"),
+      file("en.txt", "Quarterly records"), file("vi.txt", "Đối chiếu chứng từ".normalize("NFD")),
+      file("names.txt", "𠮷野"), file("kana.txt", "ガイドを読む"),
+    ], empty);
+    const original = Object.getOwnPropertyDescriptor(Intl, "Segmenter")!;
+    Object.defineProperty(Intl, "Segmenter", { ...original, value: undefined });
+    try {
+      const searches = [["quarterly", "en.txt"], ["doi chieu", "vi.txt"], ["报销", "政策.txt"], ["報告書", "ja.txt"],
+        ["𠮷", "names.txt"], ["ｶﾞｲﾄﾞ", "kana.txt"]] as const;
+      for (const [question, path] of searches) {
+        expect(findPassages(index, question)[0]?.path).toBe(path);
+      }
+      expect(findPassages(index, "quarter")).toEqual([]);
+      expect(findPassages(index, "飞机")).toEqual([]);
+    } finally {
+      Object.defineProperty(Intl, "Segmenter", original);
+    }
+  });
+
+  it("matches Chinese and Japanese words alongside English and Vietnamese terms", async () => {
+    const index = await indexSources([file("zh.txt", "这是公司的报销政策。"), file("ja.txt", "報告書を確認してください。"),
+      file("en.txt", "Quarterly records"), file("vi.txt", "Đối chiếu chứng từ".normalize("NFD"))], empty);
+    for (const [question, path] of [["报销", "zh.txt"], ["報告書", "ja.txt"], ["quarterly", "en.txt"], ["doi chieu", "vi.txt"]] as const) {
+      expect(findPassages(index, question)[0]?.path).toBe(path);
+    }
+    expect(findPassages(index, "quarter")).toEqual([]);
+  });
+
   it("detects changes by content, evicts deleted or unreadable material and preserves identical snapshots", async () => {
     const old = await indexSources([file("a.md", "old"), file("b.txt", "removed"), file("c.txt", "broken"), file("d.txt", "same")], empty);
     const next = await indexSources([file("a.md", "new"), file("c.txt", new Uint8Array([255])), file("d.txt", "same"), file("e.txt", "added")], old);

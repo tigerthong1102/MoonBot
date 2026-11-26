@@ -1,9 +1,15 @@
 // @vitest-environment happy-dom
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { t } from "@/lib/i18n";
+import type { Bot } from "@/state/store";
+import SourceLibrary from "./SourceLibrary";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { countsAsActivity } from "../../../server/cloud-power";
 import { cloudAsleep, markCloudAsleep, resetCloudPowerForTests } from "@/lib/cloud-power";
 import { sessionCheck } from "@/lib/session-ended";
 import { browserRecord } from "@/lib/browser-records";
+import { libraryKey } from "./source-cache";
 import { currentLibrary, watchDocumentSources } from "./source-sync";
 import type { Index } from "./source-index";
 
@@ -16,7 +22,7 @@ let stop: (() => void) | undefined, tick: (() => void) | undefined;
 const text = "Policy";
 const sleep = () => Response.json({ error: "asleep" }, { status: 503, headers: { "x-omb-cloud-power": "asleep" } });
 const calls: { path: string; background: string | null; activity: boolean }[] = [];
-let answer: (path: string) => Response;
+let answer: (path: string) => Response | Promise<Response>;
 
 beforeEach(() => {
   calls.length = 0; records.clear(); stop = undefined; tick = undefined;
@@ -83,4 +89,76 @@ it("never contacts a sleeping Cloud and keeps the session recheck after a genuin
   await vi.waitFor(() => expect((records.get(key) as Index)?.changes.at(-1)?.issue).toBe("signedOut"));
   await sessionCheck();
   expect(calls).toEqual([auth, list, auth].map(path => ({ path, background: "1", activity: false })));
+});
+
+it("retains a later scan's deletion even if an older scan of the same watch finishes last", async () => {
+  await currentLibrary(key);
+  const previous = answer, bytes = Promise.withResolvers<Response>(), waiting = Promise.withResolvers<void>();
+  answer = path => { if (path !== file) return previous(path); waiting.resolve(); return bytes.promise; };
+  const older = currentLibrary(key);
+  await waiting.promise;
+  answer = () => Response.json({ files: [] });
+  const newer = await currentLibrary(key);
+  expect(newer?.docs.size).toBe(0);
+  bytes.resolve(await previous(file)); await older;
+  expect((records.get(key) as Index).docs.size).toBe(0);
+  expect((records.get(key) as Index).changes.at(-1)?.state).toBe("removed");
+});
+
+it("withholds the previous cache from a superseded scan while a newer scan still verifies access", async () => {
+  await currentLibrary(key);
+  const previous = answer, bytes = Promise.withResolvers<Response>(), waiting = Promise.withResolvers<void>();
+  answer = path => { if (path !== file) return previous(path); waiting.resolve(); return bytes.promise; };
+  const older = currentLibrary(key); await waiting.promise;
+  const manifest = Promise.withResolvers<Response>(), requested = Promise.withResolvers<void>();
+  answer = () => { requested.resolve(); return manifest.promise; };
+  const newer = currentLibrary(key); await requested.promise;
+  bytes.resolve(await previous(file));
+  expect((await older)?.docs.size ?? 0).toBe(0);
+  manifest.resolve(Response.json({ files: [] })); await newer;
+});
+
+it("returns the newer verified edition to a superseded scan after that edition commits", async () => {
+  const previous = answer, bytes = Promise.withResolvers<Response>(), started = Promise.withResolvers<void>();
+  answer = path => { if (path !== file) return previous(path); started.resolve(); return bytes.promise; };
+  const older = currentLibrary(key); await started.promise;
+  const revised = "Updated edition";
+  answer = path => path === list ? Response.json({ files: [{ path: "policy.txt", size: revised.length, sha256: "new" }] })
+    : new Response(revised, { headers: { "content-length": String(revised.length) } });
+  const newer = await currentLibrary(key);
+  bytes.resolve(await previous(file));
+  const restored = await older;
+  expect(restored?.docs.get("Drive/policy.txt")?.passages[0]?.text).toBe(revised);
+  expect(restored?.changes).toEqual(newer?.changes);
+});
+
+it("distinguishes an unreachable session check from a signed-out document reader", async () => {
+  answer = () => { throw new TypeError("offline"); };
+  await expect(libraryKey("thread", { reportOffline: true })).rejects.toThrow(TypeError);
+  expect(await libraryKey("thread")).toBeNull();
+  answer = () => Response.json({ error: "signed out" }, { status: 401 });
+  expect(await libraryKey("thread", { reportOffline: true })).toBeNull();
+});
+
+it("keeps the open dialog's timer-driven ownership recheck in the background while explicit reads are foreground", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), bot = { id: "bot", threadId: "thread" } as Bot;
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot, open: true, close: () => {} })));
+    await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(3)); });
+    expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }));
+    const manual = calls.filter(c => c.path === auth || c.path === list || c.path === file);
+    expect(manual.length).toBeGreaterThan(0);
+    expect(manual.every(c => c.background === null)).toBe(true);
+    expect(manual.filter(c => c.path === auth).every(c => c.activity)).toBe(true);
+    calls.length = 0;
+    await act(async () => {
+      stop = watchDocumentSources();
+      await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(2));
+    });
+    expect(calls.map(c => [c.path, c.background, c.activity])).toEqual([auth, list, file, auth].map(path => [path, "1", false]));
+  } finally {
+    await act(async () => root.unmount()); host.remove();
+  }
 });

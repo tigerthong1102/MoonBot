@@ -27,6 +27,7 @@ export function ComposerAttachments({
   onChangeCitation,
   onDisplayInChatBox,
   allowImages = true,
+  portable = false,
   notice,
   onNotice,
   onPendingChange,
@@ -38,6 +39,7 @@ export function ComposerAttachments({
   onChangeCitation: (citation: CitationAttachment) => void;
   onDisplayInChatBox: (attachment: PasteAttachment) => void;
   allowImages?: boolean;
+  portable?: boolean;
   notice: string | null;
   onNotice: (notice: string | null) => void;
   onPendingChange?: (pending: boolean) => void;
@@ -50,8 +52,8 @@ export function ComposerAttachments({
   // A drop past the images the message can still take is left out with a notice.
   const imageSlots = imageSlotsLeft(items);
   const imageBytes = imageBytesLeft(items);
-  const callbacks = useRef({ onAdd, onNotice, onPendingChange, allowImages, imageSlots, imageBytes, uploadImage });
-  callbacks.current = { onAdd, onNotice, onPendingChange, allowImages, imageSlots, imageBytes, uploadImage };
+  const callbacks = useRef({ onAdd, onNotice, onPendingChange, allowImages, portable, imageSlots, imageBytes, uploadImage });
+  callbacks.current = { onAdd, onNotice, onPendingChange, allowImages, portable, imageSlots, imageBytes, uploadImage };
   const pendingDrops = useRef(new Set<symbol>());
 
   useEffect(() => {
@@ -85,6 +87,7 @@ export function ComposerAttachments({
           allowImages: callbacks.current.allowImages,
           getPath: pathForFile,
           uploadImage: callbacks.current.uploadImage,
+          portable: callbacks.current.portable,
           imageSlots: callbacks.current.imageSlots,
           imageBytes: callbacks.current.imageBytes,
         });

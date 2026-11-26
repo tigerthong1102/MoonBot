@@ -40,6 +40,8 @@ export interface DreamSource {
     kind: string;
     requestMessageId?: string;
     automation?: unknown;
+    workBotReviewHold?: true;
+    workBotRouting?: { state: string };
     text?: string;
     sender?: ResolvedSender;
     peerAsk?: unknown;
@@ -71,7 +73,7 @@ export function dreamConversations(source: DreamSource, botId: string, since: nu
     let size = 0;
     const excludedRequests = new Set<string>();
     const path = source.activePath(task.threadId).filter((message) => {
-      if (message.automation || (message.role === "user" && (!isOwner(message.sender) || message.peerAsk || message.aside || message.webhookPost || message.relayed || message.via === "api"))) {
+      if (message.workBotReviewHold || message.workBotRouting?.state === "held_for_review" || message.automation || (message.role === "user" && (!isOwner(message.sender) || message.peerAsk || message.aside || message.webhookPost || message.relayed || message.via === "api"))) {
         if (message.id) excludedRequests.add(message.id);
         return false;
       }

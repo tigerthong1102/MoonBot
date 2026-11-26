@@ -21,7 +21,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-export type AppFetchFailure = { offline: true } | { offline: false; status: number; error: string };
+export type AppFetchFailure = { offline: true } | { offline: false; status: number; error: string; asleep?: true };
 
 export class AppDocumentError extends Error {
   readonly failure: AppFetchFailure;
@@ -33,8 +33,9 @@ export class AppDocumentError extends Error {
 }
 
 function failureOf(error: unknown): AppFetchFailure {
-  if (error instanceof ApiError) return { offline: false, status: error.status, error: error.message };
-  return { offline: true };
+  if (!(error instanceof ApiError)) return { offline: true };
+  const asleep = error.status === 503 && error.body?.error === "asleep";
+  return { offline: false, status: error.status, error: error.message, ...(asleep && { asleep: true }) };
 }
 
 /** `rev`: an earlier version of a bot's page; the current one when omitted. A folder page's files load from this

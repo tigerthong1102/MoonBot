@@ -59,6 +59,7 @@ import { peerLine, peerPreview, peerRequest, type PeerLine } from "@/lib/peer-me
 import { showWorkingDots } from "@/lib/turn-tail";
 import { lastNonReceipt } from "@/lib/receipts";
 import { useTurnLive } from "@/state/turn-status"; import { isLiveReply, StreamingReplyContext, streamedReply, useHasLiveReply, useLiveTranscript } from "@/state/live-reply"; import { useTurnNow } from "./NowCard"; import { useThreadRoutineRun } from "@/state/older-routine-runs";
+import { isSourceAnswer, SourceAnswerText } from "./knowledge/SourceAnswerText";
 import { ChatMarkdown } from "./ChatMarkdown";
 import { LiveToolsContext, useLiveToolIds } from "@/hooks/use-live-tool-ids";
 import { VoiceNoteBubble, type VoiceNoteAttachment } from "./VoiceNoteBubble";
@@ -89,7 +90,7 @@ import { SecretRequestCard } from "./SecretRequestCard";
 import { SignInRequestCard } from "./SignInRequestCard";
 import { AutomationCaption, RoutineRunRow } from "./RoutineRunCard"; import { InboxAnswers, InboxCaption, RelayLabel } from "./InboxLine"; import { InboxCardSlot } from "./inbox/InboxCard";
 import { CallRecordRow } from "./CallRecordRow";
-import { AttachmentGallery, collectMessageFiles, replyAttachmentGroup, splitMessageAttachments } from "./AttachmentGallery";
+import { AttachmentGallery, replyDisplayFiles } from "./AttachmentGallery";
 import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole, chiefOfStaffBadge } from "./BotRole";
@@ -137,10 +138,8 @@ import { latestFailure, latestReply, type TranscriptSnapshot } from "@/lib/trans
 import { pendingApprovals } from "./PendingApproval";
 import { TranscriptAnnouncer } from "./TranscriptAnnouncer";
 import { JumpToLatestButton } from "./JumpToLatestButton";
-import { isBotTextRow, joinedCorners, needsStamp, quietRow, simpleRowLayout, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_STACKED, SIMPLE_USER_BUBBLE, type BubbleJoin } from "./chat-bubble";
-
-const USER_COLLAPSE_CHARS = 600;
-const USER_COLLAPSE_LINES = 8;
+import { isBotTextRow, joinedCorners, needsStamp, quietRow, simpleRowLayout, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_STACKED, SIMPLE_USER_BUBBLE, USER_COLLAPSE_CHARS, USER_COLLAPSE_LINES, type BubbleJoin } from "./chat-bubble";
+import { WorkBotRoutingStatus } from "./WorkBotRoutingStatus";
 
 interface ChatRows {
   botId: string; threadId: string; botName: string; botColor: Bot["color"]; voiceId?: string;
@@ -356,16 +355,9 @@ const Bubble = memo(function Bubble({
       onToggle: () => dispatch({ type: "updateTask", botId, threadId, patch: { pinnedMessageId: pinned ? "" : message.id } }),
     },
   });
-  const attached = useMemo(() => splitMessageAttachments(message.attachments), [message.attachments]);
+  const scanText = !user && !isLiveReply(message) && !isSourceAnswer(message);
+  const { attached, linkedFiles, group } = useMemo(() => replyDisplayFiles(text, message.attachments, scanText), [text, message.attachments, scanText]);
   const generatedPaths = attached.images;
-  const linkedFiles = useMemo(
-    () => user || isLiveReply(message) ? [] : [...attached.files, ...collectMessageFiles(text, [...attached.images, ...attached.files.map((file) => file.path)])],
-    [user, text, attached],
-  );
-  const group = useMemo(
-    () => !user && !isLiveReply(message) && text.trim() ? replyAttachmentGroup(text, message.attachments) : null,
-    [user, text, message.attachments],
-  );
   const voiceNotes = useMemo(
     () => message.attachments?.filter((attachment): attachment is VoiceNoteAttachment => attachment.kind === "audio") ?? [],
     [message.attachments],
@@ -488,6 +480,10 @@ const Bubble = memo(function Bubble({
                 </details>
               )}
             </div>
+          ) : isSourceAnswer(message) ? (
+            <div data-citation-source={message.id} data-citation-owner-type="bot" data-citation-owner={botId} data-citation-thread={threadId}>
+              {viewRaw ? <RawMarkdownView text={message.text ?? ""} /> : <SourceAnswerText threadId={threadId} text={message.text ?? ""} />}
+            </div>
           ) : user ? (
             <>
               {attachments && <AttachmentGallery images={attachments.images} files={attachments.files} message={{ threadId, messageId: message.id }} eager={eagerAttachments} className={!visibleText ? "mb-0" : undefined} />}
@@ -517,6 +513,7 @@ const Bubble = memo(function Bubble({
               )}
               {message.quickModel && <QuickModelNote model={message.quickModel} />}
               <UserLineNote message={message} />
+              <WorkBotRoutingStatus message={message} botId={botId} threadId={threadId} dispatch={dispatch} />
               {collapsible && (
                 <button onClick={() => setExpanded(true)} className="mt-1 text-[13px] text-ink-secondary hover:text-ink">
                   {t("chat.showFull")}

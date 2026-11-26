@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useSyncExternalStore, type SetStateAction } from "react";
+import type { DataContext } from "../../shared/data-context.ts";
 import type { FollowUp } from "../../shared/follow-up.js";
 import { isAttachment, type Attachment } from "./composer-attachments.js";
 
@@ -17,6 +18,8 @@ const channelModeListeners = new Map<string, Set<() => void>>();
 const attachmentPendingCounts = new Map<string, number>();
 const attachmentPendingListeners = new Map<string, Set<() => void>>();
 export interface FailedComposerSend {
+  dataContext?: DataContext;
+  workBotUploadReceipts?: string[];
   id: string;
   sendId: string;
   text: string;
@@ -36,7 +39,7 @@ export interface ComposerSendSnapshot extends FailedComposerSendInput {
 }
 const failedSends = new Map<string, FailedComposerSend[]>();
 const failedSendListeners = new Map<string, Set<(sends: FailedComposerSend[]) => void>>();
-type RestoredSend = { sendId: string; requestText?: string };
+type RestoredSend = Pick<FailedComposerSend, "sendId" | "dataContext"> & { requestText?: string };
 const restoredSends = new Map<string, RestoredSend>();
 let failedSendSequence = 0;
 
@@ -164,6 +167,7 @@ export function setDraftAttachments(store: Store, id: string, attachments: Attac
       name: attachment.name,
       size: attachment.size,
       mime: attachment.mime,
+      ...(attachment.handoffReceipt ? { handoffReceipt: attachment.handoffReceipt } : {}),
     }];
   });
   if (durable.length) drafts[id] = durable;
@@ -272,6 +276,10 @@ export function restoredRequestText(draftId: string): string | undefined {
   return restoredSend(draftId)?.requestText;
 }
 
+export function restoredSendData(draftId: string) {
+  return restoredSend(draftId)?.dataContext;
+}
+
 function restoredSend(draftId: string): RestoredSend | undefined {
   const memory = restoredSends.get(draftId);
   if (memory) return memory;
@@ -279,7 +287,9 @@ function restoredSend(draftId: string): RestoredSend | undefined {
   if (!stored || (typeof stored !== "string" && typeof stored !== "object")) return undefined;
   const value = typeof stored === "string" ? { sendId: stored } : stored as Record<string, unknown>;
   if (typeof value.sendId !== "string" || (value.requestText !== undefined && typeof value.requestText !== "string")) return undefined;
-  const send = { sendId: value.sendId, requestText: value.requestText };
+  const data = "dataContext" in value ? value.dataContext : undefined;
+  if (data !== undefined && (!data || typeof data !== "object" || !("cardId" in data) || typeof data.cardId !== "string" || !/^c_\d+$/.test(data.cardId) || ("draftSql" in data && typeof data.draftSql !== "string"))) return undefined;
+  const send = { sendId: value.sendId, requestText: value.requestText, dataContext: data as RestoredSend["dataContext"] };
   restoredSends.set(draftId, send);
   return send;
 }
@@ -423,6 +433,8 @@ export function rememberFailedComposerSend(
 export function recoverFailedComposerSend(sent: ComposerSendSnapshot): "restored" | "outbox" {
   if (draftRevision(sent.draftId) !== sent.revision) {
     rememberFailedComposerSend(sent.draftId, {
+      dataContext: sent.dataContext,
+      workBotUploadReceipts: sent.workBotUploadReceipts,
       sendId: sent.sendId,
       text: sent.text,
       requestText: sent.requestText,
@@ -441,7 +453,7 @@ export function recoverFailedComposerSend(sent: ComposerSendSnapshot): "restored
     channelMode: sent.channelMode,
   });
   // The response may have vanished after the server accepted it: the next Send reuses this identity.
-  const retry = { sendId: sent.sendId, requestText: sent.requestText };
+  const retry = { sendId: sent.sendId, requestText: sent.requestText, dataContext: sent.dataContext };
   restoredSends.set(sent.draftId, retry);
   setStoredSendId(getStore(), sent.draftId, retry);
   return "restored";

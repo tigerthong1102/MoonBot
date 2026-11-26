@@ -19,6 +19,9 @@ import { patchGroupTask } from "./thread-edits"; import { unreadBeyondFrame, who
 import type { EngineInstall } from "./engine-install";
 import { optimisticMessageId, optimisticUserMessage, sendArrived, sendReconciled } from "./optimistic-send";
 import { patchedGroups, roomAnswers, snapshotPatch } from "./room-frames";
+import { createdBotSnapshot } from "./created-bot-snapshot";
+import { openCreatedWorkBot } from "./open-created-work-bot";
+import { loadSnapshotBoundary, normalizeSnapshotFailure } from "./snapshot-boundary"; export { loadSnapshotBoundary, type PeripheralSnapshotLoad } from "./snapshot-boundary";
 import { savedStateAction, type SavedOwner, type SavedSnapshot } from "./saved-state";
 import { keepBotNavigation, keepGroupNavigation, navigatedSince, visibleMessages } from "./snapshot-navigation";
 export { visibleMessages } from "./snapshot-navigation";
@@ -113,7 +116,7 @@ export type SecretRequestCardData = Omit<import("../../shared/wire").SecretReque
 
 export type ComputerControlState = { held: boolean; helpReason: string | null; help?: import("../../shared/wire").ComputerHelpRef | null };
 
-export interface Message extends Pick<import("../../shared/wire").WireMessage, "widget" | "app" | "fromApp" | "pointed" | "routedBy" | "quickModel" | "automation" | "publishedPage" | "sender" | "setupSuggestion" | "settingsCard" | "helperIntro" | "helperFollowup" | "setupOffer" | "savedSteps" | "setupChoices" | "setupChoicesPending" | "setupChoicesUpdating" | "setupRequest" | "relay" | "inbox" | "sentDirectly" | "doneWhen" | "bugReport" | "engineCompaction" | "stoppedBy"> {
+export interface Message extends Pick<import("../../shared/wire").WireMessage, "widget" | "app" | "fromApp" | "pointed" | "routedBy" | "quickModel" | "automation" | "publishedPage" | "sender" | "setupSuggestion" | "settingsCard" | "helperIntro" | "helperFollowup" | "setupOffer" | "savedSteps" | "setupChoices" | "setupChoicesPending" | "setupChoicesUpdating" | "setupRequest" | "relay" | "inbox" | "sentDirectly" | "doneWhen" | "bugReport" | "engineCompaction" | "stoppedBy" | "workBotRouting" | "workBotExecutionUncertain" | "workBotReviewHold" | "workBotCopy"> {
   id: string;
   role: "bot" | "user";
   kind: "text" | "options" | "activity" | "screen" | "connector" | "secret" | "signin" | "routine.run" | "goal.run" | "burst" | "digest" | "compaction" | "call" | "widget" | "app";
@@ -271,7 +274,7 @@ export interface TaskUsage {
   context?: { tokens: number; window?: number };
 }
 
-export interface Bot extends DefaultBotFields, Pick<WireBot, "mascotFaceColor" | "access" | "yourAccess" | "onlyPeopleAdded"> {
+export interface Bot extends DefaultBotFields, Pick<WireBot, "mascotFaceColor" | "access" | "yourAccess" | "onlyPeopleAdded" | "groupUsername"> {
   toolScope?: ToolScope;
   waitingForTeammates?: boolean;
   id: string;
@@ -567,6 +570,8 @@ export interface AppState {
   consumedQueueIds: Record<string, true>;
   backgroundThreadEvents: Record<string, Array<Extract<Action, { type: "messagesCleared" | "messageAdded" | "messagePatched" | "threadActive" | "optimisticMessageRemoved" }>>>;
   loadingOlder: Record<string, true>;
+  olderPageRevision: Record<string, number>;
+  botDeletionRevision: Record<string, number>;
   /** Bumped when a transcript is replaced or its branch moves, never on append; stale scrollback pages are dropped. */
   transcriptGeneration: Record<string, number>;
   clearRevisions: Record<string, number>;
@@ -658,6 +663,7 @@ export type Action =
   | { type: "select"; id: string }
   | {
       type: "send";
+      workBotUploadReceipts?: string[];
       botId: string;
       text: string;
       sendId?: string;
@@ -692,6 +698,7 @@ export type Action =
       always?: boolean;
       rememberCommand?: boolean;
       onError?: (message: string) => void;
+      openCreatedBot?: boolean;
     }
   | { type: "newTask"; botId: string; projectId?: string; cwd?: string; onCreated?: () => void; onError?: (message: string) => void }
   | { type: "switchTask"; botId: string; threadId: string; whole?: true }
@@ -715,6 +722,7 @@ export type Action =
   | { type: "duplicateBot"; botId: string }
   | { type: "markUnread"; botId: string }
   | { type: "botPatched"; bot: BotAnnouncement; tasksPartial?: true }
+  | { type: "createdBotSnapshot"; bot: BotAnnouncement; since: AppState["transcriptGeneration"]; olderSince: AppState["olderPageRevision"]; deletionRevision: number; heldAtStart: readonly Message[] }
   | { type: "messageAdded"; threadId: string; message: Message }
   | { type: "messagePatched"; threadId: string; message: Message }
   | { type: "optimisticMessageRemoved"; threadId: string; sendId: string; restoreLeafId?: string | null }
@@ -902,9 +910,11 @@ export function reducer(state: AppState, action: Action): AppState {
     case "loadOlderMessages":
       return state.loadingOlder[action.threadId]
         ? state
-        : { ...state, loadingOlder: { ...state.loadingOlder, [action.threadId]: true } };
-    case "olderMessages":
-      return reduceOlderMessages(state, action);
+        : { ...state, loadingOlder: { ...state.loadingOlder, [action.threadId]: true }, olderPageRevision: { ...state.olderPageRevision, [action.threadId]: (state.olderPageRevision[action.threadId] ?? 0) + 1 } };
+    case "olderMessages": {
+      const next = reduceOlderMessages(state, action);
+      return { ...next, olderPageRevision: { ...next.olderPageRevision, [action.threadId]: (next.olderPageRevision[action.threadId] ?? 0) + 1 } };
+    }
     case "sectionDeleted":
       return {
         ...state, sections: action.sections,
@@ -1089,7 +1099,7 @@ export function reducer(state: AppState, action: Action): AppState {
       const selectedId =
         state.selectedId === action.botId ? (bots.find((b) => !b.hidden)?.id ?? bots[0]?.id ?? "") : state.selectedId;
       const { [action.botId]: _deleted, ...deletingBots } = state.deletingBots;
-      return reconcileModelVariantSessions({ ...state, bots, selectedId, deletingBots });
+      return reconcileModelVariantSessions({ ...state, bots, selectedId, deletingBots, botDeletionRevision: { ...state.botDeletionRevision, [action.botId]: (state.botDeletionRevision[action.botId] ?? 0) + 1 } });
     }
     case "botDeletionPending": {
       if (action.on) {
@@ -1102,6 +1112,7 @@ export function reducer(state: AppState, action: Action): AppState {
     }
     case "markUnread":
       return updateBot(withMascotMotion(state, action.botId, "surprise"), action.botId, (b) => ({ ...b, unread: true }));
+    case "createdBotSnapshot": return createdBotSnapshot(state, action, reducer, updateBot);
     case "botPatched": {
       const before = state.bots.find((b) => b.id === action.bot.id);
       if (action.tasksPartial) return before ? reducer(state, { type: "botPatched", bot: wholeBotFrame(before, action.bot) }) : state;
@@ -1800,6 +1811,8 @@ export const initialState: AppState = {
   modelVariantSessions: {},
   backgroundThreadEvents: {},
   loadingOlder: {},
+  olderPageRevision: {},
+  botDeletionRevision: {},
   transcriptGeneration: {},
   clearRevisions: {},
   bots: [],
@@ -1999,32 +2012,6 @@ export async function requestConfirmedBotDeletion<Answer>(
   } finally {
     if (pendingBotDeletions.get(botId) === deletion) pendingBotDeletions.delete(botId);
   }
-}
-
-export interface PeripheralSnapshotLoad<Key extends string = string> {
-  key: Key;
-  load: () => Promise<void>;
-}
-
-function normalizeSnapshotFailure(cause: unknown): Error {
-  return cause instanceof Error ? cause : new Error(String(cause));
-}
-
-export async function loadSnapshotBoundary<Key extends string>(
-  loadChat: () => Promise<void>,
-  peripherals: readonly PeripheralSnapshotLoad<Key>[],
-  onPeripheralFailure: (part: PeripheralSnapshotLoad<Key>, error: Error) => void,
-): Promise<boolean> {
-  const [chat, ...settledPeripherals] = await Promise.allSettled([
-    loadChat(),
-    ...peripherals.map((part) => part.load()),
-  ]);
-  settledPeripherals.forEach((result, index) => {
-    if (result.status === "rejected") {
-      onPeripheralFailure(peripherals[index]!, normalizeSnapshotFailure(result.reason));
-    }
-  });
-  return chat.status === "fulfilled";
 }
 
 export function runtimeFrameAction(event: RuntimeEvent): Action | null {
@@ -2363,12 +2350,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           void waitForExecutionSettings(botBeforeSend ? [botBeforeSend] : [], threadId)
             .then(() => sendReconciled(() => api(`/api/bots/${action.botId}/messages`, {
                 method: "POST",
-                body: JSON.stringify({ text: action.text, replyToId: action.replyToId, threadId, sendId, ...(action.dataContext ? { dataContext: action.dataContext } : {}), ...(action.pointed?.length ? { pointed: action.pointed } : {}), ...(action.openPage ? { openPage: action.openPage } : {}), ...(action.mode === "goal" ? { mode: "goal" } : {}), ...(action.followUp ? { followUp: action.followUp } : {}), ...(action.mentions?.length ? { mentions: action.mentions } : {}) }),
+                body: JSON.stringify({ text: action.text, replyToId: action.replyToId, threadId, sendId, workBotUploadReceipts: action.workBotUploadReceipts, ...(action.dataContext ? { dataContext: action.dataContext } : {}), ...(action.pointed?.length ? { pointed: action.pointed } : {}), ...(action.openPage ? { openPage: action.openPage } : {}), ...(action.mode === "goal" ? { mode: "goal" } : {}), ...(action.followUp ? { followUp: action.followUp } : {}), ...(action.mentions?.length ? { mentions: action.mentions } : {}) }),
               }), arrived))
             .then((sent) => {
               action.onAccepted?.();
               if (!("body" in sent)) return;
               const body = sent.body;
+              if (body?.transferred === true && typeof body.threadId === "string" && typeof body.queueId === "string") {
+                rawDispatch({ type: "optimisticMessageRemoved", threadId: body.threadId, sendId });
+                rawDispatch({ type: "consumePendingQueued", threadId: body.threadId, queueId: body.queueId });
+              }
               if (body?.message && typeof body.threadId === "string") {
                 rawDispatch({ type: "messageAdded", threadId: body.threadId, message: body.message });
                 rawDispatch({ type: "forkPanelMessage", threadId: body.threadId, message: body.message });
@@ -2430,6 +2421,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }).catch(showError);
           break;
         case "decideRequest": {
+          const navigationAtDecision = selectionRevision.current;
           const respond = () =>
             api(`/api/threads/${action.threadId}/respond`, {
               method: "POST",
@@ -2458,6 +2450,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               const response = await respond();
               if (response?.settlementPending && typeof response.message === "string") {
                 showError(new Error(response.message));
+              }
+              if (action.openCreatedBot && !response?.settlementPending && response?.routingState === "interrupted") showError(new Error(t("workBotRouting.interrupted")));
+              if (action.openCreatedBot && action.behavior === "allow" && response?.result?.state === "applied" && (response?.routingState === "dispatched" || response?.routingState === "held_for_review")) {
+                const created = response.result.bots?.find((bot: { id?: unknown; action?: unknown }) => bot.action === "created" && typeof bot.id === "string");
+                if (created) await openCreatedWorkBot(created.id, navigationAtDecision, { revision: () => selectionRevision.current, state: () => stateRef.current, current: store.getState, dispatch: rawDispatch, withTaskWrites });
               }
             })
             .catch((error) => {

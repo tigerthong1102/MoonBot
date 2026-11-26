@@ -26,6 +26,7 @@ import {
   rememberFailedComposerSend,
   restoredSendId,
   restoredRequestText,
+  restoredSendData,
   useComposerDraft,
   useComposerChannelMode,
   useDraftAttachmentPending,
@@ -65,6 +66,7 @@ import {
   releaseAttachmentImagePreview,
   type Attachment,
   type PasteAttachment,
+  selectedUploadReceipts,
 } from "@/lib/composer-attachments";
 import { goalCoordinatorForComposer, jevRoomRoutingOn, openTaskWorking, roomRouteForComposer } from "@/lib/group-routing";
 import { composerPlaceholder, sendLabels, SIMPLE_COMPOSER, SIMPLE_CONTROL, slotColors } from "./composer-simple"; import { ComposerSendButton } from "./ComposerSendButton";
@@ -474,7 +476,8 @@ export function Composer({
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const modeBot = group ? undefined : bot;
   const { choice: approvalChoice, dialogs: approvalDialogs } = useThreadApproval(modeBot);
-  const uploadImage = useCallback((file: File) => uploadDraftImage(draftId, file), [draftId]);
+  const portable = Boolean(!group && bot?.defaultBot && !state.config?.team);
+  const uploadImage = useCallback((file: File) => uploadDraftImage(draftId, file, portable), [draftId, portable]);
   const pickFiles = async (picked: FileList | readonly File[] | null) => {
     if (!picked?.length) return;
     changeDraftAttachmentPending(draftId, true);
@@ -483,6 +486,7 @@ export function Composer({
         allowImages: engineSupportsImages,
         getPath: pathForFile,
         uploadImage,
+        portable,
         imageSlots: imageSlotsLeft(attachments),
         imageBytes: imageBytesLeft(attachments),
       });
@@ -517,21 +521,13 @@ export function Composer({
     }
     forgetFailedComposerSend(draftId, failed.id);
     const retry = {
+      dataContext: failed.dataContext,
+      workBotUploadReceipts: failed.workBotUploadReceipts,
       sendId: failed.sendId,
       text: failed.requestText,
       replyToId: failed.replyToId,
       threadId: failed.threadId, mentions: failed.mentions,
-      onError: () => {
-        rememberFailedComposerSend(draftId, {
-          sendId: failed.sendId,
-          text: failed.text,
-          requestText: failed.requestText,
-          replyToId: failed.replyToId,
-          threadId: failed.threadId, mentions: failed.mentions,
-          channelMode: failed.channelMode,
-          followUp: failed.followUp,
-        });
-      },
+      onError: () => { rememberFailedComposerSend(draftId, failed); },
     };
     if (group) {
       dispatch({ type: "sendGroup", groupId: group.id, mode: failedMode, ...retry });
@@ -556,7 +552,7 @@ export function Composer({
     if (!composed) return;
     stopDictation();
     const body = restoredRequestText(draftId) ?? composed;
-    const dataContext = dataContextFor(body, store.state().computerOpen ? store.state().dataView : null, !group && bot ? { botId: bot.id, threadId } : undefined);
+    const dataContext = restoredSendId(draftId) ? restoredSendData(draftId) : dataContextFor(body, store.state().computerOpen ? store.state().dataView : null, !group && bot ? { botId: bot.id, threadId } : undefined);
     const sentDraft: ComposerDraftSnapshot = {
       draftId,
       revision: draftRevision(draftId),
@@ -564,6 +560,8 @@ export function Composer({
       text,
       requestText: body,
       attachments: [...attachments],
+      dataContext,
+      workBotUploadReceipts: selectedUploadReceipts(attachments),
       reply: replyTo ?? null,
       replyToId: replyTo?.id,
       threadId,
@@ -587,7 +585,7 @@ export function Composer({
       const points = effectiveChannelMode === "goal" ? null : takePointedChips(threadId);
       const page = effectiveChannelMode === "goal" ? undefined : openPageFor(threadId);
       dispatch({
-        type: "send", botId: bot.id, text: body, sendId: sentDraft.sendId, replyToId: replyTo?.id, threadId, dataContext, mode: effectiveChannelMode, mentions: sentDraft.mentions,
+        type: "send", botId: bot.id, text: body, workBotUploadReceipts: sentDraft.workBotUploadReceipts, sendId: sentDraft.sendId, replyToId: replyTo?.id, threadId, dataContext, mode: effectiveChannelMode, mentions: sentDraft.mentions,
         ...(points ? { pointed: points.pointed } : {}), ...(page ? { openPage: page } : {}), ...(followUp ? { followUp } : {}),
         onAccepted: () => recordSlashSkillUse(effectiveText, sentDraft.sendId),
         onError: () => { points?.restore(); restoreDraft(sentDraft); },
@@ -748,6 +746,7 @@ export function Composer({
           onChangeCitation={(citation: CitationAttachment) => editAttachments((current) => current.map((attachment) => attachment.id === citation.id ? citation : attachment))}
           onDisplayInChatBox={displayPasteInChatBox}
           allowImages={engineSupportsImages}
+          portable={portable}
           notice={attachmentNotice}
           onNotice={setAttachmentNotice}
           onPendingChange={(pending) => changeDraftAttachmentPending(draftId, pending)}

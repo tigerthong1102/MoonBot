@@ -166,6 +166,12 @@ describe("reaching another conversation on request", () => {
     messages: (threadId) => history[threadId] ?? [], ...extra,
   });
 
+  it("does not reveal held work to an agent reading another thread", () => {
+    const result = reach(freshBot(), { threadId: "sm", notes: false, messages: () => [line("visible", "user", "VISIBLE_FIXTURE"), { ...line("held", "user", "HELD_FIXTURE"), workBotReviewHold: true }] });
+    expect(JSON.stringify(result)).toContain("VISIBLE_FIXTURE");
+    expect(JSON.stringify(result)).not.toContain("HELD_FIXTURE");
+  });
+
   it("finds the same bot's other conversation by its name or its notes, never the one asking", () => {
     const botId = freshBot();
     updateThreadNotes(botId, "sm", { action: "append", text: "Agreed clause 7: liability capped at fees paid" });

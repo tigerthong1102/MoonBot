@@ -180,7 +180,7 @@ export function reviewAction(step: WorkflowStep, args: RunState["args"], results
   return detail.length <= HANDED_INPUT_MAX && detail === redactSecretsInText(detail) ? detail : null;
 }
 
-/** An older card displayed template text. An interpolated prompt needs an approval for the concrete action. */
+/** Approval is bound to the concrete action after prompt interpolation. */
 export function interpolatedActionHash(step: WorkflowStep, args: RunState["args"], detail: string): string | undefined {
   if (step.kind !== "ai" && step.kind !== "decide") return undefined;
   const template = handedPrompt(step, step.kind === "ai" ? "ai_step" : "decide");

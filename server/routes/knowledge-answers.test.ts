@@ -5,8 +5,10 @@ import { Socket } from "node:net";
 import { expect, it, vi } from "vitest";
 import type { RequestAuth } from "../request-auth.ts";
 import { Store } from "../store.ts";
-import type { SideJobText } from "../side-jobs.ts";
-import { createKnowledgeAnswers } from "./knowledge-answers.ts";
+import type { ModelSelection } from "../contracts.ts";
+import { createJobSlots } from "../job-slots.ts";
+import { createSideJobs, type SideJobText } from "../side-jobs.ts";
+import { createKnowledgeAnswers, type KnowledgeAnswerDeps } from "./knowledge-answers.ts";
 
 function member(id: string, email: string): RequestAuth {
   return { kind: "session", via: "cookie", scopes: ["client"], session: {
@@ -21,8 +23,10 @@ function fixture() {
   const threads = [bot.threadId, store.createTask(bot.id, "Another conversation")!.threadId, otherBot.threadId];
   const accessible = vi.fn(() => true);
   const generate = vi.fn<SideJobText["generateText"]>().mockResolvedValue(response);
+  const contextChanged = vi.fn<KnowledgeAnswerDeps["contextChanged"]>();
+  const writer = vi.fn<KnowledgeAnswerDeps["writer"]>(() => ({ via: "engine", selection: { instanceId: "codex", model: "selected" }, generateText: generate }));
   const route = createKnowledgeAnswers({ store, accessible, busy: () => false, refusal: () => null, sender: () => undefined,
-    writer: () => ({ via: "engine", generateText: generate }) });
+    contextChanged, writer });
   function send(auth: RequestAuth, thread: number, id = randomUUID()) {
     const req = new IncomingMessage(new Socket()), res = new ServerResponse(req);
     const path = "/api/bots/" + (thread === 2 ? otherBot.id : bot.id) + "/knowledge-answers";
@@ -34,7 +38,7 @@ function fixture() {
     }).then(() => status);
     return { done, disconnect: () => res.emit("close") };
   }
-  return { send, accessible, generate };
+  return { send, accessible, generate, writer, contextChanged };
 }
 
 it("admits one source request per person across sessions, bots and threads, and frees it on every exit", async () => {
@@ -70,4 +74,35 @@ it("admits one source request per person across sessions, bots and threads, and 
   const calls = generate.mock.calls.length;
   expect(await send(desktop, 0, id).done).toBe(200);
   expect(generate).toHaveBeenCalledTimes(calls);
+});
+
+it.each(["instanceId", "model", "effort", "variant"] as const)("refuses a changed %s before sending evidence to a queued provider", async field => {
+  const { send, writer, contextChanged } = fixture();
+  const slots = createJobSlots(1), release = deferred<void>();
+  const busy = slots.run(() => release.promise);
+  let selection: ModelSelection = { instanceId: "A", model: "one", effort: "low", variant: "one" };
+  const dispatched: string[] = [];
+  const jobs = createSideJobs({
+    slots, bot: id => ({ id, name: "Reader", threadId: "chat", modelSelection: selection }),
+    instance: instanceId => ({ instanceId, driverKind: "openai-compat", enabled: true, models: { default: "", options: [] },
+      adapter: { capabilities: { agentsMcp: false } }, generateText: async prompt => { dispatched.push(instanceId + " " + prompt); return response; } }),
+    helper: () => null, refusal: () => undefined, smallModels: { refused: () => new Set(), remember: () => {} },
+    assertWithinBudget: () => {}, book: () => {},
+  });
+  writer.mockImplementation((_auth, bot, threadId) => jobs.sourceAnswer(bot.id, selection, threadId, { kind: "user" }));
+  const reader = member("viewer", "reader@example.test"), id = randomUUID();
+  const pending = send(reader, 0, id);
+  await vi.waitFor(() => expect(slots.waiting).toBe(1));
+  selection = { ...selection, [field]: field === "instanceId" ? "B" : field === "effort" ? "high" : "two" };
+  release.resolve(); await busy;
+  expect.soft(await pending.done).toBe(409);
+  expect(dispatched).toEqual([]);
+  expect(contextChanged).not.toHaveBeenCalled();
+  expect(await send(reader, 0, id).done).toBe(200);
+  expect(dispatched).toHaveLength(1);
+  expect(dispatched[0]).toContain(selection.instanceId + " ");
+  expect(dispatched[0]).toContain('"text":"Source"');
+  expect(contextChanged).toHaveBeenCalledTimes(1);
+  expect(await send(reader, 0, id).done).toBe(200);
+  expect(contextChanged).toHaveBeenCalledTimes(1);
 });

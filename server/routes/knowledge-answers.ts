@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { encodedSourcePath, legacySourceRequest, sourceLink, type SourceEvidence } from "../../shared/source-evidence.ts";
+import { sameModelSelection } from "../../shared/thread-model.ts";
+import { sinceFreshStart } from "../fresh-start.ts";
 import { personKey } from "../person-key.ts";
 import type { RequestAuth } from "../request-auth.ts";
-import type { SideJobText } from "../side-jobs.ts";
+import type { SideJobs } from "../side-jobs.ts";
 import type { BotRecord, Message, Store } from "../store.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -23,7 +25,7 @@ const result = z.object({
 }).strict();
 
 function prompt(question: string, evidence: SourceEvidence[], history: Message[]): string {
-  const recent = history.filter(message => message.kind === "text" && message.text && (message.role === "user" || message.role === "bot") && !legacySourceRequest(message.text))
+  const recent = sinceFreshStart(history).filter(message => message.kind === "text" && message.text && (message.role === "user" || message.role === "bot") && !legacySourceRequest(message.text))
     .slice(-12).map(message => ({
       speaker: message.role === "bot" ? "assistant" : message.relayed || message.via === "api" || message.peerAsk || message.aside ? "relay" : "person",
       text: message.text!.slice(0, 1600),
@@ -61,7 +63,8 @@ export interface KnowledgeAnswerDeps {
   refusal(botId: string, threadId: string): { status: number; body: Record<string, unknown> } | null;
   busy(botId: string, threadId: string): boolean;
   sender(auth: RequestAuth): Message["sender"];
-  writer(auth: RequestAuth, bot: BotRecord, threadId: string): SideJobText | null;
+  writer(auth: RequestAuth, bot: BotRecord, threadId: string): ReturnType<SideJobs["sourceAnswer"]>;
+  contextChanged(bot: BotRecord, threadId: string): void;
 }
 
 class SourceRequestRefused extends Error {
@@ -114,7 +117,9 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
           if (deps.busy(botId, threadId) || deps.store.activeLeaf(threadId) !== leaf) throw new SourceRequestRefused(409, { error: "The conversation changed while waiting. Ask again." });
           const refusal = deps.refusal(botId, threadId);
           if (refusal) throw new SourceRequestRefused(refusal.status, refusal.body);
-          if (!deps.writer(auth, bot, threadId)) throw new SourceRequestRefused(422, { error: "The selected model is unavailable." });
+          const current = deps.writer(auth, bot, threadId);
+          if (!current) throw new SourceRequestRefused(422, { error: "The selected model is unavailable." });
+          if (!sameModelSelection(current.selection, writer.selection)) throw new SourceRequestRefused(409, { error: "The conversation's model changed while waiting. Ask again." });
         },
       });
       if (controller.signal.aborted) return;
@@ -124,6 +129,7 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
       if (deps.store.activeLeaf(threadId) !== leaf || deps.busy(botId, threadId)) return json(res, 409, { error: "The conversation changed while answering. Ask again with its current context." });
       const person = previous ?? deps.store.appendMessage(threadId, { role: "user", kind: "text", text: question, sendId: key, sender: deps.sender(auth) });
       deps.store.appendMessage(threadId, { role: "bot", kind: "text", text: answer, replyToId: person.id, sendId: key + "-a" });
+      deps.contextChanged(bot, threadId);
       return json(res, 200, { ok: true });
     } catch (error) {
       if (controller.signal.aborted) return;

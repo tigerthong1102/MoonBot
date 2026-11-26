@@ -78,7 +78,7 @@ export interface SideJobs {
   /** Null when nobody can write it and the job keeps its fallback. `at.instance`: the conversation's engine, for the summary. */
   text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null;
   instructionTest(botId: string, selection: ModelSelection): SideJobText | null;
-  sourceAnswer(botId: string, selection: ModelSelection, threadId: string, trigger: UsageTrigger): SideJobText | null;
+  sourceAnswer(botId: string, selection: ModelSelection, threadId: string, trigger: UsageTrigger): (SideJobText & { selection: ModelSelection }) | null;
   twinPreview(selection: { instanceId: string; model: string }, twinId: string): {
     instance: SideJobInstance;
     name: string;
@@ -257,8 +257,10 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     text: (job, botId, at = {}) => queued(job, find(job, botId, at)),
     instructionTest: (botId, selection) => isolatedWriter(botId, selection),
     sourceAnswer(botId, selection, threadId, trigger) {
-      const writer = () => isolatedWriter(botId, selection, { threadId, trigger });
-      return queued("source-answer", writer(), writer);
+      const requested = { ...selection };
+      const writer = () => isolatedWriter(botId, requested, { threadId, trigger });
+      const scheduled = queued("source-answer", writer(), writer);
+      return scheduled && { ...scheduled, selection: requested };
     },
     twinPreview(selection, twinId) {
       const instance = deps.instance(selection.instanceId);

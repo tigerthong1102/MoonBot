@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createConnection, createServer } from "node:net";
 import path from "node:path";
+import { smokeWindowsQuit } from "./smoke-windows-quit.mjs";
 
 async function freePort() {
   const server = createServer();
@@ -40,17 +41,19 @@ export async function waitPortClosed(port, label) {
   }), label, 15_000);
 }
 
-export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, canceledHandoff, expectedSkin, expectedWorkspace, stablePort }) {
+export async function smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId, replyText, followupText, followupReply, prompts, workspaceFile, fileContents = "synthetic report", botIds, evidence, lifecycle, routineId, legacyOffer, blockedWork, canceledHandoff, expectedSkin, expectedWorkspace, stablePort, usernameGroup }) {
   if (canceledHandoff && followupText) throw new Error("The handoff and upgrade follow-ups need separate fixtures");
   if (stablePort !== undefined && (!Number.isInteger(stablePort) || stablePort < 1024 || stablePort > 65535)) throw new Error("Invalid saved renderer port");
   if (expectedSkin && stablePort === undefined) throw new Error("Saved renderer port required for appearance verification");
   const port = stablePort ?? await freePort();
   const webhook = await freePortExcept([port]);
   const debug = await freePortExcept([port, webhook]);
+  const inspect = process.platform === "win32" ? await freePortExcept([port, webhook, debug]) : null;
   if (stablePort) await waitPortClosed(port, "the saved renderer origin to be available");
   const promptsBeforeRestart = readFileSync(prompts, "utf8");
   assert(promptsBeforeRestart.split("\n").filter(Boolean).map(line => JSON.parse(line)).some(prompt => JSON.stringify(prompt).includes(workMessage)), "The original work must have reached the provider");
   const args = [`--user-data-dir=${profile}`, `--remote-debugging-port=${debug}`, "--remote-debugging-address=127.0.0.1", "--no-first-run"];
+  if (inspect) args.push(`--inspect=127.0.0.1:${inspect}`);
   lifecycle.started = true;
   lifecycle.stopped = false;
   const child = spawn(executable, args, { cwd: fixture, env: { ...env, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(webhook) }, stdio: ["ignore", "pipe", "pipe"] });
@@ -97,6 +100,10 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
     if (expectedSkin) await until(() => evaluate(`localStorage.getItem('omb-skin') === ${JSON.stringify(expectedSkin)} && document.documentElement.dataset.skin === ${JSON.stringify(expectedSkin)}`), "the restored appearance choice");
     const request = route => evaluate(`(async()=>{const r=await fetch(${JSON.stringify(route)});return {status:r.status,body:await r.json()};})()`);
     const bots = await until(async () => { const response = await request("/api/bots?messages=0"); return response.status === 200 && response.body.bots; }, "the restored bots");
+    if (usernameGroup) {
+      const snapshot = await request("/api/bots?messages=0");
+      assert.deepEqual(snapshot.body.groups.find(group => group.id === usernameGroup.groupId)?.memberIds, [usernameGroup.botId], "The selected bot must remain in the group after restart");
+    }
     assert.deepEqual(bots.map(bot => bot.id).sort(), [...botIds].sort());
     assert.equal(bots.find(bot => bot.id === helper.id)?.approvalMode, "full");
     if (expectedWorkspace) assert.equal(bots.find(bot => bot.id === helper.id)?.cwd, expectedWorkspace);
@@ -195,9 +202,10 @@ export async function smokeDesktopRestart({ executable, profile, fixture, env, h
       assert(JSON.stringify(newPrompts[0]).includes(followupText), "The new provider turn must contain the follow-up");
     }
     assert.deepEqual(rendererErrors, [], "The restarted renderer reported an uncaught exception or crash");
-    if (process.platform === "darwin") { socket.close(); child.kill("SIGTERM"); }
+    if (process.platform === "win32") { await smokeWindowsQuit({ inspect, evaluate, expectedPid: child.pid }); } else if (process.platform === "darwin") { socket.close(); child.kill("SIGTERM"); }
     else await cdp("Browser.close").catch(() => {});
     await until(() => child.exitCode !== null || child.signalCode !== null, "the restarted application to exit", 45_000);
+    assert.equal(child.exitCode, 0, "The restarted application must exit cleanly"); assert.equal(child.signalCode, null);
     await waitPortClosed(port, "the restarted server to stop");
     assert.deepEqual(rendererErrors, [], "The restarted renderer reported an uncaught exception or crash");
     return { status: "PASS", sameBotAndThread: true, workRequestId, noReplayObservedMs: 3000, fileRetained: true, fullAccessRetained: true, theme: expectedSkin ? "PASS" : "NOT RUN", workspace: expectedWorkspace ? "PASS" : "NOT RUN" };

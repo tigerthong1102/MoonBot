@@ -10,6 +10,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { desktopSmokeNetwork } from "./desktop-smoke-network.mjs";
 import { smokeDesktopRestart, waitPortClosed } from "./smoke-desktop-restart.mjs";
+import { smokeGroupUsernames } from "./smoke-group-usernames.mjs";
+import { smokeWindowsQuit } from "./smoke-windows-quit.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({ options: { app: { type: "string" }, output: { type: "string" }, "create-upgrade-fixture": { type: "string" } } });
@@ -96,6 +98,7 @@ async function until(read, label, ms = 90_000) {
 const port = await freePort();
 const webhook = await freePortExcept([port]);
 const debug = await freePortExcept([port, webhook]);
+const inspect = process.platform === "win32" ? await freePortExcept([port, webhook, debug]) : null;
 const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERPROFILE: home,
   APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"),
   XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
@@ -105,6 +108,7 @@ const env = { PATH: process.env.PATH, HOME: mac ? process.env.HOME : home, USERP
   ...(process.env.TEMP ? { TEMP: process.env.TEMP, TMP: process.env.TEMP } : {}),
 };
 const args = [`--user-data-dir=${profile}`, `--remote-debugging-port=${debug}`, "--remote-debugging-address=127.0.0.1", "--no-first-run"];
+if (inspect) args.push(`--inspect=127.0.0.1:${inspect}`);
 const netLog = path.join(fixture, "chromium-netlog.json");
 if (mac) args.push(`--log-net-log=${netLog}`);
 const child = spawn(executable, args, { cwd: fixture, env, stdio: ["ignore", "pipe", "pipe"] });
@@ -292,18 +296,23 @@ try {
     const routine = await request("/api/routines", { name: "Synthetic paused reminder", prompt: "Fixture only", botId: helper.id, enabled: false, schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 86_400_000 } });
     assert.equal(routine.status, 201, JSON.stringify(routine.body));
     assert.equal(routine.body.routine.enabled, false);
+    const legacyGroup = await request("/api/groups", { name: "Synthetic baseline group", memberIds: [helper.id] });
+    assert.equal(legacyGroup.status, 201, JSON.stringify(legacyGroup.body));
+    assert.deepEqual(legacyGroup.body.group.memberIds, [helper.id]);
     writeFileSync(path.join(home, "synthetic-old-file.txt"), "baseline fixture file");
     assert.deepEqual(rendererErrors, [], "The baseline renderer reported an uncaught exception or crash");
-    if (mac) { socket.close(); child.kill("SIGTERM"); }
+    if (inspect) await smokeWindowsQuit({ inspect, evaluate, expectedPid: child.pid });
+    else if (mac) { socket.close(); child.kill("SIGTERM"); }
     else await cdp("Browser.close").catch(() => {});
     await until(() => child.exitCode !== null || child.signalCode !== null, "the baseline application shutdown", 45_000);
+    assert.equal(child.exitCode, 0, "The baseline must exit cleanly"); assert.equal(child.signalCode, null);
     await waitPortClosed(port, "the baseline server shutdown");
     assert.deepEqual(rendererErrors, [], "The baseline renderer reported an uncaught exception or crash");
     const destination = path.resolve(values["create-upgrade-fixture"]);
     mkdirSync(destination);
     try {
       for (const entry of readdirSync(fixture)) cpSync(path.join(fixture, entry), path.join(destination, entry), { recursive: true, errorOnExist: true, force: false });
-      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id, expectedSkin: "daylight", expectedWorkspace: "home", stablePort: port, legacyOffer }));
+      writeFileSync(path.join(destination, "expected.json"), JSON.stringify({ botId: helper.id, threadId: helper.threadId, oldText, oldReply, messageId: oldMessage.id, routineId: routine.body.routine.id, expectedSkin: "daylight", expectedWorkspace: "home", stablePort: port, legacyOffer, usernameGroup: { groupId: legacyGroup.body.group.id, botId: helper.id } }));
     } catch (error) { rmSync(destination, { recursive: true, force: true }); throw error; }
     report = { ...report, status: "PASS", baselineFixture: destination };
   } else {
@@ -473,6 +482,10 @@ try {
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const bot = created.body.bot;
   assert(bot?.id, "Bot creation did not return its identity");
+  const duplicate = await request("/api/bots", { name: "Internal package agent", cwd: home });
+  assert.equal(duplicate.status, 201, JSON.stringify(duplicate.body));
+  assert.notEqual(duplicate.body.bot?.id, bot.id);
+  const usernameGroup = await smokeGroupUsernames({ bot, duplicate: duplicate.body.bot, evaluate, until, cdp, evidence });
   const first = "Please answer this internal package fixture.";
   assert.equal((await request("/api/sidebar-sections", { name: "Package fixture", botIds: [bot.id] })).status, 200);
   assert.equal((await request(`/api/bots/${bot.id}`, { chiefOfStaff: true, approvalMode: "full" }, "PATCH")).status, 200);
@@ -849,12 +862,14 @@ try {
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
   const botIds = (await roster()).map(row => row.id);
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
-  if (mac) { socket.close(); child.kill("SIGTERM"); }
+  if (inspect) await smokeWindowsQuit({ inspect, evaluate, expectedPid: child.pid });
+  else if (mac) { socket.close(); child.kill("SIGTERM"); }
   else await cdp("Browser.close").catch(() => {});
   await until(() => child.exitCode !== null || child.signalCode !== null, "the first application shutdown", 45_000);
+  assert.equal(child.exitCode, 0, "The first application must exit cleanly"); assert.equal(child.signalCode, null);
   await waitPortClosed(port, "the first server to stop");
   assert.deepEqual(rendererErrors, [], "The packaged renderer reported an uncaught exception or crash");
-  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, canceledHandoff, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle });
+  const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, canceledHandoff, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle, usernameGroup });
   assert.equal(heldPrompts().length, 0, "Restart must not replay held work");
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
     workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion, compactedContext: "PASS (blocked transfer; one source run with summary)" },

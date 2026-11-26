@@ -198,6 +198,7 @@ describe("CI outputs", () => {
       "electron/cua-watch-restart.test.mjs",
       "electron/cua-windows-isolation.test.mjs",
       "electron/menu.test.mjs",
+      "electron/personal-inbox-bots.test.mjs",
       "electron/updater.test.mjs",
       "scripts/generate-locale.test.mjs",
       "scripts/vietnamese-locales.test.mjs",

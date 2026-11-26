@@ -1,0 +1,12 @@
+type CloudCall = (path: string, body: Record<string, unknown>) => Promise<unknown>;
+type OwnedBot = { room: string; owner: string; bot: string; name: string };
+type Proof = { nonce: string; publicKey: string; signature: string };
+export const identityScope: string;
+
+export function createPersonalInboxClaims(cloud: CloudCall): {
+  inviteLegacy(input: OwnedBot): Promise<unknown>;
+  identityChallenge(input: { bot: string }): Promise<{ nonce: string }>;
+  registerIdentity(input: { bot: string; name: string; username: string; proof: Proof }): Promise<unknown>;
+  challenge(input: Omit<OwnedBot, "name">): Promise<{ nonce: string }>;
+  invite(input: OwnedBot & { username: string; proof: Proof }): Promise<unknown>;
+};

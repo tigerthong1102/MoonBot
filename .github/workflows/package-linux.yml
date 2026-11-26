@@ -216,6 +216,9 @@ jobs:
           mkdir -p release/internal/smoke
           node scripts/package-payload.mjs --source "release/internal/$source_directory/StartupBot.app" --installed "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --report release/internal/smoke/payload-integrity.json
           node scripts/smoke-internal-desktop.mjs --app "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --output release/internal/smoke
+      - name: Test signed Inbox invitation in installed Electron
+        timeout-minutes: 5
+        run: node scripts/smoke-packaged-inbox-identity.mjs --app "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --output release/internal/smoke
       - name: Test the packaged browser and server
         shell: bash
         run: |
@@ -315,6 +318,12 @@ jobs:
           }
           node scripts/smoke-internal-desktop.mjs --app "$destination/StartupBot.exe" --output release/internal/smoke
           if ($LASTEXITCODE -ne 0) { throw 'Installed application smoke failed' }
+      - name: Test signed Inbox invitation in installed Electron
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          node scripts/smoke-packaged-inbox-identity.mjs --app "$env:RUNNER_TEMP/StartupBotInstalled/StartupBot.exe" --output release/internal/smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Signed Inbox invitation smoke failed' }
       - name: Test the packaged browser and server
         env:
           OMB_SMOKE_DIST: ${{ runner.temp }}/StartupBotInstalled/resources/server

@@ -125,6 +125,7 @@ export function NewRoomPanel({ onClose }: { onClose: () => void }) {
         />
         <BotPickerList
           bots={bots}
+          allBots={state.bots}
           picked={picked}
           onToggle={toggle}
           emptyHint={t("sidebar.newChannel.emptyHint")}

@@ -1,4 +1,6 @@
-import { chmodSync, existsSync, readFileSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { persistedPin, tightenRegistryFile } from "./store-persistence-helpers.ts";
 import { join } from "node:path"; import { isDeepStrictEqual } from "node:util";
 import { OwnedFile, writeFileAtomic } from "./atomic.ts"; import { saveLater, saveSoon, supersedeLaterSave } from "./save-batch.ts"; import { discardTranscriptFiles, messagesFile, resetTranscriptState } from "./transcript-cleanup.ts";
 import { commitRegistryChange, deferrablePatch, keptRevocation, saveRegistryFor, touchesPermissions } from "./registry-save.ts";
@@ -109,13 +111,6 @@ export type TaskPatch = Partial<Pick<TaskRecord, typeof TASK_PATCH_FIELDS[number
 export type GroupTaskPatch = Partial<Pick<GroupTaskRecord, "title" | "pinned">> & { turnTimeoutMinutes?: number | null; archivedAt?: number | null; activity?: "waiting-on-you" | null };
 
 
-function persistedPin<T extends { pinned?: boolean }>(task: T): T {
-  if (task.pinned === true) return task;
-  if (!("pinned" in task)) return task;
-  const { pinned: _pinned, ...rest } = task;
-  return rest as T;
-}
-
 export const ACTIVITY_BUSY: ReadonlySet<BotActivity> = new Set(["working", "waiting-on-you", "no-signal"]);
 
 export type StoreChange =
@@ -160,15 +155,6 @@ const BOTS_FILE = join(DATA_DIR, "bots.json");
 const GROUPS_FILE = join(DATA_DIR, "groups.json");
 const THREAD_MODEL_COPIES_CLEARED = join(DATA_DIR, "thread-model-copies-cleared");
 const ASKED_AT_FILLED = join(DATA_DIR, "asked-at-filled");
-
-/** Owner-only (0600): the registries hold souls, project paths and per-bot settings. Best effort; Windows has no POSIX mode bits. */
-function tightenRegistryFile(file: string): void {
-  if (process.platform === "win32") return;
-  try {
-    if ((statSync(file).mode & 0o077) !== 0) chmodSync(file, 0o600);
-  } catch {
-  }
-}
 
 export const sectionKey = (section?: string | null): string => section?.trim() || "";
 
@@ -1483,7 +1469,21 @@ export class Store {
     return true;
   }
 
+  setGroupUsername(id: string, identity: { username: string; publicKey: string }): BotRecord | null {
+    const bot = this.own(id);
+    if (!bot) return null;
+    const { username, publicKey } = identity;
+    if (!/^[a-f0-9]{64}$/.test(publicKey) || username !== `bot_k${createHash("sha256").update(Buffer.from(publicKey, "hex")).digest("hex")}`) throw new Error("Invalid bot username");
+    if (this.bots.some(candidate => candidate.id !== id && candidate.groupUsername === username)) throw new Error("Bot username already assigned");
+    if (bot.groupUsername === username) return bot;
+    if (bot.groupUsername !== undefined) throw new Error("Bot username already assigned");
+    const next = { ...bot, groupUsername: username }, bots = this.bots.map(candidate => candidate.id === id ? next : candidate);
+    this.saveBots(bots); this.bots = bots; this.emit({ type: "bot", botId: id });
+    return next;
+  }
+
   patchBot(id: string, patch: Partial<BotRecord>): BotRecord | null {
+    if (Object.hasOwn(patch, "groupUsername")) throw new Error("Bot usernames require identity verification");
     const bot = this.own(id);
     if (!bot) return null; patch = reshowWhenMoved(bot, patch);
     if (patch.connectorTools !== undefined) {

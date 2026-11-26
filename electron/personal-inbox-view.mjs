@@ -1,4 +1,5 @@
 import { personalAccountUpdates } from "./personal-account-updates.mjs";
+import { watchInboxIdentities } from "./personal-inbox-identity-watch.mjs";
 import { cleanEmail } from "./cloud-signin.mjs";
 import { personalInboxBots } from "./personal-inbox-bots.mjs";
 import path from "node:path";
@@ -57,7 +58,7 @@ export async function signOutPersonalAccount(origin) {
   if (!response.ok) throw new Error("StartupBot sign-out failed");
 }
 
-export async function showPersonalInbox(window, origin, language, requestSignIn, { localWorkspace, room }) {
+export async function showPersonalInbox(window, origin, language, requestSignIn, { localWorkspace, room, localRequest }) {
   if (!window || window.isDestroyed() || !origin) return;
   const existing = panels.get(window)?.view;
   if (existing) {
@@ -74,7 +75,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
   } });
   const page = view.webContents;
   const workspace = window.webContents;
-  const bots = personalInboxBots(window, page, origin);
+  const bots = personalInboxBots(window, page, origin, localRequest, language);
   const disposeVoice = registerInboxVoice({ page, workspace, origin, localWorkspace, requestMicrophone, canStartDictation: () => !speechBusy() });
   const invitePath = origin + "/desktop/invite-bot/";
   page.setWindowOpenHandler(({ url }) => {
@@ -147,11 +148,14 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
   }
 }
 
-export function createPersonalInbox({ window, locale, languageKey, isLocal, showLocal, previousChoice }) {
+export function createPersonalInbox({ window, locale, languageKey, isLocal, showLocal, previousChoice, localRequest }) {
   const metadata = createRequire(import.meta.url)("../package.json");
   function origin() {
     return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
       jsonFile(path.join(app.getPath("userData"), "inbox-service.json")).read);
+  }
+  function watchIdentities(win) {
+    watchInboxIdentities({ win, origin, isLocal, inboxSession: () => session.fromPartition(partition), localRequest, locale, startBots: personalInboxBots });
   }
   async function requestSignIn(win, inbox) {
     await waitForWorkspace(win);
@@ -175,7 +179,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
     if (!email) return requestSignIn(win, true);
     await waitForWorkspace(win);
     return showPersonalInbox(win, base, locale(), () => requestSignIn(win, true), {
-      localWorkspace: () => !win.isDestroyed() && isLocal(win), room,
+      localWorkspace: () => !win.isDestroyed() && isLocal(win), room, localRequest,
     });
   }
   function install(ipcMain, localOnly, requireMainWindowSender) {
@@ -280,5 +284,5 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
       void page.executeJavaScript('window.dispatchEvent(new CustomEvent("inbox-language", { detail: ' + tag + ' }))').catch(() => {});
     }
   }
-  return { open, origin, install, applySkin, applyLanguage };
+  return { open, origin, install, applySkin, applyLanguage, watchIdentities };
 }

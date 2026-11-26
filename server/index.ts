@@ -1371,7 +1371,7 @@ function turnRequestBudget(botId: string, threadId: string, driverKind: string, 
     meter.record(tokens ?? cfg.usageCaps?.run?.tokens ?? 0, usd ?? cfg.usageCaps?.run?.usd ?? 0);
   } };
 }
-function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true): void {
+function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true, noticeThreadId = row.threadId): void {
   const cost = tokensReported || row.costUsd !== null ? ledgerCost(row, operatorPrices()) : { costUsd: null };
   if (!row.usageId && cfg.usageCaps?.run && !registry.get(row.instanceId)?.adapter.capabilities.requestMetering && budgetRoot(row.botId, row.threadId)) {
     const meter = makeRequestBudget(row.botId, false, () => budgetRoot(row.botId, row.threadId));
@@ -1384,7 +1384,7 @@ function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported 
   const state = spendState(cfg, DATA_DIR);
   const alert = takeSpendAlert(DATA_DIR, state);
   if (alert && state) {
-    broadcast({ kind: "notify", notification: logNotification(buildSpendNotification({ id: row.botId, name: row.botName }, row.threadId, spendAlertText(alert, state))) }, { adminOnly: true });
+    broadcast({ kind: "notify", notification: logNotification(buildSpendNotification({ id: row.botId, name: row.botName }, noticeThreadId, spendAlertText(alert, state))) }, { adminOnly: true });
   } usageCapGate.booked(row.botId);
 }
 

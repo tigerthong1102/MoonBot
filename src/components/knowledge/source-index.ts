@@ -41,7 +41,6 @@ export function splitPassages(text: string): Passage[] {
     for (const match of sheet.matchAll(/[^\s][\s\S]*?(?=\r?\n[ \t]*\r?\n|$)/g)) {
       const block = match[0].trimEnd();
       paragraph++;
-      // Split long paragraphs for bounded retrieval while keeping their true source offset.
       for (let n = 0; n < block.length; n += 1400) {
         if (passages.length >= 10_000) throw new Error("passage limit");
         passages.push({ page, paragraph, text: block.slice(n, n + 1400), start: start + match.index + n });

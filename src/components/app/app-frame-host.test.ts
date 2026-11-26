@@ -83,9 +83,10 @@ describe("the bridge on the desktop", () => {
     const posted = vi.spyOn(view, "postMessage");
     const request = { jsonrpc: "2.0", id: 1, method: "ui/initialize", params: { protocolVersion: "2026-01-26", appInfo: { name: "x", version: "1" }, appCapabilities: {} } };
     // another window: dropped without an answer
-    window.dispatchEvent(new MessageEvent("message", { data: request, source: window }));
+    window.dispatchEvent(new MessageEvent("message", { origin: "https://other.invalid", data: request, source: view as unknown as MessageEventSource }));
+    window.dispatchEvent(new MessageEvent("message", { origin: "null", data: request, source: window }));
     expect(posted).not.toHaveBeenCalled();
-    window.dispatchEvent(new MessageEvent("message", { data: request, source: view as unknown as MessageEventSource }));
+    window.dispatchEvent(new MessageEvent("message", { origin: "null", data: request, source: view as unknown as MessageEventSource }));
     expect(posted).toHaveBeenCalledTimes(1);
     const [answer, target] = posted.mock.calls[0]! as [any, string];
     expect(target).toBe("*");
@@ -101,7 +102,7 @@ describe("the bridge on the desktop", () => {
     const host = mountAppFrame({ container, doc, title: "Coffee counter", height: 200, hostContext: { containerDimensions: { width: 600, maxHeight: 500 } }, hostVersion: "1", adapter: calls });
     const view = host.iframe.contentWindow!;
     const posted = vi.spyOn(view, "postMessage");
-    const send = (data: unknown) => window.dispatchEvent(new MessageEvent("message", { data, source: view as unknown as MessageEventSource }));
+    const send = (data: unknown) => window.dispatchEvent(new MessageEvent("message", { origin: "null", data, source: view as unknown as MessageEventSource }));
     send({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: {} });
     send({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} });
     send({ jsonrpc: "2.0", method: "ui/notifications/size-changed", params: { height: 9000 } });
@@ -123,7 +124,7 @@ describe("text the person selects in a page", () => {
     const onSelection = vi.fn();
     const host = mountAppFrame({ container, doc: over.doc ?? doc, title: "Coffee counter", height: 200, hostContext: {}, hostVersion: "1", adapter: adapter(), onSelection });
     const view = host.iframe.contentWindow!;
-    const send = (data: unknown, source: unknown = view) => window.dispatchEvent(new MessageEvent("message", { data, source: source as MessageEventSource }));
+    const send = (data: unknown, source: unknown = view) => window.dispatchEvent(new MessageEvent("message", { origin: "null", data, source: source as MessageEventSource }));
     const select = (params: Record<string, unknown>, source?: unknown) => send({ jsonrpc: "2.0", method: SELECTION, params }, source);
     const initialize = () => {
       send({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: {} });
@@ -191,7 +192,7 @@ describe("a row leaving the page", () => {
     const host = mountAppFrame({ container, doc, title: "Coffee counter", height: 200, hostContext: {}, hostVersion: "1", adapter: calls });
     const view = host.iframe.contentWindow!;
     const posted = vi.spyOn(view, "postMessage");
-    const send = (data: unknown) => window.dispatchEvent(new MessageEvent("message", { data, source: view as unknown as MessageEventSource }));
+    const send = (data: unknown) => window.dispatchEvent(new MessageEvent("message", { origin: "null", data, source: view as unknown as MessageEventSource }));
     send({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: {} });
     send({ jsonrpc: "2.0", method: "ui/notifications/initialized", params: {} });
     const teardownRequest = () => posted.mock.calls.map(([message]) => message as any).find((message) => message.method === "ui/resource-teardown");

@@ -250,7 +250,7 @@ export function appDocument(args: {
   if (stored.source === "html") {
     const files = stored.data?.folder && args.files
       ? `${args.files.origin}${args.files.folder({ threadId: args.threadId, messageId: row.id, doc: version.doc })}` : undefined;
-    return botHtmlDocument({ messageId: row.id, rev, html: stored.html, title: row.app.title,
+    return botHtmlDocument({ messageId: row.id, rev, html: stored.html, title: row.app.title, readOnly: args.report === true,
       ...(stored.data?.format === "jsx" ? { format: "jsx" as const } : {}), ...(files ? { files } : {}), ...(room ? { room } : {}) });
   }
   if (!stored.data?.tool) return null;

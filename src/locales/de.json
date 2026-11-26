@@ -4323,6 +4323,7 @@
   "usage.caps.perRun": "Pro Lauf, einschließlich delegierter Arbeit (unterstützte Engines)",
   "room.council": "KI-Rat",
   "room.councilCritique": "Kritikrunde einschließen",
+  "server.roomCouncil.textOnly": "Der Rat akzeptiert nur Text. Entferne die Anhänge und sende deine Frage erneut.",
   "server.roomCouncil.question": "Geben Sie eine Ratsfrage mit 1 bis 16.000 Zeichen ein.",
   "server.roomCouncil.missing": "Fügen Sie aktive Raumbots mit unterstützten isolierten Modellen für {models} hinzu.",
   "server.roomCouncil.failed": "{seat} ({model}) wurde nicht beendet. Überprüfen Sie die Verbindung, Berechtigungen und das Budget.",

@@ -4108,6 +4108,7 @@
   "usage.caps.perRun": "Par exécution, y compris le travail délégué (moteurs pris en charge)",
   "room.council": "Conseil de l'IA",
   "room.councilCritique": "Inclure un cycle de critiques",
+  "server.roomCouncil.textOnly": "Le conseil accepte uniquement du texte. Retirez les pièces jointes et renvoyez votre question.",
   "server.roomCouncil.question": "Saisissez une question du conseil de 1 à 16 000 caractères.",
   "server.roomCouncil.missing": "Ajoutez des robots de salle actifs avec des modèles isolés pris en charge pour {models}.",
   "server.roomCouncil.failed": "{seat} ({model}) n'a pas terminé. Vérifiez la connexion, les autorisations et le budget.",

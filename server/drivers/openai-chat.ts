@@ -1,4 +1,4 @@
-import { completionUsage, usageFrom, type CompletionJson, type Usage } from "./openai-chat-usage.ts";
+import { completionUsage, reportedCount, usageFrom, type CompletionJson, type Usage } from "./openai-chat-usage.ts";
 import { RuntimeNoticeError, runtimeErrorText } from "./runtime-notice-error.ts";
 import { createHash } from "node:crypto";
 import type {
@@ -301,13 +301,12 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         const tokenUsage = completionUsage(json);
         if (onUsage) {
           activeSignal.throwIfAborted();
-          const count = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
           onUsage({
             model: typeof json.model === "string" && json.model.trim() ? json.model : model,
-            input: count(tokenUsage?.prompt_tokens),
-            output: count(tokenUsage?.completion_tokens),
-            cachedInput: count(tokenUsage?.prompt_tokens_details?.cached_tokens),
-            costUsd: count(tokenUsage?.cost),
+            input: reportedCount(tokenUsage?.prompt_tokens),
+            output: reportedCount(tokenUsage?.completion_tokens),
+            cachedInput: reportedCount(tokenUsage?.prompt_tokens_details?.cached_tokens),
+            costUsd: reportedCount(tokenUsage?.cost),
           });
         }
         const bodyError = completionError(json, "completion error");
@@ -565,8 +564,8 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
 
     void (async () => {
       let tools: ChatToolSession | undefined;
-      const usage: Usage = { input: 0, output: 0 };
-      let reportedCost: number | null = 0;
+      const usage: { input: number; output: number; cachedInput?: number } = { input: 0, output: 0 };
+      let reportedCost: number | null | undefined;
       let hasUsage = false;
       let ok = false;
       let stopReason: string | null = null;
@@ -709,9 +708,9 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           }
           native("in", options.nativeLog.incoming(completion));
           unread = [];
-          reportedCost = reportedCost !== null && typeof completion.usage?.costUsd === "number" ? reportedCost + completion.usage.costUsd : null;
+          reportedCost = reportedCost !== null && typeof completion.usage?.costUsd === "number" ? (reportedCost ?? 0) + completion.usage.costUsd : null;
           turn.requestBudget?.record(model, completion.usage);
-          if (completion.usage) {
+          if (completion.usage?.input !== undefined && completion.usage.output !== undefined) {
             usage.input += completion.usage.input;
             usage.output += completion.usage.output;
             if (completion.usage.cachedInput !== undefined) usage.cachedInput = (usage.cachedInput ?? 0) + completion.usage.cachedInput;
@@ -903,7 +902,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           }
         }
         active.delete(turn.threadId);
-        emit({ ...base(turn.threadId, turnId), type: "turn.completed", ok, stopReason, cost: hasUsage ? reportedCost : null,
+        emit({ ...base(turn.threadId, turnId), type: "turn.completed", ok, stopReason, cost: reportedCost ?? null,
           ...(hasUsage && (options.includeUsageInCompleted || seenCalls.size) ? { usage } : {}),
           ...(denials.length ? { denials } : {}),
         });

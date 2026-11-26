@@ -10667,6 +10667,7 @@
   "usage.caps.perRun": "每次運行，包括委派的工作（支援的引擎）",
   "room.council": "人工智慧委員會",
   "room.councilCritique": "包括批評輪",
+  "server.roomCouncil.textOnly": "委員會僅接受文字。請移除附件並重新傳送問題。",
   "server.roomCouncil.question": "輸入 1 到 16,000 個字元的理事會問題。",
   "server.roomCouncil.missing": "添加具有支援的 {models} 隔離模型的活動房間機器人。",
   "server.roomCouncil.failed": "{seat}（{model}）未完成。請檢查連線、權限和預算。",

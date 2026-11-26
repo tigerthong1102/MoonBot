@@ -7432,6 +7432,7 @@
   "usage.caps.perRun": "Per esecuzione, incluso il lavoro delegato (motori supportati)",
   "room.council": "Consiglio dell'AI",
   "room.councilCritique": "Includere un giro di critiche",
+  "server.roomCouncil.textOnly": "Il consiglio accetta solo testo. Rimuovi gli allegati e invia di nuovo la domanda.",
   "server.roomCouncil.question": "Inserisci una domanda del consiglio composta da 1 a 16.000 caratteri.",
   "server.roomCouncil.missing": "Aggiungi bot di stanza attivi con modelli isolati supportati per {models}.",
   "server.roomCouncil.failed": "{seat} ({model}) non è arrivato. Controlla la connessione, i permessi e il budget.",

@@ -2,6 +2,7 @@
 // Chat-shaped messages; this file translates them on the way out and reads the event stream on the way in.
 // https://developers.openai.com/api/docs/guides/migrate-to-responses
 import type { Completion, OpenAIChatMessage } from "./openai-chat.ts";
+import { reportedCount } from "./openai-chat-usage.ts";
 import type { ChatContentPart } from "./chat-images.ts";
 import type { ChatToolDefinition } from "./chat-mcp-tools.ts";
 import { ChatProtocolError, ChatToolCalls, object } from "./openai-chat-protocol.ts";
@@ -193,7 +194,7 @@ export async function readResponsesStream(body: ReadableStream<Uint8Array> | nul
       for (const [position, item] of response.output.entries()) if (object(item)) finishItem(item as ResponseItem, position);
     }
     const used = object(response?.usage);
-    if (used) usage = { input: Number(used.input_tokens) || 0, output: Number(used.output_tokens) || 0 };
+    if (used) usage = { input: reportedCount(used.input_tokens), output: reportedCount(used.output_tokens), costUsd: reportedCount(used.cost) };
   };
   const failure = (error: Record<string, unknown> | undefined) => {
     const code = typeof error?.code === "string" ? error.code : "";

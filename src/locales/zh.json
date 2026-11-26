@@ -10563,6 +10563,7 @@
   "usage.caps.perRun": "每次运行，包括委派的工作（支持的引擎）",
   "room.council": "人工智能委员会",
   "room.councilCritique": "包括批评轮",
+  "server.roomCouncil.textOnly": "委员会仅接受文本。请移除附件并重新发送问题。",
   "server.roomCouncil.question": "输入 1 到 16,000 个字符的理事会问题。",
   "server.roomCouncil.missing": "添加具有支持的 {models} 隔离模型的活动房间机器人。",
   "server.roomCouncil.failed": "{seat}（{model}）未完成。请检查连接、权限和预算。",

@@ -1366,9 +1366,10 @@ function budgetRoot(botId: string, threadId: string) {
 function turnRequestBudget(botId: string, threadId: string, driverKind: string, waiting: boolean): NonNullable<SendTurnInput["requestBudget"]> {
   const meter = makeRequestBudget(botId, waiting, () => budgetRoot(botId, threadId));
   return { before: meter.before, finish: meter.finish, record(model, usage) {
-    const usd = usage && ledgerCost({ model, driverKind, ...usage, costUsd: usage.costUsd }, operatorPrices()).costUsd;
+    const measured = usage?.input !== undefined && usage.output !== undefined ? { input: usage.input, output: usage.output } : null;
+    const usd = measured ? ledgerCost({ model, driverKind, ...usage, ...measured, costUsd: usage?.costUsd }, operatorPrices()).costUsd : usage?.costUsd;
     // An explicitly limited run cannot continue with an unmeasurable balance.
-    meter.record(usage ? usage.input + usage.output : cfg.usageCaps?.run?.tokens ?? 0, usd ?? cfg.usageCaps?.run?.usd ?? 0);
+    meter.record(measured ? measured.input + measured.output : cfg.usageCaps?.run?.tokens ?? 0, usd ?? cfg.usageCaps?.run?.usd ?? 0);
   } };
 }
 function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true, notificationThreadId = row.threadId): void {

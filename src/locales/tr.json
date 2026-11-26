@@ -6306,6 +6306,7 @@
   "usage.caps.perRun": "Devredilen çalışma dahil çalıştırma başına (desteklenen motorlar)",
   "room.council": "yapay zeka konseyi",
   "room.councilCritique": "Eleştiri turunu dahil et",
+  "server.roomCouncil.textOnly": "Konsey yalnızca metin kabul eder. Ekleri kaldırıp sorunuzu yeniden gönderin.",
   "server.roomCouncil.question": "1 ila 16.000 karakterden oluşan bir konsey sorusu girin.",
   "server.roomCouncil.missing": "{models} için desteklenen izole modellerle aktif oda botları ekleyin.",
   "server.roomCouncil.failed": "{seat} ({model}) bitirmedi. Bağlantıyı, izinleri ve bütçeyi kontrol edin.",

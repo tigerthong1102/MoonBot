@@ -6805,6 +6805,7 @@
   "usage.caps.perRun": "Por ejecución, incluido el trabajo delegado (motores compatibles)",
   "room.council": "consejo de IA",
   "room.councilCritique": "Incluir ronda de crítica",
+  "server.roomCouncil.textOnly": "El consejo solo acepta texto. Quita los archivos adjuntos y vuelve a enviar la pregunta.",
   "server.roomCouncil.question": "Introduzca una pregunta del consejo de 1 a 16.000 caracteres.",
   "server.roomCouncil.missing": "Agregue robots de sala activos con modelos aislados compatibles para {models}.",
   "server.roomCouncil.failed": "{seat} ({model}) no terminó. Consulta la conexión, permisos y presupuesto.",

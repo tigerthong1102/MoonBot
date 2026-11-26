@@ -181,7 +181,7 @@ function CapsForm({ view, onSaved }: { view: UsageCapView; onSaved?: () => void 
         <fieldset className="flex flex-wrap gap-2">
           <legend className="mb-1.5 text-[13px] text-ink">{t("usage.caps.perRun")}</legend>
           {(["dailyUsd", "dailyTokens"] as const).map(field => <label key={field} className="flex flex-col gap-1 text-xs">
-            {field === "dailyUsd" ? "USD" : "Tokens"}
+            {field === "dailyUsd" ? `${t("usage.colCost")} (USD)` : t("usage.colTokens")}
             <input className={INPUT} disabled={saving} placeholder={t("usage.caps.noCap")} inputMode={field === "dailyUsd" ? "decimal" : "numeric"}
               value={run[field]} onChange={e => setRun({ ...run, [field]: e.target.value })} />
           </label>)}

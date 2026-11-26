@@ -3,8 +3,8 @@ import type { ProviderBody } from "./openai-chat-refusals.ts";
 export interface Usage {
   costUsd?: number;
   cachedInput?: number;
-  input: number;
-  output: number;
+  input?: number;
+  output?: number;
 }
 
 export interface CompletionJson extends ProviderBody {
@@ -20,9 +20,12 @@ export interface CompletionJson extends ProviderBody {
   x_groq?: { usage?: CompletionJson["usage"] };
 }
 
+export const reportedCount = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+
 export const usageFrom = (usage: CompletionJson["usage"]): Usage | null =>
   usage
-    ? { input: usage.prompt_tokens ?? 0, output: usage.completion_tokens ?? 0,
+    ? { input: reportedCount(usage.prompt_tokens), output: reportedCount(usage.completion_tokens),
         ...(typeof usage.cost === "number" && Number.isFinite(usage.cost) && usage.cost >= 0 ? { costUsd: usage.cost } : {}),
         ...(usage.prompt_tokens_details?.cached_tokens !== undefined ? { cachedInput: usage.prompt_tokens_details.cached_tokens } : {}),
       }

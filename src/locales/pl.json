@@ -7569,6 +7569,7 @@
   "usage.caps.perRun": "Na uruchomienie, łącznie z pracą delegowaną (obsługiwane silniki)",
   "room.council": "Rada AI",
   "room.councilCritique": "Dołącz rundę krytyki",
+  "server.roomCouncil.textOnly": "Rada przyjmuje tylko tekst. Usuń załączniki i wyślij pytanie ponownie.",
   "server.roomCouncil.question": "Wpisz pytanie rady o długości od 1 do 16 000 znaków.",
   "server.roomCouncil.missing": "Dodaj aktywne boty pokojowe z obsługiwanymi izolowanymi modelami dla {models}.",
   "server.roomCouncil.failed": "{seat} ({model}) nie zakończył się. Sprawdź połączenie, uprawnienia i budżet.",

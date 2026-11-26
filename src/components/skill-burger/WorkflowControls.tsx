@@ -1,3 +1,4 @@
+import { WorkflowDisclosure } from "./WorkflowDisclosure";
 import { useState } from "react";
 import { parallelRead, workflowSchema, type WorkflowStep } from "../../../shared/skill-burger/format";
 import { Select } from "../Select";
@@ -14,7 +15,6 @@ export function WorkflowControls({ skill, team }: { skill: SavedWorkflow; team: 
   const [error, setError] = useState("");
   const [consent, setConsent] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [opened, setOpened] = useState(false);
   const report = (err: unknown) => setError(err instanceof Error ? err.message : String(err));
   const load = async () => {
     setBusy(true); setError("");
@@ -39,12 +39,8 @@ export function WorkflowControls({ skill, team }: { skill: SavedWorkflow; team: 
     setSteps(before => before?.map((step, i) => i === index ? { ...step, ...patch } : step) ?? null);
     setDirty(true); setError("");
   }
-  return <details open={opened} className="min-w-0 text-sm" onToggle={e => {
-    setOpened(e.currentTarget.open);
-    if (e.currentTarget.open && !steps && !busy) void load();
-  }}>
-    <summary className="cursor-pointer font-medium">{t("workflow.controls")}</summary>
-    {opened && steps?.map((step, index) => <fieldset key={step.id} disabled={busy} className="my-2 space-y-2 rounded-lg border border-hairline/50 p-2">
+  return <WorkflowDisclosure title={t("workflow.controls")} onOpen={() => { if (!steps && !busy) void load(); }}>
+    {steps?.map((step, index) => <fieldset key={step.id} disabled={busy} className="my-2 space-y-2 rounded-lg border border-hairline/50 p-2">
       <legend>{step.label}</legend>
       <label className="block">{t("workflow.approvalPrompt")}
         <input className={field} maxLength={500} value={step.approval ?? ""} onChange={e => change(index, { approval: e.target.value || undefined })} />
@@ -67,10 +63,10 @@ export function WorkflowControls({ skill, team }: { skill: SavedWorkflow; team: 
         <input type="checkbox" checked={!!step.parallelWithPrevious} onChange={e => change(index, { parallelWithPrevious: e.target.checked || undefined })} />{t("workflow.parallel")}
       </label>}
     </fieldset>)}
-    {steps && opened && <div className="flex flex-col gap-2">
+    {steps && <div className="flex flex-col gap-2">
       {team && <label><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} /> {t("workflow.share")}</label>}
       <button type="button" disabled={busy || !dirty || (team && !consent)} className="ui-button ui-button-md self-start" onClick={() => void save()}>{t("common.save")}</button>
     </div>}
     {error && <p role="alert">{error} <button type="button" onClick={() => void load()}>{t("chat.retry")}</button></p>}
-  </details>;
+  </WorkflowDisclosure>;
 }

@@ -13,7 +13,7 @@ it("keeps the draft private until publication, compares one case on both instruc
   try {
     const api = async <T = any>(path: string, method = "GET", body?: unknown, status = 200): Promise<T> => {
       const response = await fetch(server.info.url + path, {
-        method, headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+        method, headers: { "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       const result = await response.json();
       expect(response.status, JSON.stringify(result)).toBe(status);

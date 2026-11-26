@@ -19,6 +19,8 @@ describe("where each step ran", () => {
   it.each([
     `python3 -c "open('report.csv','w').write('ok')"`,
     `node --eval "require('fs').readFileSync('report.csv')"`,
+    `node -p "require('fs').readFileSync('report.csv')"`,
+    `bash -lc "echo 'report.csv'" > output.csv`,
     `awk "BEGIN { print 'report.csv' }" > output.csv`,
   ])("hands embedded interpreter source back to the bot: %s", (command) => {
     const { workflow } = draftWorkflow([ask("Process report.csv"), tool("Bash", { command }), tool("Bash", { command: "cp report.csv archive.csv" })])!;

@@ -12030,6 +12030,8 @@ ROUTES.push(createBotPresetRoutes({ presets: presetStore, orgStatuses: orgInstal
 ROUTES.push(createSharedComputerRoutes({ enabled: (auth) => lendingEnabled() || (ownerLends() && ownHome.owner(auth)), computers: sharedComputers, sessionLive: (id) => sessions.isLive(id), environmentId: ENVIRONMENT_ID,
   cloudHomeLender: CLOUD_HOME ? CLOUD_HOME_LENDER : null, principal: sessionLendingPrincipal, personKey: (session) => lendingPersonKey(session, ownHome.ownServer()), power: () => cloudPower, links: CLOUD_HOME ? deviceLinks : null, upgrades, asks: computerAsks?.asks ?? null, answerer: cardAnswererFor }));
 ROUTES.push(createBotMessageRoutes({
+  knowledge: { accessible: (auth, id, threadId) => (auth.kind === "session" ? !auth.session.token && sessions.isLive(auth.session.id) : auth.trust !== "service") && visibleTo(viewerFor(auth)).thread(threadId) && ["chat", "edit"].includes(levelOf(auth, id)) && !cloudGuestSendRefusal(auth, threadId),
+    writer: (auth, bot, threadId) => { const selection = turnSelection(bot.id, threadId); return !selection || botHolds.held(bot.id) || starterAwake.paused().includes(bot.id) || workspaceMaintenance.active || moveFreeze.frozen() || heldKeys?.refusal(selection.instanceId) || validateModelProposal(selection) ? null : sideJobs.sourceAnswer(bot.id, selection, threadId, usageTriggerFor(auth)); } },
   store, registry, handoffs, liveTurn: (threadId) => liveTurns.running(threadId), phoneSecretSubmissions, directTurnDispatchClaims, groupSpeakers,
   routines: () => routines,
   offerWorkBot,
@@ -12056,9 +12058,7 @@ const { react } = createReactions({
 const publishedPages = createPublishedPages({ dataDir: DATA_DIR, cloudHome: CLOUD_HOME, selfHosted: !CLOUD_HOME && !HOSTED_WORKSPACE && utilityParentPort === undefined, patch: (threadId, messageId, text, publishedPage) => void store.patchMessage(threadId, messageId, { text, publishedPage }), liveRoots: (botId, threadId) => liveRoots(threadId, botId), paused: () => workspaceMaintenance.active || moveFreeze.frozen(), apps: { chat: chatApps, store } }); ROUTES.push(createReactionRoutes({ react, reactorFor, cloudGuestSendRefusal }), publishedPages.routes, createBotLibraryRoutes({ bot: (id) => store.bot(id), visibleFor: (auth) => visibleTo(viewerFor(auth)), pages: () => publishedPages.store.list() }), savedSteps.routes, createPlacesElsewhereRoutes({ elsewhere: placesElsewhere, owner: (auth) => !sharedMembership() && !HOSTED_WORKSPACE && (auth.kind === "loopback" || ownHome.owner(auth) || (CLOUD_PERSONAL && cloudOwnerSession(auth))) }));
 const keptAttachments = () => { const routineFiles = routines?.attachmentPaths(); return routineFiles && calendarCalls ? keptAttachmentNames([...store.bots.map((bot) => bot.avatarUrl), cfg.profile?.avatarUrl], [workspaceBannerStore.current()?.name, ...routineFiles, ...calendarCalls.list().flatMap((call) => call.attachments?.map((file) => file.path) ?? []), ...[...turnAttachmentsByTurn.values()].flat().map((file) => file.path)]) : null; }; createDeleteLeftovers({ dataDir: DATA_DIR, store, retainedUploads, threadsReferencing, keptAttachments, deleteAttachment: (name) => deleteAttachment(join(ATTACHMENTS_DIR, name)), engineFolders: () => engineSessionFolders(DATA_DIR, [process.env, ...Object.values(providerConfigs()).map((instance) => instanceEnvironment(process.env, instance))].flatMap((env) => engineHomes.everyHome(env))), layers: memoryLayerRecords });
 const instructionStudio = createInstructionStudio({
-  dataDir: DATA_DIR,
-  bot: id => store.bot(id),
-  rules: () => cfg.everyBotRules,
+  dataDir: DATA_DIR, bot: id => store.bot(id), rules: () => cfg.everyBotRules,
   writer: (id, selection) => botHolds.held(id) || starterAwake.paused().includes(id) || workspaceMaintenance.active || moveFreeze.frozen()
     || heldKeys?.refusal(selection.instanceId) || validateModelProposal(selection)
     ? null : sideJobs.instructionTest(id, selection),

@@ -18,10 +18,7 @@ export function readLibrary(key: string): Promise<Index | undefined> {
   return browserRecord("readonly", store => store.get(key));
 }
 
-export function sourceLink(digest: string, start: number, path: string) {
-  const name = encodeURIComponent(path).replace(/[!'()*]/g, char => "%" + char.charCodeAt(0).toString(16));
-  return "#startupbot-source-" + digest + "-" + start + "/" + name;
-}
+export { sourceLink } from "../../../shared/source-evidence";
 
 export function parseSourceLink(href: string) {
   const match = /^#startupbot-source-([0-9a-f]{64})-(\d{1,9})(?:\/([^\s#]{1,16384}))?$/.exec(href);

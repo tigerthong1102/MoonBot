@@ -138,7 +138,7 @@ describe("the panel of an app-event automation", () => {
     expect(text).toContain("Up to 500 app events a day on this computer.");
     expect(text).toContain("Gmail needs to be reconnected.");
     flushSync(() => button(container, "Reconnect").click());
-    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "togglePlugins", open: true, surface: "apps" });
+    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "togglePlugins", open: true, surface: "apps", search: "Gmail" });
     expect(text).not.toMatch(/webhook|endpoint|payload|composio|trigger/i);
   });
 

@@ -275,3 +275,38 @@ it("refuses hidden action tails, including previously approved checkpoints writt
   expect(await h.post("/api/internal/skill-burgers/resume", { run: token, response: "prior approval" })).toMatchObject({ ok: false });
   expect(h.calls).toEqual([]);
 });
+
+it.each(["ai", "decide"] as const)("reviews the exact %s handoff after interpolation before allowing that prompt", async (kind) => {
+  const h = await serve({ workflow: { version: 1, summary: "Review handoff", args: { recipient: {}, document: {} }, steps: [
+    { kind, id: "review", label: "Review", prompt: "Send the report to {recipient}", input: { $arg: "document" },
+      approval: "Check recipient", ...(kind === "ai" ? { deterministic: false, example: "Report outline" } : { cases: ["send", "stop"] }) },
+  ] } });
+  const start = (recipient: string) => h.post("/api/internal/skill-burgers/run", { name: "review-handoff", args: { recipient, document: "November ledger" } });
+  const waits = createSkillBurgerRuns({ dataDir: h.root, root: h.root }).approvals;
+  for (const unsafe of ["Bearer " + "private-fixture".repeat(4), "Bearer\n" + "private-fixture".repeat(4), "A".repeat(8100)]) {
+    expect(await start(unsafe)).toMatchObject({ ok: false, error: { step: "review" } });
+    expect(waits.list(h.bot, "t1")).toEqual([]);
+  }
+  const pause = await start("Sam {document}"); // Template syntax inside a value is literal data.
+  expect(pause.requiresInput).toMatchObject({ type: "approval" });
+  expect(pause.requiresInput).not.toHaveProperty("input");
+  expect(pause.requiresInput).not.toHaveProperty("example");
+  const [card] = waits.list(h.bot, "t1");
+  const shown = JSON.parse(card!.action).step;
+  expect(shown.prompt).toContain("Send the report to Sam {document}");
+  expect(shown.input).toBe("November ledger");
+  expect(card!.reviewHash).toMatch(/^[a-f0-9]{64}$/);
+  const token = pause.requiresInput.resumeToken;
+  // A still-open previous-version card and an approval persisted by that version both lack the displayed-action hash.
+  expect(waits.decide(token, h.bot, "t1", "allow")).toBe(false);
+  expect(waits.decide(token, h.bot, "t1", "allow", "0".repeat(64))).toBe(false);
+  const checkpoints = createRunStates(join(h.root, "skill-burger-runs"));
+  checkpoints.save({ ...checkpoints.peek(token, h.bot, "t1")!, approvalDecision: "allow" }, true);
+  const resume = () => h.post("/api/internal/skill-burgers/resume", { run: token, response: "continue" });
+  expect(await resume()).toHaveProperty("error");
+  expect(waits.list(h.bot, "t1")).toMatchObject([{ state: "pending" }]);
+  expect(waits.decide(token, h.bot, "t1", "allow", card!.reviewHash)).toBe(true);
+  const handed = await resume();
+  expect(handed.requiresInput).toMatchObject({ type: kind === "ai" ? "ai_step" : "decide", prompt: shown.prompt, input: shown.input });
+  expect(handed.requiresInput[kind === "ai" ? "example" : "cases"]).toEqual(shown[kind === "ai" ? "example" : "cases"]);
+});

@@ -6,6 +6,7 @@ export interface WorkflowWait {
   step: string;
   message: string;
   action: string;
+  reviewHash?: string;
   state: "pending" | "approved" | "interrupted" | "unavailable";
 }
 

@@ -7,6 +7,7 @@ import type { SkillBurgerRuns } from "./runs.ts";
 const decisionBody = z.object({
   token: z.string().regex(/^[0-9a-f-]{36}\.[0-9a-f-]{36}$/),
   decision: z.enum(["allow", "deny"]),
+  reviewHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict();
 
 export function workflowApprovalRoutes(deps: {
@@ -35,7 +36,7 @@ export function workflowApprovalRoutes(deps: {
     if (!input.success) return json(res, 400, { error: "A current pause and a decision are required." });
     if (!deps.sees(auth, botId, threadId)) return json(res, 404, { error: "No such conversation." });
     if (!deps.human(auth, req)) return json(res, 403, { error: "Use an authorized signed-in device, or the local browser after the bots are idle." });
-    const ok = deps.approvals.decide(input.data.token, botId, threadId, input.data.decision);
+    const ok = deps.approvals.decide(input.data.token, botId, threadId, input.data.decision, input.data.reviewHash);
     return ok ? json(res, 200, { ok: true }) : json(res, 409, { error: "This pause expired, changed or was already answered." });
   };
 }

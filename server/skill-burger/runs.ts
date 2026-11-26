@@ -10,7 +10,7 @@ import { createExecutors, type ExecutorContext } from "./executors.ts";
 import { authorizeWorkflowAction, checkedExecutors, guardedExecutors, type WorkflowGuard } from "./guarded-executors.ts";
 import { createRunHistory } from "./history.ts";
 import { createRunStates } from "./run-state.ts";
-import { reviewAction, resumeRun, startRun, type RunDeps, type RunEnvelope, type StepExecutors, type StepResult } from "./runner.ts";
+import { interpolatedActionHash, reviewAction, resumeRun, startRun, type RunDeps, type RunEnvelope, type StepExecutors, type StepResult } from "./runner.ts";
 import { findWorkflowSkill, replaceWorkflowSkill } from "./store.ts";
 import { burgerTurn, type BurgerHostDeps, type CallingTurn } from "./turn-host.ts";
 
@@ -184,7 +184,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
       if (!step?.approval || !state.pauseToken || claims.has(state.pauseToken)) return [];
       const action = availableRevision(state.botId, state.name, state.sha256) ? reviewAction(step, state.args, state.results) : null;
       return [{ run: state.id, token: state.pauseToken, botId: state.botId, name: state.name, step: step.label,
-        message: action ? step.approval : "", action: action ?? "",
+        message: action ? step.approval : "", action: action ?? "", reviewHash: action ? interpolatedActionHash(step, state.args, action) : undefined,
         state: claimed ? "interrupted" : !action ? "unavailable" : state.approvalDecision === "allow" ? "approved" : "pending" }];
     });
   }
@@ -194,14 +194,16 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
       const visible = new Set(botIds);
       return listWaits(threadId, id => visible.has(id));
     },
-    decide(token: string, botId: string, threadId: string, decision: "allow" | "deny") {
+    decide(token: string, botId: string, threadId: string, decision: "allow" | "deny", reviewHash?: string) {
       const paused = states.peek(token, botId, threadId);
       if (!paused) return false;
       if (decision === "allow") {
         const step = paused.workflow.steps.find(one => one.id === paused.waiting.step);
-        if (!step?.approval || !availableRevision(botId, paused.name, paused.sha256) || !reviewAction(step, paused.args, paused.results)) return false;
+        if (!step?.approval || !availableRevision(botId, paused.name, paused.sha256)) return false;
+        const detail = reviewAction(step, paused.args, paused.results);
+        if (!detail || interpolatedActionHash(step, paused.args, detail) !== reviewHash) return false;
       }
-      const state = states.decide(token, botId, threadId, decision);
+      const state = states.decide(token, botId, threadId, decision, reviewHash);
       if (!state) return false;
       if (!state.approvalDecision && decision === "deny") {
         open.delete(state.id);

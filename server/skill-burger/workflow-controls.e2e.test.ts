@@ -77,6 +77,20 @@ it("recovers an approved step after restarting, restricts the review to its chat
     await request(path, "POST", { token: denied!.token, decision: "deny" }, 200, device);
     expect(await waits()).toEqual([]);
     await request(path, "POST", { token: denied!.token, decision: "allow" }, 409, device);
+    const ai = "review-report-prompt";
+    await request("/api/skill-burgers", "POST", { botId: bot.id, name: ai, workflow: { version: 1, args: { recipient: {} }, summary: "Prepare report", steps: [
+      { id: "report", label: "Report", kind: "ai", deterministic: false, prompt: "Prepare a report for {recipient}", approval: "Check distribution" },
+    ] } }, 201);
+    await turn({ name: ai, args: { recipient: "Fixture Finance" } });
+    const [report] = await waits();
+    const effective = JSON.parse(report!.action).step.prompt;
+    expect(effective).toContain("Prepare a report for Fixture Finance");
+    const reportAnswer = { token: report!.token, decision: "allow" };
+    await request(path, "POST", reportAnswer, 409, device);
+    await request(path, "POST", { ...reportAnswer, reviewHash: report!.reviewHash }, 200, device);
+    await turn({ resume: report!.token, response: "continue" });
+    const transcript = await request<{ messages: Array<{ tool?: { output?: string } }> }>(`/api/threads/${bot.threadId}/messages?limit=100`);
+    expect(transcript.messages.some(message => message.tool?.output?.includes(effective))).toBe(true);
     const { bot: other } = await request<{ bot: { id: string } }>("/api/bots", "POST", { name: "Other Fixture" }, 201);
     const { group } = await request<{ group: { id: string; threadId: string } }>("/api/groups", "POST", {
       name: "Review Room", memberIds: [bot.id, other.id],

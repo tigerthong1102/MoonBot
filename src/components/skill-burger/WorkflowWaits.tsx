@@ -34,7 +34,7 @@ export function WorkflowWaits({ botId, room, threadId, busy }: WaitOwner & { thr
       const target = member?.id ?? botId;
       if (!target) return;
       const endpoint = `/api/bots/${encodeURIComponent(target)}${query}`;
-      await api(endpoint, { method: "POST", body: JSON.stringify({ token: row.token, decision }) });
+      await api(endpoint, { method: "POST", body: JSON.stringify({ token: row.token, decision, reviewHash: row.reviewHash }) });
       if (decision === "allow") {
         const text = t("workflow.resumeMessage", { token: row.token });
         if (room && member) dispatch({ type: "sendGroup", groupId: room.id, threadId, text: `@${member.name} ${text}`, mentions: [member.id] });

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { posix, win32 } from "node:path";
 
 import { parallelProblem, caseOf, teammateNames, type Workflow, type WorkflowRef, type WorkflowStep } from "../../shared/skill-burger/format.ts";
@@ -48,6 +48,7 @@ export interface RunState {
   /** A delegate step under way: who does each part, the hand-offs out, the replies so far. */
   delegation?: DelegationState & { step: string };
   approvalDecision?: "allow" | "deny";
+  reviewedActionHash?: string;
   createdAt: number;
 }
 
@@ -169,8 +170,21 @@ function parsed(output: unknown): unknown {
 
 /** Full effective input that may be presented for a human decision. Hidden or truncated actions are never executable. */
 export function reviewAction(step: WorkflowStep, args: RunState["args"], results: RunState["results"]): string | null {
-  const detail = JSON.stringify({ step: resolve(step, args, results), ...(step.kind === "shell" ? { env: argEnv(args) } : {}) });
-  return detail.length <= 8000 && detail === redactSecretsInText(detail) ? detail : null;
+  let effective = step;
+  if (step.kind === "ai" || step.kind === "decide") {
+    const prompt = fillPrompt(handedPrompt(step, step.kind === "ai" ? "ai_step" : "decide"), args, HANDED_INPUT_MAX);
+    if (prompt === null || redactSecretsInText(prompt) !== prompt) return null;
+    effective = { ...step, prompt };
+  }
+  const detail = JSON.stringify({ step: resolve(effective, args, results), ...(step.kind === "shell" ? { env: argEnv(args) } : {}) });
+  return detail.length <= HANDED_INPUT_MAX && detail === redactSecretsInText(detail) ? detail : null;
+}
+
+/** An older card displayed template text. An interpolated prompt needs an approval for the concrete action. */
+export function interpolatedActionHash(step: WorkflowStep, args: RunState["args"], detail: string): string | undefined {
+  if (step.kind !== "ai" && step.kind !== "decide") return undefined;
+  const template = handedPrompt(step, step.kind === "ai" ? "ai_step" : "decide");
+  return template === fillPrompt(template, args) ? undefined : createHash("sha256").update(detail).digest("hex");
 }
 
 /** Waits for `run` up to `ms`, aborting what it was given when the time is up. */
@@ -201,8 +215,23 @@ function checkRule(step: WorkflowStep): { says: string; rule?: { path?: string; 
 const TEAMMATES_PROMPT = (names: string, token: string) => `${names} have the work now. End your turn: their replies resume you. Then call run_workflow with resume ${JSON.stringify(token)} and response "back".`;
 
 /** A prompt's {input} names as this run's values: the request a judgement step was saved with, as asked this time. */
-export function fillPrompt(prompt: string, args: Record<string, unknown>): string {
-  return prompt.replace(/\{([a-z][a-z0-9_]{0,39})\}/g, (whole, name: string) => (Object.hasOwn(args, name) ? asText(args[name]) : whole));
+export function fillPrompt(prompt: string, args: Record<string, unknown>): string;
+export function fillPrompt(prompt: string, args: Record<string, unknown>, limit: number): string | null;
+export function fillPrompt(prompt: string, args: Record<string, unknown>, limit = Infinity): string | null {
+  const chunks: string[] = [];
+  let cursor = 0;
+  let length = 0;
+  for (const match of prompt.matchAll(/\{([a-z][a-z0-9_]{0,39})\}/g)) {
+    const name = match[1]!;
+    const value = Object.hasOwn(args, name) ? asText(args[name]) : match[0];
+    length += match.index - cursor + value.length;
+    if (length > limit) return null;
+    chunks.push(prompt.slice(cursor, match.index), value);
+    cursor = match.index + match[0].length;
+  }
+  if (length + prompt.length - cursor > limit) return null;
+  chunks.push(prompt.slice(cursor));
+  return chunks.join("");
 }
 
 function handedPrompt(step: WorkflowStep, type: HandedType, missing?: { decide: string; case: string }): string {
@@ -233,14 +262,14 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     if (type !== "missing_case") deps.events.started(id, name, step);
     const { delegation: _old, ...rest } = state as typeof state & { delegation?: unknown };
     const token = deps.save({ ...rest, results, waiting: { step: step.id, type }, ...(extra.delegation ? { delegation: extra.delegation } : {}), createdAt: now() }) || id;
-    const input = step.kind === "ai" || step.kind === "decide" ? step.input : undefined;
+    const input = type !== "approval" && (step.kind === "ai" || step.kind === "decide") ? step.input : undefined;
     const value = extra.input ?? (input ? resolve(input, args, results) : undefined);
     return envelope({
       status: "needs_input",
       requiresInput: {
         type, step: step.id, label: step.label, prompt: fillPrompt(type === "teammates" ? (extra.prompt ?? "").replace(JSON.stringify(id), JSON.stringify(token)) : extra.prompt ?? handedPrompt(step, type, missing), args), resumeToken: token,
         ...(value !== undefined ? { input: clip(redactSecretsInText(asText(value)), HANDED_INPUT_MAX) } : {}),
-        ...(step.kind === "ai" && step.example ? { example: step.example } : {}),
+        ...(type !== "approval" && step.kind === "ai" && step.example ? { example: step.example } : {}),
         ...(step.kind === "decide" && type === "decide" ? { cases: step.cases } : {}),
       },
     });
@@ -434,7 +463,7 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
       deps.save(state, true);
       return refused(state, "A human approval in this conversation is required.", step.id);
     }
-    const { approvalDecision: _used, ...rest } = state;
+    const { approvalDecision: _used, reviewedActionHash: _hash, ...rest } = state;
     return runFrom({ ...rest, results, from: index }, deps, step.id);
   }
   const goOn = (from: number) => runFrom({ ...state, results, from }, deps);

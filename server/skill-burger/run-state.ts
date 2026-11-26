@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 import { writeFileAtomic } from "../atomic.ts";
-import type { RunState } from "./runner.ts";
+import { interpolatedActionHash, reviewAction, type RunState } from "./runner.ts";
 
 export const RUN_STATE_TTL_MS = 24 * 60 * 60_000;
 const ID = /^[0-9a-f-]{36}(?:\.[0-9a-f-]{36})?$/;
@@ -14,7 +14,17 @@ const ID = /^[0-9a-f-]{36}(?:\.[0-9a-f-]{36})?$/;
 export function createRunStates(dir: string, now: () => number = Date.now) {
   const file = (id: string) => join(dir, `${id}.json`);
   const read = (path: string): RunState | null => {
-    try { return JSON.parse(readFileSync(path, "utf8")) as RunState; } catch { return null; }
+    try {
+      const state = JSON.parse(readFileSync(path, "utf8")) as RunState;
+      if (state.waiting?.type === "approval" && state.approvalDecision === "allow") {
+        const step = state.workflow.steps.find(one => one.id === state.waiting.step);
+        if (step && (step.kind === "ai" || step.kind === "decide")) {
+          const detail = reviewAction(step, state.args, state.results);
+          if (!detail || interpolatedActionHash(step, state.args, detail) !== state.reviewedActionHash) delete state.approvalDecision;
+        }
+      }
+      return state;
+    } catch { return null; }
   };
   const peek = (id: string, botId: string, threadId: string) => {
     if (!ID.test(id)) return null;
@@ -45,11 +55,11 @@ export function createRunStates(dir: string, now: () => number = Date.now) {
         return [{ state, claimed }];
       });
     },
-    decide(id: string, botId: string, threadId: string, decision: "allow" | "deny") {
+    decide(id: string, botId: string, threadId: string, decision: "allow" | "deny", reviewedActionHash?: string) {
       const state = peek(id, botId, threadId);
       if (!state || state.waiting.type !== "approval") return null;
       if (state.approvalDecision && state.approvalDecision !== decision) return null;
-      if (!state.approvalDecision) writeFileAtomic(file(id), JSON.stringify({ ...state, approvalDecision: decision }), { mode: 0o600 });
+      if (!state.approvalDecision) writeFileAtomic(file(id), JSON.stringify({ ...state, approvalDecision: decision, reviewedActionHash }), { mode: 0o600 });
       return state;
     },
     settleClaim(id: string) {

@@ -41,7 +41,7 @@ it("edits adjacent reads and requires team sharing consent before saving the pin
 
 it("sends the pinned continuation only after the review succeeds, and hides actions for uncertain writes", async () => {
   fixture.api.mockReset(); fixture.dispatch.mockClear();
-  const row: WorkflowWait = { run: "run", botId: "A", token: "paused-token", name: "Fixture", step: "Send", action: "send to Alice", message: "Check recipient", state: "pending" };
+  const row: WorkflowWait = { run: "run", botId: "A", token: "paused-token", reviewHash: "a".repeat(64), name: "Fixture", step: "Send", action: "send to Alice", message: "Check recipient", state: "pending" };
   let state: WorkflowWait["state"] = "pending";
   let refuse = true;
   fixture.api.mockImplementation(async (_path: string, opts: RequestInit) => {
@@ -61,7 +61,7 @@ it("sends the pinned continuation only after the review succeeds, and hides acti
     expect(fixture.dispatch).not.toHaveBeenCalled();
     refuse = false;
     await act(async () => host.querySelector("button")!.click());
-    expect(fixture.api).toHaveBeenCalledWith("/api/bots/A/workflow-approvals?threadId=T", { method: "POST", body: JSON.stringify({ token: row.token, decision: "allow" }) });
+    expect(fixture.api).toHaveBeenCalledWith("/api/bots/A/workflow-approvals?threadId=T", { method: "POST", body: JSON.stringify({ token: row.token, decision: "allow", reviewHash: row.reviewHash }) });
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "send", botId: "A", threadId: "T", text: expect.stringContaining(row.token) });
     state = "interrupted";
     await act(async () => { window.dispatchEvent(new Event("focus")); });

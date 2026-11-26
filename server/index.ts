@@ -189,7 +189,7 @@ import { registerEnginesBinDir } from "./engine-install.ts"; import { engineUpda
 import { appendUsage, flushUsageLedger, queuedTurnTrigger, usageTriggerFor, type UsageRow, type UsageTrigger } from "./usage-ledger.ts"; import { createUsageAttribution } from "./usage-attribution.ts";
 import { createTraceRecorder } from "./usage-trace/recorder.ts";
 import { GroupUsageReader } from "./group-thread-usage.ts";
-import { ledgerCost } from "./model-prices.ts";
+import { ledgerCost, measuredSpend } from "./model-prices.ts";
 import type { PriceList } from "./prices.ts";
 import type { RequestAuth } from "./request-auth.ts";
 import { adminAuditPlan, type AuditPlan } from "./admin-audit-plan.ts"; import { departmentGrants, type DepartmentGrant } from "./department-grants.ts";
@@ -1366,10 +1366,8 @@ function budgetRoot(botId: string, threadId: string) {
 function turnRequestBudget(botId: string, threadId: string, driverKind: string, waiting: boolean): NonNullable<SendTurnInput["requestBudget"]> {
   const meter = makeRequestBudget(botId, waiting, () => budgetRoot(botId, threadId));
   return { before: meter.before, finish: meter.finish, record(model, usage) {
-    const measured = usage?.input !== undefined && usage.output !== undefined ? { input: usage.input, output: usage.output } : null;
-    const usd = measured ? ledgerCost({ model, driverKind, ...usage, ...measured, costUsd: usage?.costUsd }, operatorPrices()).costUsd : usage?.costUsd;
-    // An explicitly limited run cannot continue with an unmeasurable balance.
-    meter.record(measured ? measured.input + measured.output : cfg.usageCaps?.run?.tokens ?? 0, usd ?? cfg.usageCaps?.run?.usd ?? 0);
+    const { tokens, usd } = measuredSpend(model, driverKind, usage, operatorPrices());
+    meter.record(tokens ?? cfg.usageCaps?.run?.tokens ?? 0, usd ?? cfg.usageCaps?.run?.usd ?? 0);
   } };
 }
 function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true, notificationThreadId = row.threadId): void {

@@ -1,3 +1,4 @@
+import { deferred } from "./testing/deferred.ts";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -692,4 +693,63 @@ it("uses only isolated source-capable models and charges the person and conversa
   expect(() => codex.calls[0]?.options?.beforeRequest?.()).toThrow(/spend limit/);
   await expect(writer.generateText("next question")).rejects.toThrow(/spend limit/);
   expect(codex.calls).toHaveLength(1);
+});
+
+it("shares one provider limit between upkeep and source answers, including cancellation and spend changes in the queue", async () => {
+  const slots = createJobSlots(1);
+  const { jobs, state, codex } = setup({ slots });
+  const release = deferred<string>();
+  state.instances.set("claude", { ...state.instances.get("claude")!, generateText: () => release.promise });
+  const upkeep = jobs.text("memory", "claude")!.generateText("upkeep");
+  const source = jobs.sourceAnswer("codex", { instanceId: "codex", model: "selected" }, "thread", { kind: "user" })!;
+
+  const waiting = new AbortController();
+  const cancelled = source.generateText("cancelled while queued", { signal: waiting.signal });
+  expect(slots.waiting).toBe(1);
+  waiting.abort();
+  await expect(cancelled).rejects.toThrow();
+  expect(slots.waiting).toBe(0);
+
+  const expired = source.generateText("budget expired in queue");
+  expect(slots.waiting).toBe(1);
+  expect(codex.calls).toHaveLength(0);
+  state.overBudget = true;
+  release.resolve("done"); await upkeep;
+  await expect(expired).rejects.toThrow(/spend limit/);
+  state.overBudget = false;
+
+  const acquired = new AbortController();
+  await expect(source.generateText("cancelled at dispatch", { signal: acquired.signal, started: () => acquired.abort() })).rejects.toThrow();
+  expect(codex.calls).toHaveLength(0);
+
+  const revoked = source.generateText("model revoked in queue");
+  state.refused.add("codex");
+  await expect(revoked).rejects.toThrow(/no longer available/);
+  expect(codex.calls).toHaveLength(0);
+  state.refused.clear();
+  await source.generateText("retry");
+  expect(codex.calls.map(call => call.prompt)).toEqual(["retry"]);
+  expect(slots.running).toBe(0);
+});
+
+it("propagates cancellation to a running source provider before releasing its shared slot for the next job", async () => {
+  const slots = createJobSlots(1), { jobs, state, claude } = setup({ slots });
+  const started = deferred<void>();
+  state.instances.set("codex", { ...state.instances.get("codex")!, generateMemoryText: async (_prompt, options) => {
+    const signal = options!.signal!;
+    started.resolve();
+    return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+  } });
+  const controller = new AbortController();
+  const running = jobs.sourceAnswer("codex", { instanceId: "codex", model: "selected" }, "thread", { kind: "user" })!
+    .generateText("document question", { signal: controller.signal });
+  await started.promise;
+  const next = jobs.text("memory", "claude")!.generateText("upkeep");
+  expect(slots.waiting).toBe(1);
+  expect(claude.calls).toHaveLength(0);
+  controller.abort();
+  await expect(running).rejects.toThrow();
+  await next;
+  expect(claude.calls.map(call => call.prompt)).toEqual(["upkeep"]);
+  expect(slots.running).toBe(0);
 });

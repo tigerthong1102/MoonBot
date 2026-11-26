@@ -336,7 +336,6 @@ it("frees section slots after withdrawal and repairs references left by older ve
   for (const source of sources) publishInternalReport(store, thread, source);
   for (const source of sources.slice(0, 12)) expect((await add(source)).status).toBe(200);
   expect((await add(sources[12]!)).status).toBe(409);
-  // An older writer withdrew the source without releasing its slot.
   const stale = store.messagesFor(thread).find(message => message.id === sources[0])!;
   const { report: _report, ...withdrawn } = stale.app!;
   store.patchMessage(thread, stale.id, { app: withdrawn });

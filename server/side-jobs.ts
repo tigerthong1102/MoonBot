@@ -101,8 +101,9 @@ function ownCall(job: SideJob, instance: SideJobInstance): TextCall | undefined 
   return call?.bind(instance);
 }
 
-const NEVER_QUEUED: ReadonlySet<SideJob> = new Set(["compaction", "representative", "status-reply"]);
-const SEEN_SOON: ReadonlySet<SideJob> = new Set(["setup-suggestions"]);
+type ScheduledJob = SideJob | "source-answer";
+const NEVER_QUEUED: ReadonlySet<ScheduledJob> = new Set(["compaction", "representative", "status-reply"]);
+const SEEN_SOON: ReadonlySet<ScheduledJob> = new Set(["setup-suggestions"]);
 
 export function createSideJobs(deps: SideJobsDeps): SideJobs {
   // Logged once per change, not once per call.
@@ -202,10 +203,13 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
   }
 
   const slots = deps.slots ?? backgroundTextSlots;
-  const queued = (job: SideJob, found: SideJobText | null): SideJobText | null => found && !NEVER_QUEUED.has(job)
+  const queued = (job: ScheduledJob, found: SideJobText | null, refresh?: () => SideJobText | null): SideJobText | null => found && !NEVER_QUEUED.has(job)
     ? { via: found.via, generateText: (prompt, { waiting, started, ...options } = {}) => slots.run(() => {
       started?.();
-      return found.generateText(prompt, options);
+      const writer = refresh ? refresh() : found;
+      if (!writer) throw new Error("The selected text model is no longer available.");
+      options.signal?.throwIfAborted();
+      return writer.generateText(prompt, options);
     }, { signal: options.signal, interactive: SEEN_SOON.has(job), onWait: waiting }) }
     : found;
 
@@ -252,7 +256,10 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
   return {
     text: (job, botId, at = {}) => queued(job, find(job, botId, at)),
     instructionTest: (botId, selection) => isolatedWriter(botId, selection),
-    sourceAnswer: (botId, selection, threadId, trigger) => isolatedWriter(botId, selection, { threadId, trigger }),
+    sourceAnswer(botId, selection, threadId, trigger) {
+      const writer = () => isolatedWriter(botId, selection, { threadId, trigger });
+      return queued("source-answer", writer(), writer);
+    },
     twinPreview(selection, twinId) {
       const instance = deps.instance(selection.instanceId);
       if (!instance?.enabled || !instance.generateText || !selection.model || deps.refusal(instance)) return null;

@@ -1,4 +1,3 @@
-// Run the real saved-workflow editor API, injected agent tool and guarded shell executor in a throwaway workspace.
 import { spawn, type ChildProcess } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

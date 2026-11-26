@@ -168,15 +168,29 @@ function parsed(output: unknown): unknown {
   try { return JSON.parse(trimmed); } catch { return output; }
 }
 
+const promptArg = /\{([a-z][a-z0-9_]{0,39})\}/g;
+
+function containsReviewSecret(value: unknown): boolean {
+  if (typeof value === "string") return redactSecretsInText(value) !== value;
+  if (Array.isArray(value)) return value.some(containsReviewSecret);
+  return isRecord(value) && Object.entries(value).some(([key, item]) => containsReviewSecret(key) || containsReviewSecret(item));
+}
+
 /** Full effective input that may be presented for a human decision. Hidden or truncated actions are never executable. */
 export function reviewAction(step: WorkflowStep, args: RunState["args"], results: RunState["results"]): string | null {
   let effective = step;
   if (step.kind === "ai" || step.kind === "decide") {
-    const prompt = fillPrompt(handedPrompt(step, step.kind === "ai" ? "ai_step" : "decide"), args, HANDED_INPUT_MAX);
+    const template = handedPrompt(step, step.kind === "ai" ? "ai_step" : "decide");
+    for (const [, name] of template.matchAll(promptArg)) {
+      if (name && Object.hasOwn(args, name) && containsReviewSecret(args[name])) return null;
+    }
+    const prompt = fillPrompt(template, args, HANDED_INPUT_MAX);
     if (prompt === null || redactSecretsInText(prompt) !== prompt) return null;
     effective = { ...step, prompt };
   }
-  const detail = JSON.stringify({ step: resolve(effective, args, results), ...(step.kind === "shell" ? { env: argEnv(args) } : {}) });
+  const resolved = resolve(effective, args, results);
+  if (containsReviewSecret(resolved) || (step.kind === "shell" && containsReviewSecret(args))) return null;
+  const detail = JSON.stringify({ step: resolved, ...(step.kind === "shell" ? { env: argEnv(args) } : {}) });
   return detail.length <= HANDED_INPUT_MAX && detail === redactSecretsInText(detail) ? detail : null;
 }
 
@@ -221,7 +235,7 @@ export function fillPrompt(prompt: string, args: Record<string, unknown>, limit 
   const chunks: string[] = [];
   let cursor = 0;
   let length = 0;
-  for (const match of prompt.matchAll(/\{([a-z][a-z0-9_]{0,39})\}/g)) {
+  for (const match of prompt.matchAll(promptArg)) {
     const name = match[1]!;
     const value = Object.hasOwn(args, name) ? asText(args[name]) : match[0];
     length += match.index - cursor + value.length;

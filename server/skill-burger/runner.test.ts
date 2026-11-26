@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { onCase, workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
 import { draftWorkflow } from "../../shared/skill-burger/draft.ts";
 import { createRunStates } from "./run-state.ts";
-import { argEnv, fillPrompt, resolve, resumeRun, runArgs, startRun, type ExecResult, type RunDeps, type RunState, type StepExecutors } from "./runner.ts";
+import { argEnv, fillPrompt, reviewAction, resolve, resumeRun, runArgs, startRun, type ExecResult, type RunDeps, type RunState, type StepExecutors } from "./runner.ts";
 import { createExecutors } from "./executors.ts";
 import { runText } from "../drivers/agents-workflow-tool.ts";
 
@@ -403,4 +403,15 @@ it("stops interpolating a review prompt once its displayed length is exceeded", 
   expect(fillPrompt("{company}{company}{later}", args, 10)).toBeNull();
   expect(fillPrompt("{company}!", args, 7)).toBe("Ledger!");
   expect(fillPrompt("prefix {unknown}", args, 15)).toBeNull();
+});
+
+it("refuses review when a resolved value contains a credential before JSON escaping", () => {
+  const credential = "Bearer\nfixture-credential";
+  const nested = { rows: [{ value: credential }] };
+  expect(reviewAction(app("send", "GMAIL_SEND_EMAIL", { body: { $arg: "payload" } }), { payload: nested }, {})).toBeNull();
+  const shell = wf([{ id: "write", kind: "shell", label: "Write", run: "echo fixture" }]).steps[0]!;
+  expect(reviewAction(shell, { payload: nested }, {})).toBeNull();
+  const ai = wf([{ id: "check", kind: "ai", label: "Classify", deterministic: false, prompt: "Classify {payload}" }]).steps[0]!;
+  expect(reviewAction(ai, { payload: nested }, {})).toBeNull();
+  expect(reviewAction(ai, { payload: { value: "safe text" }, unused: credential }, {})).toContain("safe text");
 });

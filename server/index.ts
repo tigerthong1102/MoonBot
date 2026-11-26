@@ -194,7 +194,7 @@ import type { PriceList } from "./prices.ts";
 import type { RequestAuth } from "./request-auth.ts";
 import { adminAuditPlan, type AuditPlan } from "./admin-audit-plan.ts"; import { departmentGrants, type DepartmentGrant } from "./department-grants.ts";
 import { onKeyRejectionChange } from "./key-rejections.ts";
-import { createRequestBudgets } from "./request-budget.ts";
+import { budgetRoot, createRequestBudgets } from "./request-budget.ts";
 import { appendRoomInput, noteAbsentRoomMembers, noteUnavailableResponder, roomTurnTarget, type StartGroupTurnOptions } from "./host/room-turn-input.ts";
 import { invokeRoomCouncil } from "./host/room-council.ts";
 import { councilRequest, councilSeat } from "./room-council.ts";
@@ -1358,13 +1358,8 @@ function operatorPrices(): PriceList | null {
 const attributeUsage = createUsageAttribution({ section: (botId) => store.bot(botId)?.section, threadTrigger: (threadId) => turnTriggers.get(threadId), routineWriter: (id) => { const key = cloudRoutineAuthors?.writer(id); return key ? teamOwners.people?.list().find((one) => personKey({ id: "", email: one.email }) === key)?.email : undefined; } }); const usageCapGate = createUsageCapGate({ dataDir: DATA_DIR, caps: () => cfg.usageCaps, botName: (botId) => store.bot(botId)?.name, language: () => appLanguage(), log: (line) => console.log(line), notice: (aboutBotId, title, body) => { const bot = store.bot(aboutBotId ?? "") ?? store.bots[0]; if (bot) broadcast({ kind: "notify", notification: logNotification(buildSpendNotification({ id: bot.id, name: bot.name }, bot.threadId, { title, body })) }, { adminOnly: true }); } }); const threadStanding = (botId: string, threadId: string): ThreadStanding => { const owner = directRequestOwners.get(threadId); return { unattended: isUnattended(botId, threadId), automation: owner?.automation, origin: owner?.origin?.kind }; }; const routineTriggerOf = (threadId: string) => { const run = activeRoutineRunForThread(threadId); return run ? run.triggerSource ?? (run.manual ? "manual" : "schedule") : undefined; }; const makeRequestBudget = createRequestBudgets({ config: () => cfg, directory: DATA_DIR,
   activeRoots: () => new Set(coordinator.active().map(node => node.rootId)),
 });
-function budgetRoot(botId: string, threadId: string) {
-  const node = coordinator.inThread(threadId, { open: true }).find(one => one.botId === botId);
-  const root = node && coordinator.node(node.rootId);
-  return root ? { id: root.id, bot: root.botId } : undefined;
-}
 function turnRequestBudget(botId: string, threadId: string, driverKind: string, waiting: boolean): NonNullable<SendTurnInput["requestBudget"]> {
-  const meter = makeRequestBudget(botId, waiting, () => budgetRoot(botId, threadId));
+  const meter = makeRequestBudget(botId, waiting, () => budgetRoot(coordinator, botId, threadId));
   meter.assertRun();
   return { before: meter.before, finish: meter.finish, record(model, usage) {
     const { tokens, usd } = measuredSpend(model, driverKind, usage, operatorPrices());
@@ -1373,8 +1368,8 @@ function turnRequestBudget(botId: string, threadId: string, driverKind: string, 
 }
 function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true): void {
   const cost = tokensReported || row.costUsd !== null ? ledgerCost(row, operatorPrices()) : { costUsd: null };
-  if (!row.usageId && cfg.usageCaps?.run && !registry.get(row.instanceId)?.adapter.capabilities.requestMetering && budgetRoot(row.botId, row.threadId)) {
-    const meter = makeRequestBudget(row.botId, false, () => budgetRoot(row.botId, row.threadId));
+  if (!row.usageId && cfg.usageCaps?.run && !registry.get(row.instanceId)?.adapter.capabilities.requestMetering && budgetRoot(coordinator, row.botId, row.threadId)) {
+    const meter = makeRequestBudget(row.botId, false, () => budgetRoot(coordinator, row.botId, row.threadId));
     meter.record(tokensReported ? row.input + row.output : cfg.usageCaps.run.tokens ?? 0, cost.costUsd ?? cfg.usageCaps.run.usd ?? 0);
     meter.finish();
   }

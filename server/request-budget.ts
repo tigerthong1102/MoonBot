@@ -1,9 +1,16 @@
+import type { Coordinator } from "./coordinator.ts";
 import { capStates, effectiveCaps, type UsageCapsConfig } from "./usage-caps.ts";
 import { spendState } from "./spend.ts";
 import type { AppConfig } from "./config.ts";
 
 type Usage = { tokens: number; usd: number };
 type Limits = Pick<AppConfig, "budgets"> & { usageCaps?: UsageCapsConfig };
+
+export function budgetRoot(coordinator: Pick<Coordinator, "inThread" | "node">, botId: string, threadId: string) {
+  const node = coordinator.inThread(threadId, { open: true }).find(one => one.botId === botId);
+  const root = node && coordinator.node(node.rootId);
+  return root ? { id: root.id, bot: root.botId } : undefined;
+}
 
 /** Completed HTTP requests are visible here until the driver's normal turn-completed event
  * books the aggregate. Concurrent sibling turns therefore see one another's measured usage. */

@@ -11,6 +11,7 @@ import { json } from "../harness/http.ts";
 import { appendDecision } from "../decision-log.ts";
 import { unsupportedWorkBotContext } from "../work-bot-context.ts";
 import { portableWorkBotUpload } from "../message-db.ts";
+import { extractHandoffMedia } from "../turn-images.ts";
 import { verifyPortableFiles } from "../work-bot-upload-context.ts";
 import { workBotQueuedMessage, workBotQueuedFollowups, safeWorkBotFollowups } from "../steer-queue.ts";
 
@@ -60,8 +61,9 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
       return true;
     }
     const queue = () => workBotQueuedFollowups(args.botId, args.threadId, card.teamSetupRequest!.workBotOffer!.sourceMessageId!);
-    const queueSnapshot = JSON.stringify(queue());
-    const inputs = [...history, ...queue().map(workBotQueuedMessage)];
+    const queued = queue();
+    const queueSnapshot = JSON.stringify(queued);
+    const inputs = [...history, ...queued.map(workBotQueuedMessage)];
     const dataIds = inputs.flatMap(row => row.dataContext ? [row.dataContext.cardId] : []);
     if (dataIds.length && !await deps.preflightData(args.botId, dataIds)) {
       json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.dataUnavailable") });
@@ -86,6 +88,7 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
       }
     }
     const source = sourceIndex >= 0 ? path[sourceIndex] : undefined;
+    if (source && queued.length && files.length) extractHandoffMedia(source.text ?? "", queued.map(item => item.text));
     if (!source || JSON.stringify(queue()) !== queueSnapshot || !safeWorkBotFollowups(args.botId, args.threadId, source, portableData)) {
       json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.pendingUnavailable") });
       return true;

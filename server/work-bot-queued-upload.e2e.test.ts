@@ -6,12 +6,14 @@ import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 import type { BotRecord, Message } from "./store.ts";
 
-it("accepts an uploaded file queued during the choice, admits one worker run and acknowledges a lost send response", async () => {
+it("delivers a queued file and native image in one worker run and acknowledges a lost send response", async () => {
   const dir = mkdtempSync(join(tmpdir(), "startupbot-queued-upload-fixture-"));
   const routes = join(dir, "topics.json"), prompts = join(dir, "prompts.jsonl");
   const work = "Monitor the fixture inventory weekly";
   const owner = randomBytes(32).toString("base64url"), token = randomBytes(32).toString("base64url");
   const bytes = "synthetic queued inventory 42";
+  const imageToken = randomBytes(32).toString("base64url");
+  const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
   writeFileSync(routes, JSON.stringify({ [work]: JSON.stringify({ name: "Fixture inventory", icon: "box" }) }));
   let server: Awaited<ReturnType<typeof launchVerificationServer>> | undefined;
   try {
@@ -35,10 +37,14 @@ it("accepts an uploaded file queued during the choice, admits one worker run and
     const saved = await upload.json() as { path: string; handoffReady?: boolean };
     expect(upload.status).toBe(201);
     expect(saved.handoffReady).toBe(true);
-    const text = 'Use these numbers\n\n<attached-file path="' + saved.path + '" name="count.txt" />';
+    const image = await fetch(base + "/api/attachments?uploadId=" + randomUUID(), { method: "POST", headers: { ...headers, "content-type": "image/png", "x-startupbot-upload-receipt": imageToken }, body: Buffer.from(png, "base64") });
+    expect(image.status).toBe(201);
+    const photo = await image.json() as { path: string; handoffReady: boolean };
+    expect(photo.handoffReady).toBe(true);
+    const text = `Use these numbers\n\n<attached-file path="${saved.path}" name="count.txt" />\n\n<attached-image path="${photo.path}" name="fixture.png" />`;
     const data = await api<{ card: { id: string } }>(`/api/bots/${main.id}/data/run`, { sql: "SELECT 42 AS quantity" });
     const dataContext = { cardId: data.card.id, draftSql: "SELECT 73 AS pending" };
-    const queued = { text, dataContext, threadId: main.threadId, sendId: randomUUID(), followUp: "queue", workBotUploadReceipts: [token] };
+    const queued = { text, dataContext, threadId: main.threadId, sendId: randomUUID(), followUp: "queue", workBotUploadReceipts: [token, imageToken] };
     const pending = await api<{ queueId: string }>(sendPath, queued);
     expect(pending.queueId).toBeTruthy();
     const changedDraftStatus = async () => (await fetch(base + sendPath, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ ...queued, dataContext: { ...dataContext, draftSql: "SELECT 74 AS different" } }) })).status;
@@ -56,9 +62,14 @@ it("accepts an uploaded file queued during the choice, admits one worker run and
     expect(retry).toMatchObject({ transferred: true, queueId: pending.queueId });
     expect(await changedDraftStatus()).toBe(409);
     const calls = () => existsSync(prompts) ? readFileSync(prompts, "utf8").split("\n").filter(line => line.includes(work)) : [];
-    await expect.poll(() => calls().length, { timeout: 15000 }).toBe(1);
+    await expect.poll(async () => (await rows(worker.threadId)).filter(row => row.role === "bot" && row.text === "hello from fake claude").length, { timeout: 15000 }).toBe(1);
+    expect(calls()).toHaveLength(1);
     expect(calls()[0]).toContain("Use these numbers");
     expect(calls()[0]).not.toContain(token);
+    expect(calls()[0]).not.toContain(imageToken);
+    const { message: { content } } = JSON.parse(calls()[0]!);
+    const images = Array.isArray(content) ? content.filter(block => block.type === "image") : [];
+    expect(images).toEqual([{ type: "image", source: { type: "base64", media_type: "image/png", data: png } }]);
     expect((await rows(main.threadId)).filter(row => row.sendId === queued.sendId)).toHaveLength(0);
   } finally { await server?.close(); rmSync(dir, { recursive: true, force: true }); }
 }, 75000);

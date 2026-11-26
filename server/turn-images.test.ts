@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { extractReplayImages, extractSteerImages, extractTurnImages, REPLAYED_IMAGE_NOTE } from "./turn-images.ts";
+import { extractHandoffMedia, extractReplayImages, extractSteerImages, extractTurnImages, REPLAYED_IMAGE_NOTE } from "./turn-images.ts";
 
 const IDS = [
   "123e4567-e89b-42d3-a456-426614174000",
@@ -180,6 +180,21 @@ describe("turn image admission", () => {
     const source = `<attached-image path="${link}" />`;
 
     expect(extractTurnImages(source, { attachmentsDir: root })).toEqual({ text: source, images: [], videos: [] });
+  });
+
+  it("shares one image and video budget across a handed-off request and its queued notes", () => {
+    const attachmentsDir = store();
+    const first = image(attachmentsDir, 0, ".png", 4), second = image(attachmentsDir, 1, ".png", 5);
+    const tag = (path: string) => `<attached-image path="${path}" />`;
+    const clip = video(attachmentsDir, 2);
+    const videoTag = `<attached-file path="${clip}" />`;
+    const notes = [tag(second), videoTag, videoTag];
+    const media = extractHandoffMedia(tag(first), notes, { attachmentsDir });
+    expect(media.images.map(item => item.path)).toEqual([first, second]);
+    expect(media.videos.map(item => item.path)).toEqual([clip]);
+    expect(media.followupTexts).toEqual(["", videoTag, videoTag]);
+    expect(() => extractHandoffMedia(tag(first), notes, { attachmentsDir, maxCount: 1 })).toThrow(/too many images/i);
+    expect(() => extractHandoffMedia(tag(first), notes, { attachmentsDir, maxBytes: 8 })).toThrow(/byte limit/i);
   });
 
   it("resolves a steer's texts one by one and keeps its images in order", () => {

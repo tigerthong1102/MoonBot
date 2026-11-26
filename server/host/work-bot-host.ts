@@ -123,7 +123,7 @@ export function createWorkBotHost(deps: {
   threadBusy(botId: string, threadId: string): boolean;
   approvalMode(botId: string, threadId: string): import("../../shared/approval-mode.ts").ApprovalMode;
   shouldHold(sourceBotId: string, sourceThreadId: string, targetBotId: string): boolean;
-  startTurn(botId: string, text: string, opts: { threadId: string; userMessage?: Message; sender?: Message["sender"]; trigger: UsageTrigger; replyTo?: ReplyTarget; dataContext?: Message["dataContext"]; sendId?: string; allowRoomTurnElsewhere: true; workBotRoutingMessageId: string; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredText?: string[]; transferredMessageIds?: string[] } }): Promise<unknown>;
+  startTurn(botId: string, text: string, opts: { threadId: string; userMessage?: Message; sender?: Message["sender"]; trigger: UsageTrigger; replyTo?: ReplyTarget; dataContext?: Message["dataContext"]; sendId?: string; allowRoomTurnElsewhere: true; workBotRoutingMessageId: string; workBotFollowupTexts?: string[]; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredMessageIds?: string[] } }): Promise<unknown>;
 }) {
   const { store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked, assertAvailable, offerWorkBot, teamPersonFor, sessionFor, cloudTeam, sharedNonTeam, teamHost, conversationShares, threadStarters, threadBusy, startTurn } = deps;
 const uploadProse = (threadId: string) => (row: Message) => portableWorkBotUpload(threadId, row)?.prose;
@@ -357,7 +357,7 @@ const workBotRouter = new WorkBotRouter({
           } }, ...followups.map(item => ({ sourceId: item.messageId, message: { role: "user" as const, kind: "text" as const, text: item.text, ...(item.dataContext ? { dataContext: dataCopies!.context(item.dataContext) } : {}), at: item.queuedAt, queueId: item.messageId, workBotHandoffSource: { threadId, messageId, botId: route.sourceBotId }, ...(held ? { requestPending: false, workBotReviewHold: true as const } : { workBotRecoveryPending: true as const }), ...(item.sendId ? { sendId: item.sendId } : {}), ...(item.sender ? { sender: item.sender } : {}) } }))];
           const copied = store.appendWorkBotContext(target.threadId, rows, first ? { claim: { botId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, queueIds, trigger: first.trigger, offerOwner: first.workBotOfferOwner, ...(dataCopies ? { dataCardIds: Object.fromEntries(dataIds.map(id => [id, dataCopies!.context({ cardId: id }).cardId])) } : {}) }, afterCommit: () => forgetTransferredWorkBotFollowups(route.sourceBotId!, threadId, messageId, queueIds) } : undefined, link, held ? { expectedSourceLeaf: sourceLeaf } : undefined);
           dataCopies?.publish();
-          return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}), ...(followups.length ? { transferredText: followups.map(item => promptWithDataContext(item.text, item.dataContext ? dataCopies!.context(item.dataContext) : undefined)), transferredMessageIds: queueIds.map(id => copied.get(id)!.id) } : {}) };
+          return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}), ...(followups.length ? { transferredMessageIds: queueIds.map(id => copied.get(id)!.id) } : {}) };
         };
         if (deps.shouldHold(route.sourceBotId, threadId, target.botId)) {
           prepare(true);
@@ -365,7 +365,8 @@ const workBotRouter = new WorkBotRouter({
           indexWorkBotRouting(threadId, messageId, "held_for_review");
           admitted = true;
         } else {
-          await startTurn(target.botId, source.text, { threadId: target.threadId, sendId: `workbot-${messageId}`, sender: source.sender, trigger, dataContext: source.dataContext ? dataCopies!.context(source.dataContext) : undefined, allowRoomTurnElsewhere: true, workBotRoutingMessageId: messageId, prepareWorkBotContext: () => prepare(false) });
+          const workBotFollowupTexts = queue().map(item => promptWithDataContext(item.text, item.dataContext ? dataCopies!.context(item.dataContext) : undefined));
+          await startTurn(target.botId, source.text, { threadId: target.threadId, workBotFollowupTexts, sendId: `workbot-${messageId}`, sender: source.sender, trigger, dataContext: source.dataContext ? dataCopies!.context(source.dataContext) : undefined, allowRoomTurnElsewhere: true, workBotRoutingMessageId: messageId, prepareWorkBotContext: () => prepare(false) });
           admitted = true;
         }
       } catch (error) {

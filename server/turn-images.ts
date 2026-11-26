@@ -128,6 +128,22 @@ export function extractTurnImages(
   return { text: providerText, images: admittedImages.map((item) => item.image), videos };
 }
 
+export function extractHandoffMedia(text: string, followups: readonly string[], options: ExtractTurnImagesOptions = {}) {
+  const first = extractTurnImages(text, options);
+  const images = [...first.images], videos = [...first.videos], followupTexts: string[] = [];
+  let bytes = images.reduce((sum, image) => sum + image.bytes, 0);
+  for (const note of followups) {
+    const media = extractTurnImages(note, options);
+    bytes += media.images.reduce((sum, image) => sum + image.bytes, 0);
+    if (images.length + media.images.length > (options.maxCount ?? TURN_IMAGE_MAX_COUNT)) throw statusError(413, "Too many images across this handoff");
+    if (bytes > (options.maxBytes ?? TURN_IMAGE_MAX_BYTES)) throw statusError(413, "Attached images exceed the total byte limit for one turn");
+    images.push(...media.images);
+    videos.push(...media.videos.slice(0, Math.max(0, (options.maxVideoCount ?? TURN_VIDEO_MAX_COUNT) - videos.length)));
+    followupTexts.push(media.text);
+  }
+  return { text: first.text, images, videos, followupTexts };
+}
+
 /** Stills sampled from a message's video, never taking a turn that already carries `earlier` images past its image count. */
 export function videoFramesWithin(earlier: number, videos: readonly TurnVideoInput[]): Promise<TurnImageInput[]> {
   return videoFrameImages(videos, TURN_IMAGE_MAX_COUNT - earlier);

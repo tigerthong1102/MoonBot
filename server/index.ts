@@ -347,7 +347,7 @@ import { turnStartLogLine } from "./turn-log.ts";
 import { TurnStops, outwardActions, stoppedTurnOutcome, turnEvidence } from "./turn-outcome.ts";
 import { buildRecoveryText, buildTurnContext, engineIsFresh, replaysNatively } from "./turn-context.ts";
 import { Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionStart, stoppedWorkNeedsFreshSession, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { recordStoppedRequest } from "./host/work-bot-stop-state.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
-import { extractReplayImages, extractTurnImages, videoFramesWithin } from "./turn-images.ts";
+import { extractHandoffMedia, extractReplayImages, extractTurnImages, videoFramesWithin } from "./turn-images.ts";
 import { callTitleExcerpt } from "./thread-title.ts";
 import { createThreadTitleGate, generateThreadTitle, llmThreadTitlesEnabled } from "./thread-title-generate.ts";
 import { engineCommandCpuMs, engineProcessExited, engineProcessGone, ENGINE_EXIT_STALL_MS, stallLimitMs, stallNotice, TurnWatchdog } from "./turn-watchdog.ts"; import { createIdleThreads } from "./host/idle-threads.ts";
@@ -7633,7 +7633,7 @@ async function beginTurn(
     automaticRecoveryIndex?: number; peerLimitResent?: boolean; // already the one resend of a bot-to-bot turn on the backup AI
     onTurnSettled?: () => void;
     workBotRoutingMessageId?: string;
-    prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredText?: string[]; transferredMessageIds?: string[] };
+    workBotFollowupTexts?: string[]; prepareWorkBotContext?: () => { userMessage: Message; replyTo?: ReplyTarget; transferredMessageIds?: string[] };
     /** The turn's outcome, for a caller that runs it outside any coordinated work. */
     onSettled?: (outcome: HostTurnResult) => void;
     /** A one-on-one goal step: a card continuation that is still its own turn, as a room goal step is. */
@@ -7710,7 +7710,8 @@ async function beginTurn(
   if (guestConfined && instance.adapter.capabilities.guestTurns !== "confined") {
     throw Object.assign(new Error(botApiThread(threadId) ? serverLine(threadLanguage(threadId), "server.botApi.engineRefusal") : guestEngineRefusal(threadId)), { status: 409, code: "guest_engine" });
   }
-  const resolvedImages = extractTurnImages(text);
+  const handoffMedia = opts?.workBotFollowupTexts?.length ? extractHandoffMedia(text, opts.workBotFollowupTexts) : undefined;
+  const resolvedImages = handoffMedia ?? extractTurnImages(text);
   const usesNativeImageInput = instance.adapter.capabilities.nativeImageInput === true;
   let providerText = promptWithDataContext(usesNativeImageInput ? resolvedImages.text : text, opts?.dataContext);
   const turnImages = usesNativeImageInput ? resolvedImages.images : [];
@@ -7753,7 +7754,8 @@ async function beginTurn(
   if (opts?.prepareWorkBotContext) {
     const prepared = opts.prepareWorkBotContext();
     for (const id of prepared.transferredMessageIds ?? []) turnLineIds.add(id);
-    if (prepared.transferredText?.length) providerText = [providerText, ...prepared.transferredText].join("\n\n");
+    const notes = usesNativeImageInput ? handoffMedia?.followupTexts : opts.workBotFollowupTexts;
+    if (notes?.length) providerText = [providerText, ...notes].join("\n\n");
     opts = { ...opts, ...prepared, excludeMessageIds: [...(opts.excludeMessageIds ?? []), ...(prepared.transferredMessageIds ?? [])], prepareWorkBotContext: undefined };
   }
   let userMessage = opts?.userMessage;

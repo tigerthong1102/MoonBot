@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { posix, win32 } from "node:path";
 
-import { caseOf, teammateNames, type Workflow, type WorkflowRef, type WorkflowStep } from "../../shared/skill-burger/format.ts";
+import { parallelProblem, caseOf, teammateNames, type Workflow, type WorkflowRef, type WorkflowStep } from "../../shared/skill-burger/format.ts";
 import { embeddedSourceHas } from "../../shared/skill-burger/embedded-source.ts";
 import { redactSecretsInText } from "../../shared/redact.ts";
 import { collect, matchTeammates, missingPrompt, readReassignment, readReview, repliesText, reviewPrompt, sendRound, type DelegateExecutors, type DelegationState } from "./delegate-step.ts";
@@ -47,11 +47,13 @@ export interface RunState {
   waiting: { step: string; type: HandedType };
   /** A delegate step under way: who does each part, the hand-offs out, the replies so far. */
   delegation?: DelegationState & { step: string };
+  approvalDecision?: "allow" | "deny";
+  reviewedActionHash?: string;
   createdAt: number;
 }
 
 /** What the run waits on: the bot's own step or answer, teammates' replies, or the bot fixing a failed step. */
-export type HandedType = "ai_step" | "decide" | "missing_case" | "teammates" | "review" | "missing_bot" | "check" | "failed";
+export type HandedType = "approval" | "ai_step" | "decide" | "missing_case" | "teammates" | "review" | "missing_bot" | "check" | "failed";
 
 /** The run's answer, in the statuses of the workflow tools agents already know: ok, needs_input or cancelled; a failed
  * step is ok:false with the step named. */
@@ -166,8 +168,42 @@ function parsed(output: unknown): unknown {
   try { return JSON.parse(trimmed); } catch { return output; }
 }
 
+const promptArg = /\{([a-z][a-z0-9_]{0,39})\}/g;
+
+function containsReviewSecret(value: unknown): boolean {
+  if (typeof value === "string") return redactSecretsInText(value) !== value;
+  if (Array.isArray(value)) return value.some(containsReviewSecret);
+  return isRecord(value) && Object.entries(value).some(([key, item]) => containsReviewSecret(key) || containsReviewSecret(item));
+}
+
+/** Full effective input that may be presented for a human decision. Hidden or truncated actions are never executable. */
+export function reviewAction(step: WorkflowStep, args: RunState["args"], results: RunState["results"]): string | null {
+  let effective = step;
+  if (step.kind === "ai" || step.kind === "decide") {
+    const template = handedPrompt(step, step.kind === "ai" ? "ai_step" : "decide");
+    for (const [, name] of template.matchAll(promptArg)) {
+      if (name && Object.hasOwn(args, name) && containsReviewSecret(args[name])) return null;
+    }
+    const prompt = fillPrompt(template, args, HANDED_INPUT_MAX);
+    if (prompt === null || redactSecretsInText(prompt) !== prompt) return null;
+    effective = { ...step, prompt };
+  }
+  const resolved = resolve(effective, args, results);
+  if (containsReviewSecret(resolved) || (step.kind === "shell" && containsReviewSecret(args))) return null;
+  const detail = JSON.stringify({ step: resolved, ...(step.kind === "shell" ? { env: argEnv(args) } : {}) });
+  return detail.length <= HANDED_INPUT_MAX && detail === redactSecretsInText(detail) ? detail : null;
+}
+
+/** Approval is bound to the concrete action after prompt interpolation. */
+export function interpolatedActionHash(step: WorkflowStep, args: RunState["args"], detail: string): string | undefined {
+  if (step.kind !== "ai" && step.kind !== "decide") return undefined;
+  const template = handedPrompt(step, step.kind === "ai" ? "ai_step" : "decide");
+  return template === fillPrompt(template, args) ? undefined : createHash("sha256").update(detail).digest("hex");
+}
+
 /** Waits for `run` up to `ms`, aborting what it was given when the time is up. */
 async function timed(ms: number, outer: AbortSignal | undefined, run: (signal: AbortSignal) => Promise<ExecResult>): Promise<ExecResult | "timeout"> {
+  if (outer?.aborted) return { ok: false, error: "The owning turn was stopped." };
   const controller = new AbortController();
   const stop = () => controller.abort();
   outer?.addEventListener("abort", stop, { once: true });
@@ -193,8 +229,23 @@ function checkRule(step: WorkflowStep): { says: string; rule?: { path?: string; 
 const TEAMMATES_PROMPT = (names: string, token: string) => `${names} have the work now. End your turn: their replies resume you. Then call run_workflow with resume ${JSON.stringify(token)} and response "back".`;
 
 /** A prompt's {input} names as this run's values: the request a judgement step was saved with, as asked this time. */
-export function fillPrompt(prompt: string, args: Record<string, unknown>): string {
-  return prompt.replace(/\{([a-z][a-z0-9_]{0,39})\}/g, (whole, name: string) => (Object.hasOwn(args, name) ? asText(args[name]) : whole));
+export function fillPrompt(prompt: string, args: Record<string, unknown>): string;
+export function fillPrompt(prompt: string, args: Record<string, unknown>, limit: number): string | null;
+export function fillPrompt(prompt: string, args: Record<string, unknown>, limit = Infinity): string | null {
+  const chunks: string[] = [];
+  let cursor = 0;
+  let length = 0;
+  for (const match of prompt.matchAll(promptArg)) {
+    const name = match[1]!;
+    const value = Object.hasOwn(args, name) ? asText(args[name]) : match[0];
+    length += match.index - cursor + value.length;
+    if (length > limit) return null;
+    chunks.push(prompt.slice(cursor, match.index), value);
+    cursor = match.index + match[0].length;
+  }
+  if (length + prompt.length - cursor > limit) return null;
+  chunks.push(prompt.slice(cursor));
+  return chunks.join("");
 }
 
 function handedPrompt(step: WorkflowStep, type: HandedType, missing?: { decide: string; case: string }): string {
@@ -206,7 +257,7 @@ function handedPrompt(step: WorkflowStep, type: HandedType, missing?: { decide: 
 }
 
 /** Runs `workflow` from `from` until it ends, fails, or hands a step to the bot. */
-export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & { from: number }, deps: RunDeps): Promise<RunEnvelope> {
+export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & { from: number }, deps: RunDeps, approvedStep?: string): Promise<RunEnvelope> {
   const { id, name, workflow, args, results } = state;
   const now = deps.now ?? Date.now;
   const started = now();
@@ -225,14 +276,14 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     if (type !== "missing_case") deps.events.started(id, name, step);
     const { delegation: _old, ...rest } = state as typeof state & { delegation?: unknown };
     const token = deps.save({ ...rest, results, waiting: { step: step.id, type }, ...(extra.delegation ? { delegation: extra.delegation } : {}), createdAt: now() }) || id;
-    const input = step.kind === "ai" || step.kind === "decide" ? step.input : undefined;
+    const input = type !== "approval" && (step.kind === "ai" || step.kind === "decide") ? step.input : undefined;
     const value = extra.input ?? (input ? resolve(input, args, results) : undefined);
     return envelope({
       status: "needs_input",
       requiresInput: {
         type, step: step.id, label: step.label, prompt: fillPrompt(type === "teammates" ? (extra.prompt ?? "").replace(JSON.stringify(id), JSON.stringify(token)) : extra.prompt ?? handedPrompt(step, type, missing), args), resumeToken: token,
         ...(value !== undefined ? { input: clip(redactSecretsInText(asText(value)), HANDED_INPUT_MAX) } : {}),
-        ...(step.kind === "ai" && step.example ? { example: step.example } : {}),
+        ...(type !== "approval" && step.kind === "ai" && step.example ? { example: step.example } : {}),
         ...(step.kind === "decide" && type === "decide" ? { cases: step.cases } : {}),
       },
     });
@@ -273,6 +324,43 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     if (now() - started - approvalTime > RUN_TIMEOUT_MS) return envelope({ ok: false, error: { type: "timeout", message: "The run went past its time limit.", step: step.id } });
     if (step.when && !holds(step.when, results)) {
       end(step, { state: caseOf(step) ? "not_taken" : "skipped" });
+      continue;
+    }
+    if (step.approval) {
+      if (reviewAction(step, args, results) === null) return fail(step, "step_failed", "This action is too large or contains a secret and cannot be reviewed in full. Split it or remove the sensitive input before starting again.", undefined, false);
+      if (step.id !== approvedStep) return hand(step, "approval", undefined, {
+        prompt: "Stop here and wait for a person to approve this step in the conversation. Do not perform the step yourself.",
+      });
+    }
+    if (workflow.steps[index + 1]?.parallelWithPrevious) {
+      let next = index + 1;
+      while (workflow.steps[next]?.parallelWithPrevious) next++;
+      const batch = workflow.steps.slice(index, next);
+      const problem = parallelProblem(batch);
+      if (problem) return fail(step, "runtime_error", problem, undefined, false);
+      for (const read of batch) {
+        if (deps.signal?.aborted) return envelope({ status: "cancelled" });
+        if (deps.authorizationExec) {
+          const at = now();
+          const permission = await execute(read, args, results, deps.authorizationExec, deps.signal ?? new AbortController().signal);
+          approvalTime += now() - at;
+          if (deps.signal?.aborted) return envelope({ status: "cancelled" });
+          if (!permission.ok) return fail(read, "step_failed", "A parallel read was not approved.", undefined, false);
+        }
+      }
+      if (deps.signal?.aborted) return envelope({ status: "cancelled" });
+      const reads = await Promise.all(batch.map(async read => {
+        deps.events.started(id, name, read);
+        const out = await timed(read.timeoutMs ?? STEP_TIMEOUT_MS, deps.signal, signal => execute(read, args, results, deps.actionExec ?? deps.exec, signal));
+        if (out === "timeout") return { state: "failed" as const, error: "The read timed out." };
+        if (!out.ok) return { state: "failed" as const, error: clip(redactSecretsInText(out.error), ERROR_MAX) };
+        return { state: "done" as const, output: parsed(out.output) };
+      }));
+      for (let n = 0; n < batch.length; n++) end(batch[n]!, reads[n]!);
+      if (deps.signal?.aborted) return envelope({ status: "cancelled" });
+      const failed = batch.find(read => results[read.id]?.state === "failed");
+      if (failed) return envelope({ ok: false, error: { type: "step_failed", step: failed.id, message: results[failed.id]!.error! } });
+      index = next - 1;
       continue;
     }
     if (step.kind === "decide") {
@@ -383,6 +471,15 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
   const index = workflow.steps.findIndex((step) => step.id === waiting.step);
   const step = workflow.steps[index];
   if (!step) return refused(state, "This run's saved steps changed; start it again.");
+  if (waiting.type === "approval") {
+    if (!step.approval || state.approvalDecision !== "allow") {
+      if (state.approvalDecision === "deny") return { protocolVersion: 1, ok: true, run: state.id, status: "cancelled", steps: [] };
+      deps.save(state, true);
+      return refused(state, "A human approval in this conversation is required.", step.id);
+    }
+    const { approvalDecision: _used, reviewedActionHash: _hash, ...rest } = state;
+    return runFrom({ ...rest, results, from: index }, deps, step.id);
+  }
   const goOn = (from: number) => runFrom({ ...state, results, from }, deps);
   const ask = (type: HandedType, prompt: string, extra: Partial<RunState> = {}, input?: string): RunEnvelope => {
     const token = deps.save({ ...state, results, ...extra, waiting: { step: step.id, type }, createdAt: Date.now() }) || state.id;

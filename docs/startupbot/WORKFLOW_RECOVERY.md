@@ -25,3 +25,23 @@ replayed automatically. The internal VM execution endpoint does not currently
 prove that an aborted request stops its command, so automatic replay cannot
 report a safe stop. The bot must report the actual result and must not retry an
 uncertain command automatically.
+
+Under a saved workflow’s step settings, a condition can use a field from an
+earlier step. An independent group may run two to four explicitly recognized
+Gmail or Google Calendar read operations together. Every read must pass the
+current tool and connection permissions. A failed read stops the group before
+any following action runs.
+
+A step with an approval prompt pauses in its original conversation for up to
+24 hours. A person with edit access can inspect the action and approve or
+cancel. The pause and decision survive a server restart. Continuing requires
+the same bot, conversation and enabled workflow revision, and runs through
+the current tool permissions. In a room, the approval card addresses the bot
+that paused in the original room conversation. The reviewer must be able to
+edit that bot and chat with every room member. Each approval applies to one
+step. An action that cannot be shown completely within 8,000 characters, or
+that contains a recognized secret, stops before execution. Portable workspace
+backups omit private workflow run files. Restoring an older backup never
+reactivates its paused runs or approvals. If the server
+stops after claiming an approved action, the chat marks the result as uncertain.
+Reconcile it against the destination before starting a fresh workflow.

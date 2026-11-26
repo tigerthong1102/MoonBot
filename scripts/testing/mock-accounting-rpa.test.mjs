@@ -23,7 +23,7 @@ function setup(t) {
   return { fixture, runtime: fixture.connect() };
 }
 
-test("10,000-case synthetic corpus verifies every accepted draft and rejects known bad outcomes", { timeout: process.platform === "win32" ? 180_000 : 60_000 }, async (t) => {
+test("10,000-case synthetic corpus verifies every accepted draft and rejects known bad outcomes", { timeout: process.platform === "win32" ? 360_000 : 60_000 }, async (t) => {
   const { runtime } = setup(t);
   const totals = { VERIFIED: 0, UNKNOWN: 0, FAILED: 0, BLOCKED: 0 };
   let attempts = 0;

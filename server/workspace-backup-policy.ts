@@ -10,7 +10,7 @@ export const EXCLUSION_NOTES = [
   "Installed dependency folders (node_modules) and symbolic links inside conversation work folders; reinstall or recreate them in the project.",
   "External project folders, CLI login homes, browser session homes, OS keychains, companion devices and other servers.",
   "VM/container disk layers and remote cloud data; durable files inside this workspace are included.",
-  "Private bot configuration drafts and their test questions stay on the original server.",
+  "Private bot configuration drafts, their test questions and paused workflow runs stay on the original server.",
   "Waits bots set up: they end within a week, so ask the bot again after restoring.",
 ];
 export const RESTORE_WARNING = "Restoring pauses routines, webhooks and calendar calls, ends every wait, and does not resume pending delegations, queued chat messages or queued runs. Definitions and historical receipts are retained; review before enabling them again.";
@@ -71,7 +71,8 @@ export function redownloadedOrgLibraryPath(path: string): boolean {
 }
 
 export function ephemeralWorkspaceTokenPath(path: string): boolean {
-  return /^(?:hook-tokens(?:\/|$)|sessions\.json\.open$)/.test(path);
+  // Checkpoints carry single-use approvals and private resolved inputs.
+  return /^(?:hook-tokens(?:\/|$)|skill-burger-runs(?:\/|$)|sessions\.json\.open$)/i.test(path);
 }
 
 /** Not a consistent snapshot while the engine holds it open (unflushed WAL), and reloadable from its sources. */

@@ -71,9 +71,20 @@ export function useSavedBurgers(): { skills: SavedWorkflow[] | null; error: bool
   return { skills, error, refresh };
 }
 
+export async function saveBurgerControls(skill: SavedWorkflow, sha256: string, controls: Array<Pick<Workflow["steps"][number], "id" | "when" | "approval" | "parallelWithPrevious">>, shareConsent: boolean): Promise<SavedWorkflow> {
+  const result = await api<{ skill: SavedWorkflow }>(`/api/skill-burgers/${encodeURIComponent(skill.name)}`, {
+    method: "PATCH", body: JSON.stringify({ sha256, controls, ...(skill.everyChat ? {} : { botId: skill.botId }), ...(shareConsent ? { shareConsent: true } : {}) }),
+  });
+  changed();
+  return result.skill;
+}
+
+export function readBurgerRevision(skill: Pick<SavedWorkflow, "name" | "everyChat" | "botId">) {
+  return api<{ workflow: unknown; sha256: string }>(path(skill));
+}
+
 export async function readBurgerWorkflow(skill: Pick<SavedWorkflow, "name" | "everyChat" | "botId">): Promise<unknown> {
-  const { workflow } = await api<{ workflow: unknown }>(path(skill));
-  return workflow;
+  return (await readBurgerRevision(skill)).workflow;
 }
 
 export async function restoreBurger(skill: Pick<SavedWorkflow, "name" | "everyChat" | "botId">, workflow: unknown, shareConsent?: true): Promise<SavedWorkflow> {

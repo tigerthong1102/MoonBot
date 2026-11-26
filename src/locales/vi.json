@@ -11671,5 +11671,19 @@
   "botAccess.connectionPending": "Đang kết nối",
   "mcp.connectionTeam": "Kết nối dùng chung của nhóm",
   "mcp.connectionPerson": "Kết nối cá nhân",
-  "automations.app.sourceAccount": "Nguồn sự kiện · {app} · {account}"
+  "automations.app.sourceAccount": "Nguồn sự kiện · {app} · {account}",
+  "workflow.controls": "Cài đặt từng bước",
+  "workflow.approvalPrompt": "Nội dung xin duyệt (tuỳ chọn)",
+  "workflow.when": "Chạy khi kết quả bước trước thoả điều kiện",
+  "workflow.always": "Luôn chạy",
+  "workflow.path": "Trường trong kết quả (tuỳ chọn)",
+  "workflow.exists": "Có giá trị",
+  "workflow.parallel": "Đọc song song với bước trước",
+  "workflow.share": "Chia sẻ thay đổi với những người được dùng quy trình này",
+  "workflow.waiting": "Quy trình chờ duyệt",
+  "workflow.action": "Xem thao tác",
+  "workflow.interrupted": "Lượt chạy bị ngắt sau khi được duyệt. Hãy đối chiếu kết quả thực tế trước khi chạy lại.",
+  "workflow.resume": "Tiếp tục",
+  "workflow.approve": "Duyệt và tiếp tục",
+  "workflow.resumeMessage": "Tiếp tục quy trình đã duyệt trong cuộc trò chuyện này. Gọi run_workflow với resume {token} và response \"continue\"."
 }

@@ -11671,5 +11671,19 @@
   "botAccess.connectionPending": "Connecting",
   "mcp.connectionTeam": "Shared team connection",
   "mcp.connectionPerson": "Personal connection",
-  "automations.app.sourceAccount": "Event source · {app} · {account}"
+  "automations.app.sourceAccount": "Event source · {app} · {account}",
+  "workflow.controls": "Step settings",
+  "workflow.approvalPrompt": "Approval request (optional)",
+  "workflow.when": "Run when a previous result matches",
+  "workflow.always": "Always run",
+  "workflow.path": "Result field (optional)",
+  "workflow.exists": "Exists",
+  "workflow.parallel": "Read in parallel with the previous step",
+  "workflow.share": "Share these changes with people who can use this workflow",
+  "workflow.waiting": "Workflow approvals",
+  "workflow.action": "Review the step",
+  "workflow.interrupted": "The run was interrupted after approval. Check the actual result before starting again.",
+  "workflow.resume": "Resume",
+  "workflow.approve": "Approve and resume",
+  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\"."
 }

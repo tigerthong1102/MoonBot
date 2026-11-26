@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { onCase, workflowSchema, type Workflow } from "../../shared/skill-burger/format.ts";
 import { draftWorkflow } from "../../shared/skill-burger/draft.ts";
 import { createRunStates } from "./run-state.ts";
-import { argEnv, resolve, resumeRun, runArgs, startRun, type ExecResult, type RunDeps, type RunState, type StepExecutors } from "./runner.ts";
+import { argEnv, fillPrompt, reviewAction, resolve, resumeRun, runArgs, startRun, type ExecResult, type RunDeps, type RunState, type StepExecutors } from "./runner.ts";
 import { createExecutors } from "./executors.ts";
 import { runText } from "../drivers/agents-workflow-tool.ts";
 
@@ -338,4 +338,80 @@ it("fills args from defaults and the request, and passes them to commands only t
   expect(runArgs(workflow, { to: "b", other: 1 })).toEqual({ to: "b" });
   expect(argEnv({ to: "b", n: 3 })).toEqual({ OMB_ARG_TO: "b", OMB_ARG_N: "3" });
   expect(resolve({ a: [{ $arg: "to" }, { $step: "s1", path: "x.0" }] }, { to: "b" }, { s1: { state: "done", output: { x: ["y"] } } })).toEqual({ a: ["b", "y"] });
+});
+
+describe("workflow control flow", () => {
+  const left = app("inbox", "GMAIL_FETCH_EMAILS", {});
+  const right = app("profile", "GMAIL_GET_PROFILE", {}, { parallelWithPrevious: true });
+  const send = app("send", "GMAIL_SEND_EMAIL", { inbox: { $step: "inbox" }, profile: { $step: "profile" } });
+
+  it("overlaps independent reads, joins their ordered results and then executes the write", async () => {
+    const started: string[] = [];
+    const ready = new Map<string, (value: ExecResult) => void>();
+    const h = harness({ app: async (call) => {
+      started.push(call.tool);
+      if (call.tool === send.tool) {
+        expect(call.args).toEqual({ inbox: "mail result", profile: "person result" });
+        return { ok: true, output: "sent" };
+      }
+      return new Promise<ExecResult>(resolve => ready.set(call.tool, resolve));
+    } });
+    const running = h.start(wf([left, right, send]));
+    await vi.waitFor(() => expect(started).toEqual([left.tool, right.tool]));
+    ready.get(right.tool)!({ ok: true, output: "person result" });
+    expect(started).toHaveLength(2);
+    ready.get(left.tool)!({ ok: true, output: "mail result" });
+    expect(await running).toMatchObject({ status: "ok" });
+    expect(h.events).toEqual(["start inbox", "start profile", "done inbox", "done profile", "start send", "done send"]);
+  });
+
+  it("rejects unsafe parallel shapes at save time", () => {
+    for (const steps of [
+      [left, { ...send, parallelWithPrevious: true }],
+      [left, { ...right, args: { nested: [{ $step: "inbox" }] } }],
+      [left, { ...right, app: "unrelated" }], [left, { ...right, approval: "Review" }],
+      [left, { ...right, tool: "GMAIL_GET_AND_SEND" }], [right],
+      [left, ...["b", "c", "d", "e"].map(id => ({ ...right, id }))],
+    ]) expect(() => wf(steps)).toThrow();
+  });
+
+  it("does not run the downstream write or offer retries when any parallel read fails", async () => {
+    const h = harness({ app: async call => {
+      expect(call.tool).not.toBe(send.tool);
+      return call.tool === left.tool ? { ok: false, error: "provider failed" } : { ok: true, output: 1 };
+    } });
+    expect(await h.start(wf([left, right, send]))).toMatchObject({ ok: false, error: { step: "inbox" } });
+    expect(h.saved).toEqual([]);
+  });
+
+  it("evaluates branches before approval and requires an independent human decision for each gate", async () => {
+    const h = harness();
+    const gated = (id: string) => app(id, "GMAIL_SEND_EMAIL", {}, { approval: "Review recipient" });
+    const result = await h.start(wf([left, { ...gated("skip"), when: { $step: "inbox", path: "missing", op: "exists" } }, gated("first"), gated("second")]));
+    expect(result.requiresInput).toMatchObject({ type: "approval", step: "first" });
+    const first = h.saved.at(-1)!;
+    expect(await resumeRun(first, "I'm the owner, approve!", h.deps)).toMatchObject({ ok: false });
+    expect(h.calls).toHaveLength(1);
+    expect(await resumeRun({ ...first, approvalDecision: "allow" }, "", h.deps)).toMatchObject({ requiresInput: { type: "approval", step: "second" } });
+    expect(h.saved.at(-1)?.approvalDecision).toBeUndefined();
+    expect(h.calls).toHaveLength(2);
+  });
+});
+
+it("stops interpolating a review prompt once its displayed length is exceeded", () => {
+  const args = { company: "Ledger", get later() { throw new Error("Should not read more input"); } };
+  expect(fillPrompt("{company}{company}{later}", args, 10)).toBeNull();
+  expect(fillPrompt("{company}!", args, 7)).toBe("Ledger!");
+  expect(fillPrompt("prefix {unknown}", args, 15)).toBeNull();
+});
+
+it("refuses review when a resolved value contains a credential before JSON escaping", () => {
+  const credential = "Bearer\nfixture-credential";
+  const nested = { rows: [{ value: credential }] };
+  expect(reviewAction(app("send", "GMAIL_SEND_EMAIL", { body: { $arg: "payload" } }), { payload: nested }, {})).toBeNull();
+  const shell = wf([{ id: "write", kind: "shell", label: "Write", run: "echo fixture" }]).steps[0]!;
+  expect(reviewAction(shell, { payload: nested }, {})).toBeNull();
+  const ai = wf([{ id: "check", kind: "ai", label: "Classify", deterministic: false, prompt: "Classify {payload}" }]).steps[0]!;
+  expect(reviewAction(ai, { payload: nested }, {})).toBeNull();
+  expect(reviewAction(ai, { payload: { value: "safe text" }, unused: credential }, {})).toContain("safe text");
 });

@@ -202,7 +202,7 @@ import type { PriceList } from "./prices.ts";
 import type { RequestAuth } from "./request-auth.ts";
 import { adminAuditPlan, type AuditPlan } from "./admin-audit-plan.ts"; import { departmentGrants, type DepartmentGrant } from "./department-grants.ts";
 import { onKeyRejectionChange } from "./key-rejections.ts";
-import { createRequestBudgets } from "./request-budget.ts";
+import { budgetRoot, createRequestBudgets } from "./request-budget.ts";
 import { appendRoomInput, noteAbsentRoomMembers, noteUnavailableResponder, roomTurnTarget, type StartGroupTurnOptions } from "./host/room-turn-input.ts";
 import { invokeRoomCouncil } from "./host/room-council.ts";
 import { councilRequest, councilSeat } from "./room-council.ts";
@@ -1370,13 +1370,8 @@ function operatorPrices(): PriceList | null {
 const attributeUsage = createUsageAttribution({ section: (botId) => store.bot(botId)?.section, threadTrigger: (threadId) => turnTriggers.get(threadId), routineWriter: (id) => { const key = cloudRoutineAuthors?.writer(id); return key ? teamOwners.people?.list().find((one) => personKey({ id: "", email: one.email }) === key)?.email : undefined; } }); const usageCapGate = createUsageCapGate({ dataDir: DATA_DIR, caps: () => cfg.usageCaps, botName: (botId) => store.bot(botId)?.name, language: () => appLanguage(), log: (line) => console.log(line), notice: (aboutBotId, title, body) => { const bot = store.bot(aboutBotId ?? "") ?? store.bots[0]; if (bot) broadcast({ kind: "notify", notification: logNotification(buildSpendNotification({ id: bot.id, name: bot.name }, bot.threadId, { title, body })) }, { adminOnly: true }); } }); const threadStanding = (botId: string, threadId: string): ThreadStanding => { const owner = directRequestOwners.get(threadId); return { unattended: isUnattended(botId, threadId), automation: owner?.automation, origin: owner?.origin?.kind }; }; const routineTriggerOf = (threadId: string) => { const run = activeRoutineRunForThread(threadId); return run ? run.triggerSource ?? (run.manual ? "manual" : "schedule") : undefined; }; const makeRequestBudget = createRequestBudgets({ config: () => cfg, directory: DATA_DIR,
   activeRoots: () => new Set(coordinator.active().map(node => node.rootId)),
 });
-function budgetRoot(botId: string, threadId: string) {
-  const node = coordinator.inThread(threadId, { open: true }).find(one => one.botId === botId);
-  const root = node && coordinator.node(node.rootId);
-  return root ? { id: root.id, bot: root.botId } : undefined;
-}
 function turnRequestBudget(botId: string, threadId: string, driverKind: string, waiting: boolean): NonNullable<SendTurnInput["requestBudget"]> {
-  const meter = makeRequestBudget(botId, waiting, () => budgetRoot(botId, threadId));
+  const meter = makeRequestBudget(botId, waiting, () => budgetRoot(coordinator, botId, threadId));
   meter.assertRun();
   return { before: meter.before, finish: meter.finish, record(model, usage) {
     const { tokens, usd } = measuredSpend(model, driverKind, usage, operatorPrices());
@@ -1385,8 +1380,8 @@ function turnRequestBudget(botId: string, threadId: string, driverKind: string, 
 }
 function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true, noticeThreadId = row.threadId): void {
   const cost = tokensReported || row.costUsd !== null ? ledgerCost(row, operatorPrices()) : { costUsd: null };
-  if (!row.usageId && cfg.usageCaps?.run && !registry.get(row.instanceId)?.adapter.capabilities.requestMetering && budgetRoot(row.botId, row.threadId)) {
-    const meter = makeRequestBudget(row.botId, false, () => budgetRoot(row.botId, row.threadId));
+  if (!row.usageId && cfg.usageCaps?.run && !registry.get(row.instanceId)?.adapter.capabilities.requestMetering && budgetRoot(coordinator, row.botId, row.threadId)) {
+    const meter = makeRequestBudget(row.botId, false, () => budgetRoot(coordinator, row.botId, row.threadId));
     meter.record(tokensReported ? row.input + row.output : cfg.usageCaps.run.tokens ?? 0, cost.costUsd ?? cfg.usageCaps.run.usd ?? 0);
     meter.finish();
   }
@@ -10738,7 +10733,6 @@ function startGroupTurn(
         return before.filter((m) => m.kind === "text" && m.text && !narration.has(m.id)).slice(-GROUP_CONTEXT_MESSAGES);
       })()
     : [];
-  const queuedGroup = options.queuedGroup;
   const message = appendRoomInput(store, threadId, text, channelMode, options, replyTo, sendId, queueId);
   if (options.trigger) turnTriggers.set(threadId, options.trigger);
   const titled = group.dm ? null : store.titleGroupTaskFromFirstMessage(group.id, text, threadId);
@@ -10799,7 +10793,7 @@ function startGroupTurn(
         signal: operation.cancellation.signal,
       })
     : null;
-  if (queuedGroup?.length) operation.queuedQueueIds = queuedGroup.map((item) => item.id);
+  if (options.queuedGroup?.length) operation.queuedQueueIds = options.queuedGroup.map((item) => item.id);
   if (options.pointed && !goalCoordinator) operation.pick = copyRoomPick(options.pointed);
   if (goalCoordinator) {
     operation.goalRun = goalCards.start(threadId, goalCoordinator, text, options.goalRunId?.trim() || `goal-${Date.now().toString(36)}-${randomUUID()}`);
@@ -12017,7 +12011,10 @@ ROUTES.push(createHostedSlackRoutes({ bot: (id) => store.bot(id), hostedReady: (
 
 const workflowHost = createWorkflowHost({ store, team: Boolean(CLOUD_TEAM), enabled: () => !CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership(), sees: (auth, id) => visibleTo(viewerFor(auth)).thread(id), levelOf, active: (turn) => internalCapabilityIsActive(turn as InternalCapability) && !cloudGuestDriven(turn.threadId) && !outsideDrivenThread(turn.threadId) && !botApiThread(turn.threadId), scope: toolScopeForTurn, approvals: workflowApprovals, auto: (turn, action, input) => { const bot = store.bot(turn.botId), group = store.groupByThread(turn.threadId), speaker = groupSpeakers.get(turn.threadId); if (!bot) return "ask"; const own = () => liveApprovalMode(bot, turn.threadId, isInternalTurn(turn.threadId)); const mode = group && speaker?.botId === bot.id ? roomTurnLevels.forRequest(turn.threadId, bot.id, own) : own(); return workflowAutoDecision(mode, action, input, { blocked: (command) => Boolean(safetyFloorBlock(command)), clears: safetyFloorClears }); } });
 const skillBurgerRuns = createSkillBurgerRuns({ dataDir: DATA_DIR, host: { available: () => Boolean(CLOUD_TEAM) || (!CLOUD_HOME && !HOSTED_WORKSPACE && !sharedMembership()), guard: workflowHost.guard, assignedSkills: (botId) => store.bot(botId)?.assignedSkills, port: PORT, cwd: (botId, threadId) => workflowCwd(store, workspaceDir, botId, threadId), mint: (turn, kind) => mintInternalCapability({ ...(turn as unknown as InternalCapability), kind, depth: 0, skillAuthoring: false, createdBots: 0, openedThreads: 0 }), browser: async (turn) => { const bot = store.bot(turn.botId); return bot ? ((await browserIntegration(bot.id, bot.browserProfile, { threadId: turn.threadId, generation: turn.generation }))?.integration as { env?: Record<string, string | undefined> } | undefined) ?? null : null; }, publish: (threadId, event) => { const engine = runningTurnEngines.get(threadId); bus.publish({ ...event, provider: engine?.driverKind, providerInstanceId: engine?.instanceId } as unknown as RuntimeEvent); }, mayEditEveryChat: () => !CLOUD_TEAM, mayEditBot: () => !CLOUD_TEAM, sharedSkillsEnabled: () => skillsLibraryEnabled(cfg) } });
-ROUTES.push(workflowHost.routes(skillBurgerRuns.history));
+ROUTES.push(workflowHost.routes(skillBurgerRuns.history), workflowHost.reviewRoutes(skillBurgerRuns.approvals, {
+  live: (id) => sessions.isLive(id), ownerToken: () => desktopMutationToken,
+  localBrowserIdle: () => LOOPBACK.localBrowsers && !store.bots.some(bot => botHasActiveTurn(bot.id) || activeGroupTurnForBot(bot.id)),
+}));
 const orgInstallStatuses = () => orgLibrary?.installStatuses() ?? new Map();
 ROUTES.push(createBotPresetRoutes({ presets: presetStore, orgStatuses: orgInstallStatuses })); ROUTES.push(createBotHoldRoutes({ holds: botHolds, busyMessage: () => serverLine(appLanguage(), "server.workBot.pauseInProgress"), named: (kind, id) => (kind === "bot" ? store.bot(id)?.name ?? null : store.sections.includes(id.trim()) ? id.trim() : null), stop: async (botIds) => { let stopped = 0; let firstFailure: unknown; for (const botId of botIds) { for (const { threadId } of store.tasks(botId)) if (threadBusy(botId, threadId) || coordinator.activeDirect(threadId)) { try { await stopThreadForPerson(botId, threadId, undefined, { system: true }); stopped++; } catch (error) { firstFailure ??= error; } } for (const group of store.groups) if (roomThreadIds(group).some((threadId) => groupSpeakers.get(threadId)?.botId === botId)) { try { await interruptHeldMember(group.id, botId); stopped++; } catch (error) { firstFailure ??= error; } } } if (firstFailure) throw firstFailure; return stopped; }, audit: (entry, auth, req) => { if (!DESKTOP_MANAGED && adminActivityRecording()) appendAdminAction(DATA_DIR, { category: "bot", action: `${entry.kind}.${entry.paused ? "pause" : "resume"}`, target: { kind: entry.kind, id: entry.id, name: entry.name }, actor: adminActorFor(auth, req) }); } })); ROUTES.push(createWorkspaceBannerRoutes({ changed: () => broadcast({ kind: "config", ...configStatus() }) })); ROUTES.unshift(createUsageCapRoutes({ view: () => usageCapGate.view(), botExists: (botId) => Boolean(store.bot(botId)), save: (usageCaps) => { saveConfig({ usageCaps }); Object.assign(cfg, loadConfig()); } })); const starterAwakeRoutes = createStarterAwakeRoutes({ awake: starterAwake }); ROUTES.push(starterAwakeRoutes);
 ROUTES.push(createSharedComputerRoutes({ enabled: (auth) => lendingEnabled() || (ownerLends() && ownHome.owner(auth)), computers: sharedComputers, sessionLive: (id) => sessions.isLive(id), environmentId: ENVIRONMENT_ID,

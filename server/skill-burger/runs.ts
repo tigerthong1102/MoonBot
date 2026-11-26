@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { z } from "zod";
 
+import type { WorkflowWait } from "../../shared/skill-burger/approval.ts";
 import { RUN_STEP_MARK } from "../../shared/skill-burger/layers.ts";
 import type { WorkflowStep } from "../../shared/skill-burger/format.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
@@ -9,7 +10,7 @@ import { createExecutors, type ExecutorContext } from "./executors.ts";
 import { authorizeWorkflowAction, checkedExecutors, guardedExecutors, type WorkflowGuard } from "./guarded-executors.ts";
 import { createRunHistory } from "./history.ts";
 import { createRunStates } from "./run-state.ts";
-import { resumeRun, startRun, type RunDeps, type RunEnvelope, type StepExecutors, type StepResult } from "./runner.ts";
+import { interpolatedActionHash, reviewAction, resumeRun, startRun, type RunDeps, type RunEnvelope, type StepExecutors, type StepResult } from "./runner.ts";
 import { findWorkflowSkill, replaceWorkflowSkill } from "./store.ts";
 import { burgerTurn, type BurgerHostDeps, type CallingTurn } from "./turn-host.ts";
 
@@ -77,6 +78,7 @@ function stepEvents(turn: BurgerTurn, open: Map<string, Set<string>>): RunDeps["
 export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; host?: BurgerHostDeps; executors?: (turn: BurgerTurn) => StepExecutors }) {
   const states = createRunStates(join(deps.dataDir, "skill-burger-runs"));
   const history = createRunHistory(join(deps.dataDir, "skill-burger-runs"));
+  const claims = new Set<string>();
   const open = new Map<string, Set<string>>();
   const runDeps = (turn: BurgerTurn): RunDeps => {
     const exec = deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, threadId: turn.threadId, cwd: turn.cwd, internal: turn.internal });
@@ -113,14 +115,21 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     if (path === RESUME_PATH) {
       const parsed = resumeBody.safeParse(body);
       if (!parsed.success) return json(res, 400, { error: "Resume needs the run's token and your response." });
-      const state = states.take(parsed.data.run, turn.botId, turn.threadId);
-      if (!state) return json(res, 404, { error: "That run can't be resumed: it finished, was resumed already, or is more than a day old." });
-      const current = findWorkflowSkill(turn.botId, state.name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
-      if (!current || current.sha256 !== state.sha256) {
-        states.save(state, true);
-        return json(res, 409, { error: "This workflow is unavailable or changed since it paused; review it before starting again." });
-      }
-      return json(res, 200, finished(turn, state.name, await resumeRun(state, parsed.data.response, runDeps(turn))));
+      const { run, response } = parsed.data;
+      const paused = states.peek(run, turn.botId, turn.threadId);
+      if (!paused) return json(res, 404, { error: "That run can't be resumed: it finished, was resumed already, or is more than a day old." });
+      if (paused.waiting.type === "approval" && !paused.approvalDecision) return json(res, 409, { error: "A person must approve this step in the conversation." });
+      const current = findWorkflowSkill(turn.botId, paused.name, deps.root, turn.assignedSkills, turn.sharedSkillsEnabled);
+      if (!current || current.sha256 !== paused.sha256) return json(res, 409, { error: "This workflow is unavailable or changed since it paused; review it before starting again." });
+      const state = states.take(run, turn.botId, turn.threadId);
+      if (!state) return json(res, 409, { error: "This pause was already answered." });
+      const claimed = state.waiting.type === "approval" && state.approvalDecision === "allow";
+      if (claimed) claims.add(run);
+      try {
+        const envelope = finished(turn, state.name, await resumeRun(state, response, runDeps(turn)));
+        if (claimed) states.settleClaim(run);
+        return json(res, 200, envelope);
+      } finally { claims.delete(run); }
     }
     if (path === UNDO_PATH) {
       const parsed = undoBody.safeParse(body);
@@ -166,6 +175,43 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
     return waiting ? `These replies are for the Skill Burger "${waiting.name}": first call run_workflow with resume ${JSON.stringify(waiting.pauseToken ?? waiting.id)} and response "back", then do what it says.` : null;
   };
 
-  return { internalRoutes, routesFor, history, waitingNote };
+  const availableRevision = (botId: string, name: string, sha256: string) => findWorkflowSkill(
+    botId, name, deps.root, deps.host?.assignedSkills?.(botId), deps.host?.sharedSkillsEnabled?.(),
+  )?.sha256 === sha256;
+  function listWaits(threadId: string, includesBot: (id: string) => boolean): WorkflowWait[] {
+    return states.approvals(threadId, includesBot).flatMap(({ state, claimed }) => {
+      const step = state.workflow.steps.find(one => one.id === state.waiting.step);
+      if (!step?.approval || !state.pauseToken || claims.has(state.pauseToken)) return [];
+      const action = availableRevision(state.botId, state.name, state.sha256) ? reviewAction(step, state.args, state.results) : null;
+      return [{ run: state.id, token: state.pauseToken, botId: state.botId, name: state.name, step: step.label,
+        message: action ? step.approval : "", action: action ?? "", reviewHash: action ? interpolatedActionHash(step, state.args, action) : undefined,
+        state: claimed ? "interrupted" : !action ? "unavailable" : state.approvalDecision === "allow" ? "approved" : "pending" }];
+    });
+  }
+  const approvals = {
+    list: (botId: string, threadId: string) => listWaits(threadId, id => id === botId),
+    listRoom(threadId: string, botIds: readonly string[]) {
+      const visible = new Set(botIds);
+      return listWaits(threadId, id => visible.has(id));
+    },
+    decide(token: string, botId: string, threadId: string, decision: "allow" | "deny", reviewHash?: string) {
+      const paused = states.peek(token, botId, threadId);
+      if (!paused) return false;
+      if (decision === "allow") {
+        const step = paused.workflow.steps.find(one => one.id === paused.waiting.step);
+        if (!step?.approval || !availableRevision(botId, paused.name, paused.sha256)) return false;
+        const detail = reviewAction(step, paused.args, paused.results);
+        if (!detail || interpolatedActionHash(step, paused.args, detail) !== reviewHash) return false;
+      }
+      const state = states.decide(token, botId, threadId, decision, reviewHash);
+      if (!state) return false;
+      if (!state.approvalDecision && decision === "deny") {
+        open.delete(state.id);
+        history.record({ name: state.name, botId, threadId }, { protocolVersion: 1, ok: true, status: "cancelled", run: state.id, steps: [] });
+      }
+      return true;
+    },
+  };
+  return { internalRoutes, routesFor, history, waitingNote, approvals };
 }
 export type SkillBurgerRuns = ReturnType<typeof createSkillBurgerRuns>;

@@ -12,6 +12,7 @@ import { json, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { dispatchRoutes, type RouteContext } from "../routes/table.ts";
 import { createSkillBurgerRuns, type BurgerTurn, type StepEvent } from "./runs.ts";
+import { createRunStates } from "./run-state.ts";
 import { createWorkflowApprovals } from "./approval.ts";
 import type { WorkflowGuard } from "./guarded-executors.ts";
 import type { StepExecutors } from "./runner.ts";
@@ -55,7 +56,7 @@ async function serve(options: { signal?: AbortSignal; app?: StepExecutors["app"]
   await new Promise<void>((ready) => server.listen(0, "127.0.0.1", ready));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const post = async (path: string, body: unknown) => (await fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).json() as Promise<Record<string, any>>;
-  return { post, events, calls, bot, actAs: (id: string) => { as = id; } };
+  return { post, events, calls, bot, root, actAs: (id: string) => { as = id; } };
 }
 
 it("rejects duplicate resumes without consuming the next pause", async () => {
@@ -202,4 +203,109 @@ it("changes the steps when asked, with an undo, and refuses a burger that isn't 
   expect(undone).toHaveProperty("skill");
   expect(await h.post("/api/internal/skill-burgers/undo", { undo: changed.undo })).toHaveProperty("error");
   expect(await h.post("/api/internal/skill-burgers/run", { name: "nope" })).toHaveProperty("error");
+});
+
+it("recovers a review from disk and never replays a write claimed by an interrupted process", async () => {
+  const h = await serve({ workflow: { version: 1, args: {}, summary: "Review write", steps: [
+    { kind: "app", id: "send", label: "Send", app: "gmail", tool: "GMAIL_SEND_EMAIL", args: { recipient: "test@example.org" }, approval: "Check the recipient" },
+  ] } });
+  const paused = await h.post("/api/internal/skill-burgers/run", { name: "review-write" });
+  const token = paused.requiresInput.resumeToken;
+  const recover = () => createSkillBurgerRuns({ dataDir: h.root, root: h.root }).approvals;
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: token, response: "allow" })).toHaveProperty("error");
+  expect(recover().list(h.bot, "other")).toEqual([]);
+  expect(recover().decide(token, "other", "t1", "allow")).toBe(false);
+  expect(recover().list(h.bot, "t1")).toMatchObject([{ state: "pending", action: expect.stringContaining("test@example.org") }]);
+  expect(recover().decide(token, h.bot, "t1", "allow")).toBe(true);
+  expect(recover().decide(token, h.bot, "t1", "allow")).toBe(true);
+  expect(recover().decide(token, h.bot, "t1", "deny")).toBe(false);
+  expect(recover().list(h.bot, "t1")).toMatchObject([{ state: "approved" }]);
+  const checkpoints = createRunStates(join(h.root, "skill-burger-runs"));
+  expect(checkpoints.take(token, h.bot, "t1")?.approvalDecision).toBe("allow");
+  expect(recover().list(h.bot, "t1")).toMatchObject([{ state: "interrupted" }]);
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: token, response: "retry" })).toHaveProperty("error");
+  expect(h.calls).toEqual([]);
+});
+
+it("hides the action and refuses a saved decision when the paused workflow's permission is revoked", async () => {
+  const h = await serve({ workflow: { version: 1, args: {}, summary: "Approve read", steps: [
+    { kind: "app", id: "read", label: "Read", app: "gmail", tool: "GMAIL_FETCH_EMAILS", args: {}, approval: "Review the mailbox" },
+  ] } });
+  const { requiresInput } = await h.post("/api/internal/skill-burgers/run", { name: "approve-read" });
+  const approvals = createSkillBurgerRuns({ dataDir: h.root, root: h.root }).approvals;
+  setSkillEnabled(h.bot, "approve-read", false);
+  expect(approvals.list(h.bot, "t1")).toMatchObject([{ state: "unavailable", action: "", message: "" }]);
+  expect(approvals.decide(requiresInput.resumeToken, h.bot, "t1", "allow")).toBe(false);
+  expect(h.calls).toEqual([]);
+});
+
+it("checks all read approvals before dispatching any parallel operation", async () => {
+  const checked: string[] = [];
+  const h = await serve({ workflow: { version: 1, args: {}, summary: "Read two", steps: [
+    { kind: "app", id: "mail", label: "Mail", app: "gmail", tool: "GMAIL_FETCH_EMAILS", args: {} },
+    { kind: "app", id: "user", label: "User", app: "gmail", tool: "GMAIL_GET_PROFILE", args: {}, parallelWithPrevious: true },
+  ] }, guard: { allowed: () => true, approve: async (_action, _summary, _signal, input) => {
+    const { tool } = input as { tool: string };
+    checked.push(tool);
+    return tool === "GMAIL_FETCH_EMAILS";
+  } } });
+  expect(await h.post("/api/internal/skill-burgers/run", { name: "read-two" })).toMatchObject({ ok: false, error: { step: "user" } });
+  expect(checked).toEqual(["GMAIL_FETCH_EMAILS", "GMAIL_GET_PROFILE"]);
+  expect(h.calls).toEqual([]);
+});
+
+it("refuses hidden action tails, including previously approved checkpoints written by an older version", async () => {
+  const h = await serve({ workflow: { version: 1, args: { payload: {} }, summary: "Review payload", steps: [
+    { kind: "app", id: "send", label: "Send", app: "gmail", tool: "GMAIL_SEND_EMAIL", args: { body: { $arg: "payload" } }, approval: "Check full payload" },
+  ] } });
+  const huge = "x".repeat(9000) + "sensitive-final-destination";
+  expect(await h.post("/api/internal/skill-burgers/run", { name: "review-payload", args: { payload: huge } }))
+    .toMatchObject({ ok: false, error: { step: "send" } });
+  const masked = "Bearer " + "private-fixture-value".repeat(3);
+  expect(await h.post("/api/internal/skill-burgers/run", { name: "review-payload", args: { payload: masked } }))
+    .toMatchObject({ ok: false, error: { step: "send" } });
+  const short = await h.post("/api/internal/skill-burgers/run", { name: "review-payload", args: { payload: "ordinary" } });
+  const token = short.requiresInput.resumeToken;
+  const states = createRunStates(join(h.root, "skill-burger-runs"));
+  const legacy = states.peek(token, h.bot, "t1")!;
+  states.save({ ...legacy, args: { payload: huge }, approvalDecision: "allow" }, true);
+  const approvals = createSkillBurgerRuns({ dataDir: h.root, root: h.root }).approvals;
+  expect(approvals.list(h.bot, "t1")).toMatchObject([{ state: "unavailable", action: "" }]);
+  expect(approvals.decide(token, h.bot, "t1", "allow")).toBe(false);
+  expect(await h.post("/api/internal/skill-burgers/resume", { run: token, response: "prior approval" })).toMatchObject({ ok: false });
+  expect(h.calls).toEqual([]);
+});
+
+it.each(["ai", "decide"] as const)("reviews the exact %s handoff after interpolation before allowing that prompt", async (kind) => {
+  const h = await serve({ workflow: { version: 1, summary: "Review handoff", args: { recipient: {}, document: {} }, steps: [
+    { kind, id: "review", label: "Review", prompt: "Send the report to {recipient}", input: { $arg: "document" },
+      approval: "Check recipient", ...(kind === "ai" ? { deterministic: false, example: "Report outline" } : { cases: ["send", "stop"] }) },
+  ] } });
+  const start = (recipient: string) => h.post("/api/internal/skill-burgers/run", { name: "review-handoff", args: { recipient, document: "November ledger" } });
+  const waits = createSkillBurgerRuns({ dataDir: h.root, root: h.root }).approvals;
+  for (const unsafe of ["Bearer " + "private-fixture".repeat(4), "Bearer\n" + "private-fixture".repeat(4), "A".repeat(8100)]) {
+    expect(await start(unsafe)).toMatchObject({ ok: false, error: { step: "review" } });
+    expect(waits.list(h.bot, "t1")).toEqual([]);
+  }
+  const pause = await start("Sam {document}"); // Template syntax inside a value is literal data.
+  expect(pause.requiresInput).toMatchObject({ type: "approval" });
+  expect(pause.requiresInput).not.toHaveProperty("input");
+  expect(pause.requiresInput).not.toHaveProperty("example");
+  const [card] = waits.list(h.bot, "t1");
+  const shown = JSON.parse(card!.action).step;
+  expect(shown.prompt).toContain("Send the report to Sam {document}");
+  expect(shown.input).toBe("November ledger");
+  expect(card!.reviewHash).toMatch(/^[a-f0-9]{64}$/);
+  const token = pause.requiresInput.resumeToken;
+  expect(waits.decide(token, h.bot, "t1", "allow")).toBe(false);
+  expect(waits.decide(token, h.bot, "t1", "allow", "0".repeat(64))).toBe(false);
+  const checkpoints = createRunStates(join(h.root, "skill-burger-runs"));
+  checkpoints.save({ ...checkpoints.peek(token, h.bot, "t1")!, approvalDecision: "allow" }, true);
+  const resume = () => h.post("/api/internal/skill-burgers/resume", { run: token, response: "continue" });
+  expect(await resume()).toHaveProperty("error");
+  expect(waits.list(h.bot, "t1")).toMatchObject([{ state: "pending" }]);
+  expect(waits.decide(token, h.bot, "t1", "allow", card!.reviewHash)).toBe(true);
+  const handed = await resume();
+  expect(handed.requiresInput).toMatchObject({ type: kind === "ai" ? "ai_step" : "decide", prompt: shown.prompt, input: shown.input });
+  expect(handed.requiresInput[kind === "ai" ? "example" : "cases"]).toEqual(shown[kind === "ai" ? "example" : "cases"]);
 });

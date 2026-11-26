@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { askOf, burgerLayers, burgerWorthy, type RunMessage } from "../../../shared/skill-burger/layers";
 import { latestRun, runView } from "../../../shared/skill-burger/run-view";
 import { fetchBurgerDraft, useRunnable, type DraftView } from "@/lib/skill-burger";
+import { WorkflowWaits } from "./WorkflowWaits";
 import { RunBurger } from "./RunBurger";
 import { layerLine, SkillBurger } from "./SkillBurger";
 
@@ -85,4 +86,13 @@ export function SkillBurgerSlot({ botId, threadId, busy, canWrite, messages, liv
       />
     </div>
   );
+}
+
+export function SkillBurgerDock({ showWaits, showBurger, ...slot }: Parameters<typeof SkillBurgerSlot>[0] & {
+  showWaits: boolean; showBurger: boolean;
+}) {
+  return <>
+    {showWaits && <WorkflowWaits key={slot.transcriptKey} botId={slot.botId} threadId={slot.threadId} busy={slot.busy} />}
+    {showBurger && <SkillBurgerSlot {...slot} />}
+  </>;
 }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { KNOWN_READ_SLUGS } from "../outbound.ts";
 import { appLabel } from "./apps.ts";
 
 export const WORKFLOW_FILE = "workflow.json";
@@ -14,7 +15,7 @@ const ref = z.union([
 ]);
 export type WorkflowRef = z.infer<typeof ref>;
 
-const condition = z.object({
+export const workflowCondition = z.object({
   $step: z.string(), path: z.string().max(200).optional(), op: z.enum(["eq", "ne", "gt", "lt", "exists"]), value: z.unknown().optional(),
 }).strict();
 
@@ -42,7 +43,9 @@ export const DELEGATE_MAX_ROUNDS = 3;
 const common = {
   id: z.string().regex(/^[a-z0-9_]{1,40}$/),
   label: z.string().min(1).max(120),
-  when: condition.optional(),
+  when: workflowCondition.optional(),
+  approval: z.string().trim().min(1).max(500).optional(),
+  parallelWithPrevious: z.literal(true).optional(),
   timeoutMs: z.number().int().min(1_000).max(600_000).optional(),
   check: checkSchema.optional(),
   /** Where it ran, so a replay runs it in the same place: an app, the browser, the bot's computer, a cloud computer (VM), the person's computer. */
@@ -53,7 +56,7 @@ const common = {
 export const caseName = z.string().trim().min(1).max(40).regex(/^[\p{L}\p{N}][\p{L}\p{N} '&-]*$/u);
 
 /** One rule of a decide step: when an earlier step's output matches, the run takes `case`. */
-const caseRule = condition.extend({ case: caseName });
+const caseRule = workflowCondition.extend({ case: caseName });
 
 const PLACE: Record<string, string> = { vm: "on the cloud computer", yourComputer: "on the person's own computer", browser: "in the browser" };
 
@@ -85,6 +88,28 @@ export const workflowStepSchema = z.discriminatedUnion("kind", [
 ]);
 export type WorkflowStep = z.infer<typeof workflowStepSchema>;
 
+export const WORKFLOW_PARALLEL_LIMIT = 4;
+
+/** Only known read-only connector operations can share a wave. Unknown or plain proxy tools stay sequential. */
+export function parallelRead(step: WorkflowStep | undefined): boolean {
+  return step?.kind === "app" && KNOWN_READ_SLUGS.has(step.tool) && step.app.toLowerCase() === step.tool.split("_")[0]?.toLowerCase()
+    && (!step.where || step.where === "app") && !step.when && !step.approval && !step.check;
+}
+
+function references(node: unknown, ids: Set<string>): boolean {
+  if (!node || typeof node !== "object") return false;
+  if ("$step" in node && typeof node.$step === "string" && ids.has(node.$step)) return true;
+  return Object.values(node).some(value => references(value, ids));
+}
+
+export function parallelProblem(steps: WorkflowStep[]): string | null {
+  if (steps.length < 2 || steps.length > WORKFLOW_PARALLEL_LIMIT || steps.some(step => !parallelRead(step))) {
+    return "A parallel group needs two to four independent read-only app steps, without checks or approval gates.";
+  }
+  const ids = new Set(steps.map(step => step.id));
+  return steps.some(step => step.kind === "app" && references(step.args, ids)) ? "A parallel step cannot depend on another step in the same group." : null;
+}
+
 export const workflowSchema = z.object({
   version: z.literal(1),
   summary: z.string().min(1).max(SUMMARY_MAX),
@@ -92,7 +117,15 @@ export const workflowSchema = z.object({
   steps: z.array(workflowStepSchema).min(1).max(WORKFLOW_MAX_STEPS),
 }).strict().superRefine((workflow, issue) => {
   const seen = new Map<string, WorkflowStep>();
-  for (const step of workflow.steps) {
+  for (let index = 0; index < workflow.steps.length; index++) {
+    const step = workflow.steps[index]!;
+    if (step.parallelWithPrevious && index === 0) issue.addIssue({ code: "custom", message: "The first step has no preceding parallel step." });
+    if (!step.parallelWithPrevious && workflow.steps[index + 1]?.parallelWithPrevious) {
+      let end = index + 1;
+      while (workflow.steps[end]?.parallelWithPrevious) end++;
+      const problem = parallelProblem(workflow.steps.slice(index, end));
+      if (problem) issue.addIssue({ code: "custom", message: problem });
+    }
     if (seen.has(step.id)) issue.addIssue({ code: "custom", message: `step id ${step.id} is used twice` });
     if (step.kind === "decide" && !step.rules?.length && !step.prompt) issue.addIssue({ code: "custom", message: `decide step ${step.id} needs rules or a prompt` });
     if (step.kind === "decide") {
@@ -148,7 +181,8 @@ export function textLine(value: WorkflowText): string {
 
 function stepLine(step: WorkflowStep, args: Workflow["args"]): string {
   const fork = caseOf(step);
-  const prefix = fork ? `[only when ${fork.decide} is "${fork.case}"] ` : "";
+  const prefix = (step.approval ? `[wait for human approval: ${step.approval}] ` : "")
+    + (step.parallelWithPrevious ? "[parallel read] " : "") + (fork ? `[only when ${fork.decide} is "${fork.case}"] ` : "");
   const done = step.check && typeof step.check === "object" ? ` (done when: ${step.check.says.replace(/\s+/g, " ").slice(0, 200)})` : "";
   if (step.kind === "delegate") {
     const taskDone = [...new Set(step.tasks.flatMap((task) => task.doneWhen ? [textLine(task.doneWhen)] : []))];

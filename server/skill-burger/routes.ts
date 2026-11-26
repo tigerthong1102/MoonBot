@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { draftFromLayers, draftWorkflow } from "../../shared/skill-burger/draft.ts";
 import { askOf, burgerLayers, type RunMessage } from "../../shared/skill-burger/layers.ts";
-import { caseName } from "../../shared/skill-burger/format.ts";
+import { caseName, workflowCondition, workflowSchema } from "../../shared/skill-burger/format.ts";
 import { applyChoices, draftView } from "../../shared/skill-burger/draft-view.ts";
 import { applyEdit, editUndo, insertFix, mergeDraftInputs, undoScope } from "./edit.ts";
 import type { RunHistory } from "./history.ts";
@@ -46,7 +46,13 @@ const saveBody = z.union([
   // Undo of a removal: the workflow the list read before removing it, put back where it was under its name.
   z.object({ workflow: z.unknown(), name: z.string().max(64), botId: id.optional(), everyChat: z.boolean().optional(), shareConsent: z.literal(true).optional() }).strict(),
 ]);
+const controlsBody = z.object({
+  botId: id.optional(), sha256: z.string().regex(/^[a-f0-9]{64}$/), shareConsent: z.literal(true).optional(),
+  controls: z.array(z.object({ id: z.string().min(1).max(40), when: workflowCondition.optional(),
+    approval: z.string().trim().min(1).max(500).optional(), parallelWithPrevious: z.literal(true).optional() }).strict()).min(1).max(40),
+}).strict();
 const patchBody = z.union([
+  controlsBody,
   z.object({ everyChat: z.boolean(), botId: id.optional(), sha256: z.string().max(64).optional(), shareConsent: z.literal(true).optional() }).strict(),
   z.object({ rename: z.string().min(1).max(64), botId: id.optional(), sha256: z.string().max(64).optional() }).strict(),
   // Undo of a change to the steps: the id that change returned.
@@ -253,6 +259,25 @@ export function createSkillBurgerRoutes(deps: SkillBurgerRouteDeps): RouteHandle
       if ("everyChat" in body.data && !body.data.everyChat) {
         const origin = listWorkflowSkills([], deps.root).find((skill) => skill.everyChat && skill.name === name)?.botId;
         if (origin && level(auth, origin) !== "edit") return json(res, 403, { error: NOT_YOURS });
+      }
+      if ("controls" in body.data) {
+        if (deps.requiresShareConsent?.(auth) && !body.data.shareConsent) return json(res, 403, { error: "Confirm sharing before saving the step settings." });
+        const place = placeOf(body.data.botId);
+        const found = readWorkflowSkill(place, name, deps.root);
+        if (!found) return json(res, 404, { error: "No such workflow." });
+        const controls = body.data.controls;
+        if (controls.length !== found.workflow.steps.length || controls.some((control, i) => control.id !== found.workflow.steps[i]?.id)) return stale();
+        if (controls.some((control, i) => control.when && !controls.slice(0, i).some(prior => prior.id === control.when?.$step))) {
+          return json(res, 422, { error: "A condition must refer to an earlier step." });
+        }
+        const workflow = workflowSchema.safeParse({ ...found.workflow, steps: found.workflow.steps.map((step, i) => {
+          const { when: _when, approval: _approval, parallelWithPrevious: _parallel, ...rest } = step;
+          return { ...rest, ...controls[i] };
+        }) });
+        if (!workflow.success) return json(res, 422, { error: workflow.error.issues[0]?.message ?? "Invalid step settings." });
+        const result = replaceWorkflowSkill({ place, name, workflow: workflow.data, sha256: body.data.sha256, root: deps.root });
+        if ("stale" in result) return stale();
+        return "error" in result ? json(res, 422, result) : json(res, 200, { skill: result });
       }
       if ("undo" in body.data) {
         const kept = editUndo.take(body.data.undo, undoScope(placeOf(body.data.botId)), name);

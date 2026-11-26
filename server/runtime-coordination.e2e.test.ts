@@ -173,6 +173,20 @@ it("S1 assigns a teammate under the envelope and resumes the Chief once with the
   expect(f.eventsOf(child.id).map((event: any) => event.kind)).toEqual(expect.arrayContaining(["enqueued", "started", "settled", "reported"]));
 }), hostTimeout(60_000));
 
+it("stops a coordinated Claude CLI continuation once the shared model spend reaches the run cap", () => scenario(async (f) => {
+  expect((await f.api("PUT", "/api/usage/caps", { run: { tokens: 1 } })).status).toBe(200);
+  const job = f.clive.activeTaskId;
+  const brief = "BUDGET-BRIEF: export the invoices.";
+  f.script(f.clive.id,
+    { key: "BUDGET-ROOT", match: ["BUDGET-JOB"], steps: [{ arguments: { bot_ids: [f.mira.id], message: brief } }], reply: "Mira is on it." },
+    { key: "BUDGET-RESUME", match: [SETTLED], reply: "This next Claude turn should have been capped." });
+  f.script(f.mira.id, { key: "BUDGET-CHILD", match: ["BUDGET-BRIEF"], reply: "The invoices were exported." });
+  await f.say(f.clive.id, job, "BUDGET-JOB: have Mira export the invoices.");
+  await expect.poll(async () => (await f.chips(job, "configured spending cap")).length + (await f.said(job, "This next Claude turn should have been capped.")), { timeout: 30_000 }).toBeGreaterThan(0);
+  expect(f.turns(f.clive.id).map((row: { planKey: string }) => row.planKey)).toEqual(["BUDGET-ROOT"]);
+  expect(await f.chips(job, "configured spending cap")).not.toHaveLength(0);
+}), hostTimeout(60_000));
+
 /** A question reaches the person on "Ask me first"; at Full access, the default, the Chief answers it instead. */
 const askMeFirst = async (f: any) => {
   for (const id of [f.clive.id, f.mira.id]) expect((await f.api("PATCH", `/api/bots/${id}`, { approvalMode: "ask", applyToAllThreads: true })).status).toBe(200);

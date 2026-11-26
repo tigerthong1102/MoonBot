@@ -1,4 +1,5 @@
 import { browserRecord } from "@/lib/browser-records";
+import { randomUuid } from "@/lib/random-uuid";
 import { api, ApiError } from "@/state/api";
 import { libraryOwner, readLibrary } from "./source-cache";
 import { accepts, indexSources, scanFolder, type Directory, type Index, type SourceFile } from "./source-index";
@@ -18,7 +19,7 @@ export function readWatch(key: string): Promise<Watch | undefined> {
 
 export async function setSource(key: string, index: Index, source: FolderSource | null) {
   await browserRecord("readwrite", store => {
-    if (source) store.put({ id: crypto.randomUUID(), key, source } satisfies Watch, "watch:" + key);
+    if (source) store.put({ id: randomUuid(), key, source } satisfies Watch, "watch:" + key);
     else store.delete("watch:" + key);
     return store.put(index, key);
   });
@@ -55,19 +56,24 @@ export function readSource(source: FolderSource, previous: Index) {
   return source.kind === "cloud" ? cloudFiles(source, previous) : scanFolder(source.handle);
 }
 
-export async function syncSource(watch: Watch) {
-  const old = await readLibrary(watch.key) ?? { docs: new Map(), changes: [] };
+export async function scanSource(source: FolderSource, old: Index): Promise<Index> {
   let index: Index;
-  try { index = await indexSources(await readSource(watch.source, old), old); }
+  try { index = await indexSources(await readSource(source, old), old); }
   catch (error) {
     const status = error instanceof ApiError ? error.status : null;
     const issue = status === 401 || status === 403 ? "signedOut" : status === 404 || status === 410 ? "missing" :
-      watch.source.kind === "cloud" && (status === 503 || error instanceof TypeError) ? "offline" : "folder";
-    index = { docs: new Map(), changes: [{ path: watch.source.name, state: "error", issue }] };
+      source.kind === "cloud" && (status === 503 || error instanceof TypeError) ? "offline" : "folder";
+    index = { docs: new Map(), changes: [{ path: source.name, state: "error", issue }] };
   }
   const now = Date.now();
   const newChanges = index.changes.filter(c => c.state !== "error" || old.changes.findLast(p => p.path === c.path)?.state !== "error");
   index.changes = [...old.changes, ...newChanges.map(c => ({ ...c, at: now }))].slice(-300);
+  return index;
+}
+
+export async function syncSource(watch: Watch) {
+  const old = await readLibrary(watch.key) ?? { docs: new Map(), changes: [] };
+  const index = await scanSource(watch.source, old);
   // A picker or another window may have removed or replaced this source during a read.
   await browserRecord("readwrite", store => {
     const request = store.get("watch:" + watch.key);

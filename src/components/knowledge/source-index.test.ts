@@ -27,3 +27,21 @@ describe("document sources", () => {
     expect(next.docs.has("b.txt")).toBe(false);
   });
 });
+
+it("preserves watched folder history on an unchanged refresh and evicts passages after folder access is revoked", async () => {
+  const { scanSource } = await import("./source-sync");
+  let revoked = false;
+  const handle = { name: "policies", async *values() {
+    if (revoked) throw new DOMException("permission revoked", "NotAllowedError");
+    yield { kind: "file" as const, name: "policy.txt", getFile: async () => new File(["sensitive"], "policy.txt") };
+  } };
+  const source = { kind: "directory" as const, name: handle.name, handle };
+  const first = await scanSource(source, empty);
+  expect(first.changes).toEqual([{ path: "policies/policy.txt", state: "added", at: expect.any(Number) }]);
+  const unchanged = await scanSource(source, first);
+  expect(unchanged.changes).toEqual(first.changes);
+  revoked = true;
+  const denied = await scanSource(source, unchanged);
+  expect(denied.changes).toEqual([...first.changes, { path: "policies", state: "error", issue: "folder", at: expect.any(Number) }]);
+  expect(findPassages(denied, "sensitive")).toEqual([]);
+});

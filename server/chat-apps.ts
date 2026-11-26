@@ -13,6 +13,7 @@ import { compileJsxPage } from "./jsx-compile.ts";
 import { appDocRefs } from "./message-db.ts";
 import { createPageFiles, type PageFilesViewer } from "./page-files.ts";
 import { pageSignature, PageBundleError, readBotPageBundle, readPageBundle, skippedNote, stillReadable, type BotFolders, type PageBundle, type PageFile } from "./pages/bundle.ts";
+import { unlinkWithdrawnReport } from "./pages/report-sections.ts";
 import { redactSecretsInText } from "./redact.ts";
 import type { Message, StoreChange } from "./store.ts";
 import { userError, type UserError } from "./user-errors.ts";
@@ -214,7 +215,9 @@ export function publishInternalReport(store: Pick<AgentCardStore, "messagesFor" 
   if (!row || row.app.source !== "html") return false;
   if (rev === null) {
     const { report: _withdrawn, ...app } = row.app;
-    return Boolean(store.patchMessage(threadId, messageId, { app }));
+    if (!store.patchMessage(threadId, messageId, { app })) return false;
+    unlinkWithdrawnReport(threadId, messageId);
+    return true;
   }
   const version = pageVersion(row.app, rev);
   if (!version) return false;

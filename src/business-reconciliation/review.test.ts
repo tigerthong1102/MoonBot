@@ -16,3 +16,11 @@ it("rejects a foreign voucher or unknown status/reason before changing the table
   expect(() => openReview(raw([{ ...entry, status: "whatever" }]))).toThrow();
   expect(() => openReview(raw([entry], { ...report, exceptions: [{ ...report.exceptions[0]!, reasons: ["reconcile.title"] }] }))).toThrow();
 });
+it("keeps the newest decision across imports, deduplicates repeats and breaks equal-time ties across devices", () => {
+  const newer = { ...entry, at: "2026-03-01T20:00:00-05:00" };
+  const older = { ...entry, status: "reviewing", at: "2026-03-02T00:30:00Z" };
+  const tie = { ...newer, assignee: "Mai" };
+  const history = openReview(raw([newer, older, tie, older])).changes;
+  expect(history).toEqual([older, newer, tie]);
+  expect(openReview(raw([tie, newer, older])).changes).toEqual(history);
+});

@@ -9,6 +9,17 @@ export interface ReviewChange {
   status: ReviewStatus;
 }
 
+export function mergeReviewChanges(...histories: ReviewChange[][]): ReviewChange[] {
+  const events = new Map<string, { change: ReviewChange; time: number; key: string }>();
+  for (const history of histories) {
+    for (const change of history) {
+      const key = JSON.stringify([change.document, change.assignee, reviewStatuses.indexOf(change.status), change.at]);
+      events.set(key, { change, time: Date.parse(change.at), key });
+    }
+  }
+  return [...events.values()].sort((a, b) => a.time - b.time || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)).map(event => event.change);
+}
+
 function changesFor(value: { version?: number; changes?: ReviewChange[] }, report: Report): ReviewChange[] {
   if (value?.version !== 1 || !Array.isArray(value.changes) || value.changes.length > 100_000) throw new Error("invalid review");
   const documents = new Set(report.exceptions.map(row => row.document));
@@ -38,5 +49,5 @@ export function openReview(raw: string): { report: Report; changes: ReviewChange
         !row.reasons.every((reason: string) => reasons.has(reason))) throw new Error("invalid document");
     seen.add(row.document);
   }
-  return { report: r, changes: changesFor(envelope, r) };
+  return { report: r, changes: mergeReviewChanges(changesFor(envelope, r)) };
 }

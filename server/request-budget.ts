@@ -34,13 +34,19 @@ export function createRequestBudgets(deps: {
       }
       return runs.get(current.id) ?? localRun;
     };
+    const assertRun = () => {
+      const cap = deps.config().usageCaps?.run;
+      if (!cap) return;
+      for (const resolve of pendingRoots) resolve();
+      const run = totals();
+      if ((cap.tokens && run.tokens >= cap.tokens) || (cap.usd && run.usd >= cap.usd)) fail();
+    };
     return {
+      assertRun,
       before() {
+        assertRun();
         const cfg = deps.config();
         const caps = cfg.usageCaps;
-        if (caps?.run) for (const resolve of pendingRoots) resolve();
-        const run = caps?.run ? totals() : localRun;
-        if ((caps?.run?.tokens && run.tokens >= caps.run.tokens) || (caps?.run?.usd && run.usd >= caps.run.usd)) fail();
         const pending = [...inflight.values()];
         const spent = spendState(cfg, deps.directory);
         if (spent && spent.spentUsd + pending.reduce((sum, item) => sum + item.usd, 0) >= spent.monthlyUsd) fail();

@@ -88,7 +88,7 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
     void fetch("/.well-known/openmausbot/environment").then(r => r.json()).then(env => {
       if (active) setOffersCloud(env?.capabilities?.cloudHome === true);
     }).catch(() => {});
-    async function verifyOpening() {
+    async function verifyOpening(syncedScope?: string) {
       const visit = ++opening, live = () => active && visit === opening;
       stopSync?.(); stopAuth?.();
       setStarting(true); clearAccess(null);
@@ -97,6 +97,10 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
         ++revision;
         stopSync?.(); stopSync = undefined;
         suspend(issue, issue === "knowledge.answerAccess");
+        const previous = lastReader.current;
+        if (previous && !unsaved.current) {
+          stopSync = onSourceSync(previous, () => { if (live() && !verification.current) begin(previous); });
+        }
       }
       // The open dialog still needs sign-out notifications when maintenance has suspended its document subscription.
       stopAuth = observeLibraryOwner(() => lastReader.current, maintenance => {
@@ -104,10 +108,11 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
       });
       try {
         const initial = revision;
-        const session = await reader(bot.threadId);
+        const session = await reader(bot.threadId, !!syncedScope);
         if (!live() || initial !== revision) return;
         const scope = session.scope;
         if (!scope) return unavailable(session.issue);
+        if (syncedScope && scope !== syncedScope) return unavailable("knowledge.answerAccess");
         if (lastReader.current && lastReader.current !== scope) forget();
         lastReader.current = scope; bind(scope);
         const access = owner.current!;
@@ -129,12 +134,12 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
         stopSync = onSourceSync(scope, background => {
           void restore(false, background).catch(() => { if (live() && !access.controller.signal.aborted) setCacheFailed(true); });
         });
-        await restore(true);
+        await restore(!syncedScope, !!syncedScope);
       } catch { if (live() && owner.current) setCacheFailed(true); }
       finally { if (live()) setStarting(false); }
     }
-    const begin = () => {
-      const task = verifyOpening();
+    const begin = (syncedScope?: string) => {
+      const task = verifyOpening(syncedScope);
       verification.current = task;
       void task.finally(() => { if (verification.current === task) verification.current = null; });
     };
@@ -173,7 +178,12 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
       let pending: UnsavedSelection | null = null;
       try { await saveSource(access.scope, next, newFolder, access.controller.signal); }
       catch { pending = newFolder ? { scope: access.scope, folder: newFolder, index: next } : { scope: access.scope, manual: next }; }
-      if (await ready(access)) { unsaved.current = pending; setCacheFailed(!!pending); }
+      if (!await ready(access)) return;
+      unsaved.current = pending; setCacheFailed(!!pending);
+      if (current.current !== next) {
+        if (newFolder) recheck.current?.();
+        else { current.current = next; setIndex(next); }
+      }
     } catch { if (await ready(access)) setError(true); }
     finally { if (owner.current === access) { inFlight.current = false; setBusy(false); } }
   }

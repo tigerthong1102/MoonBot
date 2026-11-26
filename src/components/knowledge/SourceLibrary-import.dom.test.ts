@@ -247,3 +247,36 @@ it("stops reading a former reader's directory after the in-progress file settles
   expect(second).not.toHaveBeenCalled();
   expect(setSource).not.toHaveBeenCalled();
 });
+
+it.each(["saved", "RAM-only"])("restores the same reader's %s selection when focus verifies during persistence", async storage => {
+  const saving = Promise.withResolvers<void>(), started = Promise.withResolvers<void>();
+  vi.mocked(setSource).mockImplementationOnce(() => { started.resolve(); return saving.promise; });
+  await selectFile(doc()); await started.promise;
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await act(async () => { if (storage === "saved") saving.resolve(); else saving.reject(new Error("storage full")); });
+  await search("ledger");
+  expect(host.textContent).toContain("Manual ledger reference.");
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeDefined();
+  expect(setSource).toHaveBeenCalledTimes(1);
+});
+
+it("rechecks a newly imported folder after a focus during save before showing passages again", async () => {
+  let permitted = true, scans = 0;
+  const saving = Promise.withResolvers<void>(), started = Promise.withResolvers<void>();
+  vi.mocked(setSource).mockImplementationOnce(() => { started.resolve(); return saving.promise; });
+  vi.stubGlobal("showDirectoryPicker", async () => ({
+    name: "Watched", async *values() {
+      ++scans;
+      if (!permitted) throw new Error("Folder permission withdrawn");
+      yield { kind: "file", name: "Guide.txt", getFile: async () => doc() };
+    },
+  }));
+  await click(t("knowledge.folder")); await started.promise;
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  permitted = false;
+  await act(async () => saving.reject(new Error("storage full")));
+  await search("ledger");
+  expect(scans).toBe(2);
+  expect(host.textContent).not.toContain("Manual ledger reference.");
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
+});

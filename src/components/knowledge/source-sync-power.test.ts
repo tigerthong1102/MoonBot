@@ -335,3 +335,35 @@ it("forgets a RAM-only document as well as its draft on a 401 while a maintenanc
     expect(host.textContent).not.toContain("volatile.txt");
   } finally { await act(async () => root.unmount()); host.remove(); }
 });
+
+it.each(["timer", "focus"])("resumes the same reader's watched library on the first successful scan after %s detects maintenance", async trigger => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const normal = answer, maintenance = () => Response.json({ code: "workspace_backup_busy" }, { status: 503 });
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
+    await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(2)); });
+    const search = host.querySelector<HTMLInputElement>("input[type=search]")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "policy");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(host.textContent).toContain("Drive/policy.txt");
+    answer = maintenance;
+    if (trigger === "focus") await act(async () => { window.dispatchEvent(new Event("focus")); });
+    await act(async () => { stop = watchDocumentSources(); });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t("knowledge.answerMaintenance"));
+    expect(host.textContent).not.toContain("Drive/policy.txt");
+    calls.length = 0;
+    const content = "Updated policy after maintenance";
+    answer = path => path === list ? Response.json({ files: [{ path: "policy.txt", size: content.length, sha256: "new-edition" }] })
+      : path === file ? new Response(content, { headers: { "content-length": String(content.length) } }) : normal(path);
+    await act(async () => { tick?.(); await vi.waitFor(() => expect((records.get(key) as Index).docs.get("Drive/policy.txt")?.passages[0]?.text).toBe(content)); });
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(search.value).toBe("policy");
+    expect(host.textContent).toContain(content);
+    expect(calls.filter(c => c.path === list || c.path === file).map(c => c.path)).toEqual([list, file]);
+    expect(calls.every(c => c.background === "1" && !c.activity)).toBe(true);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});

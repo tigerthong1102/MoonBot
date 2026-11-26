@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { citationLocation } from "./citation";
 import { SourcePassage } from "./SourcePassage";
 import { cloudFolders, currentLibrary, onSourceSync, readSource, readWatch, scanSource, setSource as saveSource, type FolderSource } from "./source-sync";
 import { Select } from "../Select";
@@ -108,7 +109,7 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
   const search = useDeferredValue(query);
   const hits = useMemo(() => findPassages(index, search), [index, search]);
   const shown = source ? index.docs.get(source.path) : null;
-  const location = (hit: typeof hits[number]) => t("knowledge.location", { file: hit.path, page: hit.passage.page, paragraph: hit.passage.paragraph });
+  const location = (hit: typeof hits[number]) => citationLocation(hit.path, hit.passage);
   function ask() {
     if (sending || !hits.length) return;
     setSending(true); setSendFailed(false);

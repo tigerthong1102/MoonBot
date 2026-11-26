@@ -95,14 +95,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("keeps a local report preview usable and offers retry after a failed share-origin lookup", async () => {
+it.each([
+  { name: "HTTP 503", response: () => json(503, { error: "temporary failure" }) },
+  { name: "legacy document", response: () => json(200, botHtmlDocument({ messageId: "a1", rev: 0, html: "<p>Legacy</p>" })) },
+  { name: "non-JSON response", response: () => new Response("unexpected html", { status: 200 }) },
+  { name: "malformed response", response: () => json(200, { configured: 123, detected: null }) },
+])("keeps a local report preview usable and offers retry after $name", async ({ response }) => {
   vi.spyOn(window, "location", "get").mockReturnValue(new URL("http://localhost:4321") as unknown as Location);
   const normalFetch = fetchMock.getMockImplementation()!;
   let lookedUp = 0;
   fetchMock.mockImplementation(async (path, init) => {
     if (path.endsWith("?shareOrigin=1")) {
       lookedUp++;
-      if (lookedUp === 1) return json(503, { error: "temporary failure" });
+      if (lookedUp === 1) return response();
       return json(200, { configured: "https://reports.example.test", detected: null });
     }
     return normalFetch(path, init);

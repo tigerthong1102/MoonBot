@@ -21,6 +21,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+export async function fetchReportShareOrigins(path: string, signal: AbortSignal) {
+  const body = await api<unknown>(path, { background: true, signal, timeoutMs: 8000 });
+  const nullableOrigin = (value: unknown): value is string | null => value === null || typeof value === "string";
+  if (!isRecord(body) || !nullableOrigin(body.configured) || !nullableOrigin(body.detected)) throw new Error("Invalid report share origins");
+  return { configured: body.configured, detected: body.detected };
+}
+
 export type AppFetchFailure = { offline: true } | { offline: false; status: number; error: string; asleep?: true };
 
 export class AppDocumentError extends Error {

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, type Server } from "node:http";
@@ -309,7 +309,7 @@ it("resolves a private report's released version at one address and closes acces
 
 it("returns only share origins to authorized readers of a released report", async () => {
   let member = true;
-  const reportShareOrigins = vi.fn(() => ({ configured: "https://reports.example.test", detected: "http://192.168.1.25:8080", privateSetting: "hidden" }));
+  const reportShareOrigins = vi.fn(() => ({ configured: "HTTPS://REPORTS.EXAMPLE.TEST:443/", detected: "http://192.168.1.25:8080", privateSetting: "hidden" }));
   const { store, bot, get, page } = await fixture({
     reportShareOrigins, threadVisible: auth => auth.kind !== "session" || (member && auth.session.id === "ann"),
   });
@@ -328,6 +328,32 @@ it("returns only share origins to authorized readers of a released report", asyn
   expect((await get(address, "ann")).status).toBe(404);
   expect(publishInternalReport(store, threadId, id, null)).toBe(true);
   expect((await get(address)).status).toBe(404);
+});
+
+it("checks a pinned report's stored release without building its preview", async () => {
+  const { store, bot, chatApps, get, folderPage } = await fixture();
+  const threadId = bot.threadId, id = await folderPage(threadId);
+  const stored = store.messagesFor(threadId).find(row => row.id === id)!.app!;
+  const updated = await chatApps.createAppCard({ bot, threadId, input: { tool: "update_html", app_id: id, html: "<p>New</p>" } });
+  expect(updated.ok).toBe(true);
+  expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
+  const build = vi.spyOn(chatApps, "appDocument");
+  const read = vi.spyOn(chatApps.docs, "read");
+  const root = `/api/threads/${threadId}/messages/${id}/app`;
+  expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(200);
+  expect(build).not.toHaveBeenCalled();
+  expect(read).not.toHaveBeenCalled();
+  expect((await get(root + "?report=1", "ann")).body.rev).toBe(0);
+  expect(build).toHaveBeenCalledOnce();
+  expect(read).toHaveBeenCalledOnce();
+  const manifestPath = join(DATA_DIR, "app-docs", "doc", stored.doc + ".json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { html: string };
+  rmSync(join(DATA_DIR, "app-docs", "html", manifest.html + ".html"));
+  expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(404);
+  rmSync(manifestPath);
+  expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(404);
+  expect(build).toHaveBeenCalledOnce();
+  expect(read).toHaveBeenCalledOnce();
 });
 
 it("returns different permitted source sections at the same report URL without leaking the private section title or ids", async () => {

@@ -18,7 +18,7 @@ import type { AppDocument, AppPayload } from "../../../shared/app";
 import { marksMessage, pointMessage, readPointEvent } from "../../../shared/app-frame/point";
 import type { PublishedPageCard } from "../../../shared/published-page";
 import { canonicalDownloadFilename } from "../AttachmentPreview";
-import { appDocumentPath, appDownloadPath, publishAppPage, unpublishPage } from "./app-api";
+import { appDocumentPath, appDownloadPath, fetchReportShareOrigins, publishAppPage, unpublishPage } from "./app-api";
 import { AppFrame, type AppFrameHandle } from "./AppFrame";
 import type { AppSelection } from "./app-frame-host";
 import { ASK_CHIP, ASK_CHIP_IDLE, ASK_CHIP_PICKED, ASK_PRIMARY_BUTTON } from "../AskCard";
@@ -75,7 +75,7 @@ export function usePageShare(threadId: string, messageId: string, published: Pub
   useEffect(() => {
     if (!internalLive) { setOriginResult(null); return; }
     const controller = new AbortController();
-    void api<{ configured: string | null; detected: string | null }>(originPath, { background: true, signal: controller.signal, timeoutMs: 8000 })
+    void fetchReportShareOrigins(originPath, controller.signal)
       .then(({ configured, detected }) => ({
         key: originKey, origin: shareableReportOrigin(configured) || shareableReportOrigin(window.location.origin) || shareableReportOrigin(detected), failed: false,
       }))

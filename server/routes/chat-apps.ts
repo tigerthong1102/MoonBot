@@ -1,7 +1,7 @@
 import { APP_LIMITS, ROOM_VIEW_ONLY, type AppPayload } from "../../shared/app.ts";
 import { APP_RPC_METHODS, type AppRpcMethod } from "../../shared/app-frame/bridge.ts";
 import { webOrigin } from "../../shared/app-frame/csp.ts";
-import { appRow, createChatApps, rowRate, type ChatApps } from "../chat-apps.ts";
+import { appRow, createChatApps, releasedReportVersion, rowRate, type ChatApps } from "../chat-apps.ts";
 import { changeReportSection, reportSections } from "../pages/report-sections.ts";
 import { messageFileDisposition } from "../message-file.ts";
 import type { RequestAuth } from "../request-auth.ts";
@@ -47,6 +47,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function canonicalShareOrigin(value: string | null | undefined): string | null {
+  const address = value?.trim();
+  if (!address || address.length > 300 || !/^https?:\/\/[^/?#\\@\s]+\/?$/i.test(address)) return null;
+  try { return new URL(address).origin; } catch { return null; }
+}
+
 export function createChatAppRoutes(deps: ChatAppRouteDeps): RouteHandler {
   const { store, apps } = deps;
   const contextRate = rowRate(120, 60_000);
@@ -59,7 +65,8 @@ export function createChatAppRoutes(deps: ChatAppRouteDeps): RouteHandler {
       if (!store.botByThread(threadId) && !store.groupByThread(threadId)) return json(res, 404, { error: "no such conversation" });
       const visible = deps.threadVisible;
       if (visible && !visible(auth, threadId)) return json(res, 404, { error: "no such conversation" });
-      if (!appRow(store, threadId, m[2]!)) return json(res, 404, { error: "no app on that message" });
+      const row = appRow(store, threadId, m[2]!);
+      if (!row) return json(res, 404, { error: "no app on that message" });
       const asked = url.searchParams.get("rev");
       if (asked !== null && !/^\d{1,6}$/.test(asked)) return json(res, 400, { error: "rev must be a version number" });
       if (m[3]) {
@@ -79,18 +86,21 @@ export function createChatAppRoutes(deps: ChatAppRouteDeps): RouteHandler {
         res.end(body);
         return;
       }
+      const missing = () => json(res, 404, userError(asked === null ? "serverError.page.notStored" : "serverError.page.versionGone"));
+      if (url.searchParams.get("shareOrigin") === "1") {
+        const released = releasedReportVersion(row.app);
+        if (!released || !apps.docs.hasSource(released.doc, "html")) return missing();
+        const origins = deps.reportShareOrigins?.();
+        res.setHeader("cache-control", "private, no-store");
+        return json(res, 200, { configured: canonicalShareOrigin(origins?.configured), detected: canonicalShareOrigin(origins?.detected) });
+      }
       // A folder page's files load from wherever this client reaches the app; it names that origin itself.
       const origin = webOrigin(url.searchParams.get("origin")) ?? webOrigin(url.origin) ?? undefined;
       const viewer = { key: auth.kind === "session" ? `session:${auth.session.id}` : auth.kind, allowed: () => !visible || visible(auth, threadId) };
-      const shareOrigin = url.searchParams.get("shareOrigin") === "1";
-      const report = shareOrigin || url.searchParams.get("report") === "1";
+      const report = url.searchParams.get("report") === "1";
       const doc = apps.appDocument(threadId, m[2]!, asked === null ? undefined : Number(asked), origin, viewer, report);
-      if (!doc) return json(res, 404, userError(asked === null ? "serverError.page.notStored" : "serverError.page.versionGone"));
+      if (!doc) return missing();
       res.setHeader("cache-control", "private, no-store");
-      if (shareOrigin) {
-        const origins = deps.reportShareOrigins?.();
-        return json(res, 200, { configured: webOrigin(origins?.configured), detected: webOrigin(origins?.detected) });
-      }
       if (report) {
         const sections = reportSections(threadId, m[2]!).flatMap(ref => {
           if (visible && !visible(auth, ref.threadId)) return [];

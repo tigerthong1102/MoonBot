@@ -224,6 +224,11 @@ export function publishInternalReport(store: Pick<AgentCardStore, "messagesFor" 
   return Boolean(store.patchMessage(threadId, messageId, { app: { ...row.app, report } }));
 }
 
+export function releasedReportVersion(app: AppPayload): { doc: string; rev: number } | null {
+  if (app.source !== "html" || !app.report) return null;
+  return app.report === "latest" ? pageVersion(app) : app.report;
+}
+
 export function appDocument(args: {
   store: Pick<AgentCardStore, "messagesFor" | "groupByThread">;
   docs: AppDocs;
@@ -238,9 +243,8 @@ export function appDocument(args: {
 }): AppDocument | null {
   const row = appRow(args.store, args.threadId, args.messageId);
   if (!row) return null;
-  if (args.report && (row.app.source !== "html" || !row.app.report)) return null;
-  const version = args.report && row.app.report && row.app.report !== "latest" ? row.app.report
-    : pageVersion(row.app, !args.report && row.app.source === "html" ? args.rev : undefined);
+  const version = args.report ? releasedReportVersion(row.app)
+    : pageVersion(row.app, row.app.source === "html" ? args.rev : undefined);
   if (!version) return null;
   const stored = args.docs.read(version.doc);
   if (!stored || stored.source !== row.app.source) return null;

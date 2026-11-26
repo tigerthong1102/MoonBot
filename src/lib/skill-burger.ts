@@ -174,18 +174,18 @@ export async function undoBurgerEdit(input: { name: string; everyChat: boolean; 
 }
 
 /** The burger `botId` runs by `name`, read again whenever a burger changes. */
-export function useRunnable(name: string | null, botId: string): { workflow: Workflow; everyChat: boolean } | null {
+export function useRunnable(name: string | null, botId: string, revision?: string): { workflow: Workflow; everyChat: boolean } | null {
   const [found, setFound] = useState<{ key: string; value: { workflow: Workflow; everyChat: boolean } | null } | null>(null);
-  const key = name ? `${botId}:${name}` : "";
+  const key = name ? JSON.stringify([botId, name, revision]) : "";
   useEffect(() => {
     if (!name) return;
     let current = true;
     let generation = 0;
-    const read = () => { const request = ++generation; void fetchRunnable(name, botId).then((value) => { if (current && request === generation) setFound({ key: `${botId}:${name}`, value }); }); };
+    const read = () => { const request = ++generation; void fetchRunnable(name, botId).then((value) => { if (current && request === generation) setFound({ key, value }); }); };
     read();
     window.addEventListener(CHANGED, read);
     return () => { current = false; window.removeEventListener(CHANGED, read); };
-  }, [name, botId]);
+  }, [name, botId, key]);
   return found?.key === key ? found.value : null;
 }
 

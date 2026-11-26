@@ -305,6 +305,8 @@ class Drafter {
       this.steps.push({ id, kind: "app", label, app: layer.app!, tool: layer.tool, args: this.values(id, layer.args) as Record<string, unknown>, ...(layer.account ? { account: layer.account } : {}) });
     } else if (layer.kind === "shell" && RUN_TEMP.test(command)) {
       this.steps.push(this.ai(id, layer, label, " It used a temporary folder of that run, which is gone now, so redo it with fresh ones."));
+    } else if (layer.kind === "shell" && command.match(CONVERSATION_FOLDER) && (/\bcd\s+(?!["']?\.(?:[\s;&]|["']|$))/.test(command.replace(CONVERSATION_FOLDER, ".")) || (typeof layer.args.cwd === "string" && !/^(?:\.[\\/]?)$/.test(layer.args.cwd.replace(CONVERSATION_CWD, "."))))) {
+      this.steps.push(this.ai(id, layer, label, " Resolve the original conversation-root paths safely before running the command."));
     } else if (layer.kind === "shell" && embeddedSourceHas(command, (source) => this.typed.some(({ value }) => source.includes(value)))) {
       this.steps.push(this.ai(id, layer, label, " Treat input values as data when adapting the embedded program."));
     } else if (layer.kind === "shell" && heredoc && heredoc[3]!.trim().length >= HEREDOC_MIN && layer.afterRead) {

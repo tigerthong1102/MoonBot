@@ -19,6 +19,15 @@ const bash = (command: string, extra: Partial<NonNullable<RunMessage["tool"]>> =
 });
 
 describe("a delegation run", () => {
+  it("does not merge a refused teammate handoff into completed work", () => {
+    const calls = run.filter((message) => message.tool?.name?.endsWith("coordinate_bots")).slice(0, 2);
+    const failed = { ...calls[1]!, tool: { ...calls[1]!.tool!, ok: false } };
+    const reply = run.find((message) => message.roomRequest?.phase === "result")!;
+    const layers = burgerLayers([ask("Delegate the work"), calls[0]!, failed, reply]);
+    expect(layers).toHaveLength(2);
+    expect(layers[0]!.delegation!.rounds[0]).toHaveLength(1);
+    expect(layers[1]!.status).toBe("failed");
+  });
   it("keeps every teammate when simultaneous handoffs exceed eight", () => {
     const first = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
     const calls = [0, 1, 2].map((group) => ({ ...first, id: `many-${group}`, tool: { ...first.tool!, input: JSON.stringify({ bot_ids: [0, 1, 2].map((i) => `bot-${group}-${i}`), message: `Do part ${group}` }) } }));

@@ -16,6 +16,11 @@ const multi = (slug: string, args: unknown, output?: unknown) =>
   tool("mcp__composio__COMPOSIO_MULTI_EXECUTE_TOOL", { tools: [{ tool_slug: slug, arguments: args }] }, output === undefined ? {} : { output: JSON.stringify(output) });
 
 describe("where each step ran", () => {
+  it.each(["cd nested && printf ok > /Users/ana/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/report.txt", "printf ok > /Users/ana/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/report.txt"])("hands root paths to the bot if execution can start in a subfolder: %s", (command) => {
+    const cwd = command.startsWith("cd ") ? undefined : "/Users/ana/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/nested";
+    const { workflow } = draftWorkflow([ask("Save the report"), tool("Bash", { command, ...(cwd ? { cwd } : {}) }), tool("Bash", { command: "cp report.txt archive.txt" })])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining("conversation-root paths") });
+  });
   it.each([
     `python3 -c "open('report.csv','w').write('ok')"`,
     `node --eval "require('fs').readFileSync('report.csv')"`,

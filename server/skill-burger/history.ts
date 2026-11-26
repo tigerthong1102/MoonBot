@@ -63,9 +63,7 @@ export function createRunHistory(dir: string, now: () => number = Date.now) {
         if (failedBefore && steps.find((step) => step.id === failedBefore)?.state === "done") record.fixedBy = failedBefore;
         ledger[context.name] = [record, ...runs.filter((one) => one.run !== envelope.run)].slice(0, RUNS_KEPT);
         write(ledger);
-      } catch {
-        // A run never fails because its history couldn't be written.
-      }
+      } catch {}
     },
     /** The burger's recent runs, newest first, by the bots in `botIds` (every bot when absent). */
     list(name: string, botIds?: ReadonlySet<string>): RunRecord[] {

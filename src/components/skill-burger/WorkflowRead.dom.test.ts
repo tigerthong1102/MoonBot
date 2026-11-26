@@ -23,3 +23,16 @@ it("keeps the newest workflow when an older request completes later", async () =
     expect(host.textContent).toBe("New");
   } finally { act(() => root.unmount()); host.remove(); }
 });
+
+it("refreshes the displayed workflow when an edit changes its revision", async () => {
+  fixture.api.mockResolvedValueOnce({ workflow: { summary: "Before" }, everyChat: false }).mockResolvedValueOnce({ workflow: { summary: "After" }, everyChat: false });
+  function View({ revision }: { revision: string }) { const value = useRunnable("fixture", "bot", revision); return createElement("p", null, value?.workflow.summary); }
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(View, { revision: "edit-1" })));
+    expect(host.textContent).toBe("Before");
+    await act(async () => root.render(createElement(View, { revision: "edit-2" })));
+    expect(host.textContent).toBe("After");
+  } finally { act(() => root.unmount()); host.remove(); }
+});

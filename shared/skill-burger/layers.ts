@@ -440,14 +440,14 @@ function joinDelegations(layers: BurgerLayer[], round: Map<string, number>, repl
     const call = layer.delegation.rounds[0]![0]!;
     const ids = call.bots.map((bot) => bot.id ?? bot.name);
     const last = out[out.length - 1];
-    if (last?.kind === "delegate" && last.delegation && !last.args && !layer.args && botsOf(last).size + ids.length <= 8 && round.get(last.id) === round.get(layer.id) && !ids.some((id) => botsOf(last).has(id)) && Boolean(last.delegation.rounds.at(-1)?.[0]?.rework) === Boolean(call.rework) && Boolean(last.delegation.rounds.at(-1)?.[0]?.consult) === Boolean(call.consult)) {
+    if (last?.kind === "delegate" && last.delegation && last.status !== "failed" && layer.status !== "failed" && !last.args && !layer.args && botsOf(last).size + ids.length <= 8 && round.get(last.id) === round.get(layer.id) && !ids.some((id) => botsOf(last).has(id)) && Boolean(last.delegation.rounds.at(-1)?.[0]?.rework) === Boolean(call.rework) && Boolean(last.delegation.rounds.at(-1)?.[0]?.consult) === Boolean(call.consult)) {
       const rounds = last.delegation.rounds;
       rounds[rounds.length - 1]!.push(call);
-      out[out.length - 1] = { ...last, replay: last.replay === "exact" && layer.replay === "exact" ? "exact" : "ai", words: [...new Set([...last.words.split(", "), ...layer.words.split(", ")])].join(", "), status: last.status === "failed" ? layer.status : last.status };
+      out[out.length - 1] = { ...last, replay: last.replay === "exact" && layer.replay === "exact" ? "exact" : "ai", words: [...new Set([...last.words.split(", "), ...layer.words.split(", ")])].join(", ") };
       round.set(out[out.length - 1]!.id, round.get(layer.id)!);
       continue;
     }
-    const earlier = call.rework && !layer.args && last?.kind === "delegate" && !last.args && Boolean(last.delegation?.rounds[0]?.[0]?.consult) === Boolean(call.consult) && ids.every((id) => botsOf(last).has(id)) ? last : undefined;
+    const earlier = call.rework && layer.status !== "failed" && !layer.args && last?.kind === "delegate" && last.status !== "failed" && !last.args && Boolean(last.delegation?.rounds[0]?.[0]?.consult) === Boolean(call.consult) && ids.every((id) => botsOf(last).has(id)) ? last : undefined;
     if (earlier?.delegation && round.get(earlier.id) !== round.get(layer.id)) {
       const rounds = earlier.delegation.rounds;
       const lastRoundAt = round.get(`${earlier.id}#last`) ?? round.get(earlier.id);

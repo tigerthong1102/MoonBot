@@ -10,6 +10,7 @@ import { DATA_DIR, type AppConfig } from "./config.ts";
 import { githubSkillOriginSchema, skillFolderDigest, skillFolderRecordSchema, writeSkillFolder } from "./skill-folder.ts";
 import { entryExistsWithoutFollowing } from "./skill-storage.ts";
 import type { GitHubSkillOrigin } from "../shared/skill-import.ts";
+import { burgerBotOf } from "../shared/skill-burger/saved.ts";
 import { isSkillName, parseSkillMd, SKILL_FILE_MAX_BYTES } from "../shared/skill-md.ts";
 import type { SkillPackageStamp } from "./skills.ts";
 
@@ -148,6 +149,7 @@ export interface SkillLibraryEntry {
   reviewState: LibraryReviewState;
   /** Available to every existing and future bot, unless a private skill shadows it. */
   everyBot?: boolean;
+  workflowOriginBot?: string;
   license?: string;
   compatibility?: string;
   tags?: string[];
@@ -197,6 +199,7 @@ const skillLibraryEntrySchema = z.object({
   importedAt: z.string(),
   reviewState: z.enum(["approved", "disabled"]),
   everyBot: z.boolean().optional(),
+  workflowOriginBot: z.string().min(1).max(128).optional(),
   license: z.string().optional(),
   compatibility: z.string().optional(),
   tags: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,23}$/)).max(8).optional(),
@@ -247,9 +250,14 @@ function readSkillLibraryIndexState(root: string): SkillLibraryIndexRead {
   try {
     const parsed: unknown = JSON.parse(readFileSync(libraryIndexPath(root), "utf8"));
     const result = skillLibraryIndexSchema.safeParse(parsed);
-    return result.success
-      ? { index: result.data }
-      : { error: "the skills library index is invalid" };
+    if (!result.success) return { error: "the skills library index is invalid" };
+    for (const entry of Object.values(result.data)) {
+      const origin = burgerBotOf(entry.source);
+      if (!origin) continue;
+      entry.source = "skill-burger";
+      if (!entry.workflowOriginBot && /^[\w-]{1,128}$/.test(origin)) entry.workflowOriginBot = origin;
+    }
+    return { index: result.data };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { index: {} };
     return { error: "the skills library index could not be read" };
@@ -410,6 +418,7 @@ interface LibrarySkillInstall {
   description?: string;
   instructions: string;
   source: string;
+  workflowOriginBot?: string;
   license?: string;
   compatibility?: string;
   tags?: string[];
@@ -443,6 +452,7 @@ function stageLibrarySkill(input: LibrarySkillInstall, root: string, index: Reco
     name: input.name,
     description: input.description?.trim() || parsed.description,
     source: input.source,
+    ...(input.workflowOriginBot ? { workflowOriginBot: input.workflowOriginBot } : {}),
     sha256,
     importedAt: new Date().toISOString(),
     reviewState: input.reviewState ?? "disabled",

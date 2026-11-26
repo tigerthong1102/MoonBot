@@ -104,6 +104,7 @@ export class BoxRunner {
     const env = mutate?.has("env-all")
       ? Object.fromEntries(Object.entries(request.env).filter((entry): entry is [string, string] => entry[1] !== undefined))
       : boxEnvironment(request.env, this.options.denyEnv, new Set(request.allowEnv ?? []));
+    for (const name of request.workflowEnv ?? []) if (/^OMB_ARG_[A-Z][A-Z0-9_]{0,39}$/.test(name) && !this.options.denyEnv?.has(name) && request.env[name] !== undefined) env[name] = request.env[name]!;
     // The server's own PATH leaves out the programs in HOME (program-trust.ts); inside the box they are the bot's own.
     const homePrograms = homeProgramDirs(resolve(request.home ?? this.options.setup.home)).filter((dir) => !(env.PATH ?? "").split(":").includes(dir));
     if (homePrograms.length) env.PATH = [...(env.PATH ? [env.PATH] : []), ...homePrograms].join(":");

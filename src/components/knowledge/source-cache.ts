@@ -2,8 +2,8 @@ import { browserRecord } from "@/lib/browser-records";
 import { readSessionState } from "@/lib/session";
 import type { Index } from "./source-index";
 
-export async function libraryOwner() {
-  const session = await readSessionState();
+export async function libraryOwner(fetchImpl?: typeof fetch) {
+  const session = await readSessionState(fetchImpl);
   if (session.kind === "session") return session.id;
   if (session.kind === "loopback" && session.trust !== "service") return "local";
   return null;

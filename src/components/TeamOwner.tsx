@@ -127,7 +127,6 @@ export function NeedsYouTitle({ item, title }: { item: NeedsYouItem; title: stri
   return <span className="flex w-full min-w-0 items-center gap-1.5 text-[13px] text-ink"><PersonFace person={from} size={16} /><span className="min-w-0 truncate">{title}</span></span>;
 }
 
-/** One thing that needs this person, opening its conversation or model provider settings. */
 export function NeedsYouLine({ item, onOpened, menuItem = true }: { item: NeedsYouItem; onOpened?: () => void; menuItem?: boolean }) {
   const { state, dispatch } = useStore();
   const showThreads = useShowThreads();

@@ -9,9 +9,9 @@ let checking: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 /** A request was refused (401/403): asks the server once whether this device is still signed in. */
-export function noteRefusedRequest(): void {
+export function noteRefusedRequest(fetchImpl?: typeof fetch): void {
   if (ended || checking) return;
-  checking = readSessionState().then((state) => {
+  checking = readSessionState(fetchImpl).then((state) => {
     if (state.kind !== "unauthenticated") return;
     ended = true;
     try { sessionStorage.setItem(ENDED_KEY, "1"); } catch { }

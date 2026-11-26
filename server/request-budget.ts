@@ -5,8 +5,6 @@ import type { AppConfig } from "./config.ts";
 type Usage = { tokens: number; usd: number };
 type Limits = Pick<AppConfig, "budgets"> & { usageCaps?: UsageCapsConfig };
 
-/** Completed HTTP requests are visible here until the driver's normal turn-completed event
- * books the aggregate. Concurrent sibling turns therefore see one another's measured usage. */
 export function createRequestBudgets(deps: {
   config(): Limits; directory: string; activeRoots(): Set<string>;
 }) {
@@ -22,7 +20,6 @@ export function createRequestBudgets(deps: {
     const totals = () => {
       const current = root();
       if (!current) return bound ? runs.get(bound) ?? localRun : localRun;
-      // A first delegation can create the coordinator root after its parent's first request.
       if (bound !== current.id) {
         const value = runs.get(current.id) ?? { tokens: 0, usd: 0 };
         value.tokens += localRun.tokens;

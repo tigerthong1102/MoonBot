@@ -19,7 +19,6 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
   const [index, setIndex] = useState<Index>(empty);
   const current = useRef(index);
   const key = useRef<string | null>(null);
-  // A selection that the browser could not persist supersedes the old cache in this panel only.
   const unsaved = useRef<UnsavedSelection | null>(null);
   const [starting, setStarting] = useState(true);
   const [cacheFailed, setCacheFailed] = useState(false);

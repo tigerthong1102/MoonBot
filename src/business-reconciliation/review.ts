@@ -31,7 +31,7 @@ function changesFor(value: { version?: number; changes?: ReviewChange[] }, repor
   });
 }
 
-/** Read a portable review as its own table. Imported content is data and only known reason keys reach the UI. */
+/** Imported content is data and only known reason keys reach the UI. */
 export function openReview(raw: string): { report: Report; changes: ReviewChange[] } {
   const envelope = JSON.parse(raw);
   const r = envelope?.report;

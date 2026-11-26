@@ -52,7 +52,7 @@ export function SidebarPhoneBar({ query, onQuery }: { query: string; onQuery: (q
       active: state.pluginsOpen,
       onSelect: () => dispatch({ type: "togglePlugins", open: true }),
     },
-    ...(!state.config?.cloudHome && !state.config?.team ? [{
+    ...(!state.config?.cloudHome || state.config?.team ? [{
       key: "skill-burgers",
       label: t("skillBurger.list.title"),
       icon: <Hamburger size={18} />,

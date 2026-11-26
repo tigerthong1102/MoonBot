@@ -1,4 +1,5 @@
 import { isSkillName } from "../../shared/skill-md.ts";
+import { burgerBotOf } from "../../shared/skill-burger/saved.ts";
 import { z } from "zod";
 
 import type { SkillsLibrarySkillWire } from "../../shared/wire.ts";
@@ -29,6 +30,11 @@ export interface BotSkillsRouteDeps {
 export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
   const { store, cfg, listBotSkills, readBotSkillFile, stagedSkillListing } = deps;
   return async ({ req, res, url, path, method, auth, json, readBody }) => {
+    const sourceForViewer = (source: string) => {
+      const origin = burgerBotOf(source);
+      return origin && !deps.visibleBot(auth, origin) ? "skill-burger" : source;
+    };
+    const skillForViewer = <T extends { source: string }>(skill: T): T => typeof skill.source === "string" ? { ...skill, source: sourceForViewer(skill.source) } : skill;
     let m: RegExpMatchArray | null = null;
     // Imports land DISABLED: a person enables one after reading SKILL.md and its scan warnings.
     m = path.match(/^\/api\/bots\/([\w-]+)\/skill-template$/);
@@ -58,14 +64,14 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
         const { skills, library } = listBotSkillsWithOrigin(m[1]!, store.bot(m[1])!.assignedSkills);
         const names = new Set(skills.map((skill) => skill.name));
         return json(res, 200, {
-          skills: [...skills, ...listBotSkills(bot, threadId).filter((skill) => !names.has(skill.name))],
-          library,
+          skills: [...skills, ...listBotSkills(bot, threadId).filter((skill) => !names.has(skill.name))].map(skillForViewer),
+          library: library.map(skillForViewer),
           assignedSkills: store.bot(m[1])!.assignedSkills,
           staged: listStagedSkillWrites(m[1]).map(stagedSkillListing),
         });
       }
       return json(res, 200, {
-        skills: listBotSkills(bot, threadId),
+        skills: listBotSkills(bot, threadId).map(skillForViewer),
         staged: listStagedSkillWrites(m[1]).map(stagedSkillListing),
       });
     }
@@ -139,7 +145,7 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
         .map((listing): SkillsLibrarySkillWire => ({
           name: listing.name,
           description: listing.description,
-          source: listing.source,
+          source: sourceForViewer(listing.source),
           enabled: listing.enabled,
           everyBot: index[listing.name]?.everyBot === true,
           tags: listing.tags ?? [],
@@ -190,7 +196,7 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
         ? setLibrarySkillReviewState(m[1]!, parsed.data.enabled ? "approved" : "disabled")
         : setLibrarySkillEveryBot(m[1]!, parsed.data.everyBot!);
       if ("error" in result) return json(res, 404, { error: result.error });
-      return json(res, 200, { skill: result });
+      return json(res, 200, { skill: skillForViewer(result) });
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/skills-library$/);
     if (m && method === "PATCH") {

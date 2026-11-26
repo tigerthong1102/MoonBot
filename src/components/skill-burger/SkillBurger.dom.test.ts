@@ -21,9 +21,9 @@ const app = (id: string, slug: string, live = false): RunMessage => ({
 });
 const saved = { name: "email-the-sales-sheet-to-priya", summary: "Email the sales sheet to Priya", sha256: "f".repeat(64), savedAt: "2026-11-23T00:00:00.000Z", layers: [], args: [] };
 
-const render = async (messages: RunMessage[], live: string[] = [], busy = false) => {
+const render = async (messages: RunMessage[], live: string[] = [], busy = false, team = false) => {
   await act(async () => root.render(createElement(SkillBurgerSlot, {
-    botId: "scout", threadId: "t1", busy, canWrite: true, messages, liveTools: new Set(live), transcriptKey: "scout:t1",
+    botId: "scout", threadId: "t1", busy, canWrite: true, messages, liveTools: new Set(live), transcriptKey: team ? "team:scout:t1" : "scout:t1", team,
   })));
 };
 const burger = () => host.querySelector<HTMLElement>("[data-skill-burger]");
@@ -72,6 +72,15 @@ it("saves in one click, then Undo takes back the exact copy", async () => {
   expect(button("Add Skill Burger")).toBeDefined();
 });
 
+it("shows the audience when sharing a conversation-derived workflow with a team", async () => {
+  fixture.api.mockImplementation(async (path: string) => path === "/api/skill-burgers" ? { skill: saved } : { draft: null });
+  await render([ask, app("m1", "GOOGLESHEETS_BATCH_GET"), app("m2", "GMAIL_SEND_EMAIL")], [], false, true);
+  expect(document.body.textContent).toContain("People who can view this bot can see it");
+  expect(fixture.api.mock.calls.some(([path]) => path === "/api/skill-burgers")).toBe(false);
+  await act(async () => button("Share workflow")!.click());
+  expect(fixture.api).toHaveBeenCalledWith("/api/skill-burgers", { method: "POST", body: JSON.stringify({ botId: "scout", threadId: "t1", summary: "Email the sales sheet to Priya", shareConsent: true }) });
+});
+
 it("edits the summary in place: Escape puts it back, Enter keeps it", async () => {
   await render([ask, app("m1", "GOOGLESHEETS_BATCH_GET"), app("m2", "GMAIL_SEND_EMAIL")]);
   const edit = async (value: string, key: string) => {
@@ -104,5 +113,75 @@ it("keeps the editable request as the title without sending the run to a model",
   expect(button("Email the sales sheet to Priya")).toBeDefined();
   await render([ask, app("m1", "GOOGLESHEETS_BATCH_GET"), app("m2", "GMAIL_SEND_EMAIL")]);
   expect(button("Email the sales sheet to Priya")).toBeDefined();
-  expect(fixture.api).not.toHaveBeenCalled();
+  expect(fixture.api.mock.calls.every(([path]) => path === "/api/skill-burger-draft")).toBe(true);
+});
+
+it("explains a finished delegation run and saves only what the person kept, under the input names they chose", async () => {
+  const draft = {
+    goal: "QA-test https://mausbot.com with Kiwi and Rio",
+    inputs: [{ name: "site", value: "https://mausbot.com", label: "site" }],
+    steps: [
+      { id: "s1", kind: "delegate", label: "Ask Kiwi and Rio", exact: true, needs: [], who: [{ name: "Kiwi", role: "Accessibility tester" }, { name: "Rio" }],
+        asked: [{ who: "Kiwi", text: "QA-test https://mausbot.com for accessibility" }, { who: "Rio", text: "QA-test https://mausbot.com for speed" }],
+        back: [{ who: "Kiwi", text: "3 findings", ok: true, round: 1 }, { who: "Rio", text: "2 findings", ok: true, round: 1 }, { who: "Rio", text: "3 findings", ok: true, round: 2 }],
+        rounds: 2, reviewRounds: 1, doneWhen: "3 findings, each naming the URL" },
+      { id: "s2", kind: "ai", label: "Review what came back and report", exact: false, needs: ["s1"] },
+    ],
+    outcome: "Verdict: nothing serious.",
+  };
+  fixture.api.mockImplementation(async (path: string, init?: { method?: string; body?: string }) => {
+    if (path === "/api/skill-burger-draft") return { draft };
+    if (path === "/api/skill-burgers" && init?.method === "POST") return { skill: saved };
+    return {};
+  });
+  const delegate: RunMessage = { id: "m1", role: "bot", kind: "activity", tool: { name: "mcp__agents__coordinate_bots", ok: true, itemId: "c1", input: JSON.stringify({ bot_ids: ["Kiwi", "Rio"], message: "QA-test https://mausbot.com" }) } };
+  const sent: RunMessage = { id: "r1", role: "bot", kind: "activity", tool: { name: "Sent to Kiwi", ok: true }, threadRef: { botId: "kiwi", threadId: "k" } };
+  const replied: RunMessage = { id: "r2", role: "bot", kind: "activity", tool: { name: "Kiwi replied", ok: true, output: "3 findings" }, roomRequest: { id: "q1", phase: "result" }, from: { name: "Kiwi" } };
+  const verdict: RunMessage = { id: "v1", role: "bot", kind: "text", text: "Verdict: nothing serious." };
+  await render([{ ...ask, text: "QA-test https://mausbot.com with Kiwi and Rio" }, delegate, sent, replied, verdict]);
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  const rows = [...host.querySelectorAll("[data-burger-layer]")];
+  expect(rows.map((row) => row.getAttribute("data-burger-layer"))).toEqual(["delegate", "ai"]);
+  expect(host.textContent).not.toContain("Sent to Kiwi");
+  expect(rows[0]!.textContent).toContain("Ask Kiwi and Rio");
+  expect(rows[0]!.textContent).toContain("Kiwi · Accessibility tester");
+  expect(rows[0]!.textContent).toContain("2 rounds");
+  expect(host.querySelector("[role=status]")?.textContent).toContain("1 exact, 1 by judgement");
+  // Open the delegation: what each was asked, what came back, what done meant.
+  await act(async () => rows[0]!.querySelector<HTMLButtonElement>("button[aria-expanded]")!.click());
+  const detail = rows[0]!.querySelector("[data-burger-detail]")!.textContent!;
+  expect(detail).toContain("QA-test https://mausbot.com for speed");
+  expect(detail).toContain("Came back this time");
+  expect(detail).toContain("Done when: 3 findings, each naming the URL");
+  // Leave the review out, and rename the input.
+  await act(async () => host.querySelector<HTMLInputElement>('input[aria-label="Keep “Review what came back and report”"]')!.click());
+  await act(async () => [...host.querySelectorAll<HTMLButtonElement>("[data-burger-inputs] button")][0]!.click());
+  const name = host.querySelector<HTMLInputElement>('input[aria-label="Input name"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(name, "website");
+    name.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => button("Add Skill Burger")!.click());
+  const body = JSON.parse(fixture.api.mock.calls.find(([path, init]) => path === "/api/skill-burgers" && init?.method === "POST")![1].body);
+  expect(body).toMatchObject({ botId: "scout", threadId: "t1", skip: ["s2"], inputs: { site: { name: "website" } } });
+});
+
+it("leaving a step out leaves out the steps that use its output", async () => {
+  const draft = {
+    goal: "Fetch and write", inputs: [],
+    steps: [
+      { id: "s1", kind: "shell", label: "Fetch example.com", exact: true, needs: [] },
+      { id: "s2_write_2", kind: "ai", label: "Write top.md", exact: false, needs: ["s1"] },
+      { id: "s2", kind: "file", label: "Write top.md", exact: true, needs: ["s2_write_2"] },
+    ],
+  };
+  fixture.api.mockImplementation(async (path: string) => (path === "/api/skill-burger-draft" ? { draft } : {}));
+  // Another run than the one saved above: a saved run's card comes back saved.
+  await render([ask, app("m31", "GOOGLESHEETS_BATCH_GET"), app("m32", "GMAIL_SEND_EMAIL")]);
+  await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+  expect([...host.querySelectorAll("[data-burger-layer]")].map((row) => row.textContent)).toEqual([expect.stringContaining("Fetch example.com"), expect.stringContaining("Write top.md")]);
+  await act(async () => host.querySelector<HTMLInputElement>('input[aria-label="Keep “Fetch example.com”"]')!.click());
+  expect([...host.querySelectorAll("[data-burger-layer]")].map((row) => row.getAttribute("data-kept"))).toEqual(["false", "false"]);
+  await act(async () => host.querySelector<HTMLInputElement>('input[aria-label="Keep “Write top.md”"]')!.click());
+  expect([...host.querySelectorAll("[data-burger-layer]")].map((row) => row.getAttribute("data-kept"))).toEqual(["true", "true"]);
 });

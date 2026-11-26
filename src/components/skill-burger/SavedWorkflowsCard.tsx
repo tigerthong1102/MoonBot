@@ -3,15 +3,17 @@ import { useState } from "react";
 import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import type { LocaleKey } from "@/locales";
-import { readBurgerWorkflow, removeBurger, restoreBurger, useSavedBurgers, type SavedWorkflow } from "@/lib/skill-burger";
+import { readBurgerWorkflow, removeBurger, restoreBurger, runBurgerIn, useSavedBurgers, type SavedWorkflow } from "@/lib/skill-burger";
+import { useStoreDispatch } from "@/state/store-select";
 import { Card, NoteRow, TrashButton } from "../bot-panel/rows";
 import { EveryChatToggle } from "./EveryChatToggle";
 import { MiniBurger } from "./MiniBurger";
+import { RunWithInputs } from "./RunInputs";
 import { LayerIcon } from "./SkillBurger";
 
 export const usedBy = (botId: string) => (skill: SavedWorkflow) => skill.everyChat || skill.botId === botId;
 
-export function useBurgerRemoval() {
+export function useBurgerRemoval(team = false) {
   const [removed, setRemoved] = useState<{ skill: SavedWorkflow; workflow: unknown } | null>(null);
   const [problem, setProblem] = useState("");
   const fail = (cause: unknown, fallback: LocaleKey) => setProblem(cause instanceof Error && cause.message ? cause.message : t(fallback));
@@ -28,7 +30,7 @@ export function useBurgerRemoval() {
   const undo = async () => {
     if (!removed) return;
     try {
-      await restoreBurger(removed.skill, removed.workflow);
+      await restoreBurger(removed.skill, removed.workflow, team ? true : undefined);
       setRemoved(null);
     } catch (cause) {
       fail(cause, "skillBurger.undoFailed");
@@ -37,12 +39,13 @@ export function useBurgerRemoval() {
   return { removed, problem, remove, undo };
 }
 
-export function SavedWorkflowsCard({ botId }: { botId: string }) {
+export function SavedWorkflowsCard({ botId, threadId, team = false }: { botId: string; threadId: string; team?: boolean }) {
   const { skills: all, error } = useSavedBurgers();
+  const dispatch = useStoreDispatch();
   const advanced = useAdvancedMode();
   const skills = all?.filter(usedBy(botId)) ?? null;
   const [open, setOpen] = useState<string | null>(null);
-  const { removed, problem, remove, undo } = useBurgerRemoval();
+  const { removed, problem, remove, undo } = useBurgerRemoval(team);
 
   return (
     <Card label={t("skillBurger.list.title")} anchor="skill-burgers">
@@ -56,7 +59,7 @@ export function SavedWorkflowsCard({ botId }: { botId: string }) {
         const listId = `skill-burger-${skill.everyChat ? "every" : "bot"}-${skill.name}`;
         return (
           <div key={key} data-panel-row={`skill-burger:${skill.name}`}>
-            <div className="flex min-h-[46px] items-start gap-3 px-3.5 py-[10px]">
+            <div className="flex min-h-[46px] flex-wrap items-start gap-3 px-3.5 py-[10px]">
               <MiniBurger skill={skill} size="sm" />
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 <button
@@ -69,8 +72,10 @@ export function SavedWorkflowsCard({ botId }: { botId: string }) {
                   <span dir="auto" className="line-clamp-2 text-[14px] font-medium leading-[18px] text-ink">{skill.summary}</span>
                   {advanced && <span className="mt-px block truncate font-mono text-[11px] text-ink-tertiary">{skill.name}</span>}
                 </button>
-                <EveryChatToggle compact skill={skill} />
+                <EveryChatToggle compact skill={skill} team={team} />
               </div>
+              <RunWithInputs skill={skill} iconOnly panelAction={`run-skill-burger:${skill.name}`} onRun={(inputs) => runBurgerIn(dispatch, { id: botId, threadId }, skill.name, inputs)}
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-ink/[0.05] hover:text-ink" />
               <TrashButton data-panel-action={`remove-skill-burger:${skill.name}`} label={t("skillBurger.list.remove", { name: skill.name })} onClick={() => void remove(skill)} />
             </div>
             <ol id={listId} hidden={!expanded} aria-label={t("skillBurger.layers")} className="flex flex-col gap-1 px-3.5 pb-3">

@@ -1,4 +1,5 @@
 import { BOT_PACKAGE_MAX_SKILLS } from "./bot-package.ts";
+import { burgerBotOf } from "../shared/skill-burger/saved.ts";
 import type { SkillsLibraryHost } from "./host/skills-library.ts";
 import type { ExportablePackageSkill, TeamExportSkip } from "./package-export.ts";
 import { isSkillName } from "./skills.ts";
@@ -7,6 +8,7 @@ import type { BotRecord } from "./store.ts";
 /** The skill side of bot and team package export: which names may be exported, and each bot's exportable copies. */
 export function skillExport(host: Pick<SkillsLibraryHost, "listBotSkills" | "readBotSkillFile">) {
   const { readBotSkillFile } = host;
+  const exportSource = (source: string) => burgerBotOf(source) ? "skill-burger" : source;
   // A skill that lives in a folder of the person's (their ~/.claude/skills, a project's) is never packed.
   const listBotSkills = (bot: BotRecord) => host.listBotSkills(bot).filter((skill) => {
     const origin = (skill as { origin?: string }).origin;
@@ -47,7 +49,7 @@ export function skillExport(host: Pick<SkillsLibraryHost, "listBotSkills" | "rea
         const skill: ExportablePackageSkill = {
           name: listing.name,
           description: listing.description,
-          ...(listing.source ? { source: listing.source } : {}),
+          ...(listing.source ? { source: exportSource(listing.source) } : {}),
           ...(listing.license ? { license: listing.license } : {}),
           ...(listing.compatibility ? { compatibility: listing.compatibility } : {}),
           instructions,
@@ -87,7 +89,7 @@ export function skillExport(host: Pick<SkillsLibraryHost, "listBotSkills" | "rea
         assigned.push({
           name: listing.name,
           description: listing.description,
-          ...(listing.source ? { source: listing.source } : {}),
+          ...(listing.source ? { source: exportSource(listing.source) } : {}),
           ...(listing.license ? { license: listing.license } : {}),
           ...(listing.compatibility ? { compatibility: listing.compatibility } : {}),
           instructions,

@@ -1,0 +1,109 @@
+// @vitest-environment happy-dom
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { DataPanel } from "../data/DataPanel";
+import { t } from "@/lib/i18n";
+import type { Bot } from "@/state/store";
+import { api } from "@/state/api";
+import { libraryKey, readLibrary } from "./source-cache";
+import { currentLibrary, setSource } from "./source-sync";
+
+const dispatch = vi.hoisted(() => vi.fn());
+vi.mock("@/state/store", () => ({ useStore: () => ({ state: { dataSheets: {}, dataTables: {}, connected: true }, dispatch }) }));
+vi.mock("../data/SqlEditor", () => ({ SqlEditor: () => null }));
+vi.mock("@/state/api", async load => ({ ...await load<typeof import("@/state/api")>(), api: vi.fn() }));
+vi.mock("./source-cache", async load => ({ ...await load<typeof import("./source-cache")>(), libraryKey: vi.fn(), readLibrary: vi.fn() }));
+vi.mock("./source-sync", async load => ({
+  ...await load<typeof import("./source-sync")>(), currentLibrary: vi.fn(), readWatch: async () => null, setSource: vi.fn(),
+}));
+
+let root: Root, host: HTMLElement, owner: string;
+const mount = async (threadId: string) => { await act(async () => root.render(createElement(DataPanel, { bot: { id: "bot", threadId } as Bot }))); };
+const button = (label: string) => [...host.querySelectorAll("button")].find(b => b.textContent === label);
+const click = async (label: string) => { await act(async () => button(label)!.click()); };
+const open = () => click(t("knowledge.title"));
+const ask = () => click(t("knowledge.ask", { count: 1 }));
+async function search(value: string) {
+  const input = host.querySelector<HTMLInputElement>("input[type=search]")!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+async function selectFile(file: File) {
+  const control = host.querySelector<HTMLInputElement>("input[type=file]")!;
+  Object.defineProperty(control, "files", { configurable: true, value: [file] });
+  await act(async () => { control.dispatchEvent(new Event("change", { bubbles: true })); });
+}
+const doc = () => new File(["Manual ledger reference."], "Guide.txt");
+const indexed = async () => { await act(async () => { await vi.waitFor(() => expect(setSource).toHaveBeenCalled()); }); };
+
+beforeEach(async () => {
+  vi.resetAllMocks();
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({})));
+  owner = "reader";
+  vi.mocked(libraryKey).mockImplementation(async thread => owner + "/" + thread);
+  vi.mocked(currentLibrary).mockResolvedValue(undefined);
+  vi.mocked(setSource).mockRejectedValue(new Error("IndexedDB unavailable"));
+  vi.mocked(api).mockResolvedValue({ ok: true });
+  await import("./SourceLibrary");
+  host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  await mount("a"); await open();
+});
+afterEach(async () => {
+  await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals();
+});
+
+it.each(["unavailable", "stale"])("answers from manually picked bytes while storage is %s, scoped to their viewer", async failure => {
+  if (failure === "unavailable") vi.mocked(currentLibrary).mockRejectedValue(new Error("IndexedDB unavailable"));
+  else vi.mocked(currentLibrary).mockResolvedValue({ docs: new Map(), changes: [] });
+  await selectFile(doc()); await indexed(); await search("ledger");
+  expect(host.textContent).toContain(t("knowledge.cacheFailed"));
+  vi.mocked(readLibrary).mockResolvedValue({ docs: new Map(), changes: [] });
+  await act(async () => { window.dispatchEvent(new CustomEvent("startupbot-document-sync", { detail: "reader/a" })); });
+  owner = "another reader"; await ask();
+  expect(api).not.toHaveBeenCalled();
+  owner = "reader"; await ask();
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(String(vi.mocked(api).mock.calls[0]![1]?.body))).toMatchObject({
+    threadId: "a", question: "ledger", evidence: [{ path: "Guide.txt", text: "Manual ledger reference." }],
+  });
+  await open(); await click(t("knowledge.clear")); await search("ledger");
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
+});
+
+it("requires a new read for a picked folder whose watch could not be saved", async () => {
+  let permitted = true;
+  vi.stubGlobal("showDirectoryPicker", async () => ({
+    name: "Watched", async *values() {
+      if (!permitted) throw new Error("permission revoked");
+      yield { kind: "file", name: "Guide.txt", getFile: async () => doc() };
+    },
+  }));
+  await click(t("knowledge.folder")); await indexed(); await search("ledger");
+  await ask();
+  await act(async () => { await vi.waitFor(() => expect(api).toHaveBeenCalledTimes(1)); });
+  await open();
+  permitted = false; await ask();
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
+});
+
+it("unmounts the old library on a same-bot thread switch and discards an unfinished file import when reopening", async () => {
+  await selectFile(doc()); await indexed(); await search("ledger");
+  const stalled = new File(["private"], "unfinished.txt");
+  const started = Promise.withResolvers<void>(), bytes = Promise.withResolvers<ArrayBuffer>();
+  Object.defineProperty(stalled, "arrayBuffer", { value: () => { started.resolve(); return bytes.promise; } });
+  await selectFile(stalled); await started.promise;
+  await mount("b");
+  expect(host.querySelector("dialog")).toBeNull();
+  await open(); await search("ledger");
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
+  await act(async () => bytes.resolve(new TextEncoder().encode("private").buffer));
+  await mount("a"); await open(); await search("private");
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
+  expect(vi.mocked(setSource).mock.calls.map(([scope]) => scope)).toEqual(["reader/a"]);
+  expect(api).not.toHaveBeenCalled();
+});

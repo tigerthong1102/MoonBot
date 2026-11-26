@@ -12,12 +12,15 @@ import { findPassages, indexSources, scanFolder, type Directory, type Index, typ
 
 const issueLabel = { signedOut: "files.signedOut", offline: "files.offline", missing: "files.status.missing", folder: "files.status.problem" } as const;
 const empty = (): Index => ({ docs: new Map(), changes: [] });
+type UnsavedSelection = { scope: string } & ({ folder: FolderSource; manual?: never } | { folder?: never; manual: Index });
 
 export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: boolean; close(): void }) {
   const submission = useRef<{ payload: string; sendId: string } | null>(null);
   const [index, setIndex] = useState<Index>(empty);
   const current = useRef(index);
   const key = useRef<string | null>(null);
+  // A selection that the browser could not persist supersedes the old cache in this panel only.
+  const unsaved = useRef<UnsavedSelection | null>(null);
   const [starting, setStarting] = useState(true);
   const [cacheFailed, setCacheFailed] = useState(false);
   const [watching, setWatching] = useState<FolderSource | null>(null);
@@ -46,7 +49,7 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
       if (!scope) return;
       async function reload(check = false) {
         const [saved, watch] = await Promise.all([check ? currentLibrary(scope!) : readLibrary(scope!), readWatch(scope!)]);
-        if (!active) return;
+        if (!active || inFlight.current || unsaved.current) return;
         if (saved) { current.current = saved; setIndex(saved); }
         setWatching(watch?.source ?? null);
       }
@@ -60,14 +63,17 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
     inFlight.current = true;
     setBusy(true);
     try {
+      const scope = key.current;
+      if (scope !== await libraryKey(bot.threadId) || !alive.current) return;
       const files = await read();
       const next = await indexSources(files, current.current);
-      if (!alive.current) return;
+      if (scope !== await libraryKey(bot.threadId) || !alive.current) return;
       setWatching(newFolder);
       current.current = next;
       setIndex(next); setError(false);
-      if (key.current) {
-        try { await saveSource(key.current, next, newFolder); setCacheFailed(false); } catch { setCacheFailed(true); }
+      if (scope) {
+        try { await saveSource(scope, next, newFolder); unsaved.current = null; setCacheFailed(false); }
+        catch { unsaved.current = newFolder ? { scope, folder: newFolder } : { scope, manual: next }; setCacheFailed(true); }
       }
     } catch { if (alive.current) setError(true); }
     finally { inFlight.current = false; if (alive.current) setBusy(false); }
@@ -86,8 +92,16 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
   async function clear() {
     setBusy(true);
     try {
-      if (key.current) await saveSource(key.current, empty(), null);
-      current.current = empty(); setIndex(current.current); setWatching(null); setSource(null); setError(false);
+      const next = empty(), scope = key.current;
+      if (scope !== await libraryKey(bot.threadId) || !alive.current) return;
+      if (scope) {
+        try { await saveSource(scope, next, null); unsaved.current = null; setCacheFailed(false); }
+        catch (cause) {
+          if (!unsaved.current) throw cause;
+          unsaved.current = { scope, manual: next }; setCacheFailed(true);
+        }
+      }
+      current.current = next; setIndex(next); setWatching(null); setSource(null); setError(false);
     } catch { setCacheFailed(true); }
     finally { setBusy(false); }
   }
@@ -117,8 +131,12 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
     setSending(true); setSendFailed(false);
     try {
       const scope = await libraryKey(bot.threadId);
-      const fresh = scope && scope === key.current ? await currentLibrary(scope) : null;
-      if (!fresh || !alive.current || scope !== await libraryKey(bot.threadId)) throw new Error();
+      if (!scope || scope !== key.current || !alive.current) throw new Error();
+      const selection = unsaved.current;
+      if (selection && selection.scope !== scope) throw new Error();
+      // Manual files were explicitly picked. A live folder always has to prove access to its contents again.
+      const fresh = selection?.folder ? await scanSource(selection.folder, index) : selection?.manual ?? await currentLibrary(scope);
+      if (!fresh || scope !== await libraryKey(bot.threadId) || !alive.current || selection !== unsaved.current) throw new Error();
       const selected = findPassages(fresh, query).slice(0, 3);
       const displayed = hits.slice(0, 3);
       if (!selected.length || selected.length !== displayed.length || selected.some((hit, i) =>

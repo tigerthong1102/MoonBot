@@ -1,11 +1,10 @@
 import { lstatSync, realpathSync, statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 
-import { fromMarkdown } from "mdast-util-from-markdown";
+import { attachmentTagCandidates, type TagCandidate } from "./attachment-tags.ts";
 
 import { ATTACHMENTS_DIR, FILE_MAX_BYTES, IMAGE_MAX_BYTES } from "./attachments.ts";
 import type { TurnImageInput, TurnVideoInput } from "./contracts.ts";
-import { decodeAttachmentAttribute } from "./message-file.ts";
 import { videoFrameImages } from "./turn-video.ts";
 
 export const TURN_IMAGE_MAX_COUNT = 10;
@@ -14,33 +13,18 @@ export const TURN_IMAGE_MAX_BYTES = 4 * IMAGE_MAX_BYTES;
 // A video is sampled into several frames before it reaches a model, so only the first one in a message is sampled.
 export const TURN_VIDEO_MAX_COUNT = 1;
 
-type MarkdownNode = {
-  type: string;
-  children?: MarkdownNode[];
-  value?: string;
-  position?: {
-    start: { offset?: number };
-    end: { offset?: number };
-  };
-};
-
-type TagCandidate = { start: number; end: number; kind: "image" | "file"; path: string };
-
 const OWNED_IMAGE_NAME =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(png|jpg|gif|webp)$/;
 const OWNED_VIDEO_NAME =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(mp4|webm|mov)$/;
-// Composer video attachments use the generic <attached-file> tag (the same one documents and audio use); only its
-// path decides whether it resolves to a video, so every other file kind keeps going through unexamined.
-const ATTACHMENT_TAG =
-  /^<attached-(image|file)[\t ]+path="([^"\r\n]*)"(?:[\t ]+name="([^"\r\n]*)")?[\t ]*\/>$/;
-
 const MIME_BY_EXTENSION: Readonly<Record<string, TurnImageInput["mime"]>> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
 };
+// Composer video attachments use the generic <attached-file> tag (the same one documents and audio use); only its
+// path decides whether it resolves to a video, so every other file kind keeps going through unexamined.
 const VIDEO_MIME_BY_EXTENSION: Readonly<Record<string, TurnVideoInput["mime"]>> = {
   ".mp4": "video/mp4",
   ".webm": "video/webm",
@@ -49,35 +33,6 @@ const VIDEO_MIME_BY_EXTENSION: Readonly<Record<string, TurnVideoInput["mime"]>> 
 
 function statusError(status: number, message: string): Error & { status: number } {
   return Object.assign(new Error(message), { status });
-}
-
-function walk(node: MarkdownNode, visit: (node: MarkdownNode) => void): void {
-  const pending = [node];
-  while (pending.length > 0) {
-    const current = pending.pop()!;
-    visit(current);
-    const children = current.children ?? [];
-    for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index]!);
-  }
-}
-
-/** Standalone tags only: prose that contains a tag literal must not become an attachment capability. */
-export function attachmentTagCandidates(text: string): TagCandidate[] {
-  const candidates: TagCandidate[] = [];
-  walk(fromMarkdown(text) as MarkdownNode, (node) => {
-    if (node.type !== "html" || !node.value || !node.position) return;
-    const start = node.position.start.offset;
-    const end = node.position.end.offset;
-    if (start === undefined || end === undefined) return;
-    const lineStart = text.lastIndexOf("\n", start - 1) + 1;
-    const nextLine = text.indexOf("\n", end);
-    const lineEnd = nextLine < 0 ? text.length : nextLine;
-    if (text.slice(lineStart, start).trim() || text.slice(end, lineEnd).trim()) return;
-    const match = ATTACHMENT_TAG.exec(node.value);
-    if (!match) return;
-    candidates.push({ start, end, kind: match[1] === "file" ? "file" : "image", path: decodeAttachmentAttribute(match[2]!) });
-  });
-  return candidates;
 }
 
 function ownedAttachment<Mime extends string>(

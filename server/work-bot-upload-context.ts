@@ -4,12 +4,12 @@ import { lstatSync, realpathSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { ATTACHMENTS_DIR, FILE_MAX_BYTES } from "./attachments.ts";
-import { DATA_DIR } from "./config.ts";
+import { FILE_MAX_BYTES } from "../shared/upload-limits.ts";
+import { ATTACHMENTS_DIR, DATA_DIR } from "./config.ts";
 import type { Message } from "./store.ts";
 import type { FollowupPayload } from "./message-db.ts";
 import type { RequestAuth } from "./request-auth.ts";
-import { attachmentTagCandidates } from "./turn-images.ts";
+import { attachmentTagCandidates } from "./attachment-tags.ts";
 import { claimWorkBotUploadReceipt, issueWorkBotUploadReceipt, markWorkBotMessageUploads, newWorkBotMessageEvidenceNonce, reserveWorkBotUpload, workBotMessageEvidenceDigest, workBotMessageUploads, workBotUploadIdIsFresh } from "./work-bot-upload-receipts.ts";
 
 type Binding = { threadId: string; sendId: string; text: string; tokens: string[] };

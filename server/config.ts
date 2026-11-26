@@ -696,6 +696,7 @@ export function changedInstanceIds(before: Record<string, unknown>, after: Recor
 export const DATA_DIR = process.env.OMB_DATA_DIR || join(dataHome(), ".startupbot");
 export const EVENTS_DIR = join(DATA_DIR, "events");
 export const NATIVE_DIR = join(DATA_DIR, "native");
+export const ATTACHMENTS_DIR = join(DATA_DIR, "attachments");
 
 export function ensureDirs() {
   for (const dir of [DATA_DIR, EVENTS_DIR, NATIVE_DIR]) mkdirSync(dir, { recursive: true });

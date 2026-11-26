@@ -13,12 +13,12 @@ import {
 import { link, open, unlink } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { FILE_MAX_BYTES, PREVIEW_MAX_BYTES } from "../shared/upload-limits.ts";
-import { DATA_DIR } from "./config.ts";
+import { ATTACHMENTS_DIR, DATA_DIR } from "./config.ts";
 import { boxUploadsDir } from "./bot-box/plan.ts";
 
 export { parseAudioRange, type AudioRange } from "../shared/audio-range.ts";
 export { FILE_MAX_BYTES, PREVIEW_MAX_BYTES } from "../shared/upload-limits.ts";
-export const ATTACHMENTS_DIR = join(DATA_DIR, "attachments");
+export { ATTACHMENTS_DIR };
 
 export const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 

@@ -195,7 +195,9 @@ import type { RequestAuth } from "./request-auth.ts";
 import { adminAuditPlan, type AuditPlan } from "./admin-audit-plan.ts"; import { departmentGrants, type DepartmentGrant } from "./department-grants.ts";
 import { onKeyRejectionChange } from "./key-rejections.ts";
 import { createRequestBudgets } from "./request-budget.ts";
-import { councilRequest, councilSeat, runCouncil, type CouncilMember } from "./room-council.ts";
+import { appendRoomInput, noteAbsentRoomMembers, noteUnavailableResponder, roomTurnTarget, type StartGroupTurnOptions } from "./host/room-turn-input.ts";
+import { invokeRoomCouncil } from "./host/room-council.ts";
+import { councilRequest, councilSeat } from "./room-council.ts";
 import { assertWithinBudget, noteSpend, spendAlertText, spendState, takeSpendAlert } from "./spend.ts"; import { personWaiting, personWaitingInRoom, type ThreadStanding } from "./usage-caps.ts"; import { createUsageCapGate, USAGE_CAP_CODE } from "./host/usage-cap-gate.ts"; import { createUsageCapRoutes } from "./routes/usage-caps.ts";
 import { fleetAvailable, fleetSocketPath } from "./fleet-client.ts";
 import { HOSTED_CONTRACT_HEADER, HOSTED_CONTRACT_METADATA, HOSTED_CONTRACT_VERSION } from "./hosted-contract.ts";
@@ -262,7 +264,6 @@ import {
 import {
   drainChannelMessages,
   restoreChannelMessages,
-  type ChannelQueueItem,
 } from "./channel-queue.ts"; import { copyRoomPick, pointedResponders, roomPickBots, takeRoomPick, undeliveredPickBots, type RoomPick } from "./room-pointed.ts";
 import {
   acceptedSendMatch,
@@ -4108,7 +4109,6 @@ function readCursor(threadId: string): { lastReadMessageId?: string } {
 }
 
 function publicGroupState(record: GroupRecord): WireGroup {
-  // The organization library's part hashes stay server-side.
   const { installedPackage: _installedPackage, ...group } = record;
   let usage: WireGroup["usage"];
   try { usage = groupUsageReader.forThread(group.threadId); } catch {}
@@ -4126,6 +4126,7 @@ function publicGroupState(record: GroupRecord): WireGroup {
   const activeWorking = groupThreadIsWorking(record.id, group.threadId);
   return {
     ...group,
+    councilAvailable: !record.dm,
     tasks: record.dm ? undefined : tasks,
     // Always present (null when cleared), so a client's shallow merge clears a stale value.
     description: record.description ?? null,
@@ -10714,16 +10715,6 @@ async function runGroupGoalOperation(args: {
   });
 }
 
-type StartGroupTurnOptions = {
-  threadId?: string;
-  goalCoordinatorBotId?: string;
-  goalRunId?: string; mentions?: string[];
-  via?: "api";
-  sender?: ResolvedSender;
-  trigger?: UsageTrigger;
-  queuedGroup?: ChannelQueueItem[]; /** What the person pointed at in a member's page: the page's bot reads it on its turn, and the line shows the chips. */ pointed?: RoomPick;
-};
-
 function startGroupTurn(
   groupId: string,
   text: string,
@@ -10733,21 +10724,7 @@ function startGroupTurn(
   queueId?: string,
   options: StartGroupTurnOptions = {},
 ) {
-  const group = store.group(groupId);
-  if (!group) throw Object.assign(new Error("no such group"), { status: 404 });
-  if (roomSetupPending(group)) {
-    throw Object.assign(new Error("finish room setup before sending the first message"), { status: 409 });
-  }
-  const threadId = options.threadId ?? group.threadId;
-  const ownsThread = group.dm
-    ? group.threadId === threadId
-    : Boolean(store.groupTaskByThread(group.id, threadId));
-  if (!ownsThread) {
-    throw Object.assign(new Error("no such room task"), { status: 404 });
-  }
-  const members = group.memberIds
-    .map((id) => store.bot(id))
-    .filter((bot): bot is NonNullable<typeof bot> => Boolean(bot));
+  const { group, threadId, members } = roomTurnTarget(store, groupId, options.threadId, roomSetupPending);
   const isHeld = (member: { id: string }) => roomHeld(group, member.id);
   const { availableMembers, goalMembers, routableMembers } = roomTurnMembers(members, isHeld, (member) => botHolds.held(member.id));
   const requestedGoalCoordinator = options.goalCoordinatorBotId
@@ -10768,64 +10745,12 @@ function startGroupTurn(
       })()
     : [];
   const queuedGroup = options.queuedGroup;
-  const message = queuedGroup && queuedGroup.length > 0
-    ? (() => {
-        for (const item of queuedGroup.slice(0, -1)) {
-          store.appendMessage(threadId, {
-            role: "user",
-            kind: "text",
-            text: item.text,
-            replyToId: item.replyToId,
-            reaction: item.reaction,
-            sendId: item.sendId,
-            channelMode: item.mode,
-            queueId: item.id,
-            via: item.via,
-            sender: item.sender, ...(item.pointed ? { pointed: item.pointed.refs } : {}),
-          });
-        }
-        const last = queuedGroup[queuedGroup.length - 1]!;
-        return store.appendMessage(threadId, {
-          role: "user",
-          kind: "text",
-          text: last.text,
-          replyToId: replyTo?.id,
-          reaction: last.reaction,
-          sendId: last.sendId,
-          channelMode: last.mode,
-          queueId: last.id,
-          via: last.via,
-          sender: last.sender, ...(last.pointed ? { pointed: last.pointed.refs } : {}),
-        });
-      })()
-    : store.appendMessage(threadId, {
-        role: "user",
-        kind: "text",
-        text,
-        replyToId: replyTo?.id,
-        reaction: replyTo?.reactedWith,
-        sendId,
-        channelMode,
-        queueId,
-        via: options.via,
-        sender: options.sender, ...(options.pointed ? { pointed: options.pointed.refs } : {}),
-      });
+  const message = appendRoomInput(store, threadId, text, channelMode, options, replyTo, sendId, queueId);
   if (options.trigger) turnTriggers.set(threadId, options.trigger);
   const titled = group.dm ? null : store.titleGroupTaskFromFirstMessage(group.id, text, threadId);
   const snippet = titled?.title;
 
-  const archived = members.filter((member) => member.hidden);
-  const mentionedArchived = mentionedBots(text, archived.map(({ name }) => ({ name })))[0]; for (const line of placesElsewhere.missed(text, store.bots)) store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: line, ok: false } });
-  if (mentionedArchived) {
-    store.appendMessage(threadId, {
-      role: "bot",
-      kind: "activity",
-      tool: {
-        name: serverLine(threadLanguage(threadId), "server.rooms.archived", { bot: mentionedArchived.name }),
-        ok: false,
-      },
-    });
-  }
+  const { archived, mentionedArchived } = noteAbsentRoomMembers(store, threadId, text, members, placesElsewhere.missed(text, store.bots), threadLanguage(threadId));
   const pageBots = channelMode === "chat" ? pointedResponders(options.pointed, availableMembers, () => roomResponders(text, availableMembers, { kind: "mentions" }, options.mentions)) : [];
   let responders = pageBots.length ? pageBots : roomResponders(text, members, !group.dm && channelMode === "chat" ? autoRoomDefault(group.defaultResponder, routableMembers, replyBot) : group.defaultResponder, options.mentions);
   if (!group.dm) {
@@ -10849,21 +10774,7 @@ function startGroupTurn(
     roomResponders(text, availableMembers, { kind: "mentions" }, options.mentions).length === 0;
 
   if (!council && !responders.length && !goalCoordinator && !autoRoute) {
-    const defaultArchivedId = group.defaultResponder.kind === "member" ? group.defaultResponder.botId : undefined;
-    const defaultArchived = archived.find((member) => member.id === defaultArchivedId);
-    let unavailableMessage: string | undefined;
-    if (!mentionedArchived && !availableMembers.length) {
-      unavailableMessage = serverLine(threadLanguage(threadId), "server.rooms.noneActive");
-    } else if (!mentionedArchived && defaultArchived) {
-      unavailableMessage = serverLine(threadLanguage(threadId), "server.rooms.archived", { bot: defaultArchived.name });
-    }
-    if (unavailableMessage) {
-      store.appendMessage(threadId, {
-        role: "bot",
-        kind: "activity",
-        tool: { name: unavailableMessage, ok: false },
-      });
-    }
+    noteUnavailableResponder(store, threadId, group.defaultResponder, archived, Boolean(mentionedArchived), availableMembers.length > 0, threadLanguage(threadId));
     return message;
   }
 
@@ -10914,8 +10825,6 @@ function startGroupTurn(
     }
     if (council) {
       const language = threadLanguage(threadId);
-      const candidates: CouncilMember[] = [];
-      const councilUsage = { tokens: 0, usd: 0 };
       const eligible = (id: string) => {
         const room = store.group(groupId);
         const bot = store.bot(id);
@@ -10930,43 +10839,11 @@ function startGroupTurn(
         const call = instance.driverKind === "codex" ? instance.generateMemoryText : instance.generateText;
         if (seat && call) return { bot, instance, model, seat, call };
       };
-      for (const member of routableMembers) {
-        const writer = eligible(member.id);
-        if (!writer) continue;
-        candidates.push({ id: member.id, model: writer.model, seat: writer.seat, ask: async (prompt, signal) => {
-          const live = eligible(member.id);
-          if (!live || live.model !== writer.model || live.instance !== writer.instance) throw new Error("Council membership or provider changed");
-          assertWithinBudget(cfg, DATA_DIR);
-          usageCapGate.assertTurn(member.id, true, threadLanguage(threadId));
-          const cap = cfg.usageCaps?.run;
-          if ((cap?.tokens && councilUsage.tokens >= cap.tokens) || (cap?.usd && councilUsage.usd >= cap.usd)) throw new Error("Council budget reached");
-          const booking = `council-${randomUUID()}`;
-          const answer = await live.call.call(live.instance, prompt, { model: live.model, requireIsolatedText: true, signal, timeoutMs: 120000,
-            onUsage: usage => {
-              councilUsage.tokens += (usage.input ?? 0) + (usage.output ?? 0);
-              councilUsage.usd += ledgerCost({ driverKind: live.instance.driverKind, model: usage.model, input: usage.input ?? 0, output: usage.output ?? 0, costUsd: usage.costUsd }, operatorPrices()).costUsd ?? 0;
-              bookTurnUsage({ botId: member.id, botName: member.name, threadId: booking,
-              model: usage.model, instanceId: live.instance.instanceId, driverKind: live.instance.driverKind,
-              input: usage.input ?? 0, output: usage.output ?? 0, cachedInput: usage.cachedInput,
-              costUsd: usage.costUsd ?? null, trigger: options.trigger ?? { kind: "owner" },
-            }, usage.input !== undefined && usage.output !== undefined, threadId); },
-          });
-          const current = eligible(member.id);
-          if (!current || current.instance !== live.instance || current.model !== live.model) throw new Error("Council seat changed during this round");
-          return answer;
-        } });
-      }
-      const preferred = group.defaultResponder.kind === "member" ? group.defaultResponder.botId : undefined;
-      for (const candidate of candidates) operation.botIds.add(candidate.id);
-      await runCouncil({ ...council, members: candidates, chairId: preferred, signal: operation.cancellation.signal, language,
-        notice: body => { store.appendMessage(threadId, { role: "bot", kind: "activity", replyToId: message.id, tool: { name: body, ok: false } }); },
-        post: (member, phase, body) => {
-          const bot = store.bot(member.id);
-          if (!bot || !eligible(bot.id)) return;
-          const label = serverLine(language, ({ answer: "server.roomCouncil.answer", critique: "server.roomCouncil.critique", summary: "server.roomCouncil.summary" } as const)[phase]);
-          store.appendMessage(threadId, { role: "bot", kind: "text", from: { botId: bot.id, name: bot.name, color: bot.color },
-            replyToId: message.id, text: `**${label} · ${member.seat} (${member.model})**\n\n${body}` });
-        },
+      await invokeRoomCouncil({ store, threadId, messageId: message.id, language, members: routableMembers, eligible, question: council,
+        signal: operation.cancellation.signal, botIds: operation.botIds, trigger: options.trigger,
+        chairId: group.defaultResponder.kind === "member" ? group.defaultResponder.botId : undefined,
+        cap: () => cfg.usageCaps?.run, prices: operatorPrices, book: bookTurnUsage,
+        checkBudget: id => { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(id, true, language); },
       });
     } else if (goalCoordinator) {
       await runGroupGoalOperation({ groupId, threadId, coordinator: goalCoordinator, members, operation });

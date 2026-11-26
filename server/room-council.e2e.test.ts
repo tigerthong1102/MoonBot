@@ -33,7 +33,15 @@ it("runs independent ballots, the optional critique and the chair from a real ro
     }
     const { group } = await api("POST", "/api/groups", { name: "Council fixture", memberIds: ids, defaultResponder: { kind: "member", botId: ids[0] } });
     await api("PATCH", `/api/groups/${group.id}/setup`, { action: "complete", cwd: null, bulletin: "", defaultResponder: { kind: "member", botId: ids[0] } });
-    const send = (text: string) => api("POST", `/api/groups/${group.id}/messages`, { text, threadId: group.threadId });
+    expect(group.councilAvailable).toBe(true);
+    const { code } = await api("POST", "/api/auth/pairing", { scopes: ["client"] });
+    const { token } = await api("POST", "/api/auth/pair", { code, label: "Council phone fixture" });
+    expect(token).toContain("omb_");
+    const phone = fixtureApi(host.info.url, { headers: { origin: host.info.url, authorization: `Bearer ${token}` } });
+    let sequence = 0;
+    const send = (text: string) => phone("POST", `/api/groups/${group.id}/messages`, {
+      text, threadId: group.threadId, sendId: `native_council_fixture_${++sequence}`,
+    });
     await send("/council --critique Should we launch?");
     const transcript = async () => (await api("GET", `/api/threads/${group.threadId}/messages`)).messages as Array<{ tool?: { name?: string }; text?: string }>;
     await expect.poll(async () => {

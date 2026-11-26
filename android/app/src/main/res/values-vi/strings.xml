@@ -11,4 +11,6 @@
     <string name="notification_channel_always_on_desc">Hiển thị khi StartupBot duy trì kết nối dưới nền</string>
     <string name="always_on_notification_title">StartupBot đang duy trì kết nối</string>
     <string name="always_on_notification_text">Bạn vẫn sẽ nhận được thông báo khi đóng ứng dụng</string>
+    <string name="ui_room_council">Hội đồng AI</string>
+    <string name="ui_room_council_critique">Thêm vòng phản biện</string>
 </resources>

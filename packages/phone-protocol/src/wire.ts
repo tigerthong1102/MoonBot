@@ -835,6 +835,7 @@ export interface GroupTask {
 
 /** A room as a client may see it: the record plus the computed working flag. */
 export interface WireGroup {
+  councilAvailable?: boolean;
   /** Computed from the usage ledger, not stored in groups.json. */
   usage?: GroupThreadUsage | null; /** Transient: the department's Chief of Staff, when this room is without it. Null clears an earlier value. */ chiefAbsent?: { botId: string; name: string } | null; /** The room's members that live in another of the person's places: who each is, where it lives, and whether it can be reached now ("off": the link is off or its place is unlinked; "missing": its place no longer has it). Only on a room that has one. */ farMembers?: Array<{ id: string; name: string; place: string; state: "ok" | "off" | "missing" }>;
   /** transient: each member's context in the active thread, from its last
@@ -878,8 +879,7 @@ export interface WireGroup {
   /** The narrowest audience this room has ever had: a bot leaving never
    * widens who may see the transcript. Sent to admins only. */
   audienceFloor?: BotVisibility;
-  /** True while any member (or hand-off) is mid-turn. Computed at
-   * projection time, never persisted. */
+  /** Computed at projection time while a member or hand-off is mid-turn. */
   working: boolean;
   /** A direct-message channel's turn limit (minutes without progress). Null on the wire means the
    * global group limit. Channel conversations store theirs on each task. */

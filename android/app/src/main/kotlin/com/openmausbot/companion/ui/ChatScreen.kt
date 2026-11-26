@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -100,6 +101,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.openmausbot.companion.R
 import com.openmausbot.companion.core.AttachmentPolicy
 import com.openmausbot.companion.core.Chat
+import com.openmausbot.companion.core.RoomCouncilMode
 import com.openmausbot.companion.core.ChatTarget
 import com.openmausbot.companion.core.CompanionState
 import com.openmausbot.companion.core.Dictation
@@ -406,6 +408,7 @@ private fun LoadedChat(
         )
     }
     val draft = composer.text
+    val supportsCouncil = (chat as? Chat.RoomChat)?.room?.let { it.councilAvailable && it.dm != true } == true
     var hudOpen by remember(draftKey, chatDrafts) {
         mutableStateOf(SlashCommands.openOnEntry(composer.text))
     }
@@ -552,7 +555,8 @@ private fun LoadedChat(
         // microphone after the message has already been sent.
         dictation.stop()
         val text = (explicitText ?: draft).trim()
-        if (text.isEmpty() && attachments.isEmpty()) return
+        val council = if (explicitText == null && supportsCouncil) composer.council else RoomCouncilMode.OFF
+        if (text.isEmpty() && (council != RoomCouncilMode.OFF || attachments.isEmpty())) return
         if (preparingAttachments || sendingMessage) return
         val outgoing = attachments.toList()
         val draftAtSend = draft
@@ -562,7 +566,7 @@ private fun LoadedChat(
         showingPlus = false
         scope.launch {
             val sent = try {
-                session.send(text, outgoing, chat, originConnectionId)
+                session.send(council.message(text), outgoing, chat, originConnectionId)
             } finally {
                 sendingMessage = false
             }
@@ -770,6 +774,8 @@ private fun LoadedChat(
                     .widthIn(max = CHAT_CONTENT_MAX_WIDTH),
                 name = chat.name,
                 draft = draft,
+                council = composer.council.takeIf { supportsCouncil },
+                onCouncilChange = { composer.council = it },
                 accessory = ComposerAccessories.accessory(
                     hudOpen = hudOpen,
                     draft = draft,
@@ -1226,6 +1232,8 @@ private fun Composer(
     modifier: Modifier = Modifier,
     name: String,
     draft: String,
+    council: RoomCouncilMode?,
+    onCouncilChange: (RoomCouncilMode) -> Unit,
     accessory: ComposerAccessory,
     commands: List<SlashCommand>,
     plusOpen: Boolean,
@@ -1256,7 +1264,8 @@ private fun Composer(
     onRemoveAttachment: (PendingMessageAttachment) -> Unit,
     onDismissError: () -> Unit,
 ) {
-    val canSend = AttachmentImportRules.canSend(draft, attachments.size, preparing, sending)
+    val canSend = AttachmentImportRules.canSend(draft, attachments.size, preparing, sending) &&
+        (council == null || council == RoomCouncilMode.OFF || draft.isNotBlank())
     val inFlight = preparing || sending
     val turn = animateFloatAsState(
         targetValue = if (plusOpen) PLUS_TURN_DEGREES else 0f,
@@ -1269,6 +1278,27 @@ private fun Composer(
             .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        if (council != null) {
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = council != RoomCouncilMode.OFF,
+                    onClick = { onCouncilChange(if (council == RoomCouncilMode.OFF) RoomCouncilMode.INDEPENDENT else RoomCouncilMode.OFF) },
+                    label = { Text(stringResource(R.string.ui_room_council)) },
+                    enabled = !inFlight,
+                )
+                if (council != RoomCouncilMode.OFF) {
+                    FilterChip(
+                        selected = council == RoomCouncilMode.CRITIQUE,
+                        onClick = { onCouncilChange(if (council == RoomCouncilMode.CRITIQUE) RoomCouncilMode.INDEPENDENT else RoomCouncilMode.CRITIQUE) },
+                        label = { Text(stringResource(R.string.ui_room_council_critique)) },
+                        enabled = !inFlight,
+                    )
+                }
+            }
+        }
         if (dictationError != null) {
             Text(
                 text = dictationError,

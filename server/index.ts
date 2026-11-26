@@ -4109,7 +4109,6 @@ function readCursor(threadId: string): { lastReadMessageId?: string } {
 }
 
 function publicGroupState(record: GroupRecord): WireGroup {
-  // The organization library's part hashes stay server-side.
   const { installedPackage: _installedPackage, ...group } = record;
   let usage: WireGroup["usage"];
   try { usage = groupUsageReader.forThread(group.threadId); } catch {}
@@ -4127,6 +4126,7 @@ function publicGroupState(record: GroupRecord): WireGroup {
   const activeWorking = groupThreadIsWorking(record.id, group.threadId);
   return {
     ...group,
+    councilAvailable: !record.dm,
     tasks: record.dm ? undefined : tasks,
     // Always present (null when cleared), so a client's shallow merge clears a stale value.
     description: record.description ?? null,

@@ -1,11 +1,14 @@
 import { browserRecord } from "@/lib/browser-records";
-import { apiFetch } from "@/state/api";
+import { ApiError, apiFetch } from "@/state/api";
 import { readSessionState } from "@/lib/session";
 import type { Index } from "./source-index";
 
 export async function libraryOwner(fetchImpl?: typeof fetch, reportOffline = false) {
   const session = await readSessionState(fetchImpl);
-  if (reportOffline && session.kind === "unreachable") throw new TypeError("Source server unreachable");
+  if (reportOffline && session.kind === "unreachable") {
+    if (session.code) throw new ApiError(session.error, 503, { code: session.code });
+    throw new TypeError("Source server unreachable");
+  }
   if (session.kind === "session") return session.id;
   if (session.kind === "loopback" && session.trust !== "service") return "local";
   return null;

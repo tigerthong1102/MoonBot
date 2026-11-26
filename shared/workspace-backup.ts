@@ -26,6 +26,11 @@ export interface WorkspaceLeftBehind {
   paths: string[];
 }
 
+export type WorkspaceMaintenanceCode = "workspace_backup_busy" | "workspace_restore_restart";
+export function isWorkspaceMaintenanceCode(value: unknown): value is WorkspaceMaintenanceCode {
+  return value === "workspace_backup_busy" || value === "workspace_restore_restart";
+}
+
 export type WorkspaceBackupClientState = Record<string, string>;
 
 export interface WorkspaceBackupPrivateMetadata {

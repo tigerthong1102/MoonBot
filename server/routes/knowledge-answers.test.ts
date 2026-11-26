@@ -1,3 +1,4 @@
+import { ClaudeTextIsolationError } from "../drivers/claude-background.ts";
 import { deferred } from "../testing/deferred.ts";
 import { randomUUID } from "node:crypto";
 import { IncomingMessage, ServerResponse } from "node:http";
@@ -125,4 +126,22 @@ it.each(["bot_held", "bot_paused", "source_maintenance"] as const)("keeps %s dis
   const unsupported = send(reader, 0);
   expect(await unsupported.done).toBe(422);
   expect(unsupported.body()).toMatchObject({ code: "source_model_unavailable" });
+});
+
+it.each(["source_trial_key_held", "source_cli_update", "source_provider_unready"] as const)("reports %s when the selected account changes during queueing", async code => {
+  const { send, generate, writer } = fixture();
+  const ready = writer.getMockImplementation()!;
+  writer.mockImplementationOnce(ready).mockReturnValueOnce({ code, error: "Model unavailable" });
+  generate.mockImplementationOnce(async (_prompt, opts) => { opts!.started!(); return response; });
+  const queued = send(member("reader", "reader@example.test"), 0);
+  expect(await queued.done).toBe(422);
+  expect(queued.body()).toMatchObject({ code });
+});
+
+it.each([["cli", "source_cli_update"], ["settings", "source_provider_unready"]] as const)("explains a driver isolation refusal caused by %s", async (reason, code) => {
+  const { send, generate } = fixture();
+  generate.mockRejectedValueOnce(new ClaudeTextIsolationError(reason));
+  const refused = send(member("reader", "reader@example.test"), 0);
+  expect(await refused.done).toBe(422);
+  expect(refused.body()).toMatchObject({ code });
 });

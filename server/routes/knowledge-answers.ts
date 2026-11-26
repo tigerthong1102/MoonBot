@@ -3,10 +3,11 @@ import { z } from "zod";
 import { encodedSourcePath, legacySourceRequest, sourceLink, type SourceEvidence } from "../../shared/source-evidence.ts";
 import { BOT_HELD_CODE, BOT_PAUSED_CODE } from "../../shared/bot-limit.ts";
 import { sameModelSelection } from "../../shared/thread-model.ts";
+import { ClaudeTextIsolationError } from "../drivers/claude-background.ts";
 import { sinceFreshStart } from "../fresh-start.ts";
 import { personKey } from "../person-key.ts";
 import type { RequestAuth } from "../request-auth.ts";
-import type { SideJobs } from "../side-jobs.ts";
+import type { sourceWriter } from "../model-readiness.ts";
 import type { BotRecord, Message, Store } from "../store.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -68,7 +69,7 @@ export interface KnowledgeAnswerDeps {
   refusal(botId: string, threadId: string): { status: number; body: Record<string, unknown> } | null;
   busy(botId: string, threadId: string): boolean;
   sender(auth: RequestAuth): Message["sender"];
-  writer(auth: RequestAuth, bot: BotRecord, threadId: string): ReturnType<SideJobs["sourceAnswer"]>;
+  writer(auth: RequestAuth, bot: BotRecord, threadId: string): ReturnType<typeof sourceWriter>;
   contextChanged(bot: BotRecord, threadId: string): void;
 }
 
@@ -112,7 +113,7 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
     const refused = refusal();
     if (refused) return json(res, refused.status, refused.body);
     const writer = deps.writer(auth, bot, threadId);
-    if (!writer) return json(res, 422, unavailableModel);
+    if (!writer || "code" in writer) return json(res, 422, writer ?? unavailableModel);
     const leaf = deps.store.activeLeaf(threadId);
     const controller = new AbortController();
     const stop = () => controller.abort();
@@ -129,7 +130,7 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
           const refused = refusal();
           if (refused) throw new SourceRequestRefused(refused.status, refused.body);
           const current = deps.writer(auth, bot, threadId);
-          if (!current) throw new SourceRequestRefused(422, unavailableModel);
+          if (!current || "code" in current) throw new SourceRequestRefused(422, current ?? unavailableModel);
           if (!sameModelSelection(current.selection, writer.selection)) throw new SourceRequestRefused(409, { error: "The conversation's model changed while waiting. Ask again." });
         },
       });
@@ -144,6 +145,9 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
       return json(res, 200, { ok: true });
     } catch (error) {
       if (controller.signal.aborted) return;
+      if (error instanceof ClaudeTextIsolationError) {
+        return json(res, 422, { code: error.reason === "cli" ? "source_cli_update" : "source_provider_unready", error: error.message });
+      }
       if (error instanceof SourceRequestRefused) return json(res, error.status, error.body);
       return json(res, 502, { error: "The isolated source answer could not be completed." });
     } finally { pending.delete(threadId); principals.delete(principal); res.off("close", stop); }

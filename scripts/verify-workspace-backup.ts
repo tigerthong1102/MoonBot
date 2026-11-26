@@ -150,7 +150,21 @@ export async function verifyWorkspaceBackup(report: (event: unknown) => void = (
     assert.ok(original.messages.some((message: { text?: string }) => message.text?.includes("hello from fake claude")));
     const oldBytes = readFileSync(join(destination.info.dataDir, "bots.json"));
     const clientState = { "omb-skin": "default", "omb-drafts": JSON.stringify({ [bot.threadId]: "Keep draft" }), "omb-webhook-credentials": "private-source-webhook-url", "unrelated-auth-token": "must-not-transfer" };
-    const exported = await api(source, "POST", "/api/workspace-backup/export", { password: PASSWORD, clientState });
+    const exporting = api(source, "POST", "/api/workspace-backup/export", { password: PASSWORD, clientState });
+    const deadline = Date.now() + 10_000;
+    while (!(await api(source, "GET", "/api/workspace-backup/status")).body.busy) {
+      assert.ok(Date.now() < deadline, "export never entered backup maintenance");
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    const checkSourceLock = async (server: VerificationServer, id: string, code: string) => {
+      const results = await Promise.all([api(server, "GET", "/api/auth/session"), api(server, "POST", `/api/bots/${id}/knowledge-answers`)]);
+      for (const blocked of results) {
+        assert.equal(blocked.status, 503);
+        assert.equal(blocked.body.code, code);
+      }
+    };
+    await checkSourceLock(source, bot.id, "workspace_backup_busy");
+    const exported = await exporting;
     assert.equal(exported.status, 200, JSON.stringify(exported.body));
     assert.equal(exported.body.summary.bots, before.bots.length);
     assert.equal(Object.hasOwn(exported.body.summary, "includesCredentials"), false);
@@ -191,6 +205,7 @@ export async function verifyWorkspaceBackup(report: (event: unknown) => void = (
     assert.equal((await api(destination, "POST", "/api/bots", { name: "Must wait for restart" })).status, 503);
     assert.deepEqual(readFileSync(join(destination.info.dataDir, "bots.json")), oldBytes);
 
+    await checkSourceLock(destination, oldBot.id, "workspace_restore_restart");
     restarted = await restartFixture(destination);
     record({ command: "restart exact destination fixture", oldPid: destination.info.pid, newPid: restarted.pid, url: destination.info.url, logPath: destination.info.logPath });
     const after = (await api(destination, "GET", "/api/bots?messages=200")).body;

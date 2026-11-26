@@ -52,8 +52,6 @@ type ReceiptArgs = {
   };
 };
 
-
-/** A burger's inputs and the values it was saved with, so a run takes this request's values and says when it reuses one. */
 function burgerInputs(workflow: { args: Record<string, { default?: unknown }> }): string {
   const args = Object.entries(workflow.args).slice(0, 8);
   return args.length ? ` Its inputs: ${args.map(([arg, value]) => `${arg}${value.default === undefined ? "" : ` (saved: ${JSON.stringify(value.default).slice(0, 80)})`}`).join(", ")}; a run without one uses the saved value.` : "";
@@ -349,7 +347,6 @@ export function createSkillsLibraryHost(deps: SkillsLibraryHostDeps) {
         add(nativesFor(bot, threadId, instance, cwd).filter((skill) => !switched.has(skill.name) && isNativeSkillEnabled(bot.id, skill.name)));
       }
       if (files.size < mentioned.length) add(projectInUse(bot, threadId, cwd, instance, assigned).filter((skill) => !skill.modelOnly));
-      // A Skill Burger runs exactly with run_workflow, whether it is the bot's own or used in every chat.
       const burgers = mentioned.flatMap((name) => { const found = findWorkflowSkill(bot.id, name, undefined, liveAssigned(bot), skillsLibraryEnabled(cfg)); return found ? [{ name, found }] : []; });
       for (const { name, found } of burgers) if (!files.has(name) && "everyChat" in found.place) files.set(name, librarySkillFilePath(name));
       const expanded = skillCommandTurnText(text, files, typed, ownStart);

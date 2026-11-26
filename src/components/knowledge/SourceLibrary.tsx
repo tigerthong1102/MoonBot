@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { SourcePassage } from "./SourcePassage";
-import { cloudFolders, currentLibrary, onSourceSync, readSource, readWatch, setSource as saveSource, type FolderSource } from "./source-sync";
+import { cloudFolders, currentLibrary, onSourceSync, readSource, readWatch, scanSource, setSource as saveSource, type FolderSource } from "./source-sync";
 import { Select } from "../Select";
 import { libraryKey, readLibrary, sourceLink } from "./source-cache";
 import { t } from "@/lib/i18n";
@@ -69,6 +69,17 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
     } catch { if (alive.current) setError(true); }
     finally { inFlight.current = false; if (alive.current) setBusy(false); }
   }
+  async function syncWatching() {
+    if (!watching || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      const next = key.current && !cacheFailed ? await currentLibrary(key.current) : await scanSource(watching, current.current);
+      if (alive.current) { current.current = next ?? empty(); setIndex(current.current); setError(false); }
+    } catch {
+      if (alive.current) { current.current = empty(); setIndex(current.current); setCacheFailed(true); setError(true); }
+    } finally { inFlight.current = false; if (alive.current) setBusy(false); }
+  }
   async function clear() {
     setBusy(true);
     try {
@@ -127,7 +138,7 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
         const remote = { kind: "cloud" as const, id: selected.id, name: selected.name };
         void refresh(() => readSource(remote, current.current), remote);
       }}><option value="">{t("knowledge.cloudFolders")}</option>{cloud.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</Select>}
-      {watching && <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => void refresh(() => readSource(watching, current.current), watching)}>{t("knowledge.refresh")}</button>}
+      {watching && <button className="ui-button ui-button-sm" disabled={busy || starting} onClick={() => void syncWatching()}>{t("knowledge.refresh")}</button>}
       <input type="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.pdf" hidden ref={filesInput} onChange={e => { chosen(e.target.files); e.target.value = ""; }} />
       <input type="file" multiple hidden ref={node => { directoryInput.current = node; node?.setAttribute("webkitdirectory", ""); }} onChange={e => { chosen(e.target.files); e.target.value = ""; }} />
     </div>
@@ -142,7 +153,7 @@ export default function SourceLibrary({ bot, open, close }: { bot: Bot; open: bo
     {hits.length > 0 && <><ol className="my-3 max-h-72 overflow-y-auto">{hits.map(hit => <li key={JSON.stringify([hit.path, hit.passage.start])} className="border-b border-hairline/40 py-2">
       <button className="break-all text-start font-medium text-accent-text hover:underline" onClick={() => setSource({ path: hit.path, start: hit.passage.start })}>{location(hit)}</button>
       <p className="line-clamp-2 whitespace-pre-wrap break-words text-xs">{hit.passage.text}</p></li>)}</ol>
-      <button type="button" className="ui-button ui-button-primary" disabled={sending || search !== query} onClick={ask}>{t("knowledge.ask", { count: Math.min(3, hits.length) })}</button></>}
+      <button type="button" className="ui-button ui-button-primary" disabled={busy || sending || search !== query} onClick={ask}>{t("knowledge.ask", { count: Math.min(3, hits.length) })}</button></>}
     {sendFailed && <p role="alert">{t("knowledge.sendError")}</p>}
     {shown && source && <SourcePassage doc={shown} start={source.start} />}
   </dialog>;

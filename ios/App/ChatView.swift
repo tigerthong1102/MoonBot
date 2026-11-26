@@ -537,7 +537,7 @@ struct ChatView: View {
     }
 
     private var plusActions: [PlusAction] {
-        let canAddAttachment = attachments.count < AttachmentPolicy.maximumItems
+        let canAddAttachment = (!supportsCouncil || council == .off) && attachments.count < AttachmentPolicy.maximumItems
             && !preparingAttachments && !sendingMessage
         var out: [PlusAction] = [
             PlusAction(
@@ -637,7 +637,7 @@ struct ChatView: View {
     private var canSend: Bool {
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let acceptsAttachmentsOnly = !supportsCouncil || council == .off
-        return (hasText || (acceptsAttachmentsOnly && !attachments.isEmpty)) && !preparingAttachments && !sendingMessage
+        return (acceptsAttachmentsOnly || attachments.isEmpty) && (hasText || !attachments.isEmpty) && !preparingAttachments && !sendingMessage
     }
 
     private var composerDraft: Binding<String> {
@@ -705,7 +705,7 @@ struct ChatView: View {
         let draftAtSend = draft
         let text = (explicitText ?? draftAtSend).trimmingCharacters(in: .whitespacesAndNewlines)
         let modeAtSend = explicitText == nil && supportsCouncil ? council : .off
-        guard modeAtSend == .off || !text.isEmpty else { return }
+        guard modeAtSend == .off || (!text.isEmpty && attachments.isEmpty) else { return }
         let outgoingAttachments = attachments
         let chatAtSend = current
         guard !text.isEmpty || !outgoingAttachments.isEmpty,
@@ -998,7 +998,7 @@ struct ChatView: View {
                 .toggleStyle(.button)
                 .controlSize(.small)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .disabled(preparingAttachments || sendingMessage)
+                .disabled(preparingAttachments || sendingMessage || (council == .off && !attachments.isEmpty))
             }
 
             if preparingAttachments || sendingMessage {

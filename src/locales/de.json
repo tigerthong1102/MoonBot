@@ -4413,5 +4413,6 @@
   "knowledge.sectionLink": "Link zum internen Bericht für diesen Abschnitt",
   "knowledge.addSection": "Abschnitt hinzufügen",
   "knowledge.removeSection": "Entfernen",
-  "knowledge.sectionFailed": "Prüfe, ob du diesen Bericht verwalten und den Quellbericht im selben Arbeitsbereich öffnen kannst."
+  "knowledge.sectionFailed": "Prüfe, ob du diesen Bericht verwalten und den Quellbericht im selben Arbeitsbereich öffnen kannst.",
+  "server.roomCouncil.textOnly": "Der Rat akzeptiert nur Text. Entferne die Anhänge und sende deine Frage erneut."
 }

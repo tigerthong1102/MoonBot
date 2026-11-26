@@ -6396,5 +6396,6 @@
   "knowledge.sectionLink": "Bölümde gösterilecek dahili raporun bağlantısı",
   "knowledge.addSection": "Bölüm ekle",
   "knowledge.removeSection": "Kaldır",
-  "knowledge.sectionFailed": "Bu raporu yönetebildiğinizi ve aynı çalışma alanında kaynak raporu açabildiğinizi kontrol edin."
+  "knowledge.sectionFailed": "Bu raporu yönetebildiğinizi ve aynı çalışma alanında kaynak raporu açabildiğinizi kontrol edin.",
+  "server.roomCouncil.textOnly": "Konsey yalnızca metin kabul eder. Ekleri kaldırıp sorunuzu yeniden gönderin."
 }

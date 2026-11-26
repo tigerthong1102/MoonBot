@@ -7522,5 +7522,6 @@
   "knowledge.sectionLink": "Link al report interno da usare nella sezione",
   "knowledge.addSection": "Aggiungi sezione",
   "knowledge.removeSection": "Rimuovi",
-  "knowledge.sectionFailed": "Verifica di poter gestire questo report e aprire il report di origine nella stessa area di lavoro."
+  "knowledge.sectionFailed": "Verifica di poter gestire questo report e aprire il report di origine nella stessa area di lavoro.",
+  "server.roomCouncil.textOnly": "Il consiglio accetta solo testo. Rimuovi gli allegati e invia di nuovo la domanda."
 }

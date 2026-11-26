@@ -5,7 +5,7 @@ import { automationStatus, automationSubtitle, capital, lastReceived, lastWhen, 
 import { cn } from "@/lib/cn";
 import { copyText } from "@/lib/copy-text";
 import { t } from "@/lib/i18n";
-import { isRoutineProblemRun } from "@/lib/routines";
+import { isRoutineProblemRun, type RoutineRun } from "@/lib/routines";
 import { loadWebhookCredentials, webhookCredentialStore } from "@/lib/webhook-credentials";
 import { useStore } from "@/state/store";
 import { AppEventsSection } from "./AppEventsSection";
@@ -13,6 +13,7 @@ import { useAllAutomationActions } from "./app-actions";
 import { FixButton, StatusMark } from "./parts";
 
 const RECENT = 5;
+const unseenProblem = (run: RoutineRun) => !run.seenAt && (isRoutineProblemRun(run) || Boolean(run.blockedBy));
 const BUTTON = "flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium disabled:opacity-50";
 
 /** One automation, simply: its sentence, its status, the last five runs plus any failure not yet seen, and what can be done to it. */
@@ -25,12 +26,12 @@ export function AutomationPanel({ automation, focusedRunId, sentence, onClose, o
   onDeleted: () => void;
 }) {
   const { state, dispatch } = useStore();
-  const [unseenRunIds] = useState(() => new Set(automation.runs.filter((run) => isRoutineProblemRun(run) && !run.seenAt).map((run) => run.id)));
+  const [unseenRunIds] = useState(() => new Set(automation.runs.filter(unseenProblem).map((run) => run.id)));
   const focusedRun = useRef<HTMLLIElement>(null);
   const focusVisible = automation.runs.some((run) => run.id === focusedRunId);
-  const visibleRuns = automation.runs.filter((run, index) => index < RECENT || run.id === focusedRunId || (run.blockedBy && !run.seenAt) || unseenRunIds.has(run.id) || (isRoutineProblemRun(run) && !run.seenAt));
+  const visibleRuns = automation.runs.filter((run, index) => index < RECENT || run.id === focusedRunId || unseenRunIds.has(run.id) || unseenProblem(run));
   useEffect(() => {
-    for (const run of automation.runs) if (isRoutineProblemRun(run) && !run.seenAt) dispatch({ type: "markRoutineRunSeen", runId: run.id });
+    for (const run of automation.runs) if (unseenProblem(run)) dispatch({ type: "markRoutineRunSeen", runId: run.id });
   }, [automation.runs, dispatch]);
   useEffect(() => {
     focusedRun.current?.scrollIntoView?.({ block: "nearest" });

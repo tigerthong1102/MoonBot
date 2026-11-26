@@ -140,7 +140,7 @@ describe("classifyRoutineFailure", () => {
   });
 
   it("reads the spend cap and any other refusal to start, and leaves an engine that would not spawn a plain failure", () => {
-    expect(dispatchRefusal(Object.assign(new Error("this workspace has reached its monthly spend limit of $20.00"), { status: 409, code: "spend_cap" }))).toEqual({ cause: "cap" });
+    expect(dispatchRefusal(Object.assign(new Error("this workspace has reached its monthly spend limit of $20.00"), { status: 409, code: "spend_cap" }))).toEqual({ cause: "cap", blockedBy: "usage" });
     expect(dispatchRefusal(Object.assign(new Error(BUSY), { status: 409 }))).toEqual({ cause: "refused" });
     expect(dispatchRefusal(Object.assign(new Error("no such bot"), { status: 404 }))).toEqual({ cause: "refused" });
     expect(dispatchRefusal(new Error("spawn claude ENOENT"))).toEqual({});

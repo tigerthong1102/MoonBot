@@ -548,6 +548,10 @@ export function Composer({
       dispatch({ type: "error", message: t("composer.error.noImages") });
       return;
     }
+    if (group?.councilAvailable && effectiveChannelMode === "chat" && /^\/council(?:\s|$)/i.test(effectiveText.trim()) && attachments.length) {
+      setAttachmentNotice(t("server.roomCouncil.textOnly"));
+      return;
+    }
     const composed = composeMessage(serializeThreadRefs(effectiveText, threads, currentBotId), attachments);
     if (!composed) return;
     stopDictation();
@@ -764,7 +768,7 @@ export function Composer({
           }}
           onEdit={locked ? undefined : editQueued}
         /><TeamAudienceLabel bot={bot} group={group} />
-        {group && !group.dm && !locked && channelMode === "chat" && (
+        {group?.councilAvailable && !group.dm && !locked && channelMode === "chat" && (
           <div className="flex items-center gap-3 text-xs text-ink-secondary">
             <label><input type="checkbox" checked={/^\/council(?:\s|$)/i.test(text)}
               onChange={event => editText(event.target.checked ? "/council " + text : text.replace(/^\/council(?:\s+--critique)?\s*/i, ""))} /> {t("room.council")}</label>

@@ -10653,5 +10653,6 @@
   "knowledge.sectionLink": "此分节使用的内部报告链接",
   "knowledge.addSection": "添加分节",
   "knowledge.removeSection": "移除",
-  "knowledge.sectionFailed": "请确认你可以管理此报告，并能在同一工作区打开源报告。"
+  "knowledge.sectionFailed": "请确认你可以管理此报告，并能在同一工作区打开源报告。",
+  "server.roomCouncil.textOnly": "委员会仅接受文本。请移除附件并重新发送问题。"
 }

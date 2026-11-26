@@ -5461,6 +5461,7 @@
   "room.pinHint": "Pin this message to the top of the group thread",
   "room.fallbackBot": "Bot",
   "usage.caps.perRun": "Per run, including delegated work (supported engines)",
+  "server.roomCouncil.textOnly": "The council accepts text only. Remove the attachments and send your question again.",
   "server.roomCouncil.question": "Enter a council question of 1 to 16,000 characters.",
   "server.roomCouncil.missing": "Add active room bots with supported isolated models for {models}.",
   "server.roomCouncil.failed": "{seat} ({model}) did not finish. Check the connection, permissions and budget.",

@@ -322,3 +322,24 @@ it("returns different permitted source sections at the same report URL without l
   publishInternalReport(store, other.threadId, secret, null);
   expect((await get(base + "?report=1", "ann")).body).not.toHaveProperty("sections");
 });
+
+it("frees section slots after withdrawal and repairs references left by older versions", async () => {
+  const { store, bot, page, post, get } = await fixture();
+  const parent = page(), thread = bot.threadId;
+  const url = `/api/threads/${thread}/messages/${parent}/app`;
+  publishInternalReport(store, thread, parent);
+  const sources = Array.from({ length: 13 }, () => page());
+  const add = (id: string) => post(url + "/sections", { sourceThread: thread, sourceMessage: id, action: "add" });
+  for (const source of sources) publishInternalReport(store, thread, source);
+  for (const source of sources.slice(0, 12)) expect((await add(source)).status).toBe(200);
+  expect((await add(sources[12]!)).status).toBe(409);
+  // An older writer withdrew the source without releasing its slot.
+  const stale = store.messagesFor(thread).find(message => message.id === sources[0])!;
+  const { report: _report, ...withdrawn } = stale.app!;
+  store.patchMessage(thread, stale.id, { app: withdrawn });
+  expect((await add(sources[12]!)).status).toBe(200);
+  publishInternalReport(store, thread, sources[1]!, null);
+  publishInternalReport(store, thread, sources[1]!);
+  expect((await get(url + "?report=1")).body.sections).toHaveLength(11);
+  expect((await add(sources[1]!)).status).toBe(200);
+});

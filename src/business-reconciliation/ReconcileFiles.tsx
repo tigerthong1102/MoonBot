@@ -57,8 +57,12 @@ export default function ReconcileFiles({ close, dropdown: Dropdown, t, threadId 
       if (file.size > 32 * 1024 * 1024) throw new Error();
       const saved = openReview(await file.text());
       if (token !== fileVersion.current) return;
-      showSaved(saved);
-      if (owner) void remember(saved.report, saved.changes).catch(() => setError(t("reconcile.review.localFailed")));
+      try {
+        const changes = await remember(saved.report, saved.changes);
+        if (token === fileVersion.current) showSaved({ ...saved, changes });
+      } catch {
+        if (token === fileVersion.current) { showSaved(saved); setError(t("reconcile.review.localFailed")); }
+      }
     } catch { if (token === fileVersion.current) setError(t("reconcile.review.invalid")); }
   }
   const [report, setReport] = useState<Report>();

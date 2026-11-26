@@ -6355,7 +6355,7 @@
   "knowledge.answerAccess": "Erişim doğrulanamadı. Oturum açıp sohbete ve kaynaklarına erişiminizi kontrol edin.",
   "knowledge.answerNetwork": "Sunucuya zamanında ulaşılamadı. Bağlantınızı kontrol edip yeniden deneyin.",
   "knowledge.answerLimit": "Harcama veya kullanım sınırına ulaşıldı. Yeniden denemeden önce Ayarlar → Kullanım bölümünü kontrol edin.",
-  "knowledge.answerMoved": "Bu bot taşındı. Yeni çalışma alanında açıp tekrar sorun.",
+  "knowledge.answerMoved": "Bu bot başka bir StartupBot kurulumuna taşındı. Botu orada açıp sorunuzu yeniden sorun.",
   "knowledge.chartRow": "Sorgu sonucu · satır {row}",
   "knowledge.chartMark": "Çizilen değerler",
   "knowledge.report": "Dahili rapor",

@@ -4389,7 +4389,7 @@
   "knowledge.answerAccess": "Der Zugriff konnte nicht bestätigt werden. Melde dich an und prüfe deinen Zugriff auf die Unterhaltung und ihre Quellen.",
   "knowledge.answerNetwork": "Der Server war nicht rechtzeitig erreichbar. Prüfe deine Verbindung und versuche es erneut.",
   "knowledge.answerLimit": "Ein Ausgaben- oder Nutzungslimit wurde erreicht. Prüfe vor dem nächsten Versuch Einstellungen → Nutzung.",
-  "knowledge.answerMoved": "Dieser Bot wurde verschoben. Öffne ihn in seinem neuen Arbeitsbereich und frage erneut.",
+  "knowledge.answerMoved": "Dieser Bot wurde verschoben. Öffne ihn in seiner neuen StartupBot-Installation und frage erneut.",
   "knowledge.chartRow": "Abfrageergebnis · Zeile {row}",
   "knowledge.chartMark": "Geplottete Werte",
   "knowledge.report": "Interner Bericht",

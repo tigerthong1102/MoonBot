@@ -8448,7 +8448,7 @@
   "knowledge.answerAccess": "アクセス権を確認できませんでした。サインインし、会話と資料の両方にアクセスできるか確認してください。",
   "knowledge.answerNetwork": "時間内にサーバーに接続できませんでした。接続を確認してもう一度試してください。",
   "knowledge.answerLimit": "支出または使用量の上限に達しました。設定 → 使用量を確認してからもう一度試してください。",
-  "knowledge.answerMoved": "このボットは移動しました。新しいワークスペースで開いてもう一度質問してください。",
+  "knowledge.answerMoved": "このボットは別の StartupBot 環境に移動しました。移動先の StartupBot で開き、もう一度質問してください。",
   "knowledge.chartRow": "クエリ結果 · 行 {row}",
   "knowledge.chartMark": "プロットされた値",
   "knowledge.report": "内部報告書",

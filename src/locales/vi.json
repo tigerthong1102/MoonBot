@@ -153,7 +153,7 @@
   "knowledge.answerAccess": "Chưa xác minh được quyền truy cập. Hãy đăng nhập và kiểm tra quyền đối với cuộc trò chuyện cũng như các tài liệu nguồn.",
   "knowledge.answerNetwork": "Chưa kết nối được với máy chủ trong thời gian chờ. Hãy kiểm tra kết nối rồi thử lại.",
   "knowledge.answerLimit": "Đã chạm giới hạn chi phí hoặc mức sử dụng. Hãy kiểm tra Cài đặt → Mức sử dụng trước khi thử lại.",
-  "knowledge.answerMoved": "Bot đã chuyển đi. Hãy mở bot trong không gian làm việc mới rồi hỏi lại.",
+  "knowledge.answerMoved": "Bot đã chuyển sang một bản cài đặt StartupBot khác. Hãy mở bot ở đó rồi hỏi lại.",
   "knowledge.chartRow": "Kết quả truy vấn · dòng {row}",
   "knowledge.chartMark": "Giá trị trên biểu đồ",
   "knowledge.report": "Báo cáo nội bộ",

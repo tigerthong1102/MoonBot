@@ -6854,7 +6854,7 @@
   "knowledge.answerAccess": "No se pudo verificar el acceso. Inicia sesión y comprueba tu acceso a la conversación y a sus fuentes.",
   "knowledge.answerNetwork": "No se pudo contactar con el servidor a tiempo. Comprueba la conexión y vuelve a intentarlo.",
   "knowledge.answerLimit": "Se ha alcanzado un límite de gasto o de uso. Consulta Ajustes → Uso antes de volver a intentarlo.",
-  "knowledge.answerMoved": "Este bot se ha trasladado. Ábrelo en su nuevo espacio de trabajo y vuelve a preguntar.",
+  "knowledge.answerMoved": "Este bot se ha trasladado. Ábrelo en su nueva instalación de StartupBot y vuelve a preguntar.",
   "knowledge.chartRow": "Resultado de la consulta · fila {row}",
   "knowledge.chartMark": "Valores trazados",
   "knowledge.report": "Informe interno",

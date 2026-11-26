@@ -4157,7 +4157,7 @@
   "knowledge.answerAccess": "L’accès n’a pas pu être vérifié. Connectez-vous et vérifiez vos droits sur la conversation et ses sources.",
   "knowledge.answerNetwork": "Le serveur n’a pas pu être joint à temps. Vérifiez votre connexion et réessayez.",
   "knowledge.answerLimit": "Une limite de dépenses ou d’utilisation a été atteinte. Consultez Paramètres → Utilisation avant de réessayer.",
-  "knowledge.answerMoved": "Ce bot a été déplacé. Ouvrez-le dans son nouvel espace de travail et reposez la question.",
+  "knowledge.answerMoved": "Ce bot a été déplacé. Ouvrez-le dans sa nouvelle installation de StartupBot et reposez votre question.",
   "knowledge.chartRow": "Résultat de la requête · ligne {row}",
   "knowledge.chartMark": "Valeurs tracées",
   "knowledge.report": "Rapport interne",

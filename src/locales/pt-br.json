@@ -11617,7 +11617,7 @@
   "knowledge.answerAccess": "Não foi possível verificar o acesso. Entre na sua conta e confira suas permissões para a conversa e as fontes.",
   "knowledge.answerNetwork": "Não foi possível acessar o servidor a tempo. Verifique a conexão e tente novamente.",
   "knowledge.answerLimit": "Um limite de gastos ou de uso foi atingido. Confira Configurações → Uso antes de tentar novamente.",
-  "knowledge.answerMoved": "Este bot foi movido. Abra-o no novo espaço de trabalho e pergunte novamente.",
+  "knowledge.answerMoved": "Este bot foi movido. Abra-o na nova instalação do StartupBot e faça a pergunta novamente.",
   "knowledge.chartRow": "Resultado da consulta · linha {row}",
   "knowledge.chartMark": "Valores plotados",
   "knowledge.report": "Relatório interno",

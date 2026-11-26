@@ -10716,7 +10716,7 @@
   "knowledge.answerAccess": "無法驗證存取權限。請登入並確認你有權存取這段對話及其資料來源。",
   "knowledge.answerNetwork": "未能及時連線至伺服器。請檢查網路連線後再試一次。",
   "knowledge.answerLimit": "已達支出或用量上限。請先檢查「設定 → 用量」，然後再試一次。",
-  "knowledge.answerMoved": "這個機器人已移至其他工作區。請在新的工作區中開啟它，然後再提問。",
+  "knowledge.answerMoved": "這個機器人已移至另一套 StartupBot。請在那裡開啟機器人，再問一次。",
   "knowledge.chartRow": "查詢結果·行{row}",
   "knowledge.chartMark": "繪製值",
   "knowledge.report": "內部報告",

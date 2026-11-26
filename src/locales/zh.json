@@ -10612,7 +10612,7 @@
   "knowledge.answerAccess": "无法验证访问权限。请登录并检查你是否有权访问该对话及其资料来源。",
   "knowledge.answerNetwork": "未能及时连接到服务器。请检查网络连接后重试。",
   "knowledge.answerLimit": "已达到支出或用量上限。请先检查“设置 → 用量”，然后再重试。",
-  "knowledge.answerMoved": "此机器人已移至其他工作区。请在新的工作区中打开它，然后再提问。",
+  "knowledge.answerMoved": "此机器人已迁移到另一套 StartupBot。请在那里打开机器人并重新提问。",
   "knowledge.chartRow": "查询结果·行{row}",
   "knowledge.chartMark": "绘制值",
   "knowledge.report": "内部报告",

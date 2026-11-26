@@ -7618,7 +7618,7 @@
   "knowledge.answerAccess": "Nie udało się potwierdzić dostępu. Zaloguj się i sprawdź swoje uprawnienia do rozmowy i jej źródeł.",
   "knowledge.answerNetwork": "Nie udało się połączyć z serwerem na czas. Sprawdź połączenie i spróbuj ponownie.",
   "knowledge.answerLimit": "Osiągnięto limit wydatków lub wykorzystania. Przed kolejną próbą sprawdź Ustawienia → Wykorzystanie.",
-  "knowledge.answerMoved": "Bot został przeniesiony. Otwórz go w nowym obszarze roboczym i zapytaj ponownie.",
+  "knowledge.answerMoved": "Ten bot został przeniesiony. Otwórz go w nowej instalacji StartupBot i ponownie zadaj pytanie.",
   "knowledge.chartRow": "Wynik zapytania · wiersz {row}",
   "knowledge.chartMark": "Wykreślone wartości",
   "knowledge.report": "Raport wewnętrzny",

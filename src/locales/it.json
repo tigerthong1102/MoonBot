@@ -7481,7 +7481,7 @@
   "knowledge.answerAccess": "Impossibile verificare l’accesso. Accedi e controlla i tuoi permessi per la conversazione e le sue fonti.",
   "knowledge.answerNetwork": "Impossibile raggiungere il server in tempo. Controlla la connessione e riprova.",
   "knowledge.answerLimit": "È stato raggiunto un limite di spesa o di utilizzo. Controlla Impostazioni → Utilizzo prima di riprovare.",
-  "knowledge.answerMoved": "Questo bot è stato spostato. Aprilo nel nuovo spazio di lavoro e ripeti la domanda.",
+  "knowledge.answerMoved": "Questo bot è stato spostato. Aprilo nella sua nuova installazione di StartupBot e ripeti la domanda.",
   "knowledge.chartRow": "Risultato della query · riga {row}",
   "knowledge.chartMark": "Valori tracciati",
   "knowledge.report": "Rapporto interno",

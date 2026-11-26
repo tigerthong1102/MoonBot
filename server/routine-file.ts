@@ -13,6 +13,19 @@ import type { Routine, RoutineRequestReceipt, RoutineRun } from "./routines.ts";
 
 /** While routines.json cannot be read, the read is tried again this often. */
 export const UNREADABLE_RETRY_MS = 60_000;
+export interface RoutineFile {
+  version: 1;
+  frozenResultsCleared?: true;
+  routines: Routine[];
+  runs: RoutineRun[];
+  routineRequestReceipts?: RoutineRequestReceipt[];
+  webhookRunReceipts?: unknown[];
+  startupLaunchId?: string;
+  noStartOffsChecked?: true;
+  ownerNotices?: RoutineOwnerNotice[];
+  holds?: RoutineHoldCause[];
+}
+
 export interface RoutineFileContents {
   text: string;
   routines: Routine[];

@@ -346,7 +346,7 @@ import { createTtsRoutes } from "./routes/tts.ts";
 import { turnStartLogLine } from "./turn-log.ts";
 import { TurnStops, outwardActions, stoppedTurnOutcome, turnEvidence } from "./turn-outcome.ts";
 import { buildRecoveryText, buildTurnContext, engineIsFresh, replaysNatively } from "./turn-context.ts";
-import { Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionStart, stoppedWorkNeedsFreshSession, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { recordStoppedRequest } from "./host/work-bot-stop-state.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
+import { externalContextMarker, isExternalContextMarker, Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionStart, stoppedWorkNeedsFreshSession, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { recordStoppedRequest } from "./host/work-bot-stop-state.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
 import { extractHandoffMedia, extractReplayImages, extractTurnImages, videoFramesWithin } from "./turn-images.ts";
 import { callTitleExcerpt } from "./thread-title.ts";
 import { createThreadTitleGate, generateThreadTitle, llmThreadTitlesEnabled } from "./thread-title-generate.ts";
@@ -7015,13 +7015,6 @@ function turnAnswers(threadId: string, opts?: {
   };
 }
 
-// Provider sessions only know their own turns' messages, so a harness-appended result marks the task for one replay; the unique suffix keeps a newer marker through a racing replay.
-const EXTERNAL_CONTEXT_MARKER_PREFIX = "__openmaus_external_context__:";
-
-function isExternalContextMarker(value: string | undefined): boolean {
-  return Boolean(value?.startsWith(EXTERNAL_CONTEXT_MARKER_PREFIX));
-}
-
 function markTaskContextExternallyUpdated(bot: BotRecord, threadId: string): void {
   const task = store.taskByThread(bot.id, threadId);
   if (!task) return;
@@ -7032,7 +7025,7 @@ function markTaskContextExternallyUpdated(bot: BotRecord, threadId: string): voi
     registry.get(owner)?.adapter.capabilities.strictResume) return;
   store.patchTask(bot.id, threadId, {
     resumeCursors: {},
-    lastInstanceId: `${EXTERNAL_CONTEXT_MARKER_PREFIX}${randomUUID()}`,
+    lastInstanceId: externalContextMarker(),
   });
 }
 

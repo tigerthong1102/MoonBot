@@ -30,7 +30,7 @@ import {
 } from "./routine-recovery.ts";
 import { askOf, settleAsk, waitingFor, type RoutineRunAsk } from "./routine-waits.ts";
 import { failsLikeLastOutcome, outcomesNewestFirst } from "./routine-outcomes.ts"; import { createRunGate, type RunPreparation } from "./routine-run-gate.ts";
-import { busyWait, markStop, RunClock, runOverLimit, SlowStops, withBoundedStops, type StopState } from "./routine-bounds.ts"; import { keepUnreadableAside, readRoutineFile, UNREADABLE_RETRY_MS } from "./routine-file.ts";
+import { busyWait, markStop, RunClock, runOverLimit, SlowStops, withBoundedStops, type StopState } from "./routine-bounds.ts"; import { keepUnreadableAside, readRoutineFile, type RoutineFile, UNREADABLE_RETRY_MS } from "./routine-file.ts";
 import { noStartAlert, noStartSpacing, turnBackOn } from "./routine-no-start.ts"; import { afterRunSpacing, failureSpacingAlert, runSpacing } from "./routine-failure-spacing.ts"; import { blockingRun, recordSkip, type RoutineSkips } from "./routine-skips.ts";
 import { restartRetryAt, startupDecision } from "./routine-restarts.ts"; import { routineHealthOf, type RoutineHealth } from "./routine-health.ts"; import { Occurrences, ROUTINE_TURN_GONE } from "./routine-occurrences.ts"; import type { Occurrence } from "./routine-ledger.ts";
 import { CATCH_UP_MS, planOccurrence, settleRestored, staggered } from "./routine-catch-up.ts"; import { evictRuns } from "./routine-run-history.ts"; import { RunWatch } from "./routine-run-watch.ts"; import { scheduleSection, type ScheduleSection } from "./routine-schedule-report.ts";
@@ -179,20 +179,6 @@ export interface RoutineInput {
   deliver?: RoutineDelivery | null;
   resultsThreadId?: string | null;
 }
-
-interface RoutineFile {
-  version: 1;
-  frozenResultsCleared?: true;
-  routines: Routine[];
-  runs: RoutineRun[];
-  routineRequestReceipts?: RoutineRequestReceipt[];
-  webhookRunReceipts?: unknown[];
-  startupLaunchId?: string;
-  noStartOffsChecked?: true;
-  ownerNotices?: RoutineOwnerNotice[];
-  holds?: RoutineHoldCause[];
-}
-
 
 /** What a routine's checks found: items for one AI run, a sentence while an app cannot be read, and the next time they
  * have something to do on time. */

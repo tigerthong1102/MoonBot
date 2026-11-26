@@ -1,5 +1,6 @@
 // What a resumed provider session has not received yet. Whenever the record cannot say what the session holds, the turn replays.
 
+import { randomUUID } from "node:crypto";
 import { promptWithDataContext } from "../shared/data-context.ts";
 import type { RuntimeEvent } from "./contracts.ts";
 import type { Message } from "./store.ts";
@@ -55,6 +56,17 @@ export function stoppedWorkNeedsFreshSession(messages: readonly Message[]): bool
   if (stopped < 0) return false;
   const laterRequests = new Set(messages.slice(stopped + 1).filter(message => message.role === "user").map(message => message.id));
   return !messages.slice(stopped + 1).some(message => message.turnTerminal && message.turnSucceeded && message.requestMessageId && laterRequests.has(message.requestMessageId));
+}
+
+// Provider sessions only know their own turns' messages, so a harness-appended result marks the task for one replay; the unique suffix keeps a newer marker through a racing replay.
+const EXTERNAL_CONTEXT_MARKER_PREFIX = "__openmaus_external_context__:";
+
+export function isExternalContextMarker(value: string | undefined): boolean {
+  return Boolean(value?.startsWith(EXTERNAL_CONTEXT_MARKER_PREFIX));
+}
+
+export function externalContextMarker(): string {
+  return `${EXTERNAL_CONTEXT_MARKER_PREFIX}${randomUUID()}`;
 }
 
 export interface HandedState {

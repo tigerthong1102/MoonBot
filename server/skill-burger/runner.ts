@@ -177,6 +177,8 @@ async function timed(ms: number, outer: AbortSignal | undefined, run: (signal: A
       run(controller.signal),
       new Promise<"timeout">((done) => { timer = setTimeout(() => { controller.abort(); done("timeout"); }, ms); }),
     ]);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
   } finally {
     clearTimeout(timer);
     outer?.removeEventListener("abort", stop);

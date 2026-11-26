@@ -38,6 +38,12 @@ function harness(handlers: Partial<StepExecutors> = {}) {
 }
 
 describe("running a Skill Burger", () => {
+  it("ends the failed step when an executor throws and does not run the next step", async () => {
+    const h = harness({ app: async () => { throw new Error("fixture executor failure"); } });
+    const result = await h.start(wf([app("s1", "GMAIL_FETCH_EMAILS", {}), app("s2", "GMAIL_SEND_EMAIL", {})]));
+    expect(result).toMatchObject({ ok: false, error: { type: "step_failed", message: expect.stringContaining("fixture executor failure"), step: "s1" } });
+    expect(h.events).toEqual(["start s1", "failed s1"]);
+  });
   it("replays each recorded batch result with the paths used by later actions", async () => {
     const savedId = "recorded-id-123";
     const batch = { data: { results: [{ response: { data: { messages: [{ id: savedId }] } } }, { response: { data: { rows: ["recorded-row-456"] } } }] } };

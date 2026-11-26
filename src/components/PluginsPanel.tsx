@@ -136,7 +136,7 @@ export function PluginsPanel() {
     connectorStatusMemory() === null ? "loading" : "ready",
   );
   const [error, setError] = useState<string | { key: LocaleKey } | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(state.pluginsSearch ?? "");
   const [tab, setTab] = useState<"marketplace" | "connected">("marketplace");
   const [showAllApps, setShowAllApps] = useState(false);
   const [hostedConnected, setHostedConnected] = useState<HostedConnections | null>(null);

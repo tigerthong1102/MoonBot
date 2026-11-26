@@ -234,6 +234,18 @@ describe("needs you", () => {
     ]);
   });
 
+  it("keeps the reconnect alert when a successful call was in a chat the viewer cannot read", () => {
+    const w = world();
+    const gmail = "mcp__composio__GMAIL_FETCH_EMAILS";
+    w.tool(w.atlas.threadId, at(11), gmail, false, { output: "The connected account token has expired; reconnect Gmail." });
+    w.tool(w.pepper.threadId, at(12), gmail, true);
+    const viewer = { ...ADMIN, thread: (thread: string) => thread !== w.pepper.threadId };
+    expect(todayReport(w.sources(), viewer, MIDNIGHT, NOW).needsYou).toEqual([
+      expect.objectContaining({ kind: "connection", app: "Gmail", threadId: w.atlas.threadId }),
+    ]);
+    expect(todayReport(w.sources(), ADMIN, MIDNIGHT, NOW).needsYou).toEqual([]);
+  });
+
   it.each(["Send the draft", ""])("codes approval titles without changing the English for %j", (title) => {
     const w = world();
     w.say(w.atlas.threadId, { role: "bot", kind: "options", at: at(12), card: { title, subtitle: "", options: ["Allow", "Deny"], requestType: "permission", requestId: "permission" } });

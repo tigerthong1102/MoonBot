@@ -3,7 +3,9 @@ import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const server = vi.hoisted(() => ({ calls: [] as Array<{ path: string; method: string; body?: unknown }>, view: null as null | { rows: Array<{ id: string; tab: string }> } }));
+import type { TodayReport } from "../../../shared/today";
+
+const server = vi.hoisted(() => ({ calls: [] as Array<{ path: string; method: string; body?: unknown }>, today: null as TodayReport | null, view: null as null | { rows: Array<{ id: string; tab: string }> } }));
 vi.mock("@/lib/use-owner-or-admin", () => ({ useOwnerOrAdmin: () => true }));
 vi.mock("../../state/api", () => ({
   api: vi.fn(async (path: string, init?: RequestInit) => {
@@ -11,6 +13,7 @@ vi.mock("../../state/api", () => ({
     const done = /^\/api\/inbox\/([\w-]+)\/done$/.exec(path);
     if (done && server.view) server.view = { ...server.view, rows: server.view.rows.map((row) => (row.id === done[1] ? { ...row, tab: "done", unread: false } : row)) };
     if (path === "/api/inbox/read-all" && server.view) server.view = { ...server.view, rows: server.view.rows.map((row) => ({ ...row, unread: false })) };
+    if (path.startsWith("/api/today?")) return server.today;
     return server.view;
   }),
 }));
@@ -38,6 +41,7 @@ const shown = (view: InboxView) => { server.view = view; setInboxView(view); };
 beforeEach(() => {
   root = createRoot(document.body.appendChild(document.createElement("div")));
   server.calls.length = 0;
+  server.today = null;
   dispatch.mockClear();
   shown(inboxView());
 });
@@ -65,6 +69,23 @@ describe("the inbox panel", () => {
     expect(document.querySelector("textarea"), "a message that waits on an answer takes a reply").not.toBeNull();
     await click('[aria-label="Back to the list"]');
     expect(listed()).toEqual([approvalRow.id, questionRow.id, messageRow.id, reportRow.id]);
+  });
+
+  it("shows an account sign-in problem without a conversation and opens model provider settings", async () => {
+    server.today = {
+      since: 1, until: 2, tiles: [], minutesSaved: 0, routines: { ok: 0, failed: 0 },
+      needsYou: [{ kind: "signed-out", id: "engine-alert", at: 2, instanceId: "Claude fixture", botIds: ["one", "two"] }],
+      lines: [], moreLines: 0, routineCount: 0,
+    };
+    openInbox();
+    await mount(createElement(InboxPanel));
+    const today = [...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Today")!;
+    await act(async () => today.click());
+    const signIn = [...document.querySelectorAll("button")].find((button) => button.textContent?.includes("Claude fixture is signed out"));
+    expect(signIn).toBeDefined();
+    await act(async () => signIn!.click());
+    expect(currentInboxPanel().open).toBe(false);
+    expect(dispatch).toHaveBeenCalledWith({ type: "toggleAppSettings", open: true, section: "ai" });
   });
 
   it("answers an ask from its row through the copy's own card, as the chat's buttons do, and marks news done", async () => {

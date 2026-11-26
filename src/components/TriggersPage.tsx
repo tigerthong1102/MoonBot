@@ -51,7 +51,9 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
     // "Open" from a chat card or a notice names the automation: open its panel.
     if (focus?.routineId && focus.section !== "logs") setOpenId(focus.routineId);
   }, [focus]);
-  useEffect(() => { backButtonRef.current?.focus({ preventScroll: true }); }, []);
+  useEffect(() => {
+    if (!focus?.runId) backButtonRef.current?.focus({ preventScroll: true });
+  }, [focus?.runId]);
 
   const all = useMemo(() => automationsFrom({ routines: state.routines, webhooks: routinesOnly ? [] : state.webhooks, appTriggers: appTriggers.triggers, runs: state.routineRuns, bots: state.bots }),
     [state.routines, state.webhooks, appTriggers.triggers, state.routineRuns, state.bots, routinesOnly]);
@@ -155,7 +157,7 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
         )}
         {open && (
           <div className="absolute inset-y-0 right-0 z-30 flex shadow-2xl lg:static lg:shadow-none">
-            <AutomationPanel key={open.id} automation={open} sentence={sentenceOf(open)} onClose={() => setOpenId(null)} onDeleted={() => setOpenId(null)} onEdit={() => setEditing({ kind: open.kind, id: open.id })} />
+            <AutomationPanel key={open.id} automation={open} focusedRunId={focus?.routineId === open.id ? focus.runId : undefined} sentence={sentenceOf(open)} onClose={() => setOpenId(null)} onDeleted={() => setOpenId(null)} onEdit={() => setEditing({ kind: open.kind, id: open.id })} />
           </div>
         )}
       </div>

@@ -43,6 +43,7 @@ type ScopesFile = z.infer<typeof scopesSchema>;
 export class ConnectionScopes {
   private data: ScopesFile;
   private readonly file: string;
+  private appsRevision = 0;
   constructor(file: string) {
     this.file = file;
     let parsed: ScopesFile | null = null;
@@ -56,12 +57,15 @@ export class ConnectionScopes {
   scope(kind: ConnectionKind, id: string): ConnectionScope {
     return Object.hasOwn(kind === "app" ? this.data.apps : this.data.mcp, id) ? "person" : "team";
   }
+  appRevision(): number { return this.appsRevision; }
   set(kind: ConnectionKind, id: string, scope: ConnectionScope): void {
+    if (this.scope(kind, id) === scope) return;
     const next: ScopesFile = { v: 1, apps: { ...this.data.apps }, mcp: { ...this.data.mcp } };
     const map = kind === "app" ? next.apps : next.mcp;
     if (scope === "person") map[id] = "person"; else delete map[id];
     writeFileAtomic(this.file, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
     this.data = next;
+    if (kind === "app") this.appsRevision += 1;
   }
 }
 

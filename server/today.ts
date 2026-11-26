@@ -8,7 +8,7 @@ import { isClientCancellation } from "../shared/client-cancel.ts";
 import { failedTurnCause } from "../shared/failed-turn.ts";
 import type { PlaceRow, PlaceState } from "../shared/place-view.ts";
 import type { ServerTextParams } from "../shared/server-text.ts";
-import type { RoutineRunReport, RoutineRunStatus, RoutineRunTrigger } from "../shared/routines.ts";
+import type { RoutineBlock, RoutineRunReport, RoutineRunStatus, RoutineRunTrigger } from "../shared/routines.ts";
 import { classifyToolCall, isReportRoutine, minutesSaved, OUTCOME_CATEGORIES, toolApps, type OutcomeCategory, type OutcomeCounts } from "../shared/today-outcomes.ts";
 import { NEEDS_YOU_WINDOW_MS, TODAY_MAX_LINES, TODAY_MAX_WINDOW_MS, type NeedsYouItem, type TodayLine, type TodayReport, type TodayStarter } from "../shared/today.ts";
 import { trialCreditKind } from "../shared/trial-credit.ts";
@@ -21,6 +21,7 @@ export interface TodayViewer {
   admin: boolean;
   thread(threadId: string): boolean;
   routine(run: { botId?: unknown; groupId?: unknown }): boolean;
+  run?(run: RunRecord): boolean;
   /** A Team Cloud: whether an ask in this conversation is this viewer's. It then holds approvals too, since each one
    * waits on the one person it is for. */
   asks?(botId: string | undefined, threadId: string): boolean;
@@ -36,10 +37,13 @@ interface RunRecord {
   manual: boolean;
   triggerSource?: RoutineRunTrigger;
   threadId?: string;
+  sourceThreadId?: string;
+  resultsThreadId?: string;
   scheduledFor: number;
   startedAt?: number;
   finishedAt?: number;
   error?: string;
+  blockedBy?: RoutineBlock;
   report?: RoutineRunReport;
 }
 
@@ -119,7 +123,7 @@ function starter(sender: { role: string; peer: number; via: string | null; relay
 
 function runEnd(run: RunRecord, now: number): number | null {
   if (run.status === "completed" || run.status === "failed") return run.finishedAt ?? run.startedAt ?? run.scheduledFor;
-  if (run.status === "missed") return run.finishedAt ?? run.scheduledFor;
+  if (run.status === "missed" || (run.status === "cancelled" && run.blockedBy)) return run.finishedAt ?? run.scheduledFor;
   return run.status === "cancelled" ? null : now;
 }
 
@@ -172,17 +176,17 @@ export function todayReport(sources: TodaySources, viewer: TodayViewer, requeste
   const runWindows = new Map<string, Array<{ start: number; end: number }>>();
   for (const run of sources.routines?.listRuns(since - 2 * DAY_MS) ?? []) {
     const end = runEnd(run, now);
-    if (end === null || !viewer.routine(run)) continue;
+    if (end === null || !(viewer.run ?? viewer.routine)(run)) continue;
     if (run.threadId && run.startedAt !== undefined) {
       const windows = runWindows.get(run.threadId) ?? [];
       windows.push({ start: run.startedAt, end: (run.finishedAt ?? now) + RUN_SETTLES_MS });
       runWindows.set(run.threadId, windows);
     }
-    if (end < since || end > now || !["completed", "failed", "missed"].includes(run.status)) continue;
+    if (end < since || end > now || run.status === "queued" || run.status === "running" || run.status === "waiting") continue;
     const ok = run.status === "completed";
     if (ok) routines.ok += 1;
     else routines.failed += 1;
-    if (run.report?.state === "quiet") continue;
+    if (ok && run.report?.state === "quiet") continue;
     const reported = run.report?.state === "posted" && seen(run.report.threadId) ? run.report.threadId : undefined;
     const outcomes: OutcomeCounts = {};
     for (const event of run.threadId && run.startedAt !== undefined ? byThread.get(run.threadId) ?? [] : []) {
@@ -320,7 +324,7 @@ function needsYou(sources: TodaySources, viewer: TodayViewer, owners: Map<string
   for (const [key, app] of connectionApps) {
     const item = items.get(key);
     const worked = item && successfulCallsMentioning(item.at, app.slice(0, APP_WORD_CHARS))
-      .some((call) => toolApps(call.name, call.input ?? undefined).includes(app));
+      .some((call) => seen(call.threadId) && toolApps(call.name, call.input ?? undefined).includes(app));
     if (worked) items.delete(key);
   }
 

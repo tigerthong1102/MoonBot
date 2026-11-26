@@ -26,7 +26,7 @@ export function InboxActive({ view }: { view: InboxView | null }) {
     <>
       {fixes.length > 0 && (
         <section data-inbox-fixes className="border-t border-hairline/40 px-1.5 py-1.5">
-          {fixes.map((item) => <NeedsYouLine key={`${item.kind}:${item.id}`} item={item} onOpened={closeInbox} />)}
+          {fixes.map((item) => <NeedsYouLine key={`${item.kind}:${item.id}`} item={item} onOpened={closeInbox} menuItem={false} />)}
         </section>
       )}
       {(entries.length > 0 || pinned) && (

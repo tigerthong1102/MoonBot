@@ -1,3 +1,5 @@
+import { approvalModeFor } from "../../../shared/approval-mode";
+import { needsReconnect, type ConnectorAccount } from "@/lib/connector-status";
 import { useEffect, useState } from "react";
 import { browserUnavailableReason } from "@/lib/feature-flags";
 import { ChevronDown, ChevronRight, FolderOpen, Plus } from "lucide-react";
@@ -764,9 +766,12 @@ export function AccessSection({
             className="disabled:cursor-not-allowed"
           />
         </div>
+        {!draft && connectedAppsEnabled && <p className="mt-2 text-[12px] text-ink-secondary">
+          {t("botAccess.connectionApproval", { mode: t(`approvalMode.${approvalModeFor(bot)}.label`) })}
+        </p>}
         {connectedAppsEnabled && inventoryReady && (
           <>
-            {!draft && <ConnectorScopesControl connectedSlugs={connectedSlugs} labels={appLabels} scopes={bot.connectorScopes} onChange={(connectorScopes) => patch({ connectorScopes })} />}
+            {!draft && <ConnectorScopesControl connectedSlugs={connectedSlugs} labels={appLabels} accounts={apps.accounts} scopes={bot.connectorScopes} onChange={(connectorScopes) => patch({ connectorScopes })} />}
             <ConnectorToolsGrants bot={bot} patch={patch} slugs={connectedSlugs} />
           </>
         )}
@@ -893,15 +898,16 @@ export function AccessSection({
   );
 }
 
-function ConnectorScopesControl({ connectedSlugs, labels = {}, scopes, onChange }: {
+function ConnectorScopesControl({ connectedSlugs, labels = {}, accounts = {}, scopes, onChange }: {
   connectedSlugs: string[];
   /** display names by slug; a slug without one shows as itself */
   labels?: Record<string, string>;
+  accounts?: Record<string, ConnectorAccount[]>;
   scopes: ConnectorScopes | undefined;
   onChange: (scopes: ConnectorScopes | null) => void;
 }) {
   const limited = scopes !== undefined;
-  const slugs = [...new Set([...connectedSlugs, ...Object.keys(scopes?.apps ?? {})])].sort();
+  const slugs = [...new Set([...connectedSlugs, ...Object.keys(scopes?.apps ?? {}), ...Object.keys(accounts)])].sort();
   const setScope = (slug: string, scope: ConnectorScope | null) => {
     const apps = { ...scopes?.apps };
     if (scope) apps[slug] = scope;
@@ -915,15 +921,20 @@ function ConnectorScopesControl({ connectedSlugs, labels = {}, scopes, onChange 
       </div>
       <Switch checked={limited} aria-label={t("botAccess.scopes.limitLabel")} onClick={() => onChange(limited ? null : { apps: {} })} />
     </div>
-    {limited && <div className="mt-2 flex flex-col divide-y divide-hairline/20 rounded-lg bg-inset">
+    {(limited || Object.keys(accounts).length > 0) && <div className="mt-2 flex flex-col divide-y divide-hairline/20 rounded-lg bg-inset">
       {!slugs.length && <div className="px-3 py-2 text-[12px] text-ink-secondary">{t("botAccess.scopes.empty")}</div>}
-      {slugs.map((slug) => <div key={slug} className="flex flex-wrap items-center justify-between gap-3 px-3 py-1.5">
-        <span className="min-w-0 text-[13px] text-ink">{labels[slug] ?? slug}{!connectedSlugs.includes(slug) && <span className="ml-2 text-[11px] text-ink-secondary">{t("botAccess.scopes.notConnected")}</span>}</span>
-        <div className="flex shrink-0 gap-0.5 rounded-md bg-card p-0.5" role="group" aria-label={t("botAccess.scopes.accessLabel", { app: slug })}>
+      {slugs.filter((slug) => limited || accounts[slug]?.length).map((slug) => <div key={slug} className="flex flex-wrap items-center justify-between gap-3 px-3 py-1.5">
+        <div className="min-w-0">
+          <span className="min-w-0 text-[13px] text-ink">{labels[slug] ?? slug}{!connectedSlugs.includes(slug) && <span className="ms-2 text-[11px] text-ink-secondary">{t("botAccess.scopes.notConnected")}</span>}</span>
+          {accounts[slug]?.map((account) => <div key={account.id} className="break-words text-[12px] text-ink-secondary">
+            {account.alias || account.id} · {t(needsReconnect(account) ? "botAccess.connectionNeedsSignIn" : /^active$/i.test(account.status) ? "apps.connected" : "botAccess.connectionPending")}
+          </div>)}
+        </div>
+        {limited && <div className="flex shrink-0 gap-0.5 rounded-md bg-card p-0.5" role="group" aria-label={t("botAccess.scopes.accessLabel", { app: slug })}>
           {([[null, t("botAccess.scopes.off"), t("botAccess.scopes.offHint")], ["read", t("botAccess.scopes.read"), t("botAccess.scopes.readHint")], ["write", t("botAccess.scopes.readWrite"), t("botAccess.scopes.readWriteHint")]] as const).map(([value, label, hint]) =>
             <button key={label} type="button" title={hint} aria-pressed={(scopes?.apps[slug] ?? null) === value} onClick={() => setScope(slug, value)}
               className={cn("rounded px-2 py-0.5 text-[12px] font-medium", (scopes?.apps[slug] ?? null) === value ? "bg-raised text-ink" : "text-ink-secondary hover:text-ink")}>{label}</button>)}
-        </div>
+        </div>}
       </div>)}
     </div>}
   </div>;

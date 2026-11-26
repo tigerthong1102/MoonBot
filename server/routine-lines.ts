@@ -57,6 +57,7 @@ export const RUN_LINE_MAX = 500;
 
 export interface RoutineTroubleCode {
   checkTroubleCode?: string;
+  checkRepairApp?: string;
 }
 
 /** Catalog keys and params beside a run's fixed lines. A client words one only while its field still reads as that
@@ -111,9 +112,10 @@ export function runLineFields(field: "error" | "attention", english: string, tex
 }
 
 export function applyCheckResult(routine: RoutineTroubleCode & { checkTrouble?: string; wakeAt?: number; checkedAt?: number }, result: RoutineCheckResult, now: number): void {
-  for (const field of ["wakeAt", "checkTrouble", "checkTroubleCode"] as const) delete routine[field];
+  for (const field of ["wakeAt", "checkTrouble", "checkTroubleCode", "checkRepairApp"] as const) delete routine[field];
   Object.assign(routine, result.wakeAt === undefined ? {} : { wakeAt: result.wakeAt },
     result.trouble ? { checkTrouble: result.trouble.slice(0, 300), ...(result.troubleCode ? { checkTroubleCode: result.troubleCode } : {}) } : {},
+    result.reconnectApp ? { checkRepairApp: result.reconnectApp } : {},
     result.trouble || result.run ? {} : { checkedAt: now });
 }
 

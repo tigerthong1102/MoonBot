@@ -79,16 +79,18 @@ export function SavedWorkflowsCard({ botId, threadId, team = false }: { botId: s
                 className="flex size-7 shrink-0 items-center justify-center rounded-lg text-ink-secondary hover:bg-ink/[0.05] hover:text-ink" />
               <TrashButton data-panel-action={`remove-skill-burger:${skill.name}`} label={t("skillBurger.list.remove", { name: skill.name })} onClick={() => void remove(skill)} />
             </div>
-            <ol id={listId} hidden={!expanded} aria-label={t("skillBurger.layers")} className="flex flex-col gap-1 px-3.5 pb-3">
-              {skill.layers.map((layer, index) => (
-                <li key={index} className="flex min-w-0 items-center gap-2 text-[13px] text-ink-secondary">
-                  <LayerIcon kind={layer.kind} />
-                  <span className="min-w-0 flex-1 truncate">{layer.label}</span>
-                  {layer.kind === "ai" && <span className="shrink-0 text-[11px] text-ink-tertiary">{t("skillBurger.aiTag")}</span>}
-                </li>
-              ))}
-            </ol>
-            {expanded && <div className="px-3.5 pb-3"><WorkflowControls skill={skill} team={team} /></div>}
+            <div id={listId} hidden={!expanded}>
+              <ol aria-label={t("skillBurger.layers")} className="flex flex-col gap-1 px-3.5 pb-3">
+                {skill.layers.map((layer, index) => (
+                  <li key={index} className="flex min-w-0 items-center gap-2 text-[13px] text-ink-secondary">
+                    <LayerIcon kind={layer.kind} />
+                    <span className="min-w-0 flex-1 truncate">{layer.label}</span>
+                    {layer.kind === "ai" && <span className="shrink-0 text-[11px] text-ink-tertiary">{t("skillBurger.aiTag")}</span>}
+                  </li>
+                ))}
+              </ol>
+              <div className="px-3.5 pb-3"><WorkflowControls skill={skill} team={team} /></div>
+            </div>
           </div>
         );
       })}

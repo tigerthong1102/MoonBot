@@ -5,11 +5,12 @@ import { expect, it, vi } from "vitest";
 import type { SavedWorkflow } from "@/lib/skill-burger";
 import type { WorkflowWait } from "../../../shared/skill-burger/approval";
 
-const fixture = vi.hoisted(() => ({ api: vi.fn(), dispatch: vi.fn(), read: vi.fn(), save: vi.fn() }));
+const fixture = vi.hoisted(() => ({ api: vi.fn(), dispatch: vi.fn(), list: vi.fn(), read: vi.fn(), save: vi.fn() }));
+vi.mock("@/lib/use-owner-or-admin", () => ({ useOwnerOrAdmin: () => true }));
 vi.mock("@/state/api", () => ({ api: fixture.api }));
 vi.mock("@/state/store-select", () => ({ useStoreDispatch: () => fixture.dispatch }));
-vi.mock("@/lib/skill-burger", () => ({ readBurgerRevision: fixture.read, saveBurgerControls: fixture.save }));
-const { WorkflowControls } = await import("./WorkflowControls");
+vi.mock("@/lib/skill-burger", async original => ({ ...await original<typeof import("@/lib/skill-burger")>(), useSavedBurgers: fixture.list, readBurgerRevision: fixture.read, saveBurgerControls: fixture.save }));
+const { SavedWorkflowsCard } = await import("./SavedWorkflowsCard");
 const { WorkflowWaits } = await import("./WorkflowWaits");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -18,12 +19,15 @@ it("edits adjacent reads and requires team sharing consent before saving the pin
   fixture.read.mockResolvedValue({ sha256: "current", workflow: { version: 1, args: {}, summary: "Fixture", steps: [
     ["mail", "GMAIL_FETCH_EMAILS"], ["profile", "GMAIL_GET_PROFILE"], ["send", "GMAIL_SEND_EMAIL"],
   ].map(([id, tool]) => ({ id, kind: "app", app: "gmail", tool, args: {}, label: id })) } });
+  fixture.list.mockReturnValue({ skills: [skill] });
   fixture.save.mockResolvedValue({ ...skill, sha256: "def" });
   const host = document.createElement("div"); document.body.append(host);
   const root = createRoot(host);
   try {
-    await act(async () => root.render(createElement(WorkflowControls, { skill, team: true })));
-    const toggle = host.querySelector<HTMLButtonElement>("button[aria-controls]")!;
+    await act(async () => root.render(createElement(SavedWorkflowsCard, { botId: "bot", threadId: "room", team: true })));
+    const row = host.querySelector<HTMLButtonElement>("button[aria-controls]")!;
+    await act(async () => row.click());
+    const toggle = [...host.querySelectorAll<HTMLButtonElement>("button[aria-controls]")].find(button => button !== row)!;
     const panel = document.getElementById(toggle.getAttribute("aria-controls")!)!;
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(panel.hidden).toBe(true);
@@ -39,7 +43,11 @@ it("edits adjacent reads and requires team sharing consent before saving the pin
     const parallel = forms[1]!.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
     expect(forms[2]!.querySelector('input[type="checkbox"]')).toBeNull();
     await act(async () => parallel.click());
-    const save = host.querySelector<HTMLButtonElement>("button:not([aria-controls])")!;
+    await act(async () => row.click());
+    await act(async () => row.click());
+    expect(host.contains(parallel)).toBe(true);
+    expect(parallel.checked).toBe(true);
+    const save = panel.querySelector<HTMLButtonElement>("button:not([aria-controls])")!;
     expect(save.disabled).toBe(true);
     const share = [...host.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].at(-1)!;
     await act(async () => share.click());

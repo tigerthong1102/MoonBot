@@ -10587,5 +10587,6 @@
   "server.roomCouncil.critique": "批评",
   "server.roomCouncil.summary": "委员会主席总结",
   "studio.versions": "每次发布之前的版本",
-  "studio.restore": "恢复此配置"
+  "studio.restore": "恢复此配置",
+  "server.roomCouncil.textOnly": "委员会仅接受文本。请移除附件并重新发送问题。"
 }

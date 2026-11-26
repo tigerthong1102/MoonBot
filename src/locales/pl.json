@@ -7593,5 +7593,6 @@
   "server.roomCouncil.critique": "Krytyka",
   "server.roomCouncil.summary": "Podsumowanie przewodniczącego rady",
   "studio.versions": "Wersje przed każdą publikacją",
-  "studio.restore": "Przywróć tę konfigurację"
+  "studio.restore": "Przywróć tę konfigurację",
+  "server.roomCouncil.textOnly": "Rada przyjmuje tylko tekst. Usuń załączniki i wyślij pytanie ponownie."
 }

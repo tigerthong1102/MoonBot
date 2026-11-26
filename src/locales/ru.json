@@ -7647,5 +7647,6 @@
   "server.roomCouncil.critique": "Критика",
   "server.roomCouncil.summary": "Итог председателя совета",
   "studio.versions": "Версии перед каждой публикацией",
-  "studio.restore": "Восстановить эту конфигурацию"
+  "studio.restore": "Восстановить эту конфигурацию",
+  "server.roomCouncil.textOnly": "Совет принимает только текст. Удалите вложения и отправьте вопрос ещё раз."
 }

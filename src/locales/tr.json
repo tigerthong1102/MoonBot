@@ -6330,5 +6330,6 @@
   "server.roomCouncil.critique": "Eleştiri",
   "server.roomCouncil.summary": "Konsey başkanının özeti",
   "studio.versions": "Her yayından önceki sürümler",
-  "studio.restore": "Bu yapılandırmayı geri yükle"
+  "studio.restore": "Bu yapılandırmayı geri yükle",
+  "server.roomCouncil.textOnly": "Konsey yalnızca metin kabul eder. Ekleri kaldırıp sorunuzu yeniden gönderin."
 }

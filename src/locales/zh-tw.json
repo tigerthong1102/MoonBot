@@ -10691,5 +10691,6 @@
   "server.roomCouncil.critique": "批評",
   "server.roomCouncil.summary": "委員會主席總結",
   "studio.versions": "每次發布之前的版本",
-  "studio.restore": "恢復此配置"
+  "studio.restore": "恢復此配置",
+  "server.roomCouncil.textOnly": "委員會僅接受文字。請移除附件並重新傳送問題。"
 }

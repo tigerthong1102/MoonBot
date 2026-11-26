@@ -8423,5 +8423,6 @@
   "server.roomCouncil.critique": "批評",
   "server.roomCouncil.summary": "議長によるまとめ",
   "studio.versions": "各出版物以前のバージョン",
-  "studio.restore": "この構成を復元します"
+  "studio.restore": "この構成を復元します",
+  "server.roomCouncil.textOnly": "評議会にはテキストのみ送信できます。添付ファイルを削除して質問を再送してください。"
 }

@@ -32,6 +32,7 @@ export async function runCouncil(input: {
 }) {
   const { question, members, signal, language, notice } = input;
   const missing = seats.filter(seat => !members.some(member => member.seat === seat));
+  if (/<(?:attached-(?:image|file)|pasted-text)\b|<!--omb-citation-v1:/i.test(question)) return notice(serverLine(language, "server.roomCouncil.textOnly"));
   if (!question || question.length > 16000) return notice(serverLine(language, "server.roomCouncil.question"));
   if (missing.length) return notice(serverLine(language, "server.roomCouncil.missing", { models: missing.join(", ") }));
   const panel = seats.map(seat => members.find(member => member.seat === seat && member.id === input.chairId) ?? members.find(member => member.seat === seat)!);

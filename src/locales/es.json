@@ -6829,5 +6829,6 @@
   "server.roomCouncil.critique": "crítica",
   "server.roomCouncil.summary": "Síntesis de quien preside el consejo",
   "studio.versions": "Versiones antes de cada publicación",
-  "studio.restore": "Restaurar esta configuración"
+  "studio.restore": "Restaurar esta configuración",
+  "server.roomCouncil.textOnly": "El consejo solo acepta texto. Quita los archivos adjuntos y vuelve a enviar la pregunta."
 }

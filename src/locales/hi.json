@@ -3986,5 +3986,6 @@
   "server.roomCouncil.critique": "आलोचना",
   "server.roomCouncil.summary": "परिषद अध्यक्ष का सारांश",
   "studio.versions": "प्रत्येक प्रकाशन से पहले के संस्करण",
-  "studio.restore": "इस कॉन्फ़िगरेशन को पुनर्स्थापित करें"
+  "studio.restore": "इस कॉन्फ़िगरेशन को पुनर्स्थापित करें",
+  "server.roomCouncil.textOnly": "परिषद केवल टेक्स्ट स्वीकार करती है। अटैचमेंट हटाकर अपना सवाल फिर भेजें।"
 }

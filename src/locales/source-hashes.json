@@ -4127,7 +4127,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "es": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -10739,7 +10740,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "fr": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -14652,7 +14654,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "hi": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -18419,7 +18422,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "ja": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -26625,7 +26629,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "pt-br": {
       "chat.clearMessages.question": "81d6c4e9d967df9cc372836338ffcab352f9d8bc7c14d4991bd925ec6adef712",
@@ -37891,7 +37896,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "zh": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -48246,7 +48252,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "zh-tw": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -58708,7 +58715,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "uk": {
       "pro.fromPrice": "a1715ba5a6a2a2eff6f02065199d1cccb0b02939900b4f85aec65643b9e5f30e",
@@ -62896,7 +62904,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "vi": {
       "chat.clearMessages.question": "81d6c4e9d967df9cc372836338ffcab352f9d8bc7c14d4991bd925ec6adef712",
@@ -74186,7 +74195,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "tr": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -80298,7 +80308,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "pl": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -87675,7 +87686,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "ru": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -95105,7 +95117,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "it": {
       "whop.description": "1a07cf04ef17029448d3781415cbac16d54e66b821907a40d94e0e6349710e70",
@@ -102342,7 +102355,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     },
     "ko": {
       "connectedWorkspaces.localTitle": "7d6deafeab011d734c3fdd1bfd6f69544fbb746a004019269bdb48544b01164b",
@@ -110238,7 +110252,8 @@
       "server.roomCouncil.critique": "0197946cc322f58a0173714d85fb7c8afc197b5b16180280427e8b252a8eb795",
       "server.roomCouncil.summary": "61af36701335d5397656f7ecb989d83915793c627f1d472f9201d4934fbfe9f7",
       "studio.versions": "755835522fb224e5e47eaff30e2e5f4d5a736729783a4c320672ef8b6f1b1046",
-      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894"
+      "studio.restore": "eed1064e2e67b1a17fcb1b34168d3d374b50c77a8f29e26db375a086cdeed894",
+      "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2"
     }
   }
 }

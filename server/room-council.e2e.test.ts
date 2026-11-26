@@ -43,6 +43,11 @@ it("runs independent ballots, the optional critique and the chair from a real ro
     const send = (text: string) => phone("POST", `/api/groups/${group.id}/messages`, {
       text, threadId: group.threadId, sendId: `native_council_fixture_${++sequence}`,
     });
+    await send('/council Review this <attached-file path="fixture-private" name="file" />');
+    await expect.poll(async () => (await api("GET", `/api/threads/${group.threadId}/messages`)).messages.some(
+      (row: { tool?: { name: string } }) => row.tool?.name.includes("accepts text only"),
+    )).toBe(true);
+    expect(calls).toHaveLength(0);
     await send("/council --critique Should we launch?");
     const transcript = async () => (await api("GET", `/api/threads/${group.threadId}/messages`)).messages as Array<{ tool?: { name?: string }; text?: string }>;
     await expect.poll(async () => {

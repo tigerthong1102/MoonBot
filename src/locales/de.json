@@ -4347,5 +4347,6 @@
   "server.roomCouncil.critique": "Kritik",
   "server.roomCouncil.summary": "Zusammenfassung des Ratsvorsitzes",
   "studio.versions": "Versionen vor jeder Veröffentlichung",
-  "studio.restore": "Stellen Sie diese Konfiguration wieder her"
+  "studio.restore": "Stellen Sie diese Konfiguration wieder her",
+  "server.roomCouncil.textOnly": "Der Rat akzeptiert nur Text. Entferne die Anhänge und sende deine Frage erneut."
 }

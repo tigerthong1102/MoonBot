@@ -4132,5 +4132,6 @@
   "server.roomCouncil.critique": "Critique",
   "server.roomCouncil.summary": "Synthèse de la présidence du conseil",
   "studio.versions": "Versions avant chaque publication",
-  "studio.restore": "Restaurer cette configuration"
+  "studio.restore": "Restaurer cette configuration",
+  "server.roomCouncil.textOnly": "Le conseil accepte uniquement du texte. Retirez les pièces jointes et renvoyez votre question."
 }

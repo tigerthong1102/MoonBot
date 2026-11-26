@@ -7456,5 +7456,6 @@
   "server.roomCouncil.critique": "Critica",
   "server.roomCouncil.summary": "Sintesi della presidenza del consiglio",
   "studio.versions": "Versioni prima di ogni pubblicazione",
-  "studio.restore": "Ripristina questa configurazione"
+  "studio.restore": "Ripristina questa configurazione",
+  "server.roomCouncil.textOnly": "Il consiglio accetta solo testo. Rimuovi gli allegati e invia di nuovo la domanda."
 }

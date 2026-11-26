@@ -3546,6 +3546,7 @@
   "room.pinHint": "Ghim tin nhắn này lên đầu luồng của group",
   "room.fallbackBot": "Bot",
   "usage.caps.perRun": "Mỗi lượt chạy, kể cả tác vụ giao cho bot khác (engine hỗ trợ)",
+  "server.roomCouncil.textOnly": "Hội đồng chỉ nhận văn bản. Hãy gỡ tệp đính kèm rồi gửi lại câu hỏi.",
   "server.roomCouncil.question": "Nhập câu hỏi hội đồng từ 1 đến 16.000 ký tự.",
   "server.roomCouncil.missing": "Thêm bot đang hoạt động với model hỗ trợ trả lời riêng vào phòng cho {models}.",
   "server.roomCouncil.failed": "{seat} ({model}) không hoàn thành lượt. Kiểm tra kết nối, quyền và hạn mức.",

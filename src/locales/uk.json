@@ -4407,5 +4407,6 @@
   "server.roomCouncil.critique": "Критика",
   "server.roomCouncil.summary": "Підсумок голови ради",
   "studio.versions": "Версії перед кожною публікацією",
-  "studio.restore": "Відновіть цю конфігурацію"
+  "studio.restore": "Відновіть цю конфігурацію",
+  "server.roomCouncil.textOnly": "Рада приймає лише текст. Видаліть вкладення й надішліть запитання ще раз."
 }

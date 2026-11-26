@@ -1,3 +1,4 @@
+import { readReportLink } from "./lib/report-link";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -33,7 +34,8 @@ const pageLanguage = loadPageLanguage();
 // read, instead of after it. A failed fetch renders as a throw, so PageBoundary offers a reload.
 const PAGES_WITHOUT_THE_APP = new Set(["/home", "/pair", "/desktop-viewer"]);
 const loadApp = () => import("./App").catch((error: unknown) => ({ default: (): never => { throw error; } }));
-const appPage = PAGES_WITHOUT_THE_APP.has(location.pathname) ? null : loadApp();
+const reportLink = readReportLink(new URLSearchParams(location.search));
+const appPage = PAGES_WITHOUT_THE_APP.has(location.pathname) || reportLink ? null : loadApp();
 
 /** A team's name as its server describes itself to anyone (the descriptor's label), null when it can't say. */
 const teamName = () => fetch("/.well-known/openmausbot/environment").then((res) => res.json() as Promise<{ label?: unknown; capabilities?: { cloudTeam?: unknown } }>)
@@ -63,6 +65,10 @@ async function chooseRoot(): Promise<React.ReactNode> {
   if (session.kind === "loopback" && session.trust === "service") {
     await pageLanguage;
     return <PairPage initialCode={null} reason={t("pair.serviceTrust")} />;
+  }
+  if (reportLink) {
+    const { default: InternalReport } = await import("./components/app/InternalReport");
+    return <InternalReport threadId={reportLink.threadId} messageId={reportLink.messageId} />;
   }
   if (location.pathname === "/desktop-viewer") {
     const { DesktopViewer } = await import("./components/DesktopViewer");

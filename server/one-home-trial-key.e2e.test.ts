@@ -2,7 +2,7 @@
 // on it while the trial's Claude credit lasts; once the credit runs out, the bots go back to the key. This computer's
 // server and a Cloud home (scripts/testing/cloud-send-fixture.ts) with main's own wiring between them, and a stub for the
 // Admin's credit relay. Disposable homes; no network.
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, expect, it } from "vitest";
@@ -76,6 +76,14 @@ it("a trial's moved key is saved on My Cloud but unused until the included credi
   expect(credit).toMatchObject({ trialCredit: "active", snapshot: { state: "available" } });
   expect(credit!.snapshot.reason).not.toBe(TRIAL_CREDIT_OWN_AI);
   await expect.poll(async () => (await botOn(onCloud, kit.id)).modelSelection.instanceId, { timeout: 30_000, interval: 250 }).toBe(CLOUD_CREDIT_INSTANCE);
+  const probe = (await onCloud("POST", "/api/bots", { name: "Document readiness", modelSelection: { instanceId: "openrouter", model } })).body.bot;
+  const held = await onCloud("POST", `/api/bots/${probe.id}/knowledge-answers`, {
+    threadId: probe.threadId, sendId: randomUUID(), question: "What does the file say?",
+    evidence: [{ path: "guide.txt", digest: "a".repeat(64), start: 0, page: 1, paragraph: 1, text: "The fee is ten." }],
+  });
+  expect(held.status, JSON.stringify(held.body)).toBe(422);
+  expect(held.body).toMatchObject({ code: "source_trial_key_held", error: TRIAL_KEY_HELD });
+  expect(completions).toHaveLength(0);
   expect((await onCloud("POST", `/api/bots/${kit.id}/messages`, { text: "Hello Kit.", threadId: kit.threadId })).status).toBe(202);
   await expect.poll(() => completions.length, { timeout: 30_000, interval: 200 }).toBeGreaterThan(0);
   await expect.poll(async () => !(await botOn(onCloud, kit.id)).busy, { timeout: 30_000, interval: 200 }).toBe(true);

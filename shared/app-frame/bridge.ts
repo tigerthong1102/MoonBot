@@ -63,6 +63,8 @@ export interface AppBridgeAdapter {
   callRpc(method: AppRpcMethod, params: Record<string, unknown>): Promise<unknown>;
   sendMessage(text: string): Promise<void>;
   openLink(url: string): Promise<void> | void;
+  /** Opens only after the person confirms the displayed URL in trusted host UI. */
+  confirmOpenLink?(url: string): Promise<void>;
   setContext(update: AppContextUpdate): Promise<void> | void;
   resize(height: number): void;
   engaged(): boolean;
@@ -305,12 +307,13 @@ export function createAppBridge(options: AppBridgeOptions): AppBridge {
         return respond(id, { mode: "inline" });
       case "ui/open-link": {
         if (!doc.can.openLinks) return fail(id, RPC_HOST_REFUSED, "This app cannot open links here.");
-        if (!adapter.engaged()) return fail(id, RPC_HOST_REFUSED, "Links open only after the person clicks in the app.");
+        const open = adapter.engaged() ? adapter.openLink : adapter.confirmOpenLink;
+        if (!open) return fail(id, RPC_HOST_REFUSED, "Links open only after the person clicks in the app.");
         const url = openableLink(params?.url);
         if (!url) return fail(id, RPC_INVALID_PARAMS, "Only http and https links of at most 2,048 characters, without a user name or password, can be opened.");
         if (!rates.openLink.take()) return fail(id, RPC_HOST_REFUSED, "Too many links from this app. Wait a moment.");
         try {
-          await adapter.openLink(url);
+          await open.call(adapter, url);
           return respond(id, {});
         } catch (error) {
           return fail(id, RPC_HOST_REFUSED, rpcErrorFrom(error).message);

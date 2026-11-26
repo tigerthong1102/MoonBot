@@ -26,36 +26,40 @@ const heldReads = new Map<string, Promise<unknown>>();
  * page is hidden (a background tab, a minimized window) a background request waits until it shows again, so a page out of
  * sight never reaches a Cloud home on its own: a Cloud home asleep is woken by any request that reaches it. */
 export async function api<T = any>(path: string, init?: ApiInit): Promise<T> {
-  const { timeoutMs, signal, background, headers, ...rest } = init ?? {};
-  if (background && pageHidden()) return heldUntilShown<T>(path, init!);
-  if (cloudAsleep()) {
-    if (background) throw new ApiError("My Cloud is asleep", 503, { error: "asleep" });
-    markCloudAwake();
-  }
-  const sent = new Headers(headers ?? { "content-type": "application/json" });
-  if (background) sent.set(BACKGROUND_HEADER, "1");
-  const res = await fetch(path, {
-    ...rest,
-    headers: sent,
-    signal: timeoutMs === undefined
-      ? signal
-      : signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
-        : AbortSignal.timeout(timeoutMs),
-  });
-  if (asleepAnswer(res)) markCloudAsleep();
+  if (init?.background && pageHidden()) return heldUntilShown<T>(path, init);
+  const res = await apiFetch(path, { ...init, headers: init?.headers ?? { "content-type": "application/json" } });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const error = body?.error;
     const message = typeof error === "string" ? error : typeof error?.message === "string" ? error.message : `${res.status} ${res.statusText}`;
     const refused = new ApiError(serverErrorText(body, message), res.status, body);
-    if (res.status === 401 || (res.status === 403 && !lacksAdminScope(refused))) noteRefusedRequest();
+    if (res.status === 401 || (res.status === 403 && !lacksAdminScope(refused))) noteRefusedRequest(init?.background ? backgroundFetch : undefined);
     if (res.status === 409 && isBotLimitRefusal(refused)) showBotLimit();
     if (res.status === 409 && isBotPausedRefusal(refused)) showBotLimit("paused");
     throw refused;
   }
   return body;
 }
+
+export async function apiFetch(input: RequestInfo | URL, init: ApiInit = {}): Promise<Response> {
+  const { timeoutMs, signal, background, headers, ...rest } = init;
+  if (background && pageHidden()) await pageShown(signal ?? undefined);
+  if (cloudAsleep()) {
+    if (background) throw new ApiError("My Cloud is asleep", 503, { error: "asleep" });
+    markCloudAwake();
+  }
+  const sent = new Headers(headers ?? (input instanceof Request ? input.headers : undefined));
+  if (background) sent.set(BACKGROUND_HEADER, "1");
+  const res = await fetch(input, { ...rest, headers: sent, signal: timeoutMs === undefined ? signal
+    : signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs) });
+  if (asleepAnswer(res)) {
+    markCloudAsleep();
+    throw new ApiError("My Cloud is asleep", 503, { error: "asleep" });
+  }
+  return res;
+}
+
+const backgroundFetch: typeof fetch = (input, init) => apiFetch(input, { ...init, background: true });
 
 /** A background request from a hidden page, sent once it shows again (src/lib/cloud-power.ts `pageShown`), by then refused if
  * the Cloud home fell asleep meanwhile. Reads of one path without a signal of their own share one request. */

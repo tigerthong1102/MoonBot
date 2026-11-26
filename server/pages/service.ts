@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { PublishedPageCard } from "../../shared/published-page.ts";
-import type { ChatApps } from "../chat-apps.ts";
+import { publishInternalReport, type ChatApps } from "../chat-apps.ts";
 import { createPagesInternalRoutes, createPublishedPageRoutes } from "../routes/published-pages.ts";
 import type { Store } from "../store.ts";
 import { applyIncludedPagesMessage, pagesAccess, pagesNotOffered } from "./access.ts";
@@ -45,6 +45,7 @@ export function createPublishedPages(options: {
   const liveTimer = setInterval(() => { void publisher.refreshLive(); }, LIVE_EVERY_MS);
   liveTimer.unref?.();
   const appPages = apps ? {
+    shareInternal: (threadId: string, messageId: string, rev?: number | null) => publishInternalReport(apps.store, threadId, messageId, rev),
     botOf: (threadId: string) => (apps.store.groupByThread(threadId) ? null : apps.store.botByThread(threadId) ?? null),
     page: (threadId: string, messageId: string, rev?: number) => apps.chat.publishablePage(threadId, messageId, rev),
     published: (threadId: string, messageId: string) => {

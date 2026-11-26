@@ -14,12 +14,12 @@ it("refuses in-flight requests and turns, gates new work, and unlocks on failure
   await expect(gate.run(async () => {}, hooks)).rejects.toMatchObject({ status: 409 });
   idle = true;
   await expect(gate.run(async () => {
-    expect(() => gate.request()).toThrow(/backup is in progress/);
+    expect(() => gate.request()).toThrow(expect.objectContaining({ status: 503, code: "workspace_backup_busy" }));
     throw new Error("disk full");
   }, hooks)).rejects.toThrow("disk full");
   expect({ pauses, resumes, active: gate.active }).toEqual({ pauses: 1, resumes: 1, active: false });
   await gate.run(async () => "staged", hooks, true);
-  expect(() => gate.assertAvailable()).toThrow(/restart/);
+  expect(() => gate.assertAvailable()).toThrow(expect.objectContaining({ status: 503, code: "workspace_restore_restart" }));
   expect(gate.pendingRestore).toBe(true);
   expect(resumes).toBe(1);
 });

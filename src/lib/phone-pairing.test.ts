@@ -189,6 +189,9 @@ describe("the ?desktop-settings=phone request", () => {
   });
 
   it("keeps a linked thread through sign-in, and nothing else with it", () => {
+    expect(pairedDestination("?report=room-1%2Fpage_2&code=000000")).toBe("/?report=room-1%2Fpage_2");
+    expect(pairedDestination("?report=%2F%2Fexample.com")).toBe("/");
+    expect(pairedDestination("?next=/settings&report=room/page")).toBe("/settings");
     expect(pairedDestination("?thread=t-1&bot=scout")).toBe("/?thread=t-1&bot=scout");
     expect(pairedDestination("?thread=t%201&x=1")).toBe("/?thread=t+1");
     expect(pairedDestination("?bot=scout")).toBe("/");

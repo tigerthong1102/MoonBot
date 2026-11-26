@@ -78,6 +78,7 @@ export interface SideJobs {
   /** Null when nobody can write it and the job keeps its fallback. `at.instance`: the conversation's engine, for the summary. */
   text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null;
   instructionTest(botId: string, selection: ModelSelection): SideJobText | null;
+  sourceAnswer(botId: string, selection: ModelSelection, threadId: string, trigger: UsageTrigger): (SideJobText & { selection: ModelSelection }) | null;
   twinPreview(selection: { instanceId: string; model: string }, twinId: string): {
     instance: SideJobInstance;
     name: string;
@@ -100,8 +101,9 @@ function ownCall(job: SideJob, instance: SideJobInstance): TextCall | undefined 
   return call?.bind(instance);
 }
 
-const NEVER_QUEUED: ReadonlySet<SideJob> = new Set(["compaction", "representative", "status-reply"]);
-const SEEN_SOON: ReadonlySet<SideJob> = new Set(["setup-suggestions"]);
+type ScheduledJob = SideJob | "source-answer";
+const NEVER_QUEUED: ReadonlySet<ScheduledJob> = new Set(["compaction", "representative", "status-reply"]);
+const SEEN_SOON: ReadonlySet<ScheduledJob> = new Set(["setup-suggestions"]);
 
 export function createSideJobs(deps: SideJobsDeps): SideJobs {
   // Logged once per change, not once per call.
@@ -141,9 +143,9 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     };
 
   /** Every call checks the spend limit: one upkeep pass makes several in a row. */
-  const booked = (job: SideJob | "ai-twin-preview" | "instruction-test", bot: SideJobBot, instance: SideJobInstance, call: TextCall, trigger: UsageTrigger, fixed: () => TextGenerationOptions): SideJobText["generateText"] =>
+  const booked = (job: SideJob | "ai-twin-preview" | "instruction-test" | "source-answer", bot: SideJobBot, instance: SideJobInstance, call: TextCall, trigger: UsageTrigger, fixed: () => TextGenerationOptions, notificationThread = bot.threadId): SideJobText["generateText"] =>
     async (prompt, options) => {
-      deps.assertWithinBudget(job === "instruction-test" ? bot.id : undefined);
+      deps.assertWithinBudget(job === "instruction-test" || job === "source-answer" ? bot.id : undefined);
       const threadId = `${job}-${randomUUID()}`;
       return call(prompt, {
         ...options,
@@ -160,7 +162,7 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
           ...(usage.cachedInput !== undefined ? { cachedInput: usage.cachedInput } : {}),
           costUsd: usage.costUsd ?? null,
           trigger,
-        }, usage.input !== undefined && usage.output !== undefined, bot.threadId),
+        }, usage.input !== undefined && usage.output !== undefined, notificationThread),
       });
     };
 
@@ -201,10 +203,13 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
   }
 
   const slots = deps.slots ?? backgroundTextSlots;
-  const queued = (job: SideJob, found: SideJobText | null): SideJobText | null => found && !NEVER_QUEUED.has(job)
+  const queued = (job: ScheduledJob, found: SideJobText | null, refresh?: () => SideJobText | null): SideJobText | null => found && !NEVER_QUEUED.has(job)
     ? { via: found.via, generateText: (prompt, { waiting, started, ...options } = {}) => slots.run(() => {
       started?.();
-      return found.generateText(prompt, options);
+      const writer = refresh ? refresh() : found;
+      if (!writer) throw new Error("The selected text model is no longer available.");
+      options.signal?.throwIfAborted();
+      return writer.generateText(prompt, options);
     }, { signal: options.signal, interactive: SEEN_SOON.has(job), onWait: waiting }) }
     : found;
 
@@ -235,20 +240,27 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     if (!helper) return null;
     return { via: "helper", generateText: booked(job, bot, helper.instance, helper.call, { kind: "helper", botId: bot.id, job }, () => (helper.model ? { model: helper.model } : {})) };
   }
+  function isolatedWriter(botId: string, selection: ModelSelection, source?: { threadId: string; trigger: UsageTrigger }): SideJobText | null {
+    const bot = deps.bot(botId);
+    if (!bot || !selection.model) return null;
+    const instance = deps.instance(selection.instanceId);
+    if (!instance?.enabled || deps.refusal(instance)) return null;
+    const model = selection.model;
+    if (deps.modelAllowed && !deps.modelAllowed({ instanceId: instance.instanceId, model })) return null;
+    const call = instance.driverKind === "codex" ? instance.generateMemoryText
+      : instance.driverKind === "claudeAgent" || instance.driverKind === "openai-compat" ? instance.generateText : undefined;
+    if (!call) return null;
+    return { via: "engine", generateText: booked(source ? "source-answer" : "instruction-test", bot, instance, call.bind(instance),
+      source?.trigger ?? { kind: "bot", botId }, () => ({ model, requireIsolatedText: true, beforeRequest: () => deps.assertWithinBudget(bot.id), comparison: { effort: selection.effort, variant: selection.variant } }), source?.threadId) };
+  }
   return {
     text: (job, botId, at = {}) => queued(job, find(job, botId, at)),
-    instructionTest(botId, selection) {
-      const bot = deps.bot(botId);
-      if (!bot || !selection.model) return null;
-      const instance = deps.instance(selection.instanceId);
-      if (!instance?.enabled || deps.refusal(instance)) return null;
-      const model = selection.model;
-      if (deps.modelAllowed && !deps.modelAllowed({ instanceId: instance.instanceId, model })) return null;
-      const call = instance.driverKind === "codex" ? instance.generateMemoryText
-        : instance.driverKind === "claudeAgent" || instance.driverKind === "openai-compat" ? instance.generateText : undefined;
-      if (!call) return null;
-      return { via: "engine", generateText: booked("instruction-test", bot, instance, call.bind(instance),
-        { kind: "bot", botId }, () => ({ model, requireIsolatedText: true, beforeRequest: () => deps.assertWithinBudget(bot.id), comparison: { effort: selection.effort, variant: selection.variant } })) };
+    instructionTest: (botId, selection) => isolatedWriter(botId, selection),
+    sourceAnswer(botId, selection, threadId, trigger) {
+      const requested = { ...selection };
+      const writer = () => isolatedWriter(botId, requested, { threadId, trigger });
+      const scheduled = queued("source-answer", writer(), writer);
+      return scheduled && { ...scheduled, selection: requested };
     },
     twinPreview(selection, twinId) {
       const instance = deps.instance(selection.instanceId);

@@ -13,6 +13,7 @@ import { compileJsxPage } from "./jsx-compile.ts";
 import { appDocRefs } from "./message-db.ts";
 import { createPageFiles, type PageFilesViewer } from "./page-files.ts";
 import { pageSignature, PageBundleError, readBotPageBundle, readPageBundle, skippedNote, stillReadable, type BotFolders, type PageBundle, type PageFile } from "./pages/bundle.ts";
+import { unlinkWithdrawnReport } from "./pages/report-sections.ts";
 import { redactSecretsInText } from "./redact.ts";
 import type { Message, StoreChange } from "./store.ts";
 import { userError, type UserError } from "./user-errors.ts";
@@ -207,6 +208,27 @@ export function pageVersion(app: AppPayload, rev?: number): { doc: string; rev: 
   return Number.isInteger(rev) && rev >= 0 && rev < current && index >= 0 && history[index] ? { doc: history[index]!, rev } : null;
 }
 
+export function publishInternalReport(store: Pick<AgentCardStore, "messagesFor" | "patchMessage">,
+  threadId: string, messageId: string, rev?: number | null): boolean {
+  const row = appRow(store, threadId, messageId);
+  if (!row || row.app.source !== "html") return false;
+  if (rev === null) {
+    const { report: _withdrawn, ...app } = row.app;
+    if (!store.patchMessage(threadId, messageId, { app })) return false;
+    unlinkWithdrawnReport(threadId, messageId);
+    return true;
+  }
+  const version = pageVersion(row.app, rev);
+  if (!version) return false;
+  const report = version.rev === (row.app.rev ?? 0) ? "latest" as const : version;
+  return Boolean(store.patchMessage(threadId, messageId, { app: { ...row.app, report } }));
+}
+
+export function releasedReportVersion(app: AppPayload): { doc: string; rev: number } | null {
+  if (app.source !== "html" || !app.report) return null;
+  return app.report === "latest" ? pageVersion(app) : app.report;
+}
+
 export function appDocument(args: {
   store: Pick<AgentCardStore, "messagesFor" | "groupByThread">;
   docs: AppDocs;
@@ -215,12 +237,14 @@ export function appDocument(args: {
   /** An earlier version of a bot's page; the current one when omitted. */
   rev?: number;
   mcpAccess?: McpAppAccess;
+  report?: boolean;
   /** Where a folder page's files load from: the web origin the client reaches this app at, and the files route. */
   files?: { origin: string; folder(target: { threadId: string; messageId: string; doc: string }): string };
 }): AppDocument | null {
   const row = appRow(args.store, args.threadId, args.messageId);
   if (!row) return null;
-  const version = pageVersion(row.app, row.app.source === "html" ? args.rev : undefined);
+  const version = args.report ? releasedReportVersion(row.app)
+    : pageVersion(row.app, row.app.source === "html" ? args.rev : undefined);
   if (!version) return null;
   const stored = args.docs.read(version.doc);
   if (!stored || stored.source !== row.app.source) return null;
@@ -229,7 +253,7 @@ export function appDocument(args: {
   if (stored.source === "html") {
     const files = stored.data?.folder && args.files
       ? `${args.files.origin}${args.files.folder({ threadId: args.threadId, messageId: row.id, doc: version.doc })}` : undefined;
-    return botHtmlDocument({ messageId: row.id, rev, html: stored.html, title: row.app.title,
+    return botHtmlDocument({ messageId: row.id, rev, html: stored.html, title: row.app.title, readOnly: args.report === true,
       ...(stored.data?.format === "jsx" ? { format: "jsx" as const } : {}), ...(files ? { files } : {}), ...(room ? { room } : {}) });
   }
   if (!stored.data?.tool) return null;
@@ -458,7 +482,7 @@ export interface ChatApps {
   }): AgentCardResult | Promise<AgentCardResult>;
   /** `origin`: the web origin the client reaches this app at, which a folder page's files load from. `viewer`: who asked,
    * whose own token those files load with. */
-  appDocument(threadId: string, messageId: string, rev?: number, origin?: string, viewer?: PageFilesViewer): AppDocument | null;
+  appDocument(threadId: string, messageId: string, rev?: number, origin?: string, viewer?: PageFilesViewer, report?: boolean): AppDocument | null;
   publishablePage(threadId: string, messageId: string, rev?: number): PublishablePage;
   showPublishedPage(args: { threadId: string; card: PublishedPage; bundle: PageBundle; bot: { id: string; name: string; color: MausColor } }): string | null;
   /** The folder pages' files route, ahead of the sign-in gate: true when the request was its own. */
@@ -519,7 +543,7 @@ export function createChatApps(deps: {
   const files = createPageFiles({ docs });
   const stillShown = (target: { threadId: string; messageId: string; doc: string }) => {
     const row = appRow(deps.store, target.threadId, target.messageId);
-    return Boolean(row && (row.app.doc === target.doc || row.app.history?.includes(target.doc)));
+    return Boolean(row && (row.app.doc === target.doc || row.app.history?.includes(target.doc) || (typeof row.app.report === "object" && row.app.report.doc === target.doc)));
   };
   // Live pages, by row: the page's folder (looked up again only when its document changes), the folder's fingerprint
   // when it was last read, and when a failed read or store is tried again. The store is listed once, after a restart;
@@ -604,7 +628,7 @@ export function createChatApps(deps: {
       const result = createAppCard({ ...args, store: deps.store, docs });
       return result instanceof Promise ? result.then((done) => watchIfLive(args.threadId, done)) : watchIfLive(args.threadId, result);
     },
-    appDocument: (threadId, messageId, rev, origin, viewer) => appDocument({ store: deps.store, docs, threadId, messageId, ...(rev !== undefined ? { rev } : {}),
+    appDocument: (threadId, messageId, rev, origin, viewer, report) => appDocument({ report, store: deps.store, docs, threadId, messageId, ...(rev !== undefined ? { rev } : {}),
       ...(apps.mcpAccess ? { mcpAccess: apps.mcpAccess } : {}),
       ...(origin ? { files: { origin, folder: (target) => files.folder(target, { key: viewer?.key ?? "", allowed: () => stillShown(target) && (viewer?.allowed() ?? true) }) } } : {}) }),
     publishablePage: (threadId, messageId, rev) => publishablePage({ store: deps.store, docs, threadId, messageId, ...(rev !== undefined ? { rev } : {}) }),

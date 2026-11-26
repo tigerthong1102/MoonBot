@@ -5,6 +5,14 @@ import { spawnCli } from "../procs.ts";
 
 type BackgroundFlag = "--tools" | "--no-session-persistence" | "--strict-mcp-config" | "--setting-sources";
 
+export class ClaudeTextIsolationError extends Error {
+  readonly reason: "cli" | "settings";
+  constructor(reason: "cli" | "settings") {
+    super("Claude cannot run an isolated text preview with the active settings.");
+    this.reason = reason;
+  }
+}
+
 export const BACKGROUND_CALL_TIMEOUT_MS = 60_000;
 
 /** No extended thinking and none of the person's hooks. Claude CLI 2.1.303: only this setting keeps Haiku 5.5 from thinking;
@@ -23,7 +31,7 @@ export function backgroundCallArgs(input: {
 }): string[] {
   if (input.requireIsolatedText && (!input.isolated || !input.supports("--tools") || !input.supports("--no-session-persistence") ||
     !input.supports("--strict-mcp-config") || !input.supports("--setting-sources"))) {
-    throw new Error("Claude cannot run an isolated text preview with the active settings.");
+    throw new ClaudeTextIsolationError(input.isolated ? "cli" : "settings");
   }
   const settings = input.comparison ? JSON.stringify({ disableAllHooks: true }) : BACKGROUND_SETTINGS;
   const args = ["-p", "--model", input.model, "--output-format", input.outputFormat, "--settings", settings];

@@ -65,3 +65,14 @@ describe("bot-colored user bubbles", () => {
     expect(html.slice(reply - 80, reply)).not.toContain(tone.background);
   });
 });
+
+it("keeps paths and URLs in an isolated document answer out of chat links and attachment previews", () => {
+  const url = "https://fixture.example.test/path";
+  const text = url + " /tmp/report.pdf [1](#startupbot-source-" + "a".repeat(64) + "-0/policy.pdf)";
+  const answer = { ...bot.messages[1]!, text, sendId: "source-00000000-0000-4000-8000-000000000000-0123456789abcdef-a" };
+  const html = renderToStaticMarkup(createElement(ChatView, { bot: { ...bot, messages: [answer] } }));
+  expect(html).toContain(url + " /tmp/report.pdf");
+  expect(html).not.toContain('href="' + url);
+  expect(html).not.toContain("Open report.pdf");
+  expect(html).toContain(">[1]</button>");
+});

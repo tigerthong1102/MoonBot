@@ -3,6 +3,7 @@ import { api, ApiError } from "@/state/store";
 import type { AppBlockedReason, AppDocument } from "../../../shared/app";
 import type { PublishedPageCard } from "../../../shared/published-page";
 import { RPC_HOST_REFUSED, type AppContextUpdate, type AppRpcMethod, type JsonRpcError } from "../../../shared/app-frame/bridge";
+import { webOrigin } from "../../../shared/app-frame/csp";
 import { randomUuid } from "@/lib/random-uuid";
 
 export function appDocumentPath(threadId: string, messageId: string): string {
@@ -21,7 +22,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-export type AppFetchFailure = { offline: true } | { offline: false; status: number; error: string };
+export async function fetchReportShareOrigins(path: string, signal: AbortSignal) {
+  const body = await api<unknown>(path, { background: true, signal, timeoutMs: 8000 });
+  const nullableOrigin = (value: unknown): value is string | null => value === null || webOrigin(value) !== null;
+  if (!isRecord(body) || !nullableOrigin(body.configured) || !nullableOrigin(body.detected)) throw new Error("Invalid report share origins");
+  return { configured: body.configured, detected: body.detected };
+}
+
+export type AppFetchFailure = { offline: true } | { offline: false; status: number; error: string; asleep?: true };
 
 export class AppDocumentError extends Error {
   readonly failure: AppFetchFailure;
@@ -33,16 +41,17 @@ export class AppDocumentError extends Error {
 }
 
 function failureOf(error: unknown): AppFetchFailure {
-  if (error instanceof ApiError) return { offline: false, status: error.status, error: error.message };
-  return { offline: true };
+  if (!(error instanceof ApiError)) return { offline: true };
+  const asleep = error.status === 503 && error.body?.error === "asleep";
+  return { offline: false, status: error.status, error: error.message, ...(asleep && { asleep: true }) };
 }
 
 /** `rev`: an earlier version of a bot's page; the current one when omitted. A folder page's files load from this
  * window's own origin, which is where /api answers. */
-export async function fetchAppDocument(threadId: string, messageId: string, signal?: AbortSignal, rev?: number): Promise<AppDocument> {
-  const query = new URLSearchParams({ origin: window.location.origin, ...(rev === undefined ? {} : { rev: String(rev) }) });
+export async function fetchAppDocument(threadId: string, messageId: string, signal?: AbortSignal, rev?: number, options: { report?: boolean; background?: boolean } = {}): Promise<AppDocument> {
+  const query = new URLSearchParams({ origin: window.location.origin, ...(options.report ? { report: "1" } : {}), ...(rev === undefined ? {} : { rev: String(rev) }) });
   try {
-    const doc = await api<AppDocument>(`${appDocumentPath(threadId, messageId)}?${query}`, { signal });
+    const doc = await api<AppDocument>(`${appDocumentPath(threadId, messageId)}?${query}`, { signal, ...(options.background ? { background: true } : {}) });
     if (!isRecord(doc) || typeof doc.srcdoc !== "string" || !isRecord(doc.can)) throw new AppDocumentError({ offline: false, status: 500, error: t("app.strip.incomplete") });
     return doc;
   } catch (error) {

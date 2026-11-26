@@ -53,6 +53,8 @@ function teamData(root: string): void {
   db.exec("CREATE TABLE messages(thread_id TEXT, id TEXT, at INTEGER, role TEXT, kind TEXT, text TEXT, json TEXT, PRIMARY KEY(thread_id,id)); CREATE TABLE thread_state(thread_id TEXT PRIMARY KEY, active_leaf_id TEXT);"
     + " CREATE TABLE chat_followups(id TEXT PRIMARY KEY, kind TEXT, owner_id TEXT, thread_id TEXT, send_id TEXT, status TEXT, payload TEXT);"
     + " CREATE TABLE notification_log(id TEXT PRIMARY KEY, at INTEGER, kind TEXT, bot_id TEXT, bot_name TEXT, thread_id TEXT, group_id TEXT, title TEXT, body TEXT, avatar_url TEXT, for_person TEXT, read INTEGER);");
+  db.exec("CREATE TABLE report_sections(thread_id TEXT, source_thread TEXT)");
+  db.exec("INSERT INTO report_sections VALUES ('main', 'room-thread'), ('main', 'bob-chat'), ('bob-chat', 'room-thread')");
   db.exec("CREATE TABLE work_bot_links(source_bot_id TEXT, source_thread_id TEXT, source_message_id TEXT, target_bot_id TEXT, target_thread_id TEXT)");
   db.exec(WORK_BOT_UPLOAD_RECEIPTS_SCHEMA);
   db.prepare("INSERT INTO work_bot_upload_owners (upload_id, principal) VALUES (?, ?)").run("12345678-1234-4234-8234-123456789abc", "fixture-private-principal");
@@ -364,6 +366,7 @@ describe("what a Team Cloud's export leaves out (the private sentence: not the O
       expect(table(join(root, "messages.db"), `SELECT * FROM ${name}`)).toHaveLength(1);
     }
     expect(table(join(team.data, "runtime.db"), "SELECT id FROM assignments").map((row) => row.id)).toEqual(["as-team"]);
+    expect(table(join(team.data, "messages.db"), "SELECT source_thread AS id FROM report_sections").map(row => row.id)).toEqual(["room-thread"]);
     expect(textOf(join(team.data, "messages.db")).toLowerCase()).not.toContain("secret");
 
     process.env.OMB_CLOUD_ROLE = "home";

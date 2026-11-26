@@ -1,3 +1,4 @@
+import { isWorkspaceMaintenanceCode, type WorkspaceMaintenanceCode } from "../../shared/workspace-backup";
 import { t } from "./i18n";
 import { serverErrorText } from "./server-error";
 
@@ -16,7 +17,7 @@ export type SessionState =
   | { kind: "loopback"; trust?: "service" }
   | { kind: "session"; id: string; label: string; email?: string; scopes: string[]; expiresAt: number; cloudGuest?: true; openedThreads?: string[]; reactor?: string; team?: TeamSession; teamSignIn?: string }
   | { kind: "unauthenticated"; error: string }
-  | { kind: "unreachable"; error: string };
+  | { kind: "unreachable"; error: string; code?: WorkspaceMaintenanceCode };
 
 type SessionProfile = { name?: string; email?: string; avatarUrl?: string };
 
@@ -53,7 +54,8 @@ export async function readSessionState(fetchImpl: typeof fetch = fetch): Promise
   if (res.status === 401 || res.status === 403) {
     return { kind: "unauthenticated", error: typeof record.error === "string" ? record.error : `${res.status}` };
   }
-  if (!res.ok) return { kind: "unreachable", error: `${res.status} ${res.statusText}` };
+  if (!res.ok) return { kind: "unreachable", error: `${res.status} ${res.statusText}`,
+    ...(res.status === 503 && isWorkspaceMaintenanceCode(record.code) ? { code: record.code } : {}) };
   if (record.kind === "session" && typeof record.id === "string") {
     return {
       kind: "session",

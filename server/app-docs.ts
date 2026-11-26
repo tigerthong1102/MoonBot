@@ -135,14 +135,39 @@ export class AppDocs {
     return { ok: true, doc, bytes: Buffer.byteLength(html) };
   }
 
-  read(doc: string): StoredAppDoc | null {
+  private readManifest(doc: string): Manifest | null {
     if (!ID.test(doc)) return null;
     try {
       const manifest = JSON.parse(readFileSync(this.path("doc", doc), "utf8")) as Manifest;
       if (manifest.v !== 1 || !ID.test(manifest.html) || (manifest.data !== null && !ID.test(manifest.data))) return null;
-      if (manifest.source !== "html" && manifest.source !== "mcp") return null;
+      return manifest.source === "html" || manifest.source === "mcp" ? manifest : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private readData(id: string | null): AppDocData | undefined {
+    return id ? JSON.parse(readFileSync(this.path("data", id), "utf8")) as AppDocData : undefined;
+  }
+
+  hasSource(doc: string, source: AppSource): boolean {
+    const manifest = this.readManifest(doc);
+    if (manifest?.source !== source) return false;
+    try {
+      if (!statSync(this.path("html", manifest.html)).isFile()) return false;
+      this.readData(manifest.data);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  read(doc: string): StoredAppDoc | null {
+    const manifest = this.readManifest(doc);
+    if (!manifest) return null;
+    try {
       const html = readFileSync(this.path("html", manifest.html), "utf8");
-      const data = manifest.data ? JSON.parse(readFileSync(this.path("data", manifest.data), "utf8")) as AppDocData : undefined;
+      const data = this.readData(manifest.data);
       return { doc, source: manifest.source, html, ...(data ? { data } : {}) };
     } catch {
       return null;

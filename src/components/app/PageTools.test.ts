@@ -63,7 +63,7 @@ const chips = () => JSON.parse(host.querySelector("[data-chips]")!.getAttribute(
 const documents = () => fetchMock.mock.calls.map(([path]) => new URL(path, "http://omb.test")).filter((url) => url.pathname.endsWith("/app"));
 const posts = (ending: string) => fetchMock.mock.calls.filter(([path, init]) => path.endsWith(ending) && init?.method === "POST").map(([, init]) => JSON.parse(String(init!.body)));
 const fromFrame = (data: unknown, source: unknown) => act(async () => {
-  window.dispatchEvent(new MessageEvent("message", { data, source: source as MessageEventSource }));
+  window.dispatchEvent(new MessageEvent("message", { origin: source === window ? window.location.origin : "null", data, source: source as MessageEventSource }));
   await new Promise((resolve) => setTimeout(resolve, 0));
 });
 const PICK = { jsonrpc: "2.0", method: POINTED_METHOD, params: { tag: "button", role: "button", text: "Choose Pro", selector: "main > section:nth-of-type(2) > button", html: "<button>Choose Pro</button>" } };
@@ -93,6 +93,40 @@ afterEach(() => {
   host.remove();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+it.each([
+  { name: "HTTP 503", response: () => json(503, { error: "temporary failure" }) },
+  { name: "legacy document", response: () => json(200, botHtmlDocument({ messageId: "a1", rev: 0, html: "<p>Legacy</p>" })) },
+  { name: "non-JSON response", response: () => new Response("unexpected html", { status: 200 }) },
+  { name: "malformed response", response: () => json(200, { configured: 123, detected: null }) },
+  { name: "invalid configured address", response: () => json(200, { configured: "not a URL", detected: null }) },
+  { name: "empty configured address", response: () => json(200, { configured: "", detected: null }) },
+  { name: "configured credentials", response: () => json(200, { configured: "https://user:secret@example.com", detected: null }) },
+  { name: "detected path", response: () => json(200, { configured: null, detected: "http://192.168.1.25/private" }) },
+  { name: "non-web detected address", response: () => json(200, { configured: null, detected: "file:///tmp/report" }) },
+])("keeps a local report preview usable and offers retry after $name", async ({ response }) => {
+  vi.spyOn(window, "location", "get").mockReturnValue(new URL("http://localhost:4321") as unknown as Location);
+  const normalFetch = fetchMock.getMockImplementation()!;
+  let lookedUp = 0;
+  fetchMock.mockImplementation(async (path, init) => {
+    if (path.endsWith("?shareOrigin=1")) {
+      lookedUp++;
+      if (lookedUp === 1) return response();
+      return json(200, { configured: "https://reports.example.test", detected: null });
+    }
+    return normalFetch(path, init);
+  });
+  await render(row(payload({ report: "latest" })));
+  expect(card().textContent).toContain("Could not check where this report can be shared.");
+  expect(card().textContent).not.toContain("This report can only be opened on this device.");
+  expect(card().querySelector('a[href="http://localhost:4321/?report=t1%2Fa1"]')).toBeTruthy();
+  expect(button("Copy link", card()).disabled).toBe(true);
+  await click("Retry", card());
+  await settle();
+  expect(lookedUp).toBe(2);
+  expect(button("Copy link", card()).disabled).toBe(false);
+  expect(card().textContent).not.toContain("Could not check where this report can be shared.");
 });
 
 describe("a bot's page in the chat", () => {

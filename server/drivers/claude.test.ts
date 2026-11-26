@@ -4525,6 +4525,10 @@ describe("ClaudeDriver turns (fake CLI)", () => {
       "-p", "--model", "claude-haiku-5-5", "--output-format", "text", "--settings", BACKGROUND_SETTINGS,
       "--tools", "", "--no-session-persistence", "--strict-mcp-config", "--setting-sources", "project",
     ]);
+    expect(() => backgroundCallArgs({ ...base, supports: cli([1, 0, 100]), isolated: true, requireIsolatedText: true }))
+      .toThrow(expect.objectContaining({ reason: "cli" }));
+    expect(() => backgroundCallArgs({ ...base, supports: cli([2, 1, 296]), isolated: false, requireIsolatedText: true }))
+      .toThrow(expect.objectContaining({ reason: "settings" }));
     // OMB_CLAUDE_INHERIT_USER_CONFIG keeps the person's own setup, still without tools
     expect(backgroundCallArgs({ ...base, supports: cli([2, 1, 296]), isolated: false })).not.toContain("--strict-mcp-config");
     expect(backgroundCallArgs({ ...base, supports: cli([1, 0, 100]), isolated: true })).toEqual([

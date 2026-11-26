@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, type Server } from "node:http";
@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ROOM_VIEW_ONLY, type AppPayload } from "../../shared/app.ts";
 import { BOT_HTML_CSP } from "../../shared/app-frame/csp.ts";
 import { CSP_META_PREFIX } from "../../shared/app-frame/document.ts";
-import { createChatApps, type ChatApps } from "../chat-apps.ts";
+import { createChatApps, publishInternalReport, type ChatApps } from "../chat-apps.ts";
 import { DATA_DIR } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import { json, readBody } from "../harness/http.ts";
@@ -281,4 +281,126 @@ describe("POST /api/bots/:botId/apps/:messageId/rpc", () => {
     expect((await post(`/api/bots/${bot.id}/apps/${id}/delete`, { threadId: bot.threadId })).body).toEqual({ from: "inline routes" });
     expect((await get(`/api/bots/${bot.id}/apps/${id}/rpc`)).body).toEqual({ from: "inline routes" });
   });
+});
+
+it("resolves a private report's released version at one address and closes access when the viewer leaves", async () => {
+  let visible = true;
+  const { store, bot, page, get, chatApps } = await fixture({ threadVisible: auth => auth.kind !== "session" || visible });
+  const id = page(), threadId = bot.threadId;
+  const address = `/api/threads/${threadId}/messages/${id}/app?report=1`;
+  expect((await get(address, "ann")).status).toBe(404);
+  expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
+  const published = await get(address, "ann");
+  expect(published.body.rev).toBe(0);
+  expect(published.body.can).toEqual({ serverTools: false, serverResources: false, message: false, openLinks: true, modelContext: false });
+  expect((await get(address.replace("?report=1", ""), "ann")).body.can.message).toBe(true);
+  const response = await chatApps.createAppCard({ bot, threadId, input: { tool: "update_html", app_id: id, html: "<p>Revised</p>", title: "Report" } });
+  expect(response.ok).toBe(true);
+  expect((await get(address, "ann")).body.srcdoc).toContain("Revised");
+  expect((await get(address + "&rev=0", "ann")).body.rev).toBe(1);
+  expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
+  expect((await get(address, "ann")).body.srcdoc).toContain("<p>Hello</p>");
+  visible = false;
+  expect((await get(address, "ann")).status).toBe(404);
+  visible = true;
+  expect(publishInternalReport(store, threadId, id, null)).toBe(true);
+  expect((await get(address, "ann")).status).toBe(404);
+});
+
+it("returns only share origins to authorized readers of a released report", async () => {
+  let member = true;
+  const reportShareOrigins = vi.fn(() => ({ configured: "HTTPS://REPORTS.EXAMPLE.TEST:443/", detected: "http://192.168.1.25:8080", privateSetting: "hidden" }));
+  const { store, bot, get, page } = await fixture({
+    reportShareOrigins, threadVisible: auth => auth.kind !== "session" || (member && auth.session.id === "ann"),
+  });
+  const id = page(), threadId = bot.threadId;
+  const address = `/api/threads/${threadId}/messages/${id}/app?shareOrigin=1`;
+  expect((await get(address, "ann")).status).toBe(404);
+  expect(reportShareOrigins).not.toHaveBeenCalled();
+  expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
+  const metadata = { status: 200, body: { configured: "https://reports.example.test", detected: "http://192.168.1.25:8080" }, cache: "private, no-store" };
+  expect(await get(address)).toEqual(metadata);
+  expect(await get(address, "ann")).toEqual(metadata);
+  expect((await get(address, "bob")).status).toBe(404);
+  reportShareOrigins.mockReturnValueOnce({ configured: "https://user:secret@reports.example.test/path", detected: "file:///tmp/report", privateSetting: "hidden" });
+  expect((await get(address, "ann")).body).toEqual({ configured: null, detected: null });
+  member = false;
+  expect((await get(address, "ann")).status).toBe(404);
+  expect(publishInternalReport(store, threadId, id, null)).toBe(true);
+  expect((await get(address)).status).toBe(404);
+});
+
+it("checks a pinned report's stored release without building its preview", async () => {
+  const { store, bot, chatApps, get, folderPage } = await fixture();
+  const threadId = bot.threadId, id = await folderPage(threadId);
+  const stored = store.messagesFor(threadId).find(row => row.id === id)!.app!;
+  const updated = await chatApps.createAppCard({ bot, threadId, input: { tool: "update_html", app_id: id, html: "<p>New</p>" } });
+  expect(updated.ok).toBe(true);
+  expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
+  const build = vi.spyOn(chatApps, "appDocument");
+  const read = vi.spyOn(chatApps.docs, "read");
+  const root = `/api/threads/${threadId}/messages/${id}/app`;
+  expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(200);
+  expect(build).not.toHaveBeenCalled();
+  expect(read).not.toHaveBeenCalled();
+  expect((await get(root + "?report=1", "ann")).body.rev).toBe(0);
+  expect(build).toHaveBeenCalledOnce();
+  expect(read).toHaveBeenCalledOnce();
+  const manifestPath = join(DATA_DIR, "app-docs", "doc", stored.doc + ".json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { html: string; data: string };
+  const dataPath = join(DATA_DIR, "app-docs", "data", manifest.data + ".json");
+  const data = readFileSync(dataPath);
+  writeFileSync(dataPath, "{broken");
+  expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(404);
+  expect(build).toHaveBeenCalledOnce();
+  expect(read).toHaveBeenCalledOnce();
+  expect((await get(root + "?report=1", "ann")).status).toBe(404);
+  writeFileSync(dataPath, data);
+  build.mockClear();
+  read.mockClear();
+  rmSync(join(DATA_DIR, "app-docs", "html", manifest.html + ".html"));
+  expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(404);
+  rmSync(manifestPath);
+  expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(404);
+  expect(build).not.toHaveBeenCalled();
+  expect(read).not.toHaveBeenCalled();
+});
+
+it("returns different permitted source sections at the same report URL without leaking the private section title or ids", async () => {
+  const hidden = new Set<string>();
+  const { store, bot, other, page, get, post } = await fixture({
+    threadVisible: (auth, id) => auth.kind !== "session" || auth.session.id !== "bob" || !hidden.has(id),
+  });
+  const id = page(), secret = page(other.threadId);
+  const base = `/api/threads/${bot.threadId}/messages/${id}/app`;
+  const source = { sourceThread: other.threadId, sourceMessage: secret };
+  publishInternalReport(store, bot.threadId, id);
+  publishInternalReport(store, other.threadId, secret);
+  expect((await post(base + "/sections", { ...source, action: "add" })).status).toBe(200);
+  hidden.add(other.threadId);
+  expect((await get(base + "?report=1", "ann")).body.sections).toEqual([{ threadId: other.threadId, messageId: secret, title: "Hello" }]);
+  expect((await get(base + "?report=1", "bob")).body).not.toHaveProperty("sections");
+  expect((await get(`/api/threads/${other.threadId}/messages/${secret}/app?report=1`, "bob")).status).toBe(404);
+  publishInternalReport(store, other.threadId, secret, null);
+  expect((await get(base + "?report=1", "ann")).body).not.toHaveProperty("sections");
+});
+
+it("frees section slots after withdrawal and repairs references left by older versions", async () => {
+  const { store, bot, page, post, get } = await fixture();
+  const parent = page(), thread = bot.threadId;
+  const url = `/api/threads/${thread}/messages/${parent}/app`;
+  publishInternalReport(store, thread, parent);
+  const sources = Array.from({ length: 13 }, () => page());
+  const add = (id: string) => post(url + "/sections", { sourceThread: thread, sourceMessage: id, action: "add" });
+  for (const source of sources) publishInternalReport(store, thread, source);
+  for (const source of sources.slice(0, 12)) expect((await add(source)).status).toBe(200);
+  expect((await add(sources[12]!)).status).toBe(409);
+  const stale = store.messagesFor(thread).find(message => message.id === sources[0])!;
+  const { report: _report, ...withdrawn } = stale.app!;
+  store.patchMessage(thread, stale.id, { app: withdrawn });
+  expect((await add(sources[12]!)).status).toBe(200);
+  publishInternalReport(store, thread, sources[1]!, null);
+  publishInternalReport(store, thread, sources[1]!);
+  expect((await get(url + "?report=1")).body.sections).toHaveLength(11);
+  expect((await add(sources[1]!)).status).toBe(200);
 });

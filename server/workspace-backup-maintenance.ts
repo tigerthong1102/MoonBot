@@ -7,7 +7,7 @@ export class WorkspaceBackupMaintenance {
   assertAvailable(): void {
     if (this.active) throw Object.assign(new Error(this.pendingRestore
       ? "A workspace restore is ready. Fully quit and reopen StartupBot (or restart the hosted server) to finish."
-      : "A workspace backup is in progress. Try again when it finishes."), { status: 503 });
+      : "A workspace backup is in progress. Try again when it finishes."), { status: 503, code: this.pendingRestore ? "workspace_restore_restart" : "workspace_backup_busy" });
   }
 
   request(): () => void {

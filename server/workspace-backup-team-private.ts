@@ -179,7 +179,9 @@ export function stripTeamPrivate(snapshot: { messages: string; runtime: string }
   const threads = [...privacy.threads];
   strip(snapshot.messages, (db) => {
     for (const table of ["work_bot_upload_receipts", "work_bot_upload_reservations", "work_bot_upload_owners", "work_bot_message_upload_sets"]) if (hasTable(db, table)) db.exec(`DELETE FROM ${table}`);
-    for (const table of ["messages", "thread_state", "chat_followups", "notification_log"]) deleteWhereIn(db, table, "thread_id", threads);
+    for (const table of ["messages", "thread_state", "chat_followups", "notification_log", "retained_chat_docs"]) deleteWhereIn(db, table, "thread_id", threads);
+    deleteWhereIn(db, "report_sections", "thread_id", threads);
+    deleteWhereIn(db, "report_sections", "source_thread", threads);
     if (hasTable(db, "messages")) {
       for (const [field, ids] of [["threadId", threads], ["botId", [...privacy.bots]]] as const) {
         for (const chunk of chunks(ids)) {

@@ -1,3 +1,4 @@
+import { isSourceAnswer, SourceAnswerText } from "../knowledge/SourceAnswerText";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, MoreHorizontal, UserRound, X } from "lucide-react";
 import type { InboxRow, InboxView } from "../../../shared/inbox";
 import { t } from "@/lib/i18n";
@@ -92,7 +93,7 @@ export function InboxReading({ view, row, now, position, onStep }: {
             </div>
             {row.via && <div className="truncate text-[12px] text-ink-tertiary">{t("inbox.via", { name: row.via.name })}</div>}
             <div data-inbox-words className="mt-1 space-y-2 text-[14px] leading-6 text-ink">
-              {said.map((message) => <ChatMarkdown key={message.id} text={message.text!} />)}
+              {said.map((message) => isSourceAnswer(message) ? <SourceAnswerText key={message.id} text={message.text!} threadId={row.origin?.threadId ?? view.threadId ?? undefined} /> : <ChatMarkdown key={message.id} text={message.text!} />)}
               {words && <ChatMarkdown text={words} />}
             </div>
           </div>

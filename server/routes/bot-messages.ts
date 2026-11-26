@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 
+import { legacySourceRequest } from "../../shared/source-evidence.ts";
 import { ROOM_VIEW_ONLY } from "../../shared/app.ts";
 import { approvalModeFor } from "../../shared/approval-mode.ts";
 import { isPersistentQuestionCard } from "../../shared/ask-question.ts";
@@ -42,6 +43,7 @@ import { startFresh } from "../fresh-start.ts";
 import { parseMentionPicks } from "../../shared/room-mentions.ts";
 import { pinnedClientThreadGuard } from "./pinned-client-thread.ts";
 import { refusalBody, refusalText, userError } from "../user-errors.ts";
+import { createKnowledgeAnswers, type KnowledgeAnswerDeps } from "./knowledge-answers.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 type RunningInstance = ReturnType<ProviderRegistry["get"]>;
@@ -56,6 +58,7 @@ type CardAnswer = { botId: string; botName?: string; threadId: string; requestId
 type Behavior = "allow" | "deny" | "answer";
 
 export interface BotMessageRouteDeps {
+  knowledge?: Pick<KnowledgeAnswerDeps, "accessible" | "unavailable" | "writer" | "contextChanged">;
   store: Pick<Store,
     | "activeLeaf" | "activePath" | "appendMessage" | "bot" | "botByThread" | "bots" | "groupByThread" | "messagesFor"
     | "patchMessage" | "patchTask" | "projectBotForTask" | "setActiveLeaf" | "setTaskAskedAt" | "taskByThread" | "tasks">;
@@ -181,6 +184,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
     cancelGroupTurnOperations, closeOpenApprovals, harnessCardOutcome, pressRecords, serverPress, relayedReaction, answeredIn, fromPhone, notePhoneSend, goals,
   } = deps; const owners = routeRunOwners(deps.runOwners, deps.runActor);
   const pinnedClientThread = pinnedClientThreadGuard(store);
+  const knowledge = deps.knowledge && createKnowledgeAnswers({ ...deps.knowledge, store, refusal: directSendRefusal, busy: threadBusy, sender: messageSender });
   /** Security: a bot's own shell must never approve its own card, so a local request counts only from the desktop app, or
    * from a browser while every bot is idle. */
   const ownerReview = (auth: RequestAuth, req: IncomingMessage) => auth.kind === "loopback"
@@ -191,6 +195,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
   const appMessageRate = new AppMessageRate();
   const route: RouteHandler = async (ctx) => {
     const { req, res, path, method, auth, json, readBody } = ctx;
+    if (path.endsWith("/knowledge-answers") && knowledge) return knowledge(ctx);
     let m: RegExpMatchArray | null = null;
     const requirePinnedClientThread = pinnedClientThread(auth, req);
     const routines = deps.routines();
@@ -231,6 +236,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
       if (textRefused) return json(res, 400, { error: textRefused });
       const typed = pressed || fromAnApp ? "" : relayed ?? String(body.text ?? "").trim();
       if (!pressed && !fromAnApp && !typed) return json(res, 400, { error: "text required" });
+      if (legacySourceRequest(typed)) return json(res, 409, { error: "Update the app and ask from the document library to keep source material separate from commands." });
       const bot = store.bot(m[1]);
       if (!bot) return json(res, 404, { error: "no such bot" });
       requirePinnedClientThread(bot.id, body.threadId);

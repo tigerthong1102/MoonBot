@@ -6,6 +6,7 @@ import { extname, join } from "node:path";
 const MIME: Record<string, string> = {
   ".html": "text/html",
   ".js": "text/javascript",
+  ".mjs": "text/javascript",
   ".css": "text/css",
   ".txt": "text/plain; charset=utf-8",
   ".svg": "image/svg+xml",

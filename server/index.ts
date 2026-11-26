@@ -544,6 +544,8 @@ import { createGracefulShutdown } from "./graceful-shutdown.ts";
 import { acquireDataDirLeaseForProcess, releaseOnceAtExit } from "./data-dir-lease.ts"; import { markEngineRunClean, startEngineRecords } from "./engine-records.ts";
 import { createWorkspaceAccess, describeEdition, editionForSettings, editionStatus, entitled, hostedWorkspaceConfiguration, hostedWorkspaceConfigured, licenseWarning, sharedWorkspaceFullAccessConfigured, loadEnterpriseLayer, workspaceMembership, type WorkspaceAccess } from "./enterprise.ts";
 import { environmentDescriptor, loadEnvironmentId, OWNER_LENDING, serverVersion } from "./environment.ts"; import { dataFormatAtStart } from "./data-format.ts";
+import { catalogModelRefusal, sourceWriter } from "./model-readiness.ts";
+import { isWorkspaceMaintenanceCode } from "../shared/workspace-backup.ts";
 import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
 import { createWorkspaceBackupRoutes, isWorkspaceBackupSessionControl } from "./workspace-backup-http.ts";
 import { applyPendingWorkspaceRestore, readLastWorkspaceRestore, type WorkspaceRestoreResult } from "./workspace-backup.ts"; import { readBlockedAppEventRestore } from "./workspace-backup-app-events.ts";
@@ -9292,7 +9294,8 @@ const chiefPeerTargetRule = (noun: string) => (proposerBotId: string, targetBotI
 };
 const validateModelProposal = (selection: ModelSelection, current?: BotRecord): string | null => {
   const checked = checkedModelSelection(selection, undefined, true);
-  if (!checked.ok) return checked.error; const unusable = registry.get(selection.instanceId)?.models.options.find((option) => option.id === selection.model && (option.orgBlocked || option.needsCliUpdate)); if (unusable) return unusable.orgBlocked ? "This account's organization turned that model off. Propose another one." : `That model needs version ${unusable.needsCliUpdate} of its engine's CLI. Update it, or propose another model.`;
+  if (!checked.ok) return checked.error;
+  const refusal = catalogModelRefusal(registry.get(selection.instanceId), selection.model); if (refusal) return refusal.error;
   if (current?.approvalGrant) return "Wait for the approval-level confirmation before changing this bot's model";
   if (current) {
     const mode = approvalModeFor(current);
@@ -12020,6 +12023,8 @@ ROUTES.push(createBotPresetRoutes({ presets: presetStore, orgStatuses: orgInstal
 ROUTES.push(createSharedComputerRoutes({ enabled: (auth) => lendingEnabled() || (ownerLends() && ownHome.owner(auth)), computers: sharedComputers, sessionLive: (id) => sessions.isLive(id), environmentId: ENVIRONMENT_ID,
   cloudHomeLender: CLOUD_HOME ? CLOUD_HOME_LENDER : null, principal: sessionLendingPrincipal, personKey: (session) => lendingPersonKey(session, ownHome.ownServer()), power: () => cloudPower, links: CLOUD_HOME ? deviceLinks : null, upgrades, asks: computerAsks?.asks ?? null, answerer: cardAnswererFor }));
 ROUTES.push(createBotMessageRoutes({
+  knowledge: { unavailable: id => botHolds.held(id) ? BOT_HELD_CODE : starterAwake.paused().includes(id) ? BOT_PAUSED_CODE : workspaceMaintenance.active || moveFreeze.frozen() ? "source_maintenance" : null, contextChanged: markTaskContextExternallyUpdated, accessible: (auth, id, threadId) => (auth.kind === "session" ? !auth.session.token && sessions.isLive(auth.session.id) : auth.trust !== "service") && visibleTo(viewerFor(auth)).thread(threadId) && ["chat", "edit"].includes(levelOf(auth, id)) && !cloudGuestSendRefusal(auth, threadId),
+    writer: (auth, bot, threadId) => sourceWriter(turnSelection(bot.id, threadId), { instance: id => registry.get(id), held: id => heldKeys?.refusal(id), allowed: selection => checkedModelSelection(selection, undefined, true).ok, refused: policyModelRefusal, write: selection => sideJobs.sourceAnswer(bot.id, selection, threadId, usageTriggerFor(auth)) }) },
   store, registry, handoffs, liveTurn: (threadId) => liveTurns.running(threadId), phoneSecretSubmissions, directTurnDispatchClaims, groupSpeakers,
   transferredSend: (botId, threadId, sendId) => Boolean(transferredChatFollowup(botId, threadId, sendId)),
   routines: () => routines,
@@ -12039,7 +12044,7 @@ ROUTES.push(createBotMessageRoutes({
 }));
 const liveRoots = (threadId: string, botId: string | undefined) => { const bot = botId ? store.bot(botId) : store.botByThread(threadId); return bot ? messageFileRootsForThread(bot.id, threadId).filter((root) => root !== ATTACHMENTS_DIR) : null; }; const chatApps = createChatApps({ store, dataDir: DATA_DIR, liveRows: liveAppRows, liveRoots, paused: () => workspaceMaintenance.active || moveFreeze.frozen() });
 const chatAppsMcp = createChatAppsMcp({ store, apps: chatApps, dataDir: DATA_DIR, keys: mcpKeys, storedServers: () => cfg.mcpServers ?? {}, mountedServers: (bot) => teamConnections.engineMcp(bot), personMcp: teamConnections.personMcp, probeAs: (server) => mcpServersHost.probeAs(server), oauth: mcpOAuth });
-ROUTES.push(createChatAppRoutes({ store, apps: chatApps, threadRefusal: cloudThreadRefusal, mcpRpc: chatAppsMcp.rpc, threadVisible: (auth, threadId) => (auth.kind !== "session" || sessions.isLive(auth.session.id)) && visibleTo(viewerFor(auth)).thread(threadId) }));
+ROUTES.push(createChatAppRoutes({ store, apps: chatApps, reportShareOrigins: () => ({ configured: CLOUD_HOME?.publicOrigin ?? hostedWorkspaceConfiguration()?.tenant.origin ?? savedCustomDomain() ?? FALLBACK_PUBLIC_URL, detected: tailnetShare.origin() ?? lanUrl(PORT) }), threadRefusal: cloudThreadRefusal, mcpRpc: chatAppsMcp.rpc, threadVisible: (auth, threadId) => (auth.kind !== "session" || sessions.isLive(auth.session.id)) && visibleTo(viewerFor(auth)).thread(threadId) }));
 const { react } = createReactions({
   store, reply: (input) => teamMessages.reactedIn(input.auth, input.threadId, input.target.id, input.answer, { sendId: input.sendId, sender: messageSender(input.auth) }) ?? personReplies.deliver({ ...input, about: "message" }),
   answerCard: (input) => respondToCard({ ...input, via: "reaction" }), withdraw: personReplies.withdraw,
@@ -12047,9 +12052,7 @@ const { react } = createReactions({
 const publishedPages = createPublishedPages({ dataDir: DATA_DIR, cloudHome: CLOUD_HOME, selfHosted: !CLOUD_HOME && !HOSTED_WORKSPACE && utilityParentPort === undefined, patch: (threadId, messageId, text, publishedPage) => void store.patchMessage(threadId, messageId, { text, publishedPage }), liveRoots: (botId, threadId) => liveRoots(threadId, botId), paused: () => workspaceMaintenance.active || moveFreeze.frozen(), apps: { chat: chatApps, store } }); ROUTES.push(createReactionRoutes({ react, reactorFor, cloudGuestSendRefusal }), publishedPages.routes, createBotLibraryRoutes({ bot: (id) => store.bot(id), visibleFor: (auth) => visibleTo(viewerFor(auth)), pages: () => publishedPages.store.list() }), savedSteps.routes, createPlacesElsewhereRoutes({ elsewhere: placesElsewhere, owner: (auth) => !sharedMembership() && !HOSTED_WORKSPACE && (auth.kind === "loopback" || ownHome.owner(auth) || (CLOUD_PERSONAL && cloudOwnerSession(auth))) }));
 const keptAttachments = () => { const routineFiles = routines?.attachmentPaths(); return routineFiles && calendarCalls ? keptAttachmentNames([...store.bots.map((bot) => bot.avatarUrl), cfg.profile?.avatarUrl], [workspaceBannerStore.current()?.name, ...routineFiles, ...calendarCalls.list().flatMap((call) => call.attachments?.map((file) => file.path) ?? []), ...[...turnAttachmentsByTurn.values()].flat().map((file) => file.path)]) : null; }; createDeleteLeftovers({ dataDir: DATA_DIR, store, retainedUploads, threadsReferencing, keptAttachments, deleteAttachment: (name) => deleteAttachment(join(ATTACHMENTS_DIR, name)), engineFolders: () => engineSessionFolders(DATA_DIR, [process.env, ...Object.values(providerConfigs()).map((instance) => instanceEnvironment(process.env, instance))].flatMap((env) => engineHomes.everyHome(env))), layers: memoryLayerRecords });
 const instructionStudio = createInstructionStudio({
-  dataDir: DATA_DIR,
-  bot: id => store.bot(id),
-  rules: () => cfg.everyBotRules,
+  dataDir: DATA_DIR, bot: id => store.bot(id), rules: () => cfg.everyBotRules,
   writer: (id, selection) => botHolds.held(id) || starterAwake.paused().includes(id) || workspaceMaintenance.active || moveFreeze.frozen()
     || heldKeys?.refusal(selection.instanceId) || validateModelProposal(selection)
     ? null : sideJobs.instructionTest(id, selection),
@@ -15220,7 +15223,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
   } catch (e) {
     const status = (e as any)?.status ?? 500;
     const candidateCode = (e as { code?: unknown })?.code;
-    const code = typeof candidateCode === "string" && ["guarded_busy", "guarded_branch", "guarded_permissions", "guarded_request_changed", "guarded_request_untracked", "outside_workspace", "file_too_large", "no_ai", BOT_PAUSED_CODE, BOT_HELD_CODE].includes(candidateCode)
+    const code = typeof candidateCode === "string" && (isWorkspaceMaintenanceCode(candidateCode) || ["guarded_busy", "guarded_branch", "guarded_permissions", "guarded_request_changed", "guarded_request_untracked", "outside_workspace", "file_too_large", "no_ai", BOT_PAUSED_CODE, BOT_HELD_CODE].includes(candidateCode))
       ? candidateCode : undefined;
     return json(res, status, { error: e instanceof Error ? e.message : String(e), ...(code ? { code } : {}), ...userErrorFields(e), ...cloudLimitFields(e) });
   } finally {

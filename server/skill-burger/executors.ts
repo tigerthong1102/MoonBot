@@ -10,6 +10,7 @@ import { appToolCall } from "../connector-app-tools.ts";
 import { toolData } from "../connected-reads.ts";
 import { killCliTree, spawnCli } from "../procs.ts";
 import { writeFileAtomic } from "../atomic.ts";
+import { engineHomes } from "../engine-homes/engine-homes.ts";
 import { isInside, resolveThroughLinks } from "../sentinel/paths.ts";
 import type { ExecResult, StepExecutors } from "./runner.ts";
 
@@ -17,6 +18,7 @@ const MULTI_EXECUTE = "COMPOSIO_MULTI_EXECUTE_TOOL";
 
 export interface ExecutorContext {
   botId: string;
+  threadId?: string;
   /** The conversation's folder: commands start here and files are written under it. */
   cwd: string;
   /** Posts a JSON body to one of the server's internal routes as this turn, with a capability of `kind`; with no body,
@@ -160,7 +162,9 @@ export function createExecutors(context: ExecutorContext): StepExecutors {
       const row = record(answer.body.assignment) ?? answer.body;
       return answer.ok && typeof row.status === "string" ? { status: row.status, result: typeof row.result === "string" ? row.result : "" } : null;
     },
-    shell: (input) => (input.where === "vm" ? runOnVm(context, input) : runInBox(context, input)),
+    shell: (input) => input.where === "vm" ? runOnVm(context, input) : engineHomes.active() && !context.threadId
+      ? Promise.resolve({ ok: false, error: "the conversation's engine home is unavailable" })
+      : engineHomes.within(context.threadId ?? "", () => runInBox(context, input)),
     async app(input) {
       const { slug, frame, plain } = appFrame(input.tool, input.args, input.account, rpcId());
       const answer = await context.internal("connectors", "/api/internal/connectors/mcp", frame, input.signal);

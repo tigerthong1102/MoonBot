@@ -19,6 +19,21 @@ const bash = (command: string, extra: Partial<NonNullable<RunMessage["tool"]>> =
 });
 
 describe("a delegation run", () => {
+  it("keeps every teammate when simultaneous handoffs exceed eight", () => {
+    const first = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
+    const calls = [0, 1, 2].map((group) => ({ ...first, id: `many-${group}`, tool: { ...first.tool!, input: JSON.stringify({ bot_ids: [0, 1, 2].map((i) => `bot-${group}-${i}`), message: `Do part ${group}` }) } }));
+    const layers = burgerLayers([ask("Delegate nine parts"), ...calls]);
+    const workflow = draftFromLayers(layers, "Delegate nine parts", "Delegate");
+    expect(workflow.steps.map((step) => step.kind)).toEqual(["delegate", "delegate"]);
+    expect(workflow.steps.flatMap((step) => step.kind === "delegate" ? step.tasks : [])).toHaveLength(9);
+  });
+  it.each(["in_my_folder", "inMyFolder"])("retains %s opt-out in a handed delegation", (field) => {
+    const call = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
+    const modified = { ...call, tool: { ...call.tool!, input: JSON.stringify({ ...JSON.parse(call.tool!.input!), [field]: false }) } };
+    const layers = burgerLayers([ask("Delegate using the teammate's folder"), modified]);
+    expect(layers[0]).toMatchObject({ replay: "ai", args: { [field]: false } });
+    expect(draftFromLayers(layers, "Delegate", "Delegate", { teammate }).steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining(`"${field}":false`) });
+  });
   it("keeps work and consultation handoffs in separate steps", () => {
     const calls = run.filter((message) => message.tool?.name?.endsWith("coordinate_bots")).slice(0, 2);
     const consultation = { ...calls[1]!, tool: { ...calls[1]!.tool!, input: JSON.stringify({ ...JSON.parse(calls[1]!.tool!.input!), consult: true }) } };

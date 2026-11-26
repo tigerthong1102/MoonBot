@@ -79,7 +79,7 @@ export function createSkillBurgerRuns(deps: { dataDir: string; root?: string; ho
   const history = createRunHistory(join(deps.dataDir, "skill-burger-runs"));
   const open = new Map<string, Set<string>>();
   const runDeps = (turn: BurgerTurn): RunDeps => {
-    const exec = deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, cwd: turn.cwd, internal: turn.internal });
+    const exec = deps.executors?.(turn) ?? createExecutors({ botId: turn.botId, threadId: turn.threadId, cwd: turn.cwd, internal: turn.internal });
     const noop: StepExecutors = { shell: async () => ({ ok: true, output: null }), app: async () => ({ ok: true, output: null }), browser: async () => ({ ok: true, output: null }), file: async () => ({ ok: true, output: null }) };
     return {
     exec: turn.guard ? guardedExecutors(exec, turn.guard) : exec,

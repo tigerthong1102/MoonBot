@@ -4,11 +4,27 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { appFrame, createExecutors, shellQuote } from "./executors.ts";
+import { engineHomes } from "../engine-homes/engine-homes.ts";
+import { audienceHome } from "../engine-homes/layout.ts";
 
 const folder = () => mkdtempSync(join(tmpdir(), "burger-exec-"));
 const signal = () => new AbortController().signal;
 
 describe("where a Skill Burger's steps run", () => {
+  it.skipIf(process.platform === "win32")("uses each conversation's isolated engine home for saved shell commands", async () => {
+    const root = folder();
+    const home = join(root, "server-home");
+    const dataDir = join(root, "data");
+    mkdirSync(home, { recursive: true });
+    engineHomes.start({ dataDir, serverHome: home, audienceOf: (id) => id === "bob" ? "member:p_bob" : "team", threads: () => [], log: () => {} });
+    try {
+      const internal = async () => ({ ok: false, body: {} });
+      const run = (threadId?: string) => createExecutors({ botId: "b", threadId, cwd: root, internal }).shell({ command: 'printf %s "$HOME"', env: {}, where: "bot", tool: "shell", signal: signal(), maxBytes: 1_000 });
+      expect(await run("bob")).toEqual({ ok: true, output: audienceHome(dataDir, "member:p_bob") });
+      expect(await run("team")).toEqual({ ok: true, output: audienceHome(dataDir, "team") });
+      expect(await run()).toMatchObject({ ok: false });
+    } finally { engineHomes.stop(); }
+  });
   it("opens a saved browser address using the supported MCP tool", async () => {
     let called: unknown;
     const exec = createExecutors({ botId: "b", cwd: folder(), internal: async (_kind, _path, body) => { called = body; return { ok: true, body: { result: { content: [{ type: "text", text: "opened" }] } } }; } });

@@ -17,7 +17,7 @@ import { WORKSPACE_BACKUP_CLIENT_KEYS } from "../shared/workspace-backup-client.
 import { INSTRUCTION_FILE, restorePaths, validRelative } from "./workspace-backup-paths.ts";
 import { cjkSearchText } from "./cjk-search.ts";
 import { ephemeralWorkspaceTokenPath, excludedWorkspaceAuthPath, EXCLUSION_NOTES, liveDataEnginePath, managedTaskSkillLink, portableWorkspaceConfig, redownloadedOrgLibraryPath, restoredWorkspaceConfig, RESTORE_WARNING } from "./workspace-backup-policy.ts";
-import { omittedAsTeamPrivate, routinesWithoutTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, teamAppEventLedger, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
+import { assertTeamAttachmentInventory, teamAttachmentInventory, omittedAsTeamPrivate, routinesWithoutTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, readPrivateTeamAppEvents, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
 import { flushLaterSaves } from "./save-batch.ts";
 import type { WorkspaceBackupClientState, WorkspaceBackupPrivateMetadata, WorkspaceBackupSummary, WorkspaceLeftBehind } from "../shared/workspace-backup.ts";
 
@@ -242,29 +242,6 @@ function hashFile(path: string): string {
   } finally { closeSync(fd); }
 }
 
-function teamAttachmentInventory(root: string): Map<string, string> {
-  const directory = join(root, "attachments");
-  if (!existsSync(directory)) return new Map();
-  const parent = lstatSync(directory, { bigint: true });
-  if (!parent.isDirectory()) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
-  const inventory = new Map<string, string>();
-  inventory.set("", `${parent.dev}:${parent.ino}`);
-  const collect = (path: string, prefix = "") => {
-    for (const name of readdirSync(path)) {
-      const relativeName = prefix ? `${prefix}/${name}` : name, child = join(path, name);
-      const info = lstatSync(child, { bigint: true });
-      inventory.set(relativeName, `${info.dev}:${info.ino}:${info.mode}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`);
-      if (info.isDirectory()) collect(child, relativeName);
-    }
-  };
-  collect(directory);
-  return inventory;
-}
-
-function assertTeamAttachmentInventory(root: string, expected: ReadonlyMap<string, string>): void {
-  const current = teamAttachmentInventory(root);
-  if (current.size !== expected.size || [...expected].some(([name, value]) => current.get(name) !== value)) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
-}
 function countJsonArray(path: string): number {
   if (!existsSync(path)) return 0;
   const value = privateJson(path);
@@ -357,10 +334,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       try { snapshotDb.exec("PRAGMA journal_mode = DELETE"); } finally { snapshotDb.close(); }
     }
     const privacy = teamPrivate && { ...teamPrivate, attachments: teamPrivateAttachments(root, join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), teamPrivate) };
-    const readTeamAppEvents = () => {
-      const read = (name: string) => { const path = join(root, name); return entryExists(path) ? privateJson(path) : undefined; };
-      return teamAppEventLedger(read("app-triggers.json"), read("app-triggers.json.held"), privacy!);
-    };
+    const readTeamAppEvents = () => readPrivateTeamAppEvents(root, privacy!, path => entryExists(path) ? privateJson(path) : undefined);
     if (privacy && !omitAppEvents) readTeamAppEvents();
     if (attachmentInventory) assertTeamAttachmentInventory(root, attachmentInventory);
     if (privacy) {

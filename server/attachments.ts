@@ -730,11 +730,17 @@ export async function saveImageUpload(
   bytes: Buffer,
   mime: string,
   requestedUploadId?: string,
+  guard?: { reserve(id: string): void; finalize(saved: SavedAttachment): Promise<void> },
 ): Promise<SavedAttachment> {
   const uploadId = validateAttachmentUploadId(requestedUploadId);
   return withUploadLock(uploadId, async () => {
     if (uploadId) cleanupAttachmentPartialsForUpload(uploadId);
-    return saveImageUnlocked(bytes, mime, uploadId);
+    ensureAttachmentsDir();
+    if (guard && !uploadId) throw statusError(400, "A guarded upload needs an upload ID");
+    if (uploadId) guard?.reserve(uploadId);
+    const saved = saveImageUnlocked(bytes, mime, uploadId);
+    await guard?.finalize(saved);
+    return saved;
   });
 }
 

@@ -121,3 +121,26 @@ it("does not clean an existing partial before an ownership guard rejects it", as
     expect(readFileSync(partial, "utf8")).toBe("synthetic partial");
   } finally { db.close(); }
 });
+
+it("recovers an incomplete owner upload only with the original receipt and the same bytes", async () => {
+  const { DatabaseSync } = await import("node:sqlite");
+  const { randomBytes, randomUUID } = await import("node:crypto");
+  const { workBotUploadGuard } = await import("./work-bot-upload-context.ts");
+  const { WORK_BOT_UPLOAD_RECEIPTS_SCHEMA } = await import("./work-bot-upload-receipts.ts");
+  const db = new DatabaseSync(":memory:");
+  db.exec(WORK_BOT_UPLOAD_RECEIPTS_SCHEMA);
+  const auth = { kind: "loopback", scopes: ["admin"], desktopOwner: true } as const;
+  const id = randomUUID(), token = randomBytes(32).toString("base64url");
+  const guard = workBotUploadGuard(() => db, auth, token)!;
+  const retry = (value: string, attempt = guard) => saveFile((async function* () { yield Buffer.from(value); })(), "fixture.txt", "text/plain", { uploadId: id, guard: attempt });
+  try {
+    await expect(retry("synthetic", { ...guard, finalize: async () => { throw new Error("before finalization"); } })).rejects.toThrow("before finalization");
+    await expect(retry("synthetic", workBotUploadGuard(() => db, auth, randomBytes(32).toString("base64url"))!)).rejects.toThrow("unavailable");
+    await expect(retry("different")).rejects.toThrow("different file bytes");
+    const recovered = await retry("synthetic");
+    expect(readFileSync(recovered.path, "utf8")).toBe("synthetic");
+    expect(await retry("synthetic")).toEqual(recovered);
+    expect(db.prepare("SELECT * FROM work_bot_upload_reservations").all()).toHaveLength(0);
+    expect(db.prepare("SELECT * FROM work_bot_upload_receipts").all()).toHaveLength(1);
+  } finally { db.close(); }
+});

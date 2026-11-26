@@ -1,3 +1,4 @@
+import { splitTranscriptAttachments } from "../src/lib/composer-attachments.ts";
 import { defaultBotPerson } from "../shared/default-bot.ts";
 import { workBotAvatar, workBotName, workBotPrompt, readWorkBotTopic, workBotTopicForRequest } from "./work-bot-offer.ts";
 import type { SideJobText } from "./side-jobs.ts";
@@ -27,7 +28,8 @@ const MAX_SETUP_BOTS = 40;
 const MAX_NEW_BOTS = 8;
 const WORK_OFFER_TIMEOUT_MS = 90_000;
 function workBotExcerpt(text: string): string {
-  const brief = redactSecretsInText(text).trim();
+  const display = text.includes("<attached-") ? splitTranscriptAttachments(text).display : text;
+  const brief = redactSecretsInText(display).trim();
   return brief.length > 6000 ? brief.slice(0, 4000) + "…" + brief.slice(-1900) : brief;
 }
 const fieldsSchema = z.object({

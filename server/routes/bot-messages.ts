@@ -25,6 +25,7 @@ import { messageTextRefusal } from "../message-text.ts";
 import { stopReachesLiveTurn } from "../person-stops.ts";
 import type { PhoneSecretSubmissionRegistry } from "../phone-secret.ts";
 import type { ReplyTarget } from "../replies.ts";
+import { withWorkBotUploadSend } from "../work-bot-upload-context.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import type { RoutineManager } from "../routines.ts";
 import { acceptedSendMatch, parseSendId } from "../send-idempotency.ts";
@@ -350,11 +351,11 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
       try {
         const workBotOfferOwner = !retried && !guarded && !press && !appSent && !pointing && !mentions?.length &&
           personPresent && bot.defaultBot && mayFollowUp(bot, auth) ? defaultBotPerson(bot) : undefined;
-        const receipt = await acceptDirectSend({
+        const receipt = await withWorkBotUploadSend(auth, threadId, sendId, text, workBotOfferOwner === undefined ? undefined : body.workBotUploadReceipts, () => acceptDirectSend({
           botId: bot.id, threadId, text, sendId, replyTo, sender, trigger, dataContext, ...(app ? { app } : {}),
           personPresent, workBotOfferOwner, admin: owners.admin(auth), ...(followUp ? { followUp } : {}),
           ...(mentions?.length && !press && !appSent ? { mentions } : {}),
-        }, guardedStart);
+        }, guardedStart));
         press?.settle("queueId" in receipt ? receipt.queueId : undefined);
         appContext?.deliver();
         if (relayed && target && onBehalfOf) relayedReaction(threadId, target.id, onBehalfOf, relayed);

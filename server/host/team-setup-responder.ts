@@ -10,10 +10,14 @@ import { serverLine } from "../server-lines.ts";
 import { json } from "../harness/http.ts";
 import { appendDecision } from "../decision-log.ts";
 import { unsupportedWorkBotContext } from "../work-bot-context.ts";
-import { safeWorkBotFollowups } from "../steer-queue.ts";
+import { portableWorkBotUpload } from "../message-db.ts";
+import { verifyPortableFiles } from "../work-bot-upload-context.ts";
+import { workBotQueuedMessage, workBotQueuedFollowups, safeWorkBotFollowups } from "../steer-queue.ts";
 
 export function createTeamSetupResponder(deps: {
   store: Store;
+  availableData(botId: string, cardId: string): boolean;
+  preflightData(botId: string, ids: readonly string[]): Promise<boolean>;
   workBotChoiceLocks: Set<string>;
   assertAvailable(botId?: string, threadId?: string): void;
   cloudTeam: boolean;
@@ -44,16 +48,45 @@ async function resolveAndSendTeamSetup(res: ServerResponse, args: { botId: strin
     json(res, 409, { error: serverLine(threadLanguage(args.threadId), sharedNonTeam() ? "server.workBot.sharedUnavailable" : "server.workBot.privateUnavailable") });
     return true;
   }
-  if (args.behavior === "allow" && card.teamSetupRequest?.workBotOffer) {
+  if (args.behavior === "allow" && !card.answered && !card.dismissed && !card.expired && card.teamSetupRequest?.workBotOffer) {
     const path = sinceFreshStart(store.activePath(args.threadId));
     const sourceIndex = path.findIndex(row => row.id === card.teamSetupRequest?.workBotOffer?.sourceMessageId);
-    const unsupported = sourceIndex >= 0 && unsupportedWorkBotContext(path.slice(0, sourceIndex + 1));
+    const history = path.slice(0, sourceIndex + 1);
+    const portable = (row: (typeof history)[number]) => portableWorkBotUpload(args.threadId, row);
+    const portableData = (row: (typeof history)[number]) => Boolean(row.role === "user" && row.kind === "text" && row.dataContext && deps.availableData(args.botId, row.dataContext.cardId));
+    const unsupported = sourceIndex >= 0 && unsupportedWorkBotContext(history, row => portable(row)?.prose, portableData);
     if (unsupported) {
       json(res, 409, { error: serverLine(threadLanguage(args.threadId), unsupported === "data" ? "server.workBot.dataUnavailable" : "server.workBot.fileUnavailable") });
       return true;
     }
+    const queue = () => workBotQueuedFollowups(args.botId, args.threadId, card.teamSetupRequest!.workBotOffer!.sourceMessageId!);
+    const queueSnapshot = JSON.stringify(queue());
+    const inputs = [...history, ...queue().map(workBotQueuedMessage)];
+    const dataIds = inputs.flatMap(row => row.dataContext ? [row.dataContext.cardId] : []);
+    if (dataIds.length && !await deps.preflightData(args.botId, dataIds)) {
+      json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.dataUnavailable") });
+      return true;
+    }
+    const files = inputs.flatMap(row => portable(row)?.files ?? []);
+    if (files.length) {
+      try {
+        const validate = await verifyPortableFiles(files);
+        validate();
+      } catch {
+        json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.fileUnavailable") });
+        return true;
+      }
+    }
+    if (files.length || dataIds.length) {
+      assertAvailable(args.botId, args.threadId);
+      const current = sinceFreshStart(store.activePath(args.threadId));
+      if (sharedNonTeam() || (cloudTeam && audienceMember(teamHost.audienceOf(args.threadId))) || history.some((row, index) => current[index] !== row) || unsupportedWorkBotContext(current.slice(0, sourceIndex + 1), row => portable(row)?.prose, portableData)) {
+        json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.pendingUnavailable") });
+        return true;
+      }
+    }
     const source = sourceIndex >= 0 ? path[sourceIndex] : undefined;
-    if (!source || !safeWorkBotFollowups(args.botId, args.threadId, source)) {
+    if (!source || JSON.stringify(queue()) !== queueSnapshot || !safeWorkBotFollowups(args.botId, args.threadId, source, portableData)) {
       json(res, 409, { error: serverLine(threadLanguage(args.threadId), "server.workBot.pendingUnavailable") });
       return true;
     }

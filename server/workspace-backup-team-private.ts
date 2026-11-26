@@ -1,6 +1,6 @@
 // Security: every member reads "only you, not Acme's admins", and a Team Cloud's export is its Owner's. So the export leaves
 // out what is one member's alone, decided from the records of who opened each conversation, never from a line's text.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -178,7 +178,7 @@ export function teamPrivateAttachments(root: string, messages: string, privacy: 
 export function stripTeamPrivate(snapshot: { messages: string; runtime: string }, privacy: TeamPrivacy): void {
   const threads = [...privacy.threads];
   strip(snapshot.messages, (db) => {
-    for (const table of ["work_bot_upload_receipts", "work_bot_upload_owners", "work_bot_message_upload_sets"]) if (hasTable(db, table)) db.exec(`DELETE FROM ${table}`);
+    for (const table of ["work_bot_upload_receipts", "work_bot_upload_reservations", "work_bot_upload_owners", "work_bot_message_upload_sets"]) if (hasTable(db, table)) db.exec(`DELETE FROM ${table}`);
     for (const table of ["messages", "thread_state", "chat_followups", "notification_log"]) deleteWhereIn(db, table, "thread_id", threads);
     if (hasTable(db, "messages")) {
       for (const [field, ids] of [["threadId", threads], ["botId", [...privacy.bots]]] as const) {
@@ -240,4 +240,32 @@ export function teamAppEventLedger(main: unknown, sidecar: unknown, privacy: Pic
     if (rows(ledger.attempts).some(attempt => typeof attempt.triggerId !== "string" || !known.has(attempt.triggerId))) throw new Error("Team backup cannot safely identify app event attempt owners.");
   }
   return ledger;
+}
+
+export function teamAttachmentInventory(root: string): Map<string, string> {
+  const directory = join(root, "attachments");
+  if (!existsSync(directory)) return new Map();
+  const parent = lstatSync(directory, { bigint: true });
+  if (!parent.isDirectory()) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
+  const inventory = new Map<string, string>();
+  inventory.set("", `${parent.dev}:${parent.ino}`);
+  const collect = (path: string, prefix = "") => {
+    for (const name of readdirSync(path)) {
+      const relativeName = prefix ? `${prefix}/${name}` : name, child = join(path, name);
+      const info = lstatSync(child, { bigint: true });
+      inventory.set(relativeName, `${info.dev}:${info.ino}:${info.mode}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`);
+      if (info.isDirectory()) collect(child, relativeName);
+    }
+  };
+  collect(directory);
+  return inventory;
+}
+
+export function assertTeamAttachmentInventory(root: string, expected: ReadonlyMap<string, string>): void {
+  const current = teamAttachmentInventory(root);
+  if (current.size !== expected.size || [...expected].some(([name, value]) => current.get(name) !== value)) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
+}
+
+export function readPrivateTeamAppEvents(root: string, privacy: TeamPrivacy, read: (path: string) => unknown) {
+  return teamAppEventLedger(read(join(root, "app-triggers.json")), read(join(root, "app-triggers.json.held")), privacy);
 }

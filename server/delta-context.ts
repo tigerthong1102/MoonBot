@@ -1,5 +1,6 @@
 // What a resumed provider session has not received yet. Whenever the record cannot say what the session holds, the turn replays.
 
+import { promptWithDataContext } from "../shared/data-context.ts";
 import type { RuntimeEvent } from "./contracts.ts";
 import type { Message } from "./store.ts";
 
@@ -35,9 +36,10 @@ export function routedWorkMarker(m: Pick<Message, "workBotReviewHold" | "workBot
     : "[This request was assigned to another bot. Do not execute or repeat it here; continue the work in the assigned bot.]";
 }
 
-export function contextText(m: Pick<Message, "text" | "attachments" | "peerPost" | "webhookPost" | "workBotReviewHold" | "workBotRouting" | "workBotExecutionUncertain" | "workBotRecoveryPending" | "workBotHandoffSource" | "requestCancelled" | "requestPending" | "workBotCopy">): string {
+export function contextText(m: Pick<Message, "dataContext" | "text" | "attachments" | "peerPost" | "webhookPost" | "workBotReviewHold" | "workBotRouting" | "workBotExecutionUncertain" | "workBotRecoveryPending" | "workBotHandoffSource" | "requestCancelled" | "requestPending" | "workBotCopy">): string {
   const routed = routedWorkMarker(m);
   if (routed) return routed;
+  if (m.workBotCopy && m.dataContext) return promptWithDataContext(m.text ?? "", m.dataContext);
   const spoken = m.peerPost !== undefined || m.webhookPost ? [] : voiceNoteTexts(m);
   return spoken.length ? [m.text?.trim(), ...spoken].filter(Boolean).join("\n\n") : m.text ?? "";
 }

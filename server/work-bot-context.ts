@@ -32,14 +32,16 @@ function posixFileReference(text: string): boolean {
   return false;
 }
 
-function scanContext(messages: readonly Message[], copied: Set<string>): Reason {
+type UploadProse = (message: Message) => string | undefined;
+
+function scanContext(messages: readonly Message[], copied: Set<string>, uploadProse?: UploadProse, portableData?: (message: Message) => boolean): Reason {
   for (const message of messages) {
     const willCopy = (message.kind === "text" && Boolean(message.text) || message.kind === "digest" && Boolean(message.digest)) && (message.role === "user" || message.role === "bot");
     if ((isContextMessage(message) && (!willCopy || message.roomRequest || message.peerAsk || message.relay || message.relayed || message.via === "api" || message.apiAsOwner || message.aside || message.fromApp || message.pointed?.length || message.automation || message.automated || message.steered || message.webhookPost || message.peerPost || message.serverCard || message.setupSuggestion || message.settingsCard || message.reaction)) || (willCopy && message.replyToId && !copied.has(message.replyToId))) return "data";
     if (willCopy) copied.add(message.id);
     const digest = message.kind === "digest" ? message.digest : undefined;
     if (digest && (digest.memory.length || digest.memoryDropped || digest.files?.changed.length || digest.files?.added.length || digest.files?.deleted.length || digest.files?.truncated)) return "files";
-    const text = digest ? workBotContextText(message, "bot") : message.text, hasData = Boolean(message.dataContext), attachmentCount = message.attachments?.length ?? 0;
+    const text = digest ? workBotContextText(message, "bot") : uploadProse?.(message) ?? message.text, hasData = Boolean(message.dataContext && !portableData?.(message)), attachmentCount = message.attachments?.length ?? 0;
     const known = cache.get(message);
     if (known && known.text === text && known.hasData === hasData && known.attachmentCount === attachmentCount) {
       if (known.reason) return known.reason;
@@ -55,28 +57,28 @@ function scanContext(messages: readonly Message[], copied: Set<string>): Reason 
   return null;
 }
 
-export function unsupportedWorkBotContext(messages: readonly Message[]): Reason {
-  return scanContext(messages, new Set());
+export function unsupportedWorkBotContext(messages: readonly Message[], uploadProse?: UploadProse, portableData?: (message: Message) => boolean): Reason {
+  return scanContext(messages, new Set(), uploadProse, portableData);
 }
 
-export async function scanWorkBotContext(messages: readonly Message[], signal: AbortSignal): Promise<Reason> {
+export async function scanWorkBotContext(messages: readonly Message[], signal: AbortSignal, uploadProse?: UploadProse, portableData?: (message: Message) => boolean): Promise<Reason> {
   const copied = new Set<string>();
   for (let offset = 0; offset < messages.length; offset += 100) {
     if (signal.aborted) return null;
-    const reason = scanContext(messages.slice(offset, offset + 100), copied);
+    const reason = scanContext(messages.slice(offset, offset + 100), copied, uploadProse, portableData);
     if (reason) return reason;
     if (offset + 100 < messages.length) await new Promise<void>(resolve => setImmediate(resolve));
   }
   return null;
 }
 
-export function captureWorkBotContext(messages: readonly Message[], current: () => readonly Message[], sourceIndex: number): () => void {
-  const versions = messages.map(row => ({ row, text: row.text, kind: row.kind, role: row.role, replyToId: row.replyToId, digest: JSON.stringify(row.digest), sender: JSON.stringify(row.sender), from: JSON.stringify(row.from), data: Boolean(row.dataContext), attachments: row.attachments?.length ?? 0 }));
+export function captureWorkBotContext(messages: readonly Message[], current: () => readonly Message[], sourceIndex: number, uploadProse?: UploadProse, portableData?: (message: Message) => boolean): () => void {
+  const versions = messages.map(row => ({ row, text: row.text, kind: row.kind, role: row.role, replyToId: row.replyToId, digest: JSON.stringify(row.digest), sender: JSON.stringify(row.sender), from: JSON.stringify(row.from), data: JSON.stringify(row.dataContext), attachments: row.attachments?.length ?? 0 }));
   return () => {
     const latest = current();
     if (latest.length !== versions.length || latest.some((row, index) => {
       const previous = versions[index];
-      return !previous || row !== previous.row || row.text !== previous.text || row.kind !== previous.kind || row.role !== previous.role || row.replyToId !== previous.replyToId || JSON.stringify(row.digest) !== previous.digest || JSON.stringify(row.sender) !== previous.sender || JSON.stringify(row.from) !== previous.from || Boolean(row.dataContext) !== previous.data || (row.attachments?.length ?? 0) !== previous.attachments;
-    }) || unsupportedWorkBotContext(latest.slice(0, sourceIndex + 1))) throw new Error("The conversation context changed during handoff");
+      return !previous || row !== previous.row || row.text !== previous.text || row.kind !== previous.kind || row.role !== previous.role || row.replyToId !== previous.replyToId || JSON.stringify(row.digest) !== previous.digest || JSON.stringify(row.sender) !== previous.sender || JSON.stringify(row.from) !== previous.from || JSON.stringify(row.dataContext) !== previous.data || (row.attachments?.length ?? 0) !== previous.attachments;
+    }) || unsupportedWorkBotContext(latest.slice(0, sourceIndex + 1), uploadProse, portableData)) throw new Error("The conversation context changed during handoff");
   };
 }

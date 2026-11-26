@@ -662,6 +662,7 @@ export type Action =
   | { type: "select"; id: string }
   | {
       type: "send";
+      workBotUploadReceipts?: string[];
       botId: string;
       text: string;
       sendId?: string;
@@ -2347,7 +2348,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           void waitForExecutionSettings(botBeforeSend ? [botBeforeSend] : [], threadId)
             .then(() => sendReconciled(() => api(`/api/bots/${action.botId}/messages`, {
                 method: "POST",
-                body: JSON.stringify({ text: action.text, replyToId: action.replyToId, threadId, sendId, ...(action.dataContext ? { dataContext: action.dataContext } : {}), ...(action.pointed?.length ? { pointed: action.pointed } : {}), ...(action.openPage ? { openPage: action.openPage } : {}), ...(action.mode === "goal" ? { mode: "goal" } : {}), ...(action.followUp ? { followUp: action.followUp } : {}), ...(action.mentions?.length ? { mentions: action.mentions } : {}) }),
+                body: JSON.stringify({ text: action.text, replyToId: action.replyToId, threadId, sendId, workBotUploadReceipts: action.workBotUploadReceipts, ...(action.dataContext ? { dataContext: action.dataContext } : {}), ...(action.pointed?.length ? { pointed: action.pointed } : {}), ...(action.openPage ? { openPage: action.openPage } : {}), ...(action.mode === "goal" ? { mode: "goal" } : {}), ...(action.followUp ? { followUp: action.followUp } : {}), ...(action.mentions?.length ? { mentions: action.mentions } : {}) }),
               }), arrived))
             .then((sent) => {
               action.onAccepted?.();

@@ -13,6 +13,10 @@ export const WORK_BOT_UPLOAD_RECEIPTS_SCHEMA = `
     receipt_hash TEXT,
     CHECK ((stored_name IS NULL AND digest IS NULL AND bytes IS NULL AND receipt_hash IS NULL) OR (stored_name IS NOT NULL AND digest IS NOT NULL AND bytes IS NOT NULL AND bytes > 0 AND receipt_hash IS NOT NULL))
   );
+  CREATE TABLE IF NOT EXISTS work_bot_upload_reservations (
+    upload_id TEXT PRIMARY KEY,
+    receipt_hash TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS work_bot_upload_receipts (
     receipt_hash TEXT PRIMARY KEY,
     principal TEXT NOT NULL,
@@ -92,18 +96,28 @@ export function workBotUploadIdIsFresh(directory: string, id: string): boolean {
 }
 
 /** Under the upload ID's lock, authenticate and commit this reservation before making bytes visible; refuse unowned existing files. */
-export function reserveWorkBotUpload(db: DatabaseSync, input: { principal: string; uploadId: string }, fresh: (id: string) => boolean): void {
-  if (!identity(input.principal) || !uploadId.test(input.uploadId)) throw new Error("Invalid upload receipt");
-  const normalized = input.uploadId.toLowerCase();
-  const existing = db.prepare("SELECT principal, stored_name FROM work_bot_upload_owners WHERE upload_id = ?").get(normalized) as { principal: string; stored_name: string | null } | undefined;
-  if (existing && existing.principal !== input.principal) throw new Error("Upload receipt is unavailable");
-  if (!existing || existing.stored_name === null) {
+export function reserveWorkBotUpload(db: DatabaseSync, input: { principal: string; uploadId: string; token?: string }, fresh: (id: string) => boolean): void {
+  if (!identity(input.principal) || !uploadId.test(input.uploadId) || (input.token !== undefined && !validToken(input.token))) throw new Error("Invalid upload receipt");
+  const id = input.uploadId.toLowerCase();
+  const tokenHash = input.token && hash(input.token);
+  receiptTransaction(db, () => {
+    const owner = db.prepare("SELECT principal, stored_name, receipt_hash FROM work_bot_upload_owners WHERE upload_id = ?").get(id) as { principal: string; stored_name: string | null; receipt_hash: string | null } | undefined;
+    if (owner && owner.principal !== input.principal) throw new Error("Upload receipt is unavailable");
+    if (owner?.stored_name) {
+      if (tokenHash && tokenHash !== owner.receipt_hash) throw new Error("Upload receipt is unavailable");
+      return;
+    }
+    const reservation = db.prepare("SELECT receipt_hash FROM work_bot_upload_reservations WHERE upload_id = ?").get(id);
+    if (reservation) {
+      if (!owner || tokenHash !== reservation.receipt_hash) throw new Error("Upload receipt is unavailable");
+      return;
+    }
     let available = false;
-    try { available = fresh(normalized); } catch { throw new Error("Upload receipt is unavailable"); }
+    try { available = fresh(id); } catch { throw new Error("Upload receipt is unavailable"); }
     if (available !== true) throw new Error("Upload receipt is unavailable");
-  }
-  const owner = db.prepare("INSERT INTO work_bot_upload_owners (upload_id, principal) VALUES (?, ?) ON CONFLICT(upload_id) DO UPDATE SET upload_id = excluded.upload_id WHERE principal = excluded.principal RETURNING upload_id").get(normalized, input.principal);
-  if (!owner) throw new Error("Upload receipt is unavailable");
+    if (!owner) db.prepare("INSERT INTO work_bot_upload_owners (upload_id,principal) VALUES (?,?)").run(id, input.principal);
+    if (tokenHash) db.prepare("INSERT INTO work_bot_upload_reservations (upload_id,receipt_hash) VALUES (?,?)").run(id, tokenHash);
+  });
 }
 
 /** The caller verifies the upload under its ID lock and commits finalization and receipt issuance in one transaction. */
@@ -112,10 +126,13 @@ export function issueWorkBotUploadReceipt(db: DatabaseSync, input: VerifiedUploa
   receiptTransaction(db, () => {
     const receiptHash = hash(input.token);
     const id = input.storedName.slice(0, 36).toLowerCase();
+    const reservation = db.prepare("SELECT receipt_hash FROM work_bot_upload_reservations WHERE upload_id = ?").get(id);
+    if (reservation && reservation.receipt_hash !== receiptHash) throw new Error("Upload receipt is unavailable");
     const owner = db.prepare("UPDATE work_bot_upload_owners SET stored_name = ?, digest = ?, bytes = ?, receipt_hash = ? WHERE upload_id = ? AND principal = ? AND (stored_name IS NULL OR (stored_name = ? AND digest = ? AND bytes = ? AND receipt_hash = ?)) RETURNING upload_id").get(input.storedName, input.digest, input.bytes, receiptHash, id, input.principal, input.storedName, input.digest, input.bytes, receiptHash);
     if (!owner) throw new Error("Upload receipt is unavailable");
     const receipt = db.prepare("INSERT INTO work_bot_upload_receipts (receipt_hash, principal, stored_name, digest, bytes) VALUES (?, ?, ?, ?, ?) ON CONFLICT(receipt_hash) DO UPDATE SET receipt_hash = excluded.receipt_hash WHERE principal = excluded.principal AND stored_name = excluded.stored_name AND digest = excluded.digest AND bytes = excluded.bytes RETURNING receipt_hash").get(receiptHash, input.principal, input.storedName, input.digest, input.bytes);
     if (!receipt) throw new Error("Upload receipt is unavailable");
+    db.prepare("DELETE FROM work_bot_upload_reservations WHERE upload_id = ?").run(id);
   });
 }
 

@@ -2,6 +2,7 @@ import type { ModelSelection } from "./wire.ts";
 
 /** The routing and source identity carried by messages during a work-bot handoff. */
 export interface WorkBotMessageFields {
+  workBotUploadNonce?: string;
   workBotReviewHold?: true;
   workBotExecutionUncertain?: true;
   workBotRecoveryPending?: true;

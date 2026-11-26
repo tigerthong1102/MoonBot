@@ -356,6 +356,23 @@ try {
   await send(extra);
   await until(async () => ((await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? []).some(row => row.text === extra), "a second message to be queued with the offer pending");
   await send(extraNext);
+  const fixtureFilename = "Kiểm kho 42.txt", fileNote = "Dùng tệp kiểm kho tổng hợp.", dataNote = "Đọc số lượng từ thẻ dữ liệu tổng hợp.";
+  const fixtureBytes = "StartupBot fixture: 42 cartons";
+  const fixtureFile = path.join(fixture, fixtureFilename);
+  writeFileSync(fixtureFile, fixtureBytes);
+  const documentRoot = await cdp("DOM.getDocument", {});
+  const fileInput = await cdp("DOM.querySelector", { nodeId: documentRoot.root.nodeId, selector: '[data-composer-row] input[type="file"]' });
+  assert(fileInput.nodeId);
+  await cdp("DOM.setFileInputFiles", { nodeId: fileInput.nodeId, files: [fixtureFile] });
+  await until(() => evaluate(`document.body.innerText.includes(${JSON.stringify(fixtureFilename)})`), "the uploaded fixture file chip");
+  await send(fileNote);
+  const sourceCard = await request(`/api/bots/${helper.id}/data/run`, { sql: "SELECT 42 AS quantity", title: "Fixture Stock" });
+  assert.equal(sourceCard.status, 200);
+  const selectedData = { cardId: sourceCard.body.card.id, draftSql: "SELECT 77 AS unsaved_fixture" };
+  const queuedDataRequest = { threadId: helper.threadId, text: dataNote, sendId: "fixture-queued-data", dataContext: selectedData };
+  const queuedData = await request(`/api/bots/${helper.id}/messages`, queuedDataRequest);
+  assert.equal(queuedData.body.queued, true);
+
   await until(async () => {
     const queued = (await request("/api/bots?messages=0")).body.botQueuedMessages?.[helper.threadId] ?? [];
     return queued.some(row => row.text === extra) && queued.some(row => row.text === extraNext);
@@ -397,6 +414,26 @@ try {
     return first && second && !first.workBotRecoveryPending && !second.workBotRecoveryPending && [first, second];
   }, "both queued clarifications to settle with the handed-off request");
   assert.notEqual(transferred[0].id, transferred[1].id);
+  const targetRows = (await request(`/api/threads/${workBot.threadId}/messages`)).body.messages;
+  const fileRows = targetRows.filter(row => row.role === "user" && row.text?.startsWith(fileNote));
+  const dataRows = targetRows.filter(row => row.role === "user" && row.text === dataNote);
+  assert.equal(fileRows.length, 1); assert.equal(dataRows.length, 1);
+  const href = fileRows[0].text.match(/<attached-file path="([^"]+)"/)?.[1];
+  assert(href);
+  const receivedFile = await evaluate(`(async () => {
+    const res = await fetch(${JSON.stringify(`/api/threads/${workBot.threadId}/messages/${fileRows[0].id}/file`)}, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({path:${JSON.stringify(href)}})});
+    return [res.status, await res.text()];
+  })()`);
+  assert.deepEqual(receivedFile, [200, fixtureBytes]);
+  const targetCard = dataRows[0].dataContext;
+  assert.equal(targetCard.draftSql, selectedData.draftSql);
+  const counts = async (botId, cardId) => (await request(`/api/bots/${botId}/data/page`, { cardId, offset: 0, limit: 10 })).body.rows;
+  assert.deepEqual(await counts(workBot.id, targetCard.cardId), [[42]]);
+  const editCopy = await request(`/api/bots/${workBot.id}/data/run`, { cardId: targetCard.cardId, sql: "SELECT 84 AS quantity" });
+  assert.equal(editCopy.status, 200);
+  assert.deepEqual(await counts(workBot.id, targetCard.cardId), [[84]]);
+  assert.deepEqual(await counts(helper.id, selectedData.cardId), [[42]]);
+  assert.equal((await request(`/api/bots/${helper.id}/messages`, queuedDataRequest)).body.transferred, true);
   const transferredClarifications = transferred.map(row => ({ messageId: row.id, includedInSinglePrompt: true }));
   assert(!(await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.text === extra || row.text === extraNext));
   assert(JSON.stringify(workPrompts()[0]).includes(extra) && JSON.stringify(workPrompts()[0]).includes(extraNext));
@@ -872,7 +909,7 @@ try {
   const restart = await smokeDesktopRestart({ executable, profile, fixture, env, helper, workBot, workMessage, workRequestId: workCompletion.requestId, blockedWork: { sourceId: blocked.sourceId, cardId: blocked.card.requestId, text: blockedWork }, canceledHandoff, prompts, workspaceFile, botIds, evidence, expectedSkin: "daylight", expectedWorkspace: home, stablePort: port, lifecycle: restartLifecycle, usernameGroup });
   assert.equal(heldPrompts().length, 0, "Restart must not replay held work");
   report = { ...report, status: "PASS", health: health.body, edition: edition.body, title, agentChat: "PASS (isolated fake engine, no paid model)",
-    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, workCompletion, transferredClarifications, declinedCompletion, compactedContext: "PASS (blocked transfer; one source run with summary)" },
+    workBotOffer: { doubleEnter: true, doubleConsent: true, beforeConsent: 0, afterConsent: newBots.length, receiptVerified: true, taskNotCopiedIntoStandingInstructions: true, avatarDecoded: true, uploadedFileReadBack: true, sourceDataQuantity: 42, editedTargetQuantity: 84, workCompletion, transferredClarifications, declinedCompletion, compactedContext: "PASS (blocked transfer; one source run with summary)" },
     artifactPreview: "PASS (synthetic Markdown opened from its conversation)",
     notificationNavigation: "PASS (feed enabled and opened in isolated profile)",
     permissionFixture: permissionCounts, workBotPermissions: handoffPermissions,

@@ -1,7 +1,9 @@
 // Mid-turn sends wait here off the transcript (else they become the active leaf mid-turn) and survive Stop: stop-then-steer is the feature.
 
 import { newId } from "./contracts.ts";
-import { chatFollowups, saveChatFollowup, settleChatFollowups } from "./message-db.ts";
+import { queuedUploadMessage } from "./work-bot-upload-context.ts";
+import { promptWithDataContext } from "../shared/data-context.ts";
+import { chatFollowups, portableWorkBotUpload, saveChatFollowup, settleChatFollowups } from "./message-db.ts";
 import { drainCoalesceHead } from "./admission.ts";
 import { spokenLineFields } from "./live-call-record.ts";
 import { workOriginSchema, type WorkOrigin } from "./peer-provenance.ts";
@@ -23,6 +25,7 @@ interface QueueEntry {
   botId: string;
   items: Array<{
     messageId: string;
+    workBotUploadNonce?: string;
     text: string;
     prompt: string;
     replyToId?: string;
@@ -186,9 +189,13 @@ export function workBotQueuedFollowups(botId: string, threadId: string, sourceMe
   return entry?.botId === botId ? entry.items.filter(item => item.workBotOfferSource === sourceMessageId) : [];
 }
 
-export function safeWorkBotFollowups(botId: string, threadId: string, source: Message): boolean {
+export function workBotQueuedMessage(item: QueueEntry["items"][number]): Message {
+  return queuedUploadMessage(item.messageId, item);
+}
+
+export function safeWorkBotFollowups(botId: string, threadId: string, source: Message, portableData?: (message: Message) => boolean): boolean {
   const items = workBotQueuedFollowups(botId, threadId, source.id), first = items[0];
-  return items.every(item => item.sender?.id === source.sender?.id && item.trigger?.kind === source.workBotRouting?.triggerKind && JSON.stringify(item.trigger ?? null) === JSON.stringify(first?.trigger ?? null) && item.workBotOfferOwner === first?.workBotOfferOwner && (!item.workBotFollowUp || item.workBotFollowUp === "queue") && !item.replyToId && !item.dataContext && !item.reason && !item.unattended && !item.peerAsk && !item.origin && !item.via && !item.callId && !item.fromApp && !item.reaction && !item.relay && !item.rowId && !item.mentions?.length && item.prompt === item.text && !unsupportedWorkBotContext([{ id: item.messageId, role: "user", kind: "text", at: item.queuedAt, text: item.text }]));
+  return items.every(item => item.sender?.id === source.sender?.id && item.trigger?.kind === source.workBotRouting?.triggerKind && JSON.stringify(item.trigger ?? null) === JSON.stringify(first?.trigger ?? null) && item.workBotOfferOwner === first?.workBotOfferOwner && (!item.workBotFollowUp || item.workBotFollowUp === "queue") && !item.replyToId && !item.reason && !item.unattended && !item.peerAsk && !item.origin && !item.via && !item.callId && !item.fromApp && !item.reaction && !item.relay && !item.rowId && !item.mentions?.length && item.prompt === promptWithDataContext(item.text, item.dataContext) && !unsupportedWorkBotContext([workBotQueuedMessage(item)], row => portableWorkBotUpload(threadId, row)?.prose, portableData));
 }
 
 export function forgetTransferredWorkBotFollowups(botId: string, threadId: string, sourceMessageId: string, ids: readonly string[]): void {
@@ -219,6 +226,7 @@ export function drainSteeredMessages(
   offerWorkBot?: (botId: string, threadId: string, text: string, owner: string, messageId: string) => void,
   routeWorkBot?: (botId: string, threadId: string, item: QueueEntry["items"][number], message: Message) => boolean,
   refreshPrompt?: (threadId: string, item: QueueEntry["items"][number]) => string,
+  canRouteData?: (botId: string, context: NonNullable<Message["dataContext"]>) => boolean,
 ): void {
   // deleting only the entry being visited is safe under Map iteration
   for (const [threadId, entry] of queues) {
@@ -235,7 +243,7 @@ export function drainSteeredMessages(
     // isBlocked can re-enter this drain; if a nested drain took this entry, it is stale.
     if (queues.get(threadId) !== entry) continue;
     const first = entry.items[0];
-    const canRoute = (item: QueueEntry["items"][number]) => Boolean(routeWorkBot && typeof item.workBotOfferOwner === "string" && !item.rowId && !item.dataContext && !item.mentions?.length && (item.trigger?.kind === "user" || item.trigger?.kind === "owner") && (!item.replyToId || store.messagesFor?.(threadId).some(row => row.id === item.replyToId && row.kind === "text")));
+    const canRoute = (item: QueueEntry["items"][number]) => Boolean(routeWorkBot && typeof item.workBotOfferOwner === "string" && !item.rowId && (!item.dataContext || canRouteData?.(entry.botId, item.dataContext)) && !item.mentions?.length && (item.trigger?.kind === "user" || item.trigger?.kind === "owner") && (!item.replyToId || store.messagesFor?.(threadId).some(row => row.id === item.replyToId && row.kind === "text")));
     const separatelyRouted = canRoute(first);
     const group = separatelyRouted ? [first] : drainCoalesceHead(entry.items, item => `${coalesceIdentity(item)}:${canRoute(item)}`, (item) => item.queuedAt);
     const ids = group.map((item) => item.messageId);

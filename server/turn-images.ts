@@ -62,7 +62,7 @@ function walk(node: MarkdownNode, visit: (node: MarkdownNode) => void): void {
 }
 
 /** Standalone tags only: prose that contains a tag literal must not become an attachment capability. */
-function attachmentTagCandidates(text: string): TagCandidate[] {
+export function attachmentTagCandidates(text: string): TagCandidate[] {
   const candidates: TagCandidate[] = [];
   walk(fromMarkdown(text) as MarkdownNode, (node) => {
     if (node.type !== "html" || !node.value || !node.position) return;

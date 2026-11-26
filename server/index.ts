@@ -1,12 +1,13 @@
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
+import { createWorkBotData } from "./work-bot-data.ts";
 import { assertWorkBotStopAllowed as assertWorkBotStop, cancelWorkBotRoutes, cleanupWorkBotSetup, createWorkBotHost, handedRunTarget, pendingWorkBotOfferSource, unambiguousWorkBotRequest, updateWorkBotRoutingIndex } from "./host/work-bot-host.ts";
 import { createWorkBotTypedStop } from "./host/work-bot-typed-stop.ts";
 import { assertWorkBotRoutineSafe, shouldHoldWorkBotHandoff } from "./host/work-bot-routine-guard.ts";
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
 import { createProfileModelResponder } from "./host/profile-model-responder.ts";
-import { pendingWorkBotRoutes, verifiedWorkBotFollowup, workBotLinkBetween, workBotLinksForThread, recoverLegacyWorkBotLinks } from "./message-db.ts";
+import { workBotDataJournal, pendingWorkBotRoutes, verifiedWorkBotFollowup, workBotLinkBetween, workBotLinksForThread, recoverLegacyWorkBotLinks } from "./message-db.ts";
 import { startFailureText } from "./start-failure-text.ts";
 import { reserveGmailDrafts } from "./gmail-draft-policy.ts";
 import { createGmailDrafts } from "./host/gmail-drafts.ts";
@@ -7193,6 +7194,7 @@ function drainQueuedSendsNow() {
       return true;
     },
     (threadId, item) => refreshRoutedReply(item.prompt, item.text, item.replyToId ? store.messagesFor(threadId).find(message => message.id === item.replyToId) : undefined),
+    (botId, context) => Boolean(workBotData.available(botId, context.cardId)),
   );
 }
 
@@ -7321,12 +7323,12 @@ async function acceptDirectSend(
         groupTurn: roomTurnHolds(activeGroupTurnForBot(botId), threadId, true),
         parksBehindCoordination: parksBehindCoordination(botId, threadId),
       });
-      if (workBotOfferOwner !== undefined && personPresent && !app && (!replyTo || replyTo.kind === "text") && !dataContext && !mentions?.length &&
+      if (workBotOfferOwner !== undefined && personPresent && !app && (!replyTo || replyTo.kind === "text") && (!dataContext || workBotData.available(botId, dataContext.cardId)) && !mentions?.length &&
           (trigger?.kind === "user" || trigger?.kind === "owner") && currentAtStart.modelSelection.instanceId && currentAtStart.modelSelection.model && workBotAdmission.action === "start") {
         workspaceMaintenance.assertAvailable();
         moveFreeze.assertTurns();
         const message = store.appendMessage(threadId, {
-          role: "user", kind: "text", text, sendId, sender, ...(replyTo ? { replyToId: replyTo.id } : {}),
+          role: "user", kind: "text", text, sendId, sender, ...(replyTo ? { replyToId: replyTo.id } : {}), ...(dataContext ? { dataContext } : {}),
           workBotRouting: { state: "classifying", sourceBotId: botId, ownerKey: workBotOfferOwner ? personKey({ id: "", email: workBotOfferOwner }) : "", triggerKind: trigger.kind, modelSelection: currentAtStart.modelSelection },
         });
         indexWorkBotRouting(threadId, message.id, "classifying");
@@ -9335,7 +9337,9 @@ function offerWorkBot(botId: string, threadId: string, text: string, owner: stri
   }, signal, contextBlock);
 }
 
+const workBotData = createWorkBotData(dataEngine, dataSheets, () => DESKTOP_MANAGED && !CLOUD_HOME && !CLOUD_TEAM && !HOSTED_WORKSPACE && !sharedMembership(), workBotDataJournal);
 const workBotHost = createWorkBotHost({
+  data: workBotData,
   store, pendingWorkBotIds, workBotTargetLocks, indexWorkBotRouting, drainQueuedSends, targetUnlocked: settleTrackedRequest,
   assertAvailable: (botId, threadId) => { workspaceMaintenance.assertAvailable(); moveFreeze.assertTurns(); if (botId && threadId) { const paused = botHolds.text(botId, threadLanguage(threadId)) ?? starterCaps.pausedText(botId, threadLanguage(threadId)); if (paused) throw Object.assign(new Error(paused), { status: 409 }); } },
   shouldHold: (source, thread, target) => shouldHoldWorkBotHandoff({ routines, apps: appTriggers.manager, webhooks, calendarCalls, waits: botWaits }, source, thread, target),
@@ -9344,9 +9348,10 @@ const workBotHost = createWorkBotHost({
   teamHost, conversationShares, threadStarters, threadBusy, approvalMode: sourceApprovalMode, startTurn,
 });
 const { workBotRouter, reconcileWorkBotBranch, recoverWorkBotTargets } = workBotHost;
+await workBotData.recover();
 for (const pending of pendingWorkBotRoutes()) { workBotRouter.recoverDispatch(pending.threadId, pending.message.id); if (pending.message.workBotRouting?.state === "waiting_choice" && pending.message.workBotRouting.requestId) workBotHost.annotateOfferContext(pending.threadId, pending.message.id, pending.message.workBotRouting.requestId); }
 recoverWorkBotTargets();
-const resolveAndSendTeamSetup = createTeamSetupResponder({ store,
+const resolveAndSendTeamSetup = createTeamSetupResponder({ store, preflightData: workBotData.preflight, availableData: (id, card) => Boolean(workBotData.available(id, card)),
   workBotChoiceLocks,
   assertAvailable: workBotHost.assertAvailable,
   cloudTeam: Boolean(CLOUD_TEAM), sharedNonTeam: () => !CLOUD_TEAM && sharedMembership(), teamHost, threadLanguage, assertTeamComputerChangeIdle, teamSetupRequests, workBotRouter,

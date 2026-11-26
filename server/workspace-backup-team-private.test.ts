@@ -56,6 +56,7 @@ function teamData(root: string): void {
   db.exec("CREATE TABLE work_bot_links(source_bot_id TEXT, source_thread_id TEXT, source_message_id TEXT, target_bot_id TEXT, target_thread_id TEXT)");
   db.exec(WORK_BOT_UPLOAD_RECEIPTS_SCHEMA);
   db.prepare("INSERT INTO work_bot_upload_owners (upload_id, principal) VALUES (?, ?)").run("12345678-1234-4234-8234-123456789abc", "fixture-private-principal");
+  db.prepare("INSERT INTO work_bot_upload_reservations (upload_id,receipt_hash) VALUES (?,?)").run("12345678-1234-4234-8234-123456789abc", "a".repeat(64));
   db.prepare("INSERT INTO work_bot_upload_receipts (receipt_hash, principal, stored_name, digest, bytes, thread_id, message_id) VALUES (?, ?, ?, ?, ?, ?, ?)").run("a".repeat(64), "fixture-private-principal", "12345678-1234-4234-8234-123456789abc.pdf", "b".repeat(64), 1, "bob-chat", "bob-chat-m1");
   db.prepare("INSERT INTO work_bot_message_upload_sets VALUES (?, ?, ?, ?, ?)").run("bob-chat", "bob-chat-m1", "fixture-private-principal", "c".repeat(64), "[]");
   const link = db.prepare("INSERT INTO work_bot_links VALUES (?, ?, ?, ?, ?)");

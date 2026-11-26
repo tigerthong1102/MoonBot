@@ -172,3 +172,78 @@ it("ignores an obsolete ownership check after a newer restore verified the curre
   expect(host.textContent).toContain(text);
   expect(host.textContent).not.toContain(t("knowledge.answerAccess"));
 });
+
+it.each(["same reader", "new reader", "returned reader"] as const)("binds a pending native directory picker to its opening for %s", async scenario => {
+  const picked = Promise.withResolvers<{ name: string; values: () => AsyncGenerator<{ kind: "file"; name: string; getFile(): Promise<File> }> }>();
+  vi.stubGlobal("showDirectoryPicker", () => picked.promise);
+  const counts = vi.mocked(setSource).mock.calls.length;
+  await click(t("knowledge.folder"));
+  if (scenario !== "same reader") owner = "B";
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  if (scenario === "returned reader") {
+    owner = "reader"; await act(async () => { window.dispatchEvent(new Event("focus")); });
+  }
+  const values = vi.fn(async function* () { yield { kind: "file" as const, name: "A-private.txt", getFile: async () => doc() }; });
+  await act(async () => picked.resolve({ name: "Private", values }));
+  if (scenario === "same reader") {
+    await indexed(); expect(values).toHaveBeenCalledTimes(1);
+  } else {
+    expect(values).not.toHaveBeenCalled();
+    expect(setSource).toHaveBeenCalledTimes(counts);
+    expect(host.textContent).not.toContain("A-private");
+  }
+});
+
+it("does not install or persist an old import that finishes after the same reader signs back in", async () => {
+  const started = Promise.withResolvers<void>(), bytes = Promise.withResolvers<ArrayBuffer>();
+  const privateFile = new File(["private"], "Previous.txt");
+  Object.defineProperty(privateFile, "arrayBuffer", { value: () => { started.resolve(); return bytes.promise; } });
+  await selectFile(privateFile); await started.promise;
+  owner = "another"; await act(async () => { window.dispatchEvent(new Event("focus")); });
+  owner = "reader"; await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await selectFile(doc()); await indexed();
+  await act(async () => bytes.resolve(new TextEncoder().encode("private").buffer));
+  await search("ledger");
+  expect(host.textContent).toContain("Guide.txt");
+  expect(host.textContent).not.toContain("Previous.txt");
+  expect(setSource).toHaveBeenCalledTimes(1);
+});
+
+it("ignores a late successful source answer from a previous reader without closing the current dialog", async () => {
+  await selectFile(doc()); await indexed(); await search("ledger");
+  const reply = Promise.withResolvers<{ ok: true }>(), started = Promise.withResolvers<void>();
+  vi.mocked(api).mockImplementationOnce(() => { started.resolve(); return reply.promise; });
+  await ask(); await started.promise;
+  owner = "other"; await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await act(async () => reply.resolve({ ok: true }));
+  expect(host.querySelector("dialog")).not.toBeNull();
+  expect(host.textContent).not.toContain("Guide.txt");
+});
+
+it("leaves the new reader's selection intact when the previous reader's removal finishes late", async () => {
+  await selectFile(doc()); await indexed(); await search("ledger");
+  const pending = Promise.withResolvers<void>(), started = Promise.withResolvers<void>();
+  vi.mocked(setSource).mockImplementationOnce(() => { started.resolve(); return pending.promise; });
+  await click(t("knowledge.clear")); await started.promise;
+  owner = "new owner"; await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await selectFile(new File(["Acquired policy"], "New-policy.txt"));
+  await act(async () => { await vi.waitFor(() => expect(setSource).toHaveBeenCalledTimes(3)); });
+  await search("Acquired"); await act(async () => pending.resolve());
+  expect(host.textContent).toContain("New-policy.txt");
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeDefined();
+});
+
+it("stops reading a former reader's directory after the in-progress file settles", async () => {
+  const first = Promise.withResolvers<File>(), opened = Promise.withResolvers<void>(), second = vi.fn(async () => doc());
+  vi.stubGlobal("showDirectoryPicker", async () => ({
+    name: "Confidential", async *values() {
+      yield { kind: "file", name: "first.txt", getFile() { opened.resolve(); return first.promise; } };
+      yield { kind: "file", name: "second.txt", getFile: second };
+    },
+  }));
+  await click(t("knowledge.folder")); await opened.promise;
+  owner = "another reader"; await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await act(async () => first.resolve(doc()));
+  expect(second).not.toHaveBeenCalled();
+  expect(setSource).not.toHaveBeenCalled();
+});

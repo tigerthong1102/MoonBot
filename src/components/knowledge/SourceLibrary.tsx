@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, use
 import { citationLocation } from "./citation";
 import { sourceAnswerIssue, type SourceAnswerIssue } from "./source-answer-issue";
 import { SourcePassage } from "./SourcePassage";
-import { cloudFolders, currentLibrary, onSourceSync, readSource, readWatch, scanSource, setSource as saveSource, type FolderSource } from "./source-sync";
+import { cloudFolders, currentLibrary, observeLibraryOwner, onSourceSync, readSource, readWatch, scanSource, setSource as saveSource, type FolderSource } from "./source-sync";
 import { Select } from "../Select";
 import { libraryKey, readLibrary } from "./source-cache";
 import { t } from "@/lib/i18n";
@@ -24,6 +24,7 @@ async function reader(threadId: string, background = false): Promise<{ scope: st
   }
 }
 
+type Access = { scope: string; id: number; controller: AbortController };
 type Retry = { payload: string; sendId: string };
 type Props = { bot: Bot; open: boolean; close(): void };
 export default function SourceLibrary({ bot, open, close }: Props) {
@@ -39,7 +40,11 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
 }) {
   const [index, setIndex] = useState<Index>(empty);
   const current = useRef(index);
-  const key = useRef<string | null>(null);
+  const owner = useRef<Access | null>(null);
+  const sequence = useRef(0);
+  const verification = useRef<Promise<void> | null>(null);
+  const pickerRequest = useRef(0);
+
   const [starting, setStarting] = useState(true);
   const [cacheFailed, setCacheFailed] = useState(false);
   const [watching, setWatching] = useState<FolderSource | null>(null);
@@ -59,163 +64,199 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
     current.current = empty(); setIndex(current.current); setWatching(null); setCloud(null); setSendError(issue);
     if (issue) setSource(null);
   }, []);
-  useLayoutEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const bind = useCallback((scope: string | null) => {
+    if ((owner.current?.scope ?? null) === scope) return;
+    owner.current?.controller.abort();
+    owner.current = scope ? { scope, id: ++sequence.current, controller: new AbortController() } : null;
+    inFlight.current = false; setBusy(false); setSending(false); setError(false); setCacheFailed(false);
+  }, []);
+  const forget = useCallback(() => {
+    lastReader.current = null; unsaved.current = null; submission.current = null; setQuery(""); setSource(null);
+  }, [lastReader, unsaved, submission, setQuery]);
+  const suspend = useCallback((issue: SourceAnswerIssue | null, forgetReader: boolean) => {
+    bind(null);
+    if (forgetReader) forget();
+    clearAccess(issue);
+  }, [bind, forget, clearAccess]);
+  useLayoutEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; owner.current?.controller.abort(); owner.current = null; };
+  }, []);
   useEffect(() => {
-    let opening = 0, active = true, verifying = false;
-    let off: (() => void) | undefined;
+    let opening = 0, active = true;
+    let stopSync: (() => void) | undefined, stopAuth: (() => void) | undefined;
     void fetch("/.well-known/openmausbot/environment").then(r => r.json()).then(env => {
       if (active) setOffersCloud(env?.capabilities?.cloudHome === true);
     }).catch(() => {});
     async function verifyOpening() {
-      verifying = true;
-      const visit = ++opening;
-      const live = () => active && visit === opening;
-      off?.(); off = undefined;
+      const visit = ++opening, live = () => active && visit === opening;
+      stopSync?.(); stopAuth?.();
       setStarting(true); clearAccess(null);
       let revision = 0;
       function unavailable(issue: SourceAnswerIssue | null) {
         ++revision;
-        key.current = null;
-        if (issue === "knowledge.answerAccess") {
-          lastReader.current = null; unsaved.current = null; submission.current = null; setQuery(""); off?.();
-        }
-        clearAccess(issue);
+        stopSync?.(); stopSync = undefined;
+        suspend(issue, issue === "knowledge.answerAccess");
       }
+      // The open dialog still needs sign-out notifications when maintenance has suspended its document subscription.
+      stopAuth = observeLibraryOwner(() => lastReader.current, maintenance => {
+        if (live()) unavailable(maintenance ? sourceAnswerIssue(maintenance) : "knowledge.answerAccess");
+      });
       try {
+        const initial = revision;
         const session = await reader(bot.threadId);
-        if (!live()) return;
+        if (!live() || initial !== revision) return;
         const scope = session.scope;
         if (!scope) return unavailable(session.issue);
-        if (lastReader.current && lastReader.current !== scope) {
-          unsaved.current = null; submission.current = null; setQuery(""); setSource(null);
-        }
-        lastReader.current = scope; key.current = scope;
+        if (lastReader.current && lastReader.current !== scope) forget();
+        lastReader.current = scope; bind(scope);
+        const access = owner.current!;
         if (unsaved.current?.scope !== scope) unsaved.current = null;
-        async function restore(scope: string, verify: boolean, background = false) {
-          if (!live() || inFlight.current) return;
+        async function restore(verify: boolean, background = false) {
+          if (!live() || access.controller.signal.aborted || inFlight.current) return;
           const request = ++revision, pending = unsaved.current;
+          const read = { signal: access.controller.signal, background };
           const [saved, watch] = pending
-            ? [pending.folder ? (verify ? await scanSource(pending.folder, pending.index) : pending.index) : pending.manual, pending.folder]
-            : await Promise.all([verify ? currentLibrary(scope) : readLibrary(scope), readWatch(scope).then(w => w?.source)]);
+            ? [pending.folder ? (verify ? await scanSource(pending.folder, pending.index, read) : pending.index) : pending.manual, pending.folder]
+            : await Promise.all([verify ? currentLibrary(access.scope, read) : readLibrary(access.scope), readWatch(access.scope).then(w => w?.source)]);
+          if (!live() || access.controller.signal.aborted || request !== revision) return;
           const confirmed = await reader(bot.threadId, background);
-          if (!live() || request !== revision || inFlight.current || pending !== unsaved.current) return;
+          if (!live() || access.controller.signal.aborted || request !== revision || inFlight.current || pending !== unsaved.current) return;
           if (scope !== confirmed.scope) return unavailable(confirmed.issue ?? "knowledge.answerAccess");
-          if (!key.current) setSendError(null);
-          key.current = scope;
           if (pending?.folder && saved) pending.index = saved;
           current.current = saved ?? empty(); setIndex(current.current); setWatching(watch ?? null); setCacheFailed(!!pending);
         }
-        off = onSourceSync(scope, background => { void restore(scope, false, background).catch(() => { if (live()) setCacheFailed(true); }); },
-          maintenance => { if (live()) unavailable(maintenance ? sourceAnswerIssue(maintenance) : "knowledge.answerAccess"); });
-        await restore(scope, true);
-      } catch { if (live()) setCacheFailed(true); }
-      finally { if (live()) { verifying = false; setStarting(false); } }
+        stopSync = onSourceSync(scope, background => {
+          void restore(false, background).catch(() => { if (live() && !access.controller.signal.aborted) setCacheFailed(true); });
+        });
+        await restore(true);
+      } catch { if (live() && owner.current) setCacheFailed(true); }
+      finally { if (live()) setStarting(false); }
     }
-    const focus = () => { if (!document.hidden && !inFlight.current && !verifying) void verifyOpening(); };
-    recheck.current = focus;
-    void verifyOpening();
-    window.addEventListener("focus", focus);
-    document.addEventListener("visibilitychange", focus);
-    return () => {
-      active = false; recheck.current = null; off?.();
-      window.removeEventListener("focus", focus); document.removeEventListener("visibilitychange", focus);
+    const begin = () => {
+      const task = verifyOpening();
+      verification.current = task;
+      void task.finally(() => { if (verification.current === task) verification.current = null; });
     };
-  }, [bot.threadId, lastReader, unsaved, submission, setQuery, clearAccess]);
-  async function stillOwns(scope: string | null) {
+    const check = () => { if (!document.hidden && !verification.current) begin(); };
+    recheck.current = check;
+    begin();
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      active = false; recheck.current = null; verification.current = null; stopSync?.(); stopAuth?.();
+      window.removeEventListener("focus", check); document.removeEventListener("visibilitychange", check);
+    };
+  }, [bot.threadId, lastReader, unsaved, bind, forget, clearAccess, suspend]);
+  async function ready(access: Access) {
+    while (verification.current && !access.controller.signal.aborted) await verification.current;
+    return alive.current && owner.current === access && !access.controller.signal.aborted;
+  }
+  async function stillOwns(access: Access) {
+    if (!await ready(access)) return false;
     const confirmed = await reader(bot.threadId);
-    if (!alive.current) return false;
-    if (scope && scope === confirmed.scope && scope === key.current) return true;
-    clearAccess(confirmed.issue ?? "knowledge.answerAccess");
+    if (!await ready(access)) return false;
+    if (access.scope === confirmed.scope) return true;
+    suspend(confirmed.issue ?? "knowledge.answerAccess", !confirmed.scope && confirmed.issue === "knowledge.answerAccess");
     return false;
   }
-  async function refresh(read: () => Promise<SourceFile[]>, newFolder: FolderSource | null) {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
+  async function refresh(access: Access, read: () => Promise<SourceFile[]>, newFolder: FolderSource | null) {
+    if (!await ready(access) || inFlight.current) return;
+    inFlight.current = true; setBusy(true);
     try {
-      const scope = key.current;
-      if (!await stillOwns(scope)) return;
+      if (!await stillOwns(access)) return;
       const files = await read();
-      const next = await indexSources(files, current.current);
-      if (!await stillOwns(scope)) return;
-      setWatching(newFolder);
-      current.current = next;
-      setIndex(next); setError(false);
-      if (scope) {
-        let pending: UnsavedSelection | null = null;
-        try { await saveSource(scope, next, newFolder); }
-        catch { pending = newFolder ? { scope, folder: newFolder, index: next } : { scope, manual: next }; }
-        if (key.current === scope) { unsaved.current = pending; setCacheFailed(!!pending); }
-      }
-    } catch { if (alive.current) setError(true); }
-    finally { inFlight.current = false; if (alive.current) setBusy(false); }
+      if (!await ready(access)) return;
+      const next = await indexSources(files, current.current, access.controller.signal);
+      if (!await stillOwns(access)) return;
+      current.current = next; setIndex(next); setWatching(newFolder); setError(false);
+      let pending: UnsavedSelection | null = null;
+      try { await saveSource(access.scope, next, newFolder, access.controller.signal); }
+      catch { pending = newFolder ? { scope: access.scope, folder: newFolder, index: next } : { scope: access.scope, manual: next }; }
+      if (await ready(access)) { unsaved.current = pending; setCacheFailed(!!pending); }
+    } catch { if (await ready(access)) setError(true); }
+    finally { if (owner.current === access) { inFlight.current = false; setBusy(false); } }
   }
   async function syncWatching() {
-    if (!watching || inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
+    const access = owner.current;
+    if (!access || !watching || inFlight.current) return;
+    inFlight.current = true; setBusy(true);
     try {
-      const scope = key.current;
-      if (!await stillOwns(scope)) return;
-      const next = scope && !cacheFailed ? await currentLibrary(scope) : await scanSource(watching, current.current);
-      if (!await stillOwns(scope)) return;
+      if (!await stillOwns(access)) return;
+      const read = { signal: access.controller.signal };
+      const next = cacheFailed ? await scanSource(watching, current.current, read) : await currentLibrary(access.scope, read);
+      if (!await stillOwns(access)) return;
       current.current = next ?? empty(); setIndex(current.current); setError(false);
       if (unsaved.current?.folder === watching) unsaved.current.index = current.current;
     } catch {
-      if (alive.current) { current.current = empty(); setIndex(current.current); setCacheFailed(true); setError(true); }
-    } finally { inFlight.current = false; if (alive.current) setBusy(false); }
+      if (await ready(access)) { current.current = empty(); setIndex(current.current); setCacheFailed(true); setError(true); }
+    } finally { if (owner.current === access) { inFlight.current = false; setBusy(false); } }
   }
   async function clear() {
-    setBusy(true);
+    const access = owner.current;
+    if (!access || inFlight.current) return;
+    inFlight.current = true; setBusy(true);
     try {
-      const next = empty(), scope = key.current;
-      if (!await stillOwns(scope)) return;
-      if (scope) {
-        try { await saveSource(scope, next, null); unsaved.current = null; setCacheFailed(false); }
-        catch (cause) {
-          if (!unsaved.current) throw cause;
-          unsaved.current = { scope, manual: next }; setCacheFailed(true);
-        }
+      if (!await stillOwns(access)) return;
+      const next = empty();
+      try {
+        await saveSource(access.scope, next, null, access.controller.signal);
+        if (!await ready(access)) return;
+        unsaved.current = null; setCacheFailed(false);
+      } catch (cause) {
+        if (!await ready(access)) return;
+        if (!unsaved.current) throw cause;
+        unsaved.current = { scope: access.scope, manual: next }; setCacheFailed(true);
       }
       current.current = next; setIndex(next); setWatching(null); setSource(null); setError(false);
-    } catch { setCacheFailed(true); }
-    finally { setBusy(false); }
+    } catch { if (await ready(access)) setCacheFailed(true); }
+    finally { if (owner.current === access) { inFlight.current = false; setBusy(false); } }
   }
   async function pickFolder() {
+    const access = owner.current;
+    if (!access) return;
+    const request = ++pickerRequest.current;
     const picker = (window as Window & { showDirectoryPicker?: () => Promise<Directory> }).showDirectoryPicker;
     if (!picker) return directoryInput.current?.click();
     try {
       const selected = await picker.call(window);
-      await refresh(() => scanFolder(selected), { kind: "directory", name: selected.name, handle: selected });
+      if (await ready(access) && request === pickerRequest.current)
+        await refresh(access, () => scanFolder(selected, access.controller.signal), { kind: "directory", name: selected.name, handle: selected });
     } catch (cause) {
       if (cause instanceof Error && cause.name === "AbortError") return;
-      directoryInput.current?.click();
+      if (await ready(access) && request === pickerRequest.current) directoryInput.current?.click();
     }
   }
-  function chosen(list: FileList | null) {
-    if (!list?.length) return;
+  async function pickCloud() {
+    const access = owner.current;
+    if (!access) return;
+    const request = ++pickerRequest.current;
+    try {
+      const list = await cloudFolders(access.controller.signal);
+      if (!await ready(access) || request !== pickerRequest.current) return;
+      setCloud(list.filter(f => !f.threadId || f.threadId === bot.threadId)); setError(false);
+    } catch { if (await ready(access) && request === pickerRequest.current) setError(true); }
+  }
+  function chosen(access: Access | null, list: FileList | null) {
+    if (!access || !list?.length) return;
     const files = Array.from(list, file => ({ path: file.webkitRelativePath || file.name, file }))
       .filter(({ path }) => !path.split("/").some(part => part.startsWith(".") || part === "node_modules"));
-    void refresh(async () => files, null);
+    void refresh(access, async () => files, null);
   }
   const search = useDeferredValue(query);
   const hits = useMemo(() => findPassages(index, search), [index, search]);
   const shown = source ? index.docs.get(source.path) : null;
   const location = (hit: typeof hits[number]) => citationLocation(hit.path, hit.passage);
   async function ask() {
-    if (sending || !hits.length || !query.trim()) return;
+    const access = owner.current;
+    if (!access || sending || !hits.length || !query.trim()) return;
     setSending(true); setSendError(null);
     try {
-      const scope = await libraryKey(bot.threadId, { reportOffline: true });
-      if (!alive.current) return;
-      const selection = unsaved.current;
-      if (!scope || scope !== key.current || (selection && selection.scope !== scope)) return clearAccess();
-      // Manual files were explicitly picked. A live folder always has to prove access to its contents again.
-      const fresh = selection?.folder ? await scanSource(selection.folder, index) : selection?.manual ?? await currentLibrary(scope);
-      if (!alive.current) return;
-      const owner = await libraryKey(bot.threadId, { reportOffline: true });
-      if (!alive.current) return;
-      if (scope !== owner || scope !== key.current) return clearAccess();
+      if (!await stillOwns(access)) return;
+      const selection = unsaved.current, read = { signal: access.controller.signal };
+      if (selection && selection.scope !== access.scope) return suspend("knowledge.answerAccess", true);
+      const fresh = selection?.folder ? await scanSource(selection.folder, index, read) : selection?.manual ?? await currentLibrary(access.scope, read);
+      if (!await stillOwns(access)) return;
       if (selection !== unsaved.current) { setSendError("knowledge.answerChanged"); return; }
       if (!fresh) { current.current = empty(); setIndex(current.current); setSendError("knowledge.answerChanged"); return; }
       if (selection?.folder) selection.index = fresh;
@@ -235,51 +276,52 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
       if (submission.current?.payload !== payload) submission.current = { payload, sendId: randomUuid() };
       const response = await api<{ ok?: boolean }>(`/api/bots/${encodeURIComponent(bot.id)}/knowledge-answers`, {
         method: "POST", body: JSON.stringify({ threadId: bot.threadId, question: query.trim(), evidence, sendId: submission.current.sendId }),
-        timeoutMs: 75_000,
+        timeoutMs: 75_000, signal: access.controller.signal,
       });
+      if (!await ready(access)) return;
       if (response?.ok !== true) throw new Error();
       submission.current = null;
-      if (alive.current) close();
-    } catch (cause) { if (alive.current) setSendError(sourceAnswerIssue(cause)); }
-    finally { if (alive.current) setSending(false); }
+      close();
+    } catch (cause) { if (await ready(access)) setSendError(sourceAnswerIssue(cause)); }
+    finally { if (owner.current === access) setSending(false); }
   }
+  const renderedOwner = owner.current;
   return <dialog ref={node => { if (node && !node.open) node.showModal(); }} onCancel={close} aria-label={t("knowledge.title")}
     className="m-auto max-h-[88vh] w-[min(46rem,96vw)] overflow-y-auto rounded-xl border border-hairline/40 bg-card p-5 text-sm text-ink backdrop:bg-black/30">
     <header className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{t("knowledge.title")}</h2>
       <button type="button" className="ui-button ui-button-sm" onClick={close}>{t("reconcile.close")}</button></header>
     <p className="mb-3 text-xs text-ink-secondary">{t("knowledge.formats")}</p>
     <div className="flex flex-wrap gap-2">
-      <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => filesInput.current?.click()}>{t("knowledge.files")}</button>
-      <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => void pickFolder()}>{t("knowledge.folder")}</button>
-      {(index.docs.size > 0 || watching) && <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => void clear()}>{t("knowledge.clear")}</button>}
-      {offersCloud && <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => {
-        void cloudFolders().then(list => { if (!alive.current || !key.current) return; setCloud(list.filter(f => !f.threadId || f.threadId === bot.threadId)); setError(false); }).catch(() => setError(true));
-      }}>{t("knowledge.cloudFolders")}</button>}
+      <button className="ui-button ui-button-sm" disabled={busy || starting || !renderedOwner} onClick={() => { ++pickerRequest.current; filesInput.current?.click(); }}>{t("knowledge.files")}</button>
+      <button className="ui-button ui-button-sm" disabled={busy || starting || !renderedOwner} onClick={() => void pickFolder()}>{t("knowledge.folder")}</button>
+      {(index.docs.size > 0 || watching) && <button className="ui-button ui-button-sm" disabled={busy || starting || !renderedOwner} onClick={() => void clear()}>{t("knowledge.clear")}</button>}
+      {offersCloud && <button className="ui-button ui-button-sm" disabled={busy || starting || !renderedOwner} onClick={() => void pickCloud()}>{t("knowledge.cloudFolders")}</button>}
       {cloud && cloud.length === 0 && <span role="status">{t("knowledge.noCloud")}</span>}
       {cloud && cloud.length > 0 && <Select aria-label={t("knowledge.cloudFolders")} value="" onChange={e => {
         const selected = cloud.find(f => f.id === e.target.value);
-        if (!selected) return;
+        if (!selected || !renderedOwner) return;
+        ++pickerRequest.current;
         const remote = { kind: "cloud" as const, id: selected.id, name: selected.name };
-        void refresh(() => readSource(remote, current.current), remote);
+        void refresh(renderedOwner, () => readSource(remote, current.current, { signal: renderedOwner.controller.signal }), remote);
       }}><option value="">{t("knowledge.cloudFolders")}</option>{cloud.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</Select>}
-      {watching && <button className="ui-button ui-button-sm" disabled={busy || starting || !key.current} onClick={() => void syncWatching()}>{t("knowledge.refresh")}</button>}
-      <input type="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.pdf" hidden ref={filesInput} onChange={e => { chosen(e.target.files); e.target.value = ""; }} />
-      <input type="file" multiple hidden ref={node => { directoryInput.current = node; node?.setAttribute("webkitdirectory", ""); }} onChange={e => { chosen(e.target.files); e.target.value = ""; }} />
+      {watching && <button className="ui-button ui-button-sm" disabled={busy || starting || !renderedOwner} onClick={() => void syncWatching()}>{t("knowledge.refresh")}</button>}
+      <input key={"files-" + renderedOwner?.id} type="file" multiple accept=".txt,.md,.markdown,.csv,.tsv,.pdf" hidden ref={filesInput} onChange={e => { chosen(renderedOwner, e.target.files); e.target.value = ""; }} />
+      <input key={"folder-" + renderedOwner?.id} type="file" multiple hidden ref={node => { directoryInput.current = node; node?.setAttribute("webkitdirectory", ""); }} onChange={e => { chosen(renderedOwner, e.target.files); e.target.value = ""; }} />
     </div>
     {cacheFailed && <p role="status">{t("knowledge.cacheFailed")}</p>}
     {error && <p role="alert" className="my-2 text-danger">{t("knowledge.error")}</p>}
     <p role="status" className="my-2 text-xs text-ink-secondary">{busy || starting ? t("knowledge.reading") : t("knowledge.indexed", { count: index.docs.size })} {watching && t("knowledge.watching")}</p>
     {index.changes.length > 0 && <details className="my-2"><summary>{t("knowledge.changes")}</summary><ul className="max-h-32 overflow-y-auto">{index.changes.slice().reverse().map((c, i) =>
       <li key={i}>{c.at && <time dateTime={new Date(c.at).toISOString()}>{new Date(c.at).toLocaleString()} · </time>}{c.path} · {t(c.issue ? issueLabel[c.issue] : c.state === "error" ? "knowledge.errorFile" : `knowledge.${c.state}`)}</li>)}</ul></details>}
-    <label className="block font-medium">{t("knowledge.query")}<input type="search" maxLength={1000} disabled={starting || !key.current} value={starting || !key.current ? "" : query} onChange={e => { setQuery(e.target.value); setSource(null); setSendError(null); }}
+    <label className="block font-medium">{t("knowledge.query")}<input type="search" maxLength={1000} disabled={starting || !renderedOwner} value={starting || !renderedOwner ? "" : query} onChange={e => { setQuery(e.target.value); setSource(null); setSendError(null); }}
       className="mt-1 block w-full rounded-lg border border-hairline bg-inset p-2" /></label>
-    {!starting && key.current && query.trim() && !hits.length && <p className="my-3 text-ink-secondary">{t("knowledge.noHits")}</p>}
+    {!starting && renderedOwner && query.trim() && !hits.length && <p className="my-3 text-ink-secondary">{t("knowledge.noHits")}</p>}
     {hits.length > 0 && <><ol className="my-3 max-h-72 overflow-y-auto">{hits.map(hit => <li key={JSON.stringify([hit.path, hit.passage.start])} className="border-b border-hairline/40 py-2">
       <button className="break-all text-start font-medium text-accent-text hover:underline" onClick={() => setSource({ path: hit.path, start: hit.passage.start })}>{location(hit)}</button>
       <p className="line-clamp-2 whitespace-pre-wrap break-words text-xs">{hit.passage.text}</p></li>)}</ol>
       <button type="button" className="ui-button ui-button-primary" disabled={busy || sending || search !== query} onClick={ask}>{t("knowledge.ask", { count: Math.min(3, hits.length) })}</button></>}
     {sendError && <p role="alert">{t(sendError)}</p>}
-    {sendError && !starting && !key.current && <button className="ui-button ui-button-sm" onClick={() => recheck.current?.()}>{t("chat.retry")}</button>}
+    {sendError && !starting && !renderedOwner && <button className="ui-button ui-button-sm" onClick={() => recheck.current?.()}>{t("chat.retry")}</button>}
     {shown && source && <SourcePassage doc={shown} start={source.start} />}
   </dialog>;
 }

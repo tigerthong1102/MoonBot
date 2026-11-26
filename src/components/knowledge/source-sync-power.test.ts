@@ -146,7 +146,7 @@ it("keeps the open dialog's timer-driven ownership recheck in the background whi
   const root = createRoot(host), bot = { id: "bot", threadId: "thread" } as Bot;
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot, open: true, close: () => {} })));
-    await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(3)); });
+    await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(2)); });
     expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }));
     const manual = calls.filter(c => c.path === auth || c.path === list || c.path === file);
     expect(manual.length).toBeGreaterThan(0);
@@ -183,7 +183,7 @@ it.each([
   const root = createRoot(host);
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
-    if (storage === "watch") await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(4)); });
+    if (storage === "watch") await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(3)); });
     if (storage === "memory") {
       const picker = host.querySelector<HTMLInputElement>("input[type=file]")!;
       Object.defineProperty(picker, "files", { value: [file] });
@@ -263,11 +263,75 @@ it.each([
     expect(host.textContent).not.toContain(content);
     await act(async () => delayed.resolve(denied()));
     expect(host.querySelector('[role="alert"]')?.textContent).toBe(t(issue));
-    ownership = () => Response.json({ error: "unauthenticated" }, { status: 401 }); await focus();
+    ownership = () => Response.json({ error: "unauthenticated" }, { status: 401 });
+    calls.length = 0;
+    vi.stubGlobal("indexedDB", undefined);
+    await act(async () => { tick?.(); });
+    expect(calls).toEqual([{ path: auth, background: "1", activity: false }]);
     expect(host.querySelector('[role="alert"]')?.textContent).toBe(t("knowledge.answerAccess"));
     expect(search.value).toBe("");
     expect(host.textContent).not.toContain(content);
     ownership = session; await focus();
     expect(search.value).toBe("");
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it.each(["same reader", "reader switch", "switch back"] as const)("discards older cloud picker completions for %s", async scenario => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true); records.clear();
+  let owner = "viewer", enumerations = 0;
+  const first = Promise.withResolvers<Response>();
+  const folders = (cloudPath: string) => Response.json({ folders: [{ id: "folder", cloudPath }] });
+  answer = path => {
+    if (path === auth) return Response.json({ kind: "session", id: owner });
+    if (path === "/api/sync") return ++enumerations === 1 ? first.promise : folders("Latest selection");
+    return Response.json({ capabilities: { cloudHome: true } });
+  };
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), bot = { id: "b", threadId: "thread" } as Bot;
+  const change = async (id: string) => { owner = id; await act(async () => { window.dispatchEvent(new Event("focus")); }); };
+  const pick = async () => act(async () => [...host.querySelectorAll("button")].find(b => b.textContent === t("knowledge.cloudFolders"))!.click());
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot, open: true, close: () => {} })));
+    await pick();
+    if (scenario !== "same reader") await change("other");
+    if (scenario === "switch back") await change("viewer");
+    await pick();
+    expect(host.textContent).toContain("Latest selection");
+    await act(async () => first.resolve(folders("Original reader private folder")));
+    expect(host.textContent).not.toContain("Original reader private folder");
+    expect(host.textContent).toContain("Latest selection");
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it("forgets a RAM-only document as well as its draft on a 401 while a maintenance check is suspended", async () => {
+  records.clear(); vi.stubGlobal("indexedDB", undefined); vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.mocked(browserRecord).mockRejectedValue(new Error("no IndexedDB"));
+  let status = 200;
+  answer = path => path === auth ? Response.json(status === 200 ? { kind: "session", id: "viewer" } : { code: "workspace_backup_busy" }, { status }) : Response.json({});
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), focus = () => act(async () => { window.dispatchEvent(new Event("focus")); });
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
+    const file = host.querySelector<HTMLInputElement>("input[type=file]")!;
+    Object.defineProperty(file, "files", { value: [new File(["Private policy"], "volatile.txt")] });
+    await act(async () => { file.dispatchEvent(new Event("change", { bubbles: true })); });
+    await act(async () => { await vi.waitFor(() => expect(vi.mocked(browserRecord).mock.calls.some(([mode]) => mode === "readwrite")).toBe(true)); });
+    const search = host.querySelector<HTMLInputElement>("input[type=search]")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "policy");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(host.textContent).toContain("Private policy");
+    status = 503; await focus();
+    await act(async () => { stop = watchDocumentSources(); });
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t("knowledge.answerMaintenance"));
+    status = 401; calls.length = 0;
+    await act(async () => { tick?.(); });
+    expect(calls).toEqual([{ path: auth, background: "1", activity: false }]);
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t("knowledge.answerAccess"));
+    status = 200; await focus();
+    expect(search.value).toBe("");
+    expect(host.textContent).toContain(t("knowledge.indexed", { count: 0 }));
+    expect(host.textContent).not.toContain("volatile.txt");
   } finally { await act(async () => root.unmount()); host.remove(); }
 });

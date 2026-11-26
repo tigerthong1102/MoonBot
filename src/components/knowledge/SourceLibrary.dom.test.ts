@@ -11,7 +11,7 @@ import type { Index } from "./source-index";
 
 vi.mock("@/state/api", async load => ({ ...await load<typeof import("@/state/api")>(), api: vi.fn() }));
 vi.mock("./source-cache", () => ({ libraryKey: async () => "viewer-thread", readLibrary: vi.fn() }));
-vi.mock("./source-sync", () => ({ currentLibrary: vi.fn(), readWatch: async () => null, onSourceSync: () => () => {} }));
+vi.mock("./source-sync", () => ({ currentLibrary: vi.fn(), readWatch: async () => null, observeLibraryOwner: () => () => {}, onSourceSync: () => () => {} }));
 
 it("posts only explicitly displayed evidence, keeps a stable retry on older hosts and never falls back to a chat send", async () => {
   const host = document.createElement("div");

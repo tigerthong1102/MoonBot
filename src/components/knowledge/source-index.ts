@@ -14,12 +14,14 @@ export interface Directory {
   values(): AsyncIterable<Directory & { kind: "directory" } | { name: string; kind: "file"; getFile(): Promise<File> }>;
 }
 
-export async function scanFolder(root: Directory): Promise<SourceFile[]> {
+export async function scanFolder(root: Directory, signal?: AbortSignal): Promise<SourceFile[]> {
   const files: SourceFile[] = [];
   let entries = 0;
   async function scan(dir: Directory, prefix: string, depth: number) {
+    signal?.throwIfAborted();
     if (depth > 20) throw new Error("folder limit");
     for await (const child of dir.values()) {
+      signal?.throwIfAborted();
       if (++entries > 10_000) throw new Error("folder limit");
       if (child.name.startsWith(".") || child.name === "node_modules") continue;
       const path = prefix + child.name;
@@ -27,6 +29,7 @@ export async function scanFolder(root: Directory): Promise<SourceFile[]> {
       else if (accepts.test(child.name)) {
         if (files.length >= MAX_FILES) throw new Error("folder limit");
         try { files.push({ path, file: await child.getFile() }); } catch { files.push({ path }); }
+        signal?.throwIfAborted();
       }
     }
   }
@@ -54,7 +57,8 @@ export function splitPassages(text: string): Passage[] {
   return passages;
 }
 
-export async function indexSources(files: SourceFile[], previous: Index): Promise<Index> {
+export async function indexSources(files: SourceFile[], previous: Index, signal?: AbortSignal): Promise<Index> {
+  signal?.throwIfAborted();
   const supported = files.filter(entry => accepts.test(entry.path));
   if (supported.length > MAX_FILES || supported.reduce((total, e) => total + (e.file?.size ?? 0), 0) > MAX_LIBRARY)
     throw new Error("library limit");
@@ -63,6 +67,7 @@ export async function indexSources(files: SourceFile[], previous: Index): Promis
   const paths = new Set<string>();
   let textSize = 0, passageCount = 0;
   for (const { path, file } of supported) {
+    signal?.throwIfAborted();
     if (paths.has(path)) throw new Error("duplicate file");
     paths.add(path);
     try {
@@ -70,7 +75,9 @@ export async function indexSources(files: SourceFile[], previous: Index): Promis
       const pdf = /\.pdf$/i.test(path);
       if (file.size > (pdf ? 12 * 1024 * 1024 : MAX_FILE)) throw new Error("file limit");
       const bytes = await file.arrayBuffer();
+      signal?.throwIfAborted();
       const digest = await sha256Hex(bytes);
+      signal?.throwIfAborted();
       const saved = previous.docs.get(path);
       let doc = saved;
       if (!doc || doc.digest !== digest) {
@@ -83,7 +90,7 @@ export async function indexSources(files: SourceFile[], previous: Index): Promis
       textSize += size; passageCount += doc.passages.length;
       docs.set(path, doc);
       if (doc !== saved) changes.push({ path, state: saved ? "changed" : "added" });
-    } catch { changes.push({ path, state: "error" }); }
+    } catch { signal?.throwIfAborted(); changes.push({ path, state: "error" }); }
   }
   for (const path of previous.docs.keys()) if (!paths.has(path)) changes.push({ path, state: "removed" });
   return { docs, changes };

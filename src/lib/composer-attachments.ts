@@ -13,6 +13,7 @@ export type PasteAttachment = {
 
 export type FileAttachment = {
   kind: "file";
+  handoffReceipt?: string;
   id: string;
   path: string;
   name: string;
@@ -21,6 +22,7 @@ export type FileAttachment = {
 
 export type ImageAttachment = {
   kind: "image";
+  handoffReceipt?: string;
   id: string;
   path: string;
   name: string;
@@ -350,24 +352,38 @@ export function optimisticImageAttachment(file: File): ImageAttachment | null {
   };
 }
 
+function uploadReceipt(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+export function selectedUploadReceipts(items: readonly Attachment[]): string[] | undefined {
+  const files = items.filter(item => item.kind === "file" || item.kind === "image");
+  if (!files.length || files.some(item => !item.handoffReceipt)) return undefined;
+  return [...new Set(files.map(item => item.handoffReceipt!))];
+}
+
 export async function imageAttachmentFromFile(
   file: File,
   optimistic?: Pick<ImageAttachment, "id" | "previewUrl">,
+  portable = false,
 ): Promise<ImageAttachment | null> {
   if (!isImageFile(file)) return null;
   if (file.size > IMAGE_MAX_BYTES) throw new AttachError(file.name, IMAGE_MAX_BYTES);
   const bytes = new Uint8Array(await file.arrayBuffer());
   const uploadId = newUploadId();
-  const saved = await uploadWithRetry<{ path: string; mime: string; bytes: number }>(
+  const token = portable ? uploadReceipt() : undefined;
+  const saved = await uploadWithRetry<{ path: string; mime: string; bytes: number; handoffReady?: boolean }>(
     `/api/attachments?uploadId=${encodeURIComponent(uploadId)}`,
     {
       method: "POST",
-      headers: { "content-type": file.type },
+      headers: { "content-type": file.type, ...(token ? { "x-startupbot-upload-receipt": token } : {}) },
       body: bytes,
     },
   );
   return {
     kind: "image",
+    ...(saved.handoffReady && token ? { handoffReceipt: token } : {}),
     id: optimistic?.id ?? newId(),
     path: saved.path,
     name: canonicalImageName(file.name, saved.path, saved.mime),
@@ -379,7 +395,7 @@ export async function imageAttachmentFromFile(
 
 /** Copied into the private store so the companion route never sees an arbitrary Finder path.
  * `anyType` sends a file of any other type, which the server keeps as a plain download. */
-export async function fileAttachmentFromFile(file: File, anyType = false): Promise<FileAttachment | null> {
+export async function fileAttachmentFromFile(file: File, anyType = false, portable = false): Promise<FileAttachment | null> {
   const declared = file.type.split(";", 1)[0]!.trim().toLowerCase();
   const extension = file.name.split(".").at(-1)?.toLowerCase() ?? "";
   const mime = documentMime(file) ??
@@ -389,15 +405,16 @@ export async function fileAttachmentFromFile(file: File, anyType = false): Promi
   if (!mime) return null;
   if (file.size > FILE_MAX_BYTES) throw new AttachError(file.name, FILE_MAX_BYTES);
   const uploadId = newUploadId();
-  const saved = await uploadWithRetry<{ path: string; name: string; bytes: number }>(
+  const token = portable ? uploadReceipt() : undefined;
+  const saved = await uploadWithRetry<{ path: string; name: string; bytes: number; handoffReady?: boolean }>(
     `/api/files?name=${encodeURIComponent(file.name)}&uploadId=${encodeURIComponent(uploadId)}`,
     {
       method: "POST",
-      headers: { "content-type": mime },
+      headers: { "content-type": mime, ...(token ? { "x-startupbot-upload-receipt": token } : {}) },
       body: file,
     },
   );
-  return fileAttachment(saved.name || file.name, saved.path, saved.bytes);
+  return { ...fileAttachment(saved.name || file.name, saved.path, saved.bytes), ...(saved.handoffReady && token ? { handoffReceipt: token } : {}) };
 }
 
 export function pasteAttachment(text: string): PasteAttachment {
@@ -776,6 +793,7 @@ export async function intakeFiles<T extends DroppedFile & { type: string }>(
   _files: readonly T[],
   _opts: {
     allowImages: boolean;
+    portable?: boolean;
     getPath: (file: T) => string;
     uploadImage: (file: T) => Promise<Attachment | null>;
     /** `anyType` is set for a file nothing else takes, to upload it as a plain download. */
@@ -793,7 +811,7 @@ export async function intakeFiles<T extends DroppedFile & { type: string }>(
   const files = _files.filter((file) => !overflow.has(file));
   const uploadFile = _opts.uploadFile ?? (async (file: T, anyType?: boolean) => {
     if (!file.arrayBuffer) return null;
-    return fileAttachmentFromFile(file as unknown as File, anyType);
+    return fileAttachmentFromFile(file as unknown as File, anyType, _opts.portable);
   });
   const failed = (file: T, err: unknown): { uploadError: AttachProblem; uploadErrorText: string } => ({
     uploadError: err instanceof AttachError ? err.problem

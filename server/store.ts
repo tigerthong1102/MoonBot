@@ -1,8 +1,10 @@
-import { chmodSync, existsSync, readFileSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { persistedPin, tightenRegistryFile } from "./store-persistence-helpers.ts";
 import { join } from "node:path"; import { isDeepStrictEqual } from "node:util";
-
 import { OwnedFile, writeFileAtomic } from "./atomic.ts"; import { saveLater, saveSoon, supersedeLaterSave } from "./save-batch.ts"; import { discardTranscriptFiles, messagesFile, resetTranscriptState } from "./transcript-cleanup.ts";
 import { commitRegistryChange, deferrablePatch, keptRevocation, saveRegistryFor, touchesPermissions } from "./registry-save.ts";
+import { persistWorkBotContext } from "./work-bot-store-persist.ts";
 import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts"; import { grantScopedApps } from "../shared/connector-scopes.ts"; import { dropRetiredApps } from "./retired-apps.ts";
 import { reorderInPlace } from "../shared/bot-order.ts"; import { trimOutboundPolicy } from "../shared/outbound.ts";
 import { botOwner, chiefConflict, chiefScope, ownerEmail } from "../shared/bot-owner.ts"; import { reshowWhenMoved } from "../shared/default-bot.ts";
@@ -24,7 +26,7 @@ import { AVATAR_FOCUS_CENTER, AVATAR_ZOOM_MIN, botAvatarProfile, clampAvatarFocu
 import { approvalModeFor, isApprovalMode, modelSwitchNeedsAsk, threadApproval, type ApprovalMode } from "../shared/approval-mode.ts";
 import { lastChangeRequestUrl } from "../shared/thread-link.ts";
 import { REMOVED_COMPUTER_DRIVER, type ComputerEngineMove } from "./computer-engine-removal.ts";
-import type { TeamSetupRequest, TeamSetupResult } from "../shared/team-setup.ts";
+import type { TeamSetupRequest, TeamSetupResult } from "../shared/team-setup.ts"; import { workBotCreationPermissions } from "./work-bot-permissions.ts";
 import type { GroupGoalRunCardData } from "../shared/group-goal-run.ts";
 import { isMentionBoundary, isMentionNameContinuation } from "../shared/mention-boundary.ts"; import { resolveMentions } from "../shared/room-mentions.ts";
 import type { HandedState } from "./delta-context.ts";
@@ -41,8 +43,8 @@ import { initialGreetingMessage } from "./initial-greeting.ts"; import { createD
 import { appsFromCreator } from "./inherited-apps.ts"; import { newBotOwner, sharedAsMaker, sharedUnlessRestricted, type NewBotSharingRule } from "./new-bot-sharing.ts";
 import { ThreadCache, type ThreadState } from "./thread-cache.ts";
 import { newestBranchLeaf } from "./thread-branch.ts";
-import { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts";
-import { buildTask, mirrorActiveTask, threadTitleFrom, UNTITLED_THREAD } from "./task-record.ts";
+import { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts"; export { titleFromLlm } from "./thread-title.ts";
+import { buildTask, mirrorActiveTask, threadTitleFrom, UNTITLED_THREAD } from "./task-record.ts"; export { toWireTask } from "./task-record.ts";
 import { createBotFork, createGroupFork } from "./store-forks.ts";
 import { activeGroupTask, groupTaskByThread, groupTasks, migrateGroupTaskRead, mirrorActiveGroupTask, refreshGroupUnread, setGroupTaskRead, syncGroupReadPatch } from "./group-task-state.ts";
 export { titleFromMessage, UNTITLED_TASK } from "./thread-title.ts";
@@ -97,14 +99,6 @@ type AssertSameKeys<A, B> = [keyof A] extends [keyof B] ? ([keyof B] extends [ke
 export type TaskWireProjectionIsExact = AssertExact<WireTask, TaskWireProjection> & AssertSameKeys<WireTask, TaskWireProjection>;
 export const taskWireProjectionIsExact: TaskWireProjectionIsExact = true;
 
-export function toWireTask(task: TaskRecord, botModel: ModelSelection): WireTask {
-  const { resumeCursors: _resumeCursors, lastInstanceId: _lastInstanceId, handedMessages: _handedMessages,
-    appliedCompactionId: _appliedCompactionId, contextFloor: _contextFloor, lastContextModel: _lastContextModel,
-    surfaceSource, askedAt: _askedAt, ...stored } = task;
-  const wire: WireTask = { ...stored, modelSelection: structuredClone(task.modelSelection ?? botModel), followsBotModel: task.modelSelection === undefined };
-  return surfaceSource === "auto" && wire.surface !== undefined ? { ...wire, surfaceAuto: true } : wire;
-}
-
 const ASK_NOW = { approvalMode: "ask" as const, autoApprove: false, alwaysAllow: [] as string[] };
 
 const TASK_PATCH_FIELDS = [
@@ -116,13 +110,6 @@ export type TaskPatch = Partial<Pick<TaskRecord, typeof TASK_PATCH_FIELDS[number
 
 export type GroupTaskPatch = Partial<Pick<GroupTaskRecord, "title" | "pinned">> & { turnTimeoutMinutes?: number | null; archivedAt?: number | null; activity?: "waiting-on-you" | null };
 
-
-function persistedPin<T extends { pinned?: boolean }>(task: T): T {
-  if (task.pinned === true) return task;
-  if (!("pinned" in task)) return task;
-  const { pinned: _pinned, ...rest } = task;
-  return rest as T;
-}
 
 export const ACTIVITY_BUSY: ReadonlySet<BotActivity> = new Set(["working", "waiting-on-you", "no-signal"]);
 
@@ -138,21 +125,6 @@ export type StoreChange =
   | { type: "bots.order" } | { type: "groups.order" }
   | { type: "group"; groupId: string }
   | { type: "group.deleted"; groupId: string };
-
-export function titleFromLlm(raw: string): string | null {
-  const line = raw
-    .trim()
-    .split("\n")[0]!
-    .replace(/^[#*\-\u2022]+/, "")
-    .replace(/^["'\u201C\u201D\u2018\u2019\u0060]+/, "")
-    .replace(/["'\u201C\u201D\u2018\u2019\u0060]+$/, "")
-    .replace(/^[#*\-\u2022]+/, "")
-    .replace(/[#*]+$/, "")
-    .replace(/[.\u3002]+$/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  return line.length >= 1 && line.length <= 48 ? line : null;
-}
 
 export interface BotRecord extends Omit<WireBot, "avatarUrl" | "tasks"> {
   tasks?: TaskRecord[];
@@ -183,15 +155,6 @@ const BOTS_FILE = join(DATA_DIR, "bots.json");
 const GROUPS_FILE = join(DATA_DIR, "groups.json");
 const THREAD_MODEL_COPIES_CLEARED = join(DATA_DIR, "thread-model-copies-cleared");
 const ASKED_AT_FILLED = join(DATA_DIR, "asked-at-filled");
-
-/** Owner-only (0600): the registries hold souls, project paths and per-bot settings. Best effort; Windows has no POSIX mode bits. */
-function tightenRegistryFile(file: string): void {
-  if (process.platform === "win32") return;
-  try {
-    if ((statSync(file).mode & 0o077) !== 0) chmodSync(file, 0o600);
-  } catch {
-  }
-}
 
 export const sectionKey = (section?: string | null): string => section?.trim() || "";
 
@@ -1170,6 +1133,30 @@ export class Store {
     return full;
   }
 
+  appendWorkBotContext(threadId: string, rows: Array<{ sourceId: string; replySourceId?: string; message: Omit<Message, "id" | "at" | "parentId" | "replyToId"> & { at: number } }>, transfer?: { claim: Parameters<typeof mdb.transferQueuedWorkBotMessages>[2]; afterCommit(): void }, link?: import("./work-bot-message-db.ts").WorkBotLink, hold?: { expectedSourceLeaf: string | null }): Map<string, Message> {
+    const thread = this.thread(threadId);
+    const copied = new Map<string, Message>();
+    const messages: Message[] = [];
+    let parentId = thread.activeLeafId;
+    for (const row of rows) {
+      const replyToId = row.replySourceId ? copied.get(row.replySourceId)?.id : undefined;
+      const message: Message = { id: newId(), parentId, ...redactBotAuthored(row.message), ...(replyToId ? { replyToId } : {}) };
+      messages.push(message);
+      copied.set(row.sourceId, message);
+      parentId = message.id;
+    }
+    persistWorkBotContext(threadId, messages, transfer, link, hold, (sourceThread, sourceId, patch) => this.patchMessage(sourceThread, sourceId, patch));
+    for (const message of messages) {
+      thread.messages.push(message);
+      this.threads.grew(threadId, message);
+      thread.activeLeafId = message.id;
+      this.noteThreadActivity(threadId, message.at, movesThreadToTop(message), message.turnCompletedAt ?? message.at);
+      this.emit({ type: "message", threadId, message });
+    }
+    if (messages.some(message => message.role === "user" && message.kind === "text")) this.dismissOnboardingCard(threadId);
+    return copied;
+  }
+
   insertMessageAfter(threadId: string, anchorId: string | undefined, message: Omit<Message, "id" | "at">): Message {
     const t = this.thread(threadId);
     const anchorExists = anchorId !== undefined && t.messages.some((m) => m.id === anchorId);
@@ -1345,10 +1332,11 @@ export class Store {
     return bot;
   }
 
-  applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">): TeamSetupResult {
+  applyTeamSetup(request: TeamSetupRequest, avatar?: Pick<BotRecord, "avatarUrl" | "avatarCrop">, workBotPermission?: ApprovalMode): TeamSetupResult {
     const chief = this.own(request.botId);
     if (!chief) throw new Error("The requesting Chief no longer exists");
     if (chief.lastTeamSetupReceipt?.requestId === request.requestId) return chief.lastTeamSetupReceipt.result;
+    const workBotPermissions = workBotCreationPermissions(request, Boolean(this.projectBotForTask(request.botId, request.threadId)), workBotPermission, chief.toolScope);
     const managedSections = [...new Set([...(chief.managedSections ?? []), ...request.newTeams])];
     if (managedSections.length > 100 || managedSections.some((name) => name.trim() !== name || name.length > 60) ||
         request.newTeams.some((name) => !name) || (request.newTeams.length && !chief.chiefOfStaff)) throw new Error("Invalid reviewed Chief team scope");
@@ -1364,12 +1352,12 @@ export class Store {
         next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
           title: "", description: "", soul: "", notifications: true, color: rotationColor(nextBots.length), unread: false,
           resumeCursors: {}, createdAt, ...operation.fields, ...avatar, modelSelection,
-          autoApprove: false,
+          ...workBotPermissions.bot,
           ...sharedAsMaker(chief),
           // A Chief's new specialist reports to the Chief's own person.
           ...(botOwner(chief) ? { createdBy: botOwner(chief)! } : {}),
           tasks: [{ threadId: operation.threadId, title: UNTITLED_THREAD, createdAt, updatedAt: createdAt, resumeCursors: {},
-            unread: false, activity: "idle", busy: false }],
+            unread: false, activity: "idle", busy: false, ...workBotPermissions.task }],
         };
         Object.assign(next, appsFromCreator(chief, next));
         if (!next.cwd) delete next.cwd;
@@ -1481,7 +1469,21 @@ export class Store {
     return true;
   }
 
+  setGroupUsername(id: string, identity: { username: string; publicKey: string }): BotRecord | null {
+    const bot = this.own(id);
+    if (!bot) return null;
+    const { username, publicKey } = identity;
+    if (!/^[a-f0-9]{64}$/.test(publicKey) || username !== `bot_k${createHash("sha256").update(Buffer.from(publicKey, "hex")).digest("hex")}`) throw new Error("Invalid bot username");
+    if (this.bots.some(candidate => candidate.id !== id && candidate.groupUsername === username)) throw new Error("Bot username already assigned");
+    if (bot.groupUsername === username) return bot;
+    if (bot.groupUsername !== undefined) throw new Error("Bot username already assigned");
+    const next = { ...bot, groupUsername: username }, bots = this.bots.map(candidate => candidate.id === id ? next : candidate);
+    this.saveBots(bots); this.bots = bots; this.emit({ type: "bot", botId: id });
+    return next;
+  }
+
   patchBot(id: string, patch: Partial<BotRecord>): BotRecord | null {
+    if (Object.hasOwn(patch, "groupUsername")) throw new Error("Bot usernames require identity verification");
     const bot = this.own(id);
     if (!bot) return null; patch = reshowWhenMoved(bot, patch);
     if (patch.connectorTools !== undefined) {

@@ -150,6 +150,8 @@ interface ThreadLine {
   kind: string;
   text?: string;
   at?: number;
+  workBotReviewHold?: true;
+  workBotRouting?: { state: string };
 }
 
 export const THREAD_LIST_LIMIT = 10;
@@ -185,7 +187,7 @@ export function reachThreads(input: {
     if (!thread) return { error: "not-found" as const };
     const notes = notesOf(thread.threadId);
     const shownNotes = cut(notes.text, THREAD_READ_NOTES_LIMIT);
-    const lines = input.messages(thread.threadId).filter((line) => (line.role === "user" || line.role === "bot") && line.kind === "text" && line.text?.trim());
+    const lines = input.messages(thread.threadId).filter((line) => !line.workBotReviewHold && line.workBotRouting?.state !== "held_for_review" && (line.role === "user" || line.role === "bot") && line.kind === "text" && line.text?.trim());
     const end = input.before ? lines.findIndex((line) => line.id === input.before) : lines.length;
     const limit = Math.min(Math.max(1, input.limit ?? THREAD_READ_LIMIT), THREAD_LIST_MAX);
     let budget = THREAD_READ_BUDGET - shownNotes.text.length;

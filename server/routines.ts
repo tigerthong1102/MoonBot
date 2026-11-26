@@ -7,7 +7,7 @@ import { DATA_DIR } from "./config.ts";
 import type { RuntimeEvent } from "./contracts.ts";
 import { OwnedFile } from "./atomic.ts"; import { saveSoon } from "./save-batch.ts"; import { RunProgressSave } from "./routine-progress-save.ts";
 import { redactSecretsInText } from "./redact.ts";
-import { activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
+import { hasScheduledHandoffWork, activeRunFor, activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
 import { routineRequestOwnerKey, type RoutineRequestReceipt, type RoutineRequestCommit, type RoutineRequestCommitFor, type RoutineRequestOwner } from "./routine-request-receipt.ts";
@@ -30,7 +30,7 @@ import {
 } from "./routine-recovery.ts";
 import { askOf, settleAsk, waitingFor, type RoutineRunAsk } from "./routine-waits.ts";
 import { failsLikeLastOutcome, outcomesNewestFirst } from "./routine-outcomes.ts"; import { createRunGate, type RunPreparation } from "./routine-run-gate.ts";
-import { busyWait, markStop, RunClock, runOverLimit, SlowStops, withBoundedStops, type StopState } from "./routine-bounds.ts"; import { keepUnreadableAside, readRoutineFile, UNREADABLE_RETRY_MS } from "./routine-file.ts";
+import { busyWait, markStop, RunClock, runOverLimit, SlowStops, withBoundedStops, type StopState } from "./routine-bounds.ts"; import { keepUnreadableAside, readRoutineFile, type RoutineFile, UNREADABLE_RETRY_MS } from "./routine-file.ts";
 import { noStartAlert, noStartSpacing, turnBackOn } from "./routine-no-start.ts"; import { afterRunSpacing, failureSpacingAlert, runSpacing } from "./routine-failure-spacing.ts"; import { blockingRun, recordSkip, type RoutineSkips } from "./routine-skips.ts";
 import { restartRetryAt, startupDecision } from "./routine-restarts.ts"; import { routineHealthOf, type RoutineHealth } from "./routine-health.ts"; import { Occurrences, ROUTINE_TURN_GONE } from "./routine-occurrences.ts"; import type { Occurrence } from "./routine-ledger.ts";
 import { CATCH_UP_MS, planOccurrence, settleRestored, staggered } from "./routine-catch-up.ts"; import { evictRuns } from "./routine-run-history.ts"; import { RunWatch } from "./routine-run-watch.ts"; import { scheduleSection, type ScheduleSection } from "./routine-schedule-report.ts";
@@ -86,6 +86,7 @@ export interface Routine extends RoutineTroubleCode {
   warning?: string;
   heldFor?: RoutineHoldCause;
   sourceThreadId?: string;
+  delegatedFromMessageId?: string;
   resultsThreadId?: string;
   installedPackage?: RoutinePackageStamp;
   nextRunAt: number | null;
@@ -179,20 +180,6 @@ export interface RoutineInput {
   resultsThreadId?: string | null;
 }
 
-interface RoutineFile {
-  version: 1;
-  frozenResultsCleared?: true;
-  routines: Routine[];
-  runs: RoutineRun[];
-  routineRequestReceipts?: RoutineRequestReceipt[];
-  webhookRunReceipts?: EventRunReceipt[];
-  startupLaunchId?: string;
-  noStartOffsChecked?: true;
-  ownerNotices?: RoutineOwnerNotice[];
-  holds?: RoutineHoldCause[];
-}
-
-
 /** What a routine's checks found: items for one AI run, a sentence while an app cannot be read, and the next time they
  * have something to do on time. */
 export interface RoutineCheckResult { run?: { prompt: string; key: string }; trouble?: string; troubleCode?: string; reconnectApp?: string; wakeAt?: number }
@@ -207,6 +194,7 @@ export interface RoutineChecks {
 }
 
 export interface RoutineManagerOptions {
+  beforeHandoffRoutineCommit?: (request: Pick<RoutineRequestCommit, "botId" | "threadId" | "messageId">, routines: readonly Routine[], runs: readonly RoutineRun[]) => void;
   file?: string;
   now?: () => number;
   /** Every payload must be `{ kind, … }`: the server numbers and replays frames by it. */
@@ -292,6 +280,7 @@ export class RoutineManager {
   private runs: RoutineRun[] = [];
   private routineRequestReceipts: RoutineRequestReceipt[] = [];
   private webhookRunReceipts: EventRunReceipt[] = [];
+  private malformedEventReceipts: unknown[] = [];
   private timer: DueTimer | null = null;
   private startupRunsQueued = false;
   private startupLaunchId: string | undefined;
@@ -325,7 +314,7 @@ export class RoutineManager {
     if (read.state === "unreadable" && !before) console.error(`routines: ${this.file} cannot be read (${read.reason}), so no routine runs until it can; it is left as it is, with a copy at ${keepUnreadableAside(this.file) ?? "no path (the copy failed)"}`);
     if (read.state !== "ok") return read.state === "missing";
     ({ routines: this.routines, unloadedRoutines: this.unloadedRoutines, runs: this.runs, malformedAttachments: this.malformedAttachments, routineRequestReceipts: this.routineRequestReceipts,
-      webhookRunReceipts: this.webhookRunReceipts, frozenPending: this.frozenPending, ownerNotices: this.ownerNotices, holds: this.holds,
+      webhookRunReceipts: this.webhookRunReceipts, malformedEventReceipts: this.malformedEventReceipts, frozenPending: this.frozenPending, ownerNotices: this.ownerNotices, holds: this.holds,
       startupLaunchId: this.startupLaunchId, noStartOffsChecked: this.noStartOffsChecked } = read);
     this.disk.loaded(read.text);
     const cut = settleRestored(this.routines, this.runs, this.ledger.restoredThrough, this.now(), (routine, past) => this.advancePastOccurrence(routine, past, past)).map(cloneRun); this.ledger.restoredThrough = null;
@@ -358,10 +347,12 @@ export class RoutineManager {
   /** Files every saved routine and run names, unloaded rows too; null while routines.json is unreadable or a row's attachments are malformed, so nothing can clear them. */
   attachmentPaths(): string[] | null { return this.unreadable || this.malformedAttachments ? null : attachmentPathsOf([...this.routines, ...this.unloadedRoutines, ...this.runs]); }
 
+  hasWorkForHandoff(matches: (row: { botId: string; sourceThreadId?: string; resultsThreadId?: string; threadId?: string }) => boolean): boolean {
+    return this.unreadable || hasScheduledHandoffWork(this.routines, this.unloadedRoutines, this.runs, matches);
+  }
   listRoutines(): Routine[] {
     return this.routines.map(routine => this.routineWithHealth(routine));
   }
-
   clearFrozenResultsThreads(): void {
     if (!this.frozenPending) return;
     for (const routine of this.routines) {
@@ -426,19 +417,11 @@ export class RoutineManager {
   }
 
   activeRunForBot(botId: string): RoutineRun | null {
-    const run = this.runs.find(
-      (candidate) => candidate.botId === botId && ["running", "waiting"].includes(candidate.status),
-    );
-    return run ? cloneRun(run) : null;
+    return activeRunFor(this.runs, botId);
   }
 
   activeBotRunForBot(botId: string): RoutineRun | null {
-    const run = this.runs.find(
-      (candidate) => candidate.target === "bot" &&
-        candidate.botId === botId &&
-        ["running", "waiting"].includes(candidate.status),
-    );
-    return run ? cloneRun(run) : null;
+    return activeRunFor(this.runs, botId, "bot");
   }
 
   routineRequestReceipt(requestId: string): RoutineRequestReceipt | null {
@@ -509,7 +492,11 @@ export class RoutineManager {
     return cloneRun(run);
   }
 
-  create(input: RoutineInput, request?: RoutineRequestCommitFor<"create">): Routine {
+  assertHandoffRoutineSafe(request: Pick<RoutineRequestCommit, "botId" | "threadId" | "messageId">): void {
+    this.options.beforeHandoffRoutineCommit?.(request, [...this.routines, ...this.unloadedRoutines], this.runs);
+  }
+
+  create(input: RoutineInput, request?: RoutineRequestCommitFor<"create"> & { delegatedFromMessageId?: string }): Routine {
     this.assertWritable();
     if (request) {
       const receipt = this.matchingRoutineRequestReceipt(request);
@@ -521,6 +508,7 @@ export class RoutineManager {
     }
     const at = this.now();
     const clean = sanitizeInput(input, at);
+    if (request && clean.enabled) this.assertHandoffRoutineSafe({ ...request, botId: clean.botId });
     clean.schedule = this.timedSchedule(clean.schedule);
     if (this.targetState(clean) === "missing") throw new Error(this.missingTargetMessage(clean.target));
     const nextRunAt = clean.enabled ? this.initialOccurrence(clean.schedule, at) : null;
@@ -532,6 +520,7 @@ export class RoutineManager {
       ...clean,
       // Only a confirmed chat card supplies `request`: the calendar API cannot pick an arbitrary transcript.
       sourceThreadId: request?.threadId,
+      ...(request?.delegatedFromMessageId && request.botId !== clean.botId ? { delegatedFromMessageId: request.delegatedFromMessageId } : {}),
       nextRunAt,
       createdAt: at,
       updatedAt: at,
@@ -584,6 +573,7 @@ export class RoutineManager {
       access: Object.hasOwn(patch, "access") ? patch.access : routine.access,
       deliver: Object.hasOwn(patch, "deliver") ? patch.deliver : routine.deliver,
     }, now);
+    if (request && clean.enabled) this.assertHandoffRoutineSafe({ ...request, botId: clean.botId });
     clean.schedule = this.timedSchedule(clean.schedule, routine.id);
     if (this.targetState(clean) === "missing") throw new Error(this.missingTargetMessage(clean.target));
     const scheduleChanged = JSON.stringify(clean.schedule) !== JSON.stringify(routine.schedule);
@@ -703,6 +693,7 @@ export class RoutineManager {
     }
     const routine = this.routines.find((r) => r.id === id);
     if (!routine) return null;
+    if (request) this.assertHandoffRoutineSafe({ ...request, botId: routine.botId });
     let run!: RoutineRun;
     const allocations: ResultsThreadAllocation[] = [];
     const previousDestination = routine.resultsThreadId;
@@ -725,6 +716,12 @@ export class RoutineManager {
     const active = this.runs.find((run) => run.webhookId === webhookId && run.deliveryId === deliveryId &&
       ["queued", "running", "waiting"].includes(run.status));
     return active ? { id: active.id } : null;
+  }
+
+  appEventRecipients(deliveryId: string): Array<string | null> {
+    if (this.unreadable || this.malformedEventReceipts.length) throw new Error("Event receipt history is unavailable");
+    return this.webhookRunReceipts.filter(receipt => receipt.deliveryId === deliveryId && receipt.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS && receipt.eventSource !== "wait")
+      .map(receipt => receipt.botId ?? null);
   }
 
   enqueueWebhook(input: {
@@ -768,7 +765,7 @@ export class RoutineManager {
     const receipts = previousReceipts.filter((receipt) => receipt.acceptedAt >= this.now() - EVENT_RETRY_WINDOW_MS);
     // Never evict a promised retry identity to admit fresh work.
     if (receipts.length >= MAX_EVENT_RECEIPTS) throw Object.assign(new Error("Webhook retry history is full; try again later"), { status: 429 });
-    receipts.push({ webhookId: run.webhookId!, deliveryId, runId: run.id, acceptedAt: this.now() });
+    receipts.push({ webhookId: run.webhookId!, deliveryId, runId: run.id, acceptedAt: this.now(), botId: run.botId, ...(run.eventSource ? { eventSource: run.eventSource } : {}) });
     const previousRuns = this.runs.slice();
     apply();
     this.webhookRunReceipts = receipts;
@@ -1539,7 +1536,7 @@ export class RoutineManager {
       routines: [...this.routines, ...this.unloadedRoutines],
       runs: this.runs,
       routineRequestReceipts: this.routineRequestReceipts,
-      webhookRunReceipts: this.webhookRunReceipts,
+      webhookRunReceipts: [...this.webhookRunReceipts, ...this.malformedEventReceipts],
       ...(this.startupLaunchId === undefined ? {} : { startupLaunchId: this.startupLaunchId }), ...(this.noStartOffsChecked ? { noStartOffsChecked: true } : {}),
       ...(this.ownerNotices.length ? { ownerNotices: this.ownerNotices } : {}),
       ...(this.holds.length ? { holds: this.holds } : {}),

@@ -138,10 +138,8 @@ import { latestFailure, latestReply, type TranscriptSnapshot } from "@/lib/trans
 import { pendingApprovals } from "./PendingApproval";
 import { TranscriptAnnouncer } from "./TranscriptAnnouncer";
 import { JumpToLatestButton } from "./JumpToLatestButton";
-import { isBotTextRow, joinedCorners, needsStamp, quietRow, simpleRowLayout, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_STACKED, SIMPLE_USER_BUBBLE, type BubbleJoin } from "./chat-bubble";
-
-const USER_COLLAPSE_CHARS = 600;
-const USER_COLLAPSE_LINES = 8;
+import { isBotTextRow, joinedCorners, needsStamp, quietRow, simpleRowLayout, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX, SIMPLE_BUBBLE_TEXT, SIMPLE_STACKED, SIMPLE_USER_BUBBLE, USER_COLLAPSE_CHARS, USER_COLLAPSE_LINES, type BubbleJoin } from "./chat-bubble";
+import { WorkBotRoutingStatus } from "./WorkBotRoutingStatus";
 
 interface ChatRows {
   botId: string; threadId: string; botName: string; botColor: Bot["color"]; voiceId?: string;
@@ -515,6 +513,7 @@ const Bubble = memo(function Bubble({
               )}
               {message.quickModel && <QuickModelNote model={message.quickModel} />}
               <UserLineNote message={message} />
+              <WorkBotRoutingStatus message={message} botId={botId} threadId={threadId} dispatch={dispatch} />
               {collapsible && (
                 <button onClick={() => setExpanded(true)} className="mt-1 text-[13px] text-ink-secondary hover:text-ink">
                   {t("chat.showFull")}

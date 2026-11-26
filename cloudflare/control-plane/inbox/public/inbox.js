@@ -568,7 +568,7 @@ function closeBotInvite() {
 }
 function matchingBots() {
   const query = el("invite-bot-panel").elements.bot.value.trim().replace(/^@/, "").trim().toLocaleLowerCase();
-  return botChoices.filter(bot => bot.name.toLocaleLowerCase().includes(query));
+  return botChoices.filter(bot => bot.name.toLocaleLowerCase().includes(query) || bot.username?.toLowerCase().includes(query));
 }
 async function addBot(bot) {
   const panel = el("invite-bot-panel"), room = current, account = me?.id;
@@ -587,7 +587,7 @@ async function addBot(bot) {
 }
 function renderBotChoices() {
   const result = el("invite-bot-results"), matches = matchingBots();
-  result.replaceChildren(...matches.map(bot => button("@" + bot.name, () => addBot(bot))));
+  result.replaceChildren(...matches.map(bot => button(bot.username ? bot.name + " @" + bot.username : "@" + bot.name, () => addBot(bot))));
   if (!matches.length) result.append(node("small", t("chat.find.noResults")));
 }
 el("invite-bot").onclick = run(async () => {

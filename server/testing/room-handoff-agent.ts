@@ -234,8 +234,11 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
       if (plan.gateFile || plan.approve || plan.screenCalls) clearTimeout(timer);
       const mounted = launch ? {} : JSON.parse(readAtLaunch(arg("--mcp-config"))).mcpServers as Record<string, AgentsIntegration>;
       if (plan.approve) {
-        if (!mounted.ogb || !argv.includes("--permission-prompt-tool")) throw new Error("A scripted approval needs Claude's permission-prompt tool");
-        approval = await askPermission(mounted.ogb, plan.approve);
+        if (plan.fixturePermissionCounter && argv[argv.indexOf("--permission-mode") + 1] === "bypassPermissions") approval = { behavior: "allow" };
+        else {
+          if (!mounted.ogb || !argv.includes("--permission-prompt-tool")) throw new Error("A scripted approval needs Claude's permission-prompt tool");
+          approval = await askPermission(mounted.ogb, plan.approve);
+        }
       }
       if (plan.screenCalls) {
         if (!mounted.computer?.env?.OMB_CONTROL_URL) throw new Error("Scripted screen calls need a mounted computer");
@@ -244,6 +247,7 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
       if (typeof plan.progress === "string") progress?.(plan.progress);
       // `writeFiles` { name: content }: files the turn writes in its working folder.
       for (const [name, content] of Object.entries((plan.writeFiles ?? {}) as Record<string, string>)) writeFileSync(join(process.cwd(), name), content);
+      if (typeof plan.fixtureArtifactFile === "string" && typeof plan.fixtureArtifactText === "string") writeFileSync(plan.fixtureArtifactFile, plan.fixtureArtifactText, { flag: "wx" });
       if (plan.readyFile) writeFileSync(plan.readyFile, "ready");
       if (plan.gateFile && !existsSync(plan.gateFile)) await new Promise<void>(resolve => {
         gateTimer = setInterval(() => {
@@ -252,13 +256,16 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
           resolve();
         }, 10);
       });
+      if (typeof plan.afterGateFile === "string") writeFileSync(plan.afterGateFile, "continued");
       if (typeof plan.progressAfterGate === "string") progress?.(plan.progressAfterGate);
       if (plan.delayMs) await new Promise(resolve => { delayTimer = setTimeout(resolve, plan.delayMs); });
       if (plan.fail && !resumed) throw new Error("Scripted addressed agent failure");
       // `failWith`: the turn fails with this engine error, e.g. a signed-out reason.
       if (typeof plan.failWith === "string") throw new Error(plan.failWith);
       if (plan.failResumed && resumed) throw new Error("Scripted failure of a resumed turn");
+      if (plan.fixturePermissionCounter && approval && !["allow", "deny"].includes(approval.behavior)) throw new Error("Fixture permission response was not a decision");
       if (approval && approval.behavior !== "allow") return plan.replyIfDenied ?? `${plan.reply} (approval ${approval.behavior})`;
+      if (approval?.behavior === "allow" && typeof plan.fixturePermissionCounter === "string") appendFileSync(plan.fixturePermissionCounter, "executed\n");
       const echoed = plan.echoSteered && steered().length ? ` + steered: ${steered().join(" | ")}` : "";
       if (entry) return `${String(withCaptured(plan.reply ?? `Result from ${botId}`, captured))}${echoed}`;
       return basePlan.turns ? plan.reply : resumed ? plan.resumeReply ?? `Summary from ${botId}` : plan.reply ?? `Result from ${botId}`;

@@ -531,6 +531,11 @@ export function frameForMember(payload: Record<string, unknown>, ctx: FrameConte
   const str = (value: unknown) => (typeof value === "string" ? value : "");
   const field = (key: string) => (payload[key] && typeof payload[key] === "object" ? payload[key] as Record<string, unknown> : {});
   switch (kind) {
+    case "app-trigger.service": {
+      if (!visible.member) return payload;
+      const { cursorReview: _cursorReview, ...service } = field("service");
+      return { ...payload, service };
+    }
     case "sections": {
       const sections = Array.isArray(payload.sections) ? payload.sections.filter((s): s is string => typeof s === "string") : [];
       return { ...payload, sections: visible.sections(sections) };

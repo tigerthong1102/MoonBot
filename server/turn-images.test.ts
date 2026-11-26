@@ -4,7 +4,9 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { extractReplayImages, extractSteerImages, extractTurnImages, REPLAYED_IMAGE_NOTE } from "./turn-images.ts";
+import type { Message } from "./store.ts";
+import { transcriptText } from "./replies.ts";
+import { extractHandoffMedia, extractReplayImages, extractSteerImages, extractTurnImages, REPLAYED_IMAGE_NOTE } from "./turn-images.ts";
 
 const IDS = [
   "123e4567-e89b-42d3-a456-426614174000",
@@ -182,6 +184,21 @@ describe("turn image admission", () => {
     expect(extractTurnImages(source, { attachmentsDir: root })).toEqual({ text: source, images: [], videos: [] });
   });
 
+  it("shares one image and video budget across a handed-off request and its queued notes", () => {
+    const attachmentsDir = store();
+    const first = image(attachmentsDir, 0, ".png", 4), second = image(attachmentsDir, 1, ".png", 5);
+    const tag = (path: string) => `<attached-image path="${path}" />`;
+    const clip = video(attachmentsDir, 2);
+    const videoTag = `<attached-file path="${clip}" />`;
+    const notes = [tag(second), videoTag, videoTag];
+    const media = extractHandoffMedia(tag(first), notes, { attachmentsDir });
+    expect(media.images.map(item => item.path)).toEqual([first, second]);
+    expect(media.videos.map(item => item.path)).toEqual([clip]);
+    expect(media.followupTexts).toEqual(["", videoTag, videoTag]);
+    expect(() => extractHandoffMedia(tag(first), notes, { attachmentsDir, maxCount: 1 })).toThrow(/too many images/i);
+    expect(() => extractHandoffMedia(tag(first), notes, { attachmentsDir, maxBytes: 8 })).toThrow(/byte limit/i);
+  });
+
   it("resolves a steer's texts one by one and keeps its images in order", () => {
     const root = store();
     const first = image(root, 0, ".png", 5);
@@ -245,6 +262,27 @@ describe("turn image admission", () => {
     expect(result.transcript[0]!.text).toBe(`login fails, see screenshot\n\n${REPLAYED_IMAGE_NOTE}`);
     expect(REPLAYED_IMAGE_NOTE).toMatch(/earlier/i);
     expect(result.transcript[2]!.text).toBe("A");
+  });
+
+  it("only replays a copied user's selected historical image within the current turn's limits", () => {
+    const root = store();
+    const path = image(root, 0);
+    const text = `fixture $&\n\n<attached-image path="${path}" />`;
+    const copy: Message = { id: "copy", role: "user", kind: "text", at: 1, text, dataContext: { cardId: "target" },
+      workBotCopy: { sourceThreadId: "main", sourceMessageId: "earlier", requestMessageId: "work", status: "settled" } };
+    const entry = { id: copy.id, role: "user" as const, text: transcriptText(copy, new Map()) };
+    const options = { attachmentsDir: root, history: [copy] };
+    const result = extractReplayImages([entry], [], options);
+    expect(result.images.map(item => item.path)).toEqual([path]);
+    expect(result.transcript[0]?.text).toContain("fixture $&");
+    expect(result.transcript[0]?.text).toContain(REPLAYED_IMAGE_NOTE);
+    expect(result.transcript[0]?.text).toContain("target");
+    for (const unavailable of [{ ...entry, id: "elsewhere" }, { ...entry, text: entry.text.slice(0, -15) }, { ...entry, role: "assistant" as const }]) {
+      expect(extractReplayImages([unavailable], [], options).images).toEqual([]);
+    }
+    expect(extractReplayImages([entry], result.images, { ...options, maxCount: 1 }).images).toEqual([]);
+    expect(extractReplayImages([entry], [], { ...options, maxBytes: 1 }).images).toEqual([]);
+    expect(extractReplayImages([entry], [], { ...options, history: [{ ...copy, workBotReviewHold: true }] }).images).toEqual([]);
   });
 
   it("keeps a current turn's own images unmarked", () => {

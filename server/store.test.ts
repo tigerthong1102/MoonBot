@@ -34,6 +34,34 @@ describe("Store", () => {
     rmSync(DATA_DIR, { recursive: true, force: true });
   });
 
+  it("saves a bot username once and rejects ordinary patches or duplicate identities", () => {
+    const store = new Store(selection), first = store.createBot({ name: "First fixture" }), second = store.createBot({ name: "Second fixture" });
+    const identity = (byte: string) => { const publicKey = byte.repeat(64); return { publicKey, username: `bot_k${createHash("sha256").update(Buffer.from(publicKey, "hex")).digest("hex")}` }; };
+    const firstIdentity = identity("a"), username = firstIdentity.username;
+    expect(store.setGroupUsername(first.id, firstIdentity)?.groupUsername).toBe(username);
+    expect(store.setGroupUsername(first.id, firstIdentity)?.groupUsername).toBe(username);
+    expect(() => store.setGroupUsername(first.id, identity("b"))).toThrow(/already assigned/);
+    expect(() => store.setGroupUsername(second.id, firstIdentity)).toThrow(/already assigned/);
+    expect(() => store.setGroupUsername(second.id, { ...identity("b"), username })).toThrow(/Invalid/);
+    expect(() => store.patchBot(first.id, { groupUsername: undefined })).toThrow(/verification/);
+    expect(new Store(selection).bot(first.id)?.groupUsername).toBe(username);
+    expect(new Store(selection).bot(second.id)?.groupUsername).toBeUndefined();
+    const file = join(DATA_DIR, "bots.json"), saved = JSON.parse(readFileSync(file, "utf8")) as BotRecord[];
+    saved.find(bot => bot.id === second.id)!.groupUsername = username;
+    writeFileSync(file, JSON.stringify(saved));
+    expect(() => new Store(selection).setGroupUsername(first.id, firstIdentity)).toThrow(/already assigned/);
+  });
+
+  it("does not publish a username when the bot registry write fails", () => {
+    const store = new Store(selection), bot = store.createBot({ name: "Fixture" });
+    const publicKey = "a".repeat(64), username = `bot_k${createHash("sha256").update(Buffer.from(publicKey, "hex")).digest("hex")}`;
+    const file = (store as unknown as { botsFile: { write(value: string): void } }).botsFile;
+    vi.spyOn(file, "write").mockImplementationOnce(() => { throw new Error("fixture write failed"); });
+    expect(() => store.setGroupUsername(bot.id, { publicKey, username })).toThrow(/fixture write failed/);
+    expect(store.bot(bot.id)?.groupUsername).toBeUndefined();
+    expect(new Store(selection).bot(bot.id)?.groupUsername).toBeUndefined();
+  });
+
   it("retains tool selection across restarts and distinguishes clearing from no tools", () => {
     const store = new Store(selection);
     const bot = store.createBot({ name: "Scoped drafter" });

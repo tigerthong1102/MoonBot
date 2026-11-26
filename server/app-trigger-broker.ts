@@ -1,4 +1,5 @@
 // The connected-apps service's app-event routes (cloudflare/composio-broker), called with this installation's token.
+import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 
 export interface BrokerAccess {
@@ -57,7 +58,7 @@ const inventorySchema = z.object({
 });
 export type BrokerInventory = z.infer<typeof inventorySchema>;
 
-const brokerEventSchema = z.object({
+export const brokerEventSchema = z.object({
   seq: z.number(),
   id: z.string(),
   kind: z.enum(["message", "test", "trigger_disabled", "account_expired"]),
@@ -74,6 +75,8 @@ export type BrokerEvent = z.infer<typeof brokerEventSchema>;
 const pollSchema = z.object({ events: z.array(z.unknown()), cursor: z.number() });
 
 export interface AppTriggerBroker {
+  withCurrentAccount?<T>(work: () => Promise<T>): Promise<T>;
+  identity?(signal?: AbortSignal): Promise<string>;
   triggerTypes(apps: string[]): Promise<Record<string, { types?: BrokerTriggerType[]; error?: string }>>;
   triggerType(slug: string): Promise<BrokerTriggerType | null>;
   create(input: { slug: string; connectedAccountId: string; config: Record<string, unknown> }): Promise<{ triggerId: string }>;
@@ -96,8 +99,10 @@ async function errorText(response: Response): Promise<string> {
 
 /** `access` is read on every call: the desktop hands the token over after the server starts, and a Cloud registers late. */
 export function brokerClient(access: () => BrokerAccess | null, fetchImpl: typeof fetch = (...args) => fetch(...args)): AppTriggerBroker {
+  const account = new AsyncLocalStorage<BrokerAccess | null>();
   async function call(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<Response> {
-    const current = access();
+    const current = access(), bound = account.getStore();
+    if (bound !== undefined && (current?.url !== bound?.url || current?.token !== bound?.token)) throw new BrokerError("Connected-app account changed during this operation.", 409);
     if (!current) throw new BrokerError("The connected-apps service is not set up on this computer", 0);
     const headers = new Headers(init.headers);
     headers.set("authorization", `Bearer ${current.token}`);
@@ -123,6 +128,14 @@ export function brokerClient(access: () => BrokerAccess | null, fetchImpl: typeo
   }
   const json = async (response: Response) => response.json() as Promise<unknown>;
   return {
+    withCurrentAccount(work) {
+      const current = access();
+      return account.run(current ? { ...current } : null, work);
+    },
+    async identity(signal) {
+      const body = z.object({ installationId: z.string().uuid() }).parse(await json(await call("/v1/me", { signal })));
+      return body.installationId;
+    },
     async triggerTypes(apps) {
       const response = await call(`/v1/trigger-types?${new URLSearchParams({ toolkits: apps.join(",") })}`);
       return typesSchema.parse(await json(response)).toolkits;

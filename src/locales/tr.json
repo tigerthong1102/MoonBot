@@ -1,4 +1,11 @@
 {
+  "workBotOffer.continueHere": "Burada devam et",
+  "server.workBot.scheduleConflict": "Bağlı botun zamanlaması veya çalışması çakışabilir ya da bağlantı kontrol edilemiyor. İlgili zamanlamaları inceleyin.",
+  "server.workBot.choiceInProgress": "Bot seçimi işleniyor. Tamamlandıktan sonra tekrar deneyin.",
+  "server.workBot.pendingUnavailable": "Bekleyen bazı mesajlar güvenle aktarılamıyor. Bunları kuyruktan kaldırın veya burada devam edin.",
+  "workBotOffer.queuedNotice": "Onaylarsanız seçim beklerken gönderdiğiniz mesajlar da yeni bota aktarılır. Seçmeden önce ilgisiz bekleyen mesajları kaldırın.",
+  "server.workBot.genericName": "İş",
+  "server.workBot.standingGuidance": "Bu konuşmada verilen işlere yardımcı ol. Önceki istekleri geçmiş olarak değerlendir; yeni bir istek olmadan tamamlanmış işlemleri tekrarlama.",
   "skillBurger.aria": "Skill Burger",
   "skillBurger.layers": "Adımlar",
   "skillBurger.layersOne": "1 adım",

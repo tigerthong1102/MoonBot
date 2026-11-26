@@ -1497,7 +1497,7 @@ function activeOrigin() {
 
 const inbox = createPersonalInbox({
   window: () => mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow(), locale: nativeText.intlTag, languageKey: nativeText.language,
-  isLocal: win => senderIsLocal({ sender: win.webContents }), showLocal: () => switchEnvironment(LOCAL_ID),
+  isLocal: win => senderIsLocal({ sender: win.webContents }), showLocal: () => switchEnvironment(LOCAL_ID), localRequest: (...args) => localServerRequest(...args),
   previousChoice: () => nativeText.prefs.updatesConsent(),
 });
 inbox.install(ipcMain, localOnly, requireMainWindowSender);
@@ -1975,7 +1975,7 @@ function createWindow({ deferNavigation = false } = {}) {
         ...(app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`, ...(linuxSoftwareRendering ? [SOFTWARE_RENDERING_ARG] : [])],
     },
   });
-  mainWindow = win; hiddenStart = false; chromeRail.attach(win);
+  mainWindow = win; hiddenStart = false; chromeRail.attach(win); inbox.watchIdentities(win);
   win.on("show", () => desktopTray?.windowShown(win));
   win.on("focus", () => { if (cloudAccount?.checkoutPending()) void cloudAccount.refresh().catch(() => {}); });
   win.on("close", (event) => {

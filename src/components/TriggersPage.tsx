@@ -10,6 +10,8 @@ import { botInDepartment, filterableDepartments, GENERAL_DEPARTMENT } from "@/li
 import { useStore } from "@/state/store";
 import { useAppTriggers } from "@/lib/app-triggers";
 import { AppEventEditor } from "./automations/AppEventEditor";
+import { HeldAppEventReviews } from "./automations/HeldAppEventReviews";
+import { AppCursorWarning } from "./automations/AppCursorWarning";
 import { useAllAutomationActions } from "./automations/app-actions";
 import { AutomationPanel } from "./automations/AutomationPanel";
 import { AutomationsCalendar } from "./automations/AutomationsCalendar";
@@ -109,6 +111,8 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-3xl p-4 sm:p-6">
               <LimitWarnings botFilter={showFilter ? botFilter : "all"} />
+              <HeldAppEventReviews reviews={appTriggers.heldReviews ?? []} botName={botName} onOpen={setOpenId} />
+              <AppCursorWarning issue={appTriggers.service?.cursorReview ?? (appTriggers.service && !appTriggers.service.available && appTriggers.triggers.some(trigger => trigger.enabled) ? "unavailable" : undefined)} />
               {state.config?.routinesUnreadable && <div role="alert" className="mb-4 rounded-lg bg-danger/10 p-3 text-[12px] leading-relaxed text-danger" data-routines-unreadable="">{t("routines.unreadable")}</div>}
               {all.length === 0 && !state.config?.routinesUnreadable && state.routinesLoadState !== "loading" && state.hydrated ? (
                 <section aria-label={t("automations.empty.title")} className="px-6 py-16 text-center">

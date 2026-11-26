@@ -24,6 +24,8 @@ export interface UsageRow {
   botId: string;
   botName: string;
   threadId: string;
+  /** Distinguishes separately billed requests attributed to the same room turn. */
+  usageId?: string;
   instanceId: string;
   driverKind: string;
   model: string;
@@ -108,8 +110,9 @@ export function usageFileFor(dataDir: string, at: Date): string {
   return join(dataDir, DIR, `${monthKey(at)}.jsonl`);
 }
 
-export function usageRowKey(row: Pick<UsageRow, "at" | "threadId" | "botId">): string {
-  return `${row.at}|${row.threadId}|${row.botId}`;
+export function usageRowKey(row: Pick<UsageRow, "at" | "threadId" | "botId" | "usageId">): string {
+  const legacy = `${row.at}|${row.threadId}|${row.botId}`;
+  return typeof row.usageId === "string" ? `${legacy}|${row.usageId}` : legacy;
 }
 
 export function appendUsage(dataDir: string, row: Omit<UsageRow, "at"> & { at?: string }): Promise<boolean> {

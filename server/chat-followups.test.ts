@@ -27,6 +27,13 @@ function storeFor(botId: string, threadId: string): SteerStore & { messages: Mes
 }
 
 describe("durable accepted follow-ups", () => {
+  it("keeps the associated work-bot offer identity after restart", () => {
+    const queued = queueSteeredMessage("bot", "thread", "fixture clarification", { workBotOfferSource: "source-message" });
+    journal.closeMessageDb();
+    restoreSteeredMessages();
+    expect(journal.chatFollowups().find(row => row.id === queued.id)?.payload.workBotOfferSource).toBe("source-message");
+    expect(queuedSteerSnapshot(() => true).thread).toEqual([expect.objectContaining({ queueId: queued.id, text: "fixture clarification" })]);
+  });
   it("restores bot order, receipt, attachments, reply context, unattended provenance and who to bill", async () => {
     const text = 'inspect this\n\n<attached-image path="/fixture/picture.png" name="picture.png" />';
     const first = queueSteeredMessage("bot", "thread", text, {

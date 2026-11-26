@@ -3,6 +3,18 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { parseStoredConfig } from "./config.ts";
 import { inSecretFolder } from "./secret-folder.ts";
 
+export const EXCLUSION_NOTES = [
+  "Device pairing, server identity, live leases and runtime files (existing destination identities are preserved).",
+  "Saved credentials, provider and MCP connections, managed provider login homes and browser login profiles are not transferred. Destination connections are preserved; reconnect on a new device.",
+  "Downloaded tools and caches (they can be installed again), and recorded browser step screenshots (export them from a conversation to keep them).",
+  "Installed dependency folders (node_modules) and symbolic links inside conversation work folders; reinstall or recreate them in the project.",
+  "External project folders, CLI login homes, browser session homes, OS keychains, companion devices and other servers.",
+  "VM/container disk layers and remote cloud data; durable files inside this workspace are included.",
+  "Private bot configuration drafts and their test questions stay on the original server.",
+  "Waits bots set up: they end within a week, so ask the bot again after restoring.",
+];
+export const RESTORE_WARNING = "Restoring pauses routines, webhooks and calendar calls, ends every wait, and does not resume pending delegations, queued chat messages or queued runs. Definitions and historical receipts are retained; review before enabling them again.";
+
 // Connection sections stay on the destination whole: a restored URL must never redirect an API key kept from that device.
 const PORTABLE_CONFIG_KEYS = [
   "profile", "language", "budgets", "billing", "rooms", "threads",

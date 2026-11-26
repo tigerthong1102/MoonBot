@@ -150,20 +150,20 @@ function whatHappened(incident: Incident): string {
   }
 }
 
-export function incidentRequest(messages: readonly Pick<Message, "role" | "kind" | "text" | "peerAsk">[]): string | null {
+export function incidentRequest(messages: readonly Pick<Message, "role" | "kind" | "text" | "peerAsk" | "workBotReviewHold" | "workBotRouting">[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]!;
-    if (message.role !== "user" || message.kind !== "text" || !message.text) continue;
+    if (message.workBotReviewHold || message.workBotRouting?.state === "held_for_review" || message.role !== "user" || message.kind !== "text" || !message.text) continue;
     const asked = message.peerAsk ? withoutDeliveredNote(message.text) : message.text;
     if (asked) return asked;
   }
   return null;
 }
 
-export function incidentContext(messages: readonly Pick<Message, "role" | "kind" | "text" | "peerAsk">[]): Pick<Incident, "lastRequest" | "lastReply"> {
+export function incidentContext(messages: readonly Pick<Message, "role" | "kind" | "text" | "peerAsk" | "workBotReviewHold" | "workBotRouting">[]): Pick<Incident, "lastRequest" | "lastReply"> {
   return {
     lastRequest: incidentRequest(messages),
-    lastReply: messages.findLast((message) => message.role === "bot" && message.kind === "text" && message.text)?.text ?? null,
+    lastReply: messages.findLast((message) => !message.workBotReviewHold && message.workBotRouting?.state !== "held_for_review" && message.role === "bot" && message.kind === "text" && message.text)?.text ?? null,
   };
 }
 

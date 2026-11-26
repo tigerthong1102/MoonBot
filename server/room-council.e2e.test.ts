@@ -2,6 +2,8 @@ import { createServer } from "node:http";
 import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
 import { fixtureApi } from "../scripts/testing/preview-fixture.ts";
+import { readUsage } from "./usage-ledger.ts";
+import { openSse, type SseRecorder } from "./testing/sse.ts";
 
 it("runs independent ballots, the optional critique and the chair from a real room send", async () => {
   const models = ["gpt-council", "claude-council", "grok-council"];
@@ -25,6 +27,7 @@ it("runs independent ballots, the optional critique and the chair from a real ro
   if (!address || typeof address === "string") throw new Error("missing fixture port");
   const host = await launchVerificationServer();
   const api = fixtureApi(host.info.url, { headers: { origin: host.info.url } });
+  let events: SseRecorder | undefined;
   try {
     await api("PUT", "/api/config", { openaiCompat: { url: `http://127.0.0.1:${address.port}/v1`, key: "fixture", model: models[0] }, instances: { openaiCompat: { driver: "openai-compat" } } });
     const ids: string[] = [];
@@ -48,12 +51,20 @@ it("runs independent ballots, the optional critique and the chair from a real ro
       (row: { tool?: { name: string } }) => row.tool?.name.includes("accepts text only"),
     )).toBe(true);
     expect(calls).toHaveLength(0);
+    events = await openSse(`${host.info.url}/api/events`, { origin: host.info.url });
     await send("/council --critique Should we launch?");
     const transcript = async () => (await api("GET", `/api/threads/${group.threadId}/messages`)).messages as Array<{ tool?: { name?: string }; text?: string }>;
     await expect.poll(async () => {
       const reply = (await transcript()).find(m => m.tool?.name?.includes("did not finish") || m.tool?.name?.includes("Add active room bots") || m.text?.includes("Chair’s synthesis"));
       return reply?.tool?.name ?? (reply ? "synthesized" : "pending");
     }, { timeout: 10000 }).toBe("synthesized");
+    const done = await events.until(frame => frame.kind === "group" && frame.group.id === group.id && !frame.group.working && frame.group.usage?.turns === 7);
+    expect(done.group.usage).toMatchObject({ input: 70, output: 35, turns: 7 });
+    const councilRows = readUsage(host.info.dataDir, { from: new Date(Date.now() - 60_000), to: new Date() })
+      .filter(row => row.model.endsWith("-council"));
+    expect(councilRows).toHaveLength(7);
+    expect(councilRows.every(row => row.threadId === group.threadId && row.usageId)).toBe(true);
+    expect(new Set(councilRows.map(row => row.usageId)).size).toBe(7);
     const ballots = calls.filter(c => c.prompt.includes("Give your independent answer"));
     expect(ballots.map(c => c.model).sort()).toEqual([...models].sort());
     expect(ballots.every(c => !c.prompt.includes("ballot from"))).toBe(true);
@@ -83,5 +94,5 @@ it("runs independent ballots, the optional critique and the chair from a real ro
       return request && rows.some(m => m.replyToId === request.id && m.tool?.name?.includes("did not finish"));
     }, { timeout: 4000 }).toBe(true);
     expect(calls.filter(c => c.prompt.includes("Unmetered fixture"))).toHaveLength(3);
-  } finally { await host.close(); provider.closeAllConnections(); await new Promise<void>(r => provider.close(() => r())); }
+  } finally { events?.close(); await host.close(); provider.closeAllConnections(); await new Promise<void>(r => provider.close(() => r())); }
 }, 90000);

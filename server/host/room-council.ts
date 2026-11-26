@@ -3,7 +3,7 @@ import type { BotRecord, Store } from "../store.ts";
 import type { ProviderInstance } from "../contracts.ts";
 import { runCouncil, type CouncilMember } from "../room-council.ts";
 import { serverLine } from "../server-lines.ts";
-import { ledgerCost } from "../model-prices.ts";
+import { measuredSpend } from "../model-prices.ts";
 import type { PriceList } from "../prices.ts";
 import type { UsageRow, UsageTrigger } from "../usage-ledger.ts";
 import type { UsageCapsConfig } from "../usage-caps-config.ts";
@@ -13,7 +13,8 @@ export async function invokeRoomCouncil(input: {
   members: BotRecord[]; botIds: Set<string>; question: { question: string; critique: boolean }; trigger?: UsageTrigger;
   eligible(id: string): { bot: BotRecord; instance: ProviderInstance; model: string; seat: CouncilMember["seat"]; call: NonNullable<ProviderInstance["generateText"]> } | undefined;
   checkBudget(id: string): void; cap(): UsageCapsConfig["run"]; prices(): PriceList | null;
-  book(row: Omit<UsageRow, "at" | "costSource">, tokensReported: boolean, threadId: string): void;
+  book(row: Omit<UsageRow, "at" | "costSource">, tokensReported: boolean): void;
+  refreshUsage(): Promise<void>;
 }) {
   const candidates: CouncilMember[] = [];
   const councilUsage: { tokens: number | null; usd: number | null } = { tokens: 0, usd: 0 };
@@ -30,7 +31,6 @@ export async function invokeRoomCouncil(input: {
             (cap?.usd && (councilUsage.usd === null || councilUsage.usd >= cap.usd))) throw new Error("Council budget reached");
       };
       checkBudget();
-      const booking = `council-${randomUUID()}`;
       let reported = false;
       let answer: string;
       try {
@@ -38,15 +38,14 @@ export async function invokeRoomCouncil(input: {
           model: live.model, requireIsolatedText: true, signal, timeoutMs: 120000, beforeRequest: checkBudget,
           onUsage: usage => {
             reported = true;
-            const tokens = usage.input !== undefined && usage.output !== undefined ? usage.input + usage.output : null;
-            const row = { botId: member.id, botName: member.name, threadId: booking,
+            const { tokens, usd: cost } = measuredSpend(usage.model, live.instance.driverKind, usage, input.prices());
+            const row = { botId: member.id, botName: member.name, threadId: input.threadId, usageId: randomUUID(),
               model: usage.model, instanceId: live.instance.instanceId, driverKind: live.instance.driverKind,
               input: usage.input ?? 0, output: usage.output ?? 0, cachedInput: usage.cachedInput,
               costUsd: usage.costUsd ?? null, trigger: input.trigger ?? { kind: "owner" as const } };
-            const cost = tokens === null ? row.costUsd : ledgerCost(row, input.prices()).costUsd;
             councilUsage.tokens = councilUsage.tokens === null || tokens === null ? null : councilUsage.tokens + tokens;
             councilUsage.usd = councilUsage.usd === null || cost === null ? null : councilUsage.usd + cost;
-            input.book(row, tokens !== null, input.threadId);
+            input.book(row, tokens !== null);
           },
         });
       } finally {
@@ -71,5 +70,5 @@ export async function invokeRoomCouncil(input: {
       input.store.appendMessage(input.threadId, { role: "bot", kind: "text", from: { botId: bot.id, name: bot.name, color: bot.color },
         replyToId: input.messageId, text: `**${label} · ${member.seat} (${member.model})**\n\n${body}` });
     },
-  });
+  }).finally(input.refreshUsage);
 }

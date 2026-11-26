@@ -13,7 +13,7 @@ export function WorkBotOfferCard({ card, threadId }: { card: OptionCardData; thr
   const available = created && state.bots.some(bot => bot.id === created.id && !bot.hidden);
   const pending = !card.answered && !card.dismissed && !card.expired && !result;
   const decide = (behavior: "allow" | "deny") => {
-    if (threadId && card.requestId) dispatch({ type: "decideRequest", threadId, requestId: card.requestId, behavior });
+    if (threadId && card.requestId) dispatch({ type: "decideRequest", threadId, requestId: card.requestId, behavior, openCreatedBot: behavior === "allow" });
   };
 
   return <section data-work-bot-offer className="w-full max-w-[640px] rounded-2xl border border-hairline bg-card p-4">
@@ -22,9 +22,11 @@ export function WorkBotOfferCard({ card, threadId }: { card: OptionCardData; thr
       <summary className="cursor-pointer">{t("approval.applied.details")}</summary>
       <p className="mt-2 whitespace-pre-line break-words">{card.subtitle}</p>
     </details>}
+    {pending && !card.teamSetupRequest?.workBotOffer?.contextBlock && <p className="mt-2 text-sm text-ink-secondary">{t("workBotOffer.queuedNotice")}</p>}
+    {pending && card.teamSetupRequest?.workBotOffer?.contextBlock && <p role="status" className="mt-2 text-sm text-ink-secondary">{t(card.teamSetupRequest.workBotOffer.contextBlock === "data" ? "server.workBot.dataUnavailable" : "server.workBot.fileUnavailable")}</p>}
     {pending && threadId && canAnswer && <div className="mt-3 flex flex-wrap gap-2">
-      <button type="button" onClick={() => decide("allow")} className={askPrimary(undefined).className}>{card.options[0]}</button>
-      <button type="button" onClick={() => decide("deny")} className={ASK_SECONDARY_BUTTON}>{t("notice.notNow")}</button>
+      {!card.teamSetupRequest?.workBotOffer?.contextBlock && <button type="button" onClick={() => decide("allow")} className={askPrimary(undefined).className}>{card.options[0]}</button>}
+      <button type="button" onClick={() => decide("deny")} className={card.teamSetupRequest?.workBotOffer?.contextBlock ? askPrimary(undefined).className : ASK_SECONDARY_BUTTON}>{t(card.teamSetupRequest?.workBotOffer?.contextBlock ? "workBotOffer.continueHere" : "notice.notNow")}</button>
     </div>}
     {pending && !canAnswer && <p className="mt-2 text-sm">{t("chat.cloudGuest.ownerApproves")}</p>}
     {!pending && <div role="status" className="mt-2 text-sm text-ink-secondary">

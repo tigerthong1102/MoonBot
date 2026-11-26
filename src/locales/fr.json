@@ -1,4 +1,11 @@
 {
+  "workBotOffer.continueHere": "Continuer ici",
+  "server.workBot.scheduleConflict": "Une planification ou exécution du bot lié pourrait faire double emploi ou le lien ne peut pas être vérifié. Vérifiez les planifications concernées.",
+  "server.workBot.choiceInProgress": "Le choix du bot est en cours. Réessayez une fois cette étape terminée.",
+  "server.workBot.pendingUnavailable": "Certains messages en attente ne peuvent pas être transférés en toute sécurité. Retirez-les de la file ou continuez ici.",
+  "workBotOffer.queuedNotice": "Si vous acceptez, les messages envoyés pendant ce choix iront au nouveau bot. Retirez les messages en attente sans rapport avant de choisir.",
+  "server.workBot.genericName": "Travail",
+  "server.workBot.standingGuidance": "Aidez pour les tâches confiées dans cette conversation. Considérez les demandes passées comme un historique et ne répétez aucune action terminée sans nouvelle demande.",
   "skillBurger.aria": "Skill Burger",
   "skillBurger.layers": "Étapes",
   "skillBurger.layersOne": "1 étape",

@@ -87,9 +87,19 @@ export interface AppTriggerService {
   plan?: "desktop" | "cloud";
   eventsPerDay?: number;
   eventsToday?: number;
+  cursorReview?: "unverified" | "changed" | "unavailable" | "event_problem";
+}
+
+/** Personal workspace review lists never include event payloads or grant permission to dispatch. */
+export interface HeldAppEventReview {
+  key: string;
+  receivedAt: number;
+  reason: "conflict" | "unknown";
+  triggers: Array<{ id: string; botId: string; name: string }>;
 }
 
 export interface AppTriggersSnapshot {
+  heldReviews?: HeldAppEventReview[];
   triggers: AppTrigger[];
   attempts: AppEventAttempt[];
   service: AppTriggerService;

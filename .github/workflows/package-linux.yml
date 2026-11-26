@@ -47,12 +47,17 @@ on:
         required: false
         type: string
 
+      upgrade_baseline:
+        description: "Full baseline SHA for the separate Windows upgrade fixture"
+        required: false
+        type: string
+
 permissions:
   contents: read
 
 jobs:
   package:
-    if: ${{ !inputs.desktop && !inputs.mobile }}
+    if: ${{ !inputs.desktop && !inputs.mobile && !inputs.upgrade_baseline }}
     name: DEB + AppImage (Ubuntu 24.04 x64)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -211,6 +216,9 @@ jobs:
           mkdir -p release/internal/smoke
           node scripts/package-payload.mjs --source "release/internal/$source_directory/StartupBot.app" --installed "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --report release/internal/smoke/payload-integrity.json
           node scripts/smoke-internal-desktop.mjs --app "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --output release/internal/smoke
+      - name: Test signed Inbox invitation in installed Electron
+        timeout-minutes: 5
+        run: node scripts/smoke-packaged-inbox-identity.mjs --app "$RUNNER_TEMP/StartupBotInstalled/StartupBot.app" --output release/internal/smoke
       - name: Test the packaged browser and server
         shell: bash
         run: |
@@ -268,6 +276,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Verify private held-event archive on Windows
+        run: pnpm exec vitest run scripts/archive-held-app-events.test.ts
       - name: Verify StartupBot branding and native icon assets
         run: |
           pnpm exec vitest run scripts/startupbot-branding.test.mjs scripts/startupbot-runtime-branding.test.ts scripts/internal-package.test.ts scripts/internal-build-metadata.test.mjs server/phone-secret.test.ts companion/test/phone-secret-key.test.ts
@@ -308,6 +318,12 @@ jobs:
           }
           node scripts/smoke-internal-desktop.mjs --app "$destination/StartupBot.exe" --output release/internal/smoke
           if ($LASTEXITCODE -ne 0) { throw 'Installed application smoke failed' }
+      - name: Test signed Inbox invitation in installed Electron
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          node scripts/smoke-packaged-inbox-identity.mjs --app "$env:RUNNER_TEMP/StartupBotInstalled/StartupBot.exe" --output release/internal/smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Signed Inbox invitation smoke failed' }
       - name: Test the packaged browser and server
         env:
           OMB_SMOKE_DIST: ${{ runner.temp }}/StartupBotInstalled/resources/server
@@ -520,3 +536,96 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
+
+  windows-upgrade:
+    if: ${{ inputs.upgrade_baseline != '' }}
+    name: Windows packaged old-profile upgrade
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      NODE_OPTIONS: --max-old-space-size=4096
+      UPGRADE_BASE_COMMIT: ${{ inputs.upgrade_baseline }}
+      UPGRADE_CANDIDATE_COMMIT: ${{ inputs.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.upgrade_baseline }}
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.ref }}
+          path: candidate
+          persist-credentials: false
+      - name: Verify exact checked out revisions
+        shell: pwsh
+        run: |
+          $baseline = (git -C baseline rev-parse HEAD).Trim()
+          $candidate = (git -C candidate rev-parse HEAD).Trim()
+          if ($baseline -cne $env:UPGRADE_BASE_COMMIT -or $candidate -cne $env:UPGRADE_CANDIDATE_COMMIT) { throw 'The packaged workspaces do not match the requested commits' }
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+        with:
+          package_json_file: candidate/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Prepare and package baseline
+        working-directory: baseline
+        shell: pwsh
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline dependencies failed' }
+          pnpm build:cua:win
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline CUA preparation failed' }
+          pnpm package:prepare
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline build failed' }
+          pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline package failed' }
+      - name: Prepare and package candidate
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          pnpm install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate dependencies failed' }
+          pnpm build:cua:win
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate CUA preparation failed' }
+          pnpm package:prepare
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate build failed' }
+          pnpm exec electron-builder --config electron-builder.internal.yml --win nsis --x64 --publish never
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate package failed' }
+      - name: Create closed baseline fixture and test candidate twice
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'startupbot-old-profile-fixture'
+          $logs = Join-Path $env:RUNNER_TEMP 'startupbot-upgrade-evidence'
+          New-Item -ItemType Directory -Force "$logs" | Out-Null
+          $baselineInstaller = @(Get-ChildItem "$env:GITHUB_WORKSPACE/baseline/release/internal/*-Setup.exe")
+          $candidateInstaller = @(Get-ChildItem "$env:GITHUB_WORKSPACE/candidate/release/internal/*-Setup.exe")
+          if ($baselineInstaller.Count -ne 1 -or $candidateInstaller.Count -ne 1) { throw 'Expected one installer for each revision' }
+          @{ baseline = @{ commit = $env:UPGRADE_BASE_COMMIT; sha256 = (Get-FileHash $baselineInstaller[0].FullName -Algorithm SHA256).Hash }; candidate = @{ commit = $env:UPGRADE_CANDIDATE_COMMIT; sha256 = (Get-FileHash $candidateInstaller[0].FullName -Algorithm SHA256).Hash } } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 "$logs/installer-sha.json"
+          $baselineDestination = Join-Path $env:RUNNER_TEMP 'StartupBot Upgrade Baseline'
+          $candidateDestination = Join-Path $env:RUNNER_TEMP 'StartupBot Upgrade Candidate'
+          $install = Start-Process -FilePath $baselineInstaller[0].FullName -ArgumentList '/S', "/D=$baselineDestination" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Baseline installer failed: $($install.ExitCode)" }
+          node scripts/package-payload.mjs --source "$env:GITHUB_WORKSPACE/baseline/release/internal/win-unpacked" --installed "$baselineDestination" --report "$logs/baseline-payload.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline installed payload differs' }
+          $baseline = Join-Path $baselineDestination 'StartupBot.exe'
+          node scripts/smoke-internal-desktop.mjs --app "$baseline" --output "$logs/baseline" --create-upgrade-fixture "$fixture"
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline fixture creation failed' }
+          $install = Start-Process -FilePath $candidateInstaller[0].FullName -ArgumentList '/S', "/D=$candidateDestination" -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Candidate installer failed: $($install.ExitCode)" }
+          node scripts/package-payload.mjs --source "$env:GITHUB_WORKSPACE/candidate/release/internal/win-unpacked" --installed "$candidateDestination" --report "$logs/candidate-payload.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate installed payload differs' }
+          $candidate = Join-Path $candidateDestination 'StartupBot.exe'
+          node scripts/smoke-upgrade-profile.mjs --fixture "$fixture" --app "$candidate" --output "$logs/candidate"
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate upgrade verification failed' }
+      - name: Upload synthetic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: work-bot-windows-upgrade-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/startupbot-upgrade-evidence/
+          if-no-files-found: error
+          retention-days: 7

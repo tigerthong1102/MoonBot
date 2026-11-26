@@ -15,17 +15,17 @@ export default function InternalReport({ threadId, messageId }: { threadId: stri
     setDoc(null); setFailed(false);
     const controller = new AbortController();
     let busy = false;
-    async function refresh() {
+    async function refresh(background = false) {
       if (busy || controller.signal.aborted) return;
       busy = true;
       try {
-        const root = await fetchAppDocument(threadId, messageId, controller.signal, undefined, true);
+        const root = await fetchAppDocument(threadId, messageId, controller.signal, undefined, { report: true, background });
         if (controller.signal.aborted) return;
         const choices = root.sections ?? [];
         setSections(choices);
         const activeSection = choices.find(s => s.threadId + "/" + s.messageId === selection);
         if (selection && !activeSection) { setDoc(null); setSelection(""); return; }
-        const next = activeSection ? await fetchAppDocument(activeSection.threadId, activeSection.messageId, controller.signal, undefined, true) : root;
+        const next = activeSection ? await fetchAppDocument(activeSection.threadId, activeSection.messageId, controller.signal, undefined, { report: true, background }) : root;
         if (!controller.signal.aborted) {
           setDoc(previous => previous?.rev === next.rev && previous.srcdoc === next.srcdoc && previous.can.openLinks === next.can.openLinks ? previous : next);
           setFailed(false);
@@ -35,9 +35,10 @@ export default function InternalReport({ threadId, messageId }: { threadId: stri
       } finally { busy = false; }
     }
     void refresh();
-    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 30_000);
-    window.addEventListener("focus", refresh);
-    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+    const timer = window.setInterval(() => { if (!document.hidden) void refresh(true); }, 30_000);
+    const onFocus = () => { void refresh(); };
+    window.addEventListener("focus", onFocus);
+    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, [threadId, messageId, selection]);
   return <main className="flex h-dvh flex-col bg-card text-ink">
     <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-hairline px-4 py-2">

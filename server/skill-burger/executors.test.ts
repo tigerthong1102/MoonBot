@@ -131,8 +131,10 @@ describe("where a Skill Burger's steps run", () => {
     const cwd = folder();
     const exec = createExecutors({ botId: "b", cwd, internal: async () => ({ ok: false, body: {} }) });
     const controller = new AbortController();
-    const running = exec.shell({ command: "(sleep 0.5; printf persisted > marker) & wait", env: {}, where: "bot", tool: "shell", signal: controller.signal, maxBytes: 1_000 });
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const running = exec.shell({ command: "touch started; (sleep 0.5; printf persisted > marker) & wait", env: {}, where: "bot", tool: "shell", signal: controller.signal, maxBytes: 1_000 });
+    const startedBy = Date.now() + 5_000;
+    while (!existsSync(join(cwd, "started")) && Date.now() < startedBy) await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(existsSync(join(cwd, "started"))).toBe(true);
     controller.abort();
     expect(await running).toMatchObject({ ok: false });
     await new Promise((resolve) => setTimeout(resolve, 700));

@@ -78,6 +78,7 @@ function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["she
     const err: Buffer[] = [];
     let size = 0;
     let over = false;
+    let cancelled = false;
     const take = (into: Buffer[]) => (chunk: Buffer) => {
       size += chunk.length;
       if (size > input.maxBytes) {
@@ -88,11 +89,13 @@ function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["she
     };
     child.stdout.on("data", take(out));
     child.stderr.on("data", take(err));
-    const stop = () => { void killCliTree(child, 0); };
-    input.signal.addEventListener("abort", stop, { once: true });
+    const stop = () => { cancelled = true; void killCliTree(child, 0); };
+    if (input.signal.aborted) stop();
+    else input.signal.addEventListener("abort", stop, { once: true });
     child.on("error", (error) => done({ ok: false, error: error.message }));
     child.on("close", (code) => {
       input.signal.removeEventListener("abort", stop);
+      if (cancelled) return done({ ok: false, error: "the command was stopped" });
       if (over) return done(tooLarge(input.maxBytes));
       const stdout = Buffer.concat(out).toString("utf8");
       const stderr = Buffer.concat(err).toString("utf8");

@@ -59,7 +59,7 @@ export function redownloadedOrgLibraryPath(path: string): boolean {
 }
 
 export function ephemeralWorkspaceTokenPath(path: string): boolean {
-  // Checkpoints carry single-use approvals and private resolved inputs. Older archives may still contain them.
+  // Checkpoints carry single-use approvals and private resolved inputs.
   return /^(?:hook-tokens(?:\/|$)|skill-burger-runs(?:\/|$)|sessions\.json\.open$)/i.test(path);
 }
 

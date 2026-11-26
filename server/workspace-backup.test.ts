@@ -428,7 +428,6 @@ describe("encrypted full workspace backups", () => {
     const manifest = readJson(join(staging, "manifest.json"));
     expect(manifest.entries.filter((e: { path: string }) => e.path.startsWith(actor))).toEqual([]);
     expect(existsSync(join(staging, "data", actor))).toBe(false);
-    // Reconstitute the format written before the exclusion, including its valid checksum and authenticated encryption.
     const data = [tarEntry("data", "Directory")];
     for (const entry of manifest.entries) data.push(entry.type === "directory" ? tarEntry("data/" + entry.path, "Directory") :
       tarEntry("data/" + entry.path, "File", readFileSync(join(staging, "data", entry.path), "utf8")));

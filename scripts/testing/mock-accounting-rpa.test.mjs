@@ -23,7 +23,6 @@ function setup(t) {
   return { fixture, runtime: fixture.connect() };
 }
 
-// This file-backed corpus performs thousands of durable SQLite writes. Hosted Windows has taken 226s for all 10,000 cases.
 test("10,000-case synthetic corpus verifies every accepted draft and rejects known bad outcomes", { timeout: process.platform === "win32" ? 360_000 : 60_000 }, async (t) => {
   const { runtime } = setup(t);
   const totals = { VERIFIED: 0, UNKNOWN: 0, FAILED: 0, BLOCKED: 0 };

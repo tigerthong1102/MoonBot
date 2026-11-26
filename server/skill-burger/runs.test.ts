@@ -297,7 +297,6 @@ it.each(["ai", "decide"] as const)("reviews the exact %s handoff after interpola
   expect(shown.input).toBe("November ledger");
   expect(card!.reviewHash).toMatch(/^[a-f0-9]{64}$/);
   const token = pause.requiresInput.resumeToken;
-  // A still-open previous-version card and an approval persisted by that version both lack the displayed-action hash.
   expect(waits.decide(token, h.bot, "t1", "allow")).toBe(false);
   expect(waits.decide(token, h.bot, "t1", "allow", "0".repeat(64))).toBe(false);
   const checkpoints = createRunStates(join(h.root, "skill-burger-runs"));

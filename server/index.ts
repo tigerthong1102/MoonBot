@@ -10744,7 +10744,6 @@ function startGroupTurn(
         return before.filter((m) => m.kind === "text" && m.text && !narration.has(m.id)).slice(-GROUP_CONTEXT_MESSAGES);
       })()
     : [];
-  const queuedGroup = options.queuedGroup;
   const message = appendRoomInput(store, threadId, text, channelMode, options, replyTo, sendId, queueId);
   if (options.trigger) turnTriggers.set(threadId, options.trigger);
   const titled = group.dm ? null : store.titleGroupTaskFromFirstMessage(group.id, text, threadId);
@@ -10805,7 +10804,7 @@ function startGroupTurn(
         signal: operation.cancellation.signal,
       })
     : null;
-  if (queuedGroup?.length) operation.queuedQueueIds = queuedGroup.map((item) => item.id);
+  if (options.queuedGroup?.length) operation.queuedQueueIds = options.queuedGroup.map((item) => item.id);
   if (options.pointed && !goalCoordinator) operation.pick = copyRoomPick(options.pointed);
   if (goalCoordinator) {
     operation.goalRun = goalCards.start(threadId, goalCoordinator, text, options.goalRunId?.trim() || `goal-${Date.now().toString(36)}-${randomUUID()}`);

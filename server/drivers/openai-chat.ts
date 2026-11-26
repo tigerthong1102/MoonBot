@@ -1,3 +1,4 @@
+import { completionUsage, reportedCount, usageFrom, type CompletionJson, type Usage } from "./openai-chat-usage.ts";
 import { RuntimeNoticeError, runtimeErrorText } from "./runtime-notice-error.ts";
 import { createHash } from "node:crypto";
 import type {
@@ -21,7 +22,7 @@ import { assertImageTransport, chatImageBudget, chatToolImages, chatUserContent,
 import { promptHalves, volatileContextNote, withContextNote } from "./prompt-split.ts";
 import { createChatToolApproval, refusal } from "./chat-tool-approval.ts";
 import { ChatProtocolError, ChatReasoningDetails, ChatToolCalls, object, type ChatToolCall } from "./openai-chat-protocol.ts";
-import { completionError, httpErrorDetail, refusedToolCall, refusedToolCallFailure, rejectsReasoningReplay, rejectsToolsParameter, RejectedToolCallError, StreamTruncatedError, UnsupportedChatToolsError, UnsupportedReasoningReplayError, type ProviderBody } from "./openai-chat-refusals.ts";
+import { completionError, httpErrorDetail, refusedToolCall, refusedToolCallFailure, rejectsReasoningReplay, rejectsToolsParameter, RejectedToolCallError, StreamTruncatedError, UnsupportedChatToolsError, UnsupportedReasoningReplayError } from "./openai-chat-refusals.ts";
 import { ChatRepeatGuard } from "./chat-repeat-guard.ts";
 import { TextCallHoldback, textToolCalls } from "./chat-text-tool-calls.ts";
 import { createModelRoutes, ModelRouteRefused, noRouteLeft, readResponsesStream, responsesRequest, routeRefusal, type ModelRoute, type ResponseItem } from "./openai-responses.ts";
@@ -48,11 +49,6 @@ export interface OpenAIChatMessage {
   reasoning_details?: Record<string, unknown>[];
 }
 
-interface Usage {
-  input: number;
-  output: number;
-}
-
 export interface Completion {
   text: string;
   reasoning: string;
@@ -63,19 +59,6 @@ export interface Completion {
   protocolReasoningDetails: Record<string, unknown>[];
   /** Every output item of a Responses API reply, encrypted reasoning included, for the next round of this turn only. */
   responseOutput?: ResponseItem[];
-}
-
-interface CompletionJson extends ProviderBody {
-  model?: string;
-  choices?: Array<{
-    index?: number;
-    message?: { content?: unknown; reasoning_content?: unknown; reasoning?: unknown; reasoning_details?: unknown; tool_calls?: unknown; function_call?: unknown };
-    delta?: { content?: unknown; reasoning_content?: unknown; reasoning?: unknown; reasoning_details?: unknown; tool_calls?: unknown; function_call?: unknown };
-    finish_reason?: string | null;
-  }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number };
-  /** Groq reports streaming usage in its final x_groq envelope. */
-  x_groq?: { usage?: CompletionJson["usage"] };
 }
 
 interface NativeLog {
@@ -130,13 +113,6 @@ interface RuntimeOptions<Config> {
    * to fix a failed call instead of ending the turn on it. */
   localModel?: boolean;
 }
-
-const usageFrom = (usage: CompletionJson["usage"]): Usage | null =>
-  usage
-    ? { input: usage.prompt_tokens ?? 0, output: usage.completion_tokens ?? 0 }
-    : null;
-
-const completionUsage = (json: CompletionJson) => json.usage ?? json.x_groq?.usage;
 
 const asError = (value: unknown): Error =>
   value instanceof Error ? value : new Error(String(value));
@@ -316,6 +292,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       if (route === "responses") {
         const reply = await readResponsesStream(response.body, { reasoning: Boolean(options.reasoning), onBytes: resetIdleTimer, onDelta: (text, kind) => onDelta?.(text, kind), fail: failure });
         activeSignal.throwIfAborted();
+        if (reply.usage) onUsage?.({ model, ...reply.usage });
         return reply;
       }
 
@@ -324,13 +301,12 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         const tokenUsage = completionUsage(json);
         if (onUsage) {
           activeSignal.throwIfAborted();
-          const count = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
           onUsage({
             model: typeof json.model === "string" && json.model.trim() ? json.model : model,
-            input: count(tokenUsage?.prompt_tokens),
-            output: count(tokenUsage?.completion_tokens),
-            cachedInput: count(tokenUsage?.prompt_tokens_details?.cached_tokens),
-            costUsd: count(tokenUsage?.cost),
+            input: reportedCount(tokenUsage?.prompt_tokens),
+            output: reportedCount(tokenUsage?.completion_tokens),
+            cachedInput: reportedCount(tokenUsage?.prompt_tokens_details?.cached_tokens),
+            costUsd: reportedCount(tokenUsage?.cost),
           });
         }
         const bodyError = completionError(json, "completion error");
@@ -464,11 +440,12 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     signal?: AbortSignal,
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
-    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string,
+    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string, beforeRequest?: () => void,
   ): Promise<Completion> => {
     for (;;) {
       let replied = false;
       try {
+        beforeRequest?.();
         return await completeOn(routes.routeFor(model, tools.length > 0), messages, model, stream, signal, onDelta && ((text, kind) => {
           replied = true;
           onDelta(text, kind);
@@ -587,7 +564,8 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
 
     void (async () => {
       let tools: ChatToolSession | undefined;
-      const usage: Usage = { input: 0, output: 0 };
+      const usage: { input: number; output: number; cachedInput?: number } = { input: 0, output: 0 };
+      let reportedCost: number | null | undefined;
       let hasUsage = false;
       let ok = false;
       let stopReason: string | null = null;
@@ -657,7 +635,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                 if (streamKind === "assistant_text") answerStreamed = true;
                 const shown = holdback && streamKind === "assistant_text" ? holdback.feed(text) : text;
                 if (shown) delta(shown, streamKind);
-              }, tools.definitions, undefined, turn.variant, turn.threadId);
+              }, tools.definitions, undefined, turn.variant, turn.threadId, turn.requestBudget?.before);
               // A reply cut off at the token limit may be a call cut short; running half of one is worse than saying so.
               const written = holdback && !completion.toolCalls.length && completion.finishReason !== "length" ? textToolCalls(completion.text, tools.definitions) : null;
               unreadable = written?.kind === "unreadable" && !askedAgain;
@@ -676,6 +654,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
               break;
             } catch (value) {
               const error = asError(value);
+              if ((error as Error & { code?: string }).code === "spend_cap") { stopReason = "spend_cap"; throw error; }
               const verdict = classifyError(error);
               // A provider refuses a request with too many tools before running anything: learn its limit and list fewer.
               const refit = streamed || seenCalls.size || abort.signal.aborted ? undefined : await refitChatTools(tools, error, chatToolLimitKey(options.apiUrl, model), [ASK_USER_TOOL_DEFINITION]);
@@ -729,9 +708,12 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           }
           native("in", options.nativeLog.incoming(completion));
           unread = [];
-          if (completion.usage) {
+          reportedCost = reportedCost !== null && typeof completion.usage?.costUsd === "number" ? (reportedCost ?? 0) + completion.usage.costUsd : null;
+          turn.requestBudget?.record(model, completion.usage);
+          if (completion.usage?.input !== undefined && completion.usage.output !== undefined) {
             usage.input += completion.usage.input;
             usage.output += completion.usage.output;
+            if (completion.usage.cachedInput !== undefined) usage.cachedInput = (usage.cachedInput ?? 0) + completion.usage.cachedInput;
             hasUsage = true;
             const contextWindow = options.models().options.find((entry) => entry.id === model)?.contextWindow;
             // Accounting sums the turn; context occupancy is the latest round only.
@@ -908,7 +890,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           emit({ ...base(turn.threadId, turnId), type: "runtime.error", ...words, ...(!cleanupFailed && failureText ? { text: failureText } : {}), terminal: !abort.signal.aborted, ...(replyShownFirst ? { partial: true } : {}) });
         }
         if (!ok && !abort.signal.aborted) {
-          const continuable = classifyContinuable(stopReason, failure);
+          const continuable = stopReason === "spend_cap" ? null : classifyContinuable(stopReason, failure);
           if (continuable) {
             const handoffPath = writeTurnHandoff({
               threadId: turn.threadId, turnId, model,
@@ -920,10 +902,11 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           }
         }
         active.delete(turn.threadId);
-        emit({ ...base(turn.threadId, turnId), type: "turn.completed", ok, stopReason, cost: null,
+        emit({ ...base(turn.threadId, turnId), type: "turn.completed", ok, stopReason, cost: reportedCost ?? null,
           ...(hasUsage && (options.includeUsageInCompleted || seenCalls.size) ? { usage } : {}),
           ...(denials.length ? { denials } : {}),
         });
+        turn.requestBudget?.finish();
         resolveDone();
       }
     })();
@@ -948,7 +931,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     },
     adapter: {
       provider: options.driverKind,
-      capabilities: { ...(options.computerUse ? { computerMcp: options.tools !== false,
+      capabilities: { requestMetering: true, ...(options.computerUse ? { computerMcp: options.tools !== false,
         localComputerMcp: options.tools !== false,
         browserMcp: options.tools !== false, nativeImageInput: true, images: true } : {}),
         ...(options.modelVariants ? { modelVariants: true } : {}), sessionModelSwitch: "in-session", customMcp: options.tools !== false, agentsMcp: options.tools !== false, composioMcp: options.tools !== false,
@@ -984,9 +967,9 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         return () => listeners.delete(listener);
       },
     },
-    generateText: async (prompt, { signal, onUsage, model: named } = {}) => {
+    generateText: async (prompt, { signal, onUsage, model: named, comparison, beforeRequest } = {}) => {
       const model = named ?? options.generateModel?.() ?? options.models().default;
-      const { text, reasoning, toolCalls } = await complete([{ role: "user", content: prompt }], model, false, signal, undefined, [], onUsage);
+      const { text, reasoning, toolCalls } = await complete([{ role: "user", content: prompt }], model, false, signal, undefined, [], onUsage, comparison?.variant, undefined, beforeRequest);
       if (toolCalls.length) throw new ChatProtocolError("provider returned tool calls to a text-only helper");
       return text.trim() ? text : reasoning;
     },

@@ -153,6 +153,10 @@ describe("encrypted full workspace backups", () => {
     expect(manifest.entries.some((entry: { path: string }) => entry.path === "notes.md")).toBe(true);
   });
 
+  it("keeps private bot instruction drafts and test cases on the original server", () => {
+    expect(omittedFromWorkspaceBackup("instruction-drafts/bot/person.json")).toBe(true);
+  });
+
   it("round-trips WAL conversations, binary files, drafts and IDs; preserves destination identity and connections", async () => {
     const source = directory();
     const db = fixture(source);

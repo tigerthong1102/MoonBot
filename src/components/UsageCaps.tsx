@@ -29,6 +29,7 @@ export interface CapState {
 export interface UsageCapView {
   stops: "unattended" | "everything";
   savedStops?: "unattended" | "everything";
+  run?: { tokens?: number; usd?: number };
   server: CapLimits;
   bots: Record<string, CapLimits>;
   env: { stops: boolean; server: CapField[]; values?: { server: CapLimits } };
@@ -126,13 +127,15 @@ function CapsForm({ view, onSaved }: { view: UsageCapView; onSaved?: () => void 
   const { state } = useStore();
   const [stops, setStops] = useState(view.stops);
   const [server, setServer] = useState(() => draftOf(serverInForce(view)));
+  const [run, setRun] = useState(() => draftOf({ dailyTokens: view.run?.tokens, dailyUsd: view.run?.usd }));
   const [bots, setBots] = useState(() => botRows(view));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const saved = JSON.stringify([view.stops, view.server, view.bots, view.env]);
+  const saved = JSON.stringify([view.stops, view.server, view.bots, view.env, view.run]);
   useEffect(() => {
     setStops(view.stops);
     setServer(draftOf(serverInForce(view)));
+    setRun(draftOf({ dailyTokens: view.run?.tokens, dailyUsd: view.run?.usd }));
     setBots(botRows(view));
   }, [saved]);
 
@@ -143,14 +146,15 @@ function CapsForm({ view, onSaved }: { view: UsageCapView; onSaved?: () => void 
     if (saving) return;
     const serverLimits = limitsOf(server);
     const botLimits = bots.map((row) => [row.botId, limitsOf(row.draft)] as const);
-    if (!serverLimits || botLimits.some(([, limits]) => !limits)) {
+    const runLimits = limitsOf(run);
+    if (!runLimits || !serverLimits || botLimits.some(([, limits]) => !limits)) {
       setError(t("usage.caps.invalid"));
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await api("/api/usage/caps", { method: "PUT", body: JSON.stringify(capsToSave(view, stops, serverLimits, Object.fromEntries(botLimits) as Record<string, CapLimits>)) });
+      await api("/api/usage/caps", { method: "PUT", body: JSON.stringify({ ...capsToSave(view, stops, serverLimits, Object.fromEntries(botLimits) as Record<string, CapLimits>), run: { tokens: runLimits.dailyTokens, usd: runLimits.dailyUsd } }) });
       onSaved?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -174,6 +178,14 @@ function CapsForm({ view, onSaved }: { view: UsageCapView; onSaved?: () => void 
             <option value="everything">{t("usage.caps.stopsEverything")}</option>
           </Select>
         </label>
+        <fieldset className="flex flex-wrap gap-2">
+          <legend className="mb-1.5 text-[13px] text-ink">{t("usage.caps.perRun")}</legend>
+          {(["dailyUsd", "dailyTokens"] as const).map(field => <label key={field} className="flex flex-col gap-1 text-xs">
+            {field === "dailyUsd" ? `${t("usage.colCost")} (USD)` : t("usage.colTokens")}
+            <input className={INPUT} disabled={saving} placeholder={t("usage.caps.noCap")} inputMode={field === "dailyUsd" ? "decimal" : "numeric"}
+              value={run[field]} onChange={e => setRun({ ...run, [field]: e.target.value })} />
+          </label>)}
+        </fieldset>
         <div>
           <div className="mb-1.5 text-[13px] text-ink">{t("usage.caps.server")}</div>
           <LimitInputs who={t("usage.caps.server")} draft={server} locked={view.env.server} disabled={saving} onChange={(field, value) => setServer((current) => ({ ...current, [field]: value }))} />

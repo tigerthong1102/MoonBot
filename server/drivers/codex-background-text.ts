@@ -101,7 +101,7 @@ export interface CodexBackgroundArgsInput {
   cwd: string;
 }
 
-export function codexBackgroundArgs(input: CodexBackgroundArgsInput): string[] {
+export function codexBackgroundArgs(input: CodexBackgroundArgsInput & { comparison?: TextGenerationOptions["comparison"] }): string[] {
   return [
     "exec",
     "--json",
@@ -111,7 +111,7 @@ export function codexBackgroundArgs(input: CodexBackgroundArgsInput): string[] {
     "--sandbox", "read-only",
     "--cd", input.cwd,
     "--model", input.model,
-    "-c", `model_reasoning_effort=${JSON.stringify(CODEX_BACKGROUND_EFFORT)}`,
+    ...(input.comparison && !input.comparison.effort ? [] : ["-c", `model_reasoning_effort=${JSON.stringify(input.comparison?.effort ?? CODEX_BACKGROUND_EFFORT)}`]),
     "-c", 'approval_policy="never"',
     "-c", 'web_search="disabled"',
     ...(input.modelProvider ? ["-c", `model_provider=${JSON.stringify(input.modelProvider)}`] : []),
@@ -144,7 +144,7 @@ export async function runCodexOneShot(input: CodexOneShotInput): Promise<string>
   const cwd = mkdtempSync(join(tmpdir(), "omb-codex-background-"));
   try {
     return await new Promise<string>((resolve, reject) => {
-      const argv = codexBackgroundArgs({ model: input.model, modelProvider: input.modelProvider, providerArgs: input.providerArgs, cwd });
+      const argv = codexBackgroundArgs({ model: input.model, modelProvider: input.modelProvider, providerArgs: input.providerArgs, cwd, comparison: input.options?.comparison });
       const child = input.spawn(input.cli, argv, { cwd, env: input.env, stdio: ["pipe", "pipe", "pipe"], botWork: true });
       const describe = input.describeError ?? ((message: string) => message.slice(0, 400));
       let settled = false;

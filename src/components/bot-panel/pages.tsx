@@ -468,7 +468,7 @@ export function SkillsPage({ bot }: PageContext) {
 
   return (
     <>
-      {!state.config?.cloudHome && !state.config?.team && <SavedWorkflowsCard botId={bot.id} />}
+      {(!state.config?.cloudHome || state.config?.team) && <SavedWorkflowsCard botId={bot.id} threadId={bot.threadId} team={Boolean(state.config?.team)} />}
       <Card>
         {skills.loading ? (
           <NoteRow>{t("skills.loading")}</NoteRow>

@@ -10,7 +10,8 @@ import { redactSecretsInText } from "./redact.ts";
 import { activeRunsOf, nextDueOf, schedulerDueOf, wakeHoldOf } from "./routine-due.ts";
 import { startDueTimer, type DueTimer } from "./due-timer.ts";
 import type { GroupGoalRunStatus } from "../shared/group-goal-run.ts";
-import type { RoutineRequestOperation } from "../shared/routine-request.ts";
+import { routineRequestOwnerKey, type RoutineRequestReceipt, type RoutineRequestCommit, type RoutineRequestCommitFor, type RoutineRequestOwner } from "./routine-request-receipt.ts";
+export type { RoutineRequestReceipt, RoutineRequestCommit, RoutineRequestOwner } from "./routine-request-receipt.ts";
 import type { ModelSelection } from "../shared/wire.ts";
 import { intervalAllowsOccurrence, intervalHasRestrictions, isSameLocalDay, latestIntervalOccurrence } from "./routine-intervals.ts";
 import { limitResetOccurrence, mergeScheduleUpdate, nextOccurrence, RoutineScheduleError, type RoutineSchedule, type RoutineScheduleInput } from "./routine-schedules.ts";
@@ -156,31 +157,6 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   seenAt?: number;
 }
 
-export interface RoutineRequestReceipt {
-  requestId: string;
-  messageId: string;
-  botId: string;
-  threadId: string;
-  action: RoutineRequestOperation["action"];
-  fingerprintVersion: 1;
-  fingerprint: string;
-  resultId: string;
-  appliedAt: number;
-}
-
-export interface RoutineRequestCommit {
-  requestId: string;
-  messageId: string;
-  botId: string;
-  threadId: string;
-  action: RoutineRequestOperation["action"];
-  fingerprintVersion: 1;
-  fingerprint: string;
-}
-
-type RoutineRequestCommitFor<Action extends RoutineRequestOperation["action"]> =
-  Omit<RoutineRequestCommit, "action"> & { action: Action };
-
 export interface RoutineInput {
   name: string;
   prompt: string;
@@ -216,12 +192,6 @@ interface RoutineFile {
   holds?: RoutineHoldCause[];
 }
 
-
-export type RoutineRequestOwner = Pick<RoutineRequestReceipt, "requestId" | "messageId" | "botId" | "threadId">;
-
-function routineRequestOwnerKey(owner: RoutineRequestOwner): string {
-  return JSON.stringify([owner.requestId, owner.messageId, owner.botId, owner.threadId]);
-}
 
 /** What a routine's checks found: items for one AI run, a sentence while an app cannot be read, and the next time they
  * have something to do on time. */

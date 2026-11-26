@@ -15,8 +15,8 @@ import { isNativeSkillEnabled } from "../native-skill-choices.ts";
 import { nativeSkillListing, nativeSkills, projectSkillListing, projectSkills, projectSkillsPrompt, readNativeSkillFile, type NativeSkill } from "../native-skills.ts";
 import { redactSecretsInText } from "../redact.ts";
 import { readSectionContext } from "../section-context.ts";
-import { librarySkillOptOuts, readLibrarySkillFile, readSkillLibraryIndex, skillsLibraryEnabled } from "../skill-library.ts";
-import { workflowSkillsPrompt } from "../skill-burger/store.ts";
+import { librarySkillFilePath, librarySkillOptOuts, readLibrarySkillFile, readSkillLibraryIndex, skillsLibraryEnabled } from "../skill-library.ts";
+import { findWorkflowSkill } from "../skill-burger/store.ts";
 import {
   conversationAssignedSkills,
   prepareShareNote,
@@ -52,6 +52,10 @@ type ReceiptArgs = {
   };
 };
 
+function burgerInputs(workflow: { args: Record<string, { default?: unknown }> }): string {
+  const args = Object.entries(workflow.args).slice(0, 8);
+  return args.length ? ` Its inputs: ${args.map(([arg, value]) => `${arg}${value.default === undefined ? "" : ` (saved: ${JSON.stringify(value.default).slice(0, 80)})`}`).join(", ")}; a run without one uses the saved value.` : "";
+}
 export interface SkillsLibraryHostDeps {
   store: Store;
   cfg: AppConfig;
@@ -303,8 +307,7 @@ export function createSkillsLibraryHost(deps: SkillsLibraryHostDeps) {
       const thread = threadId ?? bot.threadId;
       const project = thread ? projectInUse(bot, thread, cwd, instance, assigned) : [];
       return skillsSystemPrompt(bot.id, assigned, threadId === undefined ? undefined : conversationStartedAt(threadId)) +
-        importedSkillsPrompt(listed, available.length - listed.length) + projectSkillsPrompt(project) +
-        (skillsLibraryEnabled(cfg) ? "" : workflowSkillsPrompt(bot.id));
+        importedSkillsPrompt(listed, available.length - listed.length) + projectSkillsPrompt(project);
     },
 
     /** The imported skills a turn links into its task folder: the same ones its index lists, so an engine that loads
@@ -344,7 +347,10 @@ export function createSkillsLibraryHost(deps: SkillsLibraryHostDeps) {
         add(nativesFor(bot, threadId, instance, cwd).filter((skill) => !switched.has(skill.name) && isNativeSkillEnabled(bot.id, skill.name)));
       }
       if (files.size < mentioned.length) add(projectInUse(bot, threadId, cwd, instance, assigned).filter((skill) => !skill.modelOnly));
-      return skillCommandTurnText(text, files, typed, ownStart);
+      const burgers = mentioned.flatMap((name) => { const found = findWorkflowSkill(bot.id, name, undefined, liveAssigned(bot), skillsLibraryEnabled(cfg)); return found ? [{ name, found }] : []; });
+      for (const { name, found } of burgers) if (!files.has(name) && "everyChat" in found.place) files.set(name, librarySkillFilePath(name));
+      const expanded = skillCommandTurnText(text, files, typed, ownStart);
+      return burgers.length ? `${expanded}\n\n${burgers.map(({ name, found }) => `/${name} is a saved Skill Burger: run it with the run_workflow tool (name "${name}"), filling its args from the request, rather than by hand.${burgerInputs(found.workflow)}`).join(" ")}` : expanded;
     },
 
     shareNote(bot: BotRecord, threadId: string, enabled: boolean): TurnShareNote {

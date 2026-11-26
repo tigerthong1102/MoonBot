@@ -17,6 +17,16 @@ const bridge = { socat: "/usr/bin/socat", bridgeScript: "/app/dist-server/bot-bo
 describe("BoxRunner.wrap", () => {
   const setup = { dataDir: "/data/.openmausbot", home: "/data", codeRoots: ["/app"], engineRoots: engineInstallRoots("/data/.openmausbot"), bridges: [{ name: "egress", port: BOX_EGRESS_PORT, socket: "/data/.openmausbot/box/egress.sock" }, { name: "harness", port: 8799, socket: "/data/.openmausbot/box/harness.sock" }] };
 
+  it("passes only explicitly vouched workflow arguments through the box", () => {
+    const runner = new BoxRunner({ bwrap: "/usr/bin/bwrap", bridge, setup, denyEnv: new Set(["OMB_ARG_DENIED"]) });
+    const env = { OMB_ARG_REPORT: "report", OMB_ARG_OTHER: "other", OMB_ARG_DENIED: "denied", OMB_CLOUD_BOOTSTRAP_SECRET: "secret" };
+    const wrapped = runner.wrap({ command: "/bin/sh", args: [], env, workflowEnv: ["OMB_ARG_REPORT", "OMB_ARG_DENIED", "OMB_CLOUD_BOOTSTRAP_SECRET"] });
+    expect(wrapped.env.OMB_ARG_REPORT).toBe("report");
+    expect(wrapped.env.OMB_ARG_OTHER).toBeUndefined();
+    expect(wrapped.env.OMB_ARG_DENIED).toBeUndefined();
+    expect(wrapped.env.OMB_CLOUD_BOOTSTRAP_SECRET).toBeUndefined();
+  });
+
   // An engine installed in the app's npm prefix: the absolute path the driver resolved, or the bare name looked up on the
   // PATH it was handed (the prefix's bin first), both read through the bin link's relative target.
   it.skipIf(process.platform === "win32")("an engine StartupBot installed runs inside: its path, the bin folder on PATH and the package the link points at are there, read-only", () => {
@@ -256,11 +266,14 @@ describe("spawnCli goes through the box", () => {
     expect(boxed.out).toBe("ran");
     expect(boxed.argv).toContain("--unshare-net");
     expect(boxed.argv).toContain("/run/omb/egress.sock");
+    const { createExecutors } = await import("../skill-burger/executors.ts");
+    const workflow = createExecutors({ botId: "fixture", cwd: dir, internal: async () => ({ ok: false, body: {} }) });
+    expect(await workflow.shell({ command: 'printf %s "$OMB_ARG_REPORT"', env: { OMB_ARG_REPORT: "fixture-value" }, where: "bot", tool: "shell", signal: new AbortController().signal, maxBytes: 1_000 })).toEqual({ ok: true, output: "fixture-value" });
     const engines = npmEnginesPrefix(join(dir, "data"));
     expect(boxed.argv, "the engines StartupBot installed, read-only").toContain(`--ro-bind-try\n${engines}\n${engines}\n`);
     expect((await run("openmausbot")).boxed).toBe(false);
     expect((await run("bot", false)).boxed).toBe(false);
-    expect(botBox.report().boxed).toBe(1);
+    expect(botBox.report().boxed).toBe(2);
   });
 });
 

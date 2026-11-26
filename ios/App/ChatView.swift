@@ -15,6 +15,7 @@ struct ChatView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var draft = ""
+    @State private var council = RoomCouncilMode.off
     @State private var showingTasks = false
     @State private var showingComputer = false
     @State private var showingPlus = false
@@ -27,6 +28,7 @@ struct ChatView: View {
     @State private var attachments: [PendingMessageAttachment] = []
     private struct ComposerSnapshot {
         var text = ""
+        var council = RoomCouncilMode.off
         var attachments: [PendingMessageAttachment] = []
         var error: String?
     }
@@ -280,9 +282,10 @@ struct ChatView: View {
         }
         .onChange(of: threadId) { previous, next in
             dictation.stop()
-            threadDrafts[previous] = ComposerSnapshot(text: draft, attachments: attachments, error: attachmentError)
+            threadDrafts[previous] = ComposerSnapshot(text: draft, council: council, attachments: attachments, error: attachmentError)
             let restored = threadDrafts.removeValue(forKey: next) ?? ComposerSnapshot()
             draft = restored.text
+            council = restored.council
             attachments = restored.attachments
             attachmentError = restored.error
             selectedPhotos = []
@@ -626,9 +629,15 @@ struct ChatView: View {
         return next.kind != .text
     }
 
+    private var supportsCouncil: Bool {
+        if case let .room(room) = current { return room.councilAvailable == true && room.dm != true }
+        return false
+    }
+
     private var canSend: Bool {
-        (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty)
-            && !preparingAttachments && !sendingMessage
+        let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let acceptsAttachmentsOnly = !supportsCouncil || council == .off
+        return (hasText || (acceptsAttachmentsOnly && !attachments.isEmpty)) && !preparingAttachments && !sendingMessage
     }
 
     private var composerDraft: Binding<String> {
@@ -695,6 +704,8 @@ struct ChatView: View {
         dictation.stop()
         let draftAtSend = draft
         let text = (explicitText ?? draftAtSend).trimmingCharacters(in: .whitespacesAndNewlines)
+        let modeAtSend = explicitText == nil && supportsCouncil ? council : .off
+        guard modeAtSend == .off || !text.isEmpty else { return }
         let outgoingAttachments = attachments
         let chatAtSend = current
         guard !text.isEmpty || !outgoingAttachments.isEmpty,
@@ -707,7 +718,7 @@ struct ChatView: View {
         showingPlus = false
         Task {
             let sent = await session.send(
-                text: text,
+                text: modeAtSend.message(text),
                 attachments: outgoingAttachments,
                 to: chatAtSend
             )
@@ -720,7 +731,10 @@ struct ChatView: View {
                 return
             }
             if threadId != chatAtSend.threadId {
-                if threadDrafts[chatAtSend.threadId]?.text == draftAtSend { threadDrafts[chatAtSend.threadId]?.text = "" }
+                if threadDrafts[chatAtSend.threadId]?.text == draftAtSend {
+                    threadDrafts[chatAtSend.threadId]?.text = ""
+                    threadDrafts[chatAtSend.threadId]?.council = .off
+                }
                 if threadDrafts[chatAtSend.threadId]?.attachments.map(\.id) == outgoingAttachments.map(\.id) {
                     threadDrafts[chatAtSend.threadId]?.attachments = []
                 }
@@ -728,6 +742,7 @@ struct ChatView: View {
             }
             if draft == draftAtSend {
                 draft = ""
+                council = .off
             }
             if attachments.map(\.id) == outgoingAttachments.map(\.id) {
                 attachments = []
@@ -967,6 +982,25 @@ struct ChatView: View {
 
     private var composer: some View {
         VStack(spacing: 6) {
+            if supportsCouncil {
+                HStack(spacing: 8) {
+                    Toggle("AI council", isOn: Binding(
+                        get: { council != .off },
+                        set: { council = $0 ? .independent : .off }
+                    ))
+                    if council != .off {
+                        Toggle("Include critique round", isOn: Binding(
+                            get: { council == .critique },
+                            set: { council = $0 ? .critique : .independent }
+                        ))
+                    }
+                }
+                .toggleStyle(.button)
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .disabled(preparingAttachments || sendingMessage)
+            }
+
             if preparingAttachments || sendingMessage {
                 HStack(spacing: 8) {
                     ProgressView()

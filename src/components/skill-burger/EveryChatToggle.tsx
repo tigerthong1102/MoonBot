@@ -6,11 +6,12 @@ import { setBurgerEveryChat, type SavedWorkflow } from "@/lib/skill-burger";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { Switch } from "../SettingsPrimitives";
 
-export function EveryChatToggle({ skill, onMoved, compact = false, className }: {
+export function EveryChatToggle({ skill, onMoved, compact = false, className, team = false }: {
   skill: SavedWorkflow;
   onMoved?: (skill: SavedWorkflow) => void;
   compact?: boolean;
   className?: string;
+  team?: boolean;
 }) {
   const admin = useOwnerOrAdmin() !== false;
   const [busy, setBusy] = useState(false);
@@ -20,7 +21,7 @@ export function EveryChatToggle({ skill, onMoved, compact = false, className }: 
     setBusy(true);
     setProblem("");
     try {
-      const moved = await setBurgerEveryChat(skill, !skill.everyChat);
+      const moved = await setBurgerEveryChat(skill, !skill.everyChat, team && !skill.everyChat ? true : undefined);
       onMoved?.(moved);
     } catch (cause) {
       setProblem(cause instanceof Error && cause.message ? cause.message : t("skillBurger.everyChatFailed"));
@@ -42,6 +43,7 @@ export function EveryChatToggle({ skill, onMoved, compact = false, className }: 
       </label>
       {!admin && !compact && <span className="mt-0.5 text-[12px] text-ink-tertiary">{t("settings.adminOnly.change")}</span>}
       {problem && <span role="alert" className="mt-0.5 text-[12px] text-danger">{problem}</span>}
+      {team && !skill.everyChat && <span className="mt-0.5 text-[12px] text-ink-tertiary">{t("skillBurger.share.teamBody")}</span>}
     </div>
   );
 }

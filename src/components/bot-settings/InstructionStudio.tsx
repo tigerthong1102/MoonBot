@@ -6,6 +6,7 @@ import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { intlLocale, t } from "@/lib/i18n";
 import { useStore, type Bot } from "@/state/store";
 import { useBotEditor } from "./BotEditorContext";
+import { Select } from "../Select";
 import { inputCls } from "./field";
 
 const button = "rounded-md border border-hairline/50 px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-control disabled:opacity-50";
@@ -106,22 +107,22 @@ export function InstructionStudio({ bot }: { bot: Bot }) {
             }} />
           </label>
           <label>{t("model.section.default")}
-            <select className={inputCls} value={selected} disabled={busy || !!stale} onChange={e => {
+            <Select value={selected} disabled={busy || !!stale} onChange={e => {
               const [instanceId, model] = JSON.parse(e.target.value) as [string, string];
               changeModel({ instanceId, model });
             }}>
               {choices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
+            </Select>
           </label>
           {(variants?.length || efforts?.length) ? <label>{t("model.section.effort")}
-            <select className={inputCls} disabled={busy || !!stale} value={selection.variant ?? selection.effort ?? ""} onChange={e => {
+            <Select disabled={busy || !!stale} value={selection.variant ?? selection.effort ?? ""} onChange={e => {
               const value = e.target.value;
               changeModel({ instanceId: selection.instanceId, model: selection.model, ...(value && variants?.length ? { variant: value } : isEffortLevel(value) ? { effort: value } : {}) });
             }}>
               <option value="">{t("model.effort.default")}</option>
               {variants?.length ? variants.map(item => <option key={item.id} value={item.id}>{item.label || item.id}</option>)
                 : efforts?.map(effort => <option key={effort} value={effort}>{effort}</option>)}
-            </select>
+            </Select>
           </label> : null}
           <details><summary className="cursor-pointer text-ink-secondary">{t("studio.live")}</summary>
             <p>{view.liveSelection.instanceId} · {view.liveSelection.model} {view.liveSelection.effort ?? view.liveSelection.variant}</p>

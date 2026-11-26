@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseRunCommand } from "../run-command.ts";
 import { draftWorkflow, layerLabel } from "./draft.ts";
+import { applyChoices } from "./draft-view.ts";
 import { renderWorkflowSkillMd, workflowSchema, workflowSkillName } from "./format.ts";
 import { burgerLayers, type RunMessage } from "./layers.ts";
 
@@ -15,6 +16,21 @@ const multi = (slug: string, args: unknown, output?: unknown) =>
   tool("mcp__composio__COMPOSIO_MULTI_EXECUTE_TOOL", { tools: [{ tool_slug: slug, arguments: args }] }, output === undefined ? {} : { output: JSON.stringify(output) });
 
 describe("where each step ran", () => {
+  it.each(["cd nested && printf ok > /Users/ana/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/report.txt", "printf ok > /Users/ana/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/report.txt"])("hands root paths to the bot if execution can start in a subfolder: %s", (command) => {
+    const cwd = command.startsWith("cd ") ? undefined : "/Users/ana/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/nested";
+    const { workflow } = draftWorkflow([ask("Save the report"), tool("Bash", { command, ...(cwd ? { cwd } : {}) }), tool("Bash", { command: "cp report.txt archive.txt" })])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining("conversation-root paths") });
+  });
+  it.each([
+    `python3 -c "open('report.csv','w').write('ok')"`,
+    `node --eval "require('fs').readFileSync('report.csv')"`,
+    `node -p "require('fs').readFileSync('report.csv')"`,
+    `bash -lc "echo 'report.csv'" > output.csv`,
+    `awk "BEGIN { print 'report.csv' }" > output.csv`,
+  ])("hands embedded interpreter source back to the bot: %s", (command) => {
+    const { workflow } = draftWorkflow([ask("Process report.csv"), tool("Bash", { command }), tool("Bash", { command: "cp report.csv archive.csv" })])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining("Treat input values as data") });
+  });
   it("leaves out the app's own status rows", () => {
     const run = [ask("Archive it"), tool("recovery: Automatic recovery: trying Backup once in this thread.", {}), tool("notice: The model changed.", {}), tool("Bash", { command: "cp a.csv archive/" }, { summary: "cp a.csv archive/" })];
     expect(burgerLayers(run).map((layer) => layer.kind)).toEqual(["shell"]);
@@ -107,6 +123,16 @@ describe("burger layers", () => {
 });
 
 describe("Git commands in saved runs", () => {
+  it.each(["'EOF'", '"EOF"', "EOF", "\\EOF"])("hands heredocs with delimiter %s to the bot without changing their bodies", (delimiter) => {
+    const command = `cat <<${delimiter} > out.txt\nVisit https://example.org\nEOF`;
+    const { workflow } = draftWorkflow([ask("Write https://example.org to a file"), tool("Bash", { command }), tool("Bash", { command: "cp out.txt archive.txt" })])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", prompt: expect.stringContaining("heredoc's expansion") });
+    expect(JSON.stringify(workflow.steps[0])).toContain("https://example.org");
+  });
+  it.each(["/projects/customer-a/notes.md", "C:\\projects\\customer-a\\notes.md"])("does not save an unscoped absolute destination %s as an exact file step", (path) => {
+    const { workflow } = draftWorkflow([ask("Write a note"), tool("Write", { file_path: path, content: "hello" }), tool("Bash", { command: "echo done > marker.txt" })])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "ai", deterministic: false, prompt: expect.stringContaining("safe relative destination") });
+  });
   it.each([
     "git branch",
     "git branch -r",
@@ -171,6 +197,11 @@ describe("draftWorkflow", () => {
     expect(draft.workflow.args).toEqual({ value: { default: "staging" } });
   });
 
+  it("records the interpreter for Bash and marks unspecified shells as unknown", () => {
+    const { workflow } = draftWorkflow([ask("Make files"), tool("Bash", { command: "echo {north,south} > regions.txt" }), tool("run_shell_command", { command: "echo data > output.txt" })])!;
+    expect(workflow.steps).toMatchObject([{ kind: "shell", shell: "bash" }, { kind: "shell", shell: "unknown" }]);
+  });
+
   it.each(["cwd", "Cwd", "workdir", "working_directory", "directory", "dir"])(
     "saves the ACP working directory supplied as %s for both shell steps",
     (key) => {
@@ -196,6 +227,16 @@ describe("draftWorkflow", () => {
       kind: "ai",
       prompt: expect.stringContaining('"/projects/customer-a","workdir":"/projects/customer-b"'),
     });
+  });
+
+  it.each([
+    ["/Users/ana/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/reports", "./reports"],
+    ["C:\\Users\\ana\\task-workspaces\\ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9\\a48d8ea2-161f-4ca1-a80c-0591f3082283\\reports", ".\\reports"],
+    ["/Users/Ana Maria/task-workspaces/ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9/a48d8ea2-161f-4ca1-a80c-0591f3082283/reports", "./reports"],
+    ["C:\\Users\\Ana Maria\\task-workspaces\\ae3a6bd7-afb4-4ad1-909b-5a7b6d887ac9\\a48d8ea2-161f-4ca1-a80c-0591f3082283\\reports", ".\\reports"],
+  ])("preserves the task workspace subdirectory in %s", (cwd, expected) => {
+    const { workflow } = draftWorkflow([ask("Archive the report"), tool("run_shell_command", { command: "python report.py", cwd }), tool("run_shell_command", { command: "cp result.csv archive.csv" })])!;
+    expect(workflow.steps[0]).toMatchObject({ kind: "shell", cwd: expected });
   });
 
   it("keeps a redirected write in order before the commands that use its file", () => {
@@ -279,6 +320,8 @@ describe("draftWorkflow", () => {
     expect(steps.map((step) => [step.id, step.kind])).toEqual([["s1", "app"], ["s2_write_2", "ai"], ["s2", "app"]]);
     expect(steps[1]).toMatchObject({ deterministic: false, input: { $step: "s1" }, example: body, label: "Write the body" });
     expect(steps[2]!.kind === "app" && steps[2]!.args.body).toEqual({ $step: "s2_write_2" });
+    const kept = applyChoices(draft.workflow, { skip: ["s2"] });
+    expect("error" in kept ? kept : kept.steps.map((step) => step.id)).toEqual(["s1"]);
   });
 
   it("references distinct composition steps for two fields of the same app call", () => {

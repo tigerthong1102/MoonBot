@@ -60,6 +60,7 @@ export interface BoxRequest {
   /** Names of `env` this process keeps although the allow-list or the workspace-credential deny would drop them: the keys
    * the person saved for this engine. Never a never-list or `OMB_` name. */
   allowEnv?: readonly string[];
+  workflowEnv?: readonly string[];
   /** More read-write paths: a permission socket, a browser profile. */
   rw?: readonly string[];
   /** More read-only paths. */

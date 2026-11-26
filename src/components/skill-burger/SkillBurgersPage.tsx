@@ -3,17 +3,21 @@ import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
-import { renameBurger, useSavedBurgers, type SavedWorkflow } from "@/lib/skill-burger";
+import { renameBurger, runBurgerIn, useSavedBurgers, type SavedWorkflow } from "@/lib/skill-burger";
 import { useStoreDispatch, useStoreSelector } from "@/state/store-select";
 import { BotAvatar } from "../Avatar";
 import { SidebarPopoverMenu } from "../SidebarPopoverMenu";
 import { TOOL_PAGE_TITLE, ToolPage, ToolPageHeader } from "../ToolPageShell";
 import { MiniBurger } from "./MiniBurger";
+import { RunWithInputs } from "./RunInputs";
 import { useBurgerRemoval } from "./SavedWorkflowsCard";
 
 function BurgerCard({ skill, onRemove }: { skill: SavedWorkflow; onRemove: () => void }) {
   const advanced = useAdvancedMode();
+  const dispatch = useStoreDispatch();
   const bot = useStoreSelector((state) => (skill.botId ? state.bots.find((candidate) => candidate.id === skill.botId) : undefined));
+  /** Where Run sends it: the bot it came from, else (one used in every chat whose bot is gone) the first bot. */
+  const runner = useStoreSelector((state) => bot ?? (skill.everyChat ? state.bots.find((candidate) => !candidate.hidden) : undefined));
   const [renaming, setRenaming] = useState<string | null>(null);
   const [problem, setProblem] = useState("");
   const field = useRef<HTMLInputElement>(null);
@@ -83,6 +87,9 @@ function BurgerCard({ skill, onRemove }: { skill: SavedWorkflow; onRemove: () =>
           <span aria-hidden="true">·</span>
           <span className="shrink-0">{skill.layers.length === 1 ? t("skillBurger.layersOne") : t("skillBurger.layersMany", { count: skill.layers.length })}</span>
         </p>
+        {runner && (
+          <RunWithInputs skill={skill} onRun={(inputs) => runBurgerIn(dispatch, runner, skill.name, inputs)} className="ui-button ui-button-md self-start" />
+        )}
         {problem && <p role="alert" className="text-[12px] text-danger">{problem}</p>}
       </div>
     </li>
@@ -92,7 +99,8 @@ function BurgerCard({ skill, onRemove }: { skill: SavedWorkflow; onRemove: () =>
 export function SkillBurgersPage() {
   const dispatch = useStoreDispatch();
   const { skills, error, refresh } = useSavedBurgers();
-  const { removed, problem, remove, undo } = useBurgerRemoval();
+  const team = useStoreSelector((state) => Boolean(state.config?.team));
+  const { removed, problem, remove, undo } = useBurgerRemoval(team);
   const back = useRef<HTMLButtonElement>(null);
   useEffect(() => { back.current?.focus({ preventScroll: true }); }, []);
 

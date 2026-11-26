@@ -95,7 +95,7 @@
   "knowledge.sectionLink": "Internal report link for a section",
   "knowledge.addSection": "Add section",
   "knowledge.removeSection": "Remove",
-  "knowledge.sectionFailed": "Check that you can manage this report and open the source report in this workspace.",
+  "knowledge.sectionFailed": "Check that you can manage this report and open the source report here.",
   "knowledge.title": "Document sources",
   "knowledge.formats": "Choose PDFs with selectable text, UTF-8 text, Markdown or CSV files, or a folder synced to this device by Drive or OneDrive (including SharePoint).",
   "knowledge.files": "Choose files",

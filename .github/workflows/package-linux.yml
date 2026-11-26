@@ -545,13 +545,15 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       NODE_OPTIONS: --max-old-space-size=4096
-      BASE_SHA: ${{ inputs.upgrade_baseline }}
-      CANDIDATE_SHA: ${{ inputs.ref }}
+      UPGRADE_BASE_COMMIT: ${{ inputs.upgrade_baseline }}
+      UPGRADE_CANDIDATE_COMMIT: ${{ inputs.ref }}
     steps:
       - name: Validate exact revisions
         shell: pwsh
         run: |
-          if ($env:BASE_SHA -notmatch '^[a-f0-9]{40}$' -or $env:CANDIDATE_SHA -notmatch '^[a-f0-9]{40}$') { throw 'Both revisions must be full commit SHAs' }
+          foreach ($revision in @($env:UPGRADE_BASE_COMMIT, $env:UPGRADE_CANDIDATE_COMMIT)) {
+            if ($revision.Length -ne 40 -or $revision -cnotmatch '^[0-9a-f]{40}$') { throw 'Both revisions must be full lowercase commit SHAs' }
+          }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.upgrade_baseline }}
@@ -602,7 +604,7 @@ jobs:
           $baselineInstaller = @(Get-ChildItem "$env:GITHUB_WORKSPACE/baseline/release/internal/*-Setup.exe")
           $candidateInstaller = @(Get-ChildItem "$env:GITHUB_WORKSPACE/candidate/release/internal/*-Setup.exe")
           if ($baselineInstaller.Count -ne 1 -or $candidateInstaller.Count -ne 1) { throw 'Expected one installer for each revision' }
-          @{ baseline = @{ commit = $env:BASE_SHA; sha256 = (Get-FileHash $baselineInstaller[0].FullName -Algorithm SHA256).Hash }; candidate = @{ commit = $env:CANDIDATE_SHA; sha256 = (Get-FileHash $candidateInstaller[0].FullName -Algorithm SHA256).Hash } } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 "$logs/installer-sha.json"
+          @{ baseline = @{ commit = $env:UPGRADE_BASE_COMMIT; sha256 = (Get-FileHash $baselineInstaller[0].FullName -Algorithm SHA256).Hash }; candidate = @{ commit = $env:UPGRADE_CANDIDATE_COMMIT; sha256 = (Get-FileHash $candidateInstaller[0].FullName -Algorithm SHA256).Hash } } | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 "$logs/installer-sha.json"
           $baselineDestination = Join-Path $env:RUNNER_TEMP 'StartupBot Upgrade Baseline'
           $candidateDestination = Join-Path $env:RUNNER_TEMP 'StartupBot Upgrade Candidate'
           $install = Start-Process -FilePath $baselineInstaller[0].FullName -ArgumentList '/S', "/D=$baselineDestination" -Wait -PassThru

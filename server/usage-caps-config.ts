@@ -18,6 +18,7 @@ export const usageCapsSchema = z.object({
   stops: z.enum(["unattended", "everything"]).optional(),
   /** Caps on everything this server's bots use together. */
   server: limitsSchema.optional(),
+  run: z.object({ tokens: tokens.optional(), usd: amount.optional() }).strict().optional(),
   /** Caps on one bot, by bot id. */
   bots: z.record(z.string().min(1).max(128), limitsSchema).optional(),
 }).strict();

@@ -16,6 +16,7 @@ import { REPLY_STYLES, type ReplyStyle } from "../../../shared/reply-style";
 import { ApprovalChip } from "../ComposerPlusMenu";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { DefaultBotHideRow } from "../DefaultBotControls";
+import { InstructionStudio } from "../bot-settings/InstructionStudio";
 import { SoulField } from "../SoulField";
 import { BotApiCard } from "../bot-settings/BotApiCard";
 import { PackageProvenance } from "../bot-settings/PackageProvenance";
@@ -122,6 +123,7 @@ export function SettingsPage({ bot, derived, onOpen, editingInstructions = false
                 placeholder: t("botSettings.simple.instructionsPlaceholder", { name }),
               }}
             />
+            <InstructionStudio key={bot.id} bot={bot} />
             <SoulChanges bot={bot} />
             {editingInstructions && (
               <div className="flex justify-end">

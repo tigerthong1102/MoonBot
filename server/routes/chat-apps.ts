@@ -2,6 +2,7 @@ import { APP_LIMITS, ROOM_VIEW_ONLY, type AppPayload } from "../../shared/app.ts
 import { APP_RPC_METHODS, type AppRpcMethod } from "../../shared/app-frame/bridge.ts";
 import { webOrigin } from "../../shared/app-frame/csp.ts";
 import { appRow, createChatApps, rowRate, type ChatApps } from "../chat-apps.ts";
+import { changeReportSection, reportSections } from "../pages/report-sections.ts";
 import { messageFileDisposition } from "../message-file.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import type { BotRecord, Message, Store } from "../store.ts";
@@ -38,6 +39,7 @@ export interface ChatAppRouteDeps {
 }
 
 const DOCUMENT = /^\/api\/threads\/([\w-]+)\/messages\/([\w-]+)\/app(\/download)?$/;
+const REPORT_SECTIONS = /^\/api\/threads\/([\w-]+)\/messages\/([\w-]+)\/app\/sections$/;
 const APP_ACTION = /^\/api\/bots\/([\w-]+)\/apps\/([\w-]+)\/(rpc|context)$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -79,11 +81,37 @@ export function createChatAppRoutes(deps: ChatAppRouteDeps): RouteHandler {
       // A folder page's files load from wherever this client reaches the app; it names that origin itself.
       const origin = webOrigin(url.searchParams.get("origin")) ?? webOrigin(url.origin) ?? undefined;
       const viewer = { key: auth.kind === "session" ? `session:${auth.session.id}` : auth.kind, allowed: () => !visible || visible(auth, threadId) };
-      const doc = apps.appDocument(threadId, m[2]!, asked === null ? undefined : Number(asked), origin, viewer);
+      const doc = apps.appDocument(threadId, m[2]!, asked === null ? undefined : Number(asked), origin, viewer, url.searchParams.get("report") === "1");
       if (!doc) return json(res, 404, userError(asked === null ? "serverError.page.notStored" : "serverError.page.versionGone"));
+      if (url.searchParams.get("report") === "1") {
+        const sections = reportSections(threadId, m[2]!).flatMap(ref => {
+          if (visible && !visible(auth, ref.threadId)) return [];
+          const source = appRow(store, ref.threadId, ref.messageId);
+          return source?.app.report && source.app.source === "html" ? [{ ...ref, title: source.app.title }] : [];
+        });
+        if (sections.length) doc.sections = sections;
+      }
       // `can` and `blocked` change with sign-in and settings: never cached.
       res.setHeader("cache-control", "private, no-store");
       return json(res, 200, doc);
+    }
+
+    m = REPORT_SECTIONS.exec(path);
+    if (m && method === "POST") {
+      if (!auth.scopes.includes("admin")) return json(res, 403, { error: "Only a workspace administrator can change report sections." });
+      const [, threadId, messageId] = m as unknown as [string, string, string];
+      const body = await readBody(req, 4096);
+      if (!isRecord(body) || typeof body.sourceThread !== "string" || typeof body.sourceMessage !== "string" ||
+          !/^[\w-]{1,200}$/.test(body.sourceThread) || !/^[\w-]{1,200}$/.test(body.sourceMessage) ||
+          (body.action !== "add" && body.action !== "remove") || (body.sourceThread === threadId && body.sourceMessage === messageId))
+        return json(res, 400, { error: "Choose another internal report." });
+      const shown = deps.threadVisible;
+      if ((shown && (!shown(auth, threadId) || !shown(auth, body.sourceThread))) || !appRow(store, threadId, messageId)?.app.report ||
+          !appRow(store, body.sourceThread, body.sourceMessage)?.app.report) return json(res, 404, userError("serverError.page.notStored"));
+      const refused = deps.threadRefusal?.(auth, threadId);
+      if (refused) return json(res, 403, { error: refused });
+      const changed = changeReportSection(threadId, messageId, body.sourceThread, body.sourceMessage, body.action === "remove");
+      return json(res, changed ? 200 : 409, changed ? { ok: true } : { error: "A report can include up to 12 source reports." });
     }
 
     m = APP_ACTION.exec(path);

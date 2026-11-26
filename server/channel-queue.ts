@@ -1,6 +1,7 @@
 // Follow-ups sent while a channel works stay off the transcript until it settles, so the current responder cannot appear
 // to answer words it never saw.
 
+import { councilRequest } from "./room-council.ts";
 import { newId } from "./contracts.ts";
 import { chatFollowups, saveChatFollowup, settleChatFollowups } from "./message-db.ts";
 import { drainCoalesceHead, DRAIN_COALESCE_MAX_ITEMS } from "./admission.ts";
@@ -214,6 +215,7 @@ export function headChannelGroup(items: readonly ChannelQueueItem[]): ChannelQue
 function coalesceIdentity(item: ChannelQueueItem): string {
   if (item.via === "api") return `api:${item.id}`;
   if (item.mode !== "chat") return `mode:${item.mode}:${item.id}`;
+  if (councilRequest(item.text)) return `council:${item.id}`;
   if (item.pointed) return `pointed:${item.id}`;
   return item.sender ? `person:${item.sender.id ?? item.sender.name}` : "person:local";
 }

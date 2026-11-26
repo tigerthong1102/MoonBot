@@ -6,6 +6,7 @@ import { DATA_DIR } from "../config.ts";
 import { closeMessageDb } from "../message-db.ts";
 import { requiredScope, type RequestAuth } from "../request-auth.ts";
 import { Store } from "../store.ts";
+import type { TodaySources } from "../today.ts";
 import { createTodayRoutes } from "./today.ts";
 import { PASS, type RouteContext } from "./table.ts";
 
@@ -16,14 +17,20 @@ beforeEach(() => {
 
 const NOW = new Date(2026, 9, 17, 15, 0).getTime();
 
-function setup() {
+function setup(options: {
+  routines?: (botId: string) => TodaySources["routines"];
+  privateThreadId?: string;
+} = {}) {
   const store = new Store(() => ({ instanceId: "claude", model: "claude-sonnet-5" }));
   const bot = store.createBot({ name: "Atlas" });
   store.appendMessage(bot.threadId, { role: "bot", kind: "options", at: NOW - 60_000, card: { title: "Which list?", subtitle: "", options: ["A", "B"], requestType: "question", requestId: "q1" } });
   store.appendMessage(bot.threadId, { role: "bot", kind: "activity", at: NOW - 30_000, tool: { name: "error: Invalid API key · Please run /login", ok: false, setup: true } });
   const route = createTodayRoutes({
-    visibleFor: () => new VisibleSet(store.bots, store.groups, SEES_EVERYTHING),
-    sources: () => ({ bots: store.bots, groups: store.groups, routines: null, engines: [], parked: [] }),
+    visibleFor: () => new VisibleSet(store.bots, store.groups, SEES_EVERYTHING, undefined, options.privateThreadId ? {
+      person: "viewer",
+      of: (id) => id === options.privateThreadId ? "member:someone-else" : undefined,
+    } : undefined),
+    sources: () => ({ bots: store.bots, groups: store.groups, routines: options.routines?.(bot.id) ?? null, engines: [], parked: [] }),
     now: () => NOW,
   });
   const call = async (method: string, target: string, scopes: RequestAuth["scopes"] = ["admin", "client"]) => {
@@ -47,6 +54,28 @@ describe("GET /api/today", () => {
     expect(body).toMatchObject({ since: NOW - 3_600_000, until: NOW, tiles: [], minutesSaved: 0, routineCount: 0 });
     expect(body.lines).toEqual([expect.objectContaining({ ok: false, error: "Invalid API key · Please run /login" })]);
     expect(body.needsYou.map((item: { kind: string }) => item.kind)).toEqual(["signed-out", "question"]);
+  });
+
+  it("excludes private run receipts and their errors even for an admin who sees the bot", async () => {
+    const privateThreadId = "team-member-result";
+    const { call } = setup({
+      privateThreadId,
+      routines: (botId) => ({
+        listRoutines: () => [{ botId }],
+        listRuns: () => {
+          const run = { routineId: "routine", routineName: "Check inbox", botId, status: "failed" as const, manual: false, scheduledFor: NOW - 500, finishedAt: NOW - 100 };
+          return [
+            { ...run, id: "team-run", error: "Shared failure" },
+            { ...run, id: "private-run", threadId: privateThreadId, error: "Private execution failure" },
+            { ...run, id: "private-source", sourceThreadId: privateThreadId, error: "Private source failure" },
+            { ...run, id: "private-result", resultsThreadId: privateThreadId, error: "Private results failure" },
+          ];
+        },
+      }),
+    });
+    const { body } = await call("GET", `/api/today?since=${NOW - 3_600_000}`);
+    expect(body.routines).toEqual({ ok: 0, failed: 1 });
+    expect(body.lines.filter((line: { routineId?: string }) => line.routineId)).toEqual([expect.objectContaining({ id: "team-run", error: "Shared failure" })]);
   });
 
   it("refuses a missing window and other methods, and leaves other paths alone", async () => {

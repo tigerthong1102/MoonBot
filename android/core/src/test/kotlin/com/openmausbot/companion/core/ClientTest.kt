@@ -37,6 +37,23 @@ class ClientTest {
     }
 
     @Test
+    fun roomCouncilReusesTheRoomSendRoute() = runBlocking {
+        val question = "Should we launch?\nInclude rollback options."
+        assertEquals(question, RoomCouncilMode.OFF.message(question))
+        assertEquals("/council $question", RoomCouncilMode.INDEPENDENT.message(question))
+        server.enqueue(json("{}"))
+        val sendId = "native_council_fixture"
+        client.send(RoomCouncilMode.CRITIQUE.message(question), MessageDestination.Room("g1", "t1"), sendId)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/groups/g1/messages", request.path)
+        assertEquals(
+            mapOf("text" to "/council --critique $question", "threadId" to "t1", "sendId" to sendId),
+            stringBody(request.body.readUtf8()),
+        )
+    }
+
+    @Test
     fun pairingUsesTheRightCredentialFieldAndNoAuthorization() = runBlocking {
         server.enqueue(json(fixtureText("pair-response")))
         val older = CompanionClient.pair(connection, "004209", "Ada's phone")

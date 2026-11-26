@@ -5,6 +5,10 @@ MausBot link, and the sites bots published to the person's own Netlify account, 
 records in the bots' own folders (`skills/publish-to-netlify/site-record.md`). A card's Preview, and a published link
 in a bot's message, open the app in a sandboxed frame beside the conversation. Delete takes an app down for good.
 
+## Internal report links
+
+A chat page's toolbar can publish the selected version for the conversation. Its stable report URL opens inside the signed-in StartupBot viewer. Publishing the latest version follows subsequent page and live-folder revisions. Publishing an older version pins that document until the owner publishes another version. Unpublish withdraws the internal link. The server checks conversation membership when fetching the document and its files. The viewer reloads on focus and checks for changes every 30 seconds while visible. The report can include up to twelve other released reports as sections. A viewer sees a section only while their session can read its source conversation and the source remains released. Withdrawing the source, removing the section or revoking access removes it on the next refresh. Section membership is stored on the server outside chat payloads so the signed-in viewer only receives titles and references they may open.
+
 ## The list, who sees what, and Delete
 
 ```sh

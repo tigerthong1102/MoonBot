@@ -11,4 +11,6 @@
     <string name="notification_channel_always_on_desc">Shown while StartupBot stays connected in the background</string>
     <string name="always_on_notification_title">StartupBot is staying connected</string>
     <string name="always_on_notification_text">Notifications will reach you even with the app closed</string>
+    <string name="ui_room_council">AI council</string>
+    <string name="ui_room_council_critique">Include critique round</string>
 </resources>

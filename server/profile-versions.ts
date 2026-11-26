@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 
+import type { ModelSelection } from "../shared/wire.ts";
 import { PROFILE_REQUEST_FIELDS, type ProfileRequestChanges } from "../shared/profile-request.ts";
 import { botFolder, SOUL_FILE } from "./bot-folder.ts";
 import { unifiedDiff } from "./memory-journal.ts";
@@ -22,6 +23,8 @@ export interface HistoryRow {
   after?: string;
   canRestore?: boolean;
   restoreUnavailableReason?: string;
+  modelBefore?: ModelSelection;
+  modelAfter?: ModelSelection;
 }
 
 const FILE_NAME = "history.ndjson";
@@ -50,13 +53,14 @@ function rowFor(field: string, at: number, actor: HistoryActor, via: string, bef
 
 function withRestoreEligibility(row: HistoryRow): HistoryRow {
   const redacted = redactSecrets(row) as HistoryRow;
-  const canRestore = row.field === "soul" && typeof row.before === "string" &&
+  const restorableField = row.field === "soul" || row.field === "configuration";
+  const canRestore = restorableField && JSON.stringify(row.modelBefore) === JSON.stringify(redacted.modelBefore) && typeof row.before === "string" &&
     row.canRestore !== false && row.before === redacted.before &&
     !/«redacted \d+ chars»/.test(row.before);
   return {
     ...redacted,
     canRestore,
-    restoreUnavailableReason: row.field === "soul" && !canRestore
+    restoreUnavailableReason: restorableField && !canRestore
       ? "This version is missing exact text or contains redacted sensitive text and cannot be restored."
       : undefined,
   };
@@ -98,6 +102,11 @@ export function recordProfileChange(
     if (b !== a) rows.push(rowFor(field, at, actor, via, historyText(b), historyText(a)));
   }
   queueHistoryRows(botId, rows);
+}
+
+export function recordInstructionRelease(botId: string, via: string, before: string, after: string, modelBefore: ModelSelection, modelAfter: ModelSelection): void {
+  const row = rowFor("soul", Date.now(), "user", via, before, after);
+  queueHistoryRows(botId, [{ ...row, field: "configuration", modelBefore, modelAfter, summary: `${modelBefore.model} → ${modelAfter.model}` }]);
 }
 
 export async function flushProfileHistory(botId: string): Promise<void> {

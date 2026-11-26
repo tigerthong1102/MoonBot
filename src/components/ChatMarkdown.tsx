@@ -1,4 +1,6 @@
 // Security: model output never reaches the DOM as raw HTML (no rehype-raw); Shiki's output is generator-escaped.
+import { SourceCitation } from "./knowledge/SourceCitation";
+import { parseSourceLink } from "./knowledge/source-cache";
 import { createContext, Fragment, memo, use, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import Markdown, { defaultUrlTransform, type Components, type ExtraProps, type Options as MarkdownOptions } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -649,6 +651,8 @@ function MarkdownLink({ href, children, ...rest }: { href?: string; children?: R
   const ref = address ? resolveThreadRefAddress(threads, address, currentBotId) : null;
   if (ref) return <ThreadLink target={ref} ambiguous={ref.ambiguous}>{children}</ThreadLink>;
   if (address || looksLikeThreadRefUrl(href)) return <span className="break-words">{children}</span>;
+  const citation = parseSourceLink(href);
+  if (citation && message) return <SourceCitation threadId={message.threadId} {...citation}>{children}</SourceCitation>;
   const localPath = localFilePath(href);
   if (localPath) {
     const copy = delivered && Object.hasOwn(delivered, fileName(localPath)) ? delivered[fileName(localPath)] : undefined;

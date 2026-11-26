@@ -2,9 +2,10 @@
 import { createContext, useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Copy, Crosshair, Download, Globe, Loader2, Maximize2, Pin, PinOff, Share2, Trash2, X } from "lucide-react";
-import { useStore } from "@/state/store";
+import { api, useStore } from "@/state/store";
 import { openExternalLink } from "@/lib/app-links";
 import { cn } from "@/lib/cn";
+import { InternalReportSections } from "./InternalReportSections";
 import { useCopyFeedback } from "@/lib/copy-text";
 import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
@@ -16,7 +17,7 @@ import type { AppDocument, AppPayload } from "../../../shared/app";
 import { marksMessage, pointMessage, readPointEvent } from "../../../shared/app-frame/point";
 import type { PublishedPageCard } from "../../../shared/published-page";
 import { canonicalDownloadFilename } from "../AttachmentPreview";
-import { appDownloadPath, publishAppPage, unpublishPage } from "./app-api";
+import { appDocumentPath, appDownloadPath, publishAppPage, unpublishPage } from "./app-api";
 import { AppFrame, type AppFrameHandle } from "./AppFrame";
 import type { AppSelection } from "./app-frame-host";
 import { ASK_CHIP, ASK_CHIP_IDLE, ASK_CHIP_PICKED, ASK_PRIMARY_BUTTON } from "../AskCard";
@@ -61,9 +62,35 @@ type Share =
 
 /** The page's public link, as the row's published card says (publish_page's, or this card's own Share), and Share and
  * Unpublish. The server patches the card, so every window sees the same link. */
-export function usePageShare(threadId: string, messageId: string, published: PublishedPageCard | undefined) {
+export function usePageShare(threadId: string, messageId: string, published: PublishedPageCard | undefined, released = false) {
   const [share, setShare] = useState<Share>({ kind: "idle" });
   const [again, setAgain] = useState(false);
+  const [reportUrl, setReportUrl] = useState("");
+  const [internalLive, setInternalLive] = useState(released);
+  useEffect(() => setInternalLive(released), [released]);
+  useEffect(() => {
+    if (!internalLive) { setReportUrl(""); return; }
+    let active = true;
+    const base = window.location.origin;
+    const url = (host: string) => {
+      const link = new URL("/", host);
+      link.searchParams.set("report", threadId + "/" + messageId);
+      return link.href;
+    };
+    setReportUrl(url(base));
+    if (window.location.protocol !== "https:") void api<{ publicUrl?: string }>("/api/settings/custom-domain", { background: true }).then(settings => {
+      if (active && settings.publicUrl) setReportUrl(url(settings.publicUrl));
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [internalLive, threadId, messageId]);
+  const internal = async (rev: number | null) => {
+    setShare({ kind: "busy" });
+    try {
+      const body = rev === null ? { audience: "withdraw" } : { rev, audience: "conversation" };
+      await api(`${appDocumentPath(threadId, messageId)}/publish`, { method: "POST", body: JSON.stringify(body) });
+      setInternalLive(rev !== null); setShare({ kind: "idle" });
+    } catch { setShare({ kind: "refused", text: t("knowledge.reportFailed") }); }
+  };
   const live = published?.state === "live" && published.url ? published : null;
   const run = async (rev: number) => {
     setShare({ kind: "busy" });
@@ -78,7 +105,7 @@ export function usePageShare(threadId: string, messageId: string, published: Pub
     setShare(await unpublishPage(live.pageId) ? { kind: "idle" } : { kind: "unpublish-failed" });
     setAgain(false);
   };
-  return { share, url: live?.url, again, unpublished: published?.state === "unpublished", run, unpublish };
+  return { share, internal, reportUrl, threadId, messageId, url: live?.url, again, unpublished: published?.state === "unpublished", run, unpublish };
 }
 
 /** On a phone the OS share sheet (Save to Files, Share); elsewhere a download, which Electron turns into its save dialog. */
@@ -231,6 +258,9 @@ export function PageToolbar({ version, point, share, save, ready, fullScreen, ro
           className={cn(ASK_CHIP, point.pointing ? ASK_CHIP_PICKED : ASK_CHIP_IDLE)}>
           <Crosshair size={14} />{t("chat.preview.point")}
         </button>
+        <button type="button" disabled={!ready || busy} onClick={() => void share.internal(version.rev)} className={cn(ASK_CHIP, ASK_CHIP_IDLE)}>
+          <Share2 size={14} />{t("knowledge.reportShare")}
+        </button>
         {!room && <>
           <button type="button" onClick={() => void share.run(version.rev)} disabled={busy} className={cn(ASK_CHIP, ASK_CHIP_IDLE)}>
             {busy ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}{t("chat.preview.share")}
@@ -266,8 +296,17 @@ export function PageToolbar({ version, point, share, save, ready, fullScreen, ro
 export function PageNotes({ version, point, share, save, room, className }: Pick<PageToolsProps, "version" | "point" | "share" | "save" | "room"> & { className?: string }) {
   const { dispatch } = useStore();
   const { state: copied, copy } = useCopyFeedback(share.url ?? "");
+  const internalCopy = useCopyFeedback(share.reportUrl ?? "");
   const state = share.share;
   const rows: ReactNode[] = [];
+  if (share.reportUrl) rows.push(<div key="internal" className="flex flex-wrap items-center gap-2 rounded-lg bg-inset p-2">
+    <a href={share.reportUrl} target="_blank" rel="noopener noreferrer" className="text-accent-text hover:underline">{t("knowledge.reportOpen")}</a>
+    <button type="button" className={cn(ASK_CHIP, ASK_CHIP_IDLE)} onClick={internalCopy.copy}>
+      <Copy size={14}/>{t(internalCopy.state === "copied" ? "chat.page.copied" : "chat.page.copyLink")}</button>
+    <button type="button" className={cn(ASK_CHIP, ASK_CHIP_IDLE)} disabled={state.kind === "busy"} onClick={() => void share.internal(null)}>{t("chat.page.unpublish")}</button>
+    <InternalReportSections threadId={share.threadId} messageId={share.messageId} url={share.reportUrl} />
+    {internalCopy.state === "failed" && <span role="status" className="break-all">{share.reportUrl}</span>}
+  </div>);
   if (share.url) {
     rows.push(
       <div key="link" data-page-link className="flex min-w-0 flex-wrap items-center gap-2 rounded-2xl bg-inset px-3 py-2 text-[13px]">

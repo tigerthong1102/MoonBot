@@ -91,6 +91,8 @@ export interface AppPayload {
   /** Content ids of the versions before `doc`, oldest first, at most APP_PAGE_VERSIONS - 1: the last one is
    * rev - 1. */
   history?: string[];
+  /** Internal report link. Latest follows live updates. A selected older version keeps its document. */
+  report?: "latest" | { doc: string; rev: number };
   /** Bot HTML whose document is a React component file (show_html `jsx`), wrapped in the page shell when served. */
   format?: "jsx";
   /** UTF-8 bytes of the HTML, for the info popover. */
@@ -166,6 +168,8 @@ export interface AppDocument {
   /** Set verbatim as the iframe's srcdoc. Starts with
    * `<!DOCTYPE html><meta http-equiv="Content-Security-Policy" content="…">`. */
   srcdoc: string;
+  /** Internal report sections whose own conversation and publication this viewer can read. */
+  sections?: Array<{ threadId: string; messageId: string; title: string }>;
   /** The policy in that meta, repeated for phone network enforcement. */
   csp: string;
   network: { connect: string[]; resources: string[] };

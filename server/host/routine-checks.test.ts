@@ -137,7 +137,7 @@ describe("a routine's checks", () => {
     s.mail("a", 5);
     s.failing.gmail = "Connected account is not ACTIVE";
     const result = await s.checks.check(s.routine({ checks: ["mail"] }), { manual: false });
-    expect(result).toEqual({ trouble: "Couldn't read Gmail. Reconnect it in Connected apps." });
+    expect(result).toEqual({ reconnectApp: "Gmail", trouble: "Couldn't read Gmail. Reconnect it in Connected apps." });
     expect(s.reports.at(-1)!.trouble).toEqual([{ app: "gmail", signedOut: true }]);
     const reads = s.calls.length;
     s.advance(5 * MINUTE);
@@ -154,7 +154,7 @@ describe("a routine's checks", () => {
     s.several.add("gmail");
     s.failing.gmail = "Backend error 500";
     const result = await s.checks.check(s.routine({ checks: ["mail"] }), { manual: false });
-    expect(result).toEqual({ trouble: "Couldn't read Gmail. Several accounts are connected, so I read the newest one; check or reconnect it in Connected apps." });
+    expect(result).toEqual({ reconnectApp: "Gmail", trouble: "Couldn't read Gmail. Several accounts are connected, so I read the newest one; check or reconnect it in Connected apps." });
     expect(s.reports.at(-1)!.trouble).toEqual([{ app: "gmail", signedOut: false, severalAccounts: true }]);
   });
 

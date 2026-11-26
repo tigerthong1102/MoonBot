@@ -569,12 +569,12 @@ export function threadsWithCardsSince(since: number): string[] {
 }
 
 /** Successful tool calls after a time whose row mentions `word` (case-insensitive), newest last. */
-export function successfulCallsMentioning(since: number, word: string): Array<{ at: number; name: string; input: string | null }> {
+export function successfulCallsMentioning(since: number, word: string): Array<{ threadId: string; at: number; name: string; input: string | null }> {
   return db().prepare(
-    `SELECT at, json_extract(json, '$.tool.name') AS name, ${MULTI_EXECUTE_INPUT} FROM messages ` +
+    `SELECT thread_id AS threadId, at, json_extract(json, '$.tool.name') AS name, ${MULTI_EXECUTE_INPUT} FROM messages ` +
     `INDEXED BY messages_work_at WHERE ${WORK_KINDS} AND kind = 'activity' AND at > ? AND json LIKE ? ESCAPE '\\' ` +
     "AND json_extract(json, '$.tool.ok') = 1 ORDER BY at",
-  ).all(since, `%${word.replace(/[\\%_]/g, "\\$&")}%`) as Array<{ at: number; name: string; input: string | null }>;
+  ).all(since, `%${word.replace(/[\\%_]/g, "\\$&")}%`) as Array<{ threadId: string; at: number; name: string; input: string | null }>;
 }
 
 /** Who sent each request: the fields that tell a person's line from another bot's, the API's or a relay's. */
@@ -675,7 +675,7 @@ export function clearThreadMessages(threadId: string, beforeCommit: () => void):
 }
 
 export function appDocRefs(): string[] {
-  const rows = db().prepare("SELECT json_extract(json, '$.app.doc') AS doc FROM messages WHERE kind = 'app' UNION SELECT doc FROM retained_chat_docs UNION SELECT h.value FROM messages m, json_each(m.json, '$.app.history') h WHERE m.kind = 'app'").all() as Array<{ doc: unknown }>;
+  const rows = db().prepare("SELECT json_extract(json, '$.app.doc') AS doc FROM messages WHERE kind = 'app' UNION SELECT json_extract(json, '$.app.report.doc') FROM messages WHERE kind = 'app' UNION SELECT doc FROM retained_chat_docs UNION SELECT h.value FROM messages m, json_each(m.json, '$.app.history') h WHERE m.kind = 'app'").all() as Array<{ doc: unknown }>;
   return rows.flatMap((row) => (typeof row.doc === "string" && row.doc ? [row.doc] : []));
 }
 

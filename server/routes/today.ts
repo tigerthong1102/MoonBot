@@ -1,4 +1,4 @@
-import { routineVisible, type VisibleSet } from "../bot-visibility.ts";
+import { routineRunVisible, routineVisible, type VisibleSet } from "../bot-visibility.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import type { NeedsYouItem } from "../../shared/today.ts";
 import { needsYouNow, todayReport, type TodaySources, type TodayViewer } from "../today.ts";
@@ -23,7 +23,8 @@ export function createTodayRoutes(deps: TodayRouteDeps): RouteHandler {
     return {
       admin: auth.scopes.includes("admin"),
       thread: (threadId) => visible.thread(threadId),
-      routine: (run) => routineVisible(run, visible),
+      routine: (routine) => routineVisible(routine, visible),
+      run: (run) => routineRunVisible(run, visible),
       ...(asks ? { asks: (botId: string | undefined, threadId: string) => asks(auth, botId, threadId) } : {}),
     };
   };

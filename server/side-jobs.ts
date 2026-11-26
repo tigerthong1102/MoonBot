@@ -3,7 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
-import { helperModelAllowed } from "../shared/wire.ts";
+import { helperModelAllowed, type ModelSelection } from "../shared/wire.ts";
 import { backgroundTextSlots, type JobSlots } from "./job-slots.ts";
 import type { ProviderAdapter, ProviderInstance, SmallModelFallback, TextGenerationOptions } from "./contracts.ts";
 import { refusesModel } from "./quick-model-fallback.ts";
@@ -68,7 +68,7 @@ export interface SideJobsDeps {
   smallModels: { refused(instanceId: string): ReadonlySet<string>; remember(instanceId: string, model: string): void };
   /** Hosted workspaces only. */
   modelAllowed?: (selection: { instanceId: string; model: string }) => boolean;
-  assertWithinBudget: () => void;
+  assertWithinBudget: (botId?: string) => void;
   book: (row: Omit<UsageRow, "at" | "costSource">, tokensReported: boolean, notificationThreadId: string) => void;
   log?: (line: string) => void;
   slots?: JobSlots;
@@ -77,6 +77,7 @@ export interface SideJobsDeps {
 export interface SideJobs {
   /** Null when nobody can write it and the job keeps its fallback. `at.instance`: the conversation's engine, for the summary. */
   text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null;
+  instructionTest(botId: string, selection: ModelSelection): SideJobText | null;
   twinPreview(selection: { instanceId: string; model: string }, twinId: string): {
     instance: SideJobInstance;
     name: string;
@@ -140,9 +141,9 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     };
 
   /** Every call checks the spend limit: one upkeep pass makes several in a row. */
-  const booked = (job: SideJob | "ai-twin-preview", bot: SideJobBot, instance: SideJobInstance, call: TextCall, trigger: UsageTrigger, fixed: () => TextGenerationOptions): SideJobText["generateText"] =>
+  const booked = (job: SideJob | "ai-twin-preview" | "instruction-test", bot: SideJobBot, instance: SideJobInstance, call: TextCall, trigger: UsageTrigger, fixed: () => TextGenerationOptions): SideJobText["generateText"] =>
     async (prompt, options) => {
-      deps.assertWithinBudget();
+      deps.assertWithinBudget(job === "instruction-test" ? bot.id : undefined);
       const threadId = `${job}-${randomUUID()}`;
       return call(prompt, {
         ...options,
@@ -236,6 +237,19 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
   }
   return {
     text: (job, botId, at = {}) => queued(job, find(job, botId, at)),
+    instructionTest(botId, selection) {
+      const bot = deps.bot(botId);
+      if (!bot || !selection.model) return null;
+      const instance = deps.instance(selection.instanceId);
+      if (!instance?.enabled || deps.refusal(instance)) return null;
+      const model = selection.model;
+      if (deps.modelAllowed && !deps.modelAllowed({ instanceId: instance.instanceId, model })) return null;
+      const call = instance.driverKind === "codex" ? instance.generateMemoryText
+        : instance.driverKind === "claudeAgent" || instance.driverKind === "openai-compat" ? instance.generateText : undefined;
+      if (!call) return null;
+      return { via: "engine", generateText: booked("instruction-test", bot, instance, call.bind(instance),
+        { kind: "bot", botId }, () => ({ model, requireIsolatedText: true, beforeRequest: () => deps.assertWithinBudget(bot.id), comparison: { effort: selection.effort, variant: selection.variant } })) };
+    },
     twinPreview(selection, twinId) {
       const instance = deps.instance(selection.instanceId);
       if (!instance?.enabled || !instance.generateText || !selection.model || deps.refusal(instance)) return null;

@@ -14,6 +14,9 @@ export function AppEventsSection({ trigger }: { trigger: AppTrigger }) {
   return (
     <section data-app-events={trigger.id}>
       <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wider text-ink-tertiary">{t("automations.panel.events")}</h3>
+      <p className="mb-2 break-words text-[12px] text-ink-secondary">
+        {t("automations.app.sourceAccount", { app: trigger.appName, account: trigger.accountLabel || trigger.accountId })}
+      </p>
       {skipped && <p className="mb-2 rounded-lg bg-warning/10 px-2.5 py-1.5 text-[12px] text-warning">{skipped}</p>}
       {recent.length === 0
         ? <p className="text-[13px] text-ink-secondary">{t("automations.panel.noEvents")}</p>

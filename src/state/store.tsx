@@ -513,13 +513,14 @@ export interface AppState {
   routines: Routine[];
   routineRuns: RoutineRun[];
   routinesLoadState: "loading" | "ready" | "error"; routineRunsSince: number | null;
-  routinesFocus: { section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter; nonce: number };
+  routinesFocus: { section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runId?: string; runStatus?: RoutineRunStatusFilter; nonce: number };
   webhooks: WebhookTrigger[];
   webhookAttempts: WebhookAttempt[];
   webhookIngress: WebhookIngressStatus | null;
   settingsOpen: boolean;
   pluginsOpen: boolean;
   pluginsSurface: "apps" | "mcp";
+  pluginsSearch?: string;
   botCreationPending: boolean;
   computerOpen: boolean;
   inspectorOpen: boolean;
@@ -590,7 +591,7 @@ export type Action =
   | { type: "sections"; sections: string[] }
   | { type: "botsOrdered"; botIds: string[] } | { type: "groupsOrdered"; groupIds: string[] }
   | { type: "sectionDeleted"; section: string; sections: string[] }
-  | { type: "showRoutines"; section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter }
+  | { type: "showRoutines"; section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runId?: string; runStatus?: RoutineRunStatusFilter }
   | { type: "showTeamMap" } | { type: "showPublishedApps" } | { type: "showSkillBurgers" } | { type: "showWebPanel"; id: string }
   | { type: "showFiles"; suggest?: string[] }
   | { type: "showChat" }
@@ -730,7 +731,7 @@ export type Action =
   | { type: "notice"; notice: AppState["notice"] }
   | { type: "revealThread"; threadId: string }
   | { type: "toggleSettings"; open?: boolean; section?: BotSettingsSection; botId?: string }
-  | { type: "togglePlugins"; open?: boolean; surface?: "apps" | "mcp" }
+  | { type: "togglePlugins"; open?: boolean; surface?: "apps" | "mcp"; search?: string }
   | { type: "toggleComputer"; open?: boolean; botId?: string }
   | { type: "openDataResult"; botId: string; cardId: string }
   | { type: "dataResultFocusConsumed"; requestId: number }
@@ -921,7 +922,7 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         activeView: "routines",
-        routinesFocus: { section: action.section, view: action.view, botId: action.botId, routineId: action.routineId, runStatus: action.runStatus, nonce: state.routinesFocus.nonce + 1 },
+        routinesFocus: { section: action.section, view: action.view, botId: action.botId, routineId: action.routineId, runId: action.runId, runStatus: action.runStatus, nonce: state.routinesFocus.nonce + 1 },
         settingsOpen: false,
         computerOpen: false,
         inspectorOpen: false,
@@ -1379,6 +1380,7 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         pluginsOpen: open,
         pluginsSurface: action.surface ?? state.pluginsSurface,
+        pluginsSearch: action.search,
         ...(open ? { settingsOpen: false, appSettingsOpen: false, shortcutsOpen: false } : {}),
       };
     }

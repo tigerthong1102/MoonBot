@@ -121,6 +121,21 @@ describe("GrokDriver turns (fake fetch)", () => {
     expect(JSON.parse(JSON.parse(bodies[1]!).messages.at(-1).content).result).toBe(reply);
   }, 20_000);
 
+  it("checks the request ceiling again before a retry and never submits or hands off the blocked request", async () => {
+    script = [{ status: 429 }];
+    await create();
+    let checks = 0, completions = 0;
+    await instance.adapter.sendTurn({ threadId: "t-budget", text: "go", requestBudget: {
+      before() { if (++checks > 1) throw Object.assign(new Error("spending cap"), { code: "spend_cap" }); },
+      record() {}, finish() { completions++; },
+    } });
+    const done = await recorder.until(event => event.type === "turn.completed");
+    expect(done).toMatchObject({ ok: false, stopReason: "spend_cap" });
+    expect(calls).toBe(1);
+    expect(completions).toBe(1);
+    expect(recorder.events.some(event => event.type === "cap.exhausted")).toBe(false);
+  });
+
   it("auto-retries transient 429/5xx responses, then completes once", async () => {
     script = [{ status: 429 }, { status: 503 }];
     await create();

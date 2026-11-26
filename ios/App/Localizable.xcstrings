@@ -1,6 +1,38 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "AI council" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conselho de IA"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hội đồng AI"
+          }
+        }
+      }
+    },
+    "Include critique round" : {
+      "localizations" : {
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incluir rodada de críticas"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm vòng phản biện"
+          }
+        }
+      }
+    },
     "%lld saved": {
       "localizations": {
         "pt-BR": {

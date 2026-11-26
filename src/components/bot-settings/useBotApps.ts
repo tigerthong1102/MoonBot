@@ -6,6 +6,7 @@ import { api, type Bot } from "@/state/store";
 import type { ConnectorScope } from "../../../shared/connector-scopes";
 import { EMAIL_SLUG, type EmailStatus } from "../../../shared/email";
 import { preloadConnectedApps, type ConnectorInventory } from "@/lib/connected-apps";
+import type { ConnectorAccount } from "@/lib/connector-status";
 import type { ToolkitCard } from "../ServiceIcon";
 
 export interface BotApp {
@@ -20,6 +21,7 @@ export interface BotApps {
   phase: "loading" | "ready" | "unknown";
   apps: BotApp[];
   connectedSlugs: string[];
+  accounts?: Record<string, ConnectorAccount[]>;
 }
 
 let cardsRequest: Promise<Map<string, ToolkitCard>> | null = null;
@@ -70,7 +72,10 @@ export function botAppsFrom(
       scope: botAppScope(bot, slug),
     };
   });
-  return { phase: "ready", apps, connectedSlugs };
+  const accounts = Object.fromEntries(Object.entries(inventory.services)
+    .filter(([, service]) => service.accounts?.length)
+    .map(([slug, service]) => [slug, service.accounts!]));
+  return { phase: "ready", apps, connectedSlugs, ...(Object.keys(accounts).length ? { accounts } : {}) };
 }
 
 /** The apps plus whether this lookup's inventory, app catalog and Email requests have answered (or failed); the values alone

@@ -24,6 +24,7 @@ export function desktopCompanionRendererArguments(localOrigin, remoteAccess) {
 const MIME = {
   ".html": "text/html",
   ".js": "text/javascript",
+  ".mjs": "text/javascript",
   ".css": "text/css",
   ".svg": "image/svg+xml",
   ".png": "image/png",

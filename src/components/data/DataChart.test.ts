@@ -271,3 +271,18 @@ describe("DataChart refresh", () => {
     expect(host.children).toHaveLength(0);
   });
 });
+
+it("inspects the original query row for a clicked point, and labels a derived aggregate separately", async () => {
+  const listener = vi.fn();
+  fixture.embed.mockResolvedValue({ ...view(), view: { ...view().view, addEventListener: listener } });
+  flushSync(() => root.render(createElement(DataChart, { botId: "bot", cardId: "c_1", spec: { mark: "point" }, rowCount: 1, theme: "light", inline: true })));
+  await settle();
+  const click = listener.mock.calls[0]![1];
+  const bound = fixture.embed.mock.calls[0]![1] as { datasets: { table: unknown[] } };
+  flushSync(() => click({}, { datum: bound.datasets.table[0] }));
+  expect(host.querySelector("aside")?.textContent).toContain("Query result · row 1");
+  expect(host.querySelector("aside")?.textContent).not.toContain("__startupbotQueryRow");
+  flushSync(() => click({}, { datum: { sum_amount: 35 } }));
+  expect(host.querySelector("aside")?.textContent).toContain("Plotted values");
+  expect(host.querySelector("aside")?.textContent).toContain("sum_amount35");
+});

@@ -486,6 +486,7 @@ data class Room(
     val tasks: List<BotTask>? = null,
     val messages: List<Message>? = null,
     val hasMore: Boolean? = null,
+    val councilAvailable: Boolean = false,
 )
 
 @Serializable(with = FleetSerializer::class)

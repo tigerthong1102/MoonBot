@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -342,6 +342,33 @@ describe("apps each person connects", () => {
 });
 
 const BOT = { id: "bot-1", name: "Bot" };
+
+describe("connection authority at dispatch", () => {
+  it("refuses to reuse a team scope changed while a call waited", () => {
+    const { host } = setup();
+    const capability = { threadId: "room-chat", generation: "g" };
+    const started = host.scopes.appRevision();
+    expect(host.relayDispatchRefusal(capability, started, undefined)).toBeNull();
+    host.scopes.set("app", "gmail", "person");
+    expect(host.relayDispatchRefusal(capability, started, undefined)).toMatch(/team changed/);
+  });
+
+  it("refuses a replaced personal account and still excludes that account from rooms", () => {
+    const { host, dataDir } = setup();
+    const file = adaConnected(host, dataDir);
+    const capability = { threadId: "ada-chat", generation: "g", connectorsFor: ADA };
+    const revision = host.scopes.appRevision();
+    const access = host.relayActor(capability).access;
+    expect(access).toEqual(ADA_ACCESS);
+    expect(host.relayDispatchRefusal(capability, revision, access)).toBeNull();
+    expect(host.relayDispatchRefusal({ ...capability, threadId: "room-chat" }, revision, access)).toMatch(/no longer acts for/);
+    const data = JSON.parse(readFileSync(file, "utf8"));
+    data.people[ADA].token = "e".repeat(64);
+    writeFileSync(file, JSON.stringify(data));
+    expect(host.relayDispatchRefusal(capability, revision, access)).toMatch(/account changed/);
+    expect(host.relayDispatchRefusal(capability, revision, host.relayActor(capability).access)).toBeNull();
+  });
+});
 
 describe("MCP servers each person connects", () => {
   it("gives a turn that acts for her her key, never the team's, and no other turn either", async () => {

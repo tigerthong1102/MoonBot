@@ -4442,3 +4442,20 @@ describe("schedule automations that keep one conversation", () => {
     expect(() => h.manager.create({ ...daily, sameConversation: true, schedule: { type: "limit_reset", engine: "claude" } as never })).toThrow("already continues its conversation");
   });
 });
+
+it("records a preflight block before allocating an execution thread and runs again when the block clears", async () => {
+  const h = harness();
+  h.options.preflight = () => ({ reason: "approval", text: "Permission confirmation is pending" });
+  const routine = h.manager.create({ name: "Check approvals", prompt: "Check", botId: "maus-1", schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.parse("2026-08-18T00:00:00Z") } });
+  const attempt = h.manager.runNow(routine.id)!;
+  await h.manager.tick();
+  expect(h.manager.listRuns().find((run) => run.id === attempt.id)).toMatchObject({
+    status: "failed", blockedBy: "approval", error: "Permission confirmation is pending",
+  });
+  expect(h.taskTitles).toEqual([]);
+  expect(h.started).toEqual([]);
+  h.options.preflight = () => null;
+  h.manager.runNow(routine.id);
+  await h.manager.tick();
+  expect(h.started).toHaveLength(1);
+});

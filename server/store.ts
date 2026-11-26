@@ -1536,10 +1536,12 @@ export class Store {
     return changed;
   }
 
-  patchBotProfile(id: string, patch: BotProfilePatch & Partial<Pick<BotRecord, "cwd" | "browserProfile" | "lastProfileRequestId">>): BotRecord | null {
+  patchBotProfile(id: string, patch: BotProfilePatch & Partial<Pick<BotRecord, "cwd" | "browserProfile" | "lastProfileRequestId">>, modelSelection?: ModelSelection): BotRecord | null {
     const bot = this.own(id);
     if (!bot) return null;
-    const next = { ...bot, ...reshowWhenMoved(bot, patch) };
+    const next = { ...bot, ...reshowWhenMoved(bot, patch), ...(modelSelection ? {
+      modelSelection: structuredClone(modelSelection), tasks: this.withDefaultModel(bot, modelSelection),
+    } : {}) };
     if (patch.soul !== undefined) {
       next.soulHash = soulHash(patch.soul);
       next.soulDrift = false;

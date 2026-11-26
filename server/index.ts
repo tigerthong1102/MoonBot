@@ -194,6 +194,10 @@ import type { PriceList } from "./prices.ts";
 import type { RequestAuth } from "./request-auth.ts";
 import { adminAuditPlan, type AuditPlan } from "./admin-audit-plan.ts"; import { departmentGrants, type DepartmentGrant } from "./department-grants.ts";
 import { onKeyRejectionChange } from "./key-rejections.ts";
+import { createRequestBudgets } from "./request-budget.ts";
+import { appendRoomInput, noteAbsentRoomMembers, noteUnavailableResponder, roomTurnTarget, type StartGroupTurnOptions } from "./host/room-turn-input.ts";
+import { invokeRoomCouncil } from "./host/room-council.ts";
+import { councilRequest, councilSeat } from "./room-council.ts";
 import { assertWithinBudget, noteSpend, spendAlertText, spendState, takeSpendAlert } from "./spend.ts"; import { personWaiting, personWaitingInRoom, type ThreadStanding } from "./usage-caps.ts"; import { createUsageCapGate, USAGE_CAP_CODE } from "./host/usage-cap-gate.ts"; import { createUsageCapRoutes } from "./routes/usage-caps.ts";
 import { fleetAvailable, fleetSocketPath } from "./fleet-client.ts";
 import { HOSTED_CONTRACT_HEADER, HOSTED_CONTRACT_METADATA, HOSTED_CONTRACT_VERSION } from "./hosted-contract.ts";
@@ -260,7 +264,6 @@ import {
 import {
   drainChannelMessages,
   restoreChannelMessages,
-  type ChannelQueueItem,
 } from "./channel-queue.ts"; import { copyRoomPick, pointedResponders, roomPickBots, takeRoomPick, undeliveredPickBots, type RoomPick } from "./room-pointed.ts";
 import {
   acceptedSendMatch,
@@ -288,6 +291,7 @@ import { createCreditMoves } from "./cloud-credit-moves.ts"; import { createRout
 import { TRIAL_CREDIT_OWN_AI, TRIAL_KEY_HELD } from "./trial-credit.ts"; import { createHeldKeys } from "./cloud-held-keys.ts";
 import type { ProviderInstance } from "./contracts.ts";
 import { readyToRun, selectDefaultModelSelection, withInstanceConfig, withNewBotEffort, type SelectableInstance } from "./default-model-selection.ts"; import { configIdentity, createTestedAi } from "./tested-ai.ts"; import { instanceLook } from "./provider-icon.ts";
+import { sameModelSelection } from "../shared/thread-model.ts";
 import { threadModelFallback, type ThreadEngine } from "./thread-model.ts";
 import { computerEngineMoveText, removedComputerInstanceIds, writeComputerEngineMoveLines } from "./computer-engine-removal.ts";
 import { peerDeliveryReceipt, type PeerDeliveryReceipt } from "./peer-delivery.ts";
@@ -475,7 +479,7 @@ import { ModelRequestService } from "./model-requests.ts";
 import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts";
 import { startsWithoutCloudComputer, teamSetupDecisionText as decisionText, type TeamSetupRequest } from "../shared/team-setup.ts";
 import { profileRevision, profileSnapshot } from "./profile-revision.ts";
-import { flushAllProfileHistory, flushProfileHistory, readHistory, recordProfileChange, soulChanges } from "./profile-versions.ts";
+import { flushAllProfileHistory, flushProfileHistory, readHistory, recordInstructionRelease, recordProfileChange, soulChanges } from "./profile-versions.ts";
 import { TeamMemory, TEAM_MEMORY_KINDS, type TeamMemoryKind } from "./team-memory.ts";
 import { describeTool } from "./activity.ts";
 import { OutboundRequestService } from "./outbound-requests.ts";
@@ -591,6 +595,7 @@ import { holdBodyDeadline } from "./body-deadline.ts";
 import { createNoAiNotice } from "./host/no-ai-notice.ts"; import { PASS, ROUTES, dispatchRoutes } from "./routes/table.ts"; import { createBotLinkHost } from "./host/bot-link-host.ts"; import { followRoomMentions } from "./host/bot-link-rooms.ts"; import { standInAmong, standInWriteRefusal } from "./host/stand-in-guard.ts"; import { isBotLinkHeldPath, linkSessionRefusal } from "./routes/bot-link.ts"; import { createSecretCards } from "./host/secret-cards.ts"; import { createInternalCredentialRequestRoutes, createSecretCardRoutes } from "./routes/secret-cards.ts"; import { applyIncludedPagesMessage } from "./pages/access.ts"; import { createPublishedPages } from "./pages/service.ts"; import { createInternalToolRoutes } from "./routes/internal-tools.ts"; import { createHelperSuggestionRoutes } from "./routes/helper-suggestion.ts"; import { createXConnectorRoutes } from "./routes/x-connector.ts"; import { createMoveFreeze, switchAutomationsOff } from "./move-freeze.ts"; import { createMoveFreezeRoutes } from "./routes/move-freeze.ts"; import { createMoveWaits } from "./move-waits.ts"; import { assertBotHere, botMoveRefusal, createBotMoves } from "./bot-moves.ts"; import { createBotMoveRoutes } from "./routes/bot-moves.ts"; import { createTeamMoveIn, moveInRefusal } from "./team-move-in.ts";
 import { inboxBotTextRoutes } from "./routes/inbox-bot-text.ts";
 import { applyDesktopMutationTokenMessage } from "./host/desktop-owner.ts";
+import { createInstructionStudio } from "./routes/instruction-studio.ts";
 import { createAiTwinRoutes } from "./routes/ai-twin.ts";
 import { createHostedSlackRoutes } from "./routes/hosted-slack.ts";
 import { createBotPresetRoutes } from "./routes/bot-presets.ts"; import { createWorkspaceBannerRoutes, workspaceBannerStore, workspaceBannerSummary } from "./routes/workspace-banner.ts";
@@ -1350,8 +1355,29 @@ function operatorPrices(): PriceList | null {
   return entitled("billing") && cfg.billing?.prices && Object.keys(cfg.billing.prices).length ? cfg.billing.prices : null;
 }
 
-const attributeUsage = createUsageAttribution({ section: (botId) => store.bot(botId)?.section, threadTrigger: (threadId) => turnTriggers.get(threadId), routineWriter: (id) => { const key = cloudRoutineAuthors?.writer(id); return key ? teamOwners.people?.list().find((one) => personKey({ id: "", email: one.email }) === key)?.email : undefined; } }); const usageCapGate = createUsageCapGate({ dataDir: DATA_DIR, caps: () => cfg.usageCaps, botName: (botId) => store.bot(botId)?.name, language: () => appLanguage(), log: (line) => console.log(line), notice: (aboutBotId, title, body) => { const bot = store.bot(aboutBotId ?? "") ?? store.bots[0]; if (bot) broadcast({ kind: "notify", notification: logNotification(buildSpendNotification({ id: bot.id, name: bot.name }, bot.threadId, { title, body })) }, { adminOnly: true }); } }); const threadStanding = (botId: string, threadId: string): ThreadStanding => { const owner = directRequestOwners.get(threadId); return { unattended: isUnattended(botId, threadId), automation: owner?.automation, origin: owner?.origin?.kind }; }; const routineTriggerOf = (threadId: string) => { const run = activeRoutineRunForThread(threadId); return run ? run.triggerSource ?? (run.manual ? "manual" : "schedule") : undefined; }; function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true, notificationThreadId = row.threadId): void {
+const attributeUsage = createUsageAttribution({ section: (botId) => store.bot(botId)?.section, threadTrigger: (threadId) => turnTriggers.get(threadId), routineWriter: (id) => { const key = cloudRoutineAuthors?.writer(id); return key ? teamOwners.people?.list().find((one) => personKey({ id: "", email: one.email }) === key)?.email : undefined; } }); const usageCapGate = createUsageCapGate({ dataDir: DATA_DIR, caps: () => cfg.usageCaps, botName: (botId) => store.bot(botId)?.name, language: () => appLanguage(), log: (line) => console.log(line), notice: (aboutBotId, title, body) => { const bot = store.bot(aboutBotId ?? "") ?? store.bots[0]; if (bot) broadcast({ kind: "notify", notification: logNotification(buildSpendNotification({ id: bot.id, name: bot.name }, bot.threadId, { title, body })) }, { adminOnly: true }); } }); const threadStanding = (botId: string, threadId: string): ThreadStanding => { const owner = directRequestOwners.get(threadId); return { unattended: isUnattended(botId, threadId), automation: owner?.automation, origin: owner?.origin?.kind }; }; const routineTriggerOf = (threadId: string) => { const run = activeRoutineRunForThread(threadId); return run ? run.triggerSource ?? (run.manual ? "manual" : "schedule") : undefined; }; const makeRequestBudget = createRequestBudgets({ config: () => cfg, directory: DATA_DIR,
+  activeRoots: () => new Set(coordinator.active().map(node => node.rootId)),
+});
+function budgetRoot(botId: string, threadId: string) {
+  const node = coordinator.inThread(threadId, { open: true }).find(one => one.botId === botId);
+  const root = node && coordinator.node(node.rootId);
+  return root ? { id: root.id, bot: root.botId } : undefined;
+}
+function turnRequestBudget(botId: string, threadId: string, driverKind: string, waiting: boolean): NonNullable<SendTurnInput["requestBudget"]> {
+  const meter = makeRequestBudget(botId, waiting, () => budgetRoot(botId, threadId));
+  return { before: meter.before, finish: meter.finish, record(model, usage) {
+    const usd = usage && ledgerCost({ model, driverKind, ...usage, costUsd: usage.costUsd }, operatorPrices()).costUsd;
+    // An explicitly limited run cannot continue with an unmeasurable balance.
+    meter.record(usage ? usage.input + usage.output : cfg.usageCaps?.run?.tokens ?? 0, usd ?? cfg.usageCaps?.run?.usd ?? 0);
+  } };
+}
+function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported = true, notificationThreadId = row.threadId): void {
   const cost = tokensReported || row.costUsd !== null ? ledgerCost(row, operatorPrices()) : { costUsd: null };
+  if (cfg.usageCaps?.run && !registry.get(row.instanceId)?.adapter.capabilities.requestMetering && budgetRoot(row.botId, row.threadId)) {
+    const meter = makeRequestBudget(row.botId, false, () => budgetRoot(row.botId, row.threadId));
+    meter.record(tokensReported ? row.input + row.output : cfg.usageCaps.run.tokens ?? 0, cost.costUsd ?? cfg.usageCaps.run.usd ?? 0);
+    meter.finish();
+  }
   const booked = attributeUsage({ ...row, ...cost, ...usageTrace.settle(row.threadId), at: new Date().toISOString() });
   // The append is async; noteSpend counts the row from memory until it lands, so the cap check sees it.
   noteSpend(DATA_DIR, booked, appendUsage(DATA_DIR, booked));
@@ -4083,7 +4109,6 @@ function readCursor(threadId: string): { lastReadMessageId?: string } {
 }
 
 function publicGroupState(record: GroupRecord): WireGroup {
-  // The organization library's part hashes stay server-side.
   const { installedPackage: _installedPackage, ...group } = record;
   let usage: WireGroup["usage"];
   try { usage = groupUsageReader.forThread(group.threadId); } catch {}
@@ -4101,6 +4126,7 @@ function publicGroupState(record: GroupRecord): WireGroup {
   const activeWorking = groupThreadIsWorking(record.id, group.threadId);
   return {
     ...group,
+    councilAvailable: !record.dm,
     tasks: record.dm ? undefined : tasks,
     // Always present (null when cleared), so a client's shallow merge clears a stale value.
     description: record.description ?? null,
@@ -5100,7 +5126,7 @@ const sideJobs = createSideJobs({
   refusal: (instance) => policyModelRefusal(instance), smallModels: quickFallback,
   helper: cacheUntilConfigChanges((config) => helperSelection(config)),
   ...(hostedModels ? { modelAllowed: (selection: ModelSelection) => hostedModels.allows(selection) } : {}),
-  assertWithinBudget: () => { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(undefined, true); },
+  assertWithinBudget: (botId) => { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(botId, true); },
   book: bookTurnUsage,
   log: (line) => console.log(line),
 });
@@ -7588,7 +7614,7 @@ async function beginTurn(
   const instance = registry.get(bot.modelSelection.instanceId);
   if (!instance) {
     if (removedComputerInstanceIds(cfg.instances).has(bot.modelSelection.instanceId)) void retryComputerEngineMove();
-    throw noAiNotice.refusal(threadId, opts?.sender, bot.modelSelection.instanceId) ?? Object.assign(new Error(`provider instance "${bot.modelSelection.instanceId}" is unavailable — pick another model in settings`), { status: 409 });
+    throw noAiNotice.refusal(threadId, opts?.sender, bot.modelSelection.instanceId) ?? Object.assign(new Error(`provider instance "${bot.modelSelection.instanceId}" is unavailable — pick another model in settings`), { status: 409, code: "model_unavailable" });
   }
   const policyRefusal = policyModelRefusal(instance);
   if (policyRefusal) throw Object.assign(new Error(policyRefusal), { status: 409, code: "managed_policy" });
@@ -8412,6 +8438,7 @@ async function beginTurn(
       const dispatch = await guardTurnDispatch(shareNote.after(savedSteps.dispatch.sendTurn(instance, personLine && !opts?.unattended && !opts?.app?.context && !guestConfined ? { botId: bot.id, message: userMessage, turnText: text, placePicked: wants === "local" && placeSource !== "auto-pin" } : null, {
         threadId,
         botId: bot.id,
+        requestBudget: turnRequestBudget(bot.id, threadId, instance.driverKind, personWaiting({ ...opts, peerAsk: opts?.peerAsk ?? opts?.userMessage?.peerAsk }, threadStanding(bot.id, threadId)) || activeRoutineRunForThread(threadId)?.byPerson === true),
         startupRecovery,
         text: withTurnClock(clock, withRecalled(recalled, (posted?.text ?? "") + attachmentsForBox(dispatchContext.turnText, cwd) + shareNote.text + devsReports.note(threadId, Boolean(integrations.agents)) + settingNudges.note(threadId, { tools: Boolean(integrations.agents) && personLine && !opts?.unattended, owner: phones.turnOwner({ botId: bot.id, threadId, generation: dispatchClaimId }) !== null && !cloudGuestDriven(threadId), model: `${instanceId}/${model}` }))),
         ...(recalled ? { recalled } : {}),
@@ -8759,6 +8786,12 @@ routines = new RoutineManager({
   limitBackup: (botId, scope) => { const bot = store.bot(botId); return quotaSwitchEnabled() ? Boolean(bot && limitTakeover.backups(botId, bot.modelSelection, scope, approvalModeFor(bot)).length) : Boolean(bot && startupBackups(bot, cfg.automaticRecovery).length); },
   launchId: DESKTOP_MANAGED && /^[\w-]{1,100}$/.test(process.env.OMB_DESKTOP_LAUNCH_ID ?? "")
     ? process.env.OMB_DESKTOP_LAUNCH_ID : undefined,
+  preflight: (run) => {
+    if (run.target !== "bot") return null;
+    const bot = run.threadId ? store.projectBotForTask(run.botId, run.threadId) : store.bot(run.botId);
+    if (bot?.approvalGrant) return { reason: "approval", text: serverLine(threadLanguage(bot.threadId), "server.routines.approvalPending") };
+    return null;
+  },
   skipStartupRuns: (startedFromSleep = Boolean(CLOUD_HOME) && wokeFromSleep(DATA_DIR)), prepareRun: (run, signal) => runComputers.prepare(run, signal), preparing: RUN_COMPUTER_LINES.waking, // a Cloud home waking from a sleep it was stopped for
   hasPendingDelegations: runtimeWorkPending, refusedHandoff: refusedHandoffs.take, handedOffWorkLive: (threadId) => coordinator.outstandingFor(threadId).length > 0,
   routineTurn: (threadId) => directRequestOwners.get(threadId)?.automation !== undefined, personTurn: (threadId) => directRequestOwners.get(threadId)?.origin?.kind === "user", home: { machine: CLOUD_HOME?.machineId, cloud: CLOUD_HOME !== null }, turnLive: (run) => runTurnLive(run, (threadId) => ({ busy: threadBusy(run.botId, threadId), settling: settlingTurns.has(threadId), queued: queuedThreadPosition(run.botId, threadId) !== null, pending: runtimeWorkPending(threadId), parked: store.taskByThread(run.botId, threadId)?.activity === "parked.computer" })),
@@ -10290,6 +10323,7 @@ async function runClaimedGroupMemberTurn(
       window: roomWindow, tail: roomTail, wrap: (body) => withTurnClock(clock, withRecalled(roomRecalled, roomPick + attachmentsForBox(body, cwd) + roomShareNote.text + devsReports.note(threadId, Boolean(integrations.agents)))),
     });
     guardTurnDispatch(roomShareNote.after(instance.adapter.sendTurn({
+        requestBudget: turnRequestBudget(readyBot.id, threadId, instance.driverKind, personWaitingInRoom(operation, routineTriggerOf(threadId))),
         ...roomSession.send,
         threadId,
         botId: readyBot.id,
@@ -10681,16 +10715,6 @@ async function runGroupGoalOperation(args: {
   });
 }
 
-type StartGroupTurnOptions = {
-  threadId?: string;
-  goalCoordinatorBotId?: string;
-  goalRunId?: string; mentions?: string[];
-  via?: "api";
-  sender?: ResolvedSender;
-  trigger?: UsageTrigger;
-  queuedGroup?: ChannelQueueItem[]; /** What the person pointed at in a member's page: the page's bot reads it on its turn, and the line shows the chips. */ pointed?: RoomPick;
-};
-
 function startGroupTurn(
   groupId: string,
   text: string,
@@ -10700,21 +10724,7 @@ function startGroupTurn(
   queueId?: string,
   options: StartGroupTurnOptions = {},
 ) {
-  const group = store.group(groupId);
-  if (!group) throw Object.assign(new Error("no such group"), { status: 404 });
-  if (roomSetupPending(group)) {
-    throw Object.assign(new Error("finish room setup before sending the first message"), { status: 409 });
-  }
-  const threadId = options.threadId ?? group.threadId;
-  const ownsThread = group.dm
-    ? group.threadId === threadId
-    : Boolean(store.groupTaskByThread(group.id, threadId));
-  if (!ownsThread) {
-    throw Object.assign(new Error("no such room task"), { status: 404 });
-  }
-  const members = group.memberIds
-    .map((id) => store.bot(id))
-    .filter((bot): bot is NonNullable<typeof bot> => Boolean(bot));
+  const { group, threadId, members } = roomTurnTarget(store, groupId, options.threadId, roomSetupPending);
   const isHeld = (member: { id: string }) => roomHeld(group, member.id);
   const { availableMembers, goalMembers, routableMembers } = roomTurnMembers(members, isHeld, (member) => botHolds.held(member.id));
   const requestedGoalCoordinator = options.goalCoordinatorBotId
@@ -10725,7 +10735,8 @@ function startGroupTurn(
   }
   // Read the room before this message is appended just below.
   const replyBot = !group.dm && channelMode === "chat" && group.defaultResponder.kind === "auto" && replyTo?.role === "bot" ? routableMembers.find((member) => member.id === replyTo.from?.botId) : undefined;
-  const autoCandidate = !replyBot && !group.dm && channelMode === "chat" && group.defaultResponder.kind === "auto" && deciderReady(cfg, "roomRouting");
+  const council = !group.dm && channelMode === "chat" && !options.via && (!options.trigger || options.trigger.kind === "user" || options.trigger.kind === "owner") ? councilRequest(text) : null;
+  const autoCandidate = !council && !replyBot && !group.dm && channelMode === "chat" && group.defaultResponder.kind === "auto" && deciderReady(cfg, "roomRouting");
   const historyBeforeSend = autoCandidate
     ? (() => {
         const before = store.messagesFor(threadId);
@@ -10734,64 +10745,12 @@ function startGroupTurn(
       })()
     : [];
   const queuedGroup = options.queuedGroup;
-  const message = queuedGroup && queuedGroup.length > 0
-    ? (() => {
-        for (const item of queuedGroup.slice(0, -1)) {
-          store.appendMessage(threadId, {
-            role: "user",
-            kind: "text",
-            text: item.text,
-            replyToId: item.replyToId,
-            reaction: item.reaction,
-            sendId: item.sendId,
-            channelMode: item.mode,
-            queueId: item.id,
-            via: item.via,
-            sender: item.sender, ...(item.pointed ? { pointed: item.pointed.refs } : {}),
-          });
-        }
-        const last = queuedGroup[queuedGroup.length - 1]!;
-        return store.appendMessage(threadId, {
-          role: "user",
-          kind: "text",
-          text: last.text,
-          replyToId: replyTo?.id,
-          reaction: last.reaction,
-          sendId: last.sendId,
-          channelMode: last.mode,
-          queueId: last.id,
-          via: last.via,
-          sender: last.sender, ...(last.pointed ? { pointed: last.pointed.refs } : {}),
-        });
-      })()
-    : store.appendMessage(threadId, {
-        role: "user",
-        kind: "text",
-        text,
-        replyToId: replyTo?.id,
-        reaction: replyTo?.reactedWith,
-        sendId,
-        channelMode,
-        queueId,
-        via: options.via,
-        sender: options.sender, ...(options.pointed ? { pointed: options.pointed.refs } : {}),
-      });
+  const message = appendRoomInput(store, threadId, text, channelMode, options, replyTo, sendId, queueId);
   if (options.trigger) turnTriggers.set(threadId, options.trigger);
   const titled = group.dm ? null : store.titleGroupTaskFromFirstMessage(group.id, text, threadId);
   const snippet = titled?.title;
 
-  const archived = members.filter((member) => member.hidden);
-  const mentionedArchived = mentionedBots(text, archived.map(({ name }) => ({ name })))[0]; for (const line of placesElsewhere.missed(text, store.bots)) store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: line, ok: false } });
-  if (mentionedArchived) {
-    store.appendMessage(threadId, {
-      role: "bot",
-      kind: "activity",
-      tool: {
-        name: serverLine(threadLanguage(threadId), "server.rooms.archived", { bot: mentionedArchived.name }),
-        ok: false,
-      },
-    });
-  }
+  const { archived, mentionedArchived } = noteAbsentRoomMembers(store, threadId, text, members, placesElsewhere.missed(text, store.bots), threadLanguage(threadId));
   const pageBots = channelMode === "chat" ? pointedResponders(options.pointed, availableMembers, () => roomResponders(text, availableMembers, { kind: "mentions" }, options.mentions)) : [];
   let responders = pageBots.length ? pageBots : roomResponders(text, members, !group.dm && channelMode === "chat" ? autoRoomDefault(group.defaultResponder, routableMembers, replyBot) : group.defaultResponder, options.mentions);
   if (!group.dm) {
@@ -10814,22 +10773,8 @@ function startGroupTurn(
   const autoRoute = autoCandidate && !goalCoordinator && !pageBots.length && routableMembers.length > 1 &&
     roomResponders(text, availableMembers, { kind: "mentions" }, options.mentions).length === 0;
 
-  if (!responders.length && !goalCoordinator && !autoRoute) {
-    const defaultArchivedId = group.defaultResponder.kind === "member" ? group.defaultResponder.botId : undefined;
-    const defaultArchived = archived.find((member) => member.id === defaultArchivedId);
-    let unavailableMessage: string | undefined;
-    if (!mentionedArchived && !availableMembers.length) {
-      unavailableMessage = serverLine(threadLanguage(threadId), "server.rooms.noneActive");
-    } else if (!mentionedArchived && defaultArchived) {
-      unavailableMessage = serverLine(threadLanguage(threadId), "server.rooms.archived", { bot: defaultArchived.name });
-    }
-    if (unavailableMessage) {
-      store.appendMessage(threadId, {
-        role: "bot",
-        kind: "activity",
-        tool: { name: unavailableMessage, ok: false },
-      });
-    }
+  if (!council && !responders.length && !goalCoordinator && !autoRoute) {
+    noteUnavailableResponder(store, threadId, group.defaultResponder, archived, Boolean(mentionedArchived), availableMembers.length > 0, threadLanguage(threadId));
     return message;
   }
 
@@ -10845,12 +10790,12 @@ function startGroupTurn(
         .catch(() => undefined);
     }
   };
-  if (!autoRoute) startTitle(goalCoordinator ?? responders[0]!);
+  if (!council && !autoRoute) startTitle(goalCoordinator ?? responders[0]!);
 
   const operation = beginGroupTurnOperation(
     groupId,
     threadId,
-    goalCoordinator || autoRoute ? [] : responders.map((responder) => responder.id),
+    goalCoordinator || autoRoute || council ? [] : responders.map((responder) => responder.id),
   );
   // Only a person's own chat line; cloudHomeLendingRefusal still proves it is the owner's.
   operation.personStarted = message.role === "user" && !message.via && (!options.trigger || options.trigger.kind === "user" || options.trigger.kind === "owner");
@@ -10878,7 +10823,29 @@ function startGroupTurn(
       });
       return;
     }
-    if (goalCoordinator) {
+    if (council) {
+      const language = threadLanguage(threadId);
+      const eligible = (id: string) => {
+        const room = store.group(groupId);
+        const bot = store.bot(id);
+        if (workspaceMaintenance.active || moveFreeze.frozen() || starterAwake.paused().includes(id) || !bot || !room?.memberIds.includes(id) || bot.hidden || roomHeld(room, id) || botHolds.held(id) ||
+            bot.approvalGrant || botLink.rooms.forwards(bot) || bot.home?.gone || providerInstancesChanging.has(bot.modelSelection.instanceId)) return;
+        const instance = registry.get(bot.modelSelection.instanceId);
+        const model = bot.modelSelection.model || instance?.models.default;
+        if (!instance?.enabled || !model || policyModelRefusal(instance) || heldKeys?.refusal(instance.instanceId) ||
+            (hostedModels && !hostedModels.allows({ instanceId: instance.instanceId, model })) ||
+            (cloudGuestDriven(threadId) && instance.adapter.capabilities.guestTurns !== "confined")) return;
+        const seat = councilSeat(instance.driverKind, model);
+        const call = instance.driverKind === "codex" ? instance.generateMemoryText : instance.generateText;
+        if (seat && call) return { bot, instance, model, seat, call };
+      };
+      await invokeRoomCouncil({ store, threadId, messageId: message.id, language, members: routableMembers, eligible, question: council,
+        signal: operation.cancellation.signal, botIds: operation.botIds, trigger: options.trigger,
+        chairId: group.defaultResponder.kind === "member" ? group.defaultResponder.botId : undefined,
+        cap: () => cfg.usageCaps?.run, prices: operatorPrices, book: bookTurnUsage,
+        checkBudget: id => { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(id, true, language); },
+      });
+    } else if (goalCoordinator) {
       await runGroupGoalOperation({ groupId, threadId, coordinator: goalCoordinator, members, operation });
     } else {
       let round = responders;
@@ -10967,7 +10934,7 @@ function drainQueuedChannelSendsNow(): void {
       try {
         startGroupTurn(groupId, joined, resolveReplyTarget(threadId, last.replyToId), last.sendId, last.mode, last.id, {
           threadId,
-          sender: head.sender,
+          sender: head.sender, via: head.via,
           trigger: queuedTurnTrigger({ trigger: head.trigger, sender: head.sender }),
           queuedGroup: items, mentions: items.flatMap((item) => item.mentions ?? []), pointed: items.find((item) => item.pointed)?.pointed,
         });
@@ -12090,6 +12057,41 @@ const { react } = createReactions({
 });
 const publishedPages = createPublishedPages({ dataDir: DATA_DIR, cloudHome: CLOUD_HOME, selfHosted: !CLOUD_HOME && !HOSTED_WORKSPACE && utilityParentPort === undefined, patch: (threadId, messageId, text, publishedPage) => void store.patchMessage(threadId, messageId, { text, publishedPage }), liveRoots: (botId, threadId) => liveRoots(threadId, botId), paused: () => workspaceMaintenance.active || moveFreeze.frozen(), apps: { chat: chatApps, store } }); ROUTES.push(createReactionRoutes({ react, reactorFor, cloudGuestSendRefusal }), publishedPages.routes, createBotLibraryRoutes({ bot: (id) => store.bot(id), visibleFor: (auth) => visibleTo(viewerFor(auth)), pages: () => publishedPages.store.list() }), savedSteps.routes, createPlacesElsewhereRoutes({ elsewhere: placesElsewhere, owner: (auth) => !sharedMembership() && !HOSTED_WORKSPACE && (auth.kind === "loopback" || ownHome.owner(auth) || (CLOUD_PERSONAL && cloudOwnerSession(auth))) }));
 const keptAttachments = () => { const routineFiles = routines?.attachmentPaths(); return routineFiles && calendarCalls ? keptAttachmentNames([...store.bots.map((bot) => bot.avatarUrl), cfg.profile?.avatarUrl], [workspaceBannerStore.current()?.name, ...routineFiles, ...calendarCalls.list().flatMap((call) => call.attachments?.map((file) => file.path) ?? []), ...[...turnAttachmentsByTurn.values()].flat().map((file) => file.path)]) : null; }; createDeleteLeftovers({ dataDir: DATA_DIR, store, retainedUploads, threadsReferencing, keptAttachments, deleteAttachment: (name) => deleteAttachment(join(ATTACHMENTS_DIR, name)), engineFolders: () => engineSessionFolders(DATA_DIR, [process.env, ...Object.values(providerConfigs()).map((instance) => instanceEnvironment(process.env, instance))].flatMap((env) => engineHomes.everyHome(env))), layers: memoryLayerRecords });
+const instructionStudio = createInstructionStudio({
+  dataDir: DATA_DIR,
+  bot: id => store.bot(id),
+  rules: () => cfg.everyBotRules,
+  writer: (id, selection) => botHolds.held(id) || starterAwake.paused().includes(id) || workspaceMaintenance.active || moveFreeze.frozen()
+    || heldKeys?.refusal(selection.instanceId) || validateModelProposal(selection)
+    ? null : sideJobs.instructionTest(id, selection),
+  refusal: (bot, selection, publishing) => {
+    const target = registry.get(selection.instanceId);
+    if (!target?.enabled) return "The selected engine is unavailable.";
+    const refusal = policyModelRefusal(target) ?? heldKeys?.refusal(selection.instanceId)
+      ?? validateModelProposal(selection, publishing ? bot : undefined);
+    if (refusal) return refusal;
+    if (publishing && (botHasActiveTurn(bot.id) || activeGroupTurnForBot(bot.id))) return "Wait for the bot's current work to finish before changing its default model.";
+    return null;
+  },
+  mayEdit: (auth, id) => (auth.kind === "loopback" ? auth.trust !== "service" : auth.scopes.includes("admin") && sessions.isLive(auth.session.id))
+    && visibleTo(viewerFor(auth)).level(id) === "edit",
+  publish: (bot, soul, selection, via) => {
+    const before = profileSnapshot(bot);
+    const previous = bot.modelSelection;
+    const modelChanged = !sameModelSelection(selection, previous);
+    const updated = store.patchBotProfile(bot.id, { soul }, modelChanged ? selection : undefined);
+    if (!updated) throw new Error("Bot unavailable.");
+    recordProfileChange(bot.id, "user", via, before, profileSnapshot(updated));
+    recordInstructionRelease(bot.id, via, before.soul, soul, previous, selection);
+    broadcast({ kind: "bot", bot: wireBot(updated) });
+  },
+});
+store.onChange(change => {
+  if (change.type === "bot.deleted") {
+    try { instructionStudio.forget(change.botId); } catch { console.warn("Could not remove deleted bot instruction drafts."); }
+  }
+});
+ROUTES.push(instructionStudio.routes);
 ROUTES.push(createAiTwinRoutes({
   enabled: AI_TWIN_ENABLED,
   dataDir: DATA_DIR,
@@ -14302,6 +14304,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           return json(res, 403, { error: "connected apps are not enabled for this bot" });
         }
         // Security: a member's own bridge reaches only their own installation, and only in their own turn.
+        const scopesRevision = teamConnections.scopes.appRevision();
         const actor = teamConnections.relayActor(internalCapability); if (actor.refusal) return json(res, 200, { jsonrpc: "2.0", id: (body as { id?: unknown }).id ?? null, result: { content: [{ type: "text", text: actor.refusal }], isError: true } });
         // Verdict every tools/call frame against connectorTools; a grants record makes every unrecognized shape a deny.
         const call = connectorCallFromFrame(body);
@@ -14431,6 +14434,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             requireActiveInternalCapability();
             const checkDispatch = (final = false, record = true) => {
               requireActiveInternalCapability();
+              const identityRefusal = teamConnections.relayDispatchRefusal(internalCapability, scopesRevision, actor.access);
+              if (identityRefusal) refuseDispatch(identityRefusal);
               const fresh = store.bot(internalCapability.botId);
               if (!fresh || fresh.composio === false || !composio.configured(cfg) || managedPolicy.appsCallRefusal(connectorCalls, serviceSlugs)) refuseDispatch("Connected apps were disabled while this call waited.");
               const freshAccess = connectorAccessDecision(fresh.connectorScopes, connectorCalls, serviceSlugs);
@@ -14792,7 +14797,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit")) || 100));
       const full = url.searchParams.get("full") === "1";
       const rows = url.searchParams.get("view") === "changes" ? soulChanges(m[1], readHistory(m[1], limit)) : readHistory(m[1], limit).map((row) => {
-        if (full || row.field !== "soul") return row;
+        if (full || (row.field !== "soul" && row.field !== "configuration")) return row;
         const rest: typeof row = { ...row };
         delete rest.before;
         delete rest.after;

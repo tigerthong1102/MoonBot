@@ -4,6 +4,11 @@ import type { DatabaseSync } from "node:sqlite";
 export const ATTACHMENT_IN_TRANSCRIPT = /attachments(?:\/|\\)+([A-Za-z0-9][\w.-]{0,200})/g;
 
 export const TRANSCRIPT_RETENTION_SCHEMA = `
+    CREATE TABLE IF NOT EXISTS report_sections (
+      thread_id TEXT NOT NULL, message_id TEXT NOT NULL, source_thread TEXT NOT NULL, source_message TEXT NOT NULL,
+      PRIMARY KEY(thread_id, message_id, source_thread, source_message)
+    );
+    CREATE INDEX IF NOT EXISTS report_section_sources ON report_sections(source_thread);
     CREATE TABLE IF NOT EXISTS cleared_transcripts (thread_id TEXT PRIMARY KEY);
     CREATE TABLE IF NOT EXISTS retained_uploads (thread_id TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY (thread_id, name));
     CREATE TABLE IF NOT EXISTS retained_chat_docs (
@@ -19,7 +24,9 @@ export function clearTranscriptRows(connection: DatabaseSync, threadId: string) 
   connection.prepare("INSERT OR IGNORE INTO cleared_transcripts(thread_id) VALUES (?)").run(threadId);
   connection.prepare(`INSERT OR IGNORE INTO retained_chat_docs(thread_id, doc)
     SELECT thread_id, json_extract(json, '$.app.doc') FROM messages WHERE thread_id = ? AND kind = 'app'
-    UNION SELECT thread_id, h.value FROM messages m, json_each(m.json, '$.app.history') h WHERE thread_id = ? AND kind = 'app'`).run(threadId, threadId);
+    UNION SELECT thread_id, json_extract(json, '$.app.report.doc') FROM messages WHERE thread_id = ? AND json_type(json, '$.app.report.doc') = 'text'
+    UNION SELECT thread_id, h.value FROM messages m, json_each(m.json, '$.app.history') h WHERE thread_id = ? AND kind = 'app'`).run(threadId, threadId, threadId);
+  connection.prepare("DELETE FROM report_sections WHERE thread_id = ? OR source_thread = ?").run(threadId, threadId);
   connection.prepare("DELETE FROM messages WHERE thread_id = ?").run(threadId);
   connection.prepare("DELETE FROM notification_log WHERE thread_id = ?").run(threadId);
 }
@@ -27,6 +34,8 @@ export function clearTranscriptRows(connection: DatabaseSync, threadId: string) 
 export function deleteTranscriptRows(connection: DatabaseSync, threadIds: readonly string[]) {
   const statements = [
     connection.prepare("DELETE FROM chat_followups WHERE thread_id = ?"),
+    connection.prepare("DELETE FROM report_sections WHERE thread_id = ?"),
+    connection.prepare("DELETE FROM report_sections WHERE source_thread = ?"),
     connection.prepare("DELETE FROM messages WHERE thread_id = ?"),
     connection.prepare("DELETE FROM thread_state WHERE thread_id = ?"),
     connection.prepare("DELETE FROM cleared_transcripts WHERE thread_id = ?"),

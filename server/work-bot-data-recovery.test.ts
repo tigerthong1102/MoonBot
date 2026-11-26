@@ -39,7 +39,8 @@ it("recovers from both sides of the SQLite commit without touching existing dest
     await sourceDb.materialise("SELECT 42::INTEGER AS stock", "fixture_count", options);
     const first = await service.copy(link, [card.id], () => {});
     expect(sheets.for("target").cards().map(c => c.id)).toEqual([old.id]);
-    expect(() => first.publish()).toThrow();
+    expect(() => first.publish()).toThrow("Cannot publish an unconfirmed Data handoff");
+    expect(registry().for("target").cards()).toEqual([old]);
     const targetDb = await engine.forBot("target");
     const tables = async () => (await targetDb.run("SELECT table_name FROM information_schema.tables WHERE table_schema='omb_results' ORDER BY table_name", options)).rows;
     expect(await tables()).toHaveLength(2);
@@ -51,6 +52,8 @@ it("recovers from both sides of the SQLite commit without touching existing dest
     const id = stage.context({ cardId: card.id }).cardId;
     expect(id).not.toBe(old.id);
     db.prepare("INSERT INTO work_bot_links VALUES (?, ?, ?, ?, ?)").run("source", "st", "sm", "target", "tt");
+    expect(() => stage.publish()).toThrow("Data handoff commit is uncertain");
+    expect(registry().for("target").cards()).toEqual([old]);
     await expect(stage.settle()).rejects.toThrow("uncertain");
     const incomplete = createWorkBotData(engine, registry(), () => true, journal);
     expect(await incomplete.recover()).toBe(false);

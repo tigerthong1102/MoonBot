@@ -124,7 +124,6 @@ export class DataSheetStore {
     return this.load().handoff?.op === op;
   }
 
-  /** Install one new bot's reserved snapshot IDs only after its chat handoff commits. */
   publishWorkBotCards(op: string, cards: DataCard[], backing: Record<string, string>): void {
     const stored = this.load();
     if (stored.handoff?.op === op) return;

@@ -11,6 +11,7 @@ writeFileSync(join(dir, "index.html"), "app");
 writeFileSync(join(dir, "rail.html"), "rail");
 mkdirSync(join(dir, "assets"));
 writeFileSync(join(dir, "assets", "rail-1a2b.js"), "js");
+writeFileSync(join(dir, "assets", "pdf.worker-1a2b.mjs"), "export {};");
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 function get(path: string, staticDir: string = dir) {
@@ -33,6 +34,7 @@ describe("serveStatic", () => {
     expect(get("/").body).toBe("app");
     expect(get("/settings").body).toBe("app");
     expect(get("/rail/more").body).toBe("app");
+    expect(get("/assets/pdf.worker-1a2b.mjs").headers["content-type"]).toBe("text/javascript");
     expect(get("/assets/rail-1a2b.js").headers["cache-control"]).toBe("public, max-age=31536000, immutable");
   });
 });

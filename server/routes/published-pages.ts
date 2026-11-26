@@ -38,7 +38,7 @@ export interface PagesInternalContext {
 const PUBLISH = "/api/internal/pages/publish", UNPUBLISH = "/api/internal/pages/unpublish";
 const UNPUBLISH_ROUTE = /^\/api\/published-pages\/([a-z0-9]{20,63})\/unpublish$/;
 const APP_PUBLISH_ROUTE = /^\/api\/threads\/([\w-]+)\/messages\/([\w-]+)\/app\/publish$/;
-const appPublishBody = z.object({ rev: z.number().int().min(0).max(1_000_000).optional() }).strict();
+const appPublishBody = z.object({ rev: z.number().int().min(0).max(1_000_000).optional(), audience: z.enum(["conversation", "withdraw"]).optional() }).strict();
 const pageId = z.string().max(63).optional();
 const publishBody = z.object({ path: z.string().max(4096), title: z.string().max(1000), page_id: pageId, live: z.boolean().optional() });
 const unpublishBody = z.object({ page_id: pageId, path: z.string().max(4096).optional() });
@@ -72,6 +72,7 @@ export function createPagesInternalRoutes(publisher: PagePublisher) {
 }
 
 export interface AppPages {
+  shareInternal?(threadId: string, messageId: string, rev?: number | null): boolean;
   /** The direct conversation's bot; null for a room or a conversation that is gone. */
   botOf(threadId: string): { id: string } | null;
   page(threadId: string, messageId: string, rev?: number): PublishablePage;
@@ -96,10 +97,14 @@ export function createPublishedPageRoutes(publisher: PagePublisher, apps?: AppPa
     const page = apps ? APP_PUBLISH_ROUTE.exec(path) : null;
     if (!apps || !page || method !== "POST") return PASS;
     const [, threadId, messageId] = page as unknown as [string, string, string];
-    const bot = apps.botOf(threadId);
-    if (!bot) return void json(res, 404, userError("serverError.page.roomOrClosed"));
     const body = appPublishBody.safeParse(await readBody(req, 4_096) ?? {});
     if (!body.success) return void json(res, 400, { error: "Publish takes an optional rev, the version to publish." });
+    if (body.data.audience) {
+      if (!apps.shareInternal?.(threadId, messageId, body.data.audience === "withdraw" ? null : body.data.rev)) return void json(res, 404, userError("serverError.page.versionGone"));
+      return void json(res, 200, { ok: true });
+    }
+    const bot = apps.botOf(threadId);
+    if (!bot) return void json(res, 404, userError("serverError.page.roomOrClosed"));
     const built = apps.page(threadId, messageId, body.data.rev);
     if (!built.ok) return void json(res, built.status, refusalBody(built));
     const pageId = apps.published(threadId, messageId);

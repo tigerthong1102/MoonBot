@@ -11,6 +11,7 @@ import { DataResultFooter } from "./DataGrid";
 import { SqlEditor } from "./SqlEditor";
 import { cardsLatestFirst } from "./data-format";
 
+const SourceLibrary = lazy(() => import("../knowledge/SourceLibrary"));
 const ReconcileFiles = lazy(() => import("../../business-reconciliation/ReconcileFiles"));
 
 const QUERY_MIN_HEIGHT = 128;
@@ -39,6 +40,8 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
   const [selection, setSelection] = useState<{ cardId: string } | null>(() => requestedCard ? { cardId: requestedCard.id } : null);
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [knowledgeUsed, setKnowledgeUsed] = useState(false);
   const [reconcileOpen, setReconcileOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
@@ -230,6 +233,7 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
   const empty = sheet && cards.length === 0 && !selection;
   const control = "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-secondary hover:bg-inset hover:text-ink";
   const controls = <>
+        <button type="button" className="ui-button ui-button-sm" onClick={() => { setKnowledgeUsed(true); setKnowledgeOpen(true); }}>{t("knowledge.title")}</button>
         <button type="button" className="ui-button ui-button-sm" onClick={() => setReconcileOpen(true)}>{t("reconcile.title")}</button>
         <details className="relative" data-testid="data-history">
           <summary role="button" className={`${control} cursor-pointer list-none [&::-webkit-details-marker]:hidden`} aria-label={t("data.history")} title={t("data.history")}>
@@ -255,9 +259,10 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
 
   return (
     <div ref={panel} className="@container/data flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-card text-ink fullscreen:h-full fullscreen:w-full" data-testid="data-panel">
+      {knowledgeUsed && <Suspense><SourceLibrary bot={bot} open={knowledgeOpen} close={() => setKnowledgeOpen(false)} /></Suspense>}
       {reconcileOpen && <dialog ref={node => { if (node && !node.open) node.showModal(); }} onCancel={() => setReconcileOpen(false)}
         className="m-auto max-h-[90vh] w-[min(64rem,96vw)] overflow-auto rounded-xl bg-card text-ink backdrop:bg-black/30" aria-label={t("reconcile.title")}>
-        <Suspense fallback={<button className="ui-button" onClick={() => setReconcileOpen(false)}>{t("reconcile.close")}</button>}><ReconcileFiles t={t} dropdown={Select} close={() => setReconcileOpen(false)} /></Suspense>
+        <Suspense fallback={<button className="ui-button" onClick={() => setReconcileOpen(false)}>{t("reconcile.close")}</button>}><ReconcileFiles threadId={bot.threadId} t={t} dropdown={Select} close={() => setReconcileOpen(false)} /></Suspense>
       </dialog>}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden [container-type:size]" data-testid="data-result">
         {!sheet && !loadError && (

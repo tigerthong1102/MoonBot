@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ROOM_VIEW_ONLY, type AppPayload } from "../../shared/app.ts";
 import { BOT_HTML_CSP } from "../../shared/app-frame/csp.ts";
 import { CSP_META_PREFIX } from "../../shared/app-frame/document.ts";
-import { createChatApps, type ChatApps } from "../chat-apps.ts";
+import { createChatApps, publishInternalReport, type ChatApps } from "../chat-apps.ts";
 import { DATA_DIR } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import { json, readBody } from "../harness/http.ts";
@@ -281,4 +281,44 @@ describe("POST /api/bots/:botId/apps/:messageId/rpc", () => {
     expect((await post(`/api/bots/${bot.id}/apps/${id}/delete`, { threadId: bot.threadId })).body).toEqual({ from: "inline routes" });
     expect((await get(`/api/bots/${bot.id}/apps/${id}/rpc`)).body).toEqual({ from: "inline routes" });
   });
+});
+
+it("resolves a private report's released version at one address and closes access when the viewer leaves", async () => {
+  let visible = true;
+  const { store, bot, page, get, chatApps } = await fixture({ threadVisible: auth => auth.kind !== "session" || visible });
+  const id = page(), threadId = bot.threadId;
+  const address = `/api/threads/${threadId}/messages/${id}/app?report=1`;
+  expect((await get(address, "ann")).status).toBe(404);
+  expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
+  expect((await get(address, "ann")).body.rev).toBe(0);
+  const response = await chatApps.createAppCard({ bot, threadId, input: { tool: "update_html", app_id: id, html: "<p>Revised</p>", title: "Report" } });
+  expect(response.ok).toBe(true);
+  expect((await get(address, "ann")).body.srcdoc).toContain("Revised");
+  expect((await get(address + "&rev=0", "ann")).body.rev).toBe(1);
+  expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
+  expect((await get(address, "ann")).body.srcdoc).toContain("<p>Hello</p>");
+  visible = false;
+  expect((await get(address, "ann")).status).toBe(404);
+  visible = true;
+  expect(publishInternalReport(store, threadId, id, null)).toBe(true);
+  expect((await get(address, "ann")).status).toBe(404);
+});
+
+it("returns different permitted source sections at the same report URL without leaking the private section title or ids", async () => {
+  const hidden = new Set<string>();
+  const { store, bot, other, page, get, post } = await fixture({
+    threadVisible: (auth, id) => auth.kind !== "session" || auth.session.id !== "bob" || !hidden.has(id),
+  });
+  const id = page(), secret = page(other.threadId);
+  const base = `/api/threads/${bot.threadId}/messages/${id}/app`;
+  const source = { sourceThread: other.threadId, sourceMessage: secret };
+  publishInternalReport(store, bot.threadId, id);
+  publishInternalReport(store, other.threadId, secret);
+  expect((await post(base + "/sections", { ...source, action: "add" })).status).toBe(200);
+  hidden.add(other.threadId);
+  expect((await get(base + "?report=1", "ann")).body.sections).toEqual([{ threadId: other.threadId, messageId: secret, title: "Hello" }]);
+  expect((await get(base + "?report=1", "bob")).body).not.toHaveProperty("sections");
+  expect((await get(`/api/threads/${other.threadId}/messages/${secret}/app?report=1`, "bob")).status).toBe(404);
+  publishInternalReport(store, other.threadId, secret, null);
+  expect((await get(base + "?report=1", "ann")).body).not.toHaveProperty("sections");
 });

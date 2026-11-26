@@ -39,8 +39,8 @@ function failureOf(error: unknown): AppFetchFailure {
 
 /** `rev`: an earlier version of a bot's page; the current one when omitted. A folder page's files load from this
  * window's own origin, which is where /api answers. */
-export async function fetchAppDocument(threadId: string, messageId: string, signal?: AbortSignal, rev?: number): Promise<AppDocument> {
-  const query = new URLSearchParams({ origin: window.location.origin, ...(rev === undefined ? {} : { rev: String(rev) }) });
+export async function fetchAppDocument(threadId: string, messageId: string, signal?: AbortSignal, rev?: number, report = false): Promise<AppDocument> {
+  const query = new URLSearchParams({ origin: window.location.origin, ...(report ? { report: "1" } : {}), ...(rev === undefined ? {} : { rev: String(rev) }) });
   try {
     const doc = await api<AppDocument>(`${appDocumentPath(threadId, messageId)}?${query}`, { signal });
     if (!isRecord(doc) || typeof doc.srcdoc !== "string" || !isRecord(doc.can)) throw new AppDocumentError({ offline: false, status: 500, error: t("app.strip.incomplete") });

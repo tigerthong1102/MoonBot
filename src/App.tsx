@@ -496,6 +496,12 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
 
 function Application() {
   useEffect(() => {
+    let alive = true;
+    let stop: (() => void) | undefined;
+    void import("./components/knowledge/source-sync").then(module => { if (alive) stop = module.watchDocumentSources(); });
+    return () => { alive = false; stop?.(); };
+  }, []);
+  useEffect(() => {
     initAnalytics();
   }, []);
   const viewer = useWelcomeViewer();

@@ -173,7 +173,7 @@ function AppRow({ botId, botName, threadId, message, payload, pool, room }: {
     const off = onPageOpened(() => { if (openPageFor(threadId)?.appId !== message.id) setFullScreen(false); });
     return () => { off(); closePage(threadId, message.id); };
   }, [paneOpen, threadId, message.id, rev]);
-  const share = usePageShare(threadId, message.id, message.publishedPage);
+  const share = usePageShare(threadId, message.id, message.publishedPage, Boolean(payload.report));
   const save = usePageSave(threadId, message.id, payload.title);
   const pin = usePagePin({ botId, threadId, messageId: message.id }, payload.title);
   const tools = { version, point, share, save, room, pin, ready: Boolean(current), fullScreen: { open: fullScreen, pane: Boolean(pane), toggle: () => { point.stop(); setFullScreen((open) => !open); } } };

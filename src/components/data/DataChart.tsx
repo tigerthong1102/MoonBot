@@ -56,6 +56,7 @@ export function bindChartRows(spec: Record<string, unknown>, rows: Array<Record<
 }
 
 export function DataChart({ botId, cardId, spec, rowCount, theme, revision, inline = false }: DataChartProps) {
+  const [mark, setMark] = useState<{ values: Array<[string, Cell]>; sourceRow?: number } | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const displayed = useRef<{ result: Result; naturalHeight?: number } | null>(null);
   const [state, setState] = useState<{ loading: boolean; error: string | null }>({ loading: true, error: null });
@@ -94,7 +95,10 @@ export function DataChart({ botId, cardId, spec, rowCount, theme, revision, inli
     void (async () => {
       const [{ default: embed }, rows] = await Promise.all([import("vega-embed"), fetchChartRows(botId, cardId, rowCount, abort.signal)]);
       if (!alive) return;
-      const bound = bindChartRows(JSON.parse(specText) as Record<string, unknown>, rows);
+      let rowKey = "__startupbotQueryRow";
+      while (rows.some(row => Object.hasOwn(row, rowKey)) || specText.includes(rowKey)) rowKey += "_";
+      const data = inline ? rows.map((row, i) => ({ ...row, [rowKey]: i + 1 })) : rows;
+      const bound = bindChartRows(JSON.parse(specText) as Record<string, unknown>, data);
       const unit = "mark" in bound || "layer" in bound;
       let naturalHeight = unit && typeof bound.height === "number" ? bound.height : undefined;
       if (naturalHeight && element.clientHeight > 0) bound.height = Math.min(naturalHeight, element.clientHeight);
@@ -118,6 +122,20 @@ export function DataChart({ botId, cardId, spec, rowCount, theme, revision, inli
         if (!alive) { discardCandidate(); return; }
         fittedHeight = height;
       }
+      if (inline) {
+        embedded.view.addEventListener("click", (_event, item) => {
+          const datum: unknown = item?.datum;
+          if (displayed.current?.result !== embedded || !datum || typeof datum !== "object") return;
+          const values = datum as Record<string, unknown>;
+          const rowNumber = Number(values[rowKey]);
+          const sourceRow = Number.isInteger(rowNumber) && rowNumber > 0 ? rows[rowNumber - 1] : undefined;
+          const fields = Object.entries(sourceRow ?? values).filter((entry): entry is [string, Cell] =>
+            entry[0] !== rowKey && (entry[1] === null || ["number", "string", "boolean"].includes(typeof entry[1])));
+          if (!fields.length) return;
+          setMark({ values: fields, ...(sourceRow ? { sourceRow: rowNumber } : {}) });
+        });
+      }
+      setMark(null);
       const previous = displayed.current;
       candidate.style.position = "";
       candidate.style.visibility = "";
@@ -140,6 +158,11 @@ export function DataChart({ botId, cardId, spec, rowCount, theme, revision, inli
   return (
     <div className="relative min-h-0 w-full flex-1" data-testid="data-chart">
       <div ref={host} className="relative h-full w-full" />
+      {inline && mark && <aside className="absolute inset-x-1 bottom-1 z-10 max-h-28 overflow-auto rounded-lg border border-hairline bg-panel p-2 text-xs">
+        <div className="flex items-center justify-between gap-2"><strong>{mark.sourceRow ? t("knowledge.chartRow", { row: mark.sourceRow }) : t("knowledge.chartMark")}</strong>
+          <button type="button" className="ui-button ui-button-sm" onClick={() => setMark(null)}>{t("reconcile.close")}</button></div>
+        <dl>{mark.values.map(([key, value]) => <div key={key} className="flex flex-wrap gap-2"><dt>{key}</dt><dd>{String(value ?? "")}</dd></div>)}</dl>
+      </aside>}
       {state.loading && (
         <div className="absolute inset-0 flex items-center justify-center gap-2 text-[12px] text-ink-secondary" role="status">
           <Loader2 size={14} className="animate-spin" aria-hidden="true" />{t("data.chart.loading")}

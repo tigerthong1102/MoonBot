@@ -100,9 +100,12 @@ describe("+ New", () => {
 
 describe("the automation panel", () => {
   afterEach(() => { vi.useRealTimers(); });
-  it("explains an unread failure older than the recent runs and keeps it visible after marking it seen", () => {
+  it.each([
+    { status: "failed" },
+    { status: "cancelled", blockedBy: "usage" },
+  ])("marks an older unseen $status run seen and keeps it visible for this visit", (outcome) => {
     const runs = Array.from({ length: 6 }, (_, index) => ({ id: `success-${index}`, routineId: webhook.id, botId: botA.id, status: "completed", createdAt: now - index * 1_000, scheduledFor: now - index * 1_000, output: "Nothing new." }));
-    const failure = { id: "old-failure", routineId: webhook.id, botId: botA.id, status: "failed", createdAt: now - 60_000, scheduledFor: now - 60_000, error: "Provider disconnected." };
+    const failure = { id: "old-failure", routineId: webhook.id, botId: botA.id, ...outcome, createdAt: now - 60_000, scheduledFor: now - 60_000, error: "Provider disconnected." };
     const [automation] = automationsFrom({ routines: [], webhooks: [webhook] as never, runs: [...runs, failure] as never });
     const props = { automation: automation!, sentence: "s", onClose: vi.fn(), onEdit: vi.fn(), onDeleted: vi.fn() };
     const container = mount(createElement(AutomationPanel, props));
@@ -113,6 +116,10 @@ describe("the automation panel", () => {
     flushSync(() => root!.render(createElement(AutomationPanel, { ...props, automation: seen })));
     expect(container.textContent).toContain("Provider disconnected.");
     expect(fixture.dispatch).toHaveBeenCalledTimes(1);
+    root!.unmount();
+    const reopened = mount(createElement(AutomationPanel, { ...props, automation: seen }));
+    expect(reopened.textContent).not.toContain("Provider disconnected.");
+    expect(reopened.querySelectorAll("section ul li")).toHaveLength(5);
   });
 
   it.each([

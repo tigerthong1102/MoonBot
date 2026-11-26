@@ -38,7 +38,7 @@ export function Today({ view, now, onOpen }: { view: InboxView | null; now: numb
 
   const waiting = rowsIn(view, "needs-you");
   const waitingThreads = new Set(waiting.map((row) => row.origin?.threadId));
-  const needs = report?.needsYou.filter((item) => item.threadId && !waitingThreads.has(item.threadId)) ?? [];
+  const needs = report?.needsYou.filter((item) => item.threadId === undefined || !waitingThreads.has(item.threadId)) ?? [];
   const blocked = report?.lines.filter((line) => !line.ok && line.routineId) ?? [];
   const completed = report?.lines.filter((line) => line.ok && (line.threadId || line.routineId)) ?? [];
   const continued = crossBotAttentionThreads(state.bots, state.pendingQueued, undefined, state.groups)

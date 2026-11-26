@@ -123,12 +123,13 @@ export function shellQuote(value: string): string {
 
 /** The connectors gate's call for an app step: a plain app tool by its own name, any other app action through the one
  * multi-execute tool. */
-export function appFrame(tool: string, args: Record<string, unknown>, account: string | undefined, id: number): { slug: string; frame: Record<string, unknown> } {
+export function appFrame(tool: string, args: Record<string, unknown>, account: string | undefined, id: number): { slug: string; frame: Record<string, unknown>; plain: boolean } {
   // Recorded plain app tools keep their dotted name (gmail.search_emails); a Composio slug always goes through multi-execute.
   const plain = tool.includes(".") ? appToolCall(tool, { ...args, ...(account ? { account } : {}) }) : null;
-  if (plain) return { slug: plain.slug, frame: plain.frame(id) };
+  if (plain) return { slug: plain.slug, frame: plain.frame(id), plain: true };
   return {
     slug: tool,
+    plain: false,
     frame: { jsonrpc: "2.0", id, method: "tools/call", params: { name: MULTI_EXECUTE, arguments: { tools: [{ tool_slug: tool, arguments: args, ...(account ? { account } : {}) }] } } },
   };
 }
@@ -161,12 +162,13 @@ export function createExecutors(context: ExecutorContext): StepExecutors {
     },
     shell: (input) => (input.where === "vm" ? runOnVm(context, input) : runInBox(context, input)),
     async app(input) {
-      const { slug, frame } = appFrame(input.tool, input.args, input.account, rpcId());
+      const { slug, frame, plain } = appFrame(input.tool, input.args, input.account, rpcId());
       const answer = await context.internal("connectors", "/api/internal/connectors/mcp", frame, input.signal);
       if (!answer.ok) return { ok: false, error: errorText(answer.body.error, "the app call was refused") };
       if (Buffer.byteLength(JSON.stringify(answer.body)) > input.maxBytes) return tooLarge(input.maxBytes);
       try {
-        toolData(slug, answer.body);
+        const data = toolData(slug, answer.body);
+        if (plain) return { ok: true, output: data };
         const result = record(answer.body.result);
         const text = (Array.isArray(result?.content) ? result.content : []).map(record).find((part) => typeof part?.text === "string")?.text;
         return { ok: true, output: JSON.parse(String(text)) };

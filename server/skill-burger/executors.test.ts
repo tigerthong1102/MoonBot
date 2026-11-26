@@ -90,6 +90,12 @@ describe("where a Skill Burger's steps run", () => {
     expect(await exec.app({ tool: "GMAIL_FETCH_EMAILS", app: "gmail", args: {}, signal: signal(), maxBytes: 10_000 })).toEqual({ ok: true, output: body });
   });
 
+  it("returns the unwrapped data captured for plain app tools", async () => {
+    const body = { successful: true, data: { results: [{ tool_slug: "GMAIL_FETCH_EMAILS", response: { successful: true, data: { messages: [{ messageId: "fixture" }] } } }] } };
+    const exec = createExecutors({ botId: "b", cwd: folder(), internal: async () => ({ ok: true, body: { result: { content: [{ type: "text", text: JSON.stringify(body) }] } } }) });
+    expect(await exec.app({ tool: "gmail.search_emails", app: "gmail", args: { query: "invoice" }, signal: signal(), maxBytes: 10_000 })).toEqual({ ok: true, output: { messages: [{ messageId: "fixture" }] } });
+  });
+
   it("preserves the message from a JSON-RPC error", async () => {
     const exec = createExecutors({ botId: "b", cwd: folder(), internal: async () => ({ ok: false, body: { error: { code: -32000, message: "Account disconnected" } } }) });
     expect(await exec.app({ tool: "GMAIL_SEND_EMAIL", app: "gmail", args: {}, signal: signal(), maxBytes: 1_000 })).toEqual({ ok: false, error: "Account disconnected" });

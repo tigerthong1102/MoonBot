@@ -70,6 +70,21 @@ describe("running a Skill Burger", () => {
     expect(await h.start(workflow)).toMatchObject({ status: "ok" });
     expect(sent[1]).toEqual({ message_id: "fixture-id" });
   });
+  it("passes plain app results to the next recorded action", async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const exec = createExecutors({ botId: "fixture", cwd: tmpdir(), internal: async (_kind, _path, raw) => {
+      const frame = raw as { params: { arguments: { tools: Array<{ tool_slug: string; arguments: Record<string, unknown> }> } } };
+      const call = frame.params.arguments.tools[0]!;
+      sent.push(call.arguments);
+      const data = call.tool_slug === "GMAIL_FETCH_EMAILS" ? { messages: [{ messageId: "fixture-id" }] } : { sent: true };
+      return { ok: true, body: { result: { content: [{ type: "text", text: JSON.stringify({ successful: true, data: { results: [{ tool_slug: call.tool_slug, response: { successful: true, data } }] } }) }] } } };
+    } });
+    const h = harness({ app: exec.app });
+    const workflow = wf([app("s1", "gmail.search_emails", { query: "invoice" }), app("s2", "GMAIL_FORWARD_MESSAGE", { message_id: { $step: "s1", path: "messages.0.messageId" } })]);
+    expect(await h.start(workflow)).toMatchObject({ status: "ok" });
+    expect(sent[1]).toEqual({ message_id: "fixture-id" });
+  });
+
   it("retains a checked step's output for the following step", async () => {
     const calls: Record<string, unknown>[] = [];
     const h = harness({ app: async (input) => { calls.push(input.args); return { ok: true, output: { id: "fixture-id" } }; } });

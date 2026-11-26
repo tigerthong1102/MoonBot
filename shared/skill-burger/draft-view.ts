@@ -48,7 +48,6 @@ export interface DraftChoices {
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 export const writerOf = (id: string) => /^(.*)_write(?:_\d+)?$/.exec(id)?.[1];
 
-/** The steps whose output `node` uses. */
 function refsIn(node: unknown, into = new Set<string>()): Set<string> {
   if (Array.isArray(node)) node.forEach((item) => refsIn(item, into));
   else if (node && typeof node === "object") {
@@ -71,7 +70,6 @@ function detailOf(step: WorkflowStep): string | undefined {
   }
 }
 
-/** The text of a message with each input shown as its value. */
 function filled(value: Parameters<typeof textLine>[0], args: Workflow["args"]): string {
   return typeof value === "string" ? value : value.map((part) => (typeof part === "string" ? part : "$arg" in part ? String(args[part.$arg]?.default ?? `{${part.$arg}}`) : `{${part.$step}}`)).join("");
 }

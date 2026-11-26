@@ -63,7 +63,7 @@ const chips = () => JSON.parse(host.querySelector("[data-chips]")!.getAttribute(
 const documents = () => fetchMock.mock.calls.map(([path]) => new URL(path, "http://omb.test")).filter((url) => url.pathname.endsWith("/app"));
 const posts = (ending: string) => fetchMock.mock.calls.filter(([path, init]) => path.endsWith(ending) && init?.method === "POST").map(([, init]) => JSON.parse(String(init!.body)));
 const fromFrame = (data: unknown, source: unknown) => act(async () => {
-  window.dispatchEvent(new MessageEvent("message", { data, source: source as MessageEventSource }));
+  window.dispatchEvent(new MessageEvent("message", { origin: source === window ? window.location.origin : "null", data, source: source as MessageEventSource }));
   await new Promise((resolve) => setTimeout(resolve, 0));
 });
 const PICK = { jsonrpc: "2.0", method: POINTED_METHOD, params: { tag: "button", role: "button", text: "Choose Pro", selector: "main > section:nth-of-type(2) > button", html: "<button>Choose Pro</button>" } };

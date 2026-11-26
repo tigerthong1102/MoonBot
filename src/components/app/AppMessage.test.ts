@@ -62,7 +62,7 @@ const button = (label: string) => Array.from(host.querySelectorAll<HTMLButtonEle
 const frame = () => find<HTMLIFrameElement>("iframe")!;
 /** The View speaks: a message event whose source is the frame's window. */
 const fromView = (data: unknown) => act(async () => {
-  window.dispatchEvent(new MessageEvent("message", { data, source: frame().contentWindow as unknown as MessageEventSource }));
+  window.dispatchEvent(new MessageEvent("message", { origin: "null", data, source: frame().contentWindow as unknown as MessageEventSource }));
   await new Promise((resolve) => setTimeout(resolve, 0));
 });
 /** What the host posted to the View. */
@@ -253,7 +253,7 @@ describe("a bot's page", () => {
     const teardown = oldView.find((message) => message.method === "ui/resource-teardown");
     expect(teardown).toBeTruthy();
     await act(async () => {
-      window.dispatchEvent(new MessageEvent("message", { data: { jsonrpc: "2.0", id: teardown.id, result: {} }, source: old.contentWindow as unknown as MessageEventSource }));
+      window.dispatchEvent(new MessageEvent("message", { origin: "null", data: { jsonrpc: "2.0", id: teardown.id, result: {} }, source: old.contentWindow as unknown as MessageEventSource }));
     });
     await settle();
     expect(frame()).not.toBe(old);

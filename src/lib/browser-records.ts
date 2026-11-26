@@ -1,4 +1,3 @@
-/** A scoped value in this browser. The promise settles after the transaction commits. */
 export async function browserRecord<T>(mode: IDBTransactionMode, work: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open("startupbot-document-library", 1);

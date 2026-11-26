@@ -11,7 +11,6 @@ export function sourceLink(digest: string, start: number, path: string) {
   return "#startupbot-source-" + digest + "-" + start + "/" + encodedSourcePath(path);
 }
 
-/** Released clients serialized retrieval as numbered source links followed by literal excerpts in an ordinary send. */
 export function legacySourceRequest(text: string): boolean {
   return /\n\n\[1\]\(#startupbot-source-[a-f0-9]{64}-\d{1,9}\/[^\s)#]+\) · [^\n]+\n[\s\S]/u.test(text);
 }

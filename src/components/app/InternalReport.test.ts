@@ -14,9 +14,15 @@ it("initializes an older direct-report frame read-only and removes its bridge on
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
+  const intervals = vi.spyOn(window, "setInterval");
+  vi.spyOn(document, "hidden", "get").mockReturnValue(false);
   try {
     await act(async () => root.render(createElement(InternalReport, { threadId: "t", messageId: "m" })));
-    expect(fetchAppDocument).toHaveBeenCalledWith("t", "m", expect.any(AbortSignal), undefined, true);
+    expect(fetchAppDocument).toHaveBeenLastCalledWith("t", "m", expect.any(AbortSignal), undefined, { report: true, background: false });
+    const poll = intervals.mock.calls.find(([, delay]) => delay === 30_000)?.[0];
+    expect(typeof poll).toBe("function");
+    await act(async () => { if (typeof poll === "function") poll(); });
+    expect(fetchAppDocument).toHaveBeenLastCalledWith("t", "m", expect.any(AbortSignal), undefined, { report: true, background: true });
     const frame = container.querySelector("iframe")!;
     expect(document.head.querySelector("meta[data-report-frame-policy]")?.getAttribute("content")).toBe("frame-src about:");
     expect(frame.getAttribute("sandbox")).toBe("allow-scripts");

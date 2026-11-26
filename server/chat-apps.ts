@@ -208,7 +208,6 @@ export function pageVersion(app: AppPayload, rev?: number): { doc: string; rev: 
   return Number.isInteger(rev) && rev >= 0 && rev < current && index >= 0 && history[index] ? { doc: history[index]!, rev } : null;
 }
 
-/** Publish a chat report to its conversation, restore an older version to that link, or withdraw it. */
 export function publishInternalReport(store: Pick<AgentCardStore, "messagesFor" | "patchMessage">,
   threadId: string, messageId: string, rev?: number | null): boolean {
   const row = appRow(store, threadId, messageId);

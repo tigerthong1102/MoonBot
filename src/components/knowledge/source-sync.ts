@@ -1,6 +1,7 @@
 import { browserRecord } from "@/lib/browser-records";
 import { randomUuid } from "@/lib/random-uuid";
-import { api, ApiError } from "@/state/api";
+import { cloudAsleep } from "@/lib/cloud-power";
+import { api, apiFetch, ApiError } from "@/state/api";
 import { libraryOwner, readLibrary } from "./source-cache";
 import { accepts, indexSources, scanFolder, type Directory, type Index, type SourceFile } from "./source-index";
 
@@ -26,15 +27,16 @@ export async function setSource(key: string, index: Index, source: FolderSource 
   window.dispatchEvent(new CustomEvent(syncEvent, { detail: key }));
 }
 
+type SourceRead = { background?: boolean; signal?: AbortSignal };
 type CloudFile = { path: string; size: number; sha256: string };
 export async function cloudFolders() {
   const { folders } = await api<{ folders: { id: string; kind: string; threadId?: string; cloudPath: string }[] }>("/api/sync");
   return folders.filter(f => /^[\w-]{1,200}$/.test(f.id)).map(f => ({ id: f.id, name: f.cloudPath.split(/[\\/]/).filter(Boolean).at(-1) ?? f.id, threadId: f.threadId }));
 }
 
-async function cloudFiles(folder: Extract<FolderSource, { kind: "cloud" }>, previous: Index): Promise<SourceFile[]> {
+async function cloudFiles(folder: Extract<FolderSource, { kind: "cloud" }>, previous: Index, read: SourceRead): Promise<SourceFile[]> {
   const url = "/api/sync/folders/" + encodeURIComponent(folder.id);
-  const list = await api<{ files: CloudFile[] }>(url + "/files", { background: true, timeoutMs: 30_000 });
+  const list = await api<{ files: CloudFile[] }>(url + "/files", { ...read, timeoutMs: 30_000 });
   const files = list.files.filter(f => accepts.test(f.path));
   if (files.length > 300 || files.reduce((bytes, f) => bytes + f.size, 0) > 16 * 1024 * 1024) throw new Error("library limit");
   const result: SourceFile[] = [];
@@ -42,7 +44,7 @@ async function cloudFiles(folder: Extract<FolderSource, { kind: "cloud" }>, prev
     const path = folder.name + "/" + entry.path;
     const known = previous.docs.get(path);
     if (known && known.digest === entry.sha256) { result.push({ path, file: known.file }); continue; }
-    const response = await fetch(url + "/file?path=" + encodeURIComponent(entry.path), { credentials: "same-origin", signal: AbortSignal.timeout(30_000) });
+    const response = await apiFetch(url + "/file?path=" + encodeURIComponent(entry.path), { ...read, credentials: "same-origin", timeoutMs: 30_000 });
     if (response.status === 401 || response.status === 403) throw new ApiError("source unavailable", response.status);
     if (!response.ok || response.headers.get("content-length") !== String(entry.size)) { result.push({ path }); continue; }
     const blob = await response.blob();
@@ -52,14 +54,15 @@ async function cloudFiles(folder: Extract<FolderSource, { kind: "cloud" }>, prev
   return result;
 }
 
-export function readSource(source: FolderSource, previous: Index) {
-  return source.kind === "cloud" ? cloudFiles(source, previous) : scanFolder(source.handle);
+export function readSource(source: FolderSource, previous: Index, read: SourceRead = {}) {
+  return source.kind === "cloud" ? cloudFiles(source, previous, read) : scanFolder(source.handle);
 }
 
-export async function scanSource(source: FolderSource, old: Index): Promise<Index> {
+export async function scanSource(source: FolderSource, old: Index, read: SourceRead = {}): Promise<Index> {
   let index: Index;
-  try { index = await indexSources(await readSource(source, old), old); }
+  try { index = await indexSources(await readSource(source, old, read), old); }
   catch (error) {
+    if (read.signal?.aborted || (error instanceof ApiError && error.status === 503 && error.body?.error === "asleep")) throw error;
     const status = error instanceof ApiError ? error.status : null;
     const issue = status === 401 || status === 403 ? "signedOut" : status === 404 || status === 410 ? "missing" :
       source.kind === "cloud" && (status === 503 || error instanceof TypeError) ? "offline" : "folder";
@@ -71,10 +74,10 @@ export async function scanSource(source: FolderSource, old: Index): Promise<Inde
   return index;
 }
 
-export async function syncSource(watch: Watch) {
+export async function syncSource(watch: Watch, read: SourceRead = {}) {
   const old = await readLibrary(watch.key) ?? { docs: new Map(), changes: [] };
-  const index = await scanSource(watch.source, old);
-  // A picker or another window may have removed or replaced this source during a read.
+  const index = await scanSource(watch.source, old, read);
+  read.signal?.throwIfAborted();
   await browserRecord("readwrite", store => {
     const request = store.get("watch:" + watch.key);
     request.onsuccess = () => { if (request.result?.id === watch.id) store.put(index, watch.key); };
@@ -91,26 +94,28 @@ export async function currentLibrary(key: string) {
 }
 
 export function watchDocumentSources() {
-  let active = true, running = false;
+  const controller = new AbortController();
+  const read = { background: true, signal: controller.signal };
+  let running = false;
   async function tick() {
-    if (running || !active || document.hidden || !globalThis.indexedDB) return;
+    if (running || read.signal.aborted || cloudAsleep() || document.hidden || !globalThis.indexedDB) return;
     running = true;
     try {
       const all: IDBValidKey[] = await browserRecord("readonly", store => store.getAllKeys(IDBKeyRange.bound("watch:", "watch;")));
-      if (!all.length || !active) return;
-      const owner = await libraryOwner();
+      if (!all.length || read.signal.aborted) return;
+      const owner = await libraryOwner((input, init) => apiFetch(input, { ...init, ...read, timeoutMs: 30_000 }));
       if (!owner) return;
       for (const slot of all) {
-        if (!active) break;
+        if (read.signal.aborted || cloudAsleep()) break;
         const key = String(slot).slice("watch:".length);
         if (JSON.parse(key)[0] !== owner) continue;
         const watch = await readWatch(key);
-        if (watch && active) await syncSource(watch);
+        if (watch && !read.signal.aborted) await syncSource(watch, read);
       }
-    } catch { /* Storage may be disabled. A manual source remains available in the open panel. */ }
+    } catch {}
     finally { running = false; }
   }
   const timer = window.setInterval(() => void tick(), 60_000);
   void tick();
-  return () => { active = false; window.clearInterval(timer); };
+  return () => { controller.abort(); window.clearInterval(timer); };
 }

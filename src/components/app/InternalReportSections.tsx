@@ -12,7 +12,7 @@ export function InternalReportSections({ threadId, messageId, url }: { threadId:
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   async function load() {
-    const result = await fetchAppDocument(threadId, messageId, undefined, undefined, true);
+    const result = await fetchAppDocument(threadId, messageId, undefined, undefined, { report: true });
     setList(result.sections ?? []);
   }
   async function change(ref?: Section) {

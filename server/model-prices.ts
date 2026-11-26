@@ -50,3 +50,9 @@ export function ledgerCost(
   if (!unit) return { costUsd: null };
   return { costUsd: billableFor(turn, { [turn.model]: unit }), costSource: "estimated" };
 }
+
+export function measuredSpend(model: string, driverKind: string, usage: { input?: number; output?: number; costUsd?: number; cachedInput?: number } | null, prices: PriceList | null) {
+  if (usage?.input === undefined || usage.output === undefined) return { tokens: null, usd: usage?.costUsd ?? null };
+  const usd = ledgerCost({ model, driverKind, input: usage.input, output: usage.output, cachedInput: usage.cachedInput, costUsd: usage.costUsd }, prices).costUsd;
+  return { tokens: usage.input + usage.output, usd };
+}

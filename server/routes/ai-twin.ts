@@ -1,11 +1,11 @@
-import type { IncomingMessage } from "node:http";
 import { z } from "zod";
 import { AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH, AI_TWIN_QUESTION_MAX, type AiTwinView } from "../../shared/ai-twin.ts";
 import {
   createTwinInput, deleteTwinLessonInput, lookupTwinLessonInput, saveTwinLessonInput,
-  twinVersionInput, updateTwinInput, TwinConflict, TwinLessonConflict, type createAiTwinStore,
+  twinVersionInput, updateTwinInput, createAiTwinStore, TwinConflict, TwinLessonConflict,
 } from "../ai-twin.ts";
-import { TwinPreviewError, type createAiTwinPreview } from "../ai-twin-preview.ts";
+import { createAiTwinPreview, TwinPreviewError } from "../ai-twin-preview.ts";
+import { hasDesktopOwnerCapability } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 const previewInput = twinVersionInput.extend({
@@ -16,27 +16,31 @@ const previewInput = twinVersionInput.extend({
 
 export function createAiTwinRoutes(deps: {
   enabled: boolean;
-  store: ReturnType<typeof createAiTwinStore>;
-  preview: ReturnType<typeof createAiTwinPreview>;
-  owner: (req: IncomingMessage) => boolean;
+  dataDir: string;
+  workspace: string;
+  preview: Parameters<typeof createAiTwinPreview>[0];
+  ownerToken: () => string | undefined;
   blocked: () => boolean;
 }): RouteHandler {
+  const store = createAiTwinStore(deps.dataDir, deps.workspace);
+  const drafts = createAiTwinPreview(deps.preview);
   return async ({ req, res, path, method, auth, json, readBody }) => {
     const preview = path === AI_TWIN_PREVIEW_PATH;
     const teaching = path === AI_TWIN_LESSONS_PATH;
     const lookup = path === AI_TWIN_LOOKUP_PATH;
     if (path !== AI_TWIN_PATH && !preview && !teaching && !lookup) return PASS;
     res.setHeader("cache-control", "private, no-store");
-    const authorized = () => deps.enabled && auth.kind === "loopback" && auth.trust !== "service" && !auth.companionDevice && deps.owner(req);
+    const authorized = () => deps.enabled && auth.kind === "loopback" && auth.trust !== "service"
+      && !auth.companionDevice && hasDesktopOwnerCapability(req, deps.ownerToken());
     if (!authorized()) return json(res, 404, { error: "not_found" });
 
     function replyProfile(status: number, view: AiTwinView) {
-      const provider = view.twin && !view.twin.paused ? deps.preview.provider(view.twin.id) : null;
+      const provider = view.twin && !view.twin.paused ? drafts.provider(view.twin.id) : null;
       return json(res, status, provider ? { ...view, preview: provider } : view);
     }
 
     try {
-      if (method === "GET" && path === AI_TWIN_PATH) return replyProfile(200, deps.store.get());
+      if (method === "GET" && path === AI_TWIN_PATH) return replyProfile(200, store.get());
       const allowed = preview || lookup ? ["POST"] : teaching ? ["POST", "DELETE"] : ["GET", "POST", "PATCH", "DELETE"];
       if (!allowed.includes(method)) {
         res.setHeader("allow", allowed.join(", "));
@@ -51,19 +55,19 @@ export function createAiTwinRoutes(deps: {
       if (teaching) {
         const next = method === "POST" ? saveTwinLessonInput.safeParse(body) : deleteTwinLessonInput.safeParse(body);
         if (!next.success) return json(res, 400, { error: "invalid_twin" });
-        const view = "saveAsLesson" in next.data ? deps.store.saveLesson(next.data) : deps.store.forgetLesson(next.data);
-        deps.preview.cancel();
+        const view = "saveAsLesson" in next.data ? store.saveLesson(next.data) : store.forgetLesson(next.data);
+        drafts.cancel();
         return replyProfile(200, view);
       }
       if (lookup) {
         const input = lookupTwinLessonInput.safeParse(body);
         if (!input.success) return json(res, 400, { error: "invalid_twin" });
-        return json(res, 200, { lesson: deps.store.lookupLesson(input.data) });
+        return json(res, 200, { lesson: store.lookupLesson(input.data) });
       }
       if (preview) {
         const input = previewInput.safeParse(body);
         if (!input.success) return json(res, 400, { error: "invalid_twin" });
-        const twin = deps.store.get().twin;
+        const twin = store.get().twin;
         if (!twin || twin.paused || input.data.id !== twin.id || input.data.revision !== twin.revision) {
           return json(res, 409, { error: "twin_changed" });
         }
@@ -71,9 +75,9 @@ export function createAiTwinRoutes(deps: {
         const close = () => disconnected.abort();
         res.once("close", close);
         try {
-          const draft = await deps.preview.draft(twin, input.data.question, input.data.key, disconnected.signal);
+          const draft = await drafts.draft(twin, input.data.question, input.data.key, disconnected.signal);
           if (!authorized()) return json(res, 404, { error: "not_found" });
-          const current = deps.store.get().twin;
+          const current = store.get().twin;
           if (deps.blocked() || current?.revision !== twin.revision || current.id !== twin.id) {
             return json(res, 409, { error: "twin_changed" });
           }
@@ -89,20 +93,20 @@ export function createAiTwinRoutes(deps: {
       if (method === "POST") {
         const input = createTwinInput.safeParse(body);
         if (!input.success) return json(res, 400, { error: "invalid_twin" });
-        const result = deps.store.create(input.data);
+        const result = store.create(input.data);
         return replyProfile(result.created ? 201 : 200, result.view);
       }
       if (method === "PATCH") {
         const input = updateTwinInput.safeParse(body);
         if (!input.success) return json(res, 400, { error: "invalid_twin" });
-        const view = deps.store.update(input.data);
-        deps.preview.cancel();
+        const view = store.update(input.data);
+        drafts.cancel();
         return replyProfile(200, view);
       }
       const input = twinVersionInput.safeParse(body);
       if (!input.success) return json(res, 400, { error: "invalid_twin" });
-      const deleted = deps.store.delete(input.data);
-      deps.preview.cancel();
+      const deleted = store.delete(input.data);
+      drafts.cancel();
       return replyProfile(200, deleted);
     } catch (error) {
       if (error instanceof TwinConflict) return json(res, 409, { error: "twin_changed" });

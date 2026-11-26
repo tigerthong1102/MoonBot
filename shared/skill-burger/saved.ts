@@ -1,6 +1,15 @@
 import type { LayerKind } from "./layers.ts";
 
-export interface SavedWorkflowLayer { kind: LayerKind; app?: string; label: string }
+export interface SavedWorkflowLayer {
+  kind: LayerKind;
+  app?: string;
+  label: string;
+  id?: string;
+  /** A decide step's cases. */
+  cases?: string[];
+  /** The case of a decide step this step belongs to. */
+  on?: { decide: string; case: string };
+}
 export interface SavedWorkflow {
   name: string;
   summary: string;

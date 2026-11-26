@@ -192,3 +192,21 @@ export function createCustomDomainVerifier(dependencies: CustomDomainDependencie
     },
   };
 }
+
+export function createCustomDomainStatus(deps: { desktop: boolean; domain(): string | undefined; fallback: string | null | undefined; tailnet(): string | null; lan(): string | null; port: number; webhookPort: number }) {
+  function savedCustomDomain(): string | null {
+    const domain = deps.domain();
+    if (deps.desktop || !domain) return null;
+    try { return normalizeCustomDomain(domain); }
+    catch { return null; }
+  }
+  function publicUrl(): string | null { return savedCustomDomain() ?? deps.fallback ?? deps.tailnet() ?? deps.lan(); }
+  function customDomainStatus() {
+    return {
+      customDomain: savedCustomDomain(), publicUrl: publicUrl(), fallbackUrl: deps.fallback,
+      supported: !deps.desktop, appPort: deps.port, webhookPort: deps.webhookPort,
+      serverIpv4: deps.desktop ? null : customDomainIpv4(),
+    };
+  }
+  return { savedCustomDomain, publicUrl, customDomainStatus };
+}

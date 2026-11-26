@@ -8,13 +8,12 @@ import { AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH, AI_TWIN_PATH, AI_TWIN_PREVIE
 import { AI_TWIN_PRIVATE_DIR, createAiTwinStore } from "./ai-twin.ts";
 import { createWorkspaceBackupSnapshot, stagedWorkspaceData, stageWorkspaceBackup } from "./workspace-backup.ts";
 
-async function launchTwin(enabled: boolean, provider: NodeJS.ProcessEnv = {}) {
+async function launchTwin(provider: NodeJS.ProcessEnv = {}) {
   const token = randomBytes(32).toString("base64url");
   const fixture = await launchVerificationServer({
     ...provider,
     OMB_TEST_DESKTOP_OWNER_TOKEN: token,
     OMB_DEV_TRUST_LOCAL_BROWSER: "0",
-    OMB_AI_TWIN: enabled ? "1" : "0",
   });
   const url = fixture.info.url;
   const owner = { "x-openmausbot-desktop-owner": token };
@@ -27,22 +26,40 @@ async function launchTwin(enabled: boolean, provider: NodeJS.ProcessEnv = {}) {
 }
 
 it("leaves the profile absent when the feature is disabled, even on an authenticated desktop", async () => {
-  const { fixture, call } = await launchTwin(false);
+  const { fixture, url, owner, call } = await launchTwin({ OMB_AI_TWIN: "0" });
   try {
     expect((await call()).status).toBe(404);
+    const config = await fetch(url + "/api/config", { headers: owner }).then((res) => res.json());
+    expect(config).not.toHaveProperty("features.aiTwin");
     expect(existsSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR))).toBe(false);
   } finally {
     await fixture.close();
   }
 }, 60_000);
 
-it("binds the Twin to the desktop owner and workspace, persists edits, excludes it from export and fences stale requests", async () => {
-  const { fixture, url, owner, call } = await launchTwin(true);
+it("does not offer AI Twin on a standalone server", async () => {
+  const fixture = await launchVerificationServer({});
   try {
+    const config = await fetch(fixture.info.url + "/api/config").then((res) => res.json());
+    expect(config).not.toHaveProperty("features.aiTwin");
+    expect((await fetch(fixture.info.url + AI_TWIN_PATH)).status).toBe(404);
+    expect(existsSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR))).toBe(false);
+  } finally {
+    await fixture.close();
+  }
+}, 60_000);
+
+it("offers Twin setup by default only to the desktop owner and keeps the profile absent until creation", async () => {
+  const { fixture, url, owner, call } = await launchTwin();
+  try {
+    const config = await fetch(url + "/api/config", { headers: owner }).then((res) => res.json());
+    expect(config).toMatchObject({ features: { aiTwin: true } });
     const start = await call();
     expect(start.status).toBe(200);
     expect(start.headers.get("cache-control")).toBe("private, no-store");
-    const { creationEpoch } = await start.json() as AiTwinView;
+    const { creationEpoch, twin: beforeCreation } = await start.json() as AiTwinView;
+    expect(beforeCreation).toBeNull();
+    expect(existsSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR))).toBe(false);
     const create = { name: "Thông AI", creationId: randomUUID(), creationEpoch, createConsent: true };
     expect((await call("POST", { ...create, createConsent: false })).status).toBe(400);
     expect((await call("POST", { ...create, owner: "forged" })).status).toBe(400);
@@ -115,7 +132,7 @@ it("only makes a consented, tool-free text preview through the selected provider
   writeFileSync(routes, JSON.stringify({ PROBE_TWIN: sample }));
 
   try {
-    const { fixture, url, owner, call } = await launchTwin(true, {
+    const { fixture, url, owner, call } = await launchTwin({
       FAKE_CLAUDE_TEXT_ROUTES: routes, FAKE_CLAUDE_TEXT_LOG: promptLog, FAKE_CLAUDE_VERSION: "2.1.321",
     });
     try {
@@ -159,7 +176,7 @@ it("only makes a consented, tool-free text preview through the selected provider
 }, 90_000);
 
 it("stores only explicitly approved owner lessons and looks them up offline with source metadata", async () => {
-  const { fixture, url, owner, call } = await launchTwin(true);
+  const { fixture, url, owner, call } = await launchTwin();
   try {
     const { creationEpoch } = (await (await call()).json()) as AiTwinView;
     const made = await call("POST", { name: "Thông AI", creationId: randomUUID(), creationEpoch, createConsent: true });

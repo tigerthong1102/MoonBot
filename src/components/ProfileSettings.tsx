@@ -1,15 +1,15 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { api, useStore, type ConfigStatus } from "@/state/store";
 import { t } from "@/lib/i18n";
+import { localAiTwinAvailable } from "@/lib/ai-twin";
 import { avatarMarks } from "@/lib/avatar-marks";
 import { saveTeamProfile } from "@/lib/own-profile";
 import { IMAGE_MAX_BYTES, imageAttachmentFromFile, isImageFile } from "@/lib/composer-attachments";
 import type { LocaleKey } from "@/locales";
 import { botAvatarUrlFromStoredPath } from "../../shared/bot-avatar";
 import { AboutMeSettings } from "./AboutMeSettings";
-import { AiTwinSettings } from "./AiTwinSettings";
 import { EveryBotRules } from "./EveryBotRules";
-import { SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
+import { SETTINGS_INPUT, SettingsField, SettingsLinkRow } from "./SettingsPrimitives";
 import { profileInitials } from "./SidebarProfileMenu";
 import { User } from "lucide-react";
 
@@ -202,7 +202,8 @@ export function ProfileFields() {
         />
       </SettingsField>
       <AboutMeSettings />
-      {!team && !state.config?.cloudHome && window.ogb?.platform && !window.ogb.remoteClient?.active && <AiTwinSettings />}
+      {localAiTwinAvailable(state.config) && <SettingsLinkRow title={t("settings.aiTwin.title")}
+        onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: "aiTwin" })} />}
       <EveryBotRules />
     </div>
   );

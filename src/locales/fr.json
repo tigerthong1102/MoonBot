@@ -4150,6 +4150,7 @@
   "knowledge.chartMark": "Valeurs tracées",
   "knowledge.report": "Rapport interne",
   "knowledge.reportShare": "Publier pour les membres du chat",
+  "knowledge.reportLocalOnly": "Ce rapport peut uniquement être ouvert sur cet appareil.",
   "knowledge.reportOpen": "Ouvrir le rapport interne",
   "knowledge.reportUnavailable": "Ce rapport n'est pas disponible pour votre compte.",
   "knowledge.reportFailed": "Impossible de publier ce rapport pour la conversation.",

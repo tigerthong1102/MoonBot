@@ -4004,6 +4004,7 @@
   "knowledge.chartMark": "आलेखित मान",
   "knowledge.report": "आंतरिक रिपोर्ट",
   "knowledge.reportShare": "चैट सदस्यों के लिए प्रकाशित करें",
+  "knowledge.reportLocalOnly": "यह रिपोर्ट केवल इस डिवाइस पर खोली जा सकती है।",
   "knowledge.reportOpen": "आंतरिक रिपोर्ट खोलें",
   "knowledge.reportUnavailable": "यह रिपोर्ट आपके खाते के लिए उपलब्ध नहीं है.",
   "knowledge.reportFailed": "बातचीत के लिए यह रिपोर्ट प्रकाशित नहीं की जा सकी.",

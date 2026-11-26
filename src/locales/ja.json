@@ -8441,6 +8441,7 @@
   "knowledge.chartMark": "プロットされた値",
   "knowledge.report": "内部報告書",
   "knowledge.reportShare": "チャットメンバー向けに公開する",
+  "knowledge.reportLocalOnly": "このレポートはこの端末でのみ開けます。",
   "knowledge.reportOpen": "内部レポートを開く",
   "knowledge.reportUnavailable": "このレポートはあなたのアカウントでは利用できません。",
   "knowledge.reportFailed": "この会話のレポートを公開できませんでした。",

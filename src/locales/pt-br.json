@@ -11581,6 +11581,7 @@
   "knowledge.chartMark": "Valores plotados",
   "knowledge.report": "Relatório interno",
   "knowledge.reportShare": "Publicar para membros do chat",
+  "knowledge.reportLocalOnly": "Este relatório só pode ser aberto neste dispositivo.",
   "knowledge.reportOpen": "Abrir relatório interno",
   "knowledge.reportUnavailable": "Este relatório não está disponível para sua conta.",
   "knowledge.reportFailed": "Não foi possível publicar este relatório para a conversa.",

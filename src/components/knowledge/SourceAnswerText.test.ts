@@ -9,6 +9,8 @@ it("renders external URLs, Markdown and local paths as text, and offers only the
   const text = "Use https://example.test, /tmp/receipt.pdf and \\[portal\\]\\(https://example.test\\). [1](" + target + ")";
   const html = renderToStaticMarkup(createElement(SourceAnswerText, { text, threadId: "room" }));
   expect(html).toContain("https://example.test, /tmp/receipt.pdf and [portal](https://example.test)");
+  expect(html).toContain('dir="auto"');
+  expect(html).toContain("overflow-wrap:anywhere");
   expect(html).not.toMatch(/<a\b|<img\b/);
   expect(html.match(/<button\b/g)).toHaveLength(1);
   expect(html).toContain(">[1]</button>");

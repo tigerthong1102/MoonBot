@@ -6348,6 +6348,7 @@
   "knowledge.chartMark": "Çizilen değerler",
   "knowledge.report": "Dahili rapor",
   "knowledge.reportShare": "Sohbet üyeleri için yayınlayın",
+  "knowledge.reportLocalOnly": "Bu rapor yalnızca bu cihazda açılabilir.",
   "knowledge.reportOpen": "Dahili raporu aç",
   "knowledge.reportUnavailable": "Bu rapor hesabınız için kullanılamıyor.",
   "knowledge.reportFailed": "Konuşma için bu rapor yayınlanamadı.",

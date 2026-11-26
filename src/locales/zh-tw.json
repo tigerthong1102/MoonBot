@@ -10709,6 +10709,7 @@
   "knowledge.chartMark": "繪製值",
   "knowledge.report": "內部報告",
   "knowledge.reportShare": "發布給聊天成員",
+  "knowledge.reportLocalOnly": "此報告只能在這部裝置上開啟。",
   "knowledge.reportOpen": "打開內部報告",
   "knowledge.reportUnavailable": "此報告不適用於您的帳戶。",
   "knowledge.reportFailed": "無法發布此對話報告。",

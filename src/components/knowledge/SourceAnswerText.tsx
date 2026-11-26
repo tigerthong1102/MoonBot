@@ -10,7 +10,7 @@ function plain(text: string) {
   return text.replace(/\\([\\`*_{}[\]()<>#!|~])/g, "$1");
 }
 
-export function SourceAnswerText({ text, threadId }: { text: string; threadId?: string }) {
+function paragraphContent(text: string, threadId?: string) {
   const parts: ReactNode[] = [];
   let start = 0;
   for (const match of text.matchAll(/\[(\d+)\]\((#startupbot-source-[^\s)]+)\)/g)) {
@@ -23,5 +23,11 @@ export function SourceAnswerText({ text, threadId }: { text: string; threadId?: 
       : label}</Fragment>);
     start = match.index + match[0].length;
   }
-  return <div data-look="bot-text" className="chat-md min-w-0 whitespace-pre-wrap">{parts}{plain(text.slice(start))}</div>;
+  return <>{parts}{plain(text.slice(start))}</>;
+}
+
+export function SourceAnswerText({ text, threadId }: { text: string; threadId?: string }) {
+  return <div data-look="bot-text" className="chat-md min-w-0 space-y-2 whitespace-pre-wrap [overflow-wrap:anywhere]">
+    {text.split(/\n\s*\n/).map((paragraph, index) => <p key={index} dir="auto">{paragraphContent(paragraph, threadId)}</p>)}
+  </div>;
 }

@@ -6847,6 +6847,7 @@
   "knowledge.chartMark": "Valores trazados",
   "knowledge.report": "Informe interno",
   "knowledge.reportShare": "Publicar para miembros del chat",
+  "knowledge.reportLocalOnly": "Este informe solo se puede abrir en este dispositivo.",
   "knowledge.reportOpen": "Abrir informe interno",
   "knowledge.reportUnavailable": "Este informe no está disponible para su cuenta.",
   "knowledge.reportFailed": "No se pudo publicar este informe para la conversación.",

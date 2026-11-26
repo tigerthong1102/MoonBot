@@ -10605,6 +10605,7 @@
   "knowledge.chartMark": "绘制值",
   "knowledge.report": "内部报告",
   "knowledge.reportShare": "发布给聊天成员",
+  "knowledge.reportLocalOnly": "此报告只能在本设备上打开。",
   "knowledge.reportOpen": "打开内部报告",
   "knowledge.reportUnavailable": "此报告不适用于您的帐户。",
   "knowledge.reportFailed": "无法发布此对话报告。",

@@ -7665,6 +7665,7 @@
   "knowledge.chartMark": "Нанесенные значения",
   "knowledge.report": "Внутренний отчет",
   "knowledge.reportShare": "Публикация для участников чата",
+  "knowledge.reportLocalOnly": "Этот отчёт можно открыть только на этом устройстве.",
   "knowledge.reportOpen": "Открыть внутренний отчет",
   "knowledge.reportUnavailable": "Этот отчет недоступен для вашего аккаунта.",
   "knowledge.reportFailed": "Не удалось опубликовать этот отчет для беседы.",

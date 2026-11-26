@@ -4365,6 +4365,7 @@
   "knowledge.chartMark": "Geplottete Werte",
   "knowledge.report": "Interner Bericht",
   "knowledge.reportShare": "Für Chat-Mitglieder veröffentlichen",
+  "knowledge.reportLocalOnly": "Dieser Bericht lässt sich nur auf diesem Gerät öffnen.",
   "knowledge.reportOpen": "Internen Bericht öffnen",
   "knowledge.reportUnavailable": "Dieser Bericht ist für Ihr Konto nicht verfügbar.",
   "knowledge.reportFailed": "Dieser Bericht für die Unterhaltung konnte nicht veröffentlicht werden.",

@@ -4425,6 +4425,7 @@
   "knowledge.chartMark": "Нанесені значення",
   "knowledge.report": "Внутрішній звіт",
   "knowledge.reportShare": "Опублікувати для учасників чату",
+  "knowledge.reportLocalOnly": "Цей звіт можна відкрити лише на цьому пристрої.",
   "knowledge.reportOpen": "Відкрити внутрішній звіт",
   "knowledge.reportUnavailable": "Цей звіт недоступний для вашого облікового запису.",
   "knowledge.reportFailed": "Не вдалося опублікувати цей звіт для бесіди.",

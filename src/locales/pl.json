@@ -7611,6 +7611,7 @@
   "knowledge.chartMark": "Wykreślone wartości",
   "knowledge.report": "Raport wewnętrzny",
   "knowledge.reportShare": "Publikuj dla członków czatu",
+  "knowledge.reportLocalOnly": "Ten raport można otworzyć tylko na tym urządzeniu.",
   "knowledge.reportOpen": "Otwórz raport wewnętrzny",
   "knowledge.reportUnavailable": "Ten raport jest niedostępny dla Twojego konta.",
   "knowledge.reportFailed": "Nie można opublikować tego raportu dla rozmowy.",

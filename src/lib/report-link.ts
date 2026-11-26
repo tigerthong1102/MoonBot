@@ -8,7 +8,8 @@ export function shareableReportOrigin(value: string | null | undefined): string 
   try {
     const url = new URL(value);
     const host = url.hostname.replace(/\.$/, "");
-    if (!/^https?:$/.test(url.protocol) || url.username || url.password ||
+    const mappedLoopback = /^\[::ffff:(?:0:0|7f[0-9a-f]{2}:[0-9a-f]+)\]$/i.test(host);
+    if (mappedLoopback || !/^https?:$/.test(url.protocol) || url.username || url.password ||
         /^(?:127\.|0\.0\.0\.0$|\[::(?:1)?\]$)/i.test(host) || /(?:^|\.)localhost$/i.test(host)) return "";
     return url.origin;
   } catch { return ""; }

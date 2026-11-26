@@ -548,12 +548,6 @@ jobs:
       UPGRADE_BASE_COMMIT: ${{ inputs.upgrade_baseline }}
       UPGRADE_CANDIDATE_COMMIT: ${{ inputs.ref }}
     steps:
-      - name: Validate exact revisions
-        shell: pwsh
-        run: |
-          foreach ($revision in @($env:UPGRADE_BASE_COMMIT, $env:UPGRADE_CANDIDATE_COMMIT)) {
-            if ($revision.Length -ne 40 -or $revision -cnotmatch '^[0-9a-f]{40}$') { throw 'Both revisions must be full lowercase commit SHAs' }
-          }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.upgrade_baseline }}
@@ -564,6 +558,12 @@ jobs:
           ref: ${{ inputs.ref }}
           path: candidate
           persist-credentials: false
+      - name: Verify exact checked out revisions
+        shell: pwsh
+        run: |
+          $baseline = (git -C baseline rev-parse HEAD).Trim()
+          $candidate = (git -C candidate rev-parse HEAD).Trim()
+          if ($baseline -cne $env:UPGRADE_BASE_COMMIT -or $candidate -cne $env:UPGRADE_CANDIDATE_COMMIT) { throw 'The packaged workspaces do not match the requested commits' }
       - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
         with:
           package_json_file: candidate/package.json

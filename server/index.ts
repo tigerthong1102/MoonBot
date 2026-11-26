@@ -2389,7 +2389,6 @@ function markDirectTurnDispatching(botId: string, claimId: string, threadId: str
 function clearDirectTurnDispatch(threadId: string, claimId: string): void {
   if (directTurnDispatchClaims.get(threadId)?.id === claimId) {
     directTurnDispatchClaims.delete(threadId);
-    // A fast provider can settle before its dispatch ACK, so releasing the reservation must retry the final fence.
     settleTrackedRequest(threadId);
   }
 }
@@ -6801,7 +6800,6 @@ bus.subscribe((event: RuntimeEvent) => {
           directTurnBots.delete(event.threadId);
           if (continueComputerSelection(event.threadId, generation, event.ok) || peerLimitResend.resend(event.threadId, generation)) return;
           settleTrackedRequest(event.threadId);
-          // An asynchronous screenshot finishes after the bus subscribers that normally drain have run.
           if (resumeQueued) drainQueuedSends();
         };
         const tokens = event.usage ?? lastReported;

@@ -62,7 +62,7 @@ export function createWorkBotData(engine: DataEngine, sheets: DataSheetRegistry,
   }
   function publish(entry: WorkBotDataEntry) {
     if (!journal.committed(entry.link) || !allowed()) throw new Error("Cannot publish an unconfirmed Data handoff");
-    if (!journal.fence(entry.op)) return;
+    if (!journal.checkpointPendingCopy(entry.op)) return;
     const backing: Record<string, string> = {};
     entry.cards.forEach((card, index) => { if (card.result) backing[card.id] = dataSnapshotNames(entry.op, index).backing; });
     sheets.for(entry.link.targetBotId).publishWorkBotCards(entry.op, entry.cards, backing);

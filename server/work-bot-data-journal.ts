@@ -40,8 +40,7 @@ export function createWorkBotDataJournal(db: () => DatabaseSync, durable: (write
       const entry = entryFrom(value);
       durable(database => database.prepare("INSERT INTO command_receipts (kind, key, at, result) VALUES (?, ?, ?, ?)").run(KIND, entry.op, Date.now(), JSON.stringify(entry)));
     },
-    /** Checkpoint the chat write in a FULL-sync transaction before publishing the sheet in another file. */
-    fence(op: string): boolean {
+    checkpointPendingCopy(op: string): boolean {
       let pending = false;
       durable(database => { pending = database.prepare("UPDATE command_receipts SET at=at+1 WHERE kind=? AND key=?").run(KIND, op).changes === 1; });
       return pending;

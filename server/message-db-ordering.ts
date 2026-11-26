@@ -1,4 +1,3 @@
-/** The Today page's row filters, including failed tool calls. */
 export const WORK_KINDS = "kind IN ('activity', 'digest', 'options')";
 export const CARD_KINDS = "kind IN ('secret', 'signin', 'connector')";
 export const FAILED_CALL = "kind = 'activity' AND instr(json, '\"ok\":false') > 0";

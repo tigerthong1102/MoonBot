@@ -72,7 +72,6 @@ export function workBotMessageEvidenceDigest(input: { principal: string; workspa
   return createHash("sha256").update(JSON.stringify(["work-bot-message-evidence-v1", input.principal, input.workspaceId, input.threadId, input.messageId, input.role, input.senderId, input.nonce, input.text, input.replyToId ?? null, input.fileNames])).digest("hex");
 }
 
-/** Called under the normalized upload-ID lock, before any legacy or new writer accepts bytes. */
 export function workBotUploadIdIsFresh(directory: string, id: string): boolean {
   if (!uploadId.test(id)) return false;
   const normalized = id.toLowerCase();
@@ -120,7 +119,6 @@ export function reserveWorkBotUpload(db: DatabaseSync, input: { principal: strin
   });
 }
 
-/** The caller verifies the upload under its ID lock and commits finalization and receipt issuance in one transaction. */
 export function issueWorkBotUploadReceipt(db: DatabaseSync, input: VerifiedUpload & { token: string }): void {
   if (!identity(input.principal) || !validToken(input.token) || !validMetadata(input.storedName, input.digest, input.bytes)) throw new Error("Invalid upload receipt");
   receiptTransaction(db, () => {
@@ -159,7 +157,6 @@ function verifiedMessageUploads(db: DatabaseSync, input: MessageSet): VerifiedUp
   return rows.map(row => ({ principal: row.principal, storedName: row.stored_name, digest: row.digest, bytes: row.bytes }));
 }
 
-/** The caller records the complete, verified set in the same transaction as the newly created message. */
 export function markWorkBotMessageUploads(db: DatabaseSync, input: MessageSet): void {
   verifiedMessageUploads(db, input);
   const names = JSON.stringify([...input.expectedNames].sort());

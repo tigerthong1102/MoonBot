@@ -213,11 +213,15 @@ try {
   const helperScreenshot = await cdp("Page.captureScreenshot", { format: "png" });
   writeFileSync(path.join(evidence, "startupbot-helper.png"), Buffer.from(helperScreenshot.data, "base64"));
   const composer = `[...document.querySelectorAll("textarea")].findLast(input => input.getClientRects().length && !input.disabled)`;
-  const send = async (text, doubleEnter = false) => {
+  const send = async (text, { doubleEnter = false, waitForIdleSend = false } = {}) => {
     await until(() => evaluate(`Boolean(${composer})`), "an enabled chat composer");
     await evaluate(`(${composer}).focus()`);
     await cdp("Input.insertText", { text });
     assert.equal(await evaluate("document.activeElement.value"), text);
+    if (waitForIdleSend) {
+      await until(() => evaluate(`(${composer})?.value === ${JSON.stringify(text)} && Boolean(document.querySelector('[data-composer-row] button[aria-label="Send message"]:not(:disabled)'))`), "the reloaded composer to enable Send for the reconnect request");
+      await evaluate(`(${composer}).focus()`);
+    }
     const enter = { key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 };
     await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyDown" });
     await cdp("Input.dispatchKeyEvent", { ...enter, type: "keyUp" });
@@ -351,7 +355,7 @@ try {
   await attachFiles([historyFile]);
   await send(historyNote);
   await until(async () => (await request(`/api/threads/${helper.threadId}/messages`)).body.messages.some(row => row.role === "user" && row.text?.startsWith(historyNote) && row.requestPending === false), "the previous photo to settle in the main conversation");
-  await send(workMessage, true);
+  await send(workMessage, { doubleEnter: true });
   const offerCard = async () => {
     const result = await request(`/api/threads/${helper.threadId}/messages`);
     assert.equal(result.status, 200);
@@ -676,8 +680,9 @@ try {
   await until(() => evaluate(`Boolean(${selectBot})`), "the fixture bot after reload");
   await evaluate(`${selectBot}.click()`);
   await until(() => [...eventStreams.entries()].some(([id, value]) => !streamsBeforeReload.has(id) && value.opened && !value.closed && value.hello), "a live event stream with hello");
+  await until(() => evaluate(`(${selectBot})?.getAttribute("aria-current") === "page" && document.body.innerText.includes("Synthetic conversation remains usable.") && Boolean(${composer})`), "the reloaded fixture conversation and its saved reply");
   const noticesBefore = (await request("/api/notifications")).body.notifications;
-  await send(reconnectText);
+  await send(reconnectText, { waitForIdleSend: true });
   await until(() => existsSync(reconnectReady), "the reconnect fixture turn to be running");
   const reconnectSource = (await transcript()).find(row => row.role === "user" && row.text === reconnectText);
   assert(reconnectSource?.id);

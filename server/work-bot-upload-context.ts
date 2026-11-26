@@ -82,7 +82,6 @@ export function bindWorkBotMessageUploads(db: DatabaseSync, threadId: string, me
   message.workBotUploadNonce = nonce;
 }
 
-/** The queue entry exists before its transcript row and has its own evidence namespace. */
 export function queuedUploadMessage(queueId: string, payload: FollowupPayload): Message {
   return { id: "queue:" + queueId, role: "user", kind: "text", at: payload.queuedAt ?? 0, text: payload.text,
     sendId: payload.sendId, sender: payload.sender, replyToId: payload.replyToId, dataContext: payload.dataContext,

@@ -3,7 +3,7 @@ import { productName } from "@/lib/brand";
 import { Select } from "../Select";
 import { t } from "@/lib/i18n";
 import type { AppDocument } from "../../../shared/app";
-import { fetchAppDocument } from "./app-api";
+import { AppDocumentError, fetchAppDocument } from "./app-api";
 import { ReportFrame } from "./ReportFrame";
 
 export default function InternalReport({ threadId, messageId }: { threadId: string; messageId: string }) {
@@ -30,8 +30,9 @@ export default function InternalReport({ threadId, messageId }: { threadId: stri
           setDoc(previous => previous?.rev === next.rev && previous.srcdoc === next.srcdoc && previous.can.openLinks === next.can.openLinks ? previous : next);
           setFailed(false);
         }
-      } catch {
-        if (!controller.signal.aborted) { setDoc(null); setSections([]); setSelection(""); setFailed(true); }
+      } catch (error) {
+        if (controller.signal.aborted || (background && error instanceof AppDocumentError && !error.failure.offline && error.failure.asleep)) return;
+        setDoc(null); setSections([]); setSelection(""); setFailed(true);
       } finally { busy = false; }
     }
     void refresh();

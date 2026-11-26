@@ -347,13 +347,23 @@ it("checks a pinned report's stored release without building its preview", async
   expect(build).toHaveBeenCalledOnce();
   expect(read).toHaveBeenCalledOnce();
   const manifestPath = join(DATA_DIR, "app-docs", "doc", stored.doc + ".json");
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { html: string };
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { html: string; data: string };
+  const dataPath = join(DATA_DIR, "app-docs", "data", manifest.data + ".json");
+  const data = readFileSync(dataPath);
+  writeFileSync(dataPath, "{broken");
+  expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(404);
+  expect(build).toHaveBeenCalledOnce();
+  expect(read).toHaveBeenCalledOnce();
+  expect((await get(root + "?report=1", "ann")).status).toBe(404);
+  writeFileSync(dataPath, data);
+  build.mockClear();
+  read.mockClear();
   rmSync(join(DATA_DIR, "app-docs", "html", manifest.html + ".html"));
   expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(404);
   rmSync(manifestPath);
   expect((await get(root + "?shareOrigin=1", "ann")).status).toBe(404);
-  expect(build).toHaveBeenCalledOnce();
-  expect(read).toHaveBeenCalledOnce();
+  expect(build).not.toHaveBeenCalled();
+  expect(read).not.toHaveBeenCalled();
 });
 
 it("returns different permitted source sections at the same report URL without leaking the private section title or ids", async () => {

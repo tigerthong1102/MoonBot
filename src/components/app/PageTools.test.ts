@@ -100,6 +100,11 @@ it.each([
   { name: "legacy document", response: () => json(200, botHtmlDocument({ messageId: "a1", rev: 0, html: "<p>Legacy</p>" })) },
   { name: "non-JSON response", response: () => new Response("unexpected html", { status: 200 }) },
   { name: "malformed response", response: () => json(200, { configured: 123, detected: null }) },
+  { name: "invalid configured address", response: () => json(200, { configured: "not a URL", detected: null }) },
+  { name: "empty configured address", response: () => json(200, { configured: "", detected: null }) },
+  { name: "configured credentials", response: () => json(200, { configured: "https://user:secret@example.com", detected: null }) },
+  { name: "detected path", response: () => json(200, { configured: null, detected: "http://192.168.1.25/private" }) },
+  { name: "non-web detected address", response: () => json(200, { configured: null, detected: "file:///tmp/report" }) },
 ])("keeps a local report preview usable and offers retry after $name", async ({ response }) => {
   vi.spyOn(window, "location", "get").mockReturnValue(new URL("http://localhost:4321") as unknown as Location);
   const normalFetch = fetchMock.getMockImplementation()!;

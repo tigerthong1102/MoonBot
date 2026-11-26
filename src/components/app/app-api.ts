@@ -3,6 +3,7 @@ import { api, ApiError } from "@/state/store";
 import type { AppBlockedReason, AppDocument } from "../../../shared/app";
 import type { PublishedPageCard } from "../../../shared/published-page";
 import { RPC_HOST_REFUSED, type AppContextUpdate, type AppRpcMethod, type JsonRpcError } from "../../../shared/app-frame/bridge";
+import { webOrigin } from "../../../shared/app-frame/csp";
 import { randomUuid } from "@/lib/random-uuid";
 
 export function appDocumentPath(threadId: string, messageId: string): string {
@@ -23,7 +24,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export async function fetchReportShareOrigins(path: string, signal: AbortSignal) {
   const body = await api<unknown>(path, { background: true, signal, timeoutMs: 8000 });
-  const nullableOrigin = (value: unknown): value is string | null => value === null || typeof value === "string";
+  const nullableOrigin = (value: unknown): value is string | null => value === null || webOrigin(value) !== null;
   if (!isRecord(body) || !nullableOrigin(body.configured) || !nullableOrigin(body.detected)) throw new Error("Invalid report share origins");
   return { configured: body.configured, detected: body.detected };
 }

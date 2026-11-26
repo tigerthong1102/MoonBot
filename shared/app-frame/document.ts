@@ -55,7 +55,8 @@ export const ROOM_CAN: AppCan = { serverTools: false, serverResources: false, me
 
 /** `format: "jsx"`: `html` is a React component file, served inside the page shell. `files`: a folder page, whose
  * other files load from that folder URL (the token route's, ending in "/"). */
-export function botHtmlDocument(input: { messageId: string; rev: number; html: string; format?: "jsx"; title?: string; files?: string; room?: boolean }): AppDocument {
+export function botHtmlDocument(input: { messageId: string; rev: number; html: string; format?: "jsx"; title?: string; files?: string; room?: boolean; readOnly?: boolean }): AppDocument {
+  const viewOnly = input.room === true || input.readOnly === true;
   const html = input.format === "jsx" ? jsxPageHtml({ title: input.title ?? "Page", source: input.html }) : input.html;
   const csp = input.files ? folderPageCsp(input.files) : BOT_HTML_CSP;
   const network = input.files ? folderPageNetwork(input.files) : BOT_HTML_NETWORK;
@@ -63,10 +64,10 @@ export function botHtmlDocument(input: { messageId: string; rev: number; html: s
     v: 1,
     messageId: input.messageId,
     rev: input.rev,
-    srcdoc: buildSrcdoc({ html, csp, botHelper: true, room: input.room === true, ...(input.files ? { base: input.files } : {}) }),
+    srcdoc: buildSrcdoc({ html, csp, botHelper: true, room: viewOnly, ...(input.files ? { base: input.files } : {}) }),
     csp,
     network: { connect: [...network.connect], resources: [...network.resources] },
-    can: { ...(input.room ? ROOM_CAN : BOT_HTML_CAN) },
+    can: { ...(viewOnly ? ROOM_CAN : BOT_HTML_CAN) },
     ...(input.room ? { room: true as const } : {}),
   };
 }

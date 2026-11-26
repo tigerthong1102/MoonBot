@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
+import { productName } from "@/lib/brand";
 import { Select } from "../Select";
 import { t } from "@/lib/i18n";
 import type { AppDocument } from "../../../shared/app";
 import { fetchAppDocument } from "./app-api";
-import { APP_FRAME_SANDBOX } from "./app-frame-host";
+import { ReportFrame } from "./ReportFrame";
 
-/** The same address always fetches the published version with this viewer's session. */
 export default function InternalReport({ threadId, messageId }: { threadId: string; messageId: string }) {
   const [doc, setDoc] = useState<AppDocument | null>(null);
   const [sections, setSections] = useState<NonNullable<AppDocument["sections"]>>([]);
@@ -27,7 +27,7 @@ export default function InternalReport({ threadId, messageId }: { threadId: stri
         if (selection && !activeSection) { setDoc(null); setSelection(""); return; }
         const next = activeSection ? await fetchAppDocument(activeSection.threadId, activeSection.messageId, controller.signal, undefined, true) : root;
         if (!controller.signal.aborted) {
-          setDoc(previous => previous?.rev === next.rev && previous.srcdoc === next.srcdoc ? previous : next);
+          setDoc(previous => previous?.rev === next.rev && previous.srcdoc === next.srcdoc && previous.can.openLinks === next.can.openLinks ? previous : next);
           setFailed(false);
         }
       } catch {
@@ -40,12 +40,12 @@ export default function InternalReport({ threadId, messageId }: { threadId: stri
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [threadId, messageId, selection]);
   return <main className="flex h-dvh flex-col bg-card text-ink">
-    {sections.length > 0 && <header className="flex shrink-0 items-center gap-2 border-b border-hairline px-4 py-2">
-      <label className="flex items-center gap-2 text-sm">{t("knowledge.sections")}<Select value={selection} onChange={e => { setDoc(null); setSelection(e.target.value); }}>
+    <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-hairline px-4 py-2">
+      <h1 className="text-sm font-semibold">{productName()} · {t("knowledge.report")}</h1>
+      {sections.length > 0 && <label className="flex items-center gap-2 text-sm">{t("knowledge.sections")}<Select value={selection} onChange={e => { setDoc(null); setSelection(e.target.value); }}>
         <option value="">{t("knowledge.report")}</option>{sections.map(section => <option key={section.threadId + "/" + section.messageId}
-          value={section.threadId + "/" + section.messageId}>{section.title}</option>)}</Select></label></header>}
-    {doc ? <iframe title={t("knowledge.report")} className="min-h-0 flex-1 border-0" sandbox={APP_FRAME_SANDBOX}
-      referrerPolicy="no-referrer" srcDoc={doc.srcdoc} /> : <p role={failed ? "alert" : "status"} className="m-auto p-5">
+          value={section.threadId + "/" + section.messageId}>{section.title}</option>)}</Select></label>}</header>
+    {doc ? <ReportFrame doc={doc} /> : <p role={failed ? "alert" : "status"} className="m-auto p-5">
       {t(failed ? "knowledge.reportUnavailable" : "knowledge.reading")}</p>}
   </main>;
 }

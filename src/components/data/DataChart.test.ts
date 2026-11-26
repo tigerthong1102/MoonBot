@@ -274,7 +274,17 @@ describe("DataChart refresh", () => {
 
 it("inspects the original query row for a clicked point, and labels a derived aggregate separately", async () => {
   const listener = vi.fn();
-  fixture.embed.mockResolvedValue({ ...view(), view: { ...view().view, addEventListener: listener } });
+  const aggregate = { sum_amount: 35 };
+  let visible: unknown[] = [];
+  fixture.embed.mockImplementation(async (_host, spec) => {
+    visible = [spec.datasets.table[0], aggregate];
+    return { ...view(), view: { ...view().view, addEventListener: listener, scenegraph: () => ({
+      root: { role: "frame", marktype: "group", items: [{ items: [
+        { role: "axis", marktype: "group", items: [{ datum: { label: 1 } }] },
+        { role: "mark", marktype: "symbol", items: visible.map(datum => ({ datum })) },
+      ] }] },
+    }) } };
+  });
   flushSync(() => root.render(createElement(DataChart, { botId: "bot", cardId: "c_1", spec: { mark: "point" }, rowCount: 1, theme: "light", inline: true })));
   await settle();
   const click = listener.mock.calls[0]![1];
@@ -282,7 +292,16 @@ it("inspects the original query row for a clicked point, and labels a derived ag
   flushSync(() => click({}, { datum: bound.datasets.table[0] }));
   expect(host.querySelector("aside")?.textContent).toContain("Query result · row 1");
   expect(host.querySelector("aside")?.textContent).not.toContain("__startupbotQueryRow");
-  flushSync(() => click({}, { datum: { sum_amount: 35 } }));
+  flushSync(() => click({}, { datum: aggregate }));
   expect(host.querySelector("aside")?.textContent).toContain("Plotted values");
   expect(host.querySelector("aside")?.textContent).toContain("sum_amount35");
+  const button = (name: string) => [...host.querySelectorAll("button")].find(b => b.textContent === name)!;
+  flushSync(() => button("Close").click());
+  flushSync(() => button("Plotted values").click());
+  expect(host.querySelector("aside")?.textContent).toContain("Query result · row 1");
+  flushSync(() => button("Next").click());
+  expect(host.querySelector("aside")?.textContent).toContain("sum_amount35");
+  expect(button("Next").disabled).toBe(true);
+  flushSync(() => button("Previous").click());
+  expect(button("Previous").disabled).toBe(true);
 });

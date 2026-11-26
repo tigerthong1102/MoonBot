@@ -6,6 +6,7 @@ import { vegaConfig } from "../../../shared/vega-config";
 import { api } from "@/state/store";
 import { t } from "@/lib/i18n";
 import type { ColorScheme } from "@/lib/color-scheme";
+import { inspectDatum, plottedData, type ChartMark } from "./chart-inspection";
 import { rowObjects, type Cell } from "./data-format";
 
 export interface DataChartProps {
@@ -56,7 +57,10 @@ export function bindChartRows(spec: Record<string, unknown>, rows: Array<Record<
 }
 
 export function DataChart({ botId, cardId, spec, rowCount, theme, revision, inline = false }: DataChartProps) {
-  const [mark, setMark] = useState<{ values: Array<[string, Cell]>; sourceRow?: number } | null>(null);
+  const [inspection, setInspection] = useState<{ marks: ChartMark[]; index: number } | null>(null);
+  const inspector = useRef<(() => void) | null>(null);
+  const inspectButton = useRef<HTMLButtonElement>(null);
+  const mark = inspection?.marks[inspection.index];
   const host = useRef<HTMLDivElement>(null);
   const displayed = useRef<{ result: Result; naturalHeight?: number } | null>(null);
   const [state, setState] = useState<{ loading: boolean; error: string | null }>({ loading: true, error: null });
@@ -123,19 +127,23 @@ export function DataChart({ botId, cardId, spec, rowCount, theme, revision, inli
         fittedHeight = height;
       }
       if (inline) {
-        embedded.view.addEventListener("click", (_event, item) => {
-          const datum: unknown = item?.datum;
-          if (displayed.current?.result !== embedded || !datum || typeof datum !== "object") return;
-          const values = datum as Record<string, unknown>;
-          const rowNumber = Number(values[rowKey]);
-          const sourceRow = Number.isInteger(rowNumber) && rowNumber > 0 ? rows[rowNumber - 1] : undefined;
-          const fields = Object.entries(sourceRow ?? values).filter((entry): entry is [string, Cell] =>
-            entry[0] !== rowKey && (entry[1] === null || ["number", "string", "boolean"].includes(typeof entry[1])));
-          if (!fields.length) return;
-          setMark({ values: fields, ...(sourceRow ? { sourceRow: rowNumber } : {}) });
-        });
-      }
-      setMark(null);
+        function inspect(clicked?: unknown) {
+          if (displayed.current?.result !== embedded) return;
+          const marks: ChartMark[] = [];
+          let index = -1;
+          // Vega 6 returns a Scenegraph with a root mark; vega-typings declares the root itself.
+          for (const datum of plottedData(embedded.view.scenegraph() as Parameters<typeof plottedData>[0])) {
+            const mark = inspectDatum(datum, rows, rowKey);
+            if (!mark) continue;
+            if (datum === clicked) index = marks.length;
+            marks.push(mark);
+          }
+          if (marks.length && (clicked === undefined || index >= 0)) setInspection({ marks, index: Math.max(0, index) });
+        }
+        embedded.view.addEventListener("click", (_event, item) => { if (item?.datum) inspect(item.datum); });
+        inspector.current = inspect;
+      } else inspector.current = null;
+      setInspection(null);
       const previous = displayed.current;
       candidate.style.position = "";
       candidate.style.visibility = "";
@@ -158,10 +166,18 @@ export function DataChart({ botId, cardId, spec, rowCount, theme, revision, inli
   return (
     <div className="relative min-h-0 w-full flex-1" data-testid="data-chart">
       <div ref={host} className="relative h-full w-full" />
-      {inline && mark && <aside className="absolute inset-x-1 bottom-1 z-10 max-h-28 overflow-auto rounded-lg border border-hairline bg-panel p-2 text-xs">
-        <div className="flex items-center justify-between gap-2"><strong>{mark.sourceRow ? t("knowledge.chartRow", { row: mark.sourceRow }) : t("knowledge.chartMark")}</strong>
-          <button type="button" className="ui-button ui-button-sm" onClick={() => setMark(null)}>{t("reconcile.close")}</button></div>
-        <dl>{mark.values.map(([key, value]) => <div key={key} className="flex flex-wrap gap-2"><dt>{key}</dt><dd>{String(value ?? "")}</dd></div>)}</dl>
+      {inline && inspector.current && <button aria-expanded={!!mark} ref={inspectButton} type="button" className="ui-button ui-button-sm absolute top-1 end-1"
+        onClick={() => { if (mark) setInspection(null); else inspector.current?.(); }}>{t("knowledge.chartMark")}</button>}
+      {inline && inspection && mark && <aside className="absolute inset-x-1 bottom-1 z-10 max-h-28 overflow-auto rounded-lg border border-hairline bg-panel p-2 text-xs">
+        <div className="flex items-center justify-between gap-2"><strong aria-live="polite">{mark.sourceRow ? t("knowledge.chartRow", { row: mark.sourceRow }) : t("knowledge.chartMark")}</strong>
+          <div className="flex gap-1">
+            <button type="button" className="ui-button ui-button-sm" disabled={inspection.index === 0}
+              onClick={() => setInspection({ ...inspection, index: inspection.index - 1 })}>{t("reconcile.review.previous")}</button>
+            <button type="button" className="ui-button ui-button-sm" disabled={inspection.index + 1 >= inspection.marks.length}
+              onClick={() => setInspection({ ...inspection, index: inspection.index + 1 })}>{t("reconcile.review.next")}</button>
+            <button type="button" className="ui-button ui-button-sm" onClick={() => { setInspection(null); requestAnimationFrame(() => inspectButton.current?.focus()); }}>{t("reconcile.close")}</button>
+          </div></div>
+        <dl aria-live="polite">{mark.values.map(([key, value]) => <div key={key} className="flex flex-wrap gap-2"><dt>{key}</dt><dd>{String(value ?? "")}</dd></div>)}</dl>
       </aside>}
       {state.loading && (
         <div className="absolute inset-0 flex items-center justify-center gap-2 text-[12px] text-ink-secondary" role="status">

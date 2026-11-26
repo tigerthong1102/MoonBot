@@ -121,6 +121,7 @@ export interface AppFrameHostOptions {
   log?(params: unknown): void;
   /** The frame fills its container and the page scrolls inside it: the size the View reports is ignored. */
   fill?: boolean;
+  disableForms?: boolean;
   /** Text the person selected in a page that may message (never a room's), or null once it is gone: to cite it. */
   onSelection?(selection: AppSelection | null): void;
 }
@@ -178,6 +179,7 @@ export function mountAppFrame(options: AppFrameHostOptions): AppFrameHost {
   const ownerDocument = container.ownerDocument;
   const win = ownerDocument.defaultView;
   const iframe = createAppIframe(ownerDocument, options.title, options.height, options.hostContext.theme);
+  if (options.disableForms) iframe.setAttribute("sandbox", "allow-scripts");
   if (options.fill) iframe.style.height = "100%";
   const engagement = trackAppEngagement(iframe);
   let gone = false;
@@ -202,6 +204,7 @@ export function mountAppFrame(options: AppFrameHostOptions): AppFrameHost {
     },
   });
   const onMessage = (event: MessageEvent) => {
+    if (event.origin !== "null") return;
     const selection = event.source === iframe.contentWindow ? readPageSelection(event.data) : undefined;
     if (selection === undefined) return bridge.handleMessage({ source: event.source, data: event.data });
     // Only to cite in the person's own chat: never in a room, and only what they selected themselves.

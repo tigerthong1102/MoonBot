@@ -290,7 +290,10 @@ it("resolves a private report's released version at one address and closes acces
   const address = `/api/threads/${threadId}/messages/${id}/app?report=1`;
   expect((await get(address, "ann")).status).toBe(404);
   expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
-  expect((await get(address, "ann")).body.rev).toBe(0);
+  const published = await get(address, "ann");
+  expect(published.body.rev).toBe(0);
+  expect(published.body.can).toEqual({ serverTools: false, serverResources: false, message: false, openLinks: true, modelContext: false });
+  expect((await get(address.replace("?report=1", ""), "ann")).body.can.message).toBe(true);
   const response = await chatApps.createAppCard({ bot, threadId, input: { tool: "update_html", app_id: id, html: "<p>Revised</p>", title: "Report" } });
   expect(response.ok).toBe(true);
   expect((await get(address, "ann")).body.srcdoc).toContain("Revised");

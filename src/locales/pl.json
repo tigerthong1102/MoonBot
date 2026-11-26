@@ -7623,6 +7623,7 @@
   "knowledge.chartMark": "Wykreślone wartości",
   "knowledge.report": "Raport wewnętrzny",
   "knowledge.reportShare": "Publikuj dla członków czatu",
+  "knowledge.reportOriginFailed": "Nie udało się sprawdzić adresu udostępniania tego raportu.",
   "knowledge.reportLocalOnly": "Ten raport można otworzyć tylko na tym urządzeniu.",
   "knowledge.reportOpen": "Otwórz raport wewnętrzny",
   "knowledge.reportUnavailable": "Ten raport jest niedostępny dla Twojego konta.",

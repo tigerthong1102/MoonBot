@@ -158,6 +158,7 @@
   "knowledge.chartMark": "Plotted values",
   "knowledge.report": "Internal report",
   "knowledge.reportShare": "Publish for chat members",
+  "knowledge.reportOriginFailed": "Could not check where this report can be shared.",
   "knowledge.reportLocalOnly": "This report can only be opened on this device.",
   "knowledge.reportOpen": "Open internal report",
   "knowledge.reportUnavailable": "This report is unavailable for your account.",

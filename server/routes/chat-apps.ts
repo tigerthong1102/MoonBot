@@ -35,6 +35,7 @@ export interface ChatAppRouteDeps {
   /** Whether this person may see the conversation now: asked when its app is fetched and again for every file of a folder
    * page they load, so leaving a room, or losing sight of its bot, closes its pages to them. */
   threadVisible?(auth: RequestAuth, threadId: string): boolean;
+  reportShareOrigins?(): { configured: string | null; detected: string | null };
   mcpRpc?(request: McpRpcRequest): Promise<McpRpcAnswer>;
 }
 
@@ -81,9 +82,16 @@ export function createChatAppRoutes(deps: ChatAppRouteDeps): RouteHandler {
       // A folder page's files load from wherever this client reaches the app; it names that origin itself.
       const origin = webOrigin(url.searchParams.get("origin")) ?? webOrigin(url.origin) ?? undefined;
       const viewer = { key: auth.kind === "session" ? `session:${auth.session.id}` : auth.kind, allowed: () => !visible || visible(auth, threadId) };
-      const doc = apps.appDocument(threadId, m[2]!, asked === null ? undefined : Number(asked), origin, viewer, url.searchParams.get("report") === "1");
+      const shareOrigin = url.searchParams.get("shareOrigin") === "1";
+      const report = shareOrigin || url.searchParams.get("report") === "1";
+      const doc = apps.appDocument(threadId, m[2]!, asked === null ? undefined : Number(asked), origin, viewer, report);
       if (!doc) return json(res, 404, userError(asked === null ? "serverError.page.notStored" : "serverError.page.versionGone"));
-      if (url.searchParams.get("report") === "1") {
+      res.setHeader("cache-control", "private, no-store");
+      if (shareOrigin) {
+        const origins = deps.reportShareOrigins?.();
+        return json(res, 200, { configured: webOrigin(origins?.configured), detected: webOrigin(origins?.detected) });
+      }
+      if (report) {
         const sections = reportSections(threadId, m[2]!).flatMap(ref => {
           if (visible && !visible(auth, ref.threadId)) return [];
           const source = appRow(store, ref.threadId, ref.messageId);
@@ -91,8 +99,6 @@ export function createChatAppRoutes(deps: ChatAppRouteDeps): RouteHandler {
         });
         if (sections.length) doc.sections = sections;
       }
-      // `can` and `blocked` change with sign-in and settings: never cached.
-      res.setHeader("cache-control", "private, no-store");
       return json(res, 200, doc);
     }
 

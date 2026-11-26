@@ -95,6 +95,30 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+it("keeps a local report preview usable and offers retry after a failed share-origin lookup", async () => {
+  vi.spyOn(window, "location", "get").mockReturnValue(new URL("http://localhost:4321") as unknown as Location);
+  const normalFetch = fetchMock.getMockImplementation()!;
+  let lookedUp = 0;
+  fetchMock.mockImplementation(async (path, init) => {
+    if (path.endsWith("?shareOrigin=1")) {
+      lookedUp++;
+      if (lookedUp === 1) return json(503, { error: "temporary failure" });
+      return json(200, { configured: "https://reports.example.test", detected: null });
+    }
+    return normalFetch(path, init);
+  });
+  await render(row(payload({ report: "latest" })));
+  expect(card().textContent).toContain("Could not check where this report can be shared.");
+  expect(card().textContent).not.toContain("This report can only be opened on this device.");
+  expect(card().querySelector('a[href="http://localhost:4321/?report=t1%2Fa1"]')).toBeTruthy();
+  expect(button("Copy link", card()).disabled).toBe(true);
+  await click("Retry", card());
+  await settle();
+  expect(lookedUp).toBe(2);
+  expect(button("Copy link", card()).disabled).toBe(false);
+  expect(card().textContent).not.toContain("Could not check where this report can be shared.");
+});
+
 describe("a bot's page in the chat", () => {
   it("draws inline at the page height, with its version, Point, Share, Open in new tab and Full screen", async () => {
     await render(row(payload()));

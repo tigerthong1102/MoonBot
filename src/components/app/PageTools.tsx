@@ -66,21 +66,27 @@ type Share =
 export function usePageShare(threadId: string, messageId: string, published: PublishedPageCard | undefined, released = false) {
   const [share, setShare] = useState<Share>({ kind: "idle" });
   const [again, setAgain] = useState(false);
-  const [publicOrigin, setPublicOrigin] = useState<string | null>(null);
+  const [originAttempt, retryOrigin] = useState(0);
+  const [originResult, setOriginResult] = useState<{ key: string; origin: string; failed: boolean } | null>(null);
   const [internalLive, setInternalLive] = useState(released);
   useEffect(() => setInternalLive(released), [released]);
+  const originPath = appDocumentPath(threadId, messageId) + "?shareOrigin=1";
+  const originKey = originPath + ":" + originAttempt;
   useEffect(() => {
-    if (!internalLive) { setPublicOrigin(null); return; }
+    if (!internalLive) { setOriginResult(null); return; }
     const controller = new AbortController();
-    const fallback = shareableReportOrigin(window.location.origin);
-    void api<{ publicUrl?: string }>("/api/settings/custom-domain", { background: true, signal: controller.signal, timeoutMs: 8000 })
-      .then(settings => shareableReportOrigin(settings.publicUrl) || fallback, () => fallback)
-      .then(origin => { if (!controller.signal.aborted) setPublicOrigin(origin); });
+    void api<{ configured: string | null; detected: string | null }>(originPath, { background: true, signal: controller.signal, timeoutMs: 8000 })
+      .then(({ configured, detected }) => ({
+        key: originKey, origin: shareableReportOrigin(configured) || shareableReportOrigin(window.location.origin) || shareableReportOrigin(detected), failed: false,
+      }))
+      .catch(() => ({ key: originKey, origin: "", failed: true }))
+      .then(result => { if (!controller.signal.aborted) setOriginResult(result); });
     return () => controller.abort();
-  }, [internalLive]);
+  }, [internalLive, originKey, originPath]);
+  const origin = originResult?.key === originKey ? originResult : null;
   const reportPath = "/?" + new URLSearchParams({ report: threadId + "/" + messageId });
   const previewUrl = internalLive ? new URL(reportPath, window.location.href).href : "";
-  const reportUrl = internalLive && publicOrigin ? new URL(reportPath, publicOrigin).href : "";
+  const reportUrl = internalLive && origin?.origin ? new URL(reportPath, origin.origin).href : "";
   const internal = async (rev: number | null) => {
     setShare({ kind: "busy" });
     try {
@@ -103,7 +109,7 @@ export function usePageShare(threadId: string, messageId: string, published: Pub
     setShare(await unpublishPage(live.pageId) ? { kind: "idle" } : { kind: "unpublish-failed" });
     setAgain(false);
   };
-  return { share, internal, reportUrl, previewUrl, findingReportOrigin: publicOrigin === null, threadId, messageId, url: live?.url, again, unpublished: published?.state === "unpublished", run, unpublish };
+  return { share, internal, reportUrl, previewUrl, findingReportOrigin: origin === null, reportOriginFailed: origin?.failed === true, retryReportOrigin: () => retryOrigin(count => count + 1), threadId, messageId, url: live?.url, again, unpublished: published?.state === "unpublished", run, unpublish };
 }
 
 /** On a phone the OS share sheet (Save to Files, Share); elsewhere a download, which Electron turns into its save dialog. */
@@ -302,7 +308,8 @@ export function PageNotes({ version, point, share, save, room, className }: Pick
     <button type="button" className={cn(ASK_CHIP, ASK_CHIP_IDLE)} disabled={!share.reportUrl} onClick={internalCopy.copy}>
       <Copy size={14}/>{t(internalCopy.state === "copied" ? "chat.page.copied" : "chat.page.copyLink")}</button>
     <button type="button" className={cn(ASK_CHIP, ASK_CHIP_IDLE)} disabled={state.kind === "busy"} onClick={() => void share.internal(null)}>{t("chat.page.unpublish")}</button>
-    {!share.reportUrl && <span role="status" className="text-ink-secondary">{t(share.findingReportOrigin ? "common.checking" : "knowledge.reportLocalOnly")}</span>}
+    {!share.reportUrl && <span role="status" className="text-ink-secondary">{t(share.findingReportOrigin ? "common.checking" : share.reportOriginFailed ? "knowledge.reportOriginFailed" : "knowledge.reportLocalOnly")}</span>}
+    {share.reportOriginFailed && <button type="button" className={cn(ASK_CHIP, ASK_CHIP_IDLE)} onClick={share.retryReportOrigin}>{t("chat.retry")}</button>}
     <InternalReportSections threadId={share.threadId} messageId={share.messageId} url={share.reportUrl || share.previewUrl} />
     {internalCopy.state === "failed" && <span role="status" className="break-all">{share.reportUrl}</span>}
   </div>);

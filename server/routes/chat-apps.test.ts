@@ -307,6 +307,29 @@ it("resolves a private report's released version at one address and closes acces
   expect((await get(address, "ann")).status).toBe(404);
 });
 
+it("returns only share origins to authorized readers of a released report", async () => {
+  let member = true;
+  const reportShareOrigins = vi.fn(() => ({ configured: "https://reports.example.test", detected: "http://192.168.1.25:8080", privateSetting: "hidden" }));
+  const { store, bot, get, page } = await fixture({
+    reportShareOrigins, threadVisible: auth => auth.kind !== "session" || (member && auth.session.id === "ann"),
+  });
+  const id = page(), threadId = bot.threadId;
+  const address = `/api/threads/${threadId}/messages/${id}/app?shareOrigin=1`;
+  expect((await get(address, "ann")).status).toBe(404);
+  expect(reportShareOrigins).not.toHaveBeenCalled();
+  expect(publishInternalReport(store, threadId, id, 0)).toBe(true);
+  const metadata = { status: 200, body: { configured: "https://reports.example.test", detected: "http://192.168.1.25:8080" }, cache: "private, no-store" };
+  expect(await get(address)).toEqual(metadata);
+  expect(await get(address, "ann")).toEqual(metadata);
+  expect((await get(address, "bob")).status).toBe(404);
+  reportShareOrigins.mockReturnValueOnce({ configured: "https://user:secret@reports.example.test/path", detected: "file:///tmp/report", privateSetting: "hidden" });
+  expect((await get(address, "ann")).body).toEqual({ configured: null, detected: null });
+  member = false;
+  expect((await get(address, "ann")).status).toBe(404);
+  expect(publishInternalReport(store, threadId, id, null)).toBe(true);
+  expect((await get(address)).status).toBe(404);
+});
+
 it("returns different permitted source sections at the same report URL without leaking the private section title or ids", async () => {
   const hidden = new Set<string>();
   const { store, bot, other, page, get, post } = await fixture({

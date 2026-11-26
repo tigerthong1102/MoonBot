@@ -11622,6 +11622,7 @@
   "knowledge.chartMark": "Valores plotados",
   "knowledge.report": "Relatório interno",
   "knowledge.reportShare": "Publicar para membros do chat",
+  "knowledge.reportOriginFailed": "Não foi possível verificar o endereço para compartilhar este relatório.",
   "knowledge.reportLocalOnly": "Este relatório só pode ser aberto neste dispositivo.",
   "knowledge.reportOpen": "Abrir relatório interno",
   "knowledge.reportUnavailable": "Este relatório não está disponível para sua conta.",

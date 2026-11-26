@@ -158,6 +158,7 @@
   "knowledge.chartMark": "Giá trị trên biểu đồ",
   "knowledge.report": "Báo cáo nội bộ",
   "knowledge.reportShare": "Xuất bản cho thành viên chat",
+  "knowledge.reportOriginFailed": "Không kiểm tra được địa chỉ chia sẻ của báo cáo này.",
   "knowledge.reportLocalOnly": "Báo cáo này chỉ mở được trên thiết bị này.",
   "knowledge.reportOpen": "Mở báo cáo nội bộ",
   "knowledge.reportUnavailable": "Tài khoản của bạn không xem được báo cáo này.",

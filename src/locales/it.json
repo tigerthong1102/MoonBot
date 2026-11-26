@@ -7486,6 +7486,7 @@
   "knowledge.chartMark": "Valori tracciati",
   "knowledge.report": "Rapporto interno",
   "knowledge.reportShare": "Pubblica per i membri della chat",
+  "knowledge.reportOriginFailed": "Impossibile verificare l’indirizzo per condividere questo report.",
   "knowledge.reportLocalOnly": "Questo report può essere aperto solo su questo dispositivo.",
   "knowledge.reportOpen": "Apri rapporto interno",
   "knowledge.reportUnavailable": "Questo rapporto non è disponibile per il tuo account.",

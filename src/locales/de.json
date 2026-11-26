@@ -4394,6 +4394,7 @@
   "knowledge.chartMark": "Geplottete Werte",
   "knowledge.report": "Interner Bericht",
   "knowledge.reportShare": "Für Chat-Mitglieder veröffentlichen",
+  "knowledge.reportOriginFailed": "Die Freigabeadresse für diesen Bericht konnte nicht ermittelt werden.",
   "knowledge.reportLocalOnly": "Dieser Bericht lässt sich nur auf diesem Gerät öffnen.",
   "knowledge.reportOpen": "Internen Bericht öffnen",
   "knowledge.reportUnavailable": "Dieser Bericht ist für Ihr Konto nicht verfügbar.",

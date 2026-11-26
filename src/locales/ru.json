@@ -7677,6 +7677,7 @@
   "knowledge.chartMark": "Нанесенные значения",
   "knowledge.report": "Внутренний отчет",
   "knowledge.reportShare": "Публикация для участников чата",
+  "knowledge.reportOriginFailed": "Не удалось проверить адрес для общего доступа к этому отчёту.",
   "knowledge.reportLocalOnly": "Этот отчёт можно открыть только на этом устройстве.",
   "knowledge.reportOpen": "Открыть внутренний отчет",
   "knowledge.reportUnavailable": "Этот отчет недоступен для вашего аккаунта.",

@@ -121,6 +121,27 @@ it("shows a jsx page, takes what the person pointed at to the bot as records, re
   expect(earlier.body).toMatchObject({ rev: 0 });
   expect(earlier.body.srcdoc).not.toContain("data-plan={plan.name}");
 
+  const report = `/api/threads/${threadId}/messages/${appId}/app`;
+  const origin = report + "?shareOrigin=1";
+  const request = (body: unknown) => ({ method: "POST", body: JSON.stringify(body) });
+  const pairing = await api("/api/auth/pairing", request({ scopes: ["client"] }));
+  expect(pairing.body.code).toBeTruthy();
+  const joined = await api("/api/auth/pair", request({ code: pairing.body.code, label: "Report client" }));
+  expect(joined.body.token).toBeTruthy();
+  const member = (path: string) => realFetch(fixture.info.url + path, { headers: { authorization: `Bearer ${joined.body.token}` } });
+  expect((await member("/api/settings/custom-domain")).status).toBe(403);
+  expect((await member(origin)).status).toBe(404);
+  expect((await api(report + "/publish", request({ rev: 1, audience: "conversation" }))).status).toBe(200);
+  const adminOrigin = await api(origin);
+  expect(adminOrigin.status).toBe(200);
+  expect(adminOrigin.body).toEqual({ configured: null, detected: null });
+  const memberOrigin = await member(origin);
+  expect(memberOrigin.status).toBe(200);
+  expect(await memberOrigin.json()).toEqual(adminOrigin.body);
+  expect((await member(report + "?report=1")).status).toBe(200);
+  expect((await api(report + "/publish", request({ audience: "withdraw" }))).status).toBe(200);
+  expect((await member(origin)).status).toBe(404);
+
   const published = await api(`/api/threads/${threadId}/messages/${appId}/app/publish`, { method: "POST", body: JSON.stringify({ rev: 1 }) });
   expect(published).toMatchObject({ status: 200, body: { ok: true, card: { state: "live", title: "Pricing" } } });
   const [pageId] = [...stub.service.pages.keys()];

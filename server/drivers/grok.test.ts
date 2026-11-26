@@ -136,6 +136,18 @@ describe("GrokDriver turns (fake fetch)", () => {
     expect(recorder.events.some(event => event.type === "cap.exhausted")).toBe(false);
   });
 
+  it("keeps cost-only usage distinct from a measured zero tokens", async () => {
+    script = [{ sse: 'data: {"choices":[{"delta":{"content":"done"}}],"usage":{"cost":0.03}}\ndata: [DONE]\n' }];
+    await create();
+    const measured: unknown[] = [];
+    await instance.adapter.sendTurn({ threadId: "cost-only", text: "go", requestBudget: {
+      before() {}, record(_model, usage) { measured.push(usage); }, finish() {},
+    } });
+    const end = await recorder.until(event => event.type === "turn.completed");
+    expect(end).toMatchObject({ ok: true, cost: 0.03 });
+    expect(measured).toEqual([{ input: undefined, output: undefined, costUsd: 0.03 }]);
+  });
+
   it("auto-retries transient 429/5xx responses, then completes once", async () => {
     script = [{ status: 429 }, { status: 503 }];
     await create();

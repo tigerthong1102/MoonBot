@@ -10743,5 +10743,6 @@
   "knowledge.sectionLink": "本章節使用的內部報告連結",
   "knowledge.addSection": "新增章節",
   "knowledge.removeSection": "移除",
-  "knowledge.sectionFailed": "請確認你有權管理這份報告，並可在同一個工作區開啟來源報告。"
+  "knowledge.sectionFailed": "請確認你有權管理這份報告，並可在同一個工作區開啟來源報告。",
+  "server.roomCouncil.textOnly": "委員會僅接受文字。請移除附件並重新傳送問題。"
 }

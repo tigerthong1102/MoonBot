@@ -8475,5 +8475,6 @@
   "knowledge.sectionLink": "セクションに表示する内部レポートのリンク",
   "knowledge.addSection": "セクションを追加",
   "knowledge.removeSection": "削除",
-  "knowledge.sectionFailed": "このレポートを管理する権限と、同じワークスペースで元のレポートを開く権限があるか確認してください。"
+  "knowledge.sectionFailed": "このレポートを管理する権限と、同じワークスペースで元のレポートを開く権限があるか確認してください。",
+  "server.roomCouncil.textOnly": "評議会にはテキストのみ送信できます。添付ファイルを削除して質問を再送してください。"
 }

@@ -4184,5 +4184,6 @@
   "knowledge.sectionLink": "Lien du rapport interne à afficher dans la section",
   "knowledge.addSection": "Ajouter une section",
   "knowledge.removeSection": "Retirer",
-  "knowledge.sectionFailed": "Vérifiez que vous pouvez gérer ce rapport et ouvrir le rapport source dans le même espace de travail."
+  "knowledge.sectionFailed": "Vérifiez que vous pouvez gérer ce rapport et ouvrir le rapport source dans le même espace de travail.",
+  "server.roomCouncil.textOnly": "Le conseil accepte uniquement du texte. Retirez les pièces jointes et renvoyez votre question."
 }

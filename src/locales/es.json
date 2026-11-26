@@ -6881,5 +6881,6 @@
   "knowledge.sectionLink": "Enlace al informe interno de la sección",
   "knowledge.addSection": "Añadir sección",
   "knowledge.removeSection": "Quitar",
-  "knowledge.sectionFailed": "Comprueba que puedes administrar este informe y abrir el informe de origen en el mismo espacio de trabajo."
+  "knowledge.sectionFailed": "Comprueba que puedes administrar este informe y abrir el informe de origen en el mismo espacio de trabajo.",
+  "server.roomCouncil.textOnly": "El consejo solo acepta texto. Quita los archivos adjuntos y vuelve a enviar la pregunta."
 }

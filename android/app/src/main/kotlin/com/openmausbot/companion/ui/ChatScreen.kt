@@ -250,7 +250,6 @@ private fun LoadedChat(
             fileDownloadJob?.cancel()
         }
     }
-    val canAddAttachment = AttachmentImportRules.canAdd(attachments.size, preparingAttachments, sendingMessage)
 
     suspend fun importInto(target: ChatDraftHolder.Attachments, count: Int, read: suspend (Int, Int) -> PendingMessageAttachment) {
         if (target.preparing.value || target.sending.value) return
@@ -409,6 +408,8 @@ private fun LoadedChat(
     }
     val draft = composer.text
     val supportsCouncil = (chat as? Chat.RoomChat)?.room?.let { it.councilAvailable && it.dm != true } == true
+    val canAddAttachment = AttachmentImportRules.canAdd(attachments.size, preparingAttachments, sendingMessage) &&
+        (!supportsCouncil || composer.council == RoomCouncilMode.OFF)
     var hudOpen by remember(draftKey, chatDrafts) {
         mutableStateOf(SlashCommands.openOnEntry(composer.text))
     }
@@ -556,6 +557,7 @@ private fun LoadedChat(
         dictation.stop()
         val text = (explicitText ?: draft).trim()
         val council = if (explicitText == null && supportsCouncil) composer.council else RoomCouncilMode.OFF
+        if (council != RoomCouncilMode.OFF && attachments.isNotEmpty()) return
         if (text.isEmpty() && (council != RoomCouncilMode.OFF || attachments.isEmpty())) return
         if (preparingAttachments || sendingMessage) return
         val outgoing = attachments.toList()
@@ -1265,7 +1267,7 @@ private fun Composer(
     onDismissError: () -> Unit,
 ) {
     val canSend = AttachmentImportRules.canSend(draft, attachments.size, preparing, sending) &&
-        (council == null || council == RoomCouncilMode.OFF || draft.isNotBlank())
+        (council == null || council == RoomCouncilMode.OFF || (draft.isNotBlank() && attachments.isEmpty()))
     val inFlight = preparing || sending
     val turn = animateFloatAsState(
         targetValue = if (plusOpen) PLUS_TURN_DEGREES else 0f,
@@ -1287,7 +1289,7 @@ private fun Composer(
                     selected = council != RoomCouncilMode.OFF,
                     onClick = { onCouncilChange(if (council == RoomCouncilMode.OFF) RoomCouncilMode.INDEPENDENT else RoomCouncilMode.OFF) },
                     label = { Text(stringResource(R.string.ui_room_council)) },
-                    enabled = !inFlight,
+                    enabled = !inFlight && (council != RoomCouncilMode.OFF || attachments.isEmpty()),
                 )
                 if (council != RoomCouncilMode.OFF) {
                     FilterChip(

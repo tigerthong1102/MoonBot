@@ -448,7 +448,7 @@ export async function saveFile(
   chunks: AsyncIterable<Uint8Array>,
   originalName: string,
   mime: string,
-  options: { uploadId?: string; expectedBytes?: number } = {},
+  options: { uploadId?: string; expectedBytes?: number; guard?: { reserve(id: string): void; finalize(saved: SavedFile): Promise<void> } } = {},
 ): Promise<SavedFile> {
   const known = extensionForFileMime(mime);
   const normalized = known ? normalizedMime(mime)! : GENERIC_FILE_MIME;
@@ -456,6 +456,7 @@ export async function saveFile(
   const name = sanitizeSharedFileName(originalName, normalized);
   const uploadId = validateAttachmentUploadId(options.uploadId);
   const expectedBytes = options.expectedBytes;
+  if (options.guard && !uploadId) throw statusError(400, "A guarded upload needs an upload ID");
   if (expectedBytes !== undefined && (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0)) {
     throw statusError(400, "content-length must be a non-negative integer");
   }
@@ -465,6 +466,8 @@ export async function saveFile(
 
   return withUploadLock(uploadId, async () => {
     ensureAttachmentsDir();
+    if (options.guard && uploadId) options.guard.reserve(uploadId);
+    const saved = await (async (): Promise<SavedFile> => {
     if (uploadId) cleanupAttachmentPartialsForUpload(uploadId);
     const existing = uploadId ? committedPathForUpload(uploadId, extension) : null;
     if (existing) {
@@ -544,6 +547,9 @@ export async function saveFile(
       if (partialCleanupFailed) invalidateAttachmentAccounting();
       reservation.release();
     }
+    })();
+    await options.guard?.finalize(saved);
+    return saved;
   });
 }
 
@@ -551,6 +557,11 @@ export async function saveFile(
  * upload (507 when it is full), written under a partial name cleanup knows, never over a file already here, and never
  * leaving a partial file behind. `stored`: false when the same file was here already. */
 export async function saveNamedAttachment(name: string, chunks: AsyncIterable<Uint8Array>, expectedBytes?: number): Promise<{ stored: boolean }> {
+  const id = name.match(/^([a-f0-9-]{36})\.[a-z0-9]{1,10}$/i)?.[1];
+  return withUploadLock(id && UPLOAD_ID.test(id) ? id.toLowerCase() : undefined, () => saveNamedAttachmentUnlocked(name, chunks, expectedBytes));
+}
+
+async function saveNamedAttachmentUnlocked(name: string, chunks: AsyncIterable<Uint8Array>, expectedBytes?: number): Promise<{ stored: boolean }> {
   if (expectedBytes !== undefined && expectedBytes > FILE_MAX_BYTES) throw statusError(413, `attachments are limited to ${FILE_MAX_BYTES} bytes`);
   ensureAttachmentsDir();
   const path = join(ATTACHMENTS_DIR, name);
@@ -600,6 +611,12 @@ export async function saveNamedAttachment(name: string, chunks: AsyncIterable<Ui
 
 /** The UUID filename is never attacker-controlled and never collides. */
 export function saveImage(bytes: Buffer, mime: string, requestedUploadId?: string): SavedAttachment {
+  const id = validateAttachmentUploadId(requestedUploadId);
+  if (id && uploadLocks.has(id)) throw statusError(409, "The attachment is being written. Try again.");
+  return saveImageUnlocked(bytes, mime, id);
+}
+
+function saveImageUnlocked(bytes: Buffer, mime: string, requestedUploadId?: string): SavedAttachment {
   const ext = extensionForMime(mime);
   if (!ext) throw Object.assign(new Error("unsupported image type"), { status: 400 });
   if (bytes.byteLength === 0) throw Object.assign(new Error("empty image"), { status: 400 });
@@ -717,7 +734,7 @@ export async function saveImageUpload(
   const uploadId = validateAttachmentUploadId(requestedUploadId);
   return withUploadLock(uploadId, async () => {
     if (uploadId) cleanupAttachmentPartialsForUpload(uploadId);
-    return saveImage(bytes, mime, uploadId);
+    return saveImageUnlocked(bytes, mime, uploadId);
   });
 }
 

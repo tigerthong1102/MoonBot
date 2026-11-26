@@ -60,6 +60,7 @@ const memberLayer = (id: string): boolean => isLayerId(id) && layerAudience(id).
 export function omittedAsTeamPrivate(path: string, privacy: TeamPrivacy): boolean {
   if (/^(?:people(?:\/|$)|person-inbox\.json)/.test(path)) return true;
   const attachment = /^attachments\/([^/]+)$/.exec(path)?.[1];
+  if (attachment && /^\.openmaus-upload-.*\.partial$/i.test(attachment)) return true;
   if (attachment && privacy.attachments.has(attachment)) return true;
   return path.split("/").some((part) => {
     const name = part.replace(/\.[^-]*$/, "");
@@ -147,25 +148,37 @@ function uploadedByMembers(root: string): string[] {
 export function teamPrivateAttachments(root: string, messages: string, privacy: TeamPrivacy): ReadonlySet<string> {
   const candidates = new Set(uploadedByMembers(root));
   const kept = new Set<string>();
+  const evidenceFiles = new Set<string>();
   for (const file of ["bots.json", "groups.json"]) {
     try { for (const name of attachmentsIn(readFileSync(join(root, file), "utf8"))) kept.add(name); } catch { /* none yet */ }
   }
   if (existsSync(messages)) {
     const db = new DatabaseSync(messages, { readOnly: true });
     try {
+      if (hasTable(db, "work_bot_upload_owners")) {
+        const ids = db.prepare("SELECT upload_id FROM work_bot_upload_owners").all().map(row => String(row.upload_id).toLowerCase());
+        if (ids.some(id => !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id))) throw new Error("Cannot determine private upload ownership");
+        const uploadIds = new Set(ids), directory = join(root, "attachments");
+        if (existsSync(directory)) for (const name of readdirSync(directory)) {
+          const normalized = name.toLowerCase();
+          const id = normalized.startsWith(".openmaus-upload-") ? normalized.slice(17, 53) : normalized.slice(0, 36);
+          if (uploadIds.has(id) && (normalized.startsWith(`${id}.`) || normalized.startsWith(`.openmaus-upload-${id}-`))) { candidates.add(name); evidenceFiles.add(name); }
+        }
+      }
       for (const row of db.prepare("SELECT thread_id AS thread, json FROM messages").all()) {
         const names = attachmentsIn(String(row.json));
         for (const name of names) (privacy.threads.has(String(row.thread)) ? candidates : kept).add(name);
       }
     } finally { db.close(); }
   }
-  return new Set([...candidates].filter((name) => !kept.has(name)));
+  return new Set([...candidates].filter((name) => evidenceFiles.has(name) || !kept.has(name)));
 }
 
 /** The snapshot copies of the message and runtime databases, without the private conversations. */
 export function stripTeamPrivate(snapshot: { messages: string; runtime: string }, privacy: TeamPrivacy): void {
   const threads = [...privacy.threads];
   strip(snapshot.messages, (db) => {
+    for (const table of ["work_bot_upload_receipts", "work_bot_upload_owners", "work_bot_message_upload_sets"]) if (hasTable(db, table)) db.exec(`DELETE FROM ${table}`);
     for (const table of ["messages", "thread_state", "chat_followups", "notification_log"]) deleteWhereIn(db, table, "thread_id", threads);
     if (hasTable(db, "messages")) {
       for (const [field, ids] of [["threadId", threads], ["botId", [...privacy.bots]]] as const) {

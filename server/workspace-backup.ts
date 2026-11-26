@@ -241,6 +241,30 @@ function hashFile(path: string): string {
     }
   } finally { closeSync(fd); }
 }
+
+function teamAttachmentInventory(root: string): Map<string, string> {
+  const directory = join(root, "attachments");
+  if (!existsSync(directory)) return new Map();
+  const parent = lstatSync(directory, { bigint: true });
+  if (!parent.isDirectory()) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
+  const inventory = new Map<string, string>();
+  inventory.set("", `${parent.dev}:${parent.ino}`);
+  const collect = (path: string, prefix = "") => {
+    for (const name of readdirSync(path)) {
+      const relativeName = prefix ? `${prefix}/${name}` : name, child = join(path, name);
+      const info = lstatSync(child, { bigint: true });
+      inventory.set(relativeName, `${info.dev}:${info.ino}:${info.mode}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`);
+      if (info.isDirectory()) collect(child, relativeName);
+    }
+  };
+  collect(directory);
+  return inventory;
+}
+
+function assertTeamAttachmentInventory(root: string, expected: ReadonlyMap<string, string>): void {
+  const current = teamAttachmentInventory(root);
+  if (current.size !== expected.size || [...expected].some(([name, value]) => current.get(name) !== value)) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
+}
 function countJsonArray(path: string): number {
   if (!existsSync(path)) return 0;
   const value = privateJson(path);
@@ -318,6 +342,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
     const root = realpathSync(dataDir);
     const teamPrivate = teamPrivateThreads({ starters: join(root, "thread-starters.json"), groups: join(root, "groups.json"), bots: join(root, "bots.json") });
     const omitAppEvents = omitTeamAppEvents(root, teamPrivate, privateJson);
+    const attachmentInventory = process.env.OMB_CLOUD_ROLE === "team" ? teamAttachmentInventory(root) : null;
     for (const [name, snapshotName] of Object.entries(SNAPSHOT_DATABASES)) {
       const sourceDb = join(root, name);
       if (!existsSync(sourceDb)) continue;
@@ -337,6 +362,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
       return teamAppEventLedger(read("app-triggers.json"), read("app-triggers.json.held"), privacy!);
     };
     if (privacy && !omitAppEvents) readTeamAppEvents();
+    if (attachmentInventory) assertTeamAttachmentInventory(root, attachmentInventory);
     if (privacy) {
       stripTeamPrivate({ messages: join(snapshot, SNAPSHOT_DATABASES["messages.db"]!), runtime: join(snapshot, SNAPSHOT_DATABASES["runtime.db"]!) }, privacy);
       warnings.push(TEAM_PRIVATE_NOTE);
@@ -349,6 +375,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
         if (omitAppEvents && !prefix && appEventRoot(name)) continue;
         if (privacy && ["app-triggers.json", "app-triggers.json.held"].includes(path.toLowerCase()) && path !== path.toLowerCase()) throw new Error("Noncanonical Team app event ledger filename.");
         if (privacy && (path === "app-triggers.json.held" || /^app-triggers\.json(?:\.held)?\.\d+\.[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.tmp$/i.test(path))) continue;
+        if (attachmentInventory && path.startsWith("attachments/") && !attachmentInventory.has(path.slice("attachments/".length))) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
         if (excludedWorkspaceAuthPath(path) || ephemeralWorkspaceTokenPath(path) || redownloadedOrgLibraryPath(path) || liveDataEnginePath(path)) continue;
         if (privacy && omittedAsTeamPrivate(path, privacy)) continue;
         // Reject noncanonical spellings: a case-sensitive host must not export auth paths active on Windows/Mac.
@@ -422,6 +449,7 @@ export async function createWorkspaceBackupSnapshot(dataDir: string, options: Cr
     };
     walk(root);
     if (privacy && !omitAppEvents) readTeamAppEvents();
+    if (attachmentInventory) assertTeamAttachmentInventory(root, attachmentInventory);
     if (skippedLinks) warnings.push(`${skippedLinks} managed skill discovery link(s) were omitted and are recreated by the app.`);
     if (skippedDependencies) warnings.push(`${skippedDependencies} installed dependency folder(s) (node_modules) were omitted; reinstall them in the project after restoring.`);
     if (copiedLinks) warnings.push(`${copiedLinks} symbolic link(s) inside a workspace were saved as copies of what they point to; restoring creates regular files and folders there.`);

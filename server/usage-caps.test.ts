@@ -49,6 +49,18 @@ describe("what has been used", () => {
     expect(periodEnd("month", new Date("2026-12-31T23:00:00Z"))).toBe(Date.parse("2027-01-01T00:00:00Z"));
   });
 
+  it("counts distinct model requests for one bot and room in the same millisecond", async () => {
+    usageTotals(dataDir, now);
+    const first = { ...row(now.toISOString(), "a", 1), usageId: "request-a" };
+    const second = { ...row(now.toISOString(), "a", 2), usageId: "request-b" };
+    for (const booked of [first, second]) noteUsage(dataDir, booked, appendUsage(dataDir, booked));
+    expect(usageTotals(dataDir, now).server.day).toEqual({ usd: 3, tokens: 3000 });
+    await flushUsageLedger(dataDir);
+    expect(usageTotals(dataDir, new Date(now.getTime() + 60_000)).server.day).toEqual({ usd: 3, tokens: 3000 });
+    resetUsageTotalsForTests();
+    expect(usageTotals(dataDir, now).server.day).toEqual({ usd: 3, tokens: 3000 });
+  });
+
   it("reads only what was appended since the last look, counts a landed row once, and reads a rewritten file again", async () => {
     const at = (seconds: number) => new Date(now.getTime() + seconds * 1_000);
     appendUsage(dataDir, row("2026-09-15T08:00:00.000Z", "a", 1));

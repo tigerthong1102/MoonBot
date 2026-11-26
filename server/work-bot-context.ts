@@ -72,13 +72,20 @@ export async function scanWorkBotContext(messages: readonly Message[], signal: A
   return null;
 }
 
+function sameAnsweredOffer(before: Message, after: Message, sourceId: string): boolean {
+  const card = before.card;
+  if (before.kind !== "options" || card?.answered !== "allow" || card.teamSetupRequest?.workBotOffer?.sourceMessageId !== sourceId || !after.card) return false;
+  const comparable = (row: Message) => JSON.stringify({ ...row, card: { ...row.card, answeredBy: undefined } });
+  return comparable(before) === comparable(after);
+}
+
 export function captureWorkBotContext(messages: readonly Message[], current: () => readonly Message[], sourceIndex: number, uploadProse?: UploadProse, portableData?: (message: Message) => boolean): () => void {
   const versions = messages.map(row => ({ row, text: row.text, kind: row.kind, role: row.role, replyToId: row.replyToId, digest: JSON.stringify(row.digest), sender: JSON.stringify(row.sender), from: JSON.stringify(row.from), data: JSON.stringify(row.dataContext), attachments: row.attachments?.length ?? 0 }));
   return () => {
     const latest = current();
     if (latest.length !== versions.length || latest.some((row, index) => {
       const previous = versions[index];
-      return !previous || row !== previous.row || row.text !== previous.text || row.kind !== previous.kind || row.role !== previous.role || row.replyToId !== previous.replyToId || JSON.stringify(row.digest) !== previous.digest || JSON.stringify(row.sender) !== previous.sender || JSON.stringify(row.from) !== previous.from || JSON.stringify(row.dataContext) !== previous.data || (row.attachments?.length ?? 0) !== previous.attachments;
+      return !previous || (row !== previous.row && !(index > sourceIndex && sameAnsweredOffer(previous.row, row, versions[sourceIndex]!.row.id))) || row.text !== previous.text || row.kind !== previous.kind || row.role !== previous.role || row.replyToId !== previous.replyToId || JSON.stringify(row.digest) !== previous.digest || JSON.stringify(row.sender) !== previous.sender || JSON.stringify(row.from) !== previous.from || JSON.stringify(row.dataContext) !== previous.data || (row.attachments?.length ?? 0) !== previous.attachments;
     }) || unsupportedWorkBotContext(latest.slice(0, sourceIndex + 1), uploadProse, portableData)) throw new Error("The conversation context changed during handoff");
   };
 }

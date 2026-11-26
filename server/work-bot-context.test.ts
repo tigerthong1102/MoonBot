@@ -105,3 +105,16 @@ it("rechecks changed messages and yields while scanning a long history", async (
   expect(await scanWorkBotContext(messages, new AbortController().signal)).toBeNull();
   expect(yielded).toBe(true);
 });
+
+it("allows attribution of the accepted offer during a Data copy, while fencing a changed decision", () => {
+  const source = row("Review inventory weekly");
+  const offer = { id: "fixture-offer", role: "bot", kind: "options", at: 2, card: {
+    requestId: "offer", answered: "allow", teamSetupRequest: { workBotOffer: { sourceMessageId: source.id } },
+  } } as Message;
+  const active = [source, offer];
+  const validate = captureWorkBotContext(active, () => active, 0);
+  active[1] = { ...offer, card: { ...offer.card!, answeredBy: { kind: "session", name: "Fixture Owner" } } };
+  expect(validate).not.toThrow();
+  active[1] = { ...active[1]!, card: { ...active[1]!.card!, answered: "deny" } };
+  expect(validate).toThrow("context changed");
+});

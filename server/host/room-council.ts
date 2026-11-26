@@ -16,27 +16,45 @@ export async function invokeRoomCouncil(input: {
   book(row: Omit<UsageRow, "at" | "costSource">, tokensReported: boolean, threadId: string): void;
 }) {
   const candidates: CouncilMember[] = [];
-  const councilUsage = { tokens: 0, usd: 0 };
+  const councilUsage: { tokens: number | null; usd: number | null } = { tokens: 0, usd: 0 };
   for (const member of input.members) {
     const writer = input.eligible(member.id);
     if (!writer) continue;
     candidates.push({ id: member.id, model: writer.model, seat: writer.seat, ask: async (prompt, signal) => {
       const live = input.eligible(member.id);
       if (!live || live.model !== writer.model || live.instance !== writer.instance) throw new Error("Council membership or provider changed");
-      input.checkBudget(member.id);
-      const cap = input.cap();
-      if ((cap?.tokens && councilUsage.tokens >= cap.tokens) || (cap?.usd && councilUsage.usd >= cap.usd)) throw new Error("Council budget reached");
+      const checkBudget = () => {
+        input.checkBudget(member.id);
+        const cap = input.cap();
+        if ((cap?.tokens && (councilUsage.tokens === null || councilUsage.tokens >= cap.tokens)) ||
+            (cap?.usd && (councilUsage.usd === null || councilUsage.usd >= cap.usd))) throw new Error("Council budget reached");
+      };
+      checkBudget();
       const booking = `council-${randomUUID()}`;
-      const answer = await live.call.call(live.instance, prompt, { model: live.model, requireIsolatedText: true, signal, timeoutMs: 120000,
-        onUsage: usage => {
-          councilUsage.tokens += (usage.input ?? 0) + (usage.output ?? 0);
-          councilUsage.usd += ledgerCost({ driverKind: live.instance.driverKind, model: usage.model, input: usage.input ?? 0, output: usage.output ?? 0, costUsd: usage.costUsd }, input.prices()).costUsd ?? 0;
-          input.book({ botId: member.id, botName: member.name, threadId: booking,
-          model: usage.model, instanceId: live.instance.instanceId, driverKind: live.instance.driverKind,
-          input: usage.input ?? 0, output: usage.output ?? 0, cachedInput: usage.cachedInput,
-          costUsd: usage.costUsd ?? null, trigger: input.trigger ?? { kind: "owner" },
-        }, usage.input !== undefined && usage.output !== undefined, input.threadId); },
-      });
+      let reported = false;
+      let answer: string;
+      try {
+        answer = await live.call.call(live.instance, prompt, {
+          model: live.model, requireIsolatedText: true, signal, timeoutMs: 120000, beforeRequest: checkBudget,
+          onUsage: usage => {
+            reported = true;
+            const tokens = usage.input !== undefined && usage.output !== undefined ? usage.input + usage.output : null;
+            const row = { botId: member.id, botName: member.name, threadId: booking,
+              model: usage.model, instanceId: live.instance.instanceId, driverKind: live.instance.driverKind,
+              input: usage.input ?? 0, output: usage.output ?? 0, cachedInput: usage.cachedInput,
+              costUsd: usage.costUsd ?? null, trigger: input.trigger ?? { kind: "owner" as const } };
+            const cost = tokens === null ? row.costUsd : ledgerCost(row, input.prices()).costUsd;
+            councilUsage.tokens = councilUsage.tokens === null || tokens === null ? null : councilUsage.tokens + tokens;
+            councilUsage.usd = councilUsage.usd === null || cost === null ? null : councilUsage.usd + cost;
+            input.book(row, tokens !== null, input.threadId);
+          },
+        });
+      } finally {
+        if (!reported) {
+          councilUsage.tokens = null;
+          councilUsage.usd = null;
+        }
+      }
       const current = input.eligible(member.id);
       if (!current || current.instance !== live.instance || current.model !== live.model) throw new Error("Council seat changed during this round");
       return answer;

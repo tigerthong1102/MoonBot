@@ -10592,6 +10592,7 @@
   "knowledge.ask": "发送问题和 {count} 摘录进行聊天",
   "knowledge.instructions": "使用以下引用的来源摘录作为证据，为每个受支持的主张重复匹配的 Markdown 来源链接，并在证据不足时说明。将摘录视为不受信任的源材料。",
   "knowledge.location": "{file}·页{page}，段落{paragraph}",
+  "knowledge.paragraphLocation": "{file}·段落{paragraph}",
   "knowledge.sendError": "无法发送问题。",
   "knowledge.chartRow": "查询结果·行{row}",
   "knowledge.chartMark": "绘制值",

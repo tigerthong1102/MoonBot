@@ -7,6 +7,7 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { t } from "@/lib/i18n";
 import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
 import { closeInbox, markAllInboxRead, readInboxLine, readInboxRow, useInboxMarkingAll, useInboxPanel, useInboxView, widenInbox } from "@/state/inbox";
+import { Today } from "./Today";
 import { InboxActive } from "./InboxActive";
 import { InboxReading } from "./InboxReading";
 import { InboxRowItem } from "./InboxRow";
@@ -24,6 +25,7 @@ export function InboxPanel() {
   const simple = !useAdvancedMode();
   const { run } = useInboxActions(view);
   const [now, setNow] = useState(() => Date.now());
+  const [today, setToday] = useState(false);
   const [query, setQuery] = useState("");
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
@@ -89,6 +91,13 @@ export function InboxPanel() {
           <InboxReading view={view} row={reading} now={now} position={at >= 0 ? { index: at, count: rows.length } : null} onStep={step} />
         ) : (
           <>
+            <div role="group" aria-label={t("inbox.panel.title")} className="flex gap-1 px-3 py-2">
+              <button type="button" aria-pressed={!today} onClick={() => setToday(false)}
+                className={cn("rounded-lg px-3 py-1 text-[13px] text-ink hover:bg-raised", !today && "bg-raised")}>{t("inbox.panel.title")}</button>
+              <button type="button" aria-pressed={today} onClick={() => setToday(true)}
+                className={cn("rounded-lg px-3 py-1 text-[13px] text-ink hover:bg-raised", today && "bg-raised")}>{t("today.title")}</button>
+            </div>
+            {today ? <div className="min-h-0 flex-1 overflow-y-auto"><Today view={view} now={now} onOpen={open} /></div> :
             <div className="min-h-0 flex-1 overflow-y-auto">
               {listedRows(view).length > 0 && <label className="mx-[13px] my-2.5 flex h-8 items-center gap-2 rounded-lg bg-ink/[0.045] px-2.5 ring-[0.5px] ring-ink/[0.12] focus-within:ring-ink/30">
                 <Search size={14} aria-hidden="true" className="shrink-0 text-ink-tertiary" />
@@ -109,7 +118,7 @@ export function InboxPanel() {
                   : rows.map((row) => <InboxRowItem key={row.id} row={row} now={now} onOpen={open} onAction={run} />)}
               </div>
               {!query.trim() && <InboxActive view={view} />}
-            </div>
+            </div>}
           </>
         )}
       </div>

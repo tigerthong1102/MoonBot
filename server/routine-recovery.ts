@@ -1,3 +1,4 @@
+import type { RoutineBlock } from "../shared/routines.ts";
 import type { RuntimeEvent } from "../shared/runtime-events.ts";
 import type { ServerText } from "../shared/server-text.ts";
 import { isCountedSkip, type RoutineRetryCause } from "../shared/routines.ts";
@@ -20,6 +21,7 @@ export interface RoutineFailureFacts {
    * would not start it, or its start failed before the turn began (judged by its words, never retried as a crash). */
   cause?: "stalled" | "busy" | "cap" | "refused";
   stopReason?: string | null;
+  blockedBy?: RoutineBlock;
   setup?: boolean;
   stalled?: boolean;
   trialCredit?: string;
@@ -114,7 +116,9 @@ export function classifyRoutineFailure(failure: string, facts: RoutineFailureFac
 export function dispatchRefusal(error: unknown): RoutineFailureFacts {
   const { code, status } = (error ?? {}) as { code?: unknown; status?: unknown };
   if (typeof code === "string" && BUSY_CODES.has(code)) return { cause: "busy" };
-  if (code === "spend_cap") return { cause: "cap" };
+  if (code === "spend_cap") return { cause: "cap", blockedBy: "usage" };
+  if ((code === "model_unavailable" || code === "no_ai")) return { cause: "refused", blockedBy: "model" };
+  if (code === "managed_policy") return { cause: "refused", blockedBy: "permission" };
   return typeof code === "string" || (typeof status === "number" && status >= 400 && status < 500) ? { cause: "refused" } : {};
 }
 

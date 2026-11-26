@@ -10,7 +10,7 @@ import type { AppTrigger } from "@/lib/app-triggers";
 import { appProblem, appStatusParts, appWhen, skippedToday } from "@/lib/app-automations";
 import { limitResetWhen } from "@/lib/limit-resets";
 import { routineLineText } from "@/lib/activity-text";
-import { partlyDone } from "@/lib/routine-display";
+import { partlyDone, routineRunText } from "@/lib/routine-display";
 import type { OptionCardData } from "@/state/store";
 
 export type AutomationKind = "schedule" | "webhook" | "app";
@@ -33,6 +33,7 @@ export interface Automation {
   checkedAt?: number;
   checkTrouble?: string;
   checkTroubleCode?: string;
+  checkRepairApp?: string;
   /** Its runs read and draft only. */
   readsAndDrafts?: boolean;
   /** Its newest runs in a row whose cloud desktop did not start, while its scheduled runs are spaced out for it. */
@@ -51,6 +52,7 @@ export function automationsFrom(sources: { routines: readonly Routine[]; webhook
       kind: "schedule", id: routine.id, name: routine.name, botId: routine.botId, instructions: routine.prompt, enabled: routine.enabled,
       schedule: routine.schedule, nextRunAt: routine.enabled ? routine.nextRunAt : null, runs: runsOf(routine.id),
       ...(routine.checkedAt !== undefined ? { checkedAt: routine.checkedAt } : {}), ...(routine.checkTrouble ? { checkTrouble: routine.checkTrouble, ...(routine.checkTroubleCode ? { checkTroubleCode: routine.checkTroubleCode } : {}) } : {}),
+      ...(routine.checkRepairApp ? { checkRepairApp: routine.checkRepairApp } : {}),
       ...(routine.access === "read-and-draft" ? { readsAndDrafts: true } : {}), ...(routine.noStartStreak ? { noStartStreak: routine.noStartStreak } : {}),
     })),
     ...sources.webhooks.map((webhook): Automation => ({
@@ -229,23 +231,28 @@ export function automationSentence(automation: Pick<Automation, "kind" | "name" 
 
 // ---- Status: Working / Paused / Needs you ----
 
-export type AutomationFix = "answer" | "sign-in" | "usage" | "edit" | "run" | "reconnect";
+export type AutomationFix = "answer" | "sign-in" | "usage" | "edit" | "run" | "reconnect" | "model" | "permission" | "computer";
 export interface AutomationStatus {
   /** Done: a one-time automation whose time has passed. It has nothing left to turn on; Edit gives it a new time. */
   state: "working" | "paused" | "needs-you" | "done";
   /** Needs you: one plain sentence, and the one button that fixes it. */
   reason?: string;
   fix?: AutomationFix;
+  repairApp?: string;
 }
 
 const isProblem = (run: RoutineRun) => run.status === "failed" || run.status === "missed";
 /** The automation's newest run that started or was due to: not one still queued, nor a row that only counts skipped occurrences. */
-export const latestRun = (automation: Pick<Automation, "runs">): RoutineRun | undefined => automation.runs.find((run) => run.status !== "queued" && !isCountedSkip(run));
+export const latestRun = (automation: Pick<Automation, "runs">): RoutineRun | undefined => automation.runs.find((run) => run.status !== "queued" && (!isCountedSkip(run) || run.blockedBy));
 const SIGNED_OUT = /sign(ed)?[ -]?(in|out)\b|log(ged)?[ -]?(in|out)\b|unauthori[sz]ed|\b401\b|not authenticated|authentication (failed|required)|(token|session|credential)s? (has |have )?expired|expired (token|session|credential)|invalid api key|reconnect/i;
 const OUT_OF_CREDIT = /credit|quota|billing|payment|insufficient|out of tokens|usage limit|rate.?limit|\b429\b|limit (reached|exceeded)|plan limit/i;
 const OUT_OF_TIME = /run limit|time limit|timed out|minute limit/i;
 
-function ownerFix(run: RoutineRun): { reason: string; fix: AutomationFix } | null {
+export function ownerFix(run: RoutineRun): { reason: string; fix: AutomationFix; repairApp?: string } | null {
+  if (run.blockedBy) {
+    const fixes = { connection: "reconnect", model: "model", permission: "permission", approval: "permission", usage: "usage", computer: "computer", target: "edit" } as const;
+    return { reason: routineRunText(run, "error") || t("automations.run.failed"), fix: fixes[run.blockedBy], repairApp: run.repairApp };
+  }
   const error = `${run.error ?? ""} ${run.goalStatus === "limit-reached" ? "run limit" : ""}`;
   if (SIGNED_OUT.test(error)) return { reason: t("automations.reason.signIn"), fix: "sign-in" };
   if (OUT_OF_TIME.test(error)) return { reason: t("automations.reason.timeLimit"), fix: "edit" };
@@ -265,15 +272,15 @@ export function runAwaitingAnswer(runs: readonly RoutineRun[]): RoutineRun | und
 /** Done when a one-time automation's time has passed, Paused when switched off. Needs you when its last run waits on the
  * person, its app needs reconnecting, failed for a reason only the person can fix, or failed twice running. A run that
  * failed and then recovered is Working. */
-export function automationStatus(automation: Pick<Automation, "enabled" | "runs"> & Partial<Pick<Automation, "schedule" | "appTrigger" | "checkTrouble" | "checkTroubleCode">>, now = Date.now()): AutomationStatus {
+export function automationStatus(automation: Pick<Automation, "enabled" | "runs"> & Partial<Pick<Automation, "schedule" | "appTrigger" | "checkTrouble" | "checkTroubleCode" | "checkRepairApp">>, now = Date.now()): AutomationStatus {
   if (!automation.enabled) return isDone(automation, now) ? { state: "done" } : { state: "paused" };
   const app = automation.appTrigger && appProblem(automation.appTrigger);
   if (app) return { state: "needs-you", ...app };
-  if (automation.checkTrouble) return { state: "needs-you", reason: routineLineText(automation.checkTroubleCode, automation.checkTrouble), fix: SIGNED_OUT.test(automation.checkTrouble) ? "reconnect" : "run" };
-  const settled = automation.runs.filter((run) => run.status !== "cancelled" && run.status !== "queued" && !isCountedSkip(run));
+  if (automation.checkTrouble) return { state: "needs-you", reason: routineLineText(automation.checkTroubleCode, automation.checkTrouble), fix: automation.checkRepairApp || SIGNED_OUT.test(automation.checkTrouble) ? "reconnect" : "run", repairApp: automation.checkRepairApp };
+  const settled = automation.runs.filter((run) => (run.status !== "cancelled" || run.blockedBy) && run.status !== "queued" && (!isCountedSkip(run) || run.blockedBy));
   const latest = settled[0];
   if (runAwaitingAnswer(settled)) return { state: "needs-you", reason: t("automations.reason.answer"), fix: "answer" };
-  if (latest && isProblem(latest)) {
+  if (latest && (latest.blockedBy || isProblem(latest))) {
     const owner = ownerFix(latest);
     if (owner) return { state: "needs-you", ...owner };
     let streak = 0;
@@ -353,6 +360,9 @@ export const AUTOMATION_FIX_LABEL: Record<AutomationFix, LocaleKey> = {
   edit: "automations.fix.edit",
   run: "automations.fix.run",
   reconnect: "automations.fix.reconnect",
+  model: "automations.fix.model",
+  permission: "automations.fix.permission",
+  computer: "automations.fix.computer",
 };
 
 export const CALLS_SHOWN = 30;

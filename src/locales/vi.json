@@ -11548,5 +11548,21 @@
   "skillBurger.share.title": "Chia sẻ quy trình này?",
   "skillBurger.share.botBody": "Quy trình có thể chứa thông tin từ cuộc trò chuyện này. Những người có quyền xem bot có thể xem quy trình. Hãy kiểm tra các bước và đầu vào trước khi chia sẻ.",
   "skillBurger.share.teamBody": "Quy trình và các đầu vào đã lưu sẽ được chia sẻ với cả nhóm. Hãy kiểm tra trước khi chia sẻ.",
-  "skillBurger.share.confirm": "Chia sẻ quy trình"
+  "skillBurger.share.confirm": "Chia sẻ quy trình",
+  "today.title": "Hôm nay",
+  "today.failed": "Tự động hóa gặp lỗi",
+  "today.completed": "Đã hoàn tất hôm nay",
+  "today.continue": "Tiếp tục cuộc trò chuyện",
+  "today.empty": "Hôm nay bạn đã xem hết công việc.",
+  "today.loadError": "Không tải được hoạt động hôm nay.",
+  "automations.fix.model": "Mở cài đặt mô hình",
+  "automations.fix.permission": "Xem lại quyền",
+  "automations.fix.computer": "Mở cài đặt máy tính",
+  "server.routines.approvalPending": "Thay đổi quyền của bot đang chờ xác nhận.",
+  "botAccess.connectionApproval": "Chế độ phê duyệt của bot · {mode}",
+  "botAccess.connectionNeedsSignIn": "Cần đăng nhập lại",
+  "botAccess.connectionPending": "Đang kết nối",
+  "mcp.connectionTeam": "Kết nối dùng chung của nhóm",
+  "mcp.connectionPerson": "Kết nối cá nhân",
+  "automations.app.sourceAccount": "Nguồn sự kiện · {app} · {account}"
 }

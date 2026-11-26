@@ -127,18 +127,24 @@ export function NeedsYouTitle({ item, title }: { item: NeedsYouItem; title: stri
   return <span className="flex w-full min-w-0 items-center gap-1.5 text-[13px] text-ink"><PersonFace person={from} size={16} /><span className="min-w-0 truncate">{title}</span></span>;
 }
 
-/** One thing that needs this person, opening its conversation. */
-export function NeedsYouLine({ item, onOpened }: { item: NeedsYouItem; onOpened?: () => void }) {
+/** One thing that needs this person, opening its conversation or model provider settings. */
+export function NeedsYouLine({ item, onOpened, menuItem = true }: { item: NeedsYouItem; onOpened?: () => void; menuItem?: boolean }) {
   const { state, dispatch } = useStore();
   const showThreads = useShowThreads();
   const botName = (botId: string) => state.bots.find((bot) => bot.id === botId)?.name ?? t("needsYou.aBot");
   const botId = "botId" in item ? item.botId : item.botIds[0]!;
-  const title = item.kind === "message" ? t("needsYou.message", { name: item.from })
+  const title = item.kind === "signed-out"
+    ? t("brief.row.signedOut", { engine: state.instances.find((instance) => instance.instanceId === item.instanceId)?.displayName ?? item.instanceId })
+    : item.kind === "message" ? t("needsYou.message", { name: item.from })
     : item.kind === "question" ? t("needsYou.asking", { bot: botName(botId) }) : t("needsYou.fix", { bot: botName(botId) });
-  const text = "text" in item ? item.text : "";
-  return <button type="button" role="menuitem"
+  const text = item.kind === "signed-out" ? t("brief.row.signInAgain") : "text" in item ? item.text : "";
+  return <button type="button" role={menuItem ? "menuitem" : undefined}
     onClick={() => {
       onOpened?.();
+      if (item.kind === "signed-out") {
+        dispatch({ type: "toggleAppSettings", open: true, section: "ai" });
+        return;
+      }
       if (!item.threadId) return;
       openThread(dispatch, { botId, threadId: item.threadId }, state, showThreads);
       if (item.kind === "message") readConversation(state.groups, botId, item.threadId);

@@ -128,9 +128,17 @@ describe("the Inbox row", () => {
     server.answer = placeView([question]);
     openInbox();
     await mount(createElement(InboxPanel), [bot({})]);
-    expect(document.querySelector("[data-inbox-fixes]")?.textContent).toContain("Eli needs a fix");
-    expect(document.querySelector("[data-inbox-fixes]")?.textContent).toContain("In their own chat");
-    expect(document.querySelector("[data-inbox-fixes]")?.textContent).not.toContain("Which page?");
+    const fixes = document.querySelector("[data-inbox-fixes]")!;
+    const actions = [...fixes.querySelectorAll("button")];
+    expect(actions.map((action) => action.firstElementChild?.textContent)).toEqual([
+      "claude is signed out",
+      "Eli is asking you",
+    ]);
+    expect(actions[1]?.textContent).toContain("In their own chat");
+    expect(fixes.textContent).not.toContain("Which page?");
+    await act(async () => actions[0]!.click());
+    expect(currentInboxPanel().open).toBe(false);
+    expect(dispatch).toHaveBeenCalledWith({ type: "toggleAppSettings", open: true, section: "ai" });
   });
 });
 

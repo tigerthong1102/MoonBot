@@ -98,6 +98,14 @@ describe("running a Skill Burger", () => {
     expect(calls[1]).toEqual({ message_id: "fixture-id" });
   });
 
+  it("hands previously saved interpreter source with substituted inputs to the bot", async () => {
+    const h = harness();
+    const result = await h.start(wf([{ id: "s1", kind: "shell", label: "Write report", run: `python3 -c "open('$OMB_ARG_FILE','w').write('ok')"` }], { file: { default: "O'Reilly.csv" } }));
+    expect(result).toMatchObject({ status: "needs_input", requiresInput: { type: "ai_step", step: "s1" } });
+    expect(JSON.parse(result.requiresInput!.input!)).toMatchObject({ env: { OMB_ARG_FILE: "O'Reilly.csv" } });
+    expect(h.calls).toHaveLength(0);
+  });
+
   it("hands VM commands to the normal bot tools rather than starting an uncancellable replay", async () => {
     const h = harness();
     const result = await h.start(wf([{ id: "s1", kind: "shell", label: "VM step", where: "vm", shell: "bash", run: 'printf %s "$OMB_ARG_SITE"' }], { site: { default: "example.test" } }));

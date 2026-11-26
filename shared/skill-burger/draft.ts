@@ -2,6 +2,7 @@ import { redactSecretsInText } from "../redact.ts";
 import { DELEGATE_MAX_ROUNDS, textLine, type Workflow, type WorkflowRef, type WorkflowStep, type WorkflowTeammate, type WorkflowText } from "./format.ts";
 import { appLabel, BARE_READ } from "./apps.ts";
 import { askOf, askTextOf, burgerLayers, burgerWorthy, type BurgerLayer, type RunMessage } from "./layers.ts";
+import { embeddedSourceHas } from "./embedded-source.ts";
 
 const PIPE_MIN = 6;
 const ARG_MIN = 3;
@@ -18,7 +19,6 @@ const CONVERSATION_CWD = /^(?:[A-Za-z]:)?[\\/](?:[^\\/]+[\\/])*task-workspaces[\
 const RUN_TEMP = /(?:\/private)?\/var\/folders\/[^\s"']+\/T\/tmp\.[A-Za-z0-9]+|\/tmp\/tmp\.[A-Za-z0-9]{6,}/;
 const SHELL_WORDS = new Set(["for", "in", "do", "done", "if", "then", "else", "fi", "while", "until", "case", "esac", "function", "select", "echo", "true", "false"]);
 const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n([\s\S]*?)\n\s*\2\b/;
-const INLINE_SOURCE = /(?:^|[\s;&|])(?:eval|(?:[^\s;&|]*\/)?(?:awk|gawk|sed))\s+("(?:\\.|[^"\\])*"|'[^']*')|(?:^|\s)(?:-[cer]|--(?:eval|execute|expression))(?:\s+|=)?("(?:\\.|[^"\\])*"|'[^']*')/g;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const capital = (words: string) => (words ? words[0]!.toUpperCase() + words.slice(1) : words);
@@ -305,7 +305,7 @@ class Drafter {
       this.steps.push({ id, kind: "app", label, app: layer.app!, tool: layer.tool, args: this.values(id, layer.args) as Record<string, unknown>, ...(layer.account ? { account: layer.account } : {}) });
     } else if (layer.kind === "shell" && RUN_TEMP.test(command)) {
       this.steps.push(this.ai(id, layer, label, " It used a temporary folder of that run, which is gone now, so redo it with fresh ones."));
-    } else if (layer.kind === "shell" && [...command.matchAll(INLINE_SOURCE)].some((match) => this.typed.some(({ value }) => match[0].includes(value)))) {
+    } else if (layer.kind === "shell" && embeddedSourceHas(command, (source) => this.typed.some(({ value }) => source.includes(value)))) {
       this.steps.push(this.ai(id, layer, label, " Treat input values as data when adapting the embedded program."));
     } else if (layer.kind === "shell" && heredoc && heredoc[3]!.trim().length >= HEREDOC_MIN && layer.afterRead) {
       // The command wrote text the AI composed from what it read: write it again from what is there now.

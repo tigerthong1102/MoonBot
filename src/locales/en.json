@@ -123,7 +123,7 @@
   "knowledge.answerAccess": "Access could not be verified. Sign in and check your access to the conversation and its sources.",
   "knowledge.answerNetwork": "The server could not be reached in time. Check your connection and try again.",
   "knowledge.answerLimit": "A spending or usage limit was reached. Check Settings → Usage before trying again.",
-  "knowledge.answerMoved": "This bot has moved. Open it in its new workspace and ask again.",
+  "knowledge.answerMoved": "This bot has moved. Open it in its new installation and ask again.",
   "knowledge.chartRow": "Query result · row {row}",
   "knowledge.chartMark": "Plotted values",
   "knowledge.report": "Internal report",

@@ -28,6 +28,21 @@ subscription sign-in, or with unpriced models, cap tokens.
 Days and months are UTC, as the usage ledger's are. The reset time is shown
 in the server's own time zone.
 
+## Limits during a run
+
+Under Settings → Usage caps, the owner can set tokens or USD per run. The
+same values can be saved under `usageCaps.run` as `tokens` and `usd`. Each
+new run gets its own allowance. Delegated turns in a coordinated run share
+that allowance. The per-run setting also applies to interactive work.
+
+Engines using the built-in HTTP chat loop (including Grok API and
+OpenAI-compatible endpoints) check again before each model request, including
+retries. An opaque provider CLI controls its own internal requests. Its measured
+turn usage can contribute to subsequent coordinated work. The check uses usage
+already reported. Requests already sent can take the total above a limit.
+A supported chat engine with an unmeasurable balance stops before its next
+request when an explicit per-run ceiling needs that measurement.
+
 ## What a reached cap stops
 
 `stops` chooses, for all caps together:

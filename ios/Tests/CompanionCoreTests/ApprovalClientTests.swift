@@ -117,8 +117,17 @@ final class ApprovalClientTests: XCTestCase {
         try await client.cancelQueued("queued-a", to: .room(id: "channel-1", threadId: "thread-a"))
         try assertTarget("/api/groups/channel-1/queue/queued-a")
         ApprovalRequestStub.responseBody = Data(#"{"ok":true}"#.utf8)
-        _ = try await client.send(text: "same room task", toRoom: "channel-1", threadId: "thread-a")
+        let question = "Should we launch?\nInclude rollback options."
+        XCTAssertEqual(RoomCouncilMode.off.message(question), question)
+        XCTAssertEqual(RoomCouncilMode.independent.message(question), "/council " + question)
+        _ = try await client.send(
+            text: RoomCouncilMode.critique.message(question),
+            to: .room(id: "channel-1", threadId: "thread-a"),
+            sendId: "native_council_fixture"
+        )
         try assertTarget("/api/groups/channel-1/messages")
+        let sent = try XCTUnwrap(ApprovalRequestStub.capturedBody)
+        XCTAssertEqual(try JSONDecoder().decode([String: String].self, from: sent)["text"], "/council --critique " + question)
         try await client.alwaysAllow(botId: "bot-1", key: "Bash:ls", threadId: "thread-a")
         try assertTarget("/api/bots/bot-1/always-allow")
         try await client.edit(botId: "bot-1", messageId: "message-a", text: "edit", threadId: "thread-a")

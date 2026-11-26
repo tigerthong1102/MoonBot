@@ -7,12 +7,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import com.openmausbot.companion.core.Dictation
 import com.openmausbot.companion.core.DraftProvenance
+import com.openmausbot.companion.core.RoomCouncilMode
 
 class ChatComposerDraft(
     private val chatId: String,
     private val holder: ChatDraftHolder,
     initialSaveable: String,
 ) {
+    var council by mutableStateOf(RoomCouncilMode.OFF)
+
     var text: String by mutableStateOf("")
         private set
 
@@ -63,12 +66,11 @@ class ChatComposerDraft(
     }
 
     fun onSend() {
+        council = RoomCouncilMode.OFF
         publish("", Dictation.afterClear())
     }
 
-    fun onLeaveToRoster() {
-        publish("", Dictation.afterClear())
-    }
+    fun onLeaveToRoster() = onSend()
 
     companion object {
         private const val TYPED_MARKER = "typed:"

@@ -527,19 +527,7 @@ export function Composer({
       text: failed.requestText,
       replyToId: failed.replyToId,
       threadId: failed.threadId, mentions: failed.mentions,
-      onError: () => {
-        rememberFailedComposerSend(draftId, {
-          dataContext: failed.dataContext,
-          workBotUploadReceipts: failed.workBotUploadReceipts,
-          sendId: failed.sendId,
-          text: failed.text,
-          requestText: failed.requestText,
-          replyToId: failed.replyToId,
-          threadId: failed.threadId, mentions: failed.mentions,
-          channelMode: failed.channelMode,
-          followUp: failed.followUp,
-        });
-      },
+      onError: () => { rememberFailedComposerSend(draftId, failed); },
     };
     if (group) {
       dispatch({ type: "sendGroup", groupId: group.id, mode: failedMode, ...retry });
@@ -554,6 +542,10 @@ export function Composer({
       !imageTargetsSupport(effectiveText, effectiveChannelMode)
     ) {
       dispatch({ type: "error", message: t("composer.error.noImages") });
+      return;
+    }
+    if (group?.councilAvailable && effectiveChannelMode === "chat" && /^\/council(?:\s|$)/i.test(effectiveText.trim()) && attachments.length) {
+      setAttachmentNotice(t("server.roomCouncil.textOnly"));
       return;
     }
     const composed = composeMessage(serializeThreadRefs(effectiveText, threads, currentBotId), attachments);
@@ -775,6 +767,14 @@ export function Composer({
           }}
           onEdit={locked ? undefined : editQueued}
         /><TeamAudienceLabel bot={bot} group={group} />
+        {group?.councilAvailable && !group.dm && !locked && channelMode === "chat" && (
+          <div className="flex items-center gap-3 text-xs text-ink-secondary">
+            <label><input type="checkbox" checked={/^\/council(?:\s|$)/i.test(text)}
+              onChange={event => editText(event.target.checked ? "/council " + text : text.replace(/^\/council(?:\s+--critique)?\s*/i, ""))} /> {t("room.council")}</label>
+            {/^\/council(?:\s|$)/i.test(text) && <label><input type="checkbox" checked={/^\/council\s+--critique(?:\s|$)/i.test(text)}
+              onChange={event => editText(text.replace(/^\/council(?:\s+--critique)?\s*/i, event.target.checked ? "/council --critique " : "/council "))} /> {t("room.councilCritique")}</label>}
+          </div>
+        )}
         <div className="relative">
           {/* Plain canvas behind the composer and the strip below it, so the transcript ends at the composer
               with no fade. Simple mode starts it at the composer's top edge, Advanced at its middle. */}

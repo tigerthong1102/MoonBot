@@ -34,7 +34,7 @@ const WAITS_FILE = "waits.json";
 const EXCLUDED = new Set([
   ".backups", "tools", "browser", "agent-browser-profiles", "cache", ".cache", "tmp", ".tmp", "dist-native", "tunnel-runtime", "evidence",
   ".openmausbot-server-child", "environment-id", "sessions.json", "tunnel-account.json",
-  "team-computers.json", "ai-twin",
+  "team-computers.json", "ai-twin", "instruction-drafts",
   // Slack messages a Cloud took from the Admin (team-slack.ts): this machine's own, of no use anywhere else.
   "team-slack-messages.json",
   "openmausbot-server.lease", "box-create-requests.lock", "messages.db-wal", "messages.db-shm",

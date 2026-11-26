@@ -420,6 +420,7 @@ public struct Room: Codable, Hashable, Identifiable, Sendable {
     public var unread: Bool
     public var createdAt: Double
     public var dm: Bool?
+    public var councilAvailable: Bool?
     /// Desktop sidebar section. Missing or blank means the built-in Channels area.
     public var section: String?
     public var busyBotId: String?
